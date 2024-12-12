@@ -66,6 +66,7 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
     res |= UA_String_copy(&src->name, &dst->name);
     res |= UA_KeyValueMap_copy(&src->groupProperties, &dst->groupProperties);
     res |= UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
+    res |= UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
     if(res != UA_STATUSCODE_GOOD)
         UA_ReaderGroupConfig_clear(dst);
     return res;
@@ -76,6 +77,7 @@ UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
     UA_String_clear(&readerGroupConfig->name);
     UA_KeyValueMap_clear(&readerGroupConfig->groupProperties);
     UA_String_clear(&readerGroupConfig->securityGroupId);
+    UA_ExtensionObject_clear(&readerGroupConfig->transportSettings);
 }
 
 UA_StatusCode

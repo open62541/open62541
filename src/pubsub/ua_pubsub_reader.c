@@ -239,8 +239,8 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
             fieldIdx < dsr->config.dataSetMetaData.fieldsSize; fieldIdx++) {
             const UA_FieldMetaData *field =
                 &dsr->config.dataSetMetaData.fields[fieldIdx];
-            if((field->builtInType == UA_TYPES_STRING ||
-                field->builtInType == UA_TYPES_BYTESTRING) &&
+            if((field->builtInType == UA_NS0ID_STRING ||
+                field->builtInType == UA_NS0ID_BYTESTRING) &&
                field->maxStringLength == 0) {
                 /* Fields of type String or ByteString need to have defined
                  * MaxStringLength*/

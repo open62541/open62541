@@ -125,6 +125,8 @@ struct UA_Client {
 
     UA_Boolean findServersHandshake;   /* Ongoing FindServers */
     UA_Boolean endpointsHandshake;     /* Ongoing GetEndpoints */
+    UA_Boolean namespacesHandshake;    /* Ongoing Namespaces read */
+    UA_Boolean haveNamespaces;         /* Do we have the namespaces? */
 
     /* The discoveryUrl can be different from the EndpointUrl in the client
      * configuration. The EndpointUrl is used to connect initially, then the
@@ -167,6 +169,11 @@ struct UA_Client {
     UA_UInt32 monitoredItemHandles;
     UA_UInt16 currentlyOutStandingPublishRequests;
 
+    /* Internal namespaces. The table maps the namespace Uri to its index. This
+     * is used for the automatic namespace mapping in de/encoding. */
+    UA_String *namespaces;
+    size_t namespacesSize;
+
     /* Internal locking for thread-safety. Methods starting with UA_Client_ that
      * are marked with UA_THREADSAFE take the lock. The lock is released before
      * dropping into the EventLoop and before calling user-defined callbacks.
@@ -196,7 +203,7 @@ UA_StatusCode
 __Client_renewSecureChannel(UA_Client *client);
 
 UA_StatusCode
-processServiceResponse(void *application, UA_SecureChannel *channel,
+processServiceResponse(UA_Client *client, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message);
 

@@ -1246,16 +1246,83 @@ UA_INLINABLE(UA_Boolean
 })
 
 /**
+ * Namespace Mapping
+ * -----------------
+ *
+ * Every :ref:`nodeid` references a namespace index. Actually the namespace is
+ * identified by its URI. The namespace-array of the server maps the URI to the
+ * namespace index in the array. Namespace zero always has the URI
+ * ```http://opcfoundation.org/UA/```. Namespace one has the application URI of
+ * the server. All namespaces beyond get a custom assignment.
+ *
+ * In order to have predictable NodeIds, a client might predefined its own
+ * namespace array that is different from the server's. When a NodeId is decoded
+ * from a network message (binary or JSON), a mapping-table can be used to
+ * automatically translate between the remote and local namespace index. The
+ * mapping is typically done by the client who can generate the mapping table
+ * after reading the namespace-array of the server. The reverse mapping is done
+ * in the encoding if the mapping table is set in the options.
+ *
+ * The mapping table also contains the full URI names. It is also used to
+ * translate the ``NamespaceUri`` field of an ExpandedNodeId into the namespace
+ * index of the NodeId embedded in the ExpandedNodeId. */
+
+typedef struct {
+    /* Namespaces with their local index */
+    UA_String *namespaceUris;
+    size_t namespaceUrisSize;
+
+    /* Map from local to remote indices */
+    UA_UInt16 *local2remote;
+    size_t local2remoteSize;
+
+    /* Map from remote to local indices */
+    UA_UInt16 *remote2local;
+    size_t remote2localSize;
+} UA_NamespaceMapping;
+
+/* If the index is unknown, returns (UINT16_MAX - index) */
+UA_UInt16
+UA_NamespaceMapping_local2Remote(UA_NamespaceMapping *nm,
+                                 UA_UInt16 localIndex);
+
+UA_UInt16
+UA_NamespaceMapping_remote2Local(UA_NamespaceMapping *nm,
+                                 UA_UInt16 remoteIndex);
+
+/* Returns an error if the namespace uri was not found.
+ * The pointer to the index argument needs to be non-NULL. */
+UA_StatusCode
+UA_NamespaceMapping_uri2Index(UA_NamespaceMapping *nm,
+                              UA_String uri, UA_UInt16 *index);
+
+/* Upon success, the uri string gets set. The string is not copied and must not
+ * outlive the namespace mapping structure. */
+UA_StatusCode
+UA_NamespaceMapping_index2Uri(UA_NamespaceMapping *nm,
+                              UA_UInt16 index, UA_String *uri);
+
+void
+UA_NamespaceMapping_delete(UA_NamespaceMapping *nm);
+
+/**
  * Binary Encoding/Decoding
  * ------------------------
  *
  * Encoding and decoding routines for the binary format. For the binary decoding
  * additional data types can be forwarded. */
 
+typedef struct {
+    /* Mapping of namespace indices in NodeIds and of NamespaceUris in
+     * ExpandedNodeIds. */
+    UA_NamespaceMapping *namespaceMapping;
+} UA_EncodeBinaryOptions;
+
 /* Returns the number of bytes the value p takes in binary encoding. Returns
  * zero if an error occurs. */
 UA_EXPORT size_t
-UA_calcSizeBinary(const void *p, const UA_DataType *type);
+UA_calcSizeBinary(const void *p, const UA_DataType *type,
+                  UA_EncodeBinaryOptions *options);
 
 /* Encodes a data-structure in the binary format. If outBuf has a length of
  * zero, a buffer of the required size is allocated. Otherwise, encoding into
@@ -1263,7 +1330,7 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type);
  * small). */
 UA_EXPORT UA_StatusCode
 UA_encodeBinary(const void *p, const UA_DataType *type,
-                UA_ByteString *outBuf);
+                UA_ByteString *outBuf, UA_EncodeBinaryOptions *options);
 
 /* The structure with the decoding options may be extended in the future.
  * Zero-out the entire structure initially to ensure code-compatibility when
@@ -1271,6 +1338,10 @@ UA_encodeBinary(const void *p, const UA_DataType *type,
 typedef struct {
     /* Begin of a linked list with custom datatype definitions */
     const UA_DataTypeArray *customTypes;
+
+    /* Mapping of namespace indices in NodeIds and of NamespaceUris in
+     * ExpandedNodeIds. */
+    UA_NamespaceMapping *namespaceMapping;
 
     /* Override calloc for arena-based memory allocation. Note that allocated
      * memory is not freed if decoding fails afterwards. */
@@ -1310,8 +1381,10 @@ UA_decodeBinary(const UA_ByteString *inBuf,
 #ifdef UA_ENABLE_JSON_ENCODING
 
 typedef struct {
-    const UA_String *namespaces;
-    size_t namespacesSize;
+    /* Mapping of namespace indices in NodeIds and of NamespaceUris in
+     * ExpandedNodeIds. */
+    UA_NamespaceMapping *namespaceMapping;
+
     const UA_String *serverUris;
     size_t serverUrisSize;
     UA_Boolean useReversible;
@@ -1347,12 +1420,16 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
  * Zero-out the entire structure initially to ensure code-compatibility when
  * more fields are added in a later release. */
 typedef struct {
-    const UA_String *namespaces;
-    size_t namespacesSize;
+    /* Mapping of namespace indices in NodeIds and of NamespaceUris in
+     * ExpandedNodeIds. */
+    UA_NamespaceMapping *namespaceMapping;
+
     const UA_String *serverUris;
     size_t serverUrisSize;
+
     const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
                                           * datatype definitions */
+
     size_t *decodedLength; /* If non-NULL, the length of the decoded input is
                             * stored to the pointer. When this is set, decoding
                             * succeeds also if there is more content after the

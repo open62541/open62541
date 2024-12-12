@@ -48,7 +48,7 @@ if args.keysize:
     keysize = args.keysize
 
 if args.uri == "":
-    args.uri = "urn:open62541.server.application"
+    args.uri = "urn:open62541.unconfigured.application"
     print("No ApplicationUri given for the certificate. Setting to %s" % args.uri)
 os.environ['URI1'] = args.uri
 

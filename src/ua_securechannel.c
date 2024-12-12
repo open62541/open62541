@@ -28,8 +28,7 @@ void
 UA_SecureChannel_init(UA_SecureChannel *channel) {
     /* Normal linked lists are initialized by zeroing out */
     memset(channel, 0, sizeof(UA_SecureChannel));
-    SIMPLEQ_INIT(&channel->completeChunks);
-    SIMPLEQ_INIT(&channel->decryptedChunks);
+    TAILQ_INIT(&channel->chunks);
 }
 
 UA_StatusCode
@@ -72,6 +71,8 @@ hideErrors(UA_TcpErrorMessage *const error) {
     case UA_STATUSCODE_BADCERTIFICATEUNTRUSTED:
     case UA_STATUSCODE_BADCERTIFICATEREVOKED:
     case UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED:
+    case UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE:
+    case UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED:
         error->error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         error->reason = UA_STRING_NULL;
         break;
@@ -112,10 +113,10 @@ UA_SecureChannel_sendError(UA_SecureChannel *channel, UA_TcpErrorMessage *error)
     const UA_Byte *bufEnd = &msg.data[msg.length];
     retval |= UA_encodeBinaryInternal(&header,
                                       &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
-                                      &bufPos, &bufEnd, NULL, NULL);
+                                      &bufPos, &bufEnd, NULL, NULL, NULL);
     retval |= UA_encodeBinaryInternal(error,
                                       &UA_TRANSPORT[UA_TRANSPORT_TCPERRORMESSAGE],
-                                      &bufPos, &bufEnd, NULL, NULL);
+                                      &bufPos, &bufEnd, NULL, NULL, NULL);
     (void)retval; /* Encoding of these cannot fail */
     msg.length = header.messageSize;
     cm->sendWithConnection(cm, channel->connectionId, &UA_KEYVALUEMAP_NULL, &msg);
@@ -129,19 +130,21 @@ UA_Chunk_delete(UA_Chunk *chunk) {
 }
 
 static void
-deleteChunks(UA_ChunkQueue *queue) {
-    UA_Chunk *chunk;
-    while((chunk = SIMPLEQ_FIRST(queue))) {
-        SIMPLEQ_REMOVE_HEAD(queue, pointers);
+deleteChunks(UA_SecureChannel *channel) {
+    UA_Chunk *chunk, *chunk_tmp;
+    TAILQ_FOREACH_SAFE(chunk, &channel->chunks, pointers, chunk_tmp) {
+        TAILQ_REMOVE(&channel->chunks, chunk, pointers);
         UA_Chunk_delete(chunk);
     }
+    channel->chunksCount = 0;
+    channel->chunksLength = 0;
 }
 
 void
 UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel) {
-    deleteChunks(&channel->completeChunks);
-    deleteChunks(&channel->decryptedChunks);
-    UA_ByteString_clear(&channel->incompleteChunk);
+    deleteChunks(channel);
+    if(channel->unprocessedCopied)
+        UA_ByteString_clear(&channel->unprocessed);
 }
 
 void
@@ -172,6 +175,13 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
         channel->channelContext = NULL;
     }
 
+    /* Remove remaining delayed callback */
+    if(channel->connectionManager &&
+       channel->connectionManager->eventSource.eventLoop) {
+        UA_EventLoop *el = channel->connectionManager->eventSource.eventLoop;
+        el->removeDelayedCallback(el, &channel->unprocessedDelayed);
+    }
+
     /* The EventLoop connection is no longer valid */
     channel->connectionId = 0;
     channel->connectionManager = NULL;
@@ -190,6 +200,10 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
 
     /* Delete remaining chunks */
     UA_SecureChannel_deleteBuffered(channel);
+
+    /* Clean up namespace mapping */
+    UA_NamespaceMapping_delete(channel->namespaceMapping);
+    channel->namespaceMapping = NULL;
 
     /* Reset the SecureChannel for reuse (in the client) */
     channel->securityMode = UA_MESSAGESECURITYMODE_INVALID;
@@ -263,8 +277,12 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     size_t securityHeaderLength, pre_sig_length, total_length, encryptedLength;
 
     /* Encode the message type and content */
+    UA_EncodeBinaryOptions encOpts;
+    memset(&encOpts, 0, sizeof(UA_EncodeBinaryOptions));
+    encOpts.namespaceMapping = channel->namespaceMapping;
     res |= UA_NodeId_encodeBinary(&contentType->binaryEncodingId, &buf_pos, buf_end);
-    res |= UA_encodeBinaryInternal(content, contentType, &buf_pos, &buf_end, NULL, NULL);
+    res |= UA_encodeBinaryInternal(content, contentType, &buf_pos, &buf_end,
+                                   &encOpts, NULL, NULL);
     UA_CHECK_STATUS(res, goto error);
 
     /* Compute the header length */
@@ -345,13 +363,13 @@ encodeHeadersSym(UA_MessageContext *mc, size_t totalLength) {
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_encodeBinaryInternal(&header, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
-                                   &header_pos, &mc->buf_end, NULL, NULL);
+                                   &header_pos, &mc->buf_end, NULL, NULL, NULL);
     res |= UA_UInt32_encodeBinary(&channel->securityToken.channelId,
                                   &header_pos, mc->buf_end);
     res |= UA_UInt32_encodeBinary(&channel->securityToken.tokenId,
                                   &header_pos, mc->buf_end);
     res |= UA_encodeBinaryInternal(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
-                                   &header_pos, &mc->buf_end, NULL, NULL);
+                                   &header_pos, &mc->buf_end, NULL, NULL, NULL);
     return res;
 }
 
@@ -494,9 +512,12 @@ UA_MessageContext_begin(UA_MessageContext *mc, UA_SecureChannel *channel,
 UA_StatusCode
 UA_MessageContext_encode(UA_MessageContext *mc, const void *content,
                          const UA_DataType *contentType) {
+    UA_EncodeBinaryOptions encOpts;
+    memset(&encOpts, 0, sizeof(UA_EncodeBinaryOptions));
+    encOpts.namespaceMapping = mc->channel->namespaceMapping;
     UA_StatusCode res =
         UA_encodeBinaryInternal(content, contentType, &mc->buf_pos, &mc->buf_end,
-                                sendSymmetricEncodingCallback, mc);
+                                &encOpts, sendSymmetricEncodingCallback, mc);
     if(res != UA_STATUSCODE_GOOD && mc->messageBuffer.length > 0)
         UA_MessageContext_abort(mc);
     return res;
@@ -568,7 +589,7 @@ processSequenceNumberSym(UA_SecureChannel *channel, UA_UInt32 sequenceNumber) {
 #endif
 
 static UA_StatusCode
-unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) {
+unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk) {
     UA_assert(chunk->bytes.length >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH);
     size_t offset = UA_SECURECHANNEL_MESSAGEHEADER_LENGTH; /* Skip the message header */
     UA_UInt32 secureChannelId;
@@ -591,14 +612,10 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
     }
 
     /* New channel, create a security policy context and attach */
-    if(!channel->securityPolicy) {
-        if(channel->processOPNHeader)
-            res = channel->processOPNHeader(application, channel, &asymHeader);
-        UA_CHECK_STATUS(res, goto error);
-        if(!channel->securityPolicy)
-            res = UA_STATUSCODE_BADINTERNALERROR;
-        UA_CHECK_STATUS(res, goto error);
-    }
+    UA_assert(channel->processOPNHeader);
+    res = channel->processOPNHeader(channel->processOPNHeaderApplication,
+                                    channel, &asymHeader);
+    UA_CHECK_STATUS(res, goto error);
 
     /* On the client side, take the SecureChannelId from the first response */
     if(secureChannelId != 0 && channel->securityToken.channelId == 0)
@@ -699,185 +716,17 @@ unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk,
 }
 
 static UA_StatusCode
-assembleProcessMessage(UA_SecureChannel *channel, void *application,
-                       UA_ProcessMessageCallback callback) {
-    UA_Chunk *chunk = SIMPLEQ_FIRST(&channel->decryptedChunks);
-    UA_assert(chunk != NULL);
-
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(chunk->chunkType == UA_CHUNKTYPE_FINAL) {
-        SIMPLEQ_REMOVE_HEAD(&channel->decryptedChunks, pointers);
-        UA_assert(chunk->chunkType == UA_CHUNKTYPE_FINAL);
-        res = callback(application, channel, chunk->messageType,
-                       chunk->requestId, &chunk->bytes);
-        UA_Chunk_delete(chunk);
-        return res;
-    }
-
-    UA_UInt32 requestId = chunk->requestId;
-    UA_MessageType messageType = chunk->messageType;
-    UA_ChunkType chunkType = chunk->chunkType;
-    UA_assert(chunkType == UA_CHUNKTYPE_INTERMEDIATE);
-
-    size_t messageSize = 0;
-    SIMPLEQ_FOREACH(chunk, &channel->decryptedChunks, pointers) {
-        /* Consistency check */
-        if(requestId != chunk->requestId)
-            return UA_STATUSCODE_BADINTERNALERROR;
-        if(chunkType != chunk->chunkType && chunk->chunkType != UA_CHUNKTYPE_FINAL)
-            return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-        if(chunk->messageType != messageType)
-            return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-
-        /* Sum up the lengths */
-        messageSize += chunk->bytes.length;
-        if(chunk->chunkType == UA_CHUNKTYPE_FINAL)
-            break;
-    }
-
-    /* Allocate memory for the full message */
-    UA_ByteString payload;
-    res = UA_ByteString_allocBuffer(&payload, messageSize);
-    UA_CHECK_STATUS(res, return res);
-
-    /* Assemble the full message */
-    size_t offset = 0;
-    while(true) {
-        chunk = SIMPLEQ_FIRST(&channel->decryptedChunks);
-        memcpy(&payload.data[offset], chunk->bytes.data, chunk->bytes.length);
-        offset += chunk->bytes.length;
-        SIMPLEQ_REMOVE_HEAD(&channel->decryptedChunks, pointers);
-        UA_ChunkType ct = chunk->chunkType;
-        UA_Chunk_delete(chunk);
-        if(ct == UA_CHUNKTYPE_FINAL)
-            break;
-    }
-
-    /* Process the assembled message */
-    res = callback(application, channel, messageType, requestId, &payload);
-    UA_ByteString_clear(&payload);
-    return res;
-}
-
-static UA_StatusCode
-persistCompleteChunks(UA_ChunkQueue *queue) {
-    UA_Chunk *chunk;
-    SIMPLEQ_FOREACH(chunk, queue, pointers) {
-        if(chunk->copied)
-            continue;
-        UA_ByteString copy;
-        UA_StatusCode res = UA_ByteString_copy(&chunk->bytes, &copy);
-        UA_CHECK_STATUS(res, return res);
-        chunk->bytes = copy;
-        chunk->copied = true;
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-persistIncompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
-                       size_t offset) {
-    UA_assert(channel->incompleteChunk.length == 0);
-    UA_assert(offset < buffer->length);
-    size_t length = buffer->length - offset;
-    UA_StatusCode res = UA_ByteString_allocBuffer(&channel->incompleteChunk, length);
-    UA_CHECK_STATUS(res, return res);
-    memcpy(channel->incompleteChunk.data, &buffer->data[offset], length);
-    return UA_STATUSCODE_GOOD;
-}
-
-/* Processes chunks and puts them into the payloads queue. Once a final chunk is
- * put into the queue, the message is assembled and the callback is called. The
- * queue will be cleared for the next message. */
-static UA_StatusCode
-processChunks(UA_SecureChannel *channel, void *application,
-              UA_ProcessMessageCallback callback,
-              UA_DateTime nowMonotonic) {
-    UA_Chunk *chunk;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    while((chunk = SIMPLEQ_FIRST(&channel->completeChunks))) {
-        /* Remove from the complete-chunk queue */
-        SIMPLEQ_REMOVE_HEAD(&channel->completeChunks, pointers);
-
-        /* Check, decrypt and unpack the payload */
-        if(chunk->messageType == UA_MESSAGETYPE_OPN) {
-            if(channel->state != UA_SECURECHANNELSTATE_OPEN &&
-               channel->state != UA_SECURECHANNELSTATE_OPN_SENT &&
-               channel->state != UA_SECURECHANNELSTATE_ACK_SENT)
-                res = UA_STATUSCODE_BADINVALIDSTATE;
-            else
-                res = unpackPayloadOPN(channel, chunk, application);
-        } else if(chunk->messageType == UA_MESSAGETYPE_MSG ||
-                  chunk->messageType == UA_MESSAGETYPE_CLO) {
-            if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
-                res = UA_STATUSCODE_BADSECURECHANNELCLOSED;
-            else
-                res = unpackPayloadMSG(channel, chunk, nowMonotonic);
-        } else {
-            chunk->bytes.data += UA_SECURECHANNEL_MESSAGEHEADER_LENGTH;
-            chunk->bytes.length -= UA_SECURECHANNEL_MESSAGEHEADER_LENGTH;
-        }
-
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_Chunk_delete(chunk);
-            return res;
-        }
-
-        /* Add to the decrypted-chunk queue */
-        SIMPLEQ_INSERT_TAIL(&channel->decryptedChunks, chunk, pointers);
-
-        /* Check the resource limits */
-        channel->decryptedChunksCount++;
-        channel->decryptedChunksLength += chunk->bytes.length;
-        if((channel->config.localMaxChunkCount != 0 &&
-            channel->decryptedChunksCount > channel->config.localMaxChunkCount) ||
-           (channel->config.localMaxMessageSize != 0 &&
-            channel->decryptedChunksLength > channel->config.localMaxMessageSize)) {
-            return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
-        }
-
-        /* Waiting for additional chunks */
-        if(chunk->chunkType == UA_CHUNKTYPE_INTERMEDIATE)
-            continue;
-
-        /* Final chunk or abort. Reset the counters. */
-        channel->decryptedChunksCount = 0;
-        channel->decryptedChunksLength = 0;
-
-        /* Abort the message, remove all decrypted chunks
-         * TODO: Log a warning with the error code */
-        if(chunk->chunkType == UA_CHUNKTYPE_ABORT) {
-            while((chunk = SIMPLEQ_FIRST(&channel->decryptedChunks))) {
-                SIMPLEQ_REMOVE_HEAD(&channel->decryptedChunks, pointers);
-                UA_Chunk_delete(chunk);
-            }
-            continue;
-        }
-
-        /* The decrypted queue contains a full message. Process it. */
-        UA_assert(chunk->chunkType == UA_CHUNKTYPE_FINAL);
-        res = assembleProcessMessage(channel, application, callback);
-        UA_CHECK_STATUS(res, return res);
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
-                     size_t *offset, UA_Boolean *done) {
-    /* At least 8 byte needed for the header. Wait for the next chunk. */
-    size_t initial_offset = *offset;
-    size_t remaining = buffer->length - initial_offset;
-    if(remaining < UA_SECURECHANNEL_MESSAGEHEADER_LENGTH) {
-        *done = true;
+extractCompleteChunk(UA_SecureChannel *channel, UA_Chunk *chunk, UA_DateTime nowMonotonic) {
+    /* At least 8 byte needed for the header */
+    size_t offset = channel->unprocessedOffset;
+    size_t remaining = channel->unprocessed.length - offset;
+    if(remaining < UA_SECURECHANNEL_MESSAGEHEADER_LENGTH)
         return UA_STATUSCODE_GOOD;
-    }
 
-    /* Decoding cannot fail */
+    /* Decoding the header cannot fail */
     UA_TcpMessageHeader hdr;
     UA_StatusCode res =
-        UA_decodeBinaryInternal(buffer, &initial_offset, &hdr,
+        UA_decodeBinaryInternal(&channel->unprocessed, &offset, &hdr,
                                 &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER], NULL);
     UA_assert(res == UA_STATUSCODE_GOOD);
     (void)res; /* pacify compilers if assert is ignored */
@@ -892,96 +741,265 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
     if(hdr.messageSize > channel->config.recvBufferSize)
         return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
 
-    /* Incomplete chunk */
-    if(hdr.messageSize > remaining) {
-        *done = true;
+    /* Incomplete chunk. Continue processing later. */
+    if(hdr.messageSize > remaining)
         return UA_STATUSCODE_GOOD;
-    }
 
-    /* ByteString with only this chunk. */
-    UA_ByteString chunkPayload;
-    chunkPayload.data = &buffer->data[*offset];
-    chunkPayload.length = hdr.messageSize;
-
-    if(msgType == UA_MESSAGETYPE_RHE || msgType == UA_MESSAGETYPE_HEL || msgType == UA_MESSAGETYPE_ACK ||
-       msgType == UA_MESSAGETYPE_ERR || msgType == UA_MESSAGETYPE_OPN) {
-        if(chunkType != UA_CHUNKTYPE_FINAL)
-            return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-    } else {
-        /* Only messages on SecureChannel-level with symmetric encryption afterwards */
-        if(msgType != UA_MESSAGETYPE_MSG &&
-           msgType != UA_MESSAGETYPE_CLO)
-            return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-
-        /* Check the chunk type before decrypting */
-        if(chunkType != UA_CHUNKTYPE_FINAL &&
-           chunkType != UA_CHUNKTYPE_INTERMEDIATE &&
-           chunkType != UA_CHUNKTYPE_ABORT)
-            return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
-    }
-
-    /* Add the chunk; forward the offset */
-    *offset += hdr.messageSize;
-    UA_Chunk *chunk = (UA_Chunk*)UA_malloc(sizeof(UA_Chunk));
-    UA_CHECK_MEM(chunk, return UA_STATUSCODE_BADOUTOFMEMORY);
-
-    chunk->bytes = chunkPayload;
+    /* Set the chunk information */
+    chunk->bytes.data = channel->unprocessed.data + channel->unprocessedOffset;
+    chunk->bytes.length = hdr.messageSize;
     chunk->messageType = msgType;
     chunk->chunkType = chunkType;
     chunk->requestId = 0;
     chunk->copied = false;
 
-    SIMPLEQ_INSERT_TAIL(&channel->completeChunks, chunk, pointers);
+    /* Increase the unprocessed offset */
+    channel->unprocessedOffset += hdr.messageSize;
+
+    /* Validate, decrypt and unpack the chunk payload */
+    switch(msgType) {
+    case UA_MESSAGETYPE_OPN:
+        if(chunkType != UA_CHUNKTYPE_FINAL)
+            return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+        if(channel->state != UA_SECURECHANNELSTATE_OPEN &&
+           channel->state != UA_SECURECHANNELSTATE_OPN_SENT &&
+           channel->state != UA_SECURECHANNELSTATE_ACK_SENT)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        res = unpackPayloadOPN(channel, chunk);
+        break;
+
+    case UA_MESSAGETYPE_MSG:
+    case UA_MESSAGETYPE_CLO:
+        if(chunkType != UA_CHUNKTYPE_FINAL &&
+           chunkType != UA_CHUNKTYPE_INTERMEDIATE &&
+           chunkType != UA_CHUNKTYPE_ABORT)
+            return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+        if(channel->state != UA_SECURECHANNELSTATE_OPEN)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        res = unpackPayloadMSG(channel, chunk, nowMonotonic);
+        break;
+
+    case UA_MESSAGETYPE_RHE:
+    case UA_MESSAGETYPE_HEL:
+    case UA_MESSAGETYPE_ACK:
+    case UA_MESSAGETYPE_ERR:
+        if(chunkType != UA_CHUNKTYPE_FINAL)
+            return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+        /* Hide the message header */
+        chunk->bytes.data += UA_SECURECHANNEL_MESSAGEHEADER_LENGTH;
+        chunk->bytes.length -= UA_SECURECHANNEL_MESSAGEHEADER_LENGTH;
+        break;
+
+    default:
+        res = UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+        break;
+    }
+    return res;
+}
+
+UA_StatusCode
+UA_SecureChannel_loadBuffer(UA_SecureChannel *channel, const UA_ByteString buffer) {
+    /* Append to the previous unprocessed buffer */
+    if(channel->unprocessed.length > 0) {
+        UA_assert(channel->unprocessedCopied == true);
+
+        UA_Byte *t = (UA_Byte*)
+            UA_realloc(channel->unprocessed.data,
+                       channel->unprocessed.length + buffer.length);
+        if(!t)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        memcpy(t + channel->unprocessed.length, buffer.data, buffer.length);
+        channel->unprocessed.data = t;
+        channel->unprocessed.length += buffer.length;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Use the new buffer directly */
+    channel->unprocessed = buffer;
+    channel->unprocessedCopied = false;
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
-                               UA_ProcessMessageCallback callback,
-                               const UA_ByteString *buffer,
-                               UA_DateTime nowMonotonic) {
-    /* Prepend the incomplete last chunk. This is usually done in the
-     * networklayer. But we test for a buffered incomplete chunk here again to
-     * work around "lazy" network layers. */
-    UA_ByteString appended = channel->incompleteChunk;
-    if(appended.length > 0) {
-        channel->incompleteChunk = UA_BYTESTRING_NULL;
-        UA_Byte *t = (UA_Byte*)UA_realloc(appended.data, appended.length + buffer->length);
-        UA_CHECK_MEM(t, UA_ByteString_clear(&appended);
-                     return UA_STATUSCODE_BADOUTOFMEMORY);
-        memcpy(&t[appended.length], buffer->data, buffer->length);
-        appended.data = t;
-        appended.length += buffer->length;
-        buffer = &appended;
+UA_SecureChannel_getCompleteMessage(UA_SecureChannel *channel,
+                                    UA_MessageType *messageType, UA_UInt32 *requestId,
+                                    UA_ByteString *payload, UA_Boolean *copied,
+                                    UA_DateTime nowMonotonic) {
+    UA_Chunk chunk, *pchunk;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+ extract_chunk:
+    /* Extract+decode the next chunk from the buffer */
+    memset(&chunk, 0, sizeof(UA_Chunk));
+    res = extractCompleteChunk(channel, &chunk, nowMonotonic);
+    if(chunk.bytes.length == 0 || res != UA_STATUSCODE_GOOD)
+        return res; /* Error or no complete chunk could be extracted */
+
+    /* Process the chunk */
+    switch(chunk.chunkType) {
+    case UA_CHUNKTYPE_ABORT:
+        /* Remove all chunks received so far. Then continue extracting chunks. */
+        deleteChunks(channel);
+        if(chunk.copied)
+            UA_ByteString_clear(&chunk.bytes);
+        goto extract_chunk;
+
+    case UA_CHUNKTYPE_INTERMEDIATE:
+        /* Validate the resource limits */
+        if((channel->config.localMaxChunkCount != 0 &&
+            channel->chunksCount >= channel->config.localMaxChunkCount) ||
+           (channel->config.localMaxMessageSize != 0 &&
+            channel->chunksLength + chunk.bytes.length > channel->config.localMaxMessageSize)) {
+            if(chunk.copied)
+                UA_ByteString_clear(&chunk.bytes);
+            return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
+        }
+
+        /* Add the chunk to the queue. Then continue extracting more chunks. */
+        pchunk = (UA_Chunk*)UA_malloc(sizeof(UA_Chunk));
+        if(!pchunk) {
+            if(chunk.copied)
+                UA_ByteString_clear(&chunk.bytes);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        *pchunk = chunk;
+        TAILQ_INSERT_TAIL(&channel->chunks, pchunk, pointers);
+        channel->chunksCount++;
+        channel->chunksLength += pchunk->bytes.length;
+        goto extract_chunk;
+
+    case UA_CHUNKTYPE_FINAL:
+    default:
+        UA_assert(chunk.chunkType == UA_CHUNKTYPE_FINAL); /* Was checked before */
+        break; /* A final chunk was received -- assemble the message */
     }
 
-    /* Loop over the received chunks */
-    size_t offset = 0;
-    UA_Boolean done = false;
-    UA_StatusCode res;
-    while(!done) {
-        res = extractCompleteChunk(channel, buffer, &offset, &done);
-        UA_CHECK_STATUS(res, goto cleanup);
+    /* Compute the message size */
+    size_t messageSize = chunk.bytes.length;
+    UA_Chunk *first = NULL;
+    TAILQ_FOREACH(pchunk, &channel->chunks, pointers) {
+        if(chunk.requestId != pchunk->requestId)
+            continue;
+        if(chunk.messageType != pchunk->messageType) {
+            if(chunk.copied)
+                UA_ByteString_clear(&chunk.bytes);
+            return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
+        }
+        if(!first)
+            first = pchunk;
+        messageSize += pchunk->bytes.length;
     }
 
-    /* Buffer half-received chunk. Before processing the messages so that
-     * processing is reentrant. */
-    if(offset < buffer->length) {
-        res = persistIncompleteChunk(channel, buffer, offset);
-        UA_CHECK_STATUS(res, goto cleanup);
+    /* Validate the assembled message size */
+    if(channel->config.localMaxMessageSize != 0 &&
+       channel->chunksLength > channel->config.localMaxMessageSize) {
+        if(chunk.copied)
+            UA_ByteString_clear(&chunk.bytes);
+        return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
     }
 
-    /* Process whatever we can. Chunks of completed and processed messages are
-     * removed. */
-    res = processChunks(channel, application, callback, nowMonotonic);
-    UA_CHECK_STATUS(res, goto cleanup);
+    /* Assemble the full payload and store it in chunk.bytes */
+    if(messageSize > chunk.bytes.length) {
+        UA_assert(first != NULL);
 
-    /* Persist full chunks that still point to the buffer. Can only return
-     * UA_STATUSCODE_BADOUTOFMEMORY as an error code. So merging res works. */
-    res |= persistCompleteChunks(&channel->completeChunks);
-    res |= persistCompleteChunks(&channel->decryptedChunks);
+        /* Allocate the full memory and initialize with the first chunk content.
+         * Use realloc to speed up. */
+        UA_ByteString message;
+        if(first->copied) {
+            message.data = (UA_Byte*)UA_realloc(first->bytes.data, messageSize);
+        } else {
+            message.data = (UA_Byte*)UA_malloc(messageSize);
+            if(message.data)
+                memcpy(message.data, first->bytes.data, first->bytes.length);
+        }
+        if(!message.data) {
+            if(chunk.copied)
+                UA_ByteString_clear(&chunk.bytes);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        message.length = first->bytes.length;
 
- cleanup:
-    UA_ByteString_clear(&appended);
+        /* Remove the the first chunk */
+        pchunk = TAILQ_NEXT(first, pointers);
+        first->copied = false;
+        channel->chunksCount--;
+        channel->chunksLength -= first->bytes.length;
+        TAILQ_REMOVE(&channel->chunks, first, pointers);
+        UA_Chunk_delete(first);
+
+        /* Copy over the content from the remaining intermediate chunks.
+         * And remove them right away. */
+        UA_Chunk *next;
+        for(; pchunk; pchunk = next) {
+            next = TAILQ_NEXT(pchunk, pointers);
+            if(chunk.requestId != pchunk->requestId)
+                continue;
+            memcpy(message.data + message.length, pchunk->bytes.data, pchunk->bytes.length);
+            message.length += pchunk->bytes.length;
+            channel->chunksCount--;
+            channel->chunksLength -= pchunk->bytes.length;
+            TAILQ_REMOVE(&channel->chunks, pchunk, pointers);
+            UA_Chunk_delete(pchunk);
+        }
+
+        /* Copy over the content from the final chunk */
+        memcpy(message.data + message.length, chunk.bytes.data, chunk.bytes.length);
+        message.length += chunk.bytes.length;
+        UA_assert(message.length == messageSize);
+
+        /* Set assembled message as the content of the final chunk */
+        if(chunk.copied)
+            UA_ByteString_clear(&chunk.bytes);
+        chunk.bytes = message;
+        chunk.copied = true;
+    }
+
+    /* Return the assembled message */
+    *requestId = chunk.requestId;
+    *messageType = chunk.messageType;
+    *payload = chunk.bytes;
+    *copied = chunk.copied;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_SecureChannel_persistBuffer(UA_SecureChannel *channel) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    /* Persist the chunks */
+    UA_Chunk *chunk;
+    TAILQ_FOREACH(chunk, &channel->chunks, pointers) {
+        if(chunk->copied)
+            continue;
+        UA_ByteString tmp = UA_BYTESTRING_NULL;
+        res |= UA_ByteString_copy(&chunk->bytes, &tmp);
+        chunk->bytes = tmp;
+        chunk->copied = true;
+    }
+
+    /* No unprocessed bytes remaining */
+    UA_assert(channel->unprocessed.length >= channel->unprocessedOffset);
+    if(channel->unprocessed.length == channel->unprocessedOffset) {
+        if(channel->unprocessedCopied)
+            UA_ByteString_clear(&channel->unprocessed);
+        else
+            UA_ByteString_init(&channel->unprocessed);
+        channel->unprocessedOffset = 0;
+        return res;
+    }
+
+    /* Allocate a new unprocessed ByteString.
+     * tmp is the empty string if malloc fails. */
+    UA_ByteString tmp = UA_BYTESTRING_NULL;
+    UA_ByteString remaining = channel->unprocessed;
+    remaining.data += channel->unprocessedOffset;
+    remaining.length -= channel->unprocessedOffset;
+    res |= UA_ByteString_copy(&remaining, &tmp);
+    if(channel->unprocessedCopied)
+        UA_ByteString_clear(&channel->unprocessed);
+    channel->unprocessed = tmp;
+    channel->unprocessedOffset = 0;
+    channel->unprocessedCopied = true;
     return res;
 }

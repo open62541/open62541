@@ -426,7 +426,7 @@ _UA_BEGIN_DECLS
         self.printh('''
 _UA_END_DECLS
 
-#endif /* %s_GENERATED_H_ */''' % self.parser.outname.upper())
+#endif /* %s_GENERATED_H_ */\n''' % self.parser.outname.upper())
 
     def print_doc(self):
         for ns in self.filtered_types:

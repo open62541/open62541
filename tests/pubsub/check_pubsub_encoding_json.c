@@ -81,7 +81,7 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     UA_Variant_setScalarCopy(&m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value, &iv, &UA_TYPES[UA_TYPES_UINT32]);
     m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue = true;
 
-    size_t size = UA_NetworkMessage_calcSizeJsonInternal(&m, NULL, 0, NULL, 0, true);
+    size_t size = UA_NetworkMessage_calcSizeJsonInternal(&m, NULL, NULL, 0, true);
     ck_assert_uint_eq(size, 340);
 
     UA_ByteString buffer;
@@ -93,7 +93,7 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
 
 
-    rv = UA_NetworkMessage_encodeJsonInternal(&m, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
+    rv = UA_NetworkMessage_encodeJsonInternal(&m, &bufPos, &bufEnd, NULL, NULL, 0, true);
     *bufPos = 0;
     // then
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
@@ -165,7 +165,7 @@ START_TEST(UA_PubSub_EnDecode) {
     UA_Variant_setScalarCopy(&m.payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.dataSetFields[1].value, &iv64, &UA_TYPES[UA_TYPES_INT64]);
     m.payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.dataSetFields[1].hasValue = true;
 
-    size_t size = UA_NetworkMessage_calcSizeJsonInternal(&m, NULL, 0, NULL, 0, true);
+    size_t size = UA_NetworkMessage_calcSizeJsonInternal(&m, NULL, NULL, 0, true);
 
     UA_ByteString buffer;
     UA_StatusCode rv = UA_ByteString_allocBuffer(&buffer, size);
@@ -175,7 +175,7 @@ START_TEST(UA_PubSub_EnDecode) {
     memset(bufPos, 0, size);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
 
-    rv = UA_NetworkMessage_encodeJsonInternal(&m, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
+    rv = UA_NetworkMessage_encodeJsonInternal(&m, &bufPos, &bufEnd, NULL, NULL, 0, true);
     //*bufPos = 0;
     // then
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);

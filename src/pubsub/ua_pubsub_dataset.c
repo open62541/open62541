@@ -118,14 +118,22 @@ generateFieldMetaData(UA_PubSubManager *psm, UA_PublishedDataSet *pds,
     if(field->config.dataSetFieldType != UA_PUBSUB_DATASETFIELD_VARIABLE)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
+    const UA_DataSetVariableConfig *var = &field->config.field.variable;
+
     /* Set the field identifier */
-    fieldMetaData->dataSetFieldId = UA_PubSubManager_generateUniqueGuid(psm);
+    if(!UA_Guid_equal(&var->dataSetFieldId, &UA_GUID_NULL))
+    {
+        fieldMetaData->dataSetFieldId = var->dataSetFieldId;
+    }
+    else
+    {
+        fieldMetaData->dataSetFieldId = UA_PubSubManager_generateUniqueGuid(psm);
+    }
 
     /* Set the description */
-    fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
+    UA_LocalizedText_copy(&var->description, &fieldMetaData->description);
 
     /* Set the name */
-    const UA_DataSetVariableConfig *var = &field->config.field.variable;
     UA_StatusCode res = UA_String_copy(&var->fieldNameAlias, &fieldMetaData->name);
     UA_CHECK_STATUS(res, return res);
 
@@ -294,7 +302,7 @@ UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
         return result;
     }
 
-    /* Initialize the field metadata. Also generates a FieldId */
+    /* Initialize the field metadata. Also generates a FieldId, if not given in config */
     UA_FieldMetaData fmd;
     UA_FieldMetaData_init(&fmd);
     result.result = generateFieldMetaData(psm, currDS, newField, &fmd);
@@ -450,6 +458,8 @@ UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src,
                           &dst->field.variable.fieldNameAlias);
     res |= UA_PublishedVariableDataType_copy(&src->field.variable.publishParameters,
                                              &dst->field.variable.publishParameters);
+    res |= UA_LocalizedText_copy(&src->field.variable.description,
+                                   &dst->field.variable.description);
     if(res != UA_STATUSCODE_GOOD)
         UA_DataSetFieldConfig_clear(dst);
     return res;
@@ -475,6 +485,7 @@ UA_DataSetFieldConfig_clear(UA_DataSetFieldConfig *dataSetFieldConfig) {
     if(dataSetFieldConfig->dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE) {
         UA_String_clear(&dataSetFieldConfig->field.variable.fieldNameAlias);
         UA_PublishedVariableDataType_clear(&dataSetFieldConfig->field.variable.publishParameters);
+        UA_LocalizedText_clear(&dataSetFieldConfig->field.variable.description);
     }
 }
 
