@@ -153,15 +153,19 @@ writeCertificateAndPrivateKeyToFilestore(const UA_String storePath,
     if(mp_snprintf(newCertFilename, PATH_MAX, "%s/%s%s", ownCertPathDir, newFilename, ".der") < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    char newKeyFilename[PATH_MAX];
-    if(mp_snprintf(newKeyFilename, PATH_MAX, "%s/%s%s", ownKeyPathDir, newFilename, ".key") < 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
     retval = writeByteStringToFile(newCertFilename, &newCertificate);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    return writeByteStringToFile(newKeyFilename, &newPrivateKey);
+    if(newPrivateKey.data)
+    {
+        char newKeyFilename[PATH_MAX];
+        if(mp_snprintf(newKeyFilename, PATH_MAX, "%s/%s%s", ownKeyPathDir, newFilename, ".key") < 0)
+            return UA_STATUSCODE_BADINTERNALERROR;
+
+        retval = writeByteStringToFile(newKeyFilename, &newPrivateKey);
+    }
+    return retval;
 }
 
 /********************/
