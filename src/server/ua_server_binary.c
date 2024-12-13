@@ -1133,11 +1133,13 @@ UA_Server_addReverseConnect(UA_Server *server, UA_String url,
     if(handle)
         *handle = newContext->handle;
 
-    /* Attempt to connect right away */
-    res = attemptReverseConnect(bpm, newContext);
-
     UA_UNLOCK(&server->serviceMutex);
-    return res;
+
+    /* Attempt to connect right away from the event loop */
+    UA_EventLoop *el = bpm->server->config.eventLoop;
+    return UA_Server_addTimedCallback(server, retryReverseConnectCallback, bpm,
+                                      el->dateTime_nowMonotonic(el),
+                                      &bpm->reverseConnectsCheckHandle);
 }
 
 UA_StatusCode
