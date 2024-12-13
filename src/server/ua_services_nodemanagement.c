@@ -1052,7 +1052,9 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
                             "AddNode: Namespace invalid");
         return UA_STATUSCODE_BADNODEIDINVALID;
     }
-
+    #ifndef UA_ENABLE_TYPES_DECODING
+        UA_ExtensionObject_decode(&item->nodeAttributes);
+    #endif
     if(item->nodeAttributes.encoding != UA_EXTENSIONOBJECT_DECODED &&
        item->nodeAttributes.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
