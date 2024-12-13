@@ -301,7 +301,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
     UA_AccessControl *ac = &config->accessControl;
 
     if(ac->clear)
-        clear_default(ac);
+        ac->clear(ac);
 
     ac->clear = clear_default;
     ac->activateSession = activateSession_default;
