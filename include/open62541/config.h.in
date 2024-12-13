@@ -617,6 +617,7 @@ UA_LOCK_ASSERT(UA_Lock *lock) {
 # endif
 #elif defined(__QNX__) || defined(__QNXNTO__) /* QNX */
 # include <gulliver.h>
+# define _QNX_SOURCE 1
 # if defined(__LITTLEENDIAN__)
 #  define UA_LITTLE_ENDIAN 1
 # endif
