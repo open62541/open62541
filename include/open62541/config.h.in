@@ -103,7 +103,9 @@
  * On Win32: Define ``UA_DYNAMIC_LINKING`` and ``UA_DYNAMIC_LINKING_EXPORT`` in
  * order to export symbols for a DLL. Define ``UA_DYNAMIC_LINKING`` only to
  * import symbols from a DLL.*/
+#if !defined(UA_UNITTEST)
 #cmakedefine UA_DYNAMIC_LINKING
+#endif
 
 /* Shortcuts for extern "C" declarations */
 #if !defined(_UA_BEGIN_DECLS)
