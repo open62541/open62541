@@ -215,10 +215,10 @@ function(ua_add_test test_path_relative)
     
     set(options)
     set(oneValueArgs)
-    set(multiValueArgs EXTRALIBS)
+    set(multiValueArgs EXTRASOURCES EXTRALIBS)
     cmake_parse_arguments(arg "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    add_executable(${TEST_NAME} ${test_path_relative} ${ARGN} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    add_executable(${TEST_NAME} ${test_path_relative} ${arg_EXTRASOURCES} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(${TEST_NAME} open62541-testplugins)
     target_link_libraries(${TEST_NAME} ${LIBS} ${arg_EXTRALIBS})
 	target_compile_definitions(${TEST_NAME} PRIVATE -DUA_UNITTEST)
@@ -480,7 +480,7 @@ endif()
 
 # Tests for interfaces
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
-    ua_add_test(server/check_interfaces.c ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c)
+    ua_add_test(server/check_interfaces.c EXTRASOURCES ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c)
     target_include_directories(check_interfaces PRIVATE ${NODESET_COMPILER_OUTPUT_DIR})
 endif()
 
