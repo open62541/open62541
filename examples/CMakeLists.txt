@@ -83,6 +83,8 @@ endif()
 
 add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
 
+add_example(tutorial_server_metatype tutorial_server_metatype.c)
+
 add_example(tutorial_server_object tutorial_server_object.c)
 
 add_example(tutorial_server_reverseconnect tutorial_server_reverseconnect.c)
