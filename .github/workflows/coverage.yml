@@ -6,8 +6,6 @@ on:
       - v1.*
   pull_request:
     branches: [ main, master ]
-    tags:
-      - v1.*
 
 jobs:
   run:
