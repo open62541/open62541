@@ -464,7 +464,6 @@ UA_KeyValueMap_remove(UA_KeyValueMap *map,
         UA_Array_resize((void**)&map->map, &map->mapSize, map->mapSize - 1,
                           &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
     (void)res;
-    map->mapSize--;
     return UA_STATUSCODE_GOOD;
 }
 
