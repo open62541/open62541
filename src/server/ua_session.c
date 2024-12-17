@@ -287,10 +287,13 @@ UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
         return UA_STATUSCODE_BADNOTWRITABLE;
     UA_LOCK(&server->serviceMutex);
     UA_Session *session = getSessionById(server, sessionId);
-    UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
-    if(session)
-        res = UA_KeyValueMap_set(session->attributes,
-                                 key, value);
+    if(!session) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
+    }
+    if(!session->attributes)
+        session->attributes = UA_KeyValueMap_new();
+    UA_StatusCode res = UA_KeyValueMap_set(session->attributes, key, value);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
