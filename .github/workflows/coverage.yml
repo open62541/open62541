@@ -18,7 +18,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y -qq python3-sphinx graphviz check libmbedtls-dev mosquitto
       - name: Fetch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: true
       - name: Execute Tests
