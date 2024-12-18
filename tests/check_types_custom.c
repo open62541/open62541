@@ -686,6 +686,45 @@ START_TEST(parseSelfContainingUnionSelfMember) {
         UA_ByteString_clear(&buf);
     } END_TEST
 
+START_TEST(parsewithMetaTypeStructure) {
+    UA_MetaTypeValueDescription pointType;
+    UA_MetaTypeValueDescription_init(&pointType,  &customDataTypes.types[0]);
+
+    UA_Float x = 50.25;
+    UA_MetaTypeMember_setScalar(&pointType.members[0], &x, &UA_TYPES[UA_TYPES_FLOAT]);
+
+    UA_Float y = 60.25;
+    UA_MetaTypeMember_setScalar(&pointType.members[1], &y, &UA_TYPES[UA_TYPES_FLOAT]);
+
+    UA_Float z = 70.25;
+    UA_MetaTypeMember_setScalar(&pointType.members[2], &z, &UA_TYPES[UA_TYPES_FLOAT]);
+
+    ck_assert(*(UA_Float*)pointType.members[0].value == 50.25);
+    ck_assert(*(UA_Float*)pointType.members[1].value == 60.25);
+    ck_assert(*(UA_Float*)pointType.members[2].value == 70.25);
+
+    Point point;
+    point.x = 0.0;
+    point.y = 0.0;
+    point.z = 0.0;
+
+    UA_Variant var;
+    UA_Variant_init(&var);
+    UA_StatusCode retval = UA_Variant_setScalarCopy(&var, &point, &PointType);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_MetaTypeValueDescription_encodeToVariant(&pointType, &var);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    Point *point2 = (Point*)var.data;
+    ck_assert(point2->x == 50.25);
+    ck_assert(point2->y == 60.25);
+    ck_assert(point2->z == 70.25);
+
+    UA_MetaTypeValueDescription_clear(&pointType);
+    UA_Variant_clear(&var);
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test Custom DataType Encoding");
     TCase *tc = tcase_create("test cases");
@@ -698,6 +737,7 @@ int main(void) {
     tcase_add_test(tc, parseSelfContainingUnionSelfMember);
     tcase_add_test(tc, parseCustomStructureWithOptionalFieldsWithArrayNotContained);
     tcase_add_test(tc, parseCustomStructureWithOptionalFieldsWithArrayContained);
+    tcase_add_test(tc, parsewithMetaTypeStructure);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);
