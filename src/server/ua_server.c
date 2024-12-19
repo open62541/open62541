@@ -888,9 +888,15 @@ UA_Server_updateCertificate(UA_Server *server,
     if(server->gdsManager.transaction.state == UA_GDSTRANSACIONSTATE_PENDING)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
-    /* The server currently only supports the DefaultApplicationGroup */
     UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup))
+    UA_NodeId certGroupId = certificateGroupId;
+    if(UA_NodeId_isNull(&certGroupId))
+    {
+        /* Use default value if argument is empty */
+        certGroupId = defaultApplicationGroup;
+    }
+    /* The server currently only supports the DefaultApplicationGroup */
+    if(!UA_NodeId_equal(&certGroupId, &defaultApplicationGroup))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* The server currently only supports the following certificate type */
@@ -954,9 +960,15 @@ UA_Server_createSigningRequest(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    /* The server currently only supports the DefaultApplicationGroup */
     UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup))
+    UA_NodeId certGroupId = certificateGroupId;
+    if(UA_NodeId_isNull(&certGroupId))
+    {
+        /* Use default value if argument is empty */
+        certGroupId = defaultApplicationGroup;
+    }
+    /* The server currently only supports the DefaultApplicationGroup */
+    if(!UA_NodeId_equal(&certGroupId, &defaultApplicationGroup))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* The server currently only supports RSA CertificateType */
@@ -989,7 +1001,7 @@ UA_Server_createSigningRequest(UA_Server *server,
             continue;
 
         if(UA_NodeId_equal(&certificateTypeId, &sp->certificateTypeId) &&
-           UA_NodeId_equal(&certificateGroupId, &sp->certificateGroupId)) {
+           UA_NodeId_equal(&certGroupId, &sp->certificateGroupId)) {
             retval = sp->createSigningRequest(sp, subjectName, nonce,
                                               &UA_KEYVALUEMAP_NULL, csr, newPrivateKey);
             if(retval != UA_STATUSCODE_GOOD)
