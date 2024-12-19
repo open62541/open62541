@@ -538,11 +538,6 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     endif()
 endif()
 
-if(UA_ARCHITECTURE_LWIP)
-    find_package(LWIP REQUIRED)
-    list(APPEND open62541_LIBRARIES ${LWIP_LIBRARIES})
-endif()
-
 if(UA_ENABLE_TPM2_SECURITY)
     list(APPEND open62541_LIBRARIES ${TPM2_LIB})
 endif()
@@ -1019,11 +1014,23 @@ if(UA_ARCHITECTURE_ZEPHYR)
 endif()
 
 if(UA_ARCHITECTURE_LWIP)
+    # Assume lwip is provided as a library.
+    # Directly include the source files here if required.
+    #
+    # Example settings (POSIX Port):
+    # LWIP_INCLUDE_DIRS ../lwip/contrib/ports/unix/port/include;
+    #                   ../lwip/contrib/ports/unix/posixlib;
+    #                   ../lwip/contrib/ports/unix/posixlib/include;
+    #                   ../lwip/src/include
+    # LWIP_LIBRARIES    ../lwip/contrib/ports/unix/lib/build/liblwip.so
+
+    find_package(LWIP REQUIRED)
+    list(APPEND open62541_LIBRARIES ${LWIP_LIBRARIES})
+
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/arch/lwip/default_netif.c
          ${PROJECT_SOURCE_DIR}/arch/common/timer.h
          ${PROJECT_SOURCE_DIR}/arch/common/timer.c
-         ${PROJECT_SOURCE_DIR}/arch/lwip/clock_lwip.c
          ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
          ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
          ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip.h
@@ -1032,6 +1039,16 @@ if(UA_ARCHITECTURE_LWIP)
 endif()
 
 if(UA_ARCHITECTURE_FREERTOS)
+    # Assume the FreeRTOS POSIX "Simulator".
+    # Change this to directly include the source files if required.
+    set(FREERTOS_KERNEL_PATH "~/software/FreeRTOSv202411.00/FreeRTOS/Source" CACHE STRING "")
+    set(FREERTOS_PORT_PATH "~/software/FreeRTOSv202411.00/FreeRTOS/Demo/Posix_GCC" CACHE STRING "")
+    include(arch/freertos/freertos.cmake)
+    include_directories(${FREERTOS_PORT_PATH} "${FREERTOS_KERNEL_PATH}/include")
+    include_directories("${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/Posix")
+    add_compile_definitions(projCOVERAGE_TEST=0)
+    add_compile_definitions(projENABLE_TRACING=0)
+    list(APPEND open62541_LIBRARIES freertos_config freertos_kernel)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/freertos/clock_freertos.c)
 endif()
 
@@ -1465,132 +1482,132 @@ endif()
 # Installation           #
 ##########################
 
-# invoke via `make install`
-# specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
-# Enable shared library with `-DBUILD_SHARED_LIBS=ON`
+# # invoke via `make install`
+# # specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
+# # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
-# export library (either static or shared depending on BUILD_SHARED_LIBS)
-install(TARGETS open62541
-        EXPORT open62541Targets
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        INCLUDES DESTINATION include)
+# # export library (either static or shared depending on BUILD_SHARED_LIBS)
+# install(TARGETS open62541
+#         EXPORT open62541Targets
+#         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+#         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+#         INCLUDES DESTINATION include)
 
-set(open62541_install_tools_dir share/open62541)
-set(open62541_install_schema_dir share/open62541/schema)
+# set(open62541_install_tools_dir share/open62541)
+# set(open62541_install_schema_dir share/open62541/schema)
 
-# Create open62541Config.cmake
-include(CMakePackageConfigHelpers)
-set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
-configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Config.cmake.in"
-                              "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
-                              INSTALL_DESTINATION "${cmake_configfile_install}"
-                              PATH_VARS open62541_install_tools_dir
-                                        open62541_install_schema_dir)
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
-              "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Macros.cmake"
-        DESTINATION "${cmake_configfile_install}")
+# # Create open62541Config.cmake
+# include(CMakePackageConfigHelpers)
+# set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
+# configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Config.cmake.in"
+#                               "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
+#                               INSTALL_DESTINATION "${cmake_configfile_install}"
+#                               PATH_VARS open62541_install_tools_dir
+#                                         open62541_install_schema_dir)
+# install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
+#               "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Macros.cmake"
+#         DESTINATION "${cmake_configfile_install}")
 
-# Create open62541ConfigVersion.cmake
-set(open62541_VERSION)
-get_target_property(open62541_VERSION open62541 VERSION)
-write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
-                                 VERSION ${open62541_VERSION} COMPATIBILITY AnyNewerVersion)
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
-        DESTINATION "${cmake_configfile_install}")
+# # Create open62541ConfigVersion.cmake
+# set(open62541_VERSION)
+# get_target_property(open62541_VERSION open62541 VERSION)
+# write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
+#                                  VERSION ${open62541_VERSION} COMPATIBILITY AnyNewerVersion)
+# install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
+#         DESTINATION "${cmake_configfile_install}")
 
-# Create open62541Targets.cmake
-install(EXPORT open62541Targets
-        FILE open62541Targets.cmake
-        DESTINATION "${cmake_configfile_install}"
-        NAMESPACE open62541::)
-export(TARGETS open62541
-       NAMESPACE open62541::
-       FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
+# # Create open62541Targets.cmake
+# install(EXPORT open62541Targets
+#         FILE open62541Targets.cmake
+#         DESTINATION "${cmake_configfile_install}"
+#         NAMESPACE open62541::)
+# export(TARGETS open62541
+#        NAMESPACE open62541::
+#        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
 
-# Generate and install open62541.pc
-set(pkgcfgpubliclibs "")
-foreach(lib ${open62541_PUBLIC_LIBRARIES})
-    set(pkgcfgpubliclibs "${pkgcfgpubliclibs}-l${lib} ")
-endforeach()
+# # Generate and install open62541.pc
+# set(pkgcfgpubliclibs "")
+# foreach(lib ${open62541_PUBLIC_LIBRARIES})
+#     set(pkgcfgpubliclibs "${pkgcfgpubliclibs}-l${lib} ")
+# endforeach()
 
-if(BUILD_SHARED_LIBS)
-    foreach(lib ${open62541_LIBRARIES})
-        set(pkgcfgpubliclibs "${pkgcfgpubliclibs}-l${lib} ")
-    endforeach()
-endif()
+# if(BUILD_SHARED_LIBS)
+#     foreach(lib ${open62541_LIBRARIES})
+#         set(pkgcfgpubliclibs "${pkgcfgpubliclibs}-l${lib} ")
+#     endforeach()
+# endif()
 
-configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
+# configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
-endif()
+# if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+#     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
+#             DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+# endif()
 
-# Install nodeset compiler
-install(DIRECTORY "tools/certs" "tools/nodeset_compiler"
-        DESTINATION ${open62541_install_tools_dir}
-        FILES_MATCHING
-        PATTERN "*"
-        PATTERN "__pycache__" EXCLUDE
-        PATTERN "*.pyc" EXCLUDE
-        PATTERN ".git*" EXCLUDE
-        PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
+# # Install nodeset compiler
+# install(DIRECTORY "tools/certs" "tools/nodeset_compiler"
+#         DESTINATION ${open62541_install_tools_dir}
+#         FILES_MATCHING
+#         PATTERN "*"
+#         PATTERN "__pycache__" EXCLUDE
+#         PATTERN "*.pyc" EXCLUDE
+#         PATTERN ".git*" EXCLUDE
+#         PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
 
-# Install schemas
-# Trailing slash to prevent "schema/schema" nesting
-install(DIRECTORY ${UA_SCHEMA_DIR}/
-        DESTINATION ${open62541_install_schema_dir}
-        FILES_MATCHING
-        PATTERN "*.xml"
-        PATTERN "*Types.bsd"
-        PATTERN "StatusCode.csv"
-        PATTERN "NodeIds.csv"
-        PERMISSIONS OWNER_READ GROUP_READ)
+# # Install schemas
+# # Trailing slash to prevent "schema/schema" nesting
+# install(DIRECTORY ${UA_SCHEMA_DIR}/
+#         DESTINATION ${open62541_install_schema_dir}
+#         FILES_MATCHING
+#         PATTERN "*.xml"
+#         PATTERN "*Types.bsd"
+#         PATTERN "StatusCode.csv"
+#         PATTERN "NodeIds.csv"
+#         PERMISSIONS OWNER_READ GROUP_READ)
 
-# Install python tools
-set(UA_install_tools_files "tools/generate_datatypes.py"
-                           "tools/generate_nodeid_header.py"
-                           "tools/generate_statuscode_descriptions.py")
-install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir}
-        PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
+# # Install python tools
+# set(UA_install_tools_files "tools/generate_datatypes.py"
+#                            "tools/generate_nodeid_header.py"
+#                            "tools/generate_statuscode_descriptions.py")
+# install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir}
+#         PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
 
-# Recreate the include folder structure from the source also in /usr/include/open62541
-set(FILES_TO_INSTALL ${exported_headers} ${plugin_headers})
-set(BASE_PATH_MAIN "${PROJECT_SOURCE_DIR}/include/open62541")
-set(BASE_PATH_PLUGINS "${PROJECT_SOURCE_DIR}/plugins/include/open62541")
-set(BASE_PATH_ARCH "${PROJECT_SOURCE_DIR}/arch")
-set(BASE_PATH_GENERATED "${PROJECT_BINARY_DIR}/src_generated/open62541")
+# # Recreate the include folder structure from the source also in /usr/include/open62541
+# set(FILES_TO_INSTALL ${exported_headers} ${plugin_headers})
+# set(BASE_PATH_MAIN "${PROJECT_SOURCE_DIR}/include/open62541")
+# set(BASE_PATH_PLUGINS "${PROJECT_SOURCE_DIR}/plugins/include/open62541")
+# set(BASE_PATH_ARCH "${PROJECT_SOURCE_DIR}/arch")
+# set(BASE_PATH_GENERATED "${PROJECT_BINARY_DIR}/src_generated/open62541")
 
-foreach ( file ${FILES_TO_INSTALL} )
-    # Construct a relative path by replacing any occurence of the absolute path
-    set(full_path ${file})
-    string(REPLACE ${BASE_PATH_MAIN} "" file ${file})
-    string(REPLACE ${BASE_PATH_PLUGINS} "" file ${file})
-    string(REPLACE ${BASE_PATH_ARCH} "" file ${file})
-    string(REPLACE ${BASE_PATH_GENERATED} "" file ${file})
-    get_filename_component(dir ${file} DIRECTORY)
-    install(FILES ${full_path} DESTINATION include/open62541${dir})
-endforeach()
+# foreach ( file ${FILES_TO_INSTALL} )
+#     # Construct a relative path by replacing any occurence of the absolute path
+#     set(full_path ${file})
+#     string(REPLACE ${BASE_PATH_MAIN} "" file ${file})
+#     string(REPLACE ${BASE_PATH_PLUGINS} "" file ${file})
+#     string(REPLACE ${BASE_PATH_ARCH} "" file ${file})
+#     string(REPLACE ${BASE_PATH_GENERATED} "" file ${file})
+#     get_filename_component(dir ${file} DIRECTORY)
+#     install(FILES ${full_path} DESTINATION include/open62541${dir})
+# endforeach()
 
-##################################
-# Visual Studio Solution Folders #
-##################################
+# ##################################
+# # Visual Studio Solution Folders #
+# ##################################
 
-set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets")
+# set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+# set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets")
 
-set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
-set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
-set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
+# set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
+# set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
+# set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
 
-set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541/generators")
-set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")
-set_target_properties(open62541-generator-transport PROPERTIES FOLDER "open62541/generators")
-set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/generators")
-if(UA_ENABLE_NODESET_INJECTOR)
-    set_target_properties(open62541-generator-nodesetinjector PROPERTIES FOLDER "open62541/generators")
-    add_subdirectory(tools/nodeset_injector)
-    set(UA_NODESETINJECTOR_GENERATORS ${UA_NODESETINJECTOR_GENERATORS})
-endif()
+# set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541/generators")
+# set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")
+# set_target_properties(open62541-generator-transport PROPERTIES FOLDER "open62541/generators")
+# set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/generators")
+# if(UA_ENABLE_NODESET_INJECTOR)
+#     set_target_properties(open62541-generator-nodesetinjector PROPERTIES FOLDER "open62541/generators")
+#     add_subdirectory(tools/nodeset_injector)
+#     set(UA_NODESETINJECTOR_GENERATORS ${UA_NODESETINJECTOR_GENERATORS})
+# endif()
