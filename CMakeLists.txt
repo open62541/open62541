@@ -1056,6 +1056,16 @@ if(UA_ARCHITECTURE_LWIP AND UA_ARCHITECTURE_POSIX)
 endif()
 
 if(UA_ARCHITECTURE_FREERTOS)
+    # Assume the FreeRTOS POSIX "Simulator".
+    # Change this to directly include the source files if required.
+    set(FREERTOS_KERNEL_PATH "~/software/FreeRTOSv202411.00/FreeRTOS/Source" CACHE STRING "")
+    set(FREERTOS_PORT_PATH "~/software/FreeRTOSv202411.00/FreeRTOS/Demo/Posix_GCC" CACHE STRING "")
+    include(arch/freertos/freertos.cmake)
+    include_directories(${FREERTOS_PORT_PATH} "${FREERTOS_KERNEL_PATH}/include")
+    include_directories("${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/Posix")
+    add_compile_definitions(projCOVERAGE_TEST=0)
+    add_compile_definitions(projENABLE_TRACING=0)
+    list(APPEND open62541_LIBRARIES freertos_config freertos_kernel)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/freertos/clock_freertos.c)
 endif()
 
