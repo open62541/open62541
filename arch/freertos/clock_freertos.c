@@ -11,6 +11,7 @@
 
 #ifdef UA_ARCHITECTURE_FREERTOS
 
+#include <FreeRTOS.h>
 #include <task.h>
 
 /* The current time in UTC time */
