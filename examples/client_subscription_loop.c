@@ -91,11 +91,11 @@ createSubscriptionCallback(UA_Client *client, void *userdata, UA_UInt32 requestI
         req.subscriptionId = response->subscriptionId;
 
         UA_Client_DataChangeNotificationCallback dataChangeNotificationCallback[1] = { handler_currentTimeChanged };
-        UA_StatusCode res =
+        UA_StatusCode retval =
             UA_Client_MonitoredItems_createDataChanges_async(client, req, NULL, dataChangeNotificationCallback, NULL, monCallback, NULL, NULL);
-        if (res != UA_STATUSCODE_GOOD)
+        if (retval != UA_STATUSCODE_GOOD)
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                "UA_Client_MonitoredItems_createDataChanges_async ", UA_StatusCode_name(res));
+                "UA_Client_MonitoredItems_createDataChanges_async ", UA_StatusCode_name(retval));
     }
 }
 
@@ -125,9 +125,12 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         /* A new session was created. We need to create the subscription. */
         /* Create a subscription */
         UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-        UA_StatusCode StatusCode = 
+        UA_StatusCode retval = 
             UA_Client_Subscriptions_create_async(client, request, NULL, NULL, deleteSubscriptionCallback, 
                                                  createSubscriptionCallback, NULL, NULL);
+        if (retval != UA_STATUSCODE_GOOD)
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "UA_Client_Subscriptions_create_async ", UA_StatusCode_name(retval));
         }
         break;
     case UA_SESSIONSTATE_CLOSED:
