@@ -337,7 +337,7 @@ UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
         res = UA_DataSetWriter_prepareDataSet(psm, dsw, &dsmStore[dsmCount]);
         if(res != UA_STATUSCODE_GOOD)
-            goto cleanup_dsm;
+            goto cleanup;
         dsmCount++;
     }
 
@@ -347,7 +347,7 @@ UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
                                  (UA_Byte) dsmCount, &wg->config.messageSettings,
                                  &wg->config.transportSettings, &networkMessage);
     if(res != UA_STATUSCODE_GOOD)
-        goto cleanup_dsm;
+        goto cleanup;
 
     /* Compute the message length and generate the offset-table (done inside
      * calcSizeBinary) */
@@ -423,9 +423,6 @@ UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     }
 
  cleanup:
-    UA_free(networkMessage.payload.dataSetPayload.sizes);
-
- cleanup_dsm:
     /* Clean up DataSetMessages */
     for(size_t i = 0; i < dsmCount; i++) {
         UA_DataSetMessage_clear(&dsmStore[i]);
@@ -740,11 +737,13 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
     nm.version = 1;
     nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     nm.payloadHeaderEnabled = true;
-    nm.payloadHeader.dataSetPayloadHeader.count = dsmCount;
-    nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
     nm.payload.dataSetPayload.dataSetMessages = dsm;
+    nm.payload.dataSetPayload.dataSetMessagesSize = dsmCount;
     nm.publisherIdEnabled = true;
     nm.publisherId = connection->config.publisherId;
+
+    for(size_t i = 0; i < dsmCount; i++)
+        nm.payload.dataSetPayload.dataSetMessages[i].dataSetWriterId = writerIds[i];
 
     /* Compute the message length */
     size_t msgSize = UA_NetworkMessage_calcSizeJsonInternal(&nm, NULL, NULL, 0, true);
@@ -863,20 +862,15 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     if(nm->groupHeader.groupVersionEnabled)
         nm->groupHeader.groupVersion = wgm->groupVersion;
 
-    /* Compute the length of the dsm separately for the header */
-    UA_UInt16 *dsmLengths = (UA_UInt16 *) UA_calloc(dsmCount, sizeof(UA_UInt16));
-    if(!dsmLengths)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    for(UA_Byte i = 0; i < dsmCount; i++)
-        dsmLengths[i] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsm[i], NULL, 0);
-
-    nm->payloadHeader.dataSetPayloadHeader.count = dsmCount;
-    nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
     nm->groupHeader.writerGroupId = wg->config.writerGroupId;
     /* number of the NetworkMessage inside a PublishingInterval */
     nm->groupHeader.networkMessageNumber = 1;
-    nm->payload.dataSetPayload.sizes = dsmLengths;
     nm->payload.dataSetPayload.dataSetMessages = dsm;
+    nm->payload.dataSetPayload.dataSetMessagesSize = dsmCount;
+
+    for(size_t i = 0; i < dsmCount; i++)
+        nm->payload.dataSetPayload.dataSetMessages[i].dataSetWriterId = writerIds[i];
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -925,14 +919,11 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
     rv = encodeNetworkMessage(wg, &nm, &buf);
     if(rv != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, sendChannel, &buf);
-        UA_free(nm.payload.dataSetPayload.sizes);
         return rv;
     }
 
     /* Send out the message */
     sendNetworkMessageBuffer(psm, wg, connection, sendChannel, &buf);
-
-    UA_free(nm.payload.dataSetPayload.sizes);
     return UA_STATUSCODE_GOOD;
 }
 

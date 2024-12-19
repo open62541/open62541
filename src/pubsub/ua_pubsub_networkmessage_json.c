@@ -37,13 +37,12 @@ static UA_StatusCode writeJsonKey_UA_String(CtxJson *ctx, UA_String *in) {
 
 static UA_StatusCode
 UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
-                                      UA_UInt16 dataSetWriterId,
                                       CtxJson *ctx) {
     status rv = writeJsonObjStart(ctx);
 
     /* DataSetWriterId */
     rv |= writeJsonObjElm(ctx, UA_DECODEKEY_DATASETWRITERID,
-                          &dataSetWriterId, &UA_TYPES[UA_TYPES_UINT16]);
+                          &src->dataSetWriterId, &UA_TYPES[UA_TYPES_UINT16]);
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
 
@@ -165,27 +164,22 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
     }
 
     /* Payload: DataSetMessages */
-    UA_Byte count = src->payloadHeader.dataSetPayloadHeader.count;
+    size_t count = src->payload.dataSetPayload.dataSetMessagesSize;
     if(count > 0) {
-        UA_UInt16 *dataSetWriterIds =
-            src->payloadHeader.dataSetPayloadHeader.dataSetWriterIds;
-        if(!dataSetWriterIds)
-            return UA_STATUSCODE_BADENCODINGERROR;
-
         rv |= writeJsonKey(ctx, UA_DECODEKEY_MESSAGES);
         rv |= writeJsonArrStart(ctx); /* start array */
 
         const UA_DataSetMessage *dataSetMessages =
             src->payload.dataSetPayload.dataSetMessages;
-        for(UA_UInt16 i = 0; i < count; i++) {
+        for(size_t i = 0; i < count; i++) {
             rv |= writeJsonBeforeElement(ctx, true);
-            rv |= UA_DataSetMessage_encodeJson_internal(&dataSetMessages[i],
-                                                        dataSetWriterIds[i], ctx);
+            rv |= UA_DataSetMessage_encodeJson_internal(&dataSetMessages[i], ctx);
             if(rv != UA_STATUSCODE_GOOD)
                 return rv;
             /* comma is needed if more dsm are present */
             ctx->commaNeeded[ctx->depth] = true;
         }
+
         rv |= writeJsonArrEnd(ctx, NULL); /* end array */
     }
 
@@ -380,12 +374,8 @@ static status
 DatasetMessage_Payload_decodeJsonInternal(ParseCtx *ctx, UA_DataSetMessage* dsm,
                                           const UA_DataType *type) {
     UA_ConfigurationVersionDataType cvd;
-    UA_UInt16 dataSetWriterId;
-
-    dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
-
     DecodeEntry entries[6] = {
-        {UA_DECODEKEY_DATASETWRITERID, &dataSetWriterId, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
+        {UA_DECODEKEY_DATASETWRITERID, &dsm->dataSetWriterId, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
         {UA_DECODEKEY_SEQUENCENUMBER, &dsm->header.dataSetMessageSequenceNr, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
         {UA_DECODEKEY_METADATAVERSION, &cvd, &MetaDataVersion_decodeJsonInternal, false, NULL},
         {UA_DECODEKEY_TIMESTAMP, &dsm->header.timestamp, NULL, false, &UA_TYPES[UA_TYPES_DATETIME]},
@@ -398,15 +388,7 @@ DatasetMessage_Payload_decodeJsonInternal(ParseCtx *ctx, UA_DataSetMessage* dsm,
     if(ret != UA_STATUSCODE_GOOD || !entries[0].found || !entries[5].found)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    /* Set the DatasetWriterId in the context */
-    if(!ctx->custom)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    if(ctx->currentCustomIndex >= ctx->numCustom)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    UA_UInt16* dataSetWriterIdsArray = (UA_UInt16*)ctx->custom;
-    dataSetWriterIdsArray[ctx->currentCustomIndex] = dataSetWriterId;
-    ctx->currentCustomIndex++;
-
+    dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
     dsm->header.dataSetMessageSequenceNrEnabled = entries[1].found;
     dsm->header.configVersionMajorVersion = cvd.majorVersion;
     dsm->header.configVersionMinorVersion = cvd.minorVersion;
@@ -434,20 +416,13 @@ DatasetMessage_Array_decodeJsonInternal(ParseCtx *ctx, void *UA_RESTRICT dst,
     if(length == 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Allocate memory */
-    UA_DataSetMessage *dsm = (UA_DataSetMessage*)
-        UA_calloc(length, sizeof(UA_DataSetMessage));
-    if(!dsm)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_DataSetMessage *dsm = (UA_DataSetMessage*)dst;
 
-    /* Copy new Pointer do dest */
-    memcpy(dst, &dsm, sizeof(void*));
-
-    /* We go to first Array member! */
+    /* Go to the first array member */
     ctx->index++;
 
-    status ret = UA_STATUSCODE_BADDECODINGERROR;
     /* Decode array members */
+    status ret = UA_STATUSCODE_BADDECODINGERROR;
     for(size_t i = 0; i < length; ++i) {
         ret = DatasetMessage_Payload_decodeJsonInternal(ctx, &dsm[i], NULL);
         if(ret != UA_STATUSCODE_GOOD)
@@ -493,11 +468,6 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     size_t messageCount = (size_t)ctx->tokens[searchResultMessages].size;
 
-    /* Set up custom context for the dataSetwriterId */
-    ctx->custom = (void*)UA_calloc(messageCount, sizeof(UA_UInt16));
-    ctx->currentCustomIndex = 0;
-    ctx->numCustom = messageCount;
-
     /* MessageType */
     UA_Boolean isUaData = true;
     size_t searchResultMessageType = 0;
@@ -522,6 +492,12 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
     if(!isUaData)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
+    dst->payload.dataSetPayload.dataSetMessages = (UA_DataSetMessage*)
+        UA_calloc(messageCount, sizeof(UA_DataSetMessage));
+    if(!dst->payload.dataSetPayload.dataSetMessages)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    dst->payload.dataSetPayload.dataSetMessagesSize = messageCount;
+
     /* Network Message */
     UA_String messageType;
     DecodeEntry entries[5] = {
@@ -529,7 +505,7 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
         {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false, NULL},
         {UA_DECODEKEY_PUBLISHERID, &dst->publisherId, decodePublisherIdJsonInternal, false, NULL},
         {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, NULL, false, &UA_TYPES[UA_TYPES_GUID]},
-        {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages,
+        {UA_DECODEKEY_MESSAGES, dst->payload.dataSetPayload.dataSetMessages,
          &DatasetMessage_Array_decodeJsonInternal, false, NULL}
     };
 
@@ -541,10 +517,7 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
     dst->publisherIdEnabled = entries[2].found;
     dst->dataSetClassIdEnabled = entries[3].found;
     dst->payloadHeaderEnabled = true;
-    dst->payloadHeader.dataSetPayloadHeader.count = (UA_Byte)messageCount;
 
-    /* Set the dataSetWriterIds. They are filled in the dataSet decoding. */
-    dst->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = (UA_UInt16*)ctx->custom;
     return ret;
 }
 
