@@ -65,14 +65,15 @@ UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     UA_ReaderGroup *rg = dsr->linkedReaderGroup;
     if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
-        if(dsr->config.dataSetWriterId ==
-           *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
-            return UA_STATUSCODE_GOOD;
-        }
+        // TODO
+        /* if(dsr->config.dataSetWriterId == */
+        /*    *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) { */
+        /*     return UA_STATUSCODE_GOOD; */
+        /* } */
 
-        UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "DataSetWriterId does not match. "
-                            "Expected %u, received %u", dsr->config.dataSetWriterId,
-                            *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds);
+        /* UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "DataSetWriterId does not match. " */
+        /*                     "Expected %u, received %u", dsr->config.dataSetWriterId, */
+        /*                     *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds); */
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
@@ -86,9 +87,9 @@ UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     }
 
     if(msg->payloadHeaderEnabled) {
-        UA_Byte totalDataSets = msg->payloadHeader.dataSetPayloadHeader.count;
+        size_t totalDataSets = msg->payload.dataSetPayload.dataSetMessagesSize;
         for(size_t i = 0; i < totalDataSets; i++) {
-            UA_UInt32 dswId = msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i];
+            UA_UInt32 dswId = msg->payload.dataSetPayload.dataSetMessages[i].dataSetWriterId;
             if(dsr->config.dataSetWriterId == dswId)
                 return UA_STATUSCODE_GOOD;
         }

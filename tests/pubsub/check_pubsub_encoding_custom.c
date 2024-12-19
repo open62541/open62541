@@ -309,6 +309,7 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarDeltaFrame) {
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -381,6 +382,7 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarKeyFrame) {
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -462,6 +464,7 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarExtensionObjectDeltaFrame) {
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -540,6 +543,7 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarExtensionObjectKeyFrame) {
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -616,6 +620,7 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayDeltaFrame){
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -679,6 +684,7 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayKeyFrame){
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -746,6 +752,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsDeltaFrame){
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -824,6 +831,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsKeyFrame){
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -900,6 +908,7 @@ START_TEST(UA_PubSub_EnDecode_CustomUnionDeltaFrame){
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -971,6 +980,7 @@ START_TEST(UA_PubSub_EnDecode_CustomUnionKeyFrame){
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1044,6 +1054,7 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionNormalMemberDeltaFrame){
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1114,6 +1125,7 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionNormalMemberKeyFrame){
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1192,6 +1204,7 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionSelfMemberDeltaFrame){
     UA_free(s.fields.array.array);
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1271,6 +1284,7 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionSelfMemberKeyFrame){
     UA_free(s.fields.array.array);
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1354,6 +1368,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayNotConta
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1442,6 +1457,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayNotConta
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1536,6 +1552,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayContaine
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1632,6 +1649,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayContaine
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;

@@ -15,19 +15,16 @@
 #include <stdlib.h>
 
 START_TEST(UA_PubSub_EncodeAllOptionalFields) {
+    UA_UInt16 dsWriter1 = 12345;
     UA_NetworkMessage m;
     memset(&m, 0, sizeof(UA_NetworkMessage));
     m.version = 1;
     m.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     m.payloadHeaderEnabled = true;
-    m.payloadHeader.dataSetPayloadHeader.count = 1;
-    UA_UInt16 dsWriter1 = 12345;
-    m.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = (UA_UInt16 *)UA_Array_new(m.payloadHeader.dataSetPayloadHeader.count, &UA_TYPES[UA_TYPES_UINT16]);
-    m.payloadHeader.dataSetPayloadHeader.dataSetWriterIds[0] = dsWriter1;
-
-    size_t memsize = m.payloadHeader.dataSetPayloadHeader.count * sizeof(UA_DataSetMessage);
-    m.payload.dataSetPayload.dataSetMessages = (UA_DataSetMessage*)UA_malloc(memsize);
-    memset(m.payload.dataSetPayload.dataSetMessages, 0, memsize);
+    m.payload.dataSetPayload.dataSetMessages = (UA_DataSetMessage*)
+        UA_calloc(1, sizeof(UA_DataSetMessage));
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetPayload.dataSetMessages[0].dataSetWriterId = dsWriter1;
 
     /* enable messageId */
     m.messageIdEnabled = true;
@@ -107,21 +104,18 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
 END_TEST
 
 START_TEST(UA_PubSub_EnDecode) {
+    UA_UInt16 dsWriter1 = 4;
+    UA_UInt16 dsWriter2 = 7;
     UA_NetworkMessage m;
     memset(&m, 0, sizeof(UA_NetworkMessage));
     m.version = 1;
     m.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     m.payloadHeaderEnabled = true;
-    m.payloadHeader.dataSetPayloadHeader.count = 2;
-    UA_UInt16 dsWriter1 = 4;
-    UA_UInt16 dsWriter2 = 7;
-    m.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = (UA_UInt16 *)UA_Array_new(m.payloadHeader.dataSetPayloadHeader.count, &UA_TYPES[UA_TYPES_UINT16]);
-    m.payloadHeader.dataSetPayloadHeader.dataSetWriterIds[0] = dsWriter1;
-    m.payloadHeader.dataSetPayloadHeader.dataSetWriterIds[1] = dsWriter2;
-
-    size_t memsize = m.payloadHeader.dataSetPayloadHeader.count * sizeof(UA_DataSetMessage);
-    m.payload.dataSetPayload.dataSetMessages = (UA_DataSetMessage*)UA_malloc(memsize);
-    memset(m.payload.dataSetPayload.dataSetMessages, 0, memsize);
+    m.payload.dataSetPayload.dataSetMessages = (UA_DataSetMessage*)
+        UA_calloc(2, sizeof(UA_DataSetMessage));
+    m.payload.dataSetPayload.dataSetMessagesSize = 2;
+    m.payload.dataSetPayload.dataSetMessages[0].dataSetWriterId = dsWriter1;
+    m.payload.dataSetPayload.dataSetMessages[1].dataSetWriterId = dsWriter2;
 
     m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid = true;
     m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding = UA_FIELDENCODING_VARIANT;
@@ -146,14 +140,13 @@ START_TEST(UA_PubSub_EnDecode) {
     m.payload.dataSetPayload.dataSetMessages[1].header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
     UA_UInt16 fieldCountDS2 = 2;
     m.payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.fieldCount = fieldCountDS2;
-    memsize = sizeof(UA_DataSetMessage_DeltaFrameField) * m.payload.dataSetPayload.dataSetMessages[1].data.deltaFrameData.fieldCount;
-    m.payload.dataSetPayload.dataSetMessages[1].data.deltaFrameData.deltaFrameFields = (UA_DataSetMessage_DeltaFrameField*)UA_malloc(memsize);
+    m.payload.dataSetPayload.dataSetMessages[1].data.deltaFrameData.deltaFrameFields = (UA_DataSetMessage_DeltaFrameField*)
+        UA_calloc(m.payload.dataSetPayload.dataSetMessages[1].data.deltaFrameData.fieldCount, sizeof(UA_DataSetMessage_DeltaFrameField));
      /* Set fieldnames */
     m.payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.fieldNames =
         (UA_String*)UA_Array_new(m.payload.dataSetPayload.dataSetMessages[1].data.deltaFrameData.fieldCount, &UA_TYPES[UA_TYPES_STRING]);
     m.payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.fieldNames[0] = UA_STRING_ALLOC("Field2.1");
     m.payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.fieldNames[1] = UA_STRING_ALLOC("Field2.2");
-
 
     UA_Guid gv = UA_Guid_random();
     UA_DataValue_init(&m.payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.dataSetFields[0]);
@@ -194,8 +187,8 @@ START_TEST(UA_PubSub_EnDecode) {
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert_uint_eq(m2.payloadHeader.dataSetPayloadHeader.dataSetWriterIds[0], dsWriter1);
-    ck_assert_uint_eq(m2.payloadHeader.dataSetPayloadHeader.dataSetWriterIds[1], dsWriter2);
+    ck_assert_uint_eq(m2.payload.dataSetPayload.dataSetMessages[0].dataSetWriterId, dsWriter1);
+    ck_assert_uint_eq(m2.payload.dataSetPayload.dataSetMessages[1].dataSetWriterId, dsWriter2);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
     ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
     ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.fieldCount, fieldCountDS1);
@@ -234,8 +227,8 @@ START_TEST(UA_NetworkMessage_oneMessage_twoFields_json_decode) {
     ck_assert_int_eq(out.publisherIdEnabled, false);
 
     ck_assert_int_eq(out.payloadHeaderEnabled, true);
-    ck_assert_int_eq(out.payloadHeader.dataSetPayloadHeader.count, 1);
-    ck_assert_int_eq(out.payloadHeader.dataSetPayloadHeader.dataSetWriterIds[0], 62541);
+    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessagesSize, 1);
+    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].dataSetWriterId, 62541);
 
     //dataSetMessage
     ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageSequenceNrEnabled, true);
@@ -295,8 +288,8 @@ START_TEST(UA_NetworkMessage_json_decode) {
     ck_assert_int_eq(out.publisherIdEnabled, false);
 
     ck_assert_int_eq(out.payloadHeaderEnabled, true);
-    ck_assert_int_eq(out.payloadHeader.dataSetPayloadHeader.count, 1);
-    ck_assert_int_eq(out.payloadHeader.dataSetPayloadHeader.dataSetWriterIds[0], 62541);
+    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessagesSize, 1);
+    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].dataSetWriterId, 62541);
 
     //dataSetMessage
     ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageSequenceNrEnabled, true);

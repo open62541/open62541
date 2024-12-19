@@ -3,6 +3,17 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### PubSub NetworkMessage structure has an explicit DataSetMessageSize
+
+In prior versions of the standard, when the PayloadHeader was missing, the
+PubSub NetworkMessage needed to have exactly one DataSetMessage. In the current
+standard there can be several DataSetMessages also without a PayloadHeader. To
+allow for this the UA_NetworkMessage structure now contains an explicit
+DataSetMessageSize field outside of the PayloadHeader.
+
+Note that code could before rely on the default of one DataSetMessage. This code
+needs to be revised to set the new DataSetMessageSize field to one.
+
 ### PubSub Components are disabled initially
 
 PubSubComponents (PubSubConnections, ReaderGroups, ...) are no longer enabled
