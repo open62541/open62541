@@ -103,11 +103,6 @@ typedef enum {
 } UA_NetworkMessageType;
 
 typedef struct {
-    UA_DataSetMessage *dataSetMessages;
-    size_t dataSetMessagesSize; /* Goes into the payload header */
-} UA_DataSetPayload;
-
-typedef struct {
     UA_Boolean writerGroupIdEnabled;
     UA_Boolean groupVersionEnabled;
     UA_Boolean networkMessageNumberEnabled;
@@ -158,7 +153,11 @@ typedef struct {
     UA_NetworkMessageSecurityHeader securityHeader;
 
     union {
-        UA_DataSetPayload dataSetPayload;
+        struct {
+            UA_DataSetMessage *dataSetMessages;
+            size_t dataSetMessagesSize; /* Goes into the payload header */
+        } dataSetPayload;
+        /* Extended with other payload types in the future */
     } payload;
 
     UA_ByteString securityFooter;
