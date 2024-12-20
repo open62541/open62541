@@ -530,9 +530,10 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
         }
 
         /* Process only the payloads where the WriterId from the header is expected */
-        UA_DataSetPayloadHeader *ph = &nm->payloadHeader.dataSetPayloadHeader;
-        for(UA_Byte i = 0; i < ph->count; i++) {
-            if(reader->config.dataSetWriterId == ph->dataSetWriterIds[i]) {
+        size_t count = nm->payload.dataSetPayload.dataSetMessagesSize;
+        for(size_t i = 0; i < count; i++) {
+            if(reader->config.dataSetWriterId == nm->payload.dataSetPayload.
+               dataSetMessages[i].dataSetWriterId) {
                 UA_DataSetReader_process(psm, reader,
                                          &nm->payload.dataSetPayload.dataSetMessages[i]);
             }

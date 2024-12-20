@@ -68,12 +68,6 @@ typedef struct {
     const UA_String *serverUris;
 
     const UA_DataTypeArray *customTypes;
-
-    /* Additonal data for special cases such as networkmessage/datasetmessage
-     * Currently only used for dataSetWriterIds */
-    size_t numCustom;
-    void * custom;
-    size_t currentCustomIndex;
 } ParseCtx;
 
 typedef UA_StatusCode
