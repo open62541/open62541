@@ -1058,6 +1058,8 @@ UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
     if(p->payloadHeaderEnabled && count > 1)
         size += (size_t)(2LU * count); /* DataSetMessagesSize (uint16) */
     for(size_t i = 0; i < count; i++) {
+        /* size = ... as the original size is used as the starting point in
+         * UA_DataSetMessage_calcSizeBinary */
         UA_DataSetMessage *dsm = &p->payload.dataSetPayload.dataSetMessages[i];
         size = UA_DataSetMessage_calcSizeBinary(dsm, offsetBuffer, size);
     }
