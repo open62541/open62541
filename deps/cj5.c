@@ -23,6 +23,7 @@
 
 #include "cj5.h"
 #include "parse_num.h"
+#include "utf8.h"
 
 #include <math.h>
 #include <float.h>
@@ -700,6 +701,7 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
             case 'r':  buf[outpos++] = '\r'; break;
             case 'n':  buf[outpos++] = '\n'; break;
             case 't':  buf[outpos++] = '\t'; break;
+            default: return CJ5_ERROR_INVALID;
             case 'u': {
                 // Parse the unicode code point
                 if(pos + 4 >= end)
@@ -730,27 +732,12 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
                 }
                 
                 // Write the utf8 bytes of the code point
-                if(utf <= 0x7F) { // Plain ASCII
-                    buf[outpos++] = (char)utf;
-                } else if(utf <= 0x07FF) { // 2-byte unicode
-                    buf[outpos++] = (char)(((utf >> 6) & 0x1F) | 0xC0);
-                    buf[outpos++] = (char)(((utf >> 0) & 0x3F) | 0x80);
-                } else if(utf <= 0xFFFF) { // 3-byte unicode
-                    buf[outpos++] = (char)(((utf >> 12) & 0x0F) | 0xE0);
-                    buf[outpos++] = (char)(((utf >>  6) & 0x3F) | 0x80);
-                    buf[outpos++] = (char)(((utf >>  0) & 0x3F) | 0x80);
-                } else if(utf <= 0x10FFFF) { // 4-byte unicode
-                    buf[outpos++] = (char)(((utf >> 18) & 0x07) | 0xF0);
-                    buf[outpos++] = (char)(((utf >> 12) & 0x3F) | 0x80);
-                    buf[outpos++] = (char)(((utf >>  6) & 0x3F) | 0x80);
-                    buf[outpos++] = (char)(((utf >>  0) & 0x3F) | 0x80);
-                } else {
+                unsigned len = utf8_from_codepoint((unsigned char*)buf + outpos, utf);
+                if(len == 0)
                     return CJ5_ERROR_INVALID; // Not a utf8 string
-                }
+                outpos += len;
                 break;
             }
-            default:
-                return CJ5_ERROR_INVALID;
             }
             continue;
         }
@@ -759,7 +746,7 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
         // quotes if the quote character is not the same as the surrounding
         // quote character, e.g. 'this is my "quote"'. This logic is in the
         // token parsing code and not in this "string extraction" method.
-        if(c < ' '   || c == 127)
+        if(c < ' ' || c == 127)
             return CJ5_ERROR_INVALID;
 
         // Ascii character or utf8 byte
