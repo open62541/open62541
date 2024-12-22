@@ -459,99 +459,63 @@ ENCODE_JSON(String) {
 
     UA_StatusCode ret = writeJsonQuote(ctx);
 
-    const unsigned char *pos = src->data;         /* Input position */
-    const unsigned char *end = pos + src->length; /* End of input */
-    while(pos < end) {
-        /* Find the first escaped character */
+    const unsigned char *end = src->data + src->length;
+    for(const unsigned char *pos = src->data; pos < end; pos++) {
+        /* Skip to the first character that needs escaping */
         const unsigned char *start = pos;
         for(; pos < end; pos++) {
-            if(*pos >= 127 || *pos < ' ' || *pos == '\\' || *pos == '\"')
+            if(*pos < ' ' || *pos == 127 || *pos == '\\' || *pos == '\"')
                 break;
         }
 
-        /* Write out the unescaped ascii sequence */
-        if(pos > start) {
-            if(ctx->pos + (pos - start) > ctx->end)
-                return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-            if(!ctx->calcOnly)
-                memcpy(ctx->pos, start, (size_t)(pos - start));
-            ctx->pos += pos - start;
-        }
+        /* Write out the unescaped sequence */
+        if(ctx->pos + (pos - start) > ctx->end)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        if(!ctx->calcOnly)
+            memcpy(ctx->pos, start, (size_t)(pos - start));
+        ctx->pos += pos - start;
 
-        /* The unescaped ascii sequence reached the end */
+        /* The unescaped sequence reached the end */
         if(pos == end)
             break;
 
-        /* Parse an escaped character */
-        unsigned codepoint = 0;
-        unsigned len = utf8_to_codepoint(pos, (size_t)(end - pos), &codepoint);
-        if(len == 0)  {
-            /* A malformed utf8 character. Print anyway and let the
-             * receiving side choose how to handle it. */
-            codepoint = *pos;
-            len = 1;
-        }
-        pos += len;
-
         /* Write an escaped character */
-        u8 escape_buf[13];
-        const char *escape_text;
-        size_t escape_length = 2;
-        switch(codepoint) {
-        case '\\': escape_text = "\\\\"; break;
-        case '\"': escape_text = "\\\""; break;
-        case '\b': escape_text = "\\b";  break;
-        case '\f': escape_text = "\\f";  break;
-        case '\n': escape_text = "\\n";  break;
-        case '\r': escape_text = "\\r";  break;
-        case '\t': escape_text = "\\t";  break;
+        char *escape_text;
+        char escape_buf[6];
+        size_t escape_len = 2;
+        switch(*pos) {
+        case '\b': escape_text = "\\b"; break;
+        case '\f': escape_text = "\\f"; break;
+        case '\n': escape_text = "\\n"; break;
+        case '\r': escape_text = "\\r"; break;
+        case '\t': escape_text = "\\t"; break;
         default:
-            escape_text = (char*)escape_buf;
-            if(codepoint < 0x10000) {
-                /* codepoint is in BMP */
+            escape_text = escape_buf;
+            if(*pos >= ' ' && *pos != 127) {
+                /* Escape \ or " */
                 escape_buf[0] = '\\';
-                escape_buf[1] = 'u';
-                UA_Byte b1 = (UA_Byte)(codepoint >> 8u);
-                UA_Byte b2 = (UA_Byte)(codepoint >> 0u);
-                escape_buf[2] = hexmap[(b1 & 0xF0u) >> 4u];
-                escape_buf[3] = hexmap[b1 & 0x0Fu];
-                escape_buf[4] = hexmap[(b2 & 0xF0u) >> 4u];
-                escape_buf[5] = hexmap[b2 & 0x0Fu];
-                escape_length = 6;
+                escape_buf[1] = *pos;
             } else {
-                /* not in BMP -> construct a UTF-16 surrogate pair */
-                codepoint -= 0x10000;
-                UA_UInt32 first = 0xD800u | ((codepoint & 0xffc00u) >> 10u);
-                UA_UInt32 last = 0xDC00u | (codepoint & 0x003ffu);
-                UA_Byte fb1 = (UA_Byte)(first >> 8u);
-                UA_Byte fb2 = (UA_Byte)(first >> 0u);
-                UA_Byte lb1 = (UA_Byte)(last >> 8u);
-                UA_Byte lb2 = (UA_Byte)(last >> 0u);
+                /* Unprintable characters need to be escaped */
                 escape_buf[0] = '\\';
                 escape_buf[1] = 'u';
-                escape_buf[2] = hexmap[(fb1 & 0xF0u) >> 4u];
-                escape_buf[3] = hexmap[fb1 & 0x0Fu];
-                escape_buf[4] = hexmap[(fb2 & 0xF0u) >> 4u];
-                escape_buf[5] = hexmap[fb2 & 0x0Fu];
-                escape_buf[6] = '\\';
-                escape_buf[7] = 'u';
-                escape_buf[8] = hexmap[(lb1 & 0xF0u) >> 4u];
-                escape_buf[9] = hexmap[lb1 & 0x0Fu];
-                escape_buf[10] = hexmap[(lb2 & 0xF0u) >> 4u];
-                escape_buf[11] = hexmap[lb2 & 0x0Fu];
-                escape_length = 12;
+                escape_buf[2] = '0';
+                escape_buf[3] = '0';
+                escape_buf[4] = hexmap[*pos >> 4];
+                escape_buf[5] = hexmap[*pos & 0x0f];
+                escape_len = 6;
             }
             break;
         }
 
         /* Enough space? */
-        if(ctx->pos + escape_length > ctx->end)
+        if(ctx->pos + escape_len > ctx->end)
             return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
 
         /* Write the escaped character */
         if(!ctx->calcOnly)
-            memcpy(ctx->pos, escape_text, escape_length);
-        ctx->pos += escape_length;
+            memcpy(ctx->pos, escape_text, escape_len);
+        ctx->pos += escape_len;
     }
 
     return ret | writeJsonQuote(ctx);
