@@ -132,49 +132,16 @@ cj5__parse_string(cj5__parser *parser) {
             return;
         }
 
-        // Escape char
+        // Skip escape character
         if(c == '\\') {
             if(parser->pos + 1 >= len) {
                 parser->error = CJ5_ERROR_INCOMPLETE;
                 return;
             }
             parser->pos++;
-            switch(json5[parser->pos]) {
-            case '\"':
-            case '/':
-            case '\\':
-            case 'b':
-            case 'f':
-            case 'r':
-            case 'n':
-            case 't':
-                break;
-            case 'u': // The next four characters are an utf8 code
-                parser->pos++;
-                if(parser->pos + 4 >= len) {
-                    parser->error = CJ5_ERROR_INVALID;
-                    return;
-                }
-                for(unsigned int i = 0; i < 4; i++) {
-                    // If it isn't a hex character we have an error
-                    if(!(json5[parser->pos] >= 48 && json5[parser->pos] <= 57) && /* 0-9 */
-                       !(json5[parser->pos] >= 65 && json5[parser->pos] <= 70) && /* A-F */
-                       !(json5[parser->pos] >= 97 && json5[parser->pos] <= 102))  /* a-f */
-                        {
-                            parser->error = CJ5_ERROR_INVALID;
-                            return;
-                        }
-                    parser->pos++;
-                }
-                parser->pos--;
-                break;
-            case '\n': // Escape break line
+            if(json5[parser->pos] == '\n') {
                 parser->line++;
                 parser->line_start = parser->pos;
-                break;
-            default:
-                parser->error = CJ5_ERROR_INVALID;
-                return;
             }
         }
     }
