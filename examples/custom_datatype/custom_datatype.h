@@ -181,7 +181,7 @@ static void setupCustomTypes(void) {
     Uni_members[0] = (UA_DataTypeMember) {
         UA_TYPENAME("optionA")         /* .memberName */
         &UA_TYPES[UA_TYPES_DOUBLE],    /* .memberType */
-        offsetof(Uni, fields.optionA), /* .padding */
+        (UA_Byte)(offsetof(Uni, fields.optionA) - 0), /* .padding */
         false,                         /* .isArray */
         false                          /* .isOptional */
     };
@@ -189,7 +189,7 @@ static void setupCustomTypes(void) {
     Uni_members[1] = (UA_DataTypeMember) {
         UA_TYPENAME("optionB")         /* .memberName */
         &UA_TYPES[UA_TYPES_STRING],    /* .memberType */
-        offsetof(Uni, fields.optionB), /* .padding */
+        (UA_Byte)(offsetof(Uni, fields.optionB) - 0), /* .padding */
         false,                         /* .isArray */
         false                          /* .isOptional */
     };
