@@ -29,11 +29,6 @@ _UA_BEGIN_DECLS
  * DataSet Message
  * ^^^^^^^^^^^^^^^ */
 
-typedef struct {
-    UA_Byte count;
-    UA_UInt16* dataSetWriterIds;
-} UA_DataSetPayloadHeader;
-
 typedef enum {
     UA_FIELDENCODING_VARIANT   = 0,
     UA_FIELDENCODING_RAWDATA   = 1,
@@ -87,6 +82,8 @@ typedef struct {
 } UA_DataSetMessage_DataDeltaFrameData;
 
 typedef struct {
+    UA_UInt16 dataSetWriterId; /* Goes into the payload header */
+
     UA_DataSetMessageHeader header;
     union {
         UA_DataSetMessage_DataKeyFrameData keyFrameData;
@@ -104,11 +101,6 @@ typedef enum {
     UA_NETWORKMESSAGE_DISCOVERY_REQUEST = 1,
     UA_NETWORKMESSAGE_DISCOVERY_RESPONSE = 2
 } UA_NetworkMessageType;
-
-typedef struct {
-    UA_UInt16* sizes;
-    UA_DataSetMessage* dataSetMessages;
-} UA_DataSetPayload;
 
 typedef struct {
     UA_Boolean writerGroupIdEnabled;
@@ -153,10 +145,6 @@ typedef struct {
 
     UA_NetworkMessageGroupHeader groupHeader;
 
-    union {
-        UA_DataSetPayloadHeader dataSetPayloadHeader;
-    } payloadHeader;
-
     UA_DateTime timestamp;
     UA_UInt16 picoseconds;
     UA_UInt16 promotedFieldsSize;
@@ -165,7 +153,11 @@ typedef struct {
     UA_NetworkMessageSecurityHeader securityHeader;
 
     union {
-        UA_DataSetPayload dataSetPayload;
+        struct {
+            UA_DataSetMessage *dataSetMessages;
+            size_t dataSetMessagesSize; /* Goes into the payload header */
+        } dataSetPayload;
+        /* Extended with other payload types in the future */
     } payload;
 
     UA_ByteString securityFooter;

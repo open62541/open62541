@@ -20,7 +20,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y -qq python3-sphinx graphviz python-six texlive-fonts-recommended texlive-latex-extra texlive-plain-generic texlive-latex-recommended latexmk texlive-fonts-extra
+          sudo apt-get install -y -qq python3-sphinx graphviz texlive-fonts-recommended texlive-latex-extra texlive-plain-generic texlive-latex-recommended latexmk texlive-fonts-extra
           pip install sphinx-rtd-theme
       - name: Build Documentation
         run: source tools/ci/ci.sh && build_docs_pdf
