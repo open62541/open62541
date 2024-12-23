@@ -239,10 +239,7 @@ if(UA_ENABLE_PUBSUB)
     endif()
 
     if(UA_ENABLE_PUBSUB_FILE_CONFIG)
-        # TODO: This example accesses a private API
         add_example(server_pubsub_file_configuration pubsub/server_pubsub_file_configuration.c)
-        target_include_directories(server_pubsub_file_configuration PUBLIC "${PROJECT_SOURCE_DIR}/../src/pubsub")
-        target_include_directories(server_pubsub_file_configuration PUBLIC "${PROJECT_SOURCE_DIR}/../deps")
     endif()
 
     add_example(server_pubsub_subscribe_custom_monitoring
