@@ -155,6 +155,10 @@ add_example(server_inheritance server_inheritance.c)
 
 add_example(server_loglevel server_loglevel.c)
 
+add_example(custom_datatype_client custom_datatype/client_types_custom.c)
+
+add_example(custom_datatype_server custom_datatype/server_types_custom.c)
+
 if(UA_ENABLE_JSON_ENCODING)
     add_example(server_json_config server_json_config.c)
 endif()
@@ -177,14 +181,6 @@ if(UA_ENABLE_ENCRYPTION OR UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS" OR UA_ENABLE_
     endif()
 endif()
 
-if (NOT (BUILD_SHARED_LIBS AND WIN32))
-    add_example(custom_datatype_client custom_datatype/client_types_custom.c)
-    add_example(custom_datatype_server custom_datatype/server_types_custom.c)
-else()
-    MESSAGE(WARNING "Can't build custom datatype examples on WIN32 when BUILD_SHARED_LIBS enabled. Skipping
-custom_datatype_client and custom_datatype_server!")
-endif()
-
 if(UA_ENABLE_NODEMANAGEMENT)
     add_example(access_control_server access_control/server_access_control.c)
     add_example(access_control_client access_control/client_access_control.c)
@@ -201,6 +197,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
 endif()
 
 add_subdirectory(nodeset)
+
 ####################
 #  Example PubSub  #
 ####################
@@ -255,6 +252,7 @@ endif()
 ###########################
 # Nodeser Loader Examples #
 ###########################
+
 if(UA_ENABLE_NODESETLOADER)
     add_subdirectory(nodeset_loader)
 endif()
