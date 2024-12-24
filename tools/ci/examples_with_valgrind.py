@@ -109,6 +109,9 @@ print(f"Current directory: {current_dir}")
 example_dir = os.path.join(current_dir, "bin", "examples")
 examples = os.listdir(example_dir)
 
+cur_dir = os.path.dirname(os.path.realpath(__file__)) # path of current file
+tests_path = os.path.join(cur_dir, os.pardir, os.pardir, "tests")
+
 # skipping examples that are in the blacklist
 for example in examples:
     if example in blacklist:
@@ -117,7 +120,9 @@ for example in examples:
 
     # get the arguments for the example
     args = example_args.get(example)
-    cmd = ["valgrind", "--errors-for-leak-kinds=all", "--leak-check=full", "--error-exitcode=1337", "./bin/examples/"+example]
+    cmd = ["valgrind", "--errors-for-leak-kinds=all", "--leak-check=full", "--error-exitcode=1337",
+           f"--suppressions={tests_path}/valgrind_suppressions.supp",
+           "./bin/examples/"+example]
     if args:
         args_list = args.split()
         cmd += args_list
