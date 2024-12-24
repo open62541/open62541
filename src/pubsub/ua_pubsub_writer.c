@@ -82,12 +82,27 @@ UA_DataSetWriter_unfreezeConfiguration(UA_DataSetWriter *dsw) {
 UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                                 UA_PubSubState targetState) {
+    UA_Server *server = psm->sc.server;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_PubSubState oldState = dsw->head.state;
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
     UA_assert(wg);
 
-    UA_PubSubState oldState = dsw->head.state;
+    /* Custom state machine */
+    if(dsw->config.customStateMachine) {
+        UA_UNLOCK(&server->serviceMutex);
+        res = dsw->config.customStateMachine(server, dsw->head.identifier, dsw->config.context,
+                                             &dsw->head.state, targetState);
+        UA_LOCK(&server->serviceMutex);
+        if(dsw->head.state == UA_PUBSUBSTATE_DISABLED ||
+           dsw->head.state == UA_PUBSUBSTATE_ERROR)
+            UA_DataSetWriter_unfreezeConfiguration(dsw);
+        else
+            UA_DataSetWriter_freezeConfiguration(dsw);
+        goto finalize_state_machine;
+    }
 
+    /* Internal state machine */
     switch(targetState) {
         /* Disabled */
     case UA_PUBSUBSTATE_DISABLED:
@@ -117,9 +132,10 @@ UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
         break;
     }
 
+ finalize_state_machine:
+
     /* Inform application about state change */
     if(dsw->head.state != oldState) {
-        UA_Server *server = psm->sc.server;
         UA_LOG_INFO_PUBSUB(psm->logging, dsw, "%s -> %s",
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(dsw->head.state));

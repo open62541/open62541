@@ -9,7 +9,14 @@
    fun:exit
 }
 
-
+{
+   <timer_create_false_positive>
+   Memcheck:Leak
+   match-leak-kinds: possible
+   ...
+   fun:timer_create@@*
+   ...
+}
 
 # Custom suppressions added by @Pro
 

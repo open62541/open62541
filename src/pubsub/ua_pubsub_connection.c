@@ -23,7 +23,7 @@ UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
 
 static void
 UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
-                            UA_ByteString msg);
+                            const UA_ByteString msg);
 
 static void
 UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
@@ -276,7 +276,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
 
 static void
 UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
-                            UA_ByteString msg) {
+                            const UA_ByteString msg) {
     UA_LOG_TRACE_PUBSUB(psm->logging, c, "Processing a received buffer");
 
     /* Process RT ReaderGroups */
@@ -357,9 +357,20 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
     UA_Boolean isTransient = c->head.transientState;
     c->head.transientState = true;
 
+    UA_Server *server = psm->sc.server;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = c->head.state;
 
+    /* Custom state machine */
+    if(c->config.customStateMachine) {
+        UA_UNLOCK(&server->serviceMutex);
+        ret = c->config.customStateMachine(server, c->head.identifier, c->config.context,
+                                           &c->head.state, targetState);
+        UA_LOCK(&server->serviceMutex);
+        goto finalize_state_machine;
+    }
+
+    /* Internal state machine */
     switch(targetState) {
         /* Disabled or Error */
         case UA_PUBSUBSTATE_ERROR:
@@ -405,6 +416,8 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
         UA_PubSubConnection_disconnect(c);
     }
 
+ finalize_state_machine:
+
     /* Only the top-level state update (if recursive calls are happening)
      * notifies the application and updates Reader and WriterGroups */
     c->head.transientState = isTransient;
@@ -413,15 +426,14 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
 
     /* Inform application about state change */
     if(c->head.state != oldState) {
-        UA_ServerConfig *config = &psm->sc.server->config;
         UA_LOG_INFO_PUBSUB(psm->logging, c, "%s -> %s",
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(c->head.state));
-        if(config->pubSubConfig.stateChangeCallback) {
-            UA_UNLOCK(&psm->sc.server->serviceMutex);
-            config->pubSubConfig.
-                stateChangeCallback(psm->sc.server, c->head.identifier, targetState, ret);
-            UA_LOCK(&psm->sc.server->serviceMutex);
+        if(server->config.pubSubConfig.stateChangeCallback) {
+            UA_UNLOCK(&server->serviceMutex);
+            server->config.pubSubConfig.
+                stateChangeCallback(server, c->head.identifier, targetState, ret);
+            UA_LOCK(&server->serviceMutex);
         }
     }
 
@@ -931,6 +943,31 @@ UA_Server_disablePubSubConnection(UA_Server *server, const UA_NodeId cId) {
     UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode res = (psm) ?
         disablePubSubConnection(psm, cId) : UA_STATUSCODE_BADINTERNALERROR;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_processPubSubConnectionReceive(UA_Server *server,
+                                         const UA_NodeId connectionId,
+                                         const UA_ByteString packet) {
+    if(!server)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    UA_PubSubManager *psm = getPSM(server);
+    if(psm) {
+        UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
+        if(c) {
+            res = UA_STATUSCODE_GOOD;
+            UA_PubSubConnection_process(psm, c, packet);
+        } else {
+            res = UA_STATUSCODE_BADCONNECTIONCLOSED;
+            UA_LOG_WARNING_PUBSUB(psm->logging, c,
+                                  "Cannot process a packet if the "
+                                  "PubSubConnection is not operational");
+        }
+    }
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

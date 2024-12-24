@@ -12,6 +12,8 @@
 #define STRING_BUFFER_SIZE 20
 
 int main(void) {
+    setupCustomTypes();
+
     /* Make your custom datatype known to the stack */
     UA_DataType types[4];
     types[0] = PointType;
