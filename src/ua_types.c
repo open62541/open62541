@@ -457,10 +457,14 @@ UA_NodeId_hash(const UA_NodeId *n) {
 static size_t
 nodeIdSize(const UA_NodeId *id,
            char *nsStr, size_t *nsStrSize,
-           char *numIdStr, size_t *numIdStrSize) {
+           char *numIdStr, size_t *numIdStrSize,
+           UA_String nsUri) {
     /* Namespace length */
     size_t len = 0;
-    if(id->namespaceIndex != 0) {
+    if(nsUri.length > 0) {
+        len += 5; /* nsu=; */
+        len += nsUri.length;
+    } else if(id->namespaceIndex > 0) {
         len += 4; /* ns=; */
         *nsStrSize = itoaUnsigned(id->namespaceIndex, nsStr, 10);
         len += *nsStrSize;
@@ -488,7 +492,13 @@ nodeIdSize(const UA_NodeId *id,
 
 #define PRINT_NODEID                                           \
     /* Encode the namespace */                                 \
-    if(id->namespaceIndex != 0) {                              \
+    if(nsUri.length > 0) {                                     \
+        memcpy(pos, "nsu=", 4);                                \
+        pos += 4;                                              \
+        memcpy(pos, nsUri.data, nsUri.length);                 \
+        pos += nsUri.length;                                   \
+        *pos++ = ';';                                          \
+    } else if(id->namespaceIndex > 0) {                        \
         memcpy(pos, "ns=", 3);                                 \
         pos += 3;                                              \
         memcpy(pos, nsStr, nsStrSize);                         \
@@ -529,13 +539,19 @@ nodeIdSize(const UA_NodeId *id,
     do { } while(false)
 
 UA_StatusCode
-UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
-    /* Compute the string length */
+UA_NodeId_printEx(const UA_NodeId *id, UA_String *output,
+                  const UA_NamespaceMapping *nsMapping) {
+    /* Try to map the NamespaceIndex to the Uri */
+    UA_String nsUri = UA_STRING_NULL;
+    if(id->namespaceIndex > 0 && nsMapping)
+        UA_NamespaceMapping_index2Uri(nsMapping, id->namespaceIndex, &nsUri);
+
+    /* Compute the string length and print numerical identifiers */
     char nsStr[6];
     size_t nsStrSize = 0;
     char numIdStr[11];
     size_t numIdStrSize = 0;
-    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize);
+    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize, nsUri);
     if(idLen == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -556,6 +572,11 @@ UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
 
     UA_assert(output->length == (size_t)((UA_Byte*)pos - output->data));
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
+    return UA_NodeId_printEx(id, output, NULL);
 }
 
 /* ExpandedNodeId */
@@ -596,33 +617,41 @@ UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n) {
 }
 
 UA_StatusCode
-UA_ExpandedNodeId_print(const UA_ExpandedNodeId *eid, UA_String *output) {
-    /* Don't print the namespace-index if a NamespaceUri is set */
-    UA_NodeId stackid = eid->nodeId;
-    UA_NodeId *id = &stackid; /* for the print-macro below */
-    if(eid->namespaceUri.data != NULL)
-        id->namespaceIndex = 0;
+UA_ExpandedNodeId_printEx(const UA_ExpandedNodeId *eid, UA_String *output,
+                          const UA_NamespaceMapping *nsMapping,
+                          size_t serverUrisSize, const UA_String *serverUris) {
+    /* Shortahdn and for the print-macro below */
+    const UA_NodeId *id = &eid->nodeId;
 
-    /* Compute the string length */
+    /* Try to map the NamespaceIndex to the Uri */
+    UA_String nsUri = eid->namespaceUri;
+    if(nsUri.length == 0 && id->namespaceIndex > 0 && nsMapping)
+        UA_NamespaceMapping_index2Uri(nsMapping, id->namespaceIndex, &nsUri);
+
+    /* Try to map the ServerIndex to a Uri */
+    UA_String srvUri = UA_STRING_NULL;
+    if(eid->serverIndex > 0 && eid->serverIndex < serverUrisSize)
+        srvUri = serverUris[eid->serverIndex];
+
+    /* Compute the NodeId string length */
     char nsStr[6];
     size_t nsStrSize = 0;
     char numIdStr[11];
     size_t numIdStrSize = 0;
-    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize);
+    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize, nsUri);
     if(idLen == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     char srvIdxStr[11];
     size_t srvIdxSize = 0;
-    if(eid->serverIndex != 0) {
+    if(srvUri.length  > 0) {
+        idLen += 5; /* svu=; */
+        idLen += srvUri.length;
+        idLen += srvIdxSize;
+    } else if(eid->serverIndex > 0) {
         idLen += 5; /* svr=; */
         srvIdxSize = itoaUnsigned(eid->serverIndex, srvIdxStr, 10);
         idLen += srvIdxSize;
-    }
-
-    if(eid->namespaceUri.data != NULL) {
-        idLen += 5; /* nsu=; */
-        idLen += eid->namespaceUri.length;
     }
 
     /* Allocate memory if required */
@@ -638,20 +667,17 @@ UA_ExpandedNodeId_print(const UA_ExpandedNodeId *eid, UA_String *output) {
 
     /* Encode the ServerIndex */
     char *pos = (char*)output->data;
-    if(eid->serverIndex != 0) {
+    if(srvUri.length  > 0) {
+        memcpy(pos, "svu=", 4);
+        pos += 4;
+        memcpy(pos, srvUri.data, srvUri.length);
+        pos += srvUri.length;
+        *pos++ = ';';
+    } else if(eid->serverIndex > 0) {
         memcpy(pos, "svr=", 4);
         pos += 4;
         memcpy(pos, srvIdxStr, srvIdxSize);
         pos += srvIdxSize;
-        *pos++ = ';';
-    }
-
-    /* Encode the NamespaceUri */
-    if(eid->namespaceUri.data != NULL) {
-        memcpy(pos, "nsu=", 4);
-        pos += 4;
-        memcpy(pos, eid->namespaceUri.data, eid->namespaceUri.length);
-        pos += eid->namespaceUri.length;
         *pos++ = ';';
     }
 
@@ -660,6 +686,11 @@ UA_ExpandedNodeId_print(const UA_ExpandedNodeId *eid, UA_String *output) {
 
     UA_assert(output->length == (size_t)((UA_Byte*)pos - output->data));
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_ExpandedNodeId_print(const UA_ExpandedNodeId *eid, UA_String *output) {
+    return UA_ExpandedNodeId_printEx(eid, output, NULL, 0, NULL);
 }
 
 /* ExtensionObject */
