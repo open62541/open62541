@@ -185,14 +185,6 @@ static const char* UA_JSONKEY_TEXT = "Text";
 static const char* UA_JSONKEY_NAME = "Name";
 static const char* UA_JSONKEY_URI = "Uri";
 
-/* NodeId */
-static const char* UA_JSONKEY_ID = "Id";
-static const char* UA_JSONKEY_IDTYPE = "IdType";
-static const char* UA_JSONKEY_NAMESPACE = "Namespace";
-
-/* ExpandedNodeId */
-static const char* UA_JSONKEY_SERVERURI = "ServerUri";
-
 /* Variant */
 static const char* UA_JSONKEY_TYPE = "Type";
 static const char* UA_JSONKEY_BODY = "Body";
@@ -627,166 +619,22 @@ ENCODE_JSON(DateTime) {
 }
 
 /* NodeId */
-static status
-NodeId_encodeJsonInternal(CtxJson *ctx, UA_NodeId const *src) {
-    status ret = UA_STATUSCODE_GOOD;
-    switch(src->identifierType) {
-    case UA_NODEIDTYPE_NUMERIC:
-        ret |= writeJsonKey(ctx, UA_JSONKEY_ID);
-        ret |= ENCODE_DIRECT_JSON(&src->identifier.numeric, UInt32);
-        break;
-    case UA_NODEIDTYPE_STRING:
-        ret |= writeJsonKey(ctx, UA_JSONKEY_IDTYPE);
-        ret |= writeChar(ctx, '1');
-        ret |= writeJsonKey(ctx, UA_JSONKEY_ID);
-        ret |= ENCODE_DIRECT_JSON(&src->identifier.string, String);
-        break;
-    case UA_NODEIDTYPE_GUID:
-        ret |= writeJsonKey(ctx, UA_JSONKEY_IDTYPE);
-        ret |= writeChar(ctx, '2');
-        ret |= writeJsonKey(ctx, UA_JSONKEY_ID); /* Id */
-        ret |= ENCODE_DIRECT_JSON(&src->identifier.guid, Guid);
-        break;
-    case UA_NODEIDTYPE_BYTESTRING:
-        ret |= writeJsonKey(ctx, UA_JSONKEY_IDTYPE);
-        ret |= writeChar(ctx, '3');
-        ret |= writeJsonKey(ctx, UA_JSONKEY_ID); /* Id */
-        ret |= ENCODE_DIRECT_JSON(&src->identifier.byteString, ByteString);
-        break;
-    default:
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    return ret;
-}
-
 ENCODE_JSON(NodeId) {
-    /* Encode as string (non-standard). Encode with the standard utf8 escaping.
-     * As the NodeId can contain quote characters, etc. */
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    if(ctx->stringNodeIds) {
-        UA_String out = UA_STRING_NULL;
-        ret |= UA_NodeId_print(src, &out);
-        ret |= ENCODE_DIRECT_JSON(&out, String);
-        UA_String_clear(&out);
-        return ret;
-    }
-
-    /* Encode as object */
-    ret |= writeJsonObjStart(ctx);
-    ret |= NodeId_encodeJsonInternal(ctx, src);
-    if(ctx->useReversible) {
-        if(src->namespaceIndex > 0) {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
-            ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
-        }
-    } else {
-        /* For the non-reversible encoding, the field is the NamespaceUri
-         * associated with the NamespaceIndex, encoded as a JSON string.
-         * A NamespaceIndex of 1 is always encoded as a JSON number. */
-        ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
-        if(src->namespaceIndex == 1) {
-            ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
-        } else {
-            /* Check if Namespace given and in range */
-            UA_String nsUri = UA_STRING_NULL;
-            UA_UInt16 ns = src->namespaceIndex;
-            if(ctx->namespaceMapping)
-                UA_NamespaceMapping_index2Uri(ctx->namespaceMapping, ns, &nsUri);
-            if(nsUri.length > 0) {
-                ret |= ENCODE_DIRECT_JSON(&nsUri, String);
-            } else {
-                /* If not found, print the identifier */
-                ret |= ENCODE_DIRECT_JSON(&ns, UInt16);
-            }
-        }
-    }
-
-    return ret | writeJsonObjEnd(ctx);
+    UA_String out = UA_STRING_NULL;
+    UA_StatusCode ret = UA_NodeId_printEx(src, &out, ctx->namespaceMapping);
+    ret |= ENCODE_DIRECT_JSON(&out, String);
+    UA_String_clear(&out);
+    return ret;
 }
 
 /* ExpandedNodeId */
 ENCODE_JSON(ExpandedNodeId) {
-    /* Encode as string (non-standard). Encode with utf8 escaping as the NodeId
-     * can contain quote characters, etc. */
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    if(ctx->stringNodeIds) {
-        UA_String out = UA_STRING_NULL;
-        ret |= UA_ExpandedNodeId_print(src, &out);
-        ret |= ENCODE_DIRECT_JSON(&out, String);
-        UA_String_clear(&out);
-        return ret;
-    }
-
-    /* Encode as object */
-    ret |= writeJsonObjStart(ctx);
-
-    /* Encode the identifier portion */
-    ret |= NodeId_encodeJsonInternal(ctx, &src->nodeId);
-
-    if(ctx->useReversible) {
-        /* Reversible Case */
-
-        if(src->namespaceUri.data) {
-            /* If the NamespaceUri is specified it is encoded as a JSON string
-             * in this field */
-            ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
-            ret |= ENCODE_DIRECT_JSON(&src->namespaceUri, String);
-        } else if(src->nodeId.namespaceIndex > 0) {
-            /* If the NamespaceUri is not specified, the NamespaceIndex is
-             * encoded. Encoded as a JSON number for the reversible encoding.
-             * Omitted if the NamespaceIndex equals 0. */
-            ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
-            ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
-        }
-
-        /* Encode the serverIndex/Url. As a JSON number for the reversible
-         * encoding. Omitted if the ServerIndex equals 0. */
-        if(src->serverIndex > 0) {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_SERVERURI);
-            ret |= ENCODE_DIRECT_JSON(&src->serverIndex, UInt32);
-        }
-    } else {
-        /* Non-Reversible Case */
-
-        /* If the NamespaceUri is not specified, the NamespaceIndex is encoded
-         * with these rules: For the non-reversible encoding the field is the
-         * NamespaceUri associated with the NamespaceIndex encoded as a JSON
-         * string. A NamespaceIndex of 1 is always encoded as a JSON number. */
-
-        ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
-        if(src->namespaceUri.data) {
-            ret |= ENCODE_DIRECT_JSON(&src->namespaceUri, String);
-        } else {
-            if(src->nodeId.namespaceIndex == 1) {
-                ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
-            } else {
-                /* Check if Namespace given and in range */
-                UA_String nsUri = UA_STRING_NULL;
-                UA_UInt16 ns = src->nodeId.namespaceIndex;
-                if(ctx->namespaceMapping)
-                    UA_NamespaceMapping_index2Uri(ctx->namespaceMapping, ns, &nsUri);
-                if(nsUri.length > 0) {
-                    ret |= ENCODE_DIRECT_JSON(&nsUri, String);
-                } else {
-                    ret |= ENCODE_DIRECT_JSON(&ns, UInt16);
-                }
-            }
-        }
-
-        /* For the non-reversible encoding, this field is the ServerUri
-         * associated with the ServerIndex portion of the ExpandedNodeId,
-         * encoded as a JSON string. */
-
-        /* Check if server given and in range */
-        if(src->serverIndex >= ctx->serverUrisSize || !ctx->serverUris)
-            return UA_STATUSCODE_BADNOTFOUND;
-
-        UA_String serverUriEntry = ctx->serverUris[src->serverIndex];
-        ret |= writeJsonKey(ctx, UA_JSONKEY_SERVERURI);
-        ret |= ENCODE_DIRECT_JSON(&serverUriEntry, String);
-    }
-
-    return ret | writeJsonObjEnd(ctx);
+    UA_String out = UA_STRING_NULL;
+    UA_StatusCode ret = UA_ExpandedNodeId_printEx(src, &out, ctx->namespaceMapping,
+                                                  ctx->serverUrisSize, ctx->serverUris);
+    ret |= ENCODE_DIRECT_JSON(&out, String);
+    UA_String_clear(&out);
+    return ret;
 }
 
 /* LocalizedText */
@@ -1744,188 +1592,25 @@ lookAheadForKey(ParseCtx *ctx, const char *key, size_t *resultIndex) {
     return ret;
 }
 
-static status
-prepareDecodeNodeIdJson(ParseCtx *ctx, UA_NodeId *dst,
-                        u8 *fieldCount, DecodeEntry *entries) {
-    UA_assert(currentTokenType(ctx) == CJ5_TOKEN_OBJECT);
-
-    /* possible keys: Id, IdType, NamespaceIndex */
-    /* Id must always be present */
-    entries[*fieldCount].fieldName = UA_JSONKEY_ID;
-    entries[*fieldCount].found = false;
-    entries[*fieldCount].type = NULL;
-    entries[*fieldCount].function = NULL;
-
-    /* IdType */
-    size_t idIndex = 0;
-    status ret = lookAheadForKey(ctx, UA_JSONKEY_IDTYPE, &idIndex);
-    if(ret == UA_STATUSCODE_GOOD) {
-        size_t size = getTokenLength(&ctx->tokens[idIndex]);
-        if(size < 1)
-            return UA_STATUSCODE_BADDECODINGERROR;
-
-        const char *idType = &ctx->json5[ctx->tokens[idIndex].start];
-
-        if(idType[0] == '2') {
-            dst->identifierType = UA_NODEIDTYPE_GUID;
-            entries[*fieldCount].fieldPointer = &dst->identifier.guid;
-            entries[*fieldCount].type = &UA_TYPES[UA_TYPES_GUID];
-        } else if(idType[0] == '1') {
-            dst->identifierType = UA_NODEIDTYPE_STRING;
-            entries[*fieldCount].fieldPointer = &dst->identifier.string;
-            entries[*fieldCount].type = &UA_TYPES[UA_TYPES_STRING];
-        } else if(idType[0] == '3') {
-            dst->identifierType = UA_NODEIDTYPE_BYTESTRING;
-            entries[*fieldCount].fieldPointer = &dst->identifier.byteString;
-            entries[*fieldCount].type = &UA_TYPES[UA_TYPES_BYTESTRING];
-        } else {
-            return UA_STATUSCODE_BADDECODINGERROR;
-        }
-
-        /* Id always present */
-        (*fieldCount)++;
-
-        entries[*fieldCount].fieldName = UA_JSONKEY_IDTYPE;
-        entries[*fieldCount].fieldPointer = NULL;
-        entries[*fieldCount].function = NULL;
-        entries[*fieldCount].found = false;
-        entries[*fieldCount].type = NULL;
-
-        /* IdType */
-        (*fieldCount)++;
-    } else {
-        dst->identifierType = UA_NODEIDTYPE_NUMERIC;
-        entries[*fieldCount].fieldPointer = &dst->identifier.numeric;
-        entries[*fieldCount].function = NULL;
-        entries[*fieldCount].found = false;
-        entries[*fieldCount].type = &UA_TYPES[UA_TYPES_UINT32];
-        (*fieldCount)++;
-    }
-
-    /* NodeId has a NamespaceIndex (the ExpandedNodeId specialization may
-     * overwrite this) */
-    entries[*fieldCount].fieldName = UA_JSONKEY_NAMESPACE;
-    entries[*fieldCount].fieldPointer = &dst->namespaceIndex;
-    entries[*fieldCount].function = NULL;
-    entries[*fieldCount].found = false;
-    entries[*fieldCount].type = &UA_TYPES[UA_TYPES_UINT16];
-    (*fieldCount)++;
-
-    return UA_STATUSCODE_GOOD;
-}
-
 DECODE_JSON(NodeId) {
-    /* Non-standard decoding of NodeIds from the string representation */
-    if(currentTokenType(ctx) == CJ5_TOKEN_STRING) {
-        GET_TOKEN;
-        UA_String str = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
-        ctx->index++;
-        return UA_NodeId_parse(dst, str);
-    }
+    CHECK_TOKEN_BOUNDS;
+    CHECK_STRING;
+    GET_TOKEN;
 
-    /* Object representation */
-    CHECK_OBJECT;
-
-    u8 fieldCount = 0;
-    DecodeEntry entries[3];
-    status ret = prepareDecodeNodeIdJson(ctx, dst, &fieldCount, entries);
-    if(ret != UA_STATUSCODE_GOOD)
-        return ret;
-    return decodeFields(ctx, entries, fieldCount);
-}
-
-static status
-decodeExpandedNodeIdNamespace(ParseCtx *ctx, void *dst, const UA_DataType *type) {
-    UA_ExpandedNodeId *en = (UA_ExpandedNodeId*)dst;
-
-    /* Parse as a number */
-    size_t oldIndex = ctx->index;
-    status ret = UInt16_decodeJson(ctx, &en->nodeId.namespaceIndex, NULL);
-    if(ret == UA_STATUSCODE_GOOD)
-        return ret;
-
-    /* Parse as a string */
-    ctx->index = oldIndex; /* Reset the index */
-    ret = String_decodeJson(ctx, &en->namespaceUri, NULL);
-    if(ret != UA_STATUSCODE_GOOD)
-        return ret;
-
-    /* Replace with the index if the URI is found. Otherwise keep the string. */
-    if(ctx->namespaceMapping) {
-        UA_StatusCode mapRes =
-            UA_NamespaceMapping_uri2Index(ctx->namespaceMapping, en->namespaceUri,
-                                          &en->nodeId.namespaceIndex);
-        if(mapRes == UA_STATUSCODE_GOOD)
-            UA_String_clear(&en->namespaceUri);
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static status
-decodeExpandedNodeIdServerUri(ParseCtx *ctx, void *dst, const UA_DataType *type) {
-    UA_ExpandedNodeId *en = (UA_ExpandedNodeId*)dst;
-
-    /* Parse as a number */
-    size_t oldIndex = ctx->index;
-    status ret = UInt32_decodeJson(ctx, &en->serverIndex, NULL);
-    if(ret == UA_STATUSCODE_GOOD)
-        return ret;
-
-    /* Parse as a string */
-    UA_String uri = UA_STRING_NULL;
-    ctx->index = oldIndex; /* Reset the index */
-    ret = String_decodeJson(ctx, &uri, NULL);
-    if(ret != UA_STATUSCODE_GOOD)
-        return ret;
-
-    /* Try to translate the URI into an index */
-    ret = UA_STATUSCODE_BADDECODINGERROR;
-    for(size_t i = 0; i < ctx->serverUrisSize; i++) {
-        if(UA_String_equal(&uri, &ctx->serverUris[i])) {
-            en->serverIndex = (UA_UInt32)i;
-            ret = UA_STATUSCODE_GOOD;
-            break;
-        }
-    }
-
-    UA_String_clear(&uri);
-    return ret;
+    ctx->index++;
+    UA_String str = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
+    return UA_NodeId_parseEx(dst, str, ctx->namespaceMapping);
 }
 
 DECODE_JSON(ExpandedNodeId) {
-    /* Non-standard decoding of ExpandedNodeIds from the string representation */
-    if(currentTokenType(ctx) == CJ5_TOKEN_STRING) {
-        GET_TOKEN;
-        UA_String str = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
-        ctx->index++;
-        return UA_ExpandedNodeId_parse(dst, str);
-    }
+    CHECK_TOKEN_BOUNDS;
+    CHECK_STRING;
+    GET_TOKEN;
 
-    /* Object representation */
-    CHECK_OBJECT;
-
-    u8 fieldCount = 0;
-    DecodeEntry entries[4];
-    status ret = prepareDecodeNodeIdJson(ctx, &dst->nodeId, &fieldCount, entries);
-    if(ret != UA_STATUSCODE_GOOD)
-        return ret;
-
-    /* Overwrite the namespace entry */
-    fieldCount--;
-    entries[fieldCount].fieldPointer = dst;
-    entries[fieldCount].function = decodeExpandedNodeIdNamespace;
-    entries[fieldCount].type = NULL;
-    fieldCount++;
-
-    entries[fieldCount].fieldName = UA_JSONKEY_SERVERURI;
-    entries[fieldCount].fieldPointer = dst;
-    entries[fieldCount].function = decodeExpandedNodeIdServerUri;
-    entries[fieldCount].found = false;
-    entries[fieldCount].type = NULL;
-    fieldCount++;
-
-    return decodeFields(ctx, entries, fieldCount);
+    ctx->index++;
+    UA_String str = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
+    return UA_ExpandedNodeId_parseEx(dst, str, ctx->namespaceMapping,
+                                     ctx->serverUrisSize, ctx->serverUris);
 }
 
 DECODE_JSON(DateTime) {
