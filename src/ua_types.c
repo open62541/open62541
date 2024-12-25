@@ -2286,14 +2286,16 @@ UA_NumericRange_parse(UA_NumericRange *range, const UA_String str) {
 /*********************/
 
 UA_UInt16
-UA_NamespaceMapping_local2Remote(UA_NamespaceMapping *nm, UA_UInt16 localIndex) {
+UA_NamespaceMapping_local2Remote(const UA_NamespaceMapping *nm,
+                                 UA_UInt16 localIndex) {
     if(localIndex >= nm->local2remoteSize)
         return UA_UINT16_MAX - localIndex;
     return nm->local2remote[localIndex];
 }
 
 UA_UInt16
-UA_NamespaceMapping_remote2Local(UA_NamespaceMapping *nm, UA_UInt16 remoteIndex) {
+UA_NamespaceMapping_remote2Local(const UA_NamespaceMapping *nm,
+                                 UA_UInt16 remoteIndex) {
     if(remoteIndex >= nm->remote2localSize)
         return UA_UINT16_MAX - remoteIndex;
     return nm->remote2local[remoteIndex];
@@ -2302,7 +2304,8 @@ UA_NamespaceMapping_remote2Local(UA_NamespaceMapping *nm, UA_UInt16 remoteIndex)
 /* Returns an error if the uri was not found.
  * The pointer to the index argument needs to be non-NULL. */
 UA_StatusCode
-UA_NamespaceMapping_uri2Index(UA_NamespaceMapping *nm, UA_String uri, UA_UInt16 *index) {
+UA_NamespaceMapping_uri2Index(const UA_NamespaceMapping *nm,
+                              UA_String uri, UA_UInt16 *index) {
     for(size_t i = 0; i < nm->namespaceUrisSize; i++) {
         if(UA_String_equal(&uri, &nm->namespaceUris[i])) {
             *index = (UA_UInt16)i;
@@ -2313,7 +2316,8 @@ UA_NamespaceMapping_uri2Index(UA_NamespaceMapping *nm, UA_String uri, UA_UInt16 
 }
 
 UA_StatusCode
-UA_NamespaceMapping_index2Uri(UA_NamespaceMapping *nm, UA_UInt16 index, UA_String *uri) {
+UA_NamespaceMapping_index2Uri(const UA_NamespaceMapping *nm,
+                              UA_UInt16 index, UA_String *uri) {
     if(nm->namespaceUrisSize <= index)
         return UA_STATUSCODE_BADNOTFOUND;
     *uri = nm->namespaceUris[index];
