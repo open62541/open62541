@@ -21,6 +21,9 @@
 #include <open62541/common.h>
 #include <open62541/statuscodes.h>
 
+struct UA_NamespaceMapping;
+typedef struct UA_NamespaceMapping UA_NamespaceMapping;
+
 _UA_BEGIN_DECLS
 
 /**
@@ -417,8 +420,7 @@ UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
-/* Print the NodeId in the human-readable format defined in Part 6,
- * 5.3.1.10.
+/* Print the NodeId in the human-readable format defined in Part 6.
  *
  * Examples:
  *   UA_NODEID("i=13")
@@ -431,6 +433,17 @@ UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
  * internally if called with an empty output string. */
 UA_StatusCode UA_EXPORT
 UA_NodeId_print(const UA_NodeId *id, UA_String *output);
+
+/* Extended NodeId printing. If nsMapping argument is non-NULL, then the
+ * NamespaceIndex is translated to the NamespaceUri. If that is not successful,
+ * the numerical NamespaceIndex is used instead.
+ *
+ * Examples:
+ *   nsu=http://widgets.com/schemas/hello;s=Hello World
+ */
+UA_StatusCode UA_EXPORT
+UA_NodeId_printEx(const UA_NodeId *id, UA_String *output,
+                  const UA_NamespaceMapping *nsMapping);
 
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
@@ -549,6 +562,17 @@ UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
  * internally if called with an empty output string. */
 UA_StatusCode UA_EXPORT
 UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output);
+
+/* Extended printing of ExpandedNodeId. It tries to map NamespaceIndex and
+ * ServerIndex to a Uri using the provided mapping.
+ *
+ * Examples:
+ *     svu=http://smith.com/west/factory;nsu=tag:acme.com,2023;i=1234
+ */
+UA_StatusCode UA_EXPORT
+UA_ExpandedNodeId_printEx(const UA_ExpandedNodeId *id, UA_String *output,
+                          const UA_NamespaceMapping *nsMapping,
+                          size_t serverUrisSize, const UA_String *serverUris);
 
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
@@ -1267,7 +1291,7 @@ UA_INLINABLE(UA_Boolean
  * translate the ``NamespaceUri`` field of an ExpandedNodeId into the namespace
  * index of the NodeId embedded in the ExpandedNodeId. */
 
-typedef struct {
+struct UA_NamespaceMapping {
     /* Namespaces with their local index */
     UA_String *namespaceUris;
     size_t namespaceUrisSize;
@@ -1279,7 +1303,7 @@ typedef struct {
     /* Map from remote to local indices */
     UA_UInt16 *remote2local;
     size_t remote2localSize;
-} UA_NamespaceMapping;
+};
 
 /* If the index is unknown, returns (UINT16_MAX - index) */
 UA_UInt16
