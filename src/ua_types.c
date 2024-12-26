@@ -257,6 +257,63 @@ UA_QualifiedName_hash(const UA_QualifiedName *q) {
                               q->name.data, q->name.length);
 }
 
+UA_StatusCode
+UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
+                         const UA_NamespaceMapping *nsMapping) {
+    /* Start tracking the output length */
+    size_t len = qn->name.length;
+
+    /* Try to map the NamespaceIndex to the Uri */
+    UA_String nsUri = UA_STRING_NULL;
+    if(qn->namespaceIndex > 0 && nsMapping) {
+        UA_NamespaceMapping_index2Uri(nsMapping, qn->namespaceIndex, &nsUri);
+        if(nsUri.length > 0)
+            len += nsUri.length + 1;
+    }
+
+    /* Print the NamespaceIndex */
+    char nsStr[6];
+    size_t nsStrSize = 0;
+    if(nsUri.length == 0 && qn->namespaceIndex > 0) {
+        nsStrSize = itoaUnsigned(qn->namespaceIndex, nsStr, 10);
+        len += 1 + nsStrSize;
+    }
+
+    /* Allocate memory if required */
+    if(output->length == 0) {
+        UA_StatusCode res = UA_ByteString_allocBuffer((UA_ByteString*)output, len);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        if(output->length < len)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        output->length = len;
+    }
+
+    /* Print the namespace */
+    char *pos = (char*)output->data;
+    if(nsUri.length > 0) {
+        memcpy(pos, nsUri.data, nsUri.length);
+        pos += nsUri.length;
+        *pos++ = ';';
+    } else if(qn->namespaceIndex > 0) {
+        memcpy(pos, nsStr, nsStrSize);
+        pos += nsStrSize;
+        *pos++ = ':';
+    }
+
+    /* Print the name */
+    memcpy(pos, qn->name.data, qn->name.length);
+
+    UA_assert(output->length == (size_t)((UA_Byte*)pos + qn->name.length - output->data));
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_QualifiedName_print(const UA_QualifiedName *qn, UA_String *output) {
+    return UA_QualifiedName_printEx(qn, output, NULL);
+}
+
 /* DateTime */
 UA_DateTimeStruct
 UA_DateTime_toStruct(UA_DateTime t) {
