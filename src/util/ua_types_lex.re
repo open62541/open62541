@@ -305,7 +305,7 @@ relativepath_addelem(UA_RelativePath *rp, UA_RelativePathElement *el) {
 
 /* Parse name string with '&' as the escape character */
 static UA_StatusCode
-parse_refpath_qn_name(UA_String *name, const char *pos,
+parse_qn_name(UA_String *name, const char *pos,
                       const char *end, Escaping esc) {
     /* There must be no unescaped characters (also trailing &) */
     char *end_esc = find_unescaped((char *)(uintptr_t)pos, end,
@@ -331,24 +331,59 @@ parse_refpath_qn_name(UA_String *name, const char *pos,
 }
 
 static UA_StatusCode
-parse_refpath_qn(UA_QualifiedName *qn, const char *pos, const char *end, Escaping esc) {
+parse_qn(UA_QualifiedName *qn, const char *pos, const char *end,
+         Escaping esc, const UA_NamespaceMapping *nsMapping) {
+    size_t len;
+    UA_UInt32 tmp;
+    UA_String nsUri;
+    const char *begin = pos;
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+
     UA_QualifiedName_init(qn);
 
-    /* Parse the NamespaceIndex if we find a colon */
-    for(const char *col = pos; col < end; col++) {
-        if(*col == ':') {
-            UA_UInt32 tmp;
-            size_t len = (size_t)(col - pos);
-            if(UA_readNumber((const UA_Byte*)pos, len, &tmp) != len)
-                return UA_STATUSCODE_BADDECODINGERROR;
-            qn->namespaceIndex = (UA_UInt16)tmp;
-            pos = col + 1;
-            break;
-        }
+    LexContext context;
+    memset(&context, 0, sizeof(LexContext));
+
+    /*!re2c // Match the grammar
+    [0-9]+ ":"      { goto match_index; }
+    escaped_uri ";" { goto match_uri; }
+    *               { pos = begin; goto match_name; } */
+
+ match_index:
+    len = (size_t)(pos - 1 - begin);
+    if(UA_readNumber((const UA_Byte*)begin, len, &tmp) != len)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    qn->namespaceIndex = (UA_UInt16)tmp;
+    goto match_name;
+
+ match_uri:
+    nsUri.length = (size_t)(pos - 1 - begin);
+    nsUri.data = (UA_Byte*)(uintptr_t)begin;
+    if(nsMapping)
+        res = UA_NamespaceMapping_uri2Index(nsMapping, nsUri, &qn->namespaceIndex);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String total = {(size_t)(end - begin), (UA_Byte*)(uintptr_t)begin};
+        return UA_String_copy(&total, &qn->name);
     }
 
-    /* Parse the (escaped) name */
-    return parse_refpath_qn_name(&qn->name, pos, end, esc);
+ match_name:
+    return parse_qn_name(&qn->name, pos, end, esc);
+}
+
+UA_StatusCode
+UA_QualifiedName_parseEx(UA_QualifiedName *qn, const UA_String str,
+                         const UA_NamespaceMapping *nsMapping) {
+    const char *pos = (const char*)str.data;
+    const char *end = (const char*)str.data + str.length;
+    UA_StatusCode res = parse_qn(qn, pos, end, ESCAPING_NONE, nsMapping);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_QualifiedName_clear(qn);
+    return res;
+}
+
+UA_StatusCode
+UA_QualifiedName_parse(UA_QualifiedName *qn, const UA_String str) {
+    return UA_QualifiedName_parseEx(qn, str, NULL);
 }
 
 static UA_StatusCode
@@ -400,7 +435,7 @@ parse_relativepath(UA_RelativePath *rp, const char **ppos, const char *end,
 
         // Parse the the ReferenceType from its BrowseName
         UA_QualifiedName refqn;
-        res = parse_refpath_qn(&refqn, begin, finish, esc);
+        res = parse_qn(&refqn, begin, finish, esc, NULL);
         res |= lookupRefType(server, &refqn, &current.referenceTypeId);
         UA_QualifiedName_clear(&refqn);
         goto reftype_target;
@@ -417,7 +452,7 @@ parse_relativepath(UA_RelativePath *rp, const char **ppos, const char *end,
 
     /*!re2c
      @begin ([^</.#[\000] | "&<" | "&/" | "&." | "&#" | "&[")+ {
-        res = parse_refpath_qn(&current.targetName, begin, pos, esc);
+        res = parse_qn(&current.targetName, begin, pos, esc, NULL);
         goto add_element;
     }
 

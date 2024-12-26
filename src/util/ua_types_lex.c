@@ -695,7 +695,7 @@ relativepath_addelem(UA_RelativePath *rp, UA_RelativePathElement *el) {
 
 /* Parse name string with '&' as the escape character */
 static UA_StatusCode
-parse_refpath_qn_name(UA_String *name, const char *pos,
+parse_qn_name(UA_String *name, const char *pos,
                       const char *end, Escaping esc) {
     /* There must be no unescaped characters (also trailing &) */
     char *end_esc = find_unescaped((char *)(uintptr_t)pos, end,
@@ -721,24 +721,151 @@ parse_refpath_qn_name(UA_String *name, const char *pos,
 }
 
 static UA_StatusCode
-parse_refpath_qn(UA_QualifiedName *qn, const char *pos, const char *end, Escaping esc) {
+parse_qn(UA_QualifiedName *qn, const char *pos, const char *end,
+         Escaping esc, const UA_NamespaceMapping *nsMapping) {
+    size_t len;
+    UA_UInt32 tmp;
+    UA_String nsUri;
+    const char *begin = pos;
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+
     UA_QualifiedName_init(qn);
 
-    /* Parse the NamespaceIndex if we find a colon */
-    for(const char *col = pos; col < end; col++) {
-        if(*col == ':') {
-            UA_UInt32 tmp;
-            size_t len = (size_t)(col - pos);
-            if(UA_readNumber((const UA_Byte*)pos, len, &tmp) != len)
-                return UA_STATUSCODE_BADDECODINGERROR;
-            qn->namespaceIndex = (UA_UInt16)tmp;
-            pos = col + 1;
-            break;
-        }
+    LexContext context;
+    memset(&context, 0, sizeof(LexContext));
+
+    
+{
+	char yych;
+	unsigned int yyaccept = 0;
+	yych = YYPEEK();
+	switch (yych) {
+		case 0x00: goto yy41;
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9': goto yy44;
+		case ';': goto yy45;
+		default: goto yy43;
+	}
+yy41:
+	YYSKIP();
+yy42:
+	{ pos = begin; goto match_name; }
+yy43:
+	yyaccept = 0;
+	YYSKIP();
+	YYBACKUP();
+	yych = YYPEEK();
+	if (yych <= 0x00) goto yy42;
+	goto yy47;
+yy44:
+	yyaccept = 0;
+	YYSKIP();
+	YYBACKUP();
+	yych = YYPEEK();
+	switch (yych) {
+		case 0x00: goto yy42;
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9': goto yy49;
+		case ':': goto yy50;
+		default: goto yy47;
+	}
+yy45:
+	YYSKIP();
+	{ goto match_uri; }
+yy46:
+	YYSKIP();
+	yych = YYPEEK();
+yy47:
+	switch (yych) {
+		case 0x00: goto yy48;
+		case ';': goto yy45;
+		default: goto yy46;
+	}
+yy48:
+	YYRESTORE();
+	if (yyaccept == 0) goto yy42;
+	else goto yy51;
+yy49:
+	YYSKIP();
+	yych = YYPEEK();
+	switch (yych) {
+		case 0x00: goto yy48;
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9': goto yy49;
+		case ':': goto yy50;
+		case ';': goto yy45;
+		default: goto yy46;
+	}
+yy50:
+	yyaccept = 1;
+	YYSKIP();
+	YYBACKUP();
+	yych = YYPEEK();
+	if (yych >= 0x01) goto yy47;
+yy51:
+	{ goto match_index; }
+}
+
+
+ match_index:
+    len = (size_t)(pos - 1 - begin);
+    if(UA_readNumber((const UA_Byte*)begin, len, &tmp) != len)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    qn->namespaceIndex = (UA_UInt16)tmp;
+    goto match_name;
+
+ match_uri:
+    nsUri.length = (size_t)(pos - 1 - begin);
+    nsUri.data = (UA_Byte*)(uintptr_t)begin;
+    if(nsMapping)
+        res = UA_NamespaceMapping_uri2Index(nsMapping, nsUri, &qn->namespaceIndex);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String total = {(size_t)(end - begin), (UA_Byte*)(uintptr_t)begin};
+        return UA_String_copy(&total, &qn->name);
     }
 
-    /* Parse the (escaped) name */
-    return parse_refpath_qn_name(&qn->name, pos, end, esc);
+ match_name:
+    return parse_qn_name(&qn->name, pos, end, esc);
+}
+
+UA_StatusCode
+UA_QualifiedName_parseEx(UA_QualifiedName *qn, const UA_String str,
+                         const UA_NamespaceMapping *nsMapping) {
+    const char *pos = (const char*)str.data;
+    const char *end = (const char*)str.data + str.length;
+    UA_StatusCode res = parse_qn(qn, pos, end, ESCAPING_NONE, nsMapping);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_QualifiedName_clear(qn);
+    return res;
+}
+
+UA_StatusCode
+UA_QualifiedName_parse(UA_QualifiedName *qn, const UA_String str) {
+    return UA_QualifiedName_parseEx(qn, str, NULL);
 }
 
 static UA_StatusCode
@@ -765,67 +892,67 @@ parse_relativepath(UA_RelativePath *rp, const char **ppos, const char *end,
 	unsigned int yyaccept = 0;
 	yych = YYPEEK();
 	switch (yych) {
-		case '.': goto yy43;
-		case '/': goto yy44;
-		case '<': goto yy45;
-		default: goto yy41;
+		case '.': goto yy55;
+		case '/': goto yy56;
+		case '<': goto yy57;
+		default: goto yy53;
 	}
-yy41:
+yy53:
 	YYSKIP();
-yy42:
+yy54:
 	{ *ppos = pos-1; return UA_STATUSCODE_GOOD; }
-yy43:
+yy55:
 	YYSKIP();
 	{
         current.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
         goto reftype_target;
     }
-yy44:
+yy56:
 	YYSKIP();
 	{
         current.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
         goto reftype_target;
     }
-yy45:
+yy57:
 	yyaccept = 0;
 	YYSKIP();
 	YYBACKUP();
 	yych = YYPEEK();
 	switch (yych) {
 		case 0x00:
-		case '>': goto yy42;
+		case '>': goto yy54;
 		case '&':
 			YYSTAGP(context.yyt1);
-			goto yy48;
+			goto yy60;
 		default:
 			YYSTAGP(context.yyt1);
-			goto yy46;
+			goto yy58;
 	}
-yy46:
+yy58:
 	YYSKIP();
 	yych = YYPEEK();
 	switch (yych) {
-		case 0x00: goto yy47;
-		case '&': goto yy48;
-		case '>': goto yy49;
-		default: goto yy46;
+		case 0x00: goto yy59;
+		case '&': goto yy60;
+		case '>': goto yy61;
+		default: goto yy58;
 	}
-yy47:
+yy59:
 	YYRESTORE();
-	if (yyaccept == 0) goto yy42;
-	else goto yy50;
-yy48:
+	if (yyaccept == 0) goto yy54;
+	else goto yy62;
+yy60:
 	YYSKIP();
 	yych = YYPEEK();
 	switch (yych) {
-		case 0x00: goto yy47;
-		case '&': goto yy48;
-		case '>': goto yy51;
-		default: goto yy46;
+		case 0x00: goto yy59;
+		case '&': goto yy60;
+		case '>': goto yy63;
+		default: goto yy58;
 	}
-yy49:
+yy61:
 	YYSKIP();
-yy50:
+yy62:
 	begin = context.yyt1;
 	YYSTAGP(finish);
 	YYSHIFTSTAG(finish, -1);
@@ -848,21 +975,21 @@ yy50:
 
         // Parse the the ReferenceType from its BrowseName
         UA_QualifiedName refqn;
-        res = parse_refpath_qn(&refqn, begin, finish, esc);
+        res = parse_qn(&refqn, begin, finish, esc, NULL);
         res |= lookupRefType(server, &refqn, &current.referenceTypeId);
         UA_QualifiedName_clear(&refqn);
         goto reftype_target;
     }
-yy51:
+yy63:
 	yyaccept = 1;
 	YYSKIP();
 	YYBACKUP();
 	yych = YYPEEK();
 	switch (yych) {
-		case 0x00: goto yy50;
-		case '&': goto yy48;
-		case '>': goto yy49;
-		default: goto yy46;
+		case 0x00: goto yy62;
+		case '&': goto yy60;
+		case '>': goto yy61;
+		default: goto yy58;
 	}
 }
 
@@ -882,18 +1009,18 @@ yy51:
 		case '.':
 		case '/':
 		case '<':
-		case '[': goto yy53;
+		case '[': goto yy65;
 		case '&':
 			YYSTAGP(context.yyt1);
-			goto yy56;
+			goto yy68;
 		default:
 			YYSTAGP(context.yyt1);
-			goto yy54;
+			goto yy66;
 	}
-yy53:
+yy65:
 	YYSKIP();
 	{ pos--; goto add_element; }
-yy54:
+yy66:
 	YYSKIP();
 	yych = YYPEEK();
 	switch (yych) {
@@ -902,23 +1029,23 @@ yy54:
 		case '.':
 		case '/':
 		case '<':
-		case '[': goto yy55;
-		case '&': goto yy56;
-		default: goto yy54;
+		case '[': goto yy67;
+		case '&': goto yy68;
+		default: goto yy66;
 	}
-yy55:
+yy67:
 	begin = context.yyt1;
 	{
-        res = parse_refpath_qn(&current.targetName, begin, pos, esc);
+        res = parse_qn(&current.targetName, begin, pos, esc, NULL);
         goto add_element;
     }
-yy56:
+yy68:
 	YYSKIP();
 	yych = YYPEEK();
 	switch (yych) {
-		case 0x00: goto yy55;
-		case '&': goto yy56;
-		default: goto yy54;
+		case 0x00: goto yy67;
+		case '&': goto yy68;
+		default: goto yy66;
 	}
 }
 
