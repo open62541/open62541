@@ -447,12 +447,14 @@ START_TEST(idToStringWithMapping) {
     nsMapping.namespaceUris = namespaces;
     nsMapping.namespaceUrisSize = 2;
 
-    UA_NodeId n;
+    UA_NodeId n, n2;
     UA_String str = UA_STRING_NULL;
 
     n = UA_NODEID_NUMERIC(1,1234567890);
     UA_NodeId_printEx(&n, &str, &nsMapping);
     assertNodeIdString(&str, "nsu=ns2;i=1234567890");
+    UA_NodeId_parseEx(&n2, str, &nsMapping);
+    ck_assert(UA_NodeId_equal(&n, &n2));
     UA_String_clear(&str);
 
     n = UA_NODEID_NUMERIC(0xFFFF,0xFFFFFFFF);
@@ -618,7 +620,7 @@ START_TEST(expIdToStringNumericWithMapping) {
         UA_STRING_STATIC("uri:server2")
     };
 
-    UA_ExpandedNodeId n;
+    UA_ExpandedNodeId n, n2;
     UA_String str = UA_STRING_NULL;
 
     n = UA_EXPANDEDNODEID_NUMERIC(0,0);
@@ -630,6 +632,18 @@ START_TEST(expIdToStringNumericWithMapping) {
     n.namespaceUri = UA_STRING("testuri");
     UA_ExpandedNodeId_printEx(&n, &str, NULL, 2, serverUris);
     assertNodeIdString(&str, "svu=uri:server2;nsu=testuri;i=0");
+    UA_ExpandedNodeId_parseEx(&n2, str, NULL, 2, serverUris);
+    ck_assert(UA_ExpandedNodeId_equal(&n, &n2));
+    UA_ExpandedNodeId_clear(&n2);
+    UA_String_clear(&str);
+
+    n.namespaceUri = UA_STRING_NULL;
+    n.nodeId.namespaceIndex = 2;
+    UA_ExpandedNodeId_printEx(&n, &str, NULL, 0, NULL);
+    assertNodeIdString(&str, "svr=1;ns=2;i=0");
+    UA_ExpandedNodeId_parseEx(&n2, str, NULL, 0, NULL);
+    ck_assert(UA_ExpandedNodeId_equal(&n, &n2));
+    UA_ExpandedNodeId_clear(&n2);
     UA_String_clear(&str);
 } END_TEST
 

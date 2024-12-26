@@ -445,12 +445,27 @@ UA_StatusCode UA_EXPORT
 UA_NodeId_printEx(const UA_NodeId *id, UA_String *output,
                   const UA_NamespaceMapping *nsMapping);
 
+#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
  * cleaned up. */
-#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_NodeId_parse(UA_NodeId *id, const UA_String str);
+
+/* Extended parsing that uses the provided namespace mapping to find the
+ * NamespaceIndex for a provided NamespaceUri.
+ *
+ * If the NodeId uses an unknown NamespaceUri, then a String-NodeId is returned
+ * that uses NamespaceIndex 0 and the full original encoding for the string
+ * part.
+ *
+ * Example:
+ *   nsu=my_uri;i=5 => s="nsu=my_uri;i=5" (The quotation marks are for
+ *       illustration purposes and not actually included)
+ */
+UA_StatusCode UA_EXPORT
+UA_NodeId_parseEx(UA_NodeId *id, const UA_String str,
+                  const UA_NamespaceMapping *nsMapping);
 
 UA_INLINABLE(UA_NodeId
              UA_NODEID(const char *chars), {
@@ -574,12 +589,17 @@ UA_ExpandedNodeId_printEx(const UA_ExpandedNodeId *id, UA_String *output,
                           const UA_NamespaceMapping *nsMapping,
                           size_t serverUrisSize, const UA_String *serverUris);
 
+#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
  * cleaned up. */
-#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str);
+
+UA_StatusCode UA_EXPORT
+UA_ExpandedNodeId_parseEx(UA_ExpandedNodeId *id, const UA_String str,
+                          const UA_NamespaceMapping *nsMapping,
+                          size_t serverUrisSize, const UA_String *serverUris);
 
 UA_INLINABLE(UA_ExpandedNodeId
              UA_EXPANDEDNODEID(const char *chars), {
