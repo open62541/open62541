@@ -663,6 +663,12 @@ START_TEST(qualifiedNameNsUri) {
 
     UA_QualifiedName_printEx(&qn, &str, &nsMapping);
     assertNodeIdString(&str, "ns2;name");
+
+    UA_QualifiedName qn2;
+    UA_QualifiedName_parseEx(&qn2, str, &nsMapping);
+    ck_assert(UA_QualifiedName_equal(&qn, &qn2));
+
+    UA_QualifiedName_clear(&qn2);
     UA_String_clear(&str);
 } END_TEST
 
@@ -672,6 +678,12 @@ START_TEST(qualifiedNameNsIndex) {
 
     UA_QualifiedName_printEx(&qn, &str, NULL);
     assertNodeIdString(&str, "1:name");
+
+    UA_QualifiedName qn2;
+    UA_QualifiedName_parseEx(&qn2, str, NULL);
+    ck_assert(UA_QualifiedName_equal(&qn, &qn2));
+
+    UA_QualifiedName_clear(&qn2);
     UA_String_clear(&str);
 } END_TEST
 

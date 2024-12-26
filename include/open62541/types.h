@@ -731,6 +731,20 @@ UA_StatusCode UA_EXPORT
 UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
                          const UA_NamespaceMapping *nsMapping);
 
+#ifdef UA_ENABLE_PARSING
+/* Parse the human-readable QualifiedName format.
+ *
+ * The extended parsing tries to translate the NamespaceIndex to a NamespaceUri
+ * from the mapping table. When the mapping fails, the name component gets the
+ * entire string. */
+UA_StatusCode UA_EXPORT
+UA_QualifiedName_parse(UA_QualifiedName *qn, const UA_String str);
+
+UA_StatusCode UA_EXPORT
+UA_QualifiedName_parseEx(UA_QualifiedName *qn, const UA_String str,
+                         const UA_NamespaceMapping *nsMapping);
+#endif
+
 /**
  * LocalizedText
  * ^^^^^^^^^^^^^
