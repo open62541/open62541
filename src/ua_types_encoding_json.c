@@ -181,10 +181,6 @@ writeJsonObjElm(CtxJson *ctx, const char *key,
 static const char* UA_JSONKEY_LOCALE = "Locale";
 static const char* UA_JSONKEY_TEXT = "Text";
 
-/* QualifiedName */
-static const char* UA_JSONKEY_NAME = "Name";
-static const char* UA_JSONKEY_URI = "Uri";
-
 /* Variant */
 static const char* UA_JSONKEY_TYPE = "Type";
 static const char* UA_JSONKEY_BODY = "Body";
@@ -654,38 +650,11 @@ ENCODE_JSON(LocalizedText) {
 }
 
 ENCODE_JSON(QualifiedName) {
-    status ret = writeJsonObjStart(ctx);
-    ret |= writeJsonKey(ctx, UA_JSONKEY_NAME);
-    ret |= ENCODE_DIRECT_JSON(&src->name, String);
-
-    if(ctx->useReversible) {
-        if(src->namespaceIndex != 0) {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_URI);
-            ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
-        }
-    } else {
-        /* For the non-reversible form, the NamespaceUri associated with the
-         * NamespaceIndex portion of the QualifiedName is encoded as JSON string
-         * unless the NamespaceIndex is 1 or if NamespaceUri is unknown. In
-         * these cases, the NamespaceIndex is encoded as a JSON number. */
-        ret |= writeJsonKey(ctx, UA_JSONKEY_URI);
-        if(src->namespaceIndex == 1) {
-            ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
-        } else {
-            /* Check if Namespace given and in range */
-            UA_String nsUri = UA_STRING_NULL;
-            UA_UInt16 ns = src->namespaceIndex;
-            if(ctx->namespaceMapping)
-                UA_NamespaceMapping_index2Uri(ctx->namespaceMapping, ns, &nsUri);
-            if(nsUri.length > 0) {
-                ret |= ENCODE_DIRECT_JSON(&nsUri, String);
-            } else {
-                ret |= ENCODE_DIRECT_JSON(&ns, UInt16); /* If not encode as number */
-            }
-        }
-    }
-
-    return ret | writeJsonObjEnd(ctx);
+    UA_String out = UA_STRING_NULL;
+    UA_StatusCode ret = UA_QualifiedName_printEx(src, &out, ctx->namespaceMapping);
+    ret |= ENCODE_DIRECT_JSON(&out, String);
+    UA_String_clear(&out);
+    return ret;
 }
 
 ENCODE_JSON(StatusCode) {
@@ -1548,14 +1517,13 @@ DECODE_JSON(LocalizedText) {
 }
 
 DECODE_JSON(QualifiedName) {
-    CHECK_OBJECT;
+    CHECK_TOKEN_BOUNDS;
+    CHECK_STRING;
+    GET_TOKEN;
 
-    DecodeEntry entries[2] = {
-        {UA_JSONKEY_NAME, &dst->name, NULL, false, &UA_TYPES[UA_TYPES_STRING]},
-        {UA_JSONKEY_URI, &dst->namespaceIndex, NULL, false, &UA_TYPES[UA_TYPES_UINT16]}
-    };
-
-    return decodeFields(ctx, entries, 2);
+    ctx->index++;
+    UA_String str = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
+    return UA_QualifiedName_parseEx(dst, str, ctx->namespaceMapping);
 }
 
 UA_FUNC_ATTR_WARN_UNUSED_RESULT status

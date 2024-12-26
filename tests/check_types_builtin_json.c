@@ -1142,7 +1142,7 @@ START_TEST(UA_StatusCode_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "2161770496";
+    char* result = "{\"Code\":2161770496,\"Symbol\":\"BadAggregateConfigurationRejected\"}";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -1190,7 +1190,7 @@ START_TEST(UA_StatusCode_nonReversible_good_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"Code\":0,\"Symbol\":\"Good\"}";
+    char* result = "{}";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -1458,7 +1458,7 @@ START_TEST(UA_DiagInfo_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"SymbolicId\":13,\"NamespaceUri\":15,\"LocalizedText\":14,\"Locale\":12,\"AdditionalInfo\":\"additionalInfo\",\"InnerStatusCode\":2155216896}";
+    char* result = "{\"SymbolicId\":13,\"NamespaceUri\":15,\"LocalizedText\":14,\"Locale\":12,\"AdditionalInfo\":\"additionalInfo\",\"InnerStatusCode\":{\"Code\":2155216896,\"Symbol\":\"BadArgumentsMissing\"}}";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -1503,14 +1503,11 @@ START_TEST(UA_DiagInfo_withInner_json_encode) {
     UA_ByteString buf;
     UA_ByteString_allocBuffer(&buf, size+1);
 
-    //{"SymbolicId":13,"LocalizedText":14,"Locale":12,"AdditionalInfo":"additionalInfo","InnerStatusCode":2155216896,"InnerDiagnosticInfo":{"AdditionalInfo":"INNER ADDITION INFO"}}
-    ck_assert_uint_eq(size, 174);
-
     status s = UA_encodeJson((void *) src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"SymbolicId\":13,\"LocalizedText\":14,\"Locale\":12,\"AdditionalInfo\":\"additionalInfo\",\"InnerStatusCode\":2155216896,\"InnerDiagnosticInfo\":{\"AdditionalInfo\":\"INNER ADDITION INFO\"}}";
+    char* result = "{\"SymbolicId\":13,\"LocalizedText\":14,\"Locale\":12,\"AdditionalInfo\":\"additionalInfo\",\"InnerStatusCode\":{\"Code\":2155216896,\"Symbol\":\"BadArgumentsMissing\"},\"InnerDiagnosticInfo\":{\"AdditionalInfo\":\"INNER ADDITION INFO\"}}";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -1572,7 +1569,7 @@ START_TEST(UA_DiagInfo_withTwoInner_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"SymbolicId\":13,\"LocalizedText\":14,\"Locale\":12,\"AdditionalInfo\":\"additionalInfo\",\"InnerStatusCode\":2155216896,\"InnerDiagnosticInfo\":{\"AdditionalInfo\":\"INNER ADDITION INFO\",\"InnerDiagnosticInfo\":{\"AdditionalInfo\":\"INNER ADDITION INFO2\"}}}";
+    char* result = "{\"SymbolicId\":13,\"LocalizedText\":14,\"Locale\":12,\"AdditionalInfo\":\"additionalInfo\",\"InnerStatusCode\":{\"Code\":2155216896,\"Symbol\":\"BadArgumentsMissing\"},\"InnerDiagnosticInfo\":{\"AdditionalInfo\":\"INNER ADDITION INFO\",\"InnerDiagnosticInfo\":{\"AdditionalInfo\":\"INNER ADDITION INFO2\"}}}";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -1724,32 +1721,7 @@ START_TEST(UA_QualName_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"Name\":\"derName\",\"Uri\":1}";
-    buf.data[size] = 0; /* zero terminate */
-    ck_assert_str_eq(result, (char*)buf.data);
-    UA_ByteString_clear(&buf);
-    UA_QualifiedName_delete(src);
-}
-END_TEST
-
-
-
-START_TEST(UA_QualName_NonReversible_json_encode) {
-    UA_QualifiedName *src = UA_QualifiedName_new();
-    UA_QualifiedName_init(src);
-    src->name = UA_STRING_ALLOC("derName");
-    src->namespaceIndex = 1;
-    const UA_DataType *type = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];
-    size_t size = UA_calcSizeJson((void *) src, type, NULL);
-
-    UA_ByteString buf;
-    UA_ByteString_allocBuffer(&buf, size+1);
-
-    status s = UA_encodeJson((void *) src, type, &buf, NULL);
-    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
-
-    // then
-    char* result = "{\"Name\":\"derName\",\"Uri\":1}";
+    char* result = "\"1:derName\"";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -1782,7 +1754,7 @@ START_TEST(UA_QualName_NonReversible_Namespace_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"Name\":\"derName\",\"Uri\":\"ns2\"}";
+    char* result = "\"ns2;derName\"";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -1805,7 +1777,7 @@ START_TEST(UA_QualName_NonReversible_NoNamespaceAsNumber_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"Name\":\"derName\",\"Uri\":6789}";
+    char* result = "\"6789:derName\"";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -2122,7 +2094,7 @@ START_TEST(UA_Variant_QualName_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"Type\":20,\"Body\":{\"Name\":\"derName\",\"Uri\":1}}";
+    char* result = "{\"Type\":20,\"Body\":\"1:derName\"}";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -2811,7 +2783,7 @@ START_TEST(UA_DataValue_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07.8901234Z\",\"SourcePicoseconds\":5678,\"ServerTimestamp\":\"1970-01-28T03:34:38.9012345Z\",\"ServerPicoseconds\":6789}";
+    char* result = "{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":{\"Code\":2153250816,\"Symbol\":\"BadApplicationSignatureInvalid\"},\"SourceTimestamp\":\"1970-01-15T06:56:07.8901234Z\",\"SourcePicoseconds\":5678,\"ServerTimestamp\":\"1970-01-28T03:34:38.9012345Z\",\"ServerPicoseconds\":6789}";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -2932,7 +2904,7 @@ START_TEST(UA_MessageReadResponse_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"ResponseHeader\":{\"Timestamp\":\"1970-01-15T06:56:07Z\",\"RequestHandle\":123123,\"ServiceResult\":0,\"ServiceDiagnostics\":{\"AdditionalInfo\":\"serverDiag\"},\"StringTable\":[],\"AdditionalHeader\":{\"TypeId\":\"i=1\",\"Body\":false}},\"Results\":[{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerTimestamp\":\"1970-01-15T06:56:07Z\"}],\"DiagnosticInfos\":[{\"AdditionalInfo\":\"INNER ADDITION INFO\"}]}";
+    char* result = "{\"ResponseHeader\":{\"Timestamp\":\"1970-01-15T06:56:07Z\",\"RequestHandle\":123123,\"ServiceResult\":{},\"ServiceDiagnostics\":{\"AdditionalInfo\":\"serverDiag\"},\"StringTable\":[],\"AdditionalHeader\":{\"TypeId\":\"i=1\",\"Body\":false}},\"Results\":[{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":{\"Code\":2153250816,\"Symbol\":\"BadApplicationSignatureInvalid\"},\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerTimestamp\":\"1970-01-15T06:56:07Z\"}],\"DiagnosticInfos\":[{\"AdditionalInfo\":\"INNER ADDITION INFO\"}]}";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -3066,7 +3038,7 @@ START_TEST(UA_WriteRequest_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "{\"RequestHeader\":{\"AuthenticationToken\":\"s=authToken\",\"Timestamp\":\"1970-01-15T06:56:07Z\",\"RequestHandle\":123123,\"ReturnDiagnostics\":1,\"AuditEntryId\":\"Auditentryid\",\"TimeoutHint\":120,\"AdditionalHeader\":{\"TypeId\":\"i=1\",\"Body\":false}},\"NodesToWrite\":[{\"NodeId\":\"s=a1111\",\"AttributeId\":12,\"IndexRange\":\"BLOAB\",\"Value\":{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerTimestamp\":\"1970-01-15T06:56:07Z\"}},{\"NodeId\":\"s=a2222\",\"AttributeId\":12,\"IndexRange\":\"BLOAB\",\"Value\":{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerTimestamp\":\"1970-01-15T06:56:07Z\"}}]}";
+    char* result = "{\"RequestHeader\":{\"AuthenticationToken\":\"s=authToken\",\"Timestamp\":\"1970-01-15T06:56:07Z\",\"RequestHandle\":123123,\"ReturnDiagnostics\":1,\"AuditEntryId\":\"Auditentryid\",\"TimeoutHint\":120,\"AdditionalHeader\":{\"TypeId\":\"i=1\",\"Body\":false}},\"NodesToWrite\":[{\"NodeId\":\"s=a1111\",\"AttributeId\":12,\"IndexRange\":\"BLOAB\",\"Value\":{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":{\"Code\":2153250816,\"Symbol\":\"BadApplicationSignatureInvalid\"},\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerTimestamp\":\"1970-01-15T06:56:07Z\"}},{\"NodeId\":\"s=a2222\",\"AttributeId\":12,\"IndexRange\":\"BLOAB\",\"Value\":{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":{\"Code\":2153250816,\"Symbol\":\"BadApplicationSignatureInvalid\"},\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerTimestamp\":\"1970-01-15T06:56:07Z\"}}]}";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -4104,7 +4076,7 @@ END_TEST
 START_TEST(UA_StatusCode_2_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Type\":19,\"Body\":2}");
+    UA_ByteString buf = UA_STRING("{\"Type\":19,\"Body\":{\"Code\":2}}");
     // when
 
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
@@ -4135,7 +4107,7 @@ END_TEST
 START_TEST(UA_StatusCode_0_json_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Type\":19,\"Body\":0}");
+    UA_ByteString buf = UA_STRING("{\"Type\":19,\"Body\":{}}");
     // when
 
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
@@ -4316,7 +4288,7 @@ START_TEST(UA_QualifiedName_json_decode) {
     // given
     UA_QualifiedName out;
     UA_QualifiedName_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Name\":\"derName\",\"Uri\":1}");
+    UA_ByteString buf = UA_STRING("\"1:derName\"");
     // when
 
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], NULL);
@@ -4705,7 +4677,7 @@ START_TEST(UA_DiagnosticInfo_json_decode) {
             "\"LocalizedText\":14,"
             "\"Locale\":12,"
             "\"AdditionalInfo\":\"additionalInfo\","
-            "\"InnerStatusCode\":2155216896,"
+            "\"InnerStatusCode\":{\"Code\":2155216896},"
             "\"InnerDiagnosticInfo\":{\"AdditionalInfo\":\"INNER ADDITION INFO\"}}");
     // when
 
@@ -4739,7 +4711,7 @@ START_TEST(UA_DataValue_json_decode) {
 
     UA_DataValue out;
     UA_DataValue_init(&out);
-    UA_ByteString buf = UA_STRING("{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":2153250816,\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"SourcePicoseconds\":0,\"ServerTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerPicoseconds\":0}");
+    UA_ByteString buf = UA_STRING("{\"Value\":{\"Type\":1,\"Body\":true},\"Status\":{\"Code\":2153250816},\"SourceTimestamp\":\"1970-01-15T06:56:07Z\",\"SourcePicoseconds\":0,\"ServerTimestamp\":\"1970-01-15T06:56:07Z\",\"ServerPicoseconds\":0}");
 
     // when
 
@@ -5561,7 +5533,6 @@ static Suite *testSuite_builtin_json(void) {
 
     //QualifiedName
     tcase_add_test(tc_json_encode, UA_QualName_json_encode);
-    tcase_add_test(tc_json_encode, UA_QualName_NonReversible_json_encode);
     tcase_add_test(tc_json_encode, UA_QualName_NonReversible_Namespace_json_encode);
     tcase_add_test(tc_json_encode, UA_QualName_NonReversible_NoNamespaceAsNumber_json_encode);
 
