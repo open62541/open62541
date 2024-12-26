@@ -658,18 +658,19 @@ ENCODE_JSON(QualifiedName) {
 }
 
 ENCODE_JSON(StatusCode) {
-    if(ctx->useReversible)
-        return ENCODE_DIRECT_JSON(src, UInt32);
-
     const char *codename = UA_StatusCode_name(*src);
     UA_String statusDescription = UA_STRING((char*)(uintptr_t)codename);
 
     status ret = UA_STATUSCODE_GOOD;
     ret |= writeJsonObjStart(ctx);
-    ret |= writeJsonKey(ctx, UA_JSONKEY_CODE);
-    ret |= ENCODE_DIRECT_JSON(src, UInt32);
-    ret |= writeJsonKey(ctx, UA_JSONKEY_SYMBOL);
-    ret |= ENCODE_DIRECT_JSON(&statusDescription, String);
+    if(*src > UA_STATUSCODE_GOOD) {
+        ret |= writeJsonKey(ctx, UA_JSONKEY_CODE);
+        ret |= ENCODE_DIRECT_JSON(src, UInt32);
+        if(codename) {
+            ret |= writeJsonKey(ctx, UA_JSONKEY_SYMBOL);
+            ret |= ENCODE_DIRECT_JSON(&statusDescription, String);
+        }
+    }
     ret |= writeJsonObjEnd(ctx);
     return ret;
 }
@@ -1714,8 +1715,20 @@ DECODE_JSON(DateTime) {
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+decodeJsonNop(ParseCtx *ctx, void *dst, const UA_DataType *type) {
+    return UA_STATUSCODE_GOOD;
+}
+
 DECODE_JSON(StatusCode) {
-    return UInt32_decodeJson(ctx, dst, NULL);
+    CHECK_OBJECT;
+
+    DecodeEntry entries[2] = {
+        {UA_JSONKEY_CODE, dst, NULL, false, &UA_TYPES[UA_TYPES_UINT32]},
+        {UA_JSONKEY_SYMBOL, NULL, decodeJsonNop, false, &UA_TYPES[UA_TYPES_STRING]}
+    };
+
+    return decodeFields(ctx, entries, 2);
 }
 
 /* Get type type encoded by the ExtensionObject at ctx->index.
