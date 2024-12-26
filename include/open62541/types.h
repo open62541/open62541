@@ -709,6 +709,28 @@ UA_INLINABLE(UA_QualifiedName
     return qn;
 })
 
+/* Print the human-readable QualifiedName format. QualifiedNames can be printed
+ * with either the integer NamespaceIndex or using the NamespaceUri.
+ * The Namespace 0 is always omitted.
+ *
+ * The extended printing tries to translate the NamespaceIndex to the
+ * NamespaceUri from the mapping table. When the mapping fails, the integer
+ * NamespaceIndex from is used.
+ *
+ * Examples:
+ *    Namespace Zero: HelloWorld
+ *    NamespaceIndex Form: 3:HelloWorld
+ *    NamespaceUri Form: nsu=http://widgets.com/schemas/hello;HelloWorld
+ *
+ * The method can either use a pre-allocated string buffer or allocates memory
+ * internally if called with an empty output string. */
+UA_StatusCode UA_EXPORT
+UA_QualifiedName_print(const UA_QualifiedName *qn, UA_String *output);
+
+UA_StatusCode UA_EXPORT
+UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
+                         const UA_NamespaceMapping *nsMapping);
+
 /**
  * LocalizedText
  * ^^^^^^^^^^^^^

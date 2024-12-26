@@ -647,6 +647,34 @@ START_TEST(expIdToStringNumericWithMapping) {
     UA_String_clear(&str);
 } END_TEST
 
+START_TEST(qualifiedNameNsUri) {
+    UA_String namespaces[2] = {
+        UA_STRING_STATIC("ns1"),
+        UA_STRING_STATIC("ns2")
+    };
+
+    UA_NamespaceMapping nsMapping;
+    memset(&nsMapping, 0, sizeof(UA_NamespaceMapping));
+    nsMapping.namespaceUris = namespaces;
+    nsMapping.namespaceUrisSize = 2;
+
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(1, "name");
+    UA_String str = UA_STRING_NULL;
+
+    UA_QualifiedName_printEx(&qn, &str, &nsMapping);
+    assertNodeIdString(&str, "ns2;name");
+    UA_String_clear(&str);
+} END_TEST
+
+START_TEST(qualifiedNameNsIndex) {
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(1, "name");
+    UA_String str = UA_STRING_NULL;
+
+    UA_QualifiedName_printEx(&qn, &str, NULL);
+    assertNodeIdString(&str, "1:name");
+    UA_String_clear(&str);
+} END_TEST
+
 static Suite* testSuite_Utils(void) {
     Suite *s = suite_create("Utils");
     TCase *tc_endpointUrl_split = tcase_create("EndpointUrl_split");
@@ -682,6 +710,11 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc3, expIdToStringNumeric);
     tcase_add_test(tc3, expIdToStringNumericWithMapping);
     suite_add_tcase(s, tc3);
+
+    TCase *tc4 = tcase_create("test qualifiedname string");
+    tcase_add_test(tc4, qualifiedNameNsUri);
+    tcase_add_test(tc4, qualifiedNameNsIndex);
+    suite_add_tcase(s, tc4);
 
     return s;
 }
