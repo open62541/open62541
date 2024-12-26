@@ -54,6 +54,7 @@ typedef enum {
     re2c:flags:input = custom;
 
     nodeid_body = ("i=" | "s=" | "g=" | "b=");
+    escaped_uri = [^;\000]*;
 */
 
 static UA_StatusCode
@@ -149,91 +150,142 @@ parse_nodeid_body(UA_NodeId *id, const char *body, const char *end, Escaping esc
 }
 
 static UA_StatusCode
-parse_nodeid(UA_NodeId *id, const char *pos, const char *end, Escaping esc) {
+parse_nodeid(UA_NodeId *id, const char *pos, const char *end,
+             Escaping esc, const UA_NamespaceMapping *nsMapping) {
     *id = UA_NODEID_NULL; /* Reset the NodeId */
     LexContext context;
     memset(&context, 0, sizeof(LexContext));
-    const char *ns = NULL, *nse= NULL;
+    UA_Byte *begin = (UA_Byte*)(uintptr_t)pos;
+    const char *ns = NULL, *nsu = NULL, *body = NULL;
 
-    /*!re2c
-    ("ns=" @ns [0-9]+ @nse ";")? nodeid_body {
-        (void)pos; // Get rid of a dead store clang-analyzer warning
-        if(ns) {
-            UA_UInt32 tmp;
-            size_t len = (size_t)(nse - ns);
-            if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
-                return UA_STATUSCODE_BADDECODINGERROR;
-            id->namespaceIndex = (UA_UInt16)tmp;
+    /*!re2c // Match the grammar
+    (("nsu=" @nsu escaped_uri | "ns=" @ns [0-9]+) ";")?
+        @body nodeid_body { goto match; }
+    * { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; } */
+
+ match:
+    if(nsu) {
+        /* NamespaceUri */
+        UA_String nsUri = {(size_t)(body - 1 - nsu), (UA_Byte*)(uintptr_t)nsu};
+        UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+        if(nsMapping)
+            res = UA_NamespaceMapping_uri2Index(nsMapping, nsUri,
+                                                &id->namespaceIndex);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_String total = {(size_t)((const UA_Byte*)end - begin), begin};
+            id->identifierType = UA_NODEIDTYPE_STRING;
+            return UA_String_copy(&total, &id->identifier.string);
         }
-
-        // From the current position until the end
-        return parse_nodeid_body(id, &pos[-2], end, esc);
+    } else if(ns) {
+        /* NamespaceIndex */
+        UA_UInt32 tmp;
+        size_t len = (size_t)(body - 1 - ns);
+        if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        id->namespaceIndex = (UA_UInt16)tmp;
     }
 
-    * { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; } */
+    /* From the current position until the end */
+    return parse_nodeid_body(id, body, end, esc);
 }
 
 UA_StatusCode
-UA_NodeId_parse(UA_NodeId *id, const UA_String str) {
-    UA_StatusCode res =
-        parse_nodeid(id, (const char *)str.data,
-                     (const char*)str.data+str.length, ESCAPING_NONE);
+UA_NodeId_parseEx(UA_NodeId *id, const UA_String str,
+                  const UA_NamespaceMapping *nsMapping) {
+    UA_StatusCode res = parse_nodeid(id, (const char *)str.data,
+                                     (const char*)str.data+str.length,
+                                     ESCAPING_NONE, nsMapping);
     if(res != UA_STATUSCODE_GOOD)
         UA_NodeId_clear(id);
     return res;
 }
 
+UA_StatusCode
+UA_NodeId_parse(UA_NodeId *id, const UA_String str) {
+    return UA_NodeId_parseEx(id, str, NULL);
+}
+
 static UA_StatusCode
-parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end, Escaping esc) {
+parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end,
+                     Escaping esc, const UA_NamespaceMapping *nsMapping,
+                     size_t serverUrisSize, const UA_String *serverUris) {
     *id = UA_EXPANDEDNODEID_NULL; /* Reset the NodeId */
     LexContext context;
     memset(&context, 0, sizeof(LexContext));
-    const char *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
+    const char *svr = NULL, *sve = NULL, *svu = NULL,
+        *nsu = NULL, *ns = NULL, *body = NULL, *begin = pos;
 
-    /*!re2c
-    // The "." character class also matches \x00. Exlude this as we produce
-    // an infinite sequence of zeros once the end of the buffer was hit.
-    ("svr=" @svr [0-9]+ @svre ";")?
-    ("ns=" @ns [0-9]+ ";" | "nsu=" @nsu (.\[;\x00])* ";")?
-    @body nodeid_body {
-        (void)pos; // Get rid of a dead store clang-analyzer warning
-        if(svr) {
-            size_t len = (size_t)((svre) - svr);
-            if(UA_readNumber((const UA_Byte*)svr, len, &id->serverIndex) != len)
-                return UA_STATUSCODE_BADDECODINGERROR;
+    /*!re2c // Match the grammar
+    (("svr=" @svr [0-9]+ | "svu=" @svu escaped_uri) @sve ";")?
+        (("ns=" @ns [0-9]+ | "nsu=" @nsu [^;\x00]*) ";")?
+        @body nodeid_body { goto match; }
+    * { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; } */
+
+ match:
+    if(svu) {
+        /* ServerUri */
+        UA_String serverUri = {(size_t)(sve - svu), (UA_Byte*)(uintptr_t)svu};
+        size_t i = 0;
+        for(; i < serverUrisSize; i++) {
+            if(UA_String_equal(&serverUri, &serverUris[i]))
+                break;
         }
-
-        if(nsu) {
-            size_t len = (size_t)((body-1) - nsu);
-            UA_String nsuri;
-            nsuri.data = (UA_Byte*)(uintptr_t)nsu;
-            nsuri.length = len;
-            UA_StatusCode res = UA_String_copy(&nsuri, &id->namespaceUri);
-            if(res != UA_STATUSCODE_GOOD)
-                return res;
-        } else if(ns) {
-            UA_UInt32 tmp;
-            size_t len = (size_t)((body-1) - ns);
-            if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
-                return UA_STATUSCODE_BADDECODINGERROR;
-            id->nodeId.namespaceIndex = (UA_UInt16)tmp;
+        if(i == serverUrisSize) {
+            /* The ServerUri cannot be mapped. Return the entire input as a
+             * string NodeId. */
+            UA_String total = {(size_t)(end - begin), (UA_Byte*)(uintptr_t)begin};
+            id->nodeId.identifierType = UA_NODEIDTYPE_STRING;
+            return UA_String_copy(&total, &id->nodeId.identifier.string);
         }
-
-        // From the current position until the end
-        return parse_nodeid_body(&id->nodeId, &pos[-2], end, esc);
+        id->serverIndex = (UA_UInt32)i;
+    } else if(svr) {
+        /* ServerIndex */
+        size_t len = (size_t)(sve - svr);
+        if(UA_readNumber((const UA_Byte*)svr, len, &id->serverIndex) != len)
+            return UA_STATUSCODE_BADDECODINGERROR;
     }
 
-    * { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; } */
+    if(nsu) {
+        /* NamespaceUri */
+        UA_String nsuri = {(size_t)(body - 1 - nsu), (UA_Byte*)(uintptr_t)nsu};
+        UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+        /* Don't try to map the NamespaceUri for ServerIndex != 0 */
+        if(nsMapping && id->serverIndex == 0)
+            res = UA_NamespaceMapping_uri2Index(nsMapping, nsuri,
+                                                &id->nodeId.namespaceIndex);
+        if(res != UA_STATUSCODE_GOOD)
+            res = UA_String_copy(&nsuri, &id->namespaceUri); /* Keep the Uri without mapping */
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else if(ns) {
+        /* NamespaceIndex */
+        UA_UInt32 tmp;
+        size_t len = (size_t)(body - 1 - ns);
+        if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        id->nodeId.namespaceIndex = (UA_UInt16)tmp;
+    }
+
+    /* From the current position until the end */
+    return parse_nodeid_body(&id->nodeId, body, end, esc);
+}
+
+UA_StatusCode
+UA_ExpandedNodeId_parseEx(UA_ExpandedNodeId *id, const UA_String str,
+                          const UA_NamespaceMapping *nsMapping,
+                          size_t serverUrisSize, const UA_String *serverUris) {
+    UA_StatusCode res =
+        parse_expandednodeid(id, (const char *)str.data,
+                             (const char *)str.data + str.length, ESCAPING_NONE,
+                             nsMapping, serverUrisSize, serverUris);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_ExpandedNodeId_clear(id);
+    return res;
 }
 
 UA_StatusCode
 UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str) {
-    UA_StatusCode res =
-        parse_expandednodeid(id, (const char *)str.data,
-                             (const char *)str.data + str.length, ESCAPING_NONE);
-    if(res != UA_STATUSCODE_GOOD)
-        UA_ExpandedNodeId_clear(id);
-    return res;
+    return UA_ExpandedNodeId_parseEx(id, str, NULL, 0, NULL);
 }
 
 static UA_StatusCode
@@ -342,7 +394,7 @@ parse_relativepath(UA_RelativePath *rp, const char **ppos, const char *end,
         }
 
         // Try to parse a NodeId for the ReferenceType (non-standard!)
-        res = parse_nodeid(&current.referenceTypeId, begin, finish, esc);
+        res = parse_nodeid(&current.referenceTypeId, begin, finish, esc, NULL);
         if(res == UA_STATUSCODE_GOOD)
             goto reftype_target;
 
@@ -364,7 +416,7 @@ parse_relativepath(UA_RelativePath *rp, const char **ppos, const char *end,
         return res;
 
     /*!re2c
-     @begin ([^</.#\[\000] | "&<" | "&/" | "&." | "&#" | "&[")+ {
+     @begin ([^</.#[\000] | "&<" | "&/" | "&." | "&#" | "&[")+ {
         res = parse_refpath_qn(&current.targetName, begin, pos, esc);
         goto add_element;
     }
@@ -422,7 +474,7 @@ parseAttributeOperand(UA_AttributeOperand *ao, const UA_String str, UA_NodeId de
     if(*pos != '/' && *pos != '.' && *pos != '<' && *pos != '#' && *pos != '[') {
         const char *id_pos = pos;
         pos = find_unescaped((char*)(uintptr_t)pos, end, true);
-        res = parse_nodeid(&ao->nodeId, id_pos, pos, ESCAPING_AND_EXTENDED);
+        res = parse_nodeid(&ao->nodeId, id_pos, pos, ESCAPING_AND_EXTENDED, NULL);
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
     }
