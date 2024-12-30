@@ -360,27 +360,16 @@ DataSetPayload_decodeJsonInternal(ParseCtx *ctx, void* dsmP, const UA_DataType *
 
     /* Iterate over the key/value pairs in the object. Keys are stored in fieldnames. */
     status ret = UA_STATUSCODE_GOOD;
+    dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
     for(size_t i = 0; i < length; ++i) {
         UA_assert(currentTokenType(ctx) == CJ5_TOKEN_STRING);
         ret = decodeJsonJumpTable[UA_DATATYPEKIND_STRING](ctx, &fieldNames[i], type);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
 
-        /* TODO: Is field value a variant or datavalue? Current check if type and body present. */
-        size_t searchResult = 0;
-        status foundType = lookAheadForKey(ctx, "Type", &searchResult);
-        status foundBody = lookAheadForKey(ctx, "Body", &searchResult);
-        if(foundType == UA_STATUSCODE_GOOD && foundBody == UA_STATUSCODE_GOOD) {
-            dsm->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
-            ret = decodeJsonJumpTable[UA_DATATYPEKIND_VARIANT]
-                (ctx, &dsm->data.keyFrameData.dataSetFields[i].value, type);
-            dsm->data.keyFrameData.dataSetFields[i].hasValue = true;
-        } else {
-            dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
-            ret = decodeJsonJumpTable[UA_DATATYPEKIND_DATAVALUE]
-                (ctx, &dsm->data.keyFrameData.dataSetFields[i], type);
-            dsm->data.keyFrameData.dataSetFields[i].hasValue = true;
-        }
+        /* TODO: Is field value a variant or datavalue? */
+        ret = decodeJsonJumpTable[UA_DATATYPEKIND_DATAVALUE]
+            (ctx, &dsm->data.keyFrameData.dataSetFields[i], NULL);
 
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
