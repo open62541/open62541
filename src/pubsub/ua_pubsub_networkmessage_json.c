@@ -91,14 +91,18 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
             return rv;
     }
 
+    /* MessageType */
+    if(src->header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
+        UA_String s = UA_STRING("ua-keyframe");
+        rv |= writeJsonObjElm(ctx, UA_DECODEKEY_MESSAGETYPE,
+                              &s, &UA_TYPES[UA_TYPES_STRING]);
+    } else {
+        /* TODO: Support other message types */
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
     rv |= writeJsonKey(ctx, UA_DECODEKEY_PAYLOAD);
     rv |= writeJsonObjStart(ctx);
-
-    /* TODO: currently no difference between delta and key frames. Own
-     * dataSetMessageType for json?. If the field names are not defined, write
-     * out empty field names. */
-    if(src->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME)
-        return UA_STATUSCODE_BADNOTSUPPORTED; /* Delta frames not supported */
 
     if(src->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
         /* Variant */
@@ -384,18 +388,19 @@ static status
 DatasetMessage_Payload_decodeJsonInternal(ParseCtx *ctx, UA_DataSetMessage* dsm,
                                           const UA_DataType *type) {
     UA_ConfigurationVersionDataType cvd;
-    DecodeEntry entries[6] = {
+    DecodeEntry entries[7] = {
         {UA_DECODEKEY_DATASETWRITERID, &dsm->dataSetWriterId, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
         {UA_DECODEKEY_SEQUENCENUMBER, &dsm->header.dataSetMessageSequenceNr, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
         {UA_DECODEKEY_METADATAVERSION, &cvd, &MetaDataVersion_decodeJsonInternal, false, NULL},
         {UA_DECODEKEY_TIMESTAMP, &dsm->header.timestamp, NULL, false, &UA_TYPES[UA_TYPES_DATETIME]},
         {UA_DECODEKEY_DSM_STATUS, &dsm->header.status, NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
+        {UA_DECODEKEY_MESSAGETYPE, NULL, NULL, false, NULL},
         {UA_DECODEKEY_PAYLOAD, dsm, &DataSetPayload_decodeJsonInternal, false, NULL}
     };
-    status ret = decodeFields(ctx, entries, 6);
+    status ret = decodeFields(ctx, entries, 7);
 
     /* Error or no DatasetWriterId found or no payload found */
-    if(ret != UA_STATUSCODE_GOOD || !entries[0].found || !entries[5].found)
+    if(ret != UA_STATUSCODE_GOOD || !entries[0].found || !entries[6].found)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
