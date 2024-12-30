@@ -157,12 +157,17 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
     rv |= writeJsonObjElm(ctx, UA_DECODEKEY_MESSAGETYPE,
                           &s, &UA_TYPES[UA_TYPES_STRING]);
 
-    /* PublisherId */
+    /* PublisherId, always encode as a JSON string */
     if(src->publisherIdEnabled) {
+        UA_Byte buf[512];
+        UA_ByteString bs = {512, buf};
         UA_Variant v;
         UA_PublisherId_toVariant(&src->publisherId, &v);
+        rv |= UA_encodeJson(v.data, v.type, &bs, NULL);
+        if(rv != UA_STATUSCODE_GOOD)
+            return rv;
         rv |= writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
-        rv |= encodeJsonJumpTable[v.type->typeKind](ctx, v.data, v.type);
+        rv |= encodeJsonJumpTable[UA_DATATYPEKIND_STRING](ctx, &bs, NULL);
     }
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
