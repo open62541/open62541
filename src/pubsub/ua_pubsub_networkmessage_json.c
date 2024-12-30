@@ -46,6 +46,12 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
 
+    /* TODO: Encode DataSetWriterName */
+
+    /* TODO: Encode PublisherId (omitted if in the NetworkMessage header) */
+
+    /* TODO: Encode WriterGroupName (omitted if in the NetworkMessage header) */
+
     /* DataSetMessageSequenceNr */
     if(src->header.dataSetMessageSequenceNrEnabled) {
         rv |= writeJsonObjElm(ctx, UA_DECODEKEY_SEQUENCENUMBER,
@@ -66,6 +72,8 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
         if(rv != UA_STATUSCODE_GOOD)
             return rv;
     }
+
+    /* TODO: MinorVersion (omitted if the MetaDataVersion is sent) */
 
     /* Timestamp */
     if(src->header.timestampEnabled) {
@@ -93,7 +101,7 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
         return UA_STATUSCODE_BADNOTSUPPORTED; /* Delta frames not supported */
 
     if(src->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
-        /* KEYFRAME VARIANT */
+        /* Variant */
         for(UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
             if(src->data.keyFrameData.fieldNames)
                 rv |= writeJsonKey_UA_String(ctx, &src->data.keyFrameData.fieldNames[i]);
@@ -105,7 +113,7 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
                 return rv;
         }
     } else if(src->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
-        /* KEYFRAME DATAVALUE */
+        /* DataValue */
         for(UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
             if(src->data.keyFrameData.fieldNames)
                 rv |= writeJsonKey_UA_String(ctx, &src->data.keyFrameData.fieldNames[i]);
@@ -154,6 +162,8 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
     }
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
+
+    /* TODO: Encode WriterGroupName */
 
     /* DataSetClassId */
     if(src->dataSetClassIdEnabled) {
