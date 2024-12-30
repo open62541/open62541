@@ -416,29 +416,30 @@ DatasetMessage_Payload_decodeJsonInternal(ParseCtx *ctx, UA_DataSetMessage* dsm,
 static status
 DatasetMessage_Array_decodeJsonInternal(ParseCtx *ctx, void *UA_RESTRICT dst,
                                         const UA_DataType *type) {
-    /* Array! */
-    if(currentTokenType(ctx) != CJ5_TOKEN_ARRAY)
+    /* Array or object */
+    size_t length = 1;
+    if(currentTokenType(ctx) == CJ5_TOKEN_ARRAY) {
+        length = (size_t)ctx->tokens[ctx->index].size;
+
+        /* Go to the first array member */
+        ctx->index++;
+
+        /* Return early for empty arrays */
+        if(length == 0)
+            return UA_STATUSCODE_GOOD;
+    } else if(currentTokenType(ctx) != CJ5_TOKEN_OBJECT) {
         return UA_STATUSCODE_BADDECODINGERROR;
-    size_t length = (size_t)ctx->tokens[ctx->index].size;
-
-    /* Return early for empty arrays */
-    if(length == 0)
-        return UA_STATUSCODE_GOOD;
-
-    UA_DataSetMessage *dsm = (UA_DataSetMessage*)dst;
-
-    /* Go to the first array member */
-    ctx->index++;
+    }
 
     /* Decode array members */
-    status ret = UA_STATUSCODE_BADDECODINGERROR;
+    UA_DataSetMessage *dsm = (UA_DataSetMessage*)dst;
     for(size_t i = 0; i < length; ++i) {
-        ret = DatasetMessage_Payload_decodeJsonInternal(ctx, &dsm[i], NULL);
+        status ret = DatasetMessage_Payload_decodeJsonInternal(ctx, &dsm[i], NULL);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
     }
 
-    return ret;
+    return UA_STATUSCODE_GOOD;
 }
 
 static status
@@ -473,9 +474,9 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
     if(found != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     const cj5_token *bodyToken = &ctx->tokens[searchResultMessages];
-    if(bodyToken->type != CJ5_TOKEN_ARRAY)
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
-    size_t messageCount = (size_t)ctx->tokens[searchResultMessages].size;
+    size_t messageCount = 1;
+    if(bodyToken->type == CJ5_TOKEN_ARRAY)
+        messageCount = (size_t)bodyToken->size;
 
     /* MessageType */
     UA_Boolean isUaData = true;
