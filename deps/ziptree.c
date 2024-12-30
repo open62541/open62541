@@ -127,7 +127,7 @@ __ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
      * than "x" */
     zip_elem *prev = NULL;
     zip_elem *cur = head->root;
-    enum ZIP_CMP cur_order, prev_order;
+    enum ZIP_CMP cur_order, prev_order = ZIP_CMP_EQ;
     do {
         cur_order = __ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(cur));
         if(cur_order == ZIP_CMP_EQ)
