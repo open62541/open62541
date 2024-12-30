@@ -318,6 +318,20 @@ START_TEST(UA_NetworkMessage_json_decode) {
 }
 END_TEST
 
+/* Messages are a single object and not an array */
+START_TEST(UA_NetworkMessage_json_decode_messageObject) {
+    // given
+    UA_NetworkMessage out;
+    memset(&out,0,sizeof(UA_NetworkMessage));
+    UA_ByteString buf = UA_STRING("{\"MessageId\":\"5ED82C10-50BB-CD07-0120-22521081E8EE\",\"MessageType\":\"ua-data\",\"Messages\":{\"MetaDataVersion\":{\"MajorVersion\": 47, \"MinorVersion\": 47},\"DataSetWriterId\":62541,\"Status\":22,\"SequenceNumber\":4711,\"Payload\":{\"Test\":{\"UaType\":5,\"Value\":42},\"Server localtime\":{\"UaType\":1,\"Value\":true}}}}");
+    // when
+    UA_StatusCode retval = UA_NetworkMessage_decodeJson(&buf, &out, NULL);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_NetworkMessage_clear(&out);
+}
+END_TEST
+
 START_TEST(UA_Networkmessage_DataSetFieldsNull_json_decode) {
     // given
     UA_NetworkMessage out;
@@ -373,11 +387,11 @@ static Suite *testSuite_networkmessage(void) {
     Suite *s = suite_create("Built-in Data Types 62541-6 Json");
     TCase *tc_json_networkmessage = tcase_create("networkmessage_json");
 
-
     tcase_add_test(tc_json_networkmessage, UA_PubSub_EncodeAllOptionalFields);
     tcase_add_test(tc_json_networkmessage, UA_PubSub_EnDecode);
     tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_oneMessage_twoFields_json_decode);
     tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_json_decode);
+    tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_json_decode_messageObject);
     tcase_add_test(tc_json_networkmessage, UA_Networkmessage_DataSetFieldsNull_json_decode);
     tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_fieldNames_json_decode);
 
