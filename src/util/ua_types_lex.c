@@ -693,30 +693,24 @@ relativepath_addelem(UA_RelativePath *rp, UA_RelativePathElement *el) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* Parse name string with '&' as the escape character */
+/* Parse name string with '&' as the escape character. Omit trailing &. Allow
+ * escaped characters in the middle. If the passed re2c lexing, then they are
+ * delimiters between escaped strings. */
 static UA_StatusCode
 parse_qn_name(UA_String *name, const char *pos,
-                      const char *end, Escaping esc) {
-    /* There must be no unescaped characters (also trailing &) */
-    char *end_esc = find_unescaped((char *)(uintptr_t)pos, end,
-                                   (esc == ESCAPING_AND_EXTENDED));
-    if(end_esc != end)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    size_t maxlen = (size_t)(end_esc - pos);
-    if(maxlen == 0)
-        return UA_STATUSCODE_GOOD;
-
+              const char *end, Escaping esc) {
     /* Copy string */
-    char *namestr = (char*)UA_malloc(maxlen);
-    if(!namestr)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    memcpy(namestr, pos, maxlen);
+    UA_String tmp = {(size_t)(end - pos), (UA_Byte*)(uintptr_t)pos};
+    UA_StatusCode res = UA_String_copy(&tmp, name);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Unescape in-situ */
-    char *name_end = unescape(namestr, namestr + maxlen);
-    name->data = (UA_Byte*)namestr;
-    name->length = (size_t)(name_end - namestr);
+    char *esc_end =
+        unescape((char*)name->data, (const char*)name->data + name->length);
+    name->length = (size_t)(esc_end - (char*)name->data);
+    if(name->length == 0)
+        UA_String_clear(name);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -843,10 +837,8 @@ yy51:
     nsUri.data = (UA_Byte*)(uintptr_t)begin;
     if(nsMapping)
         res = UA_NamespaceMapping_uri2Index(nsMapping, nsUri, &qn->namespaceIndex);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_String total = {(size_t)(end - begin), (UA_Byte*)(uintptr_t)begin};
-        return UA_String_copy(&total, &qn->name);
-    }
+    if(res != UA_STATUSCODE_GOOD)
+        return parse_qn_name(&qn->name, begin, end, esc); /* Use the full string for the name */
 
  match_name:
     return parse_qn_name(&qn->name, pos, end, esc);
