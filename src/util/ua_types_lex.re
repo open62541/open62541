@@ -135,14 +135,34 @@ parse_nodeid_body(UA_NodeId *id, const char *body, const char *end, Escaping esc
         if(res == UA_STATUSCODE_GOOD)
             id->identifierType = UA_NODEIDTYPE_GUID;
         break;
-    case 'b':
+    case 'b': {
+        /* A base64 string may contain the / char which can get and-escaped. */
+        UA_String tmp = {len, (UA_Byte*)(uintptr_t)body + 2};
+        UA_String escaped = tmp;
+        for(const char *pos = body + 2; pos < end; pos++) {
+            if(*pos == '&') {
+                res = UA_String_copy(&tmp, &escaped);
+                if(res != UA_STATUSCODE_GOOD)
+                    return res;
+                char *begin = (char*)escaped.data;
+                char *esc_end = unescape(begin, begin + escaped.length);
+                if(esc_end > begin)
+                    escaped.length = (size_t)(esc_end - begin);
+                else
+                    UA_String_clear(&escaped);
+                break;
+            }
+        }
         id->identifier.byteString.data =
-            UA_unbase64((const unsigned char*)body+2, len,
+            UA_unbase64((const unsigned char*)escaped.data, escaped.length,
                         &id->identifier.byteString.length);
-        if(!id->identifier.byteString.data && len > 0)
+        if(escaped.data != (const UA_Byte*)body + 2)
+            UA_String_clear(&escaped);
+        if(!id->identifier.byteString.data && escaped.length > 0)
             return UA_STATUSCODE_BADDECODINGERROR;
         id->identifierType = UA_NODEIDTYPE_BYTESTRING;
         break;
+    }
     default:
         return UA_STATUSCODE_BADDECODINGERROR;
     }
