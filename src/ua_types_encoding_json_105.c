@@ -794,7 +794,7 @@ encodeVariantInner(CtxJson *ctx, const UA_Variant *src) {
      * JSON object shall be omitted or replaced by the JSON literal ‘null’ (when
      * an element of a JSON array). */
     if(!src->type)
-        return writeJsonObjStart(ctx) | writeJsonObjEnd(ctx);
+        return UA_STATUSCODE_GOOD;
 
     /* Set the array type in the encoding mask */
     const bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
@@ -1856,6 +1856,12 @@ Array_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void **dst, const UA_DataTy
 
 static status
 decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
+    /* Empty variant == null */
+    if(ctx->tokens[ctx->index].size == 0) {
+        ctx->index++;
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* Search for the type */
     size_t typeIndex = 0;
     status ret = lookAheadForKey(ctx, UA_JSONKEY_TYPE, &typeIndex);
