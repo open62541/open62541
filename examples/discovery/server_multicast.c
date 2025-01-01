@@ -241,7 +241,7 @@ int main(int argc, char **argv) {
     config->mdnsConfig.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
 
     //setting custom outbound interface
-    config->mdnsInterfaceIP = UA_String_fromChars("42.42.42.42"); //this line will produce an error and set the interface to 0.0.0.0
+    config->mdnsInterfaceIP = UA_String_fromChars("0.0.0.0");
 
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
     // For a LDS server, you should only indicate the LDS capability.
