@@ -65,14 +65,15 @@ UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     UA_ReaderGroup *rg = dsr->linkedReaderGroup;
     if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
-        if(dsr->config.dataSetWriterId ==
-           *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
-            return UA_STATUSCODE_GOOD;
-        }
+        // TODO
+        /* if(dsr->config.dataSetWriterId == */
+        /*    *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) { */
+        /*     return UA_STATUSCODE_GOOD; */
+        /* } */
 
-        UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "DataSetWriterId does not match. "
-                            "Expected %u, received %u", dsr->config.dataSetWriterId,
-                            *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds);
+        /* UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "DataSetWriterId does not match. " */
+        /*                     "Expected %u, received %u", dsr->config.dataSetWriterId, */
+        /*                     *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds); */
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
@@ -86,9 +87,9 @@ UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     }
 
     if(msg->payloadHeaderEnabled) {
-        UA_Byte totalDataSets = msg->payloadHeader.dataSetPayloadHeader.count;
+        size_t totalDataSets = msg->payload.dataSetPayload.dataSetMessagesSize;
         for(size_t i = 0; i < totalDataSets; i++) {
-            UA_UInt32 dswId = msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i];
+            UA_UInt32 dswId = msg->payload.dataSetPayload.dataSetMessages[i].dataSetWriterId;
             if(dsr->config.dataSetWriterId == dswId)
                 return UA_STATUSCODE_GOOD;
         }
@@ -357,8 +358,20 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     UA_ReaderGroup *rg = dsr->linkedReaderGroup;
     UA_assert(rg);
 
+    UA_Server *server = psm->sc.server;
     UA_PubSubState oldState = dsr->head.state;
 
+    /* Custom state machine */
+    if(dsr->config.customStateMachine) {
+        UA_UNLOCK(&server->serviceMutex);
+        errorReason = dsr->config.customStateMachine(server, dsr->head.identifier,
+                                                     dsr->config.context,
+                                                     &dsr->head.state, targetState);
+        UA_LOCK(&server->serviceMutex);
+        goto finalize_state_machine;
+    }
+
+    /* Internal state machine */
     switch(targetState) {
         /* Disabled */
     case UA_PUBSUBSTATE_DISABLED:
@@ -393,17 +406,19 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         dsr->msgRcvTimeoutTimerId = 0;
     }
 
+ finalize_state_machine:
+
     /* Inform application about state change */
     if(dsr->head.state != oldState) {
-        UA_ServerConfig *config = &psm->sc.server->config;
         UA_LOG_INFO_PUBSUB(psm->logging, dsr, "%s -> %s",
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(dsr->head.state));
-        if(config->pubSubConfig.stateChangeCallback != 0) {
-            UA_UNLOCK(&psm->sc.server->serviceMutex);
-            config->pubSubConfig.stateChangeCallback(psm->sc.server, dsr->head.identifier,
-                                                     dsr->head.state, errorReason);
-            UA_LOCK(&psm->sc.server->serviceMutex);
+        if(server->config.pubSubConfig.stateChangeCallback != 0) {
+            UA_UNLOCK(&server->serviceMutex);
+            server->config.pubSubConfig.
+                stateChangeCallback(server, dsr->head.identifier,
+                                    dsr->head.state, errorReason);
+            UA_LOCK(&server->serviceMutex);
         }
     }
 }

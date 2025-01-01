@@ -114,6 +114,50 @@ START_TEST(Session_updateLifetime_ShallWork) {
 }
 END_TEST
 
+START_TEST(Session_setSessionAttribute_ShallWork) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* CreateSession */
+    UA_CreateSessionRequest createReq;
+    UA_CreateSessionResponse createRes;
+    UA_CreateSessionRequest_init(&createReq);
+    __UA_Client_Service(client, &createReq, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &createRes, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+
+    ck_assert_uint_eq(createRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    /* Manually splice the AuthenticationToken into the client. So that it is
+     * added to the Request. */
+    UA_NodeId_copy(&createRes.authenticationToken, &client->authenticationToken);
+
+    /* Set an attribute for the session. */
+    UA_QualifiedName key = UA_QUALIFIEDNAME(1, "myAttribute");;
+    UA_Variant *variant = UA_Variant_new();
+    UA_Variant_init(variant);
+    status s = UA_Server_setSessionAttribute(server, &createRes.sessionId, key, variant);
+    UA_Variant_delete(variant);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    /* CloseSession */
+    UA_CloseSessionRequest closeReq;
+    UA_CloseSessionResponse closeRes;
+    UA_CloseSessionRequest_init(&closeReq);
+
+    __UA_Client_Service(client, &closeReq, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+                        &closeRes, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
+
+    ck_assert_uint_eq(closeRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_CloseSessionResponse_clear(&closeRes);
+    UA_CreateSessionResponse_clear(&createRes);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_Session(void) {
     Suite *s = suite_create("Session");
     TCase *tc_session = tcase_create("Core");
@@ -121,6 +165,7 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session, Session_close_before_activate);
     tcase_add_test(tc_session, Session_init_ShallWork);
     tcase_add_test(tc_session, Session_updateLifetime_ShallWork);
+    tcase_add_test(tc_session, Session_setSessionAttribute_ShallWork);
     suite_add_tcase(s,tc_session);
     return s;
 }
