@@ -535,16 +535,12 @@ ENCODE_XML(ExtensionObject) {
 static status
 Array_encodeXml(CtxXml *ctx, const void *ptr, size_t length,
                 const UA_DataType *type) {
+    char* arrName[128];
     size_t arrNameLen = strlen("ListOf") + strlen(type->typeName);
-    char* arrName = (char*)UA_malloc((arrNameLen + 1) * sizeof(char));
-    arrName[0] = 'L';
-    arrName[1] = 'i';
-    arrName[2] = 's';
-    arrName[3] = 't';
-    arrName[4] = 'O';
-    arrName[5] = 'f';
-    for(size_t i = 0; i < strlen(type->typeName); ++i)
-        arrName[strlen("ListOf") + i] = type->typeName[i];
+    if(arrNameLen >= 128)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    memcpy(arrName, "ListOf", strlen("ListOf"));
+    memcpy(arrName + strlen("ListOf"), type-typeName, strlen(type->typeName));
     arrName[arrNameLen] = '\0';
 
     status ret = writeXmlElemNameBegin(ctx, arrName);
@@ -563,12 +559,10 @@ Array_encodeXml(CtxXml *ctx, const void *ptr, size_t length,
 
 finish:
     ret |= writeXmlElemNameEnd(ctx, arrName, &UA_TYPES[UA_TYPES_VARIANT]);
-    UA_free(arrName);
     return ret;
 }
 
 ENCODE_XML(Variant) {
-
     if(!src->type)
         return UA_STATUSCODE_BADENCODINGERROR;
 
