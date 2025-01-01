@@ -238,7 +238,7 @@ int main(int argc, char **argv) {
     // Enable the mDNS announce and response functionality
     config->mdnsEnabled = true;
 
-    config->mdnsConfig.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
+    config->mdnsConfig.mdnsServerName = UA_String_fromChars("Sample-Multicast-Server");
 
     //setting custom outbound interface
     config->mdnsInterfaceIP = UA_String_fromChars("0.0.0.0");
