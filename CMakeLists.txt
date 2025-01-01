@@ -115,6 +115,12 @@ option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
 option(UA_ENABLE_GDS_PUSHMANAGEMENT "Enable GDS pushManagement support" OFF)
 option(UA_ENABLE_DATATYPES_ALL "Generate all datatypes for namespace zero (uses more binary space)" ON)
 
+option(UA_ENABLE_JSON_ENCODING_LEGACY "Use the old JSON encoding before the v1.05 spec" OFF)
+mark_as_advanced(UA_ENABLE_JSON_ENCODING_LEGACY)
+if(UA_ENABLE_JSON_ENCODING_LEGACY AND NOT UA_ENABLE_JSON_ENCODING)
+    message(FATAL_ERROR "UA_ENABLE_JSON_ENCODING_LEGACY requires UA_ENABLE_JSON_ENCODING also")
+endif()
+
 if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_BUILD_FUZZING)
     set(UA_ENABLE_NODESET_INJECTOR ON)
 endif()
@@ -838,6 +844,7 @@ if(UA_ENABLE_JSON_ENCODING)
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.c
+                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json_105.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
 endif()
