@@ -1136,6 +1136,11 @@ processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
                            UA_ExtensionObject *msg) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
+    #ifndef UA_ENABLE_TYPES_DECODING
+        // Manually decode ExtensionObject
+        UA_ExtensionObject_decode(msg);
+    #endif
+
     if(msg->encoding != UA_EXTENSIONOBJECT_DECODED)
         return;
 
