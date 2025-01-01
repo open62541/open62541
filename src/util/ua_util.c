@@ -458,6 +458,81 @@ decodeDateTime(const UA_ByteString s, UA_DateTime *dst) {
     return UA_STATUSCODE_GOOD;
 }
 
+static u8
+printNum(i32 n, char *pos, u8 min_digits) {
+    char digits[10];
+    u8 len = 0;
+    /* Handle negative values */
+    if(n < 0) {
+        pos[len++] = '-';
+        n = -n;
+    }
+
+    /* Extract the digits */
+    u8 i = 0;
+    for(; i < min_digits || n > 0; i++) {
+        digits[i] = (char)((n % 10) + '0');
+        n /= 10;
+    }
+
+    /* Print in reverse order and return */
+    for(; i > 0; i--)
+        pos[len++] = digits[i-1];
+    return len;
+}
+
+#define UA_DATETIME_LENGTH 40
+
+UA_StatusCode
+encodeDateTime(const UA_DateTime dt, UA_String *output) {
+    char buffer[UA_DATETIME_LENGTH];
+    char *pos = buffer;
+
+    if(output->length > 0) {
+        if(output->length < UA_DATETIME_LENGTH)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        pos = (char*)output->data;
+    }
+
+    /* Format: -yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS'Z' is used. max 31 bytes.
+     * Note the optional minus for negative years. */
+    UA_DateTimeStruct tSt = UA_DateTime_toStruct(dt);
+    pos += printNum(tSt.year, pos, 4);
+    *(pos++) = '-';
+    pos += printNum(tSt.month, pos, 2);
+    *(pos++) = '-';
+    pos += printNum(tSt.day, pos, 2);
+    *(pos++) = 'T';
+    pos += printNum(tSt.hour, pos, 2);
+    *(pos++) = ':';
+    pos += printNum(tSt.min, pos, 2);
+    *(pos++) = ':';
+    pos += printNum(tSt.sec, pos, 2);
+    *(pos++) = '.';
+    pos += printNum(tSt.milliSec, pos, 3);
+    pos += printNum(tSt.microSec, pos, 3);
+    pos += printNum(tSt.nanoSec, pos, 3);
+
+    /* Remove trailing zeros */
+    pos--;
+    while(*pos == '0')
+        pos--;
+    if(*pos == '.')
+        pos--;
+
+    pos++;
+    *(pos++) = 'Z';
+
+    if(output->length > 0) {
+        output->length = (size_t)(pos - (char*)output->data);
+    } else {
+        UA_String str = {(size_t)(pos - buffer), (UA_Byte*)buffer};
+        return UA_String_copy(&str, output);
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Key Value Map */
 
 const UA_KeyValueMap UA_KEYVALUEMAP_NULL = {0, NULL};
