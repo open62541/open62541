@@ -31,9 +31,6 @@
 # define NAN ((UA_Double)(INFINITY-INFINITY))
 #endif
 
-/* Have some slack at the end. E.g. for negative and very long years. */
-#define UA_XML_DATETIME_LENGTH 40
-
 /* Map for decoding a XML complex object type. An array of this is passed to the
  * decodeXmlFields function. If the xml element with name "fieldName" is found
  * in the xml complex object (mark as found) decode the value with the "function"
@@ -406,64 +403,10 @@ ENCODE_XML(Guid) {
 }
 
 /* DateTime */
-static u8
-xmlEncodePrintNumber(i32 n, char *pos, u8 min_digits) {
-    char digits[10];
-    u8 len = 0;
-    /* Handle negative values */
-    if(n < 0) {
-        pos[len++] = '-';
-        n = -n;
-    }
-
-    /* Extract the digits */
-    u8 i = 0;
-    for(; i < min_digits || n > 0; i++) {
-        digits[i] = (char)((n % 10) + '0');
-        n /= 10;
-    }
-
-    /* Print in reverse order and return */
-    for(; i > 0; i--)
-        pos[len++] = digits[i-1];
-    return len;
-}
-
 ENCODE_XML(DateTime) {
-    UA_DateTimeStruct tSt = UA_DateTime_toStruct(*src);
-
-    /* Format: -yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS'Z' is used. max 31 bytes.
-     * Note the optional minus for negative years. */
-    char buffer[UA_XML_DATETIME_LENGTH];
-    char *pos = buffer;
-    pos += xmlEncodePrintNumber(tSt.year, pos, 4);
-    *(pos++) = '-';
-    pos += xmlEncodePrintNumber(tSt.month, pos, 2);
-    *(pos++) = '-';
-    pos += xmlEncodePrintNumber(tSt.day, pos, 2);
-    *(pos++) = 'T';
-    pos += xmlEncodePrintNumber(tSt.hour, pos, 2);
-    *(pos++) = ':';
-    pos += xmlEncodePrintNumber(tSt.min, pos, 2);
-    *(pos++) = ':';
-    pos += xmlEncodePrintNumber(tSt.sec, pos, 2);
-    *(pos++) = '.';
-    pos += xmlEncodePrintNumber(tSt.milliSec, pos, 3);
-    pos += xmlEncodePrintNumber(tSt.microSec, pos, 3);
-    pos += xmlEncodePrintNumber(tSt.nanoSec, pos, 3);
-
-    UA_assert(pos <= &buffer[UA_XML_DATETIME_LENGTH]);
-
-    /* Remove trailing zeros */
-    pos--;
-    while(*pos == '0')
-        pos--;
-    if(*pos == '.')
-        pos--;
-
-    *(++pos) = 'Z';
-    UA_String str = {((uintptr_t)pos - (uintptr_t)buffer)+1, (UA_Byte*)buffer};
-
+    UA_Byte buffer[40];
+    UA_String str = {40, buffer};
+    encodeDateTime(*src, &str);
     return xmlEncodeWriteChars(ctx, (const char*)str.data, str.length);
 }
 
