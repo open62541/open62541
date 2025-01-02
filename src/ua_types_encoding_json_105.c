@@ -1489,13 +1489,13 @@ DECODE_JSON(LocalizedText) {
 }
 
 DECODE_JSON(QualifiedName) {
-    CHECK_TOKEN_BOUNDS;
-    CHECK_STRING;
-    GET_TOKEN;
-
-    ctx->index++;
-    UA_String str = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
-    return UA_QualifiedName_parseEx(dst, str, ctx->namespaceMapping);
+    UA_String str;
+    UA_String_init(&str);
+    status res = String_decodeJson(ctx, &str, NULL);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_QualifiedName_parseEx(dst, str, ctx->namespaceMapping);
+    UA_String_clear(&str);
+    return res;
 }
 
 status
@@ -1533,24 +1533,24 @@ lookAheadForKey(ParseCtx *ctx, const char *key, size_t *resultIndex) {
 }
 
 DECODE_JSON(NodeId) {
-    CHECK_TOKEN_BOUNDS;
-    CHECK_STRING;
-    GET_TOKEN;
-
-    ctx->index++;
-    UA_String str = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
-    return UA_NodeId_parseEx(dst, str, ctx->namespaceMapping);
+    UA_String str;
+    UA_String_init(&str);
+    status res = String_decodeJson(ctx, &str, NULL);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_NodeId_parseEx(dst, str, ctx->namespaceMapping);
+    UA_String_clear(&str);
+    return res;
 }
 
 DECODE_JSON(ExpandedNodeId) {
-    CHECK_TOKEN_BOUNDS;
-    CHECK_STRING;
-    GET_TOKEN;
-
-    ctx->index++;
-    UA_String str = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
-    return UA_ExpandedNodeId_parseEx(dst, str, ctx->namespaceMapping,
-                                     ctx->serverUrisSize, ctx->serverUris);
+    UA_String str;
+    UA_String_init(&str);
+    status res = String_decodeJson(ctx, &str, NULL);
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_ExpandedNodeId_parseEx(dst, str, ctx->namespaceMapping,
+                                        ctx->serverUrisSize, ctx->serverUris);
+    UA_String_clear(&str);
+    return res;
 }
 
 DECODE_JSON(DateTime) {
