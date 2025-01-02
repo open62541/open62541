@@ -1086,7 +1086,7 @@ endif()
 set(UA_FILE_NODESETS) # List of nodeset-xml files to be considered in the generated information model
 set(UA_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset CACHE STRING "The path to the node-set directory (e.g. from https://github.com/OPCFoundation/UA-Nodeset)")
 
-unset(UA_FILE_NS0_PRIVATE)
+set(UA_FILE_NS0_PRIVATE "")
 if(UA_FILE_NS0)
     set(UA_FILE_NS0_PRIVATE "${UA_FILE_NS0}")
 endif()
