@@ -14,6 +14,42 @@ _UA_BEGIN_DECLS
 #define UA_XML_MAXMEMBERSCOUNT 256
 #define UA_XML_ENCODING_MAX_RECURSION 100
 
+/* XML input gets parsed into a sequence of tokens first.
+ * Processing isntructions, etc. get ignored. */
+
+typedef enum {
+    XML_TOKEN_ELEMENT = 0,
+    XML_TOKEN_ATTRIBUTE,
+} xml_token_type;
+
+typedef struct {
+    xml_token_type type;
+    UA_String name;
+    UA_String content;
+    unsigned attributes; // For elements only: the number of attributes
+    unsigned children;   // For elements only: the number of child elements
+    unsigned start;      // First character of the token in the xml
+    unsigned end;        // Position after the token ends
+} xml_token;
+
+typedef enum {
+    XML_ERROR_NONE = 0,
+    XML_ERROR_INVALID,   // Invalid character/syntax
+    XML_ERROR_OVERFLOW   // Token buffer overflow
+} xml_error_code;
+
+typedef struct {
+    xml_error_code error;
+    unsigned int error_pos;
+    unsigned int num_tokens;
+    const xml_token *tokens;
+} xml_result;
+
+/* Parse XML input into a token sequence */
+xml_result
+xml_tokenize(const char *xml, unsigned int len,
+             xml_token *tokens, unsigned int max_tokens);
+
 /* XML schema type definitions */
 typedef struct {
     const char* xmlEncTypeDef;

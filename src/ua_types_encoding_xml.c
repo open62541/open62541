@@ -12,6 +12,7 @@
 #include "../deps/base64.h"
 #include "../deps/libc_time.h"
 #include "../deps/dtoa.h"
+#include "../deps/yxml.h"
 
 #include <libxml/parser.h>
 
@@ -30,6 +31,117 @@
 #ifndef NAN
 # define NAN ((UA_Double)(INFINITY-INFINITY))
 #endif
+
+/* Replicate yxml_isNameStart and yxml_isName from yxml */
+static UA_String
+backtrackName(const char *xml, unsigned end) {
+    unsigned pos = end;
+    for(; pos > 0; pos--) {
+        unsigned char c = (unsigned char)xml[pos-1];
+        if(c >= 'a' && c <= 'z') continue; /* isAlpha */
+        if(c >= 'A' && c <= 'Z') continue; /* isAlpha */
+        if(c >= '0' && c <= '9') continue; /* isNum */
+        if(c == ':' || c == '_' || c >= 128 || c == '-'|| c == '.') continue;
+        break;
+    }
+    UA_String s = {end - pos, (UA_Byte*)(uintptr_t)xml + pos};
+    return s;
+}
+
+xml_result
+xml_tokenize(const char *xml, unsigned int len,
+             xml_token *tokens, unsigned int max_tokens) {
+    xml_result res;
+    memset(&res, 0, sizeof(xml_result));
+    res.tokens = tokens;
+
+    yxml_t ctx;
+    char buf[512];
+    yxml_init(&ctx, buf, 512);
+
+    unsigned char top = 0;
+    unsigned tokenPos = 0;
+    xml_token *stack[32]; /* Max nesting depth is 32 */
+    xml_token backup_tokens[32]; /* To be used when the tokens run out */
+
+    stack[top] = &backup_tokens[top];
+    memset(stack[top], 0, sizeof(xml_token));
+
+    unsigned val_begin = 0;
+    unsigned pos = 0;
+    for(; pos < len; pos++) {
+        yxml_ret_t status = yxml_parse(&ctx, xml[pos]);
+        switch(status) {
+        case YXML_EEOF:
+        case YXML_EREF:
+        case YXML_ECLOSE:
+        case YXML_ESTACK:
+        case YXML_ESYN:
+        default:
+            goto errout;
+        case YXML_OK:
+            continue;
+        case YXML_ELEMSTART:
+        case YXML_ATTRSTART:
+            if(status == YXML_ELEMSTART)
+                stack[top]->children++;
+            else
+                stack[top]->attributes++;
+            top++;
+            if(top >= 32)
+                goto errout; /* nesting too deep */
+            stack[top] = (tokenPos < max_tokens) ? &tokens[tokenPos] : &backup_tokens[top];
+            memset(stack[top], 0, sizeof(xml_token));
+            stack[top]->type = (status == YXML_ELEMSTART) ? XML_TOKEN_ELEMENT : XML_TOKEN_ATTRIBUTE;
+            stack[top]->name = backtrackName(xml, pos);
+            const char *start = xml + pos;
+            if(status == YXML_ELEMSTART) {
+                while(*start != '<')
+                    start--;
+            }
+            stack[top]->start = (unsigned)(start - xml);
+            tokenPos++;
+            break;
+        case YXML_CONTENT:
+        case YXML_ATTRVAL:
+            if(val_begin == 0)
+                val_begin = pos;
+            stack[top]->end = pos;
+            break;
+        case YXML_ELEMEND:
+        case YXML_ATTREND:
+            if(val_begin > 0) {
+                stack[top]->content.data = (UA_Byte*)(uintptr_t)xml + val_begin;
+                stack[top]->content.length = stack[top]->end + 1 - val_begin;
+            }
+            stack[top]->end = pos;
+            if(status == YXML_ELEMEND) {
+                while(xml[stack[top]->end] != '>')
+                    stack[top]->end++;
+                stack[top]->end++;
+            }
+            val_begin = 0;
+            top--;
+            break;
+        case YXML_PISTART:
+        case YXML_PICONTENT:
+        case YXML_PIEND:
+            continue; /* Ignore processing instructions */
+        }
+    }
+
+    res.num_tokens = tokenPos;
+    if(tokenPos >= max_tokens) 
+        res.error = XML_ERROR_OVERFLOW;
+    return res;
+
+ errout:
+    res.error_pos = pos;
+    if(yxml_eof(&ctx) != YXML_OK)
+        res.error = XML_ERROR_INVALID;
+
+    return res;
+}
 
 /* Map for decoding a XML complex object type. An array of this is passed to the
  * decodeXmlFields function. If the xml element with name "fieldName" is found
@@ -535,12 +647,12 @@ ENCODE_XML(ExtensionObject) {
 static status
 Array_encodeXml(CtxXml *ctx, const void *ptr, size_t length,
                 const UA_DataType *type) {
-    char* arrName[128];
+    char arrName[128];
     size_t arrNameLen = strlen("ListOf") + strlen(type->typeName);
     if(arrNameLen >= 128)
         return UA_STATUSCODE_BADENCODINGERROR;
     memcpy(arrName, "ListOf", strlen("ListOf"));
-    memcpy(arrName + strlen("ListOf"), type-typeName, strlen(type->typeName));
+    memcpy(arrName + strlen("ListOf"), type->typeName, strlen(type->typeName));
     arrName[arrNameLen] = '\0';
 
     status ret = writeXmlElemNameBegin(ctx, arrName);
