@@ -1686,19 +1686,12 @@ DECODE_JSON(DateTime) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-decodeJsonNop(ParseCtx *ctx, void *dst, const UA_DataType *type) {
-    return UA_STATUSCODE_GOOD;
-}
-
 DECODE_JSON(StatusCode) {
     CHECK_OBJECT;
-
     DecodeEntry entries[2] = {
         {UA_JSONKEY_CODE, dst, NULL, false, &UA_TYPES[UA_TYPES_UINT32]},
-        {UA_JSONKEY_SYMBOL, NULL, decodeJsonNop, false, &UA_TYPES[UA_TYPES_STRING]}
+        {UA_JSONKEY_SYMBOL, NULL, NULL, false, NULL}
     };
-
     return decodeFields(ctx, entries, 2);
 }
 
