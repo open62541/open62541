@@ -441,6 +441,7 @@ sendSymmetricChunk(UA_MessageContext *mc) {
                                  &UA_KEYVALUEMAP_NULL, &mc->messageBuffer);
     if(res != UA_STATUSCODE_GOOD && UA_SecureChannel_isConnected(channel))
         channel->state = UA_SECURECHANNELSTATE_CLOSING;
+    return res;
 
  error:
     /* Free the unused message buffer */
