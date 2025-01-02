@@ -1122,7 +1122,7 @@ typedef struct UA_DataTypeArray {
 } UA_DataTypeArray;
 
 /* Returns the offset and type of a structure member. The return value is false
- * if the member was not found.
+ * if the member was not found or the member is not of type UA_DATATYPEKIND_STRUCT.
  *
  * If the member is an array, the offset points to the (size_t) length field.
  * (The array pointer comes after the length field without any padding.) */
@@ -1133,7 +1133,30 @@ UA_DataType_getStructMember(const UA_DataType *type,
                             size_t *outOffset,
                             const UA_DataType **outMemberType,
                             UA_Boolean *outIsArray);
-#endif
+/* Returns the offset and type of a opt-structure member. The return value is false
+ * if the member was not found or the member is not of type UA_DATATYPEKIND_OPTSTRUCT.
+ *
+ * If the member is an array, the offset points to the (size_t) length field.
+ * (The array pointer comes after the length field without any padding.) */
+UA_Boolean UA_EXPORT
+UA_DataType_getOptStructMember(const UA_DataType *type,
+                               const char *memberName,
+                               size_t *outOffset,
+                               const UA_DataType **outMemberType,
+                               UA_Boolean *outIsArray, UA_Boolean *outIsOptional);
+
+/* Returns the offset and type of a union member. The return value is false
+ * if the member was not found or the member is not of type UA_DATATYPEKIND_UNION.
+ *
+ * If the member is an array, the offset points to the (size_t) length field.
+ * (The array pointer comes after the length field without any padding.) */
+UA_Boolean UA_EXPORT
+UA_DataType_getUnionMember(const UA_DataType *type,
+                           const char *memberName,
+                           size_t *outOffset,
+                           const UA_DataType **outMemberType,
+                           UA_Boolean *outIsArray);
+#endif  
 
 /* Test if the data type is a numeric builtin data type (via the typeKind field
  * of UA_DataType). This includes integers and floating point numbers. Not

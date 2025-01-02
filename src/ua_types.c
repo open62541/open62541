@@ -2141,16 +2141,50 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
 }
 
 #ifdef UA_ENABLE_TYPEDESCRIPTION
+
+UA_Boolean
+_UA_DataType_getStructMember(const UA_DataType *type, const char *memberName,
+                             size_t *outOffset, const UA_DataType **outMemberType,
+                             UA_Boolean *outIsArray, UA_Boolean *outIsOptional);
+
 UA_Boolean
 UA_DataType_getStructMember(const UA_DataType *type, const char *memberName,
                             size_t *outOffset, const UA_DataType **outMemberType,
                             UA_Boolean *outIsArray) {
-    if(type->typeKind != UA_DATATYPEKIND_STRUCTURE &&
-       type->typeKind != UA_DATATYPEKIND_OPTSTRUCT)
+    if(type->typeKind != UA_DATATYPEKIND_STRUCTURE)
         return false;
 
+    return _UA_DataType_getStructMember(type, memberName, outOffset, outMemberType, outIsArray, NULL);
+}
+
+UA_Boolean
+UA_DataType_getOptStructMember(const UA_DataType *type, const char *memberName,
+                               size_t *outOffset, const UA_DataType **outMemberType,
+                               UA_Boolean *outIsArray, UA_Boolean *outIsOptional) {
+    if(type->typeKind != UA_DATATYPEKIND_OPTSTRUCT)
+        return false;
+
+    return _UA_DataType_getStructMember(type, memberName, outOffset, outMemberType, outIsArray, outIsOptional);
+}
+
+UA_Boolean
+UA_DataType_getUnionMember(const UA_DataType *type, const char *memberName,
+                           size_t *outOffset, const UA_DataType **outMemberType,
+                           UA_Boolean *outIsArray) {
+    if(type->typeKind != UA_DATATYPEKIND_UNION)
+        return false;
+
+  return _UA_DataType_getStructMember(type, memberName, outOffset, outMemberType, outIsArray, NULL);
+}
+
+UA_Boolean
+_UA_DataType_getStructMember(const UA_DataType *type, const char *memberName,
+                             size_t *outOffset, const UA_DataType **outMemberType,
+                             UA_Boolean *outIsArray, UA_Boolean *outIsOptional) {
     size_t offset = 0;
     for(size_t i = 0; i < type->membersSize; ++i) {
+        if (type->typeKind == UA_DATATYPEKIND_UNION)
+            offset = 0;
         const UA_DataTypeMember *m = &type->members[i];
         const UA_DataType *mt = m->memberType;
         offset += m->padding;
@@ -2159,6 +2193,8 @@ UA_DataType_getStructMember(const UA_DataType *type, const char *memberName,
             *outOffset = offset;
             *outMemberType = mt;
             *outIsArray = m->isArray;
+            if (outIsOptional)
+                *outIsOptional = m->isOptional;
             return true;
         }
 
