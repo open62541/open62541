@@ -1498,7 +1498,7 @@ DECODE_JSON(QualifiedName) {
     return UA_QualifiedName_parseEx(dst, str, ctx->namespaceMapping);
 }
 
-UA_FUNC_ATTR_WARN_UNUSED_RESULT status
+status
 lookAheadForKey(ParseCtx *ctx, const char *key, size_t *resultIndex) {
     /* The current index must point to the beginning of an object.
      * This has to be ensured by the caller. */
@@ -1862,14 +1862,18 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
         return UA_STATUSCODE_GOOD;
     }
 
-    /* Search for the type */
-    size_t typeIndex = 0;
-    status ret = lookAheadForKey(ctx, UA_JSONKEY_TYPE, &typeIndex);
-    if(ret != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADDECODINGERROR;
+    /* Search the value field */
+    size_t valueIndex = 0;
+    lookAheadForKey(ctx, UA_JSONKEY_VALUE, &valueIndex);
+
+    /* Search for the dimensions field */
+    size_t dimIndex = 0;
+    lookAheadForKey(ctx, UA_JSONKEY_DIMENSIONS, &dimIndex);
 
     /* Parse the type kind */
-    if(ctx->tokens[typeIndex].type != CJ5_TOKEN_NUMBER)
+    size_t typeIndex = 0;
+    lookAheadForKey(ctx, UA_JSONKEY_TYPE, &typeIndex);
+    if(typeIndex == 0 || ctx->tokens[typeIndex].type != CJ5_TOKEN_NUMBER)
         return UA_STATUSCODE_BADDECODINGERROR;
     UA_UInt64 typeKind = 0;
     size_t len = parseUInt64(&ctx->json5[ctx->tokens[typeIndex].start],
@@ -1877,48 +1881,25 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
     if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    /* Get the datatype of the content. The type must be a builtin data type.
+    /* Shift to get the datatype index. The type must be a builtin data type.
      * All not-builtin types are wrapped in an ExtensionObject. */
     typeKind--;
     if(typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO)
         return UA_STATUSCODE_BADDECODINGERROR;
     const UA_DataType *type = &UA_TYPES[typeKind];
 
-    /* Search for the dimensions */
-    size_t *dimPtr = NULL;
-    size_t dimIndex = 0;
-    ret = lookAheadForKey(ctx, UA_JSONKEY_DIMENSIONS, &dimIndex);
-    if(ret == UA_STATUSCODE_GOOD && ctx->tokens[dimIndex].size > 0)
-        dimPtr = &dimIndex;
-
-    /* Search the value field */
-    size_t valueIndex = 0;
-    size_t beginIndex = ctx->index;
-    ret = lookAheadForKey(ctx, UA_JSONKEY_VALUE, &valueIndex);
-    if(ret != UA_STATUSCODE_GOOD ||
-       ctx->tokens[valueIndex].type == CJ5_TOKEN_NULL) {
-        /* Scalar with dimensions -> error */
-        if(dimPtr)
-            return UA_STATUSCODE_BADDECODINGERROR;
-        /* Null value */
-        dst->data = UA_new(type);
-        if(!dst->data)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        dst->type = type;
-        skipObject(ctx);
-        return UA_STATUSCODE_GOOD;
-    }
-
     /* Value is an array? */
-    UA_Boolean isArray = (ctx->tokens[valueIndex].type == CJ5_TOKEN_ARRAY);
+    UA_Boolean isArray =
+        (valueIndex > 0 && ctx->tokens[valueIndex].type == CJ5_TOKEN_ARRAY);
 
     /* Decode the value */
-    ctx->depth++;
-    ctx->index = valueIndex;
     status res = UA_STATUSCODE_GOOD;
+    size_t beginIndex = ctx->index;
+    ctx->index = valueIndex;
+    ctx->depth++;
     if(!isArray) {
         /* Scalar with dimensions -> error */
-        if(dimPtr) {
+        if(dimIndex > 0) {
             res = UA_STATUSCODE_BADDECODINGERROR;
             goto out;
         }
@@ -1931,7 +1912,7 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
         }
 
         /* Decode a value wrapped in an ExtensionObject */
-        if(type->typeKind == UA_DATATYPEKIND_EXTENSIONOBJECT) {
+        if(valueIndex > 0 && type->typeKind == UA_DATATYPEKIND_EXTENSIONOBJECT) {
             res = Variant_decodeJsonUnwrapExtensionObject(ctx, dst, NULL);
             goto out;
         }
@@ -1942,10 +1923,11 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
             res = UA_STATUSCODE_BADOUTOFMEMORY;
             goto out;
         }
+        dst->type = type;
 
         /* Decode the value */
-        dst->type = type;
-        res = decodeJsonJumpTable[type->typeKind](ctx, dst->data, type);
+        if(valueIndex > 0 && ctx->tokens[valueIndex].type != CJ5_TOKEN_NULL)
+            res = decodeJsonJumpTable[type->typeKind](ctx, dst->data, type);
     } else {
         /* Decode an array. Try to unwrap ExtensionObjects in the array. The
          * members must all have the same type. */
@@ -1961,8 +1943,8 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
         }
 
         /* Decode array dimensions */
-        if(dimPtr) {
-            ctx->index = *dimPtr;
+        if(dimIndex > 0) {
+            ctx->index = dimIndex;
             res |= Array_decodeJson(ctx, (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
 
             /* Validate the dimensions */
