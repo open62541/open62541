@@ -2177,7 +2177,7 @@ UA_DataType_getUnionMember(const UA_DataType *type, const char *memberName,
   return _UA_DataType_getStructMember(type, memberName, outOffset, outMemberType, outIsArray, NULL);
 }
 
-UA_Boolean
+static UA_Boolean
 _UA_DataType_getStructMember(const UA_DataType *type, const char *memberName,
                              size_t *outOffset, const UA_DataType **outMemberType,
                              UA_Boolean *outIsArray, UA_Boolean *outIsOptional) {
