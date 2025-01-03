@@ -37,7 +37,7 @@
 #define YYRESTORETAG(t) pos = t;
 
 /*!re2c
-    re2c:define:YYCTYPE = char;
+    re2c:define:YYCTYPE = u8;
     re2c:flags:tags = 1;
     re2c:yyfill:enable = 0;
     re2c:flags:input = custom;
@@ -50,11 +50,11 @@
 UA_StatusCode
 UA_EventFilter_skip(const UA_ByteString content, size_t *offset,
                     EFParseContext *ctx) {
-    const char *pos = (const char*)&content.data[*offset];
-    const char *end = (const char*)&content.data[content.length];
+    const u8 *pos = &content.data[*offset];
+    const u8 *end = &content.data[content.length];
 
   begin:
-    *offset = (uintptr_t)(pos - (const char*)content.data);
+    *offset = (uintptr_t)(pos - content.data);
     size_t initial = *offset;
 
     /*!re2c
@@ -76,10 +76,10 @@ UA_EventFilter_skip(const UA_ByteString content, size_t *offset,
 int
 UA_EventFilter_lex(const UA_ByteString content, size_t *offset,
                    EFParseContext *ctx, Operand **token) {
-    const char *pos = (const char*)&content.data[*offset];
-    const char *end = (const char*)&content.data[content.length];
-    const char *m, *b; /* marker, match begin */
-    /*!stags:re2c format = 'const char *@@;'; */
+    const u8 *pos = &content.data[*offset];
+    const u8 *end = &content.data[content.length];
+    const u8 *m, *b; /* marker, match begin */
+    /*!stags:re2c format = 'const u8 *@@;'; */
     const UA_DataType *lt; /* literal type */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_ByteString match;
@@ -230,7 +230,7 @@ finish:
 
     /* Update the offset */
     if(tokenId != 0)
-        *offset = (uintptr_t)(pos - (const char*)content.data);
+        *offset = (uintptr_t)(pos - content.data);
 
     return tokenId;
 }
