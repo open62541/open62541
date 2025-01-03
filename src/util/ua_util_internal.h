@@ -77,7 +77,7 @@ find_unescaped(char *pos, const char *end, UA_Escaping esc);
 
 /* Escape s2 and append it to s. Memory is allocated internally. */
 UA_StatusCode
-UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Boolean extended);
+UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Escaping esc);
 
 /* Case insensitive lookup. Returns UA_ATTRIBUTEID_INVALID if not found. */
 UA_AttributeId

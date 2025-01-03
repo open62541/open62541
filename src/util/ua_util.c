@@ -712,7 +712,10 @@ unescape(char *pos, const char *end) {
 }
 
 UA_StatusCode
-UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Boolean extended) {
+UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Escaping esc) {
+    if(esc == UA_ESCAPING_NONE)
+        return UA_String_append(s, s2);
+
     /* Allocate memory for the qn name.
      * We allocate enough space to escape every character. */
     UA_Byte *buf = (UA_Byte*)UA_realloc(s->data, s->length + (s2.length*2));
@@ -722,7 +725,7 @@ UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Boolean extended) {
 
     /* Copy + escape s2 */
     for(size_t j = 0; j < s2.length; j++) {
-        UA_Boolean reserved = (extended) ?
+        UA_Boolean reserved = (esc == UA_ESCAPING_AND_EXTENDED) ?
             isReservedExtended(s2.data[j]) : isReserved(s2.data[j]);
         if(reserved)
             s->data[s->length++] = '&';
@@ -771,7 +774,7 @@ static const UA_NodeId objectsFolder =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OBJECTSFOLDER}};
 
 static UA_StatusCode
-printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Boolean extEscape) {
+printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Escaping esc) {
     UA_String tmp = UA_STRING_NULL;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < rp->elementsSize && res == UA_STATUSCODE_GOOD; i++) {
@@ -794,7 +797,7 @@ printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Boolean extEscap
             res |= getRefTypeBrowseName(&elm->referenceTypeId, &bnBufStr);
             if(res != UA_STATUSCODE_GOOD)
                 break;
-            res |= UA_String_escapeAppend(&tmp, bnBufStr, extEscape);
+            res |= UA_String_escapeAppend(&tmp, bnBufStr, esc);
             res |= UA_String_append(&tmp, UA_STRING(">"));
         }
 
@@ -806,7 +809,7 @@ printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Boolean extEscap
             res |= UA_String_append(&tmp, UA_STRING(nsStr));
             res |= UA_String_append(&tmp, UA_STRING(":"));
         }
-        res |= UA_String_escapeAppend(&tmp, qn->name, extEscape);
+        res |= UA_String_escapeAppend(&tmp, qn->name, esc);
     }
 
     /* Encoding failed, clean up */
@@ -820,7 +823,7 @@ printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Boolean extEscap
 
 UA_StatusCode
 UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
-    return printRelativePath(rp, out, false);
+    return printRelativePath(rp, out, UA_ESCAPING_AND);
 }
 
 static UA_NodeId baseEventTypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEEVENTTYPE}};
@@ -837,7 +840,7 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
         UA_Byte nodeIdBuf[512];
         UA_String nodeIdBufStr = {512, nodeIdBuf};
         res |= UA_NodeId_print(&sao->typeDefinitionId, &nodeIdBufStr);
-        res |= UA_String_escapeAppend(&tmp, nodeIdBufStr, true);
+        res |= UA_String_escapeAppend(&tmp, nodeIdBufStr, UA_ESCAPING_AND_EXTENDED);
     }
 
     /* Print the BrowsePath */
@@ -849,7 +852,7 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
         UA_String rpstr = UA_STRING_NULL;
         UA_assert(rpstr.data == NULL && rpstr.length == 0); /* pacify clang scan-build */
         rpe.targetName = sao->browsePath[i];
-        res |= printRelativePath(&rp, &rpstr, true);
+        res |= printRelativePath(&rp, &rpstr, UA_ESCAPING_AND_EXTENDED);
         res |= UA_String_append(&tmp, rpstr);
         UA_String_clear(&rpstr);
     }
@@ -888,13 +891,14 @@ UA_AttributeOperand_print(const UA_AttributeOperand *ao,
         UA_Byte nodeIdBuf[512];
         UA_String nodeIdBufStr = {512, nodeIdBuf};
         res |= UA_NodeId_print(&ao->nodeId, &nodeIdBufStr);
-        res |= UA_String_escapeAppend(&tmp, nodeIdBufStr, true);
+        res |= UA_String_escapeAppend(&tmp, nodeIdBufStr,
+                                      UA_ESCAPING_AND_EXTENDED);
     }
 
     /* Print the BrowsePath */
     UA_String rpstr = UA_STRING_NULL;
     UA_assert(rpstr.data == NULL && rpstr.length == 0); /* pacify clang scan-build */
-    res |= printRelativePath(&ao->browsePath, &rpstr, true);
+    res |= printRelativePath(&ao->browsePath, &rpstr, UA_ESCAPING_AND_EXTENDED);
     res |= UA_String_append(&tmp, rpstr);
     UA_String_clear(&rpstr);
 
@@ -931,7 +935,8 @@ UA_ReadValueId_print(const UA_ReadValueId *rvi, UA_String *out) {
         UA_Byte nodeIdBuf[512];
         UA_String nodeIdBufStr = {512, nodeIdBuf};
         res |= UA_NodeId_print(&rvi->nodeId, &nodeIdBufStr);
-        res |= UA_String_escapeAppend(&tmp, nodeIdBufStr, true);
+        res |= UA_String_escapeAppend(&tmp, nodeIdBufStr,
+                                      UA_ESCAPING_AND_EXTENDED);
     }
 
     /* Print the attribute name */
