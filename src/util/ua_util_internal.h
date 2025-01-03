@@ -59,6 +59,12 @@ lookupRefType(UA_Server *server, UA_QualifiedName *qn, UA_NodeId *outRefTypeId);
 UA_StatusCode
 getRefTypeBrowseName(const UA_NodeId *refTypeId, UA_String *outBN);
 
+typedef enum {
+    UA_ESCAPING_NONE = 0,
+    UA_ESCAPING_AND,
+    UA_ESCAPING_AND_EXTENDED
+} UA_Escaping;
+
 /* Unescape &-escaped string. The string is modified.
  * Returns the end position of the unescaped string. */
 char *

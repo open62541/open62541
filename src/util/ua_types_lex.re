@@ -40,12 +40,6 @@ typedef struct {
     /*!stags:re2c format = 'const char *@@;'; */
 } LexContext;
 
-typedef enum {
-    ESCAPING_NONE = 0,
-    ESCAPING_AND,
-    ESCAPING_AND_EXTENDED
-} Escaping;
-
 /*!re2c
     re2c:define:YYCTYPE = char;
     re2c:flags:tags = 1;
@@ -102,7 +96,7 @@ UA_Guid_parse(UA_Guid *guid, const UA_String str) {
 }
 
 static UA_StatusCode
-parse_nodeid_body(UA_NodeId *id, const char *body, const char *end, Escaping esc) {
+parse_nodeid_body(UA_NodeId *id, const char *body, const char *end, UA_Escaping esc) {
     size_t len = (size_t)(end - (body+2));
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     switch(*body) {
@@ -117,7 +111,7 @@ parse_nodeid_body(UA_NodeId *id, const char *body, const char *end, Escaping esc
         tmpstr.data = (UA_Byte*)(uintptr_t)body+2;
         tmpstr.length = len;
         res = UA_String_copy(&tmpstr, &id->identifier.string);
-        if(esc != ESCAPING_NONE) {
+        if(esc != UA_ESCAPING_NONE) {
             char *begin = (char*)id->identifier.string.data;
             char *esc_end = unescape(begin, begin + id->identifier.string.length);
             if(esc_end > begin)
@@ -171,7 +165,7 @@ parse_nodeid_body(UA_NodeId *id, const char *body, const char *end, Escaping esc
 
 static UA_StatusCode
 parse_nodeid(UA_NodeId *id, const char *pos, const char *end,
-             Escaping esc, const UA_NamespaceMapping *nsMapping) {
+             UA_Escaping esc, const UA_NamespaceMapping *nsMapping) {
     *id = UA_NODEID_NULL; /* Reset the NodeId */
     LexContext context;
     memset(&context, 0, sizeof(LexContext));
@@ -214,7 +208,7 @@ UA_NodeId_parseEx(UA_NodeId *id, const UA_String str,
                   const UA_NamespaceMapping *nsMapping) {
     UA_StatusCode res = parse_nodeid(id, (const char *)str.data,
                                      (const char*)str.data+str.length,
-                                     ESCAPING_NONE, nsMapping);
+                                     UA_ESCAPING_NONE, nsMapping);
     if(res != UA_STATUSCODE_GOOD)
         UA_NodeId_clear(id);
     return res;
@@ -227,7 +221,7 @@ UA_NodeId_parse(UA_NodeId *id, const UA_String str) {
 
 static UA_StatusCode
 parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end,
-                     Escaping esc, const UA_NamespaceMapping *nsMapping,
+                     UA_Escaping esc, const UA_NamespaceMapping *nsMapping,
                      size_t serverUrisSize, const UA_String *serverUris) {
     *id = UA_EXPANDEDNODEID_NULL; /* Reset the NodeId */
     LexContext context;
@@ -296,7 +290,7 @@ UA_ExpandedNodeId_parseEx(UA_ExpandedNodeId *id, const UA_String str,
                           size_t serverUrisSize, const UA_String *serverUris) {
     UA_StatusCode res =
         parse_expandednodeid(id, (const char *)str.data,
-                             (const char *)str.data + str.length, ESCAPING_NONE,
+                             (const char *)str.data + str.length, UA_ESCAPING_NONE,
                              nsMapping, serverUrisSize, serverUris);
     if(res != UA_STATUSCODE_GOOD)
         UA_ExpandedNodeId_clear(id);
@@ -328,7 +322,7 @@ relativepath_addelem(UA_RelativePath *rp, UA_RelativePathElement *el) {
  * delimiters between escaped strings. */
 static UA_StatusCode
 parse_qn_name(UA_String *name, const char *pos,
-              const char *end, Escaping esc) {
+              const char *end, UA_Escaping esc) {
     /* Copy string */
     UA_String tmp = {(size_t)(end - pos), (UA_Byte*)(uintptr_t)pos};
     UA_StatusCode res = UA_String_copy(&tmp, name);
@@ -346,7 +340,7 @@ parse_qn_name(UA_String *name, const char *pos,
 
 static UA_StatusCode
 parse_qn(UA_QualifiedName *qn, const char *pos, const char *end,
-         Escaping esc, const UA_NamespaceMapping *nsMapping) {
+         UA_Escaping esc, const UA_NamespaceMapping *nsMapping) {
     size_t len;
     UA_UInt32 tmp;
     UA_String nsUri;
@@ -387,7 +381,7 @@ UA_QualifiedName_parseEx(UA_QualifiedName *qn, const UA_String str,
                          const UA_NamespaceMapping *nsMapping) {
     const char *pos = (const char*)str.data;
     const char *end = (const char*)str.data + str.length;
-    UA_StatusCode res = parse_qn(qn, pos, end, ESCAPING_NONE, nsMapping);
+    UA_StatusCode res = parse_qn(qn, pos, end, UA_ESCAPING_NONE, nsMapping);
     if(res != UA_STATUSCODE_GOOD)
         UA_QualifiedName_clear(qn);
     return res;
@@ -400,7 +394,7 @@ UA_QualifiedName_parse(UA_QualifiedName *qn, const UA_String str) {
 
 static UA_StatusCode
 parse_relativepath(UA_RelativePath *rp, const char **ppos, const char *end,
-                   UA_Server *server, Escaping esc) {
+                   UA_Server *server, UA_Escaping esc) {
     const char *pos = *ppos;
 
     LexContext context;
@@ -485,7 +479,7 @@ UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str) {
     const char *pos = (const char*)str.data;
     const char *end = pos + str.length;
-    UA_StatusCode res = parse_relativepath(rp, &pos, end, NULL, ESCAPING_AND);
+    UA_StatusCode res = parse_relativepath(rp, &pos, end, NULL, UA_ESCAPING_AND);
     if(pos != end)
         res = UA_STATUSCODE_BADDECODINGERROR;
     if(res != UA_STATUSCODE_GOOD)
@@ -498,7 +492,7 @@ UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
                                 const UA_String str) {
     const char *pos = (const char*)str.data;
     const char *end = pos + str.length;
-    UA_StatusCode res = parse_relativepath(rp, &pos, end, server, ESCAPING_AND);
+    UA_StatusCode res = parse_relativepath(rp, &pos, end, server, UA_ESCAPING_AND);
     if(pos != end)
         res = UA_STATUSCODE_BADDECODINGERROR;
     if(res != UA_STATUSCODE_GOOD)
@@ -521,13 +515,13 @@ parseAttributeOperand(UA_AttributeOperand *ao, const UA_String str, UA_NodeId de
     if(*pos != '/' && *pos != '.' && *pos != '<' && *pos != '#' && *pos != '[') {
         const char *id_pos = pos;
         pos = find_unescaped((char*)(uintptr_t)pos, end, true);
-        res = parse_nodeid(&ao->nodeId, id_pos, pos, ESCAPING_AND_EXTENDED, NULL);
+        res = parse_nodeid(&ao->nodeId, id_pos, pos, UA_ESCAPING_AND_EXTENDED, NULL);
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
     }
 
     /* Parse the BrowsePath */
-    res = parse_relativepath(&ao->browsePath, &pos, end, NULL, ESCAPING_AND_EXTENDED);
+    res = parse_relativepath(&ao->browsePath, &pos, end, NULL, UA_ESCAPING_AND_EXTENDED);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
