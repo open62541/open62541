@@ -121,19 +121,12 @@ UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
     return UA_readNumberWithBase(buf, buflen, number, 10);
 }
 
-struct urlSchema {
-    const char *schema;
-};
+#define UA_SCHEMAS_SIZE 4
+#define UA_ETH_SCHEMA_INDEX 2
 
-static const struct urlSchema schemas[] = {
-    {"opc.tcp://"},
-    {"opc.udp://"},
-    {"opc.eth://"},
-    {"opc.mqtt://"}
+static const char* schemas[UA_SCHEMAS_SIZE] = {
+    "opc.tcp://", "opc.udp://", "opc.eth://", "opc.mqtt://"
 };
-
-static const unsigned scNumSchemas = sizeof(schemas) / sizeof(schemas[0]);
-static const unsigned scEthSchemaIdx = 2;
 
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
@@ -145,17 +138,17 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
 
     /* Which type of schema is this? */
     unsigned schemaType = 0;
-    for(; schemaType < scNumSchemas; schemaType++) {
+    for(; schemaType < UA_SCHEMAS_SIZE; schemaType++) {
         if(strncmp((char*)endpointUrl->data,
-                   schemas[schemaType].schema,
-                   strlen(schemas[schemaType].schema)) == 0)
+                   schemas[schemaType],
+                   strlen(schemas[schemaType])) == 0)
             break;
     }
-    if(schemaType == scNumSchemas)
+    if(schemaType == UA_SCHEMAS_SIZE)
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
 
     /* Forward the current position until the first colon or slash */
-    size_t start = strlen(schemas[schemaType].schema);
+    size_t start = strlen(schemas[schemaType]);
     size_t curr = start;
     UA_Boolean ipv6 = false;
     if(endpointUrl->length > curr && endpointUrl->data[curr] == '[') {
@@ -201,7 +194,7 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
 
         /* ETH schema */
-        if(schemaType == scEthSchemaIdx) {
+        if(schemaType == UA_ETH_SCHEMA_INDEX) {
             if(outPath != NULL) {
                 outPath->data = &endpointUrl->data[curr];
                 outPath->length = endpointUrl->length - curr;
