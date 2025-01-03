@@ -113,7 +113,8 @@ parse_nodeid_body(UA_NodeId *id, const char *body, const char *end, UA_Escaping 
         res = UA_String_copy(&tmpstr, &id->identifier.string);
         if(esc != UA_ESCAPING_NONE) {
             char *begin = (char*)id->identifier.string.data;
-            char *esc_end = unescape(begin, begin + id->identifier.string.length);
+            char *esc_end = unescape(begin, begin + id->identifier.string.length,
+                                     UA_ESCAPING_AND);
             if(esc_end > begin)
                 id->identifier.string.length = (size_t)(esc_end - begin);
             else
@@ -139,7 +140,7 @@ parse_nodeid_body(UA_NodeId *id, const char *body, const char *end, UA_Escaping 
                 if(res != UA_STATUSCODE_GOOD)
                     return res;
                 char *begin = (char*)escaped.data;
-                char *esc_end = unescape(begin, begin + escaped.length);
+                char *esc_end = unescape(begin, begin + escaped.length, UA_ESCAPING_AND);
                 if(esc_end > begin)
                     escaped.length = (size_t)(esc_end - begin);
                 else
@@ -331,7 +332,8 @@ parse_qn_name(UA_String *name, const char *pos,
 
     /* Unescape in-situ */
     char *esc_end =
-        unescape((char*)name->data, (const char*)name->data + name->length);
+        unescape((char*)name->data, (const char*)name->data + name->length,
+                 UA_ESCAPING_AND);
     name->length = (size_t)(esc_end - (char*)name->data);
     if(name->length == 0)
         UA_String_clear(name);

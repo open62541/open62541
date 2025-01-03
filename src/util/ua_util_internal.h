@@ -68,7 +68,7 @@ typedef enum {
 /* Unescape &-escaped string. The string is modified.
  * Returns the end position of the unescaped string. */
 char *
-unescape(char *pos, const char *end);
+unescape(char *pos, const char *end, UA_Escaping esc);
 
 /* Returns the position of the first unescaped reserved character (or the end
  * position) */

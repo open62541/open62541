@@ -697,7 +697,9 @@ find_unescaped(char *pos, const char *end, UA_Escaping esc) {
 }
 
 char *
-unescape(char *pos, const char *end) {
+unescape(char *pos, const char *end, UA_Escaping esc) {
+    if(esc == UA_ESCAPING_NONE)
+        return (char*)(uintptr_t)end;
     char *writepos = pos;
     for(; pos < end; pos++) {
         if(*pos == '&') {
