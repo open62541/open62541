@@ -2142,7 +2142,7 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
 
 #ifdef UA_ENABLE_TYPEDESCRIPTION
 
-UA_Boolean
+static UA_Boolean
 _UA_DataType_getStructMember(const UA_DataType *type, const char *memberName,
                              size_t *outOffset, const UA_DataType **outMemberType,
                              UA_Boolean *outIsArray, UA_Boolean *outIsOptional);
