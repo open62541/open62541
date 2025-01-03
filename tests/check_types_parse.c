@@ -312,7 +312,7 @@ START_TEST(parseSimpleAttributeOperand) {
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     UA_SimpleAttributeOperand_clear(&sao3);
 
-    UA_String sao4_str = UA_STRING("ns=1;s=1&&23/1:& Boiler/Temperature#BrowseName[0:5]");
+    UA_String sao4_str = UA_STRING("ns=1;s=1%2623/1:%20Boiler/Temperature#BrowseName[0:5]");
     UA_SimpleAttributeOperand sao4;
     UA_String cmp1 = UA_STRING("1&23");
     UA_String cmp2 = UA_STRING(" Boiler");

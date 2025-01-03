@@ -62,18 +62,51 @@ getRefTypeBrowseName(const UA_NodeId *refTypeId, UA_String *outBN);
 typedef enum {
     UA_ESCAPING_NONE = 0,
     UA_ESCAPING_AND,
-    UA_ESCAPING_AND_EXTENDED
+    UA_ESCAPING_AND_EXTENDED,
+    UA_ESCAPING_PERCENT,
+    UA_ESCAPING_PERCENT_EXTENDED
 } UA_Escaping;
 
-/* Unescape &-escaped string. The string is modified.
- * Returns the end position of the unescaped string. */
-char *
-unescape(char *pos, const char *end, UA_Escaping esc);
+static UA_INLINE UA_Boolean
+isReservedAnd(u8 c) {
+    return (c == '/' || c == '.' || c == '<' || c == '>' ||
+            c == ':' || c == '#' || c == '!' || c == '&');
+}
 
-/* Returns the position of the first unescaped reserved character (or the end
- * position) */
-char *
-find_unescaped(char *pos, const char *end, UA_Escaping esc);
+static UA_INLINE UA_Boolean
+isReservedExtended(u8 c) {
+    return (isReservedAnd(c) || c == ',' || c == '(' || c == ')' ||
+            c == '[' || c == ']' || c <= ' ' || c == 127);
+}
+
+static UA_INLINE UA_Boolean
+isReservedPercent(u8 c) {
+    return (c == ';'  || c == '%' || c <= ' ' || c == 127);
+}
+
+static UA_INLINE UA_Boolean
+isReservedPercentExtended(u8 c) {
+    return (isReservedPercent(c) || c == '#' || c == '[' ||
+            c == ']' || c == '&' || c == '(' || c == ')' ||
+            c == ',' || c == '<' || c == '>' || c == '`' ||
+            c == '/' || c == '\\' || c == '"' || c == '\'' );
+}
+
+/* Unescape string. The copyEscape boolean indicates whether a copy of the
+ * string should be made if an escaped character is found. Otherwise the string
+ * is unescaped in-place. */
+UA_StatusCode
+UA_String_unescape(UA_String *str, UA_Boolean copyEscape, UA_Escaping esc);
+
+/* Size of the string with the escaping */
+size_t
+UA_String_escapedSize(const UA_String s, UA_Escaping esc);
+
+/* Insert string with escaping at the defined position.
+ * Returns the length of the inserted escaped string.
+ * This is an unsafe procedure if not enough space is available. */
+size_t
+UA_String_escapeInsert(u8 *pos, const UA_String s2, UA_Escaping esc);
 
 /* Escape s2 and append it to s. Memory is allocated internally. */
 UA_StatusCode
@@ -82,6 +115,13 @@ UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Escaping esc);
 /* Case insensitive lookup. Returns UA_ATTRIBUTEID_INVALID if not found. */
 UA_AttributeId
 UA_AttributeId_fromName(const UA_String name);
+
+/* Special version of NodeId_print where the identifier component is escaped as
+ * well (not just the NamespaceUri). For percent-escaping (URL format), the
+ * ByteString body is in base64url format (no +/, no =-padding). */
+UA_StatusCode
+nodeId_printEscape(const UA_NodeId *id, UA_String *output,
+                   const UA_NamespaceMapping *nsMapping, UA_Escaping idEsc);
 
 /**
  * Error checking macros
