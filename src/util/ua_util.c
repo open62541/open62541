@@ -716,9 +716,18 @@ UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Escaping esc) {
     if(esc == UA_ESCAPING_NONE)
         return UA_String_append(s, s2);
 
-    /* Allocate memory for the qn name.
-     * We allocate enough space to escape every character. */
-    UA_Byte *buf = (UA_Byte*)UA_realloc(s->data, s->length + (s2.length*2));
+    /* Find out the overhead from escaping */
+    size_t overhead = 0;
+    for(size_t j = 0; j < s2.length; j++) {
+        UA_Boolean reserved = (esc == UA_ESCAPING_AND_EXTENDED) ?
+            isReservedExtended(s2.data[j]) : isReserved(s2.data[j]);
+        if(reserved)
+            overhead++;
+    }
+
+    /* Allocate memory for the additional escaped string */
+    UA_Byte *buf = (UA_Byte*)
+        UA_realloc(s->data, s->length + s2.length + overhead);
     if(!buf)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     s->data = buf;
