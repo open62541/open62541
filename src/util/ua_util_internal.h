@@ -73,7 +73,7 @@ unescape(char *pos, const char *end);
 /* Returns the position of the first unescaped reserved character (or the end
  * position) */
 char *
-find_unescaped(char *pos, const char *end, UA_Boolean extended);
+find_unescaped(char *pos, const char *end, UA_Escaping esc);
 
 /* Escape s2 and append it to s. Memory is allocated internally. */
 UA_StatusCode

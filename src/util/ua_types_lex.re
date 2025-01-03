@@ -514,7 +514,7 @@ parseAttributeOperand(UA_AttributeOperand *ao, const UA_String str, UA_NodeId de
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(*pos != '/' && *pos != '.' && *pos != '<' && *pos != '#' && *pos != '[') {
         const char *id_pos = pos;
-        pos = find_unescaped((char*)(uintptr_t)pos, end, true);
+        pos = find_unescaped((char*)(uintptr_t)pos, end, UA_ESCAPING_AND_EXTENDED);
         res = parse_nodeid(&ao->nodeId, id_pos, pos, UA_ESCAPING_AND_EXTENDED, NULL);
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;

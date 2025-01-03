@@ -676,20 +676,22 @@ isReservedExtended(char c) {
 }
 
 char *
-find_unescaped(char *pos, const char *end, UA_Boolean extended) {
-    while(pos < end) {
+find_unescaped(char *pos, const char *end, UA_Escaping esc) {
+    for(; pos < end; pos++) {
         if(*pos == 0)
             return pos;
+        if(esc == UA_ESCAPING_NONE)
+            continue;
         if(*pos == '&') {
             if(pos + 1 == end || pos[1] == 0)
                 return pos; /* Skip if & is the last character */
-            pos += 2;
+            pos++;
             continue;
         }
-        UA_Boolean reserved = (extended) ? isReservedExtended(*pos) : isReserved(*pos);
+        UA_Boolean reserved = (esc == UA_ESCAPING_AND_EXTENDED) ?
+            isReservedExtended(*pos) : isReserved(*pos);
         if(reserved)
             return pos;
-        pos++;
     }
     return (char*)(uintptr_t)end;
 }
