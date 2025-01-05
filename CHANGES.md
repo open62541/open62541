@@ -3,6 +3,13 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### JSON encoding changed with the v1.05 specification
+
+The JSON encoding was reworked for the v1.05 version of the OPC UA
+specification. The change breaks backwards compatibility. The legacy JSON
+encoding is still available throught the UA_ENABLE_JSON_ENCODING_LEGACY build
+option. This legacy feature wil get removed at some point in the future.
+
 ### PubSub NetworkMessage structure has an explicit DataSetMessageSize
 
 In prior versions of the standard, when the PayloadHeader was missing, the

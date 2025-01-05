@@ -6,14 +6,14 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
-#include "ua_pubsub_internal.h"
-
 #include "common.h"
 
 /* Function to give user information about correct usage */
 static void usage_info(void) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "USAGE: ./server_pubsub_file_configuration [name of UA_Binary_Config_File]");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Alternatively, Bin-files can be loaded via configuration method calls.");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "USAGE: ./server_pubsub_file_configuration [name of UA_Binary_Config_File]");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "Alternatively, Bin-files can be loaded via configuration method calls.");
 }
 
 int main(int argc, char** argv) {
@@ -107,7 +107,8 @@ int main(int argc, char** argv) {
     statusCode |= UA_Server_enableAllPubSubComponents(server);
     statusCode |= UA_Server_runUntilInterrupt(server);
     if(statusCode != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Server stopped. Status code: 0x%x\n", statusCode);
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Server stopped. Status code: 0x%x\n", statusCode);
         return(-1);
     }
 
@@ -120,7 +121,8 @@ int main(int argc, char** argv) {
 
         if(statusCode != UA_STATUSCODE_GOOD)
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                         "Saving PubSub configuration to file failed. StatusCode: 0x%x\n", statusCode);
+                         "Saving PubSub configuration to file failed. "
+                         "StatusCode: 0x%x\n", statusCode);
 
         UA_ByteString_clear(&buffer);
     }

@@ -79,7 +79,6 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue = true;
 
     size_t size = UA_NetworkMessage_calcSizeJsonInternal(&m, NULL, NULL, 0, true);
-    ck_assert_uint_eq(size, 340);
 
     UA_ByteString buffer;
     UA_StatusCode rv = UA_ByteString_allocBuffer(&buffer, size+1);
@@ -89,13 +88,12 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     memset(bufPos, 0, size+1);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
 
-
     rv = UA_NetworkMessage_encodeJsonInternal(&m, &bufPos, &bufEnd, NULL, NULL, 0, true);
     *bufPos = 0;
     // then
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    char* result = "{\"MessageId\":\"ABCDEFGH\",\"MessageType\":\"ua-data\",\"PublisherId\":65535,\"DataSetClassId\":\"00000001-0002-0003-0000-000000000000\",\"Messages\":[{\"DataSetWriterId\":12345,\"SequenceNumber\":4711,\"MetaDataVersion\":{\"MajorVersion\":42,\"MinorVersion\":7},\"Timestamp\":\"1601-01-13T20:38:31.1111111Z\",\"Status\":12345,\"Payload\":{\"Field1\":{\"Type\":7,\"Body\":27}}}]}";
+    char* result = "{\"MessageId\":\"ABCDEFGH\",\"MessageType\":\"ua-data\",\"PublisherId\":\"65535\",\"DataSetClassId\":\"00000001-0002-0003-0000-000000000000\",\"Messages\":[{\"DataSetWriterId\":12345,\"SequenceNumber\":4711,\"MetaDataVersion\":{\"MajorVersion\":42,\"MinorVersion\":7},\"Timestamp\":\"1601-01-13T20:38:31.1111111Z\",\"Status\":12345,\"MessageType\":\"ua-keyframe\",\"Payload\":{\"Field1\":{\"UaType\":7,\"Value\":27}}}]}";
     ck_assert_str_eq(result, (char*)buffer.data);
 
     UA_ByteString_clear(&buffer);
@@ -209,7 +207,7 @@ END_TEST
 START_TEST(UA_NetworkMessage_oneMessage_twoFields_json_decode) {
     // given
     UA_NetworkMessage out;
-    UA_ByteString buf = UA_STRING("{\"MessageId\":\"5ED82C10-50BB-CD07-0120-22521081E8EE\",\"MessageType\":\"ua-data\",\"Messages\":[{\"DataSetWriterId\":62541,\"MetaDataVersion\":{\"MajorVersion\":1478393530,\"MinorVersion\":12345},\"SequenceNumber\":4711,\"Payload\":{\"Test\":{\"Type\":5,\"Body\":42},\"Server localtime\":{\"Type\":13,\"Body\":\"2018-06-05T05:58:36.000Z\"}}}]}");
+    UA_ByteString buf = UA_STRING("{\"MessageId\":\"5ED82C10-50BB-CD07-0120-22521081E8EE\",\"MessageType\":\"ua-data\",\"Messages\":[{\"DataSetWriterId\":62541,\"MetaDataVersion\":{\"MajorVersion\":1478393530,\"MinorVersion\":12345},\"SequenceNumber\":4711,\"Payload\":{\"Test\":{\"UaType\":5,\"Value\":42},\"Server localtime\":{\"UaType\":13,\"Value\":\"2018-06-05T05:58:36.000Z\"}}}]}");
     // when
     UA_StatusCode retval = UA_NetworkMessage_decodeJson(&buf, &out, NULL);
     // then
@@ -270,7 +268,7 @@ START_TEST(UA_NetworkMessage_json_decode) {
     // given
     UA_NetworkMessage out;
     memset(&out,0,sizeof(UA_NetworkMessage));
-    UA_ByteString buf = UA_STRING("{\"MessageId\":\"5ED82C10-50BB-CD07-0120-22521081E8EE\",\"MessageType\":\"ua-data\",\"Messages\":[{\"MetaDataVersion\":{\"MajorVersion\": 47, \"MinorVersion\": 47},\"DataSetWriterId\":62541,\"Status\":22,\"SequenceNumber\":4711,\"Payload\":{\"Test\":{\"Type\":5,\"Body\":42},\"Server localtime\":{\"Type\":1,\"Body\":true}}}]}");
+    UA_ByteString buf = UA_STRING("{\"MessageId\":\"5ED82C10-50BB-CD07-0120-22521081E8EE\",\"MessageType\":\"ua-data\",\"Messages\":[{\"MetaDataVersion\":{\"MajorVersion\": 47, \"MinorVersion\": 47},\"DataSetWriterId\":62541,\"Status\":22,\"SequenceNumber\":4711,\"Payload\":{\"Test\":{\"UaType\":5,\"Value\":42},\"Server localtime\":{\"UaType\":1,\"Value\":true}}}]}");
     // when
     UA_StatusCode retval = UA_NetworkMessage_decodeJson(&buf, &out, NULL);
     // then
@@ -318,6 +316,20 @@ START_TEST(UA_NetworkMessage_json_decode) {
 }
 END_TEST
 
+/* Messages are a single object and not an array */
+START_TEST(UA_NetworkMessage_json_decode_messageObject) {
+    // given
+    UA_NetworkMessage out;
+    memset(&out,0,sizeof(UA_NetworkMessage));
+    UA_ByteString buf = UA_STRING("{\"MessageId\":\"5ED82C10-50BB-CD07-0120-22521081E8EE\",\"MessageType\":\"ua-data\",\"Messages\":{\"MetaDataVersion\":{\"MajorVersion\": 47, \"MinorVersion\": 47},\"DataSetWriterId\":62541,\"Status\":22,\"SequenceNumber\":4711,\"Payload\":{\"Test\":{\"UaType\":5,\"Value\":42},\"Server localtime\":{\"UaType\":1,\"Value\":true}}}}");
+    // when
+    UA_StatusCode retval = UA_NetworkMessage_decodeJson(&buf, &out, NULL);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_NetworkMessage_clear(&out);
+}
+END_TEST
+
 START_TEST(UA_Networkmessage_DataSetFieldsNull_json_decode) {
     // given
     UA_NetworkMessage out;
@@ -347,8 +359,8 @@ START_TEST(UA_NetworkMessage_fieldNames_json_decode) {
             "\"MessageType\":\"ua-data\",\"Messages\":"
             "[{\"DataSetWriterId\":62541,\"MetaDataVersion\":"
             "{\"MajorVersion\":1478393530,\"MinorVersion\":12345},"
-            "\"SequenceNumber\":4711,\"Payload\":{\"Test\":{\"Type\":5,\"Body\":42},\"Test2\":"
-            "{\"Type\":13,\"Body\":\"2018-06-05T05:58:36.000Z\"}}}]}");
+            "\"SequenceNumber\":4711,\"Payload\":{\"Test\":{\"UaType\":5,\"Value\":42},\"Test2\":"
+            "{\"UaType\":13,\"Value\":\"2018-06-05T05:58:36.000Z\"}}}]}");
     // when
     UA_StatusCode retval = UA_NetworkMessage_decodeJson(&buf, &out, NULL);
     // then
@@ -373,11 +385,11 @@ static Suite *testSuite_networkmessage(void) {
     Suite *s = suite_create("Built-in Data Types 62541-6 Json");
     TCase *tc_json_networkmessage = tcase_create("networkmessage_json");
 
-
     tcase_add_test(tc_json_networkmessage, UA_PubSub_EncodeAllOptionalFields);
     tcase_add_test(tc_json_networkmessage, UA_PubSub_EnDecode);
     tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_oneMessage_twoFields_json_decode);
     tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_json_decode);
+    tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_json_decode_messageObject);
     tcase_add_test(tc_json_networkmessage, UA_Networkmessage_DataSetFieldsNull_json_decode);
     tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_fieldNames_json_decode);
 

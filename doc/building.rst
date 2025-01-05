@@ -23,6 +23,7 @@ Building with CMake on Ubuntu or Debian
    sudo apt-get install check libsubunit-dev # for unit tests
    sudo apt-get install python3-sphinx graphviz  # for documentation generation
    sudo apt-get install python3-sphinx-rtd-theme # documentation style
+   sudo apt-get install libavahi-client-dev libavahi-common-dev # for LDS-ME (multicast discovery)
 
    git clone https://github.com/open62541/open62541.git
    cd open62541
@@ -294,7 +295,12 @@ Detailed SDK Features
    Enable Discovery Service (LDS)
 
 **UA_ENABLE_DISCOVERY_MULTICAST**
-   Enable Discovery Service with multicast support (LDS-ME)
+   Enable Discovery Service with multicast support (LDS-ME) and specify the
+   multicast backend. The possible options are:
+
+   - ``OFF`` No multicast support. (default)
+   - ``MDNSD`` Multicast support using libmdnsd
+   - ``AVAHI`` Multicast support using Avahi
 
 **UA_ENABLE_DISCOVERY_SEMAPHORE**
    Enable Discovery Semaphore support
@@ -330,7 +336,10 @@ Detailed SDK Features
    Enable diagnostics information exposed by the server. Enabled by default.
 
 **UA_ENABLE_JSON_ENCODING**
-   Enable JSON encoding. Enabled by default.
+   Enable JSON encoding. Enabled by default. The JSON encoding changed with the
+   1.05 version of the OPC UA specification. The legacy encoding can be enabled
+   via the ``UA_ENABLE_JSON_ENCODING_LEGACY`` option. Note that this legacy
+   feature wil get removed at some point in the future.
 
 Some options are marked as advanced. The advanced options need to be toggled to
 be visible in the cmake GUIs.
