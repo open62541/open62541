@@ -79,8 +79,8 @@ UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
         return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
     }
 
-    /* Allocate the output string */
-	size_t olen = len / 4 * 3;
+    /* Allocate the output string. Append four bytes to allow missing padding */
+	size_t olen = (len / 4 * 3) + 4;
     unsigned char *out = (unsigned char*)UA_malloc(olen);
 	if(!out)
 		return NULL;
@@ -97,28 +97,32 @@ UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
             goto error; /* Invalid input */
 		block[count++] = tmp;
 
-        /* End of input */
-        if(src[i] == '=' || i + 1 == len) {
-            pad = (src[i] == '=');
-            i = len - 1;
-            while(count < 4) {
-                block[count] = 0;
-                count = (count+1) % 4;
+        /* Allow padding in the middle.
+         * For example if base64 streams have been concatenated */
+        if(src[i] == '=')
+            pad++;
+
+        /* Premature end of input. Fill up the block with padding. */
+        if(i + 1 == len) {
+            len = (len + 3) & ~0x03; /* Next multiple of four */
+            for(i++; i < len; i++) {
+                block[count++] = 0;
                 pad++;
             }
-            if(pad > 2)
-                goto error; /* Invalid padding */
         }
 
         /* Write three output characters for four characters of input */
 		if(count == 4) {
+            if(pad > 2)
+                goto error; /* Invalid padding */
 			*pos++ = (block[0] << 2) | (block[1] >> 4);
 			*pos++ = (block[1] << 4) | (block[2] >> 2);
 			*pos++ = (block[2] << 6) | block[3];
 			count = 0;
+            pos -= pad;
+            pad = 0;
 		}
 	}
-    pos -= pad;
 
 	*out_len = (size_t)(pos - out);
 	return out;
