@@ -67,7 +67,7 @@ lwip_getnameinfo(const struct sockaddr *sa, socklen_t salen,
         const struct sockaddr_in *addr_in = (const struct sockaddr_in *)sa;
 
         if(serv) {
-            snprintf(serv, servlen, "%u", ntohs(addr_in->sin_port));
+            mp_snprintf(serv, servlen, "%u", ntohs(addr_in->sin_port));
         }
 
         if(host) {

@@ -30,13 +30,19 @@
  *
  */
 
+#include <open62541/config.h>
+
 #include <lwip/opt.h>
 #include <lwip/netif.h>
 #include <lwip/ip_addr.h>
 #include <lwip/tcpip.h>
-#include <netif/tapif.h>
 
+#ifdef UA_ARCHITECTURE_FREERTOS
+#include <ethernetif.h>
+#else
+#include <netif/tapif.h>
 #include "default_netif.h"
+#endif
 
 static struct netif netif;
 
@@ -51,7 +57,11 @@ void init_default_netif(void)
 #if NO_SYS
 netif_add(&netif, NETIF_ADDRS NULL, tapif_init, netif_input);
 #else
-  netif_add(&netif, NETIF_ADDRS NULL, tapif_init, tcpip_input);
+#ifdef UA_ARCHITECTURE_FREERTOS
+    netif_add(&netif, NETIF_ADDRS NULL, ethernetif0_init, tcpip_input);
+#else
+    netif_add(&netif, NETIF_ADDRS NULL, tapif_init, tcpip_input);
+#endif
 #endif
   netif_set_default(&netif);
 }
@@ -59,7 +69,10 @@ netif_add(&netif, NETIF_ADDRS NULL, tapif_init, netif_input);
 void
 default_netif_poll(void)
 {
-  tapif_poll(&netif);
+#ifdef UA_ARCHITECTURE_FREERTOS
+#else
+    tapif_poll(&netif);
+#endif
 }
 
 void

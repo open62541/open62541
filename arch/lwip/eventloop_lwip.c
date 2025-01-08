@@ -179,7 +179,7 @@ UA_EventLoopLWIP_start(UA_EventLoopLWIP *el) {
         UA_KeyValueMap_getScalar(&el->eventLoop.params,
                                  UA_QUALIFIEDNAME(0, "clock-source-monotonic"),
                                  &UA_TYPES[UA_TYPES_INT32]);
-#if defined(UA_ARCHITECTURE_LWIP) && !defined(__APPLE__) && !defined(__MACH__)
+#if defined(UA_ARCHITECTURE_LWIP) && !defined(UA_ARCHITECTURE_FREERTOS) && !defined(__APPLE__) && !defined(__MACH__)
     el->clockSource = CLOCK_REALTIME;
     if(cs)
         el->clockSource = *cs;
@@ -436,7 +436,7 @@ UA_EventLoopLWIP_deregisterEventSource(UA_EventLoopLWIP *el,
 
 static UA_DateTime
 UA_EventLoopLWIP_DateTime_now(UA_EventLoop *el) {
-#if defined(UA_ARCHITECTURE_LWIP) && !defined(__APPLE__) && !defined(__MACH__)
+#if defined(UA_ARCHITECTURE_LWIP) && !defined(UA_ARCHITECTURE_FREERTOS) && !defined(__APPLE__) && !defined(__MACH__)
     UA_EventLoopLWIP *pel = (UA_EventLoopLWIP*)el;
     struct timespec ts;
     int res = clock_gettime(pel->clockSource, &ts);
@@ -450,7 +450,7 @@ UA_EventLoopLWIP_DateTime_now(UA_EventLoop *el) {
 
 static UA_DateTime
 UA_EventLoopLWIP_DateTime_nowMonotonic(UA_EventLoop *el) {
-#if defined(UA_ARCHITECTURE_LWIP) && !defined(__APPLE__) && !defined(__MACH__)
+#if defined(UA_ARCHITECTURE_LWIP) && !defined(UA_ARCHITECTURE_FREERTOS) && !defined(__APPLE__) && !defined(__MACH__)
     UA_EventLoopLWIP *pel = (UA_EventLoopLWIP*)el;
     struct timespec ts;
     int res = clock_gettime(pel->clockSourceMonotonic, &ts);
@@ -840,7 +840,7 @@ int UA_EventLoopLWIP_pipe(UA_FD fds[2]) {
 
     struct sockaddr_storage addr;
     memset(&addr, 0, sizeof(addr));
-    unsigned int len = sizeof(addr);
+    socklen_t len = sizeof(addr);
     UA_getsockname(lst, (struct sockaddr*)&addr, &len);
 
     fds[0] = UA_socket(AF_INET, SOCK_STREAM, 0);
