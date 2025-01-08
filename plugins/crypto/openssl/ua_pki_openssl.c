@@ -566,8 +566,10 @@ openSSL_verifyChain(CertContext *ctx, STACK_OF(X509) *stack, X509 **old_issuers,
         /* Find the issuer. We jump back here to find a different path if a
          * subsequent check fails. */
         issuer = openSSLFindNextIssuer(ctx, stack, cert, issuer);
-        if(!issuer)
+        if(!issuer) {
+            ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
             break;
+        }
 
         /* Verification Step: Certificate Usage
          * Can the issuer act as CA? Omit for self-signed leaf certificates. */

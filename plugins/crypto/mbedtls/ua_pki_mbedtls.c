@@ -388,8 +388,10 @@ mbedtlsVerifyChain(CertInfo *ci, mbedtls_x509_crt *stack, mbedtls_x509_crt **old
          * self-signed (subject == issuer). We come back here to try a different
          * "path" if a subsequent verification fails. */
         issuer = mbedtlsFindNextIssuer(ci, stack, cert, issuer);
-        if(!issuer)
+        if(!issuer) {
+            ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
             break;
+        }
 
         /* Verification Step: Certificate Usage
          * Can the issuer act as CA? Omit for self-signed leaf certificates. */
