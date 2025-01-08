@@ -12,16 +12,7 @@
 #include "mp_printf.h"
 #include "ua_filestore_common.h"
 
-#ifdef UA_ENABLE_ENCRYPTION
-
-#ifdef __linux__ /* Linux only so far */
-
-#include <stdio.h>
-#include <dirent.h>
-
-#ifndef __ANDROID__
-#include <bits/stdio_lim.h>
-#endif  // !__ANDROID__
+#if defined(UA_ENABLE_ENCRYPTION) && defined(UA_ENABLE_CERTIFICATE_FILESTORE)
 
 typedef struct {
     /* In-Memory security policy as a base */
@@ -35,18 +26,18 @@ checkCertificateInFilestore(char *path, const UA_ByteString newCertificate) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     bool isStored = false;
     UA_ByteString fileData = UA_BYTESTRING_NULL;
-    DIR *dir = opendir(path);
+    UA_DIR *dir = UA_opendir(path);
     if(!dir)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    struct dirent *dirent;
-    while((dirent = readdir(dir)) != NULL) {
+    struct UA_DIRENT *dirent;
+    while((dirent = UA_readdir(dir)) != NULL) {
         if(dirent->d_type != DT_REG)
             continue;
 
         /* Get filename to load */
-        char filename[FILENAME_MAX];
-        if(mp_snprintf(filename, FILENAME_MAX, "%s/%s", path, dirent->d_name) < 0)
+        char filename[UA_FILENAME_MAX];
+        if(mp_snprintf(filename, UA_FILENAME_MAX, "%s/%s", path, dirent->d_name) < 0)
             return false;
 
         /* Load data from file */
@@ -66,7 +57,7 @@ checkCertificateInFilestore(char *path, const UA_ByteString newCertificate) {
 cleanup:
     if(fileData.length > 0)
         UA_ByteString_clear(&fileData);
-    closedir(dir);
+    UA_closedir(dir);
 
     return isStored;
 }
@@ -129,13 +120,13 @@ writeCertificateAndPrivateKeyToFilestore(const UA_String storePath,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Create the paths to the certificates and private key folders */
-    char ownCertPathDir[PATH_MAX];
-    if(mp_snprintf(ownCertPathDir, PATH_MAX, "%.*s%s", (int)storePath.length,
+    char ownCertPathDir[UA_PATH_MAX];
+    if(mp_snprintf(ownCertPathDir, UA_PATH_MAX, "%.*s%s", (int)storePath.length,
                    (char *)storePath.data, "/ApplCerts/own/certs") < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    char ownKeyPathDir[PATH_MAX];
-    if(mp_snprintf(ownKeyPathDir, PATH_MAX, "%.*s%s", (int)storePath.length,
+    char ownKeyPathDir[UA_PATH_MAX];
+    if(mp_snprintf(ownKeyPathDir, UA_PATH_MAX, "%.*s%s", (int)storePath.length,
                    (char *)storePath.data, "/ApplCerts/own/private") < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -144,24 +135,28 @@ writeCertificateAndPrivateKeyToFilestore(const UA_String storePath,
         return UA_STATUSCODE_GOOD;
 
     /* Create filename for new certificate */
-    char newFilename[PATH_MAX];
-    retval = createCertName(&newCertificate, newFilename, PATH_MAX);
+    char newFilename[UA_PATH_MAX];
+    retval = createCertName(&newCertificate, newFilename, UA_PATH_MAX);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    char newCertFilename[PATH_MAX];
-    if(mp_snprintf(newCertFilename, PATH_MAX, "%s/%s%s", ownCertPathDir, newFilename, ".der") < 0)
+    char newCertFilename[UA_PATH_MAX];
+    if(mp_snprintf(newCertFilename, UA_PATH_MAX, "%s/%s%s", ownCertPathDir, newFilename, ".der") < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    char newKeyFilename[PATH_MAX];
-    if(mp_snprintf(newKeyFilename, PATH_MAX, "%s/%s%s", ownKeyPathDir, newFilename, ".key") < 0)
+    char newKeyFilename[UA_PATH_MAX];
+    if(mp_snprintf(newKeyFilename, UA_PATH_MAX, "%s/%s%s", ownKeyPathDir, newFilename, ".key") < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     retval = writeByteStringToFile(newCertFilename, &newCertificate);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    return writeByteStringToFile(newKeyFilename, &newPrivateKey);
+    /* Write new private key only if it is set */
+    if(newPrivateKey.length > 0)
+        return writeByteStringToFile(newKeyFilename, &newPrivateKey);
+    else
+        return UA_STATUSCODE_GOOD;
 }
 
 /********************/
@@ -347,6 +342,4 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *policy,
     return retval;
 }
 
-#endif
-
-#endif
+#endif /* UA_ENABLE_ENCRYPTION && UA_ENABLE_CERTIFICATE_FILESTORE */

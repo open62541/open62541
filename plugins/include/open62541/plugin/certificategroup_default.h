@@ -39,7 +39,7 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
                                 const UA_Logger *logger,
                                 const UA_KeyValueMap *params);
 
-#ifdef __linux__ /* Linux only so far */
+#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
 /*
  * Initialises and configures a certificate group with a filestore backend.
  *
@@ -92,9 +92,9 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
                               const UA_String storePath,
                               const UA_Logger *logger,
                               const UA_KeyValueMap *params);
-#endif
+#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
 
-#endif
+#endif /* UA_ENABLE_ENCRYPTION */
 
 _UA_END_DECLS
 

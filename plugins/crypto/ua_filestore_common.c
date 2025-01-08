@@ -6,11 +6,19 @@
  */
 
 #include "ua_filestore_common.h"
-#include <stdio.h>
 
-#ifdef UA_ENABLE_ENCRYPTION
+#if defined(UA_ENABLE_ENCRYPTION) && defined(UA_ENABLE_CERTIFICATE_FILESTORE)
 
-#ifdef __linux__ /* Linux only so far */
+#ifdef UA_ARCHITECTURE_WIN32
+/* TODO: Replace with a proper dirname implementation. This is a just minimal
+ * implementation working with correct input data. */
+char *
+_UA_dirname_minimal(char *path) {
+    char *lastSlash = strrchr(path, '/');
+    *lastSlash = 0;
+    return path;
+}
+#endif /* UA_ARCHITECTURE_WIN32 */
 
 UA_StatusCode
 readFileToByteString(const char *const path, UA_ByteString *data) {
@@ -18,23 +26,23 @@ readFileToByteString(const char *const path, UA_ByteString *data) {
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Open the file */
-    FILE *fp = fopen(path, "rb");
+    UA_FILE *fp = UA_fopen(path, "rb");
     if(!fp)
         return UA_STATUSCODE_BADNOTFOUND;
 
     /* Get the file length, allocate the data and read */
-    fseek(fp, 0, SEEK_END);
-    UA_StatusCode retval = UA_ByteString_allocBuffer(data, (size_t)ftell(fp));
+    UA_fseek(fp, 0, UA_SEEK_END);
+    UA_StatusCode retval = UA_ByteString_allocBuffer(data, (size_t)UA_ftell(fp));
     if(retval == UA_STATUSCODE_GOOD) {
-        fseek(fp, 0, SEEK_SET);
-        size_t read = fread(data->data, sizeof(UA_Byte), data->length * sizeof(UA_Byte), fp);
+        UA_fseek(fp, 0, UA_SEEK_SET);
+        size_t read = UA_fread(data->data, sizeof(UA_Byte), data->length * sizeof(UA_Byte), fp);
         if(read != data->length) {
             UA_ByteString_clear(data);
         }
     } else {
         data->length = 0;
     }
-    fclose(fp);
+    UA_fclose(fp);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -44,21 +52,19 @@ writeByteStringToFile(const char *const path, const UA_ByteString *data) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Open the file */
-    FILE *fp = fopen(path, "wb");
+    UA_FILE *fp = UA_fopen(path, "wb");
     if(!fp)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Write byte string to file */
-    size_t len = fwrite(data->data, sizeof(UA_Byte), data->length * sizeof(UA_Byte), fp);
+    size_t len = UA_fwrite(data->data, sizeof(UA_Byte), data->length * sizeof(UA_Byte), fp);
     if(len != data->length) {
-        fclose(fp);
+        UA_fclose(fp);
         retval = UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    fclose(fp);
+    UA_fclose(fp);
     return retval;
 }
 
-#endif
-
-#endif
+#endif /* UA_ENABLE_ENCRYPTION && UA_ENABLE_CERTIFICATE_FILESTORE */

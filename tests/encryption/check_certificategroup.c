@@ -23,6 +23,11 @@
 #include "check.h"
 #include "thread_wrapper.h"
 
+#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
+#include "mp_printf.h"
+#define TEST_PATH_MAX 256
+#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
+
 UA_Server *server;
 UA_Boolean running;
 THREAD_HANDLE server_thread;
@@ -60,7 +65,7 @@ static void setup(void) {
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
-#ifdef __linux__ /* Linux only so far */
+#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
 static void setup2(void) {
     running = true;
 
@@ -81,9 +86,9 @@ static void setup2(void) {
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-    char storePathDir[32];
-    strcpy(storePathDir, "open62541-pki-XXXXXX");
-    mkdtemp(storePathDir);
+    char storePathDir[TEST_PATH_MAX];
+    getcwd(storePathDir, TEST_PATH_MAX - 4);
+    mp_snprintf(storePathDir, TEST_PATH_MAX, "%s/pki", storePathDir);
 
     const UA_String storePath = UA_STRING(storePathDir);
 
@@ -97,11 +102,21 @@ static void setup2(void) {
     config->applicationDescription.applicationUri =
             UA_STRING_ALLOC("urn:unconfigured:application");
 
+    /* Clear old certificates */
+    UA_ByteString empty[2] = {0};
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(
+        0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_StatusCode retval = UA_Server_addCertificates(server, defaultApplicationGroup,
+                                                     empty, 0, empty, 0, true, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_addCertificates(server, defaultApplicationGroup, empty, 0, empty,
+                                       0, false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
-#endif
-
+#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
 
 static void teardown(void) {
     running = false;
@@ -330,7 +345,7 @@ static Suite* testSuite_encryption(void) {
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption_memorystore);
 
-#ifdef __linux__ /* Linux only so far */
+#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
     TCase *tc_encryption_filestore = tcase_create("CertificateGroup Filestore");
     tcase_add_checked_fixture(tc_encryption_filestore, setup2, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
@@ -341,7 +356,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_filestore, get_rejectedlist);
     suite_add_tcase(s,tc_encryption_filestore);
 #endif /* UA_ENABLE_ENCRYPTION */
-#endif
+#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
     return s;
 }
 

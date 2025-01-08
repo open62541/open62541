@@ -86,7 +86,7 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
                                                      const UA_ByteString *revocationList,
                                                      size_t revocationListSize);
 
-#ifdef __linux__ /* Linux only so far */
+#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
@@ -95,9 +95,9 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
                                         const UA_ByteString *privateKey,
                                         const UA_String storePath);
 
-#endif
+#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
 
-#endif
+#endif /* UA_ENABLE_ENCRYPTION */
 
 /* Creates a server config on the default port 4840 with no server
  * certificate. */
@@ -257,7 +257,7 @@ UA_ServerConfig_addAllSecureSecurityPolicies(UA_ServerConfig *config,
                                        const UA_ByteString *certificate,
                                        const UA_ByteString *privateKey);
 
-#ifdef __linux__ /* Linux only so far */
+#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
 
 /* Adds a filestore security policy based on a given security policy to the server.
  *
@@ -289,9 +289,9 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
                                               const UA_ByteString *certificate,
                                               const UA_ByteString *privateKey,
                                               const UA_String storePath);
-#endif
+#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
 
-#endif
+#endif /* UA_ENABLE_ENCRYPTION */
 
 /* Adds an endpoint for the given security policy and mode. The security
  * policy has to be added already. See UA_ServerConfig_addXxx functions.

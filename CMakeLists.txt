@@ -184,6 +184,12 @@ else()
     endif()
 endif()
 
+set(FILESTORE_DEFAULT OFF)
+if(UA_ARCHITECTURE_WIN32 OR UNIX)
+  # Enable file store support by default on Windows and Unix systems
+  set(FILESTORE_DEFAULT ON)
+endif()
+set(UA_ENABLE_CERTIFICATE_FILESTORE ${FILESTORE_DEFAULT} CACHE STRING "Enable certificate file store support")
 
 # security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
@@ -810,6 +816,10 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_internal.h
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.h)
 
+if(UA_ENABLE_CERTIFICATE_FILESTORE AND UA_ENABLE_ENCRYPTION AND UA_ARCHITECTURE_WIN32)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/dirent.h)
+endif()
+
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.c
@@ -1024,7 +1034,7 @@ endif()
 # Always include encryption plugins into the amalgamation
 # Use guards in the files to ensure that UA_ENABLE_ENCRYPTON_MBEDTLS and UA_ENABLE_ENCRYPTION_OPENSSL are honored.
 
-if((UNIX AND UA_ENABLE_ENCRYPTION) OR UA_ENABLE_AMALGAMATION)
+if((UA_ENABLE_CERTIFICATE_FILESTORE AND UA_ENABLE_ENCRYPTION) OR UA_ENABLE_AMALGAMATION)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_filestore_common.h
                                ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_filestore_common.c
                                ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_filestore.c
