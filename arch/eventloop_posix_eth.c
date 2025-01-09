@@ -328,7 +328,7 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
         return;
 
     /* Receive */
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
     ssize_t ret = UA_recv(rfd->fd, (char*)response.data,
                           response.length, MSG_DONTWAIT);
 #else

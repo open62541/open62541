@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <check.h>
 
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
 #define TESTSIG SIGUSR1
 #else
 #define TESTSIG SIGINT

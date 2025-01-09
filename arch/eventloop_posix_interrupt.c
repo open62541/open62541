@@ -182,13 +182,13 @@ triggerPOSIXInterruptEvent(int sig) {
     TAILQ_INSERT_TAIL(&singletonIM->triggered, rs, triggeredEntry);
     rs->triggered = true;
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     /* On WIN32 we have to re-arm the signal or it will go back to SIG_DFL */
     signal(sig, triggerPOSIXInterruptEvent);
 #endif
 
     /* Trigger the FD in the EventLoop for the self-pipe trick */
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     int err = send(singletonIM->writeFD, ".", 1, 0);
 #else
     ssize_t err = write(singletonIM->writeFD, ".", 1);
@@ -255,7 +255,7 @@ executeTriggeredPOSIXInterrupts(UA_EventSource *es, UA_RegisteredFD *rfd, short 
 
     /* Re-arm the socket for the next signal by reading from it */
     char buf[128];
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     recv(rfd->fd, buf, 128, 0); /* ignore the result */
 #else
     ssize_t i;
@@ -355,7 +355,7 @@ deregisterPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle) {
     UA_UNLOCK(&el->elMutex);
 }
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
 /* Windows has no pipes. Use a local TCP connection for the self-pipe trick.
  * https://stackoverflow.com/a/3333565 */
 static int
@@ -404,7 +404,7 @@ startPOSIXInterruptManager(UA_EventSource *es) {
 #ifndef UA_HAVE_EPOLL
     /* Create pipe for self-signaling */
     UA_FD pipefd[2];
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     int err = pair(pipefd);
 #else
     int err = pipe(pipefd);
@@ -419,7 +419,7 @@ startPOSIXInterruptManager(UA_EventSource *es) {
     }
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
     /* Mark pipes as non-blocking */
     for(size_t i = 0; i < (sizeof(pipefd) / sizeof(*pipefd)); ++i) {
         res = UA_EventLoopPOSIX_setNonBlocking(pipefd[i]);

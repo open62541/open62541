@@ -114,7 +114,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     }
 
     struct timeval tmptv = {
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
         (time_t)(listenTimeout / UA_DATETIME_SEC),
         (suseconds_t)((listenTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
 #else
