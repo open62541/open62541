@@ -48,9 +48,11 @@ set(OPEN62541_VER_PATCH 8)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
-# Overwrite the version information based on git if available
-include(SetGitBasedVersion)
-set_open62541_version()
+# Overwrite the version information based on git if available and we are the main cmake project.
+if (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    include(SetGitBasedVersion)
+    set_open62541_version()
+endif()
 
 # Examples for the version string are:
 # v1.2
