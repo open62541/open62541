@@ -25,7 +25,7 @@
 #include "../deps/mp_printf.h"
 
 #include <stdio.h>
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
 # include <winsock2.h>
 #else
 # include <unistd.h>

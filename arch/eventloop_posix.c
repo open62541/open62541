@@ -415,7 +415,7 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     /* Process remaining delayed callbacks */
     processDelayed(el);
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     /* Stop the Windows networking subsystem */
     WSACleanup();
 #endif
@@ -437,7 +437,7 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     UA_LOCK_INIT(&el->elMutex);
     UA_Timer_init(&el->timer);
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     /* Start the WSA networking subsystem on Windows */
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -519,7 +519,7 @@ cmpFD(const UA_FD *a, const UA_FD *b) {
 
 UA_StatusCode
 UA_EventLoopPOSIX_setNonBlocking(UA_FD sockfd) {
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
     int opts = fcntl(sockfd, F_GETFL);
     if(opts < 0 || fcntl(sockfd, F_SETFL, opts | O_NONBLOCK) < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -545,7 +545,7 @@ UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd) {
 UA_StatusCode
 UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
     int enableReuseVal = 1;
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
     int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
                             (const char*)&enableReuseVal, sizeof(enableReuseVal));
     res |= UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,

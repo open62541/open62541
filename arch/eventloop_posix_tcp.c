@@ -119,7 +119,7 @@ TCP_delayedClose(void *application, void *context) {
 static int
 getSockError(TCP_FD *conn) {
     int error = 0;
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
     socklen_t errlen = sizeof(int);
     int err = getsockopt(conn->rfd.fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
 #else
@@ -191,7 +191,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
     UA_ByteString response = pcm->rxBuffer;
 
     /* Receive */
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
     ssize_t ret = UA_recv(conn->rfd.fd, (char*)response.data,
                           response.length, MSG_DONTWAIT);
 #else
@@ -558,7 +558,7 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
 
     int retcode = getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
         UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                        "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
@@ -808,7 +808,7 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
     hints.ai_socktype = SOCK_STREAM;
     int error = getaddrinfo(hostname, portStr, &hints, &info);
     if(error != 0) {
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
         UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP\t| Lookup of %s failed (%s)",

@@ -19,7 +19,7 @@
 
 #include "../deps/mp_printf.h"
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
 /* inet_ntoa is deprecated on MSVC but used for compatibility */
 # define _WINSOCK_DEPRECATED_NO_WARNINGS
 # include <winsock2.h>
@@ -132,7 +132,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
 
 /* see http://stackoverflow.com/a/10838854/869402 */
 static IP_ADAPTER_ADDRESSES *
@@ -178,7 +178,7 @@ getInterfaces(UA_DiscoveryManager *dm) {
     return adapter_addresses;
 }
 
-#endif /* _WIN32 */
+#endif /* UA_ARCHITECTURE_WIN32 */
 
 UA_StatusCode
 UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
@@ -523,7 +523,7 @@ mdns_set_address_record_if(UA_DiscoveryManager *dm, const char *fullServiceDomai
 }
 
 /* Loop over network interfaces and run set_address_record on each */
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
 
 void mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
                              const char *localDomain) {
@@ -617,7 +617,7 @@ mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
     /* Clean up */
     freeifaddrs(ifaddr);
 }
-#else /* _WIN32 */
+#else /* UA_ARCHITECTURE_WIN32 */
 
 void
 mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
@@ -634,7 +634,7 @@ mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
     }
 }
 
-#endif /* _WIN32 */
+#endif /* UA_ARCHITECTURE_WIN32 */
 
 typedef enum {
     UA_DISCOVERY_TCP,    /* OPC UA TCP mapping */
