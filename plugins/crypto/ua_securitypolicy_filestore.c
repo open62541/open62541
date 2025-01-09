@@ -32,7 +32,7 @@ checkCertificateInFilestore(char *path, const UA_ByteString newCertificate) {
 
     struct UA_DIRENT *dirent;
     while((dirent = UA_readdir(dir)) != NULL) {
-        if(dirent->d_type != DT_REG)
+        if(dirent->d_type != UA_DT_REG)
             continue;
 
         /* Get filename to load */

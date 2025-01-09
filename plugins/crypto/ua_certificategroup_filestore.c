@@ -77,13 +77,13 @@ removeAllFilesFromDir(const char *const path, bool removeSubDirs) {
 
     struct UA_DIRENT *dirent;
     while((dirent = UA_readdir(dir)) != NULL) {
-        if(dirent->d_type == DT_REG) {
+        if(dirent->d_type == UA_DT_REG) {
             char file_name[UA_FILENAME_MAX];
             mp_snprintf(file_name, UA_FILENAME_MAX, "%s/%s", path,
                         (char *)dirent->d_name);
             UA_remove(file_name);
         }
-        if(dirent->d_type == DT_DIR && removeSubDirs == true) {
+        if(dirent->d_type == UA_DT_DIR && removeSubDirs == true) {
             char *directory = (char*)dirent->d_name;
 
             char dir_name[UA_FILENAME_MAX];
@@ -172,7 +172,7 @@ readCertificates(UA_ByteString **list, size_t *listSize, const UA_String path) {
 
     struct UA_DIRENT *dirent;
     while((dirent = UA_readdir(dir)) != NULL) {
-        if(dirent->d_type != DT_REG)
+        if(dirent->d_type != UA_DT_REG)
             continue;
         numCerts++;
     }
@@ -188,7 +188,7 @@ readCertificates(UA_ByteString **list, size_t *listSize, const UA_String path) {
     UA_rewinddir(dir);
 
     while((dirent = UA_readdir(dir)) != NULL) {
-        if(dirent->d_type != DT_REG)
+        if(dirent->d_type != UA_DT_REG)
             continue;
         if(numActCerts < numCerts) {
             /* Create filename to load */
