@@ -89,12 +89,10 @@ TCP_delayedClose(void *application, void *context) {
     pcm->fdsSize--;
 
     /* Signal closing to the application */
-    UA_UNLOCK(&el->elMutex);
     conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
                         conn->application, &conn->context,
                         UA_CONNECTIONSTATE_CLOSING,
                         &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
 
     /* Close the socket */
     int ret = UA_close(conn->rfd.fd);
@@ -173,12 +171,10 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
         UA_EventLoopPOSIX_modifyFD(el, &conn->rfd);
 
         /* A new socket has opened. Signal it to the application. */
-        UA_UNLOCK(&el->elMutex);
         conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
                             conn->application, &conn->context,
                             UA_CONNECTIONSTATE_ESTABLISHED,
                             &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-        UA_LOCK(&el->elMutex);
         return;
     }
 
@@ -221,12 +217,10 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
 
     /* Callback to the application layer */
     response.length = (size_t)ret; /* Set the length of the received buffer */
-    UA_UNLOCK(&el->elMutex);
     conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
                         conn->application, &conn->context,
                         UA_CONNECTIONSTATE_ESTABLISHED,
                         &UA_KEYVALUEMAP_NULL, response);
-    UA_LOCK(&el->elMutex);
 }
 
 /* Gets called when a new connection opens or if the listenSocket is closed */
@@ -335,12 +329,10 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     kvm.map = &kvp;
 
     /* The socket has opened. Signal it to the application. */
-    UA_UNLOCK(&el->elMutex);
     newConn->applicationCB(cm, (uintptr_t)newsockfd,
                            newConn->application, &newConn->context,
                            UA_CONNECTIONSTATE_ESTABLISHED,
                            &kvm, UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
 }
 
 static UA_StatusCode
@@ -523,12 +515,10 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     UA_KeyValueMap paramMap = {2, params};
 
     /* Announce the listen-socket in the application */
-    UA_UNLOCK(&el->elMutex);
     connectionCallback(&pcm->cm, (uintptr_t)listenSocket,
                        application, &newConn->context,
                        UA_CONNECTIONSTATE_ESTABLISHED,
                        &paramMap, UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -905,12 +895,10 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
                 (unsigned)newSock, hostname, portStr);
 
     /* Signal the new connection to the application as asynchonously opening */
-    UA_UNLOCK(&el->elMutex);
     connectionCallback(&pcm->cm, (uintptr_t)newSock,
                        application, &newConn->context,
                        UA_CONNECTIONSTATE_OPENING, &UA_KEYVALUEMAP_NULL,
                        UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
 
     return UA_STATUSCODE_GOOD;
 }
