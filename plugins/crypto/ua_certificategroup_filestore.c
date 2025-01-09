@@ -13,7 +13,9 @@
 #include "ua_filestore_common.h"
 #include "mp_printf.h"
 
-#if defined(UA_ENABLE_ENCRYPTION) && defined(UA_ENABLE_CERTIFICATE_FILESTORE)
+#ifdef UA_ENABLE_ENCRYPTION
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 
 #ifdef __linux__
 #define EVENT_SIZE (sizeof(struct inotify_event))
@@ -710,4 +712,6 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
     return retval;
 }
 
-#endif /* UA_ENABLE_ENCRYPTION && UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+
+#endif /* UA_ENABLE_ENCRYPTION */

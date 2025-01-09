@@ -58,12 +58,12 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *policy,
                             const UA_ByteString localPrivateKey,
                             const UA_Logger *logger);
 
-#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_Filestore(UA_SecurityPolicy *policy,
                             UA_SecurityPolicy *innerPolicy,
                             const UA_String storePath);
-#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 #endif /* UA_ENABLE_ENCRYPTION */
 

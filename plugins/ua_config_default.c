@@ -1221,7 +1221,7 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 
 UA_StatusCode
 UA_ServerConfig_addSecurityPolicy_Filestore(UA_ServerConfig *config,
@@ -1580,7 +1580,7 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
     return retval;
 }
 
-#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 #endif /* UA_ENABLE_ENCRYPTION */
 

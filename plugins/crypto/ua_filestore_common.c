@@ -7,7 +7,9 @@
 
 #include "ua_filestore_common.h"
 
-#if defined(UA_ENABLE_ENCRYPTION) && defined(UA_ENABLE_CERTIFICATE_FILESTORE)
+#ifdef UA_ENABLE_ENCRYPTION
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 
 #ifdef UA_ARCHITECTURE_WIN32
 /* TODO: Replace with a proper dirname implementation. This is a just minimal
@@ -67,4 +69,6 @@ writeByteStringToFile(const char *const path, const UA_ByteString *data) {
     return retval;
 }
 
-#endif /* UA_ENABLE_ENCRYPTION && UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+
+#endif /* UA_ENABLE_ENCRYPTION */

@@ -12,7 +12,9 @@
 #include "mp_printf.h"
 #include "ua_filestore_common.h"
 
-#if defined(UA_ENABLE_ENCRYPTION) && defined(UA_ENABLE_CERTIFICATE_FILESTORE)
+#ifdef UA_ENABLE_ENCRYPTION
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 
 typedef struct {
     /* In-Memory security policy as a base */
@@ -342,4 +344,6 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *policy,
     return retval;
 }
 
-#endif /* UA_ENABLE_ENCRYPTION && UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+
+#endif /* UA_ENABLE_ENCRYPTION */

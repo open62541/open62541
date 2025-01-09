@@ -86,7 +86,7 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
                                                      const UA_ByteString *revocationList,
                                                      size_t revocationListSize);
 
-#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
@@ -95,7 +95,7 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
                                         const UA_ByteString *privateKey,
                                         const UA_String storePath);
 
-#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 #endif /* UA_ENABLE_ENCRYPTION */
 
@@ -257,7 +257,7 @@ UA_ServerConfig_addAllSecureSecurityPolicies(UA_ServerConfig *config,
                                        const UA_ByteString *certificate,
                                        const UA_ByteString *privateKey);
 
-#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 
 /* Adds a filestore security policy based on a given security policy to the server.
  *
@@ -289,7 +289,7 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
                                               const UA_ByteString *certificate,
                                               const UA_ByteString *privateKey,
                                               const UA_String storePath);
-#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 #endif /* UA_ENABLE_ENCRYPTION */
 

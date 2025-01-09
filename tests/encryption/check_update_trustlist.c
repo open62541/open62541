@@ -15,10 +15,10 @@
 #include "test_helpers.h"
 #include "certificates.h"
 
-#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 #include "mp_printf.h"
 #define TEST_PATH_MAX 256
-#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 UA_Server *server;
 
@@ -37,7 +37,7 @@ static void setup(void) {
     ck_assert(server != NULL);
 }
 
-#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 static void setup2(void) {
     /* Load certificate and private key */
     UA_ByteString certificate;
@@ -69,7 +69,7 @@ static void setup2(void) {
                                        0, false, false);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
-#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 static void teardown(void) {
     UA_Server_delete(server);
@@ -314,7 +314,7 @@ static Suite* testSuite_create_certificate(void) {
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
 
-#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
     TCase *tc_cert_filestore = tcase_create("Update Certificate Filestore");
     tcase_add_checked_fixture(tc_cert_filestore, setup2, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
@@ -325,7 +325,7 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_test(tc_cert_filestore, add_application_certificate_trustlist);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert_filestore);
-#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
     return s;
 }

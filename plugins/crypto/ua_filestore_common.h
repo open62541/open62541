@@ -7,7 +7,9 @@
 
 #include <open62541/util.h>
 
-#if defined(UA_ENABLE_ENCRYPTION) && defined(UA_ENABLE_CERTIFICATE_FILESTORE)
+#ifdef UA_ENABLE_ENCRYPTION
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 
 #if defined(UA_ARCHITECTURE_WIN32)
 
@@ -51,9 +53,7 @@ _UA_END_DECLS
 #define UA_PATH_MAX MAX_PATH
 #define UA_FILENAME_MAX FILENAME_MAX
 
-#elif defined(UA_ARCHITECTURE_POSIX)
-
-#ifdef __linux__
+#elif defined(__linux__)
 
 #include <dirent.h>
 #include <errno.h>
@@ -97,8 +97,6 @@ _UA_END_DECLS
 #define UA_PATH_MAX PATH_MAX
 #define UA_FILENAME_MAX FILENAME_MAX
 
-#endif /* __linux__ */
-
 #endif
 
 UA_StatusCode
@@ -109,4 +107,6 @@ UA_StatusCode
 writeByteStringToFile(const char *const path,
                       const UA_ByteString *data);
 
-#endif /* UA_ENABLE_ENCRYPTION && UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* __linux__ || UA_ARCHITECTURE_WIN32 */
+
+#endif /* UA_ENABLE_ENCRYPTION */

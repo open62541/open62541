@@ -91,7 +91,7 @@ static void setup(void) {
     THREAD_CREATE(server_thread, serverloop);
 }
 
-#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 static void setup2(void) {
     running = true;
 
@@ -125,7 +125,7 @@ static void setup2(void) {
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
-#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 static void teardown(void) {
     running = false;
@@ -308,7 +308,7 @@ static Suite* testSuite_encryption(void) {
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption);
 
-#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
     TCase *tc_encryption_filestore = tcase_create("Encryption Aes128Sha256RsaOaep security policy filestore");
     tcase_add_checked_fixture(tc_encryption_filestore, setup2, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
@@ -316,7 +316,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_filestore, encryption_connect_pem);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption_filestore);
-#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
     return s;
 }

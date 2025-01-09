@@ -48,7 +48,7 @@ UA_Server_newForUnitTestWithSecurityPolicies(UA_UInt16 portNumber,
     return UA_Server_newWithConfig(&config);
 }
 
-#ifdef UA_ENABLE_CERTIFICATE_FILESTORE
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 static UA_INLINE UA_Server *
 UA_Server_newForUnitTestWithSecurityPolicies_Filestore(UA_UInt16 portNumber,
                                                        const UA_ByteString *certificate,
@@ -65,7 +65,7 @@ UA_Server_newForUnitTestWithSecurityPolicies_Filestore(UA_UInt16 portNumber,
     config.tcpReuseAddr = true;
     return UA_Server_newWithConfig(&config);
 }
-#endif /* UA_ENABLE_CERTIFICATE_FILESTORE */
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 static UA_INLINE
 UA_Client * UA_Client_newForUnitTest(void) {

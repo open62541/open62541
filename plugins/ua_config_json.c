@@ -773,7 +773,7 @@ PARSE_JSON(SecurityPkiField) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-#ifndef UA_ENABLE_CERTIFICATE_FILESTORE
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
     /* Currently not supported! */
     (void)config;
     return UA_STATUSCODE_GOOD;
