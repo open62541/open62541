@@ -84,6 +84,30 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
 }
 
 static UA_StatusCode
+editNodeContextFreeCb(UA_Server *server, UA_Session* session,
+                UA_NodeHead *head, UA_NodeContextFreeCallback *callback) {
+    head->contextFreeCb = *callback;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+setNodeContextFreeCb(UA_Server *server, UA_NodeId nodeId,
+              UA_NodeContextFreeCallback callback) {
+    return UA_Server_editNode(server, &server->adminSession, &nodeId,
+                              (UA_EditNodeCallback)editNodeContextFreeCb, &callback);
+}
+
+
+UA_StatusCode
+UA_Server_setNodeContextFreeCb(UA_Server *server, UA_NodeId nodeId,
+                         UA_NodeContextFreeCallback callback) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval = setNodeContextFreeCb(server, nodeId, callback);
+    UA_UNLOCK(&server->serviceMutex);
+    return retval;
+}
+
+static UA_StatusCode
 checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
                           const UA_NodeId *nodeId);
 

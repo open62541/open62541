@@ -441,6 +441,8 @@ void UA_Node_clear(UA_Node *node) {
     default:
         break;
     }
+
+    if (head->contextFreeCb) head->contextFreeCb(head->context);
 }
 
 static UA_StatusCode

@@ -413,6 +413,8 @@ struct UA_NodeHead {
 
     /* Members specific to open62541 */
     void *context;
+    void (*contextFreeCb)(void *);
+
     UA_Boolean constructed; /* Constructors were called */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_MonitoredItem *monitoredItems; /* MonitoredItems for Events and immediate

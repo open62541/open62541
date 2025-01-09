@@ -1109,6 +1109,12 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
                          void *nodeContext);
 
+typedef void (*UA_NodeContextFreeCallback)(void *);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setNodeContextFreeCb(UA_Server *server, UA_NodeId nodeId,
+                               UA_NodeContextFreeCallback callback);
+
 /**
  * .. _datasource:
  *
