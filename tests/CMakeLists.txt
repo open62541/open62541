@@ -409,6 +409,7 @@ endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
     ua_add_test(encryption/check_encryption_eccnistp256.c)
+    ua_add_test(encryption/check_encryption_eccnistp384.c)
 endif()
 
 # Tests for Nodeset Compiler
