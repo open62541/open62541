@@ -446,14 +446,12 @@ UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
 
         void *targetContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
-        UA_UNLOCK(&server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server,
                                                      session ? &session->sessionId : NULL,
                                                      session ? session->sessionHandle : NULL,
                                                      &mon->itemToMonitor.nodeId,
                                                      targetContext,
                                                      mon->itemToMonitor.attributeId, false);
-        UA_LOCK(&server->serviceMutex);
     }
 
     mon->registered = true;
@@ -479,14 +477,12 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
 
         void *targetContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
-        UA_UNLOCK(&server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server,
                                                      session ? &session->sessionId : NULL,
                                                      session ? session->sessionHandle : NULL,
                                                      &mon->itemToMonitor.nodeId,
                                                      targetContext,
                                                      mon->itemToMonitor.attributeId, true);
-        UA_LOCK(&server->serviceMutex);
     }
 
     /* Deregister in Subscription and server */
