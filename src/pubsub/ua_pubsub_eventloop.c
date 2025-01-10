@@ -357,9 +357,7 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
                                    "instead of opening a receiving channel.");
         }
 
-        UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubRecvChannelCallback);
-        UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_CONNECTION(server->config.logging, c,
                                     "Could not open an UDP channel for receiving");
@@ -386,9 +384,7 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
         }
 
         listen = false;
-        UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubSendChannelCallback);
-        UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_CONNECTION(server->config.logging, c,
                                     "Could not open an UDP recv channel");
@@ -434,9 +430,7 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c,
 
     /* Open recv channels */
     if(c->recvChannelsSize == 0) {
-        UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubRecvChannelCallback);
-        UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_CONNECTION(server->config.logging, c,
                                     "Could not open an ETH recv channel");
@@ -447,9 +441,7 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c,
     /* Open send channels */
     if(c->sendChannel == 0) {
         listen = false;
-        UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubSendChannelCallback);
-        UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_CONNECTION(server->config.logging, c,
                                     "Could not open an ETH channel for sending");
@@ -651,9 +643,7 @@ UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg,
 
     /* Connect */
     UA_ConnectionManager *cm = wg->linkedConnection->cm;
-    UA_UNLOCK(&server->serviceMutex);
     res = cm->openConnection(cm, &kvm, server, wg, WriterGroupChannelCallback);
-    UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
                                  "Could not open a UDP send channel");
@@ -711,9 +701,7 @@ UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg,
     UA_Variant_setScalar(&kvp[4].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* Connect */
-    UA_UNLOCK(&server->serviceMutex);
     res = c->cm->openConnection(c->cm, &kvm, server, wg, WriterGroupChannelCallback);
-    UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
                                  "Could not open the MQTT connection");
@@ -978,9 +966,7 @@ UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg,
     UA_Variant_setScalar(&kvp[4].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* Connect */
-    UA_UNLOCK(&server->serviceMutex);
     res = c->cm->openConnection(c->cm, &kvm, server, rg, ReaderGroupChannelCallback);
-    UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_READERGROUP(server->config.logging, rg,
                                  "Could not open the MQTT connection");
