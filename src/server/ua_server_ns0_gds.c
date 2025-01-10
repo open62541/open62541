@@ -297,7 +297,7 @@ updateCertificate(UA_Server *server,
 
     /* Verify that the privateKey is in a supported format and
      * that it matches the specified certificate */
-    if(privateKey && privateKey->data) {
+    if(privateKey && privateKey->length > 0) {
         const UA_String pemFormat = UA_STRING("PEM");
         const UA_String derFormat = UA_STRING("DER");
         if(!UA_String_equal(&pemFormat, privateKeyFormat) && !UA_String_equal(&derFormat, privateKeyFormat))
