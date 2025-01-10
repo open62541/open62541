@@ -785,17 +785,14 @@ browse(struct BrowseContext *bc) {
     /* Check AccessControl rights */
     if(bc->session != &bc->server->adminSession) {
         UA_LOCK_ASSERT(&bc->server->serviceMutex, 1);
-        UA_UNLOCK(&bc->server->serviceMutex);
         if(!bc->server->config.accessControl.
            allowBrowseNode(bc->server, &bc->server->config.accessControl,
                            &bc->session->sessionId, bc->session->sessionHandle,
                            &descr->nodeId, node->head.context)) {
-            UA_LOCK(&bc->server->serviceMutex);
             UA_NODESTORE_RELEASE(bc->server, node);
             bc->status = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;
         }
-        UA_LOCK(&bc->server->serviceMutex);
     }
 
     /* Browse the node */
