@@ -485,17 +485,14 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     /* Check with AccessControl if the transfer is allowed */
     if(server->config.accessControl.allowTransferSubscription) {
         UA_LOCK_ASSERT(&server->serviceMutex, 1);
-        UA_UNLOCK(&server->serviceMutex);
         if(!server->config.accessControl.
            allowTransferSubscription(server, &server->config.accessControl,
                                      oldSession ? &oldSession->sessionId : NULL,
                                      oldSession ? oldSession->sessionHandle : NULL,
                                      &session->sessionId, session->sessionHandle)) {
-            UA_LOCK(&server->serviceMutex);
             result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;
         }
-        UA_LOCK(&server->serviceMutex);
     } else {
         result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
