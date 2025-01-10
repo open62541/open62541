@@ -58,14 +58,14 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *policy,
                             const UA_ByteString localPrivateKey,
                             const UA_Logger *logger);
 
-#ifdef __linux__ /* Linux only so far */
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_Filestore(UA_SecurityPolicy *policy,
                             UA_SecurityPolicy *innerPolicy,
                             const UA_String storePath);
-#endif
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
-#endif
+#endif /* UA_ENABLE_ENCRYPTION */
 
 UA_EXPORT UA_StatusCode
 UA_PubSubSecurityPolicy_Aes128Ctr(UA_PubSubSecurityPolicy *policy,

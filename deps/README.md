@@ -22,3 +22,4 @@ The following third party libraries may be included -- depending on the activate
 | dtoa            | BSL (Boost)      | Printing of float numbers                       |
 | mp_printf       | MIT              | Our version of github:mpaland/printf            |
 | utf8            | MPL 2.0          | Lightweight utf8 de/encoding                    |
+| dirent          | MIT              | Dirent interface for Microsoft Visual Studio    |
