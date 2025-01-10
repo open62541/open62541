@@ -249,10 +249,8 @@ setSessionSubscriptionDiagnostics(UA_Server *server, UA_Session *session,
     /* Allocate the output array */
     UA_SubscriptionDiagnosticsDataType *sd = (UA_SubscriptionDiagnosticsDataType*)
         UA_Array_new(sdSize, &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
-    if(!sd) {
-        UA_UNLOCK(&server->serviceMutex);
+    if(!sd)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
 
     /* Collect the statistics */
     size_t i = 0;
