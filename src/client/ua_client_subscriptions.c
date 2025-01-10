@@ -71,6 +71,8 @@ ua_Subscriptions_create(UA_Client *client, UA_Client_Subscription *newSub,
 static void
 ua_Subscriptions_create_handler(UA_Client *client, void *data,
                                 UA_UInt32 requestId, void *r) {
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
+
     UA_CreateSubscriptionResponse *response = (UA_CreateSubscriptionResponse *)r;
     CustomCallback *cc = (CustomCallback *)data;
     UA_Client_Subscription *newSub = (UA_Client_Subscription *)cc->clientData;
@@ -79,8 +81,6 @@ ua_Subscriptions_create_handler(UA_Client *client, void *data,
         goto cleanup;
     }
 
-    UA_LOCK(&client->clientMutex);
-
     /* Prepare the internal representation */
     ua_Subscriptions_create(client, newSub, response);
 
@@ -88,8 +88,6 @@ cleanup:
     if(cc->userCallback)
         cc->userCallback(client, cc->userData, requestId, response);
     UA_free(cc);
-
-    UA_UNLOCK(&client->clientMutex);
 }
 
 UA_CreateSubscriptionResponse
@@ -98,12 +96,15 @@ UA_Client_Subscriptions_create(UA_Client *client,
                                void *subscriptionContext,
                                UA_Client_StatusChangeNotificationCallback statusChangeCallback,
                                UA_Client_DeleteSubscriptionCallback deleteCallback) {
+    UA_LOCK(&client->clientMutex);
+
     UA_CreateSubscriptionResponse response;
     UA_Client_Subscription *sub = (UA_Client_Subscription *)
         UA_malloc(sizeof(UA_Client_Subscription));
     if(!sub) {
         UA_CreateSubscriptionResponse_init(&response);
         response.responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_UNLOCK(&client->clientMutex);
         return response;
     }
     sub->context = subscriptionContext;
@@ -111,18 +112,17 @@ UA_Client_Subscriptions_create(UA_Client *client,
     sub->deleteCallback = deleteCallback;
 
     /* Send the request as a synchronous service call */
-    __UA_Client_Service(client,
-                        &request, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
-    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_free (sub);
+    __Client_Service(client, &request, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
+                     &response, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_free(sub);
+        UA_UNLOCK(&client->clientMutex);
         return response;
     }
 
-    UA_LOCK(&client->clientMutex);
     ua_Subscriptions_create(client, sub, &response);
-    UA_UNLOCK(&client->clientMutex);
 
+    UA_UNLOCK(&client->clientMutex);
     return response;
 }
 
@@ -179,11 +179,11 @@ ua_Subscriptions_modify(UA_Client *client, UA_Client_Subscription *sub,
 static void
 ua_Subscriptions_modify_handler(UA_Client *client, void *data, UA_UInt32 requestId,
                                 void *r) {
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
+
     UA_ModifySubscriptionResponse *response = (UA_ModifySubscriptionResponse *)r;
     CustomCallback *cc = (CustomCallback *)data;
-    UA_LOCK(&client->clientMutex);
-    UA_Client_Subscription *sub =
-        findSubscription(client, (UA_UInt32)(uintptr_t)cc->clientData);
+    UA_Client_Subscription *sub = findSubscription(client, (UA_UInt32)(uintptr_t)cc->clientData);
     if(sub) {
         ua_Subscriptions_modify(client, sub, response);
     } else {
@@ -191,7 +191,6 @@ ua_Subscriptions_modify_handler(UA_Client *client, void *data, UA_UInt32 request
                     "No internal representation of subscription %" PRIu32,
                     (UA_UInt32)(uintptr_t)cc->clientData);
     }
-    UA_UNLOCK(&client->clientMutex);
 
     if(cc->userCallback)
         cc->userCallback(client, cc->userData, requestId, response);
@@ -214,9 +213,9 @@ UA_Client_Subscriptions_modify(UA_Client *client,
     }
 
     /* Call the service */
-    __UA_Client_Service(client,
-                        &request, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE]);
+    __Client_Service(client,
+                     &request, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
+                     &response, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE]);
 
     /* Adjust the internal representation. Lookup again for thread-safety. */
     sub = findSubscription(client, request.subscriptionId);
@@ -235,8 +234,9 @@ UA_Client_Subscriptions_modify_async(UA_Client *client,
                                      const UA_ModifySubscriptionRequest request,
                                      UA_ClientAsyncServiceCallback callback,
                                      void *userdata, UA_UInt32 *requestId) {
-    /* Find the internal representation */
     UA_LOCK(&client->clientMutex);
+
+    /* Find the internal representation */
     UA_Client_Subscription *sub = findSubscription(client, request.subscriptionId);
     if(!sub) {
         UA_UNLOCK(&client->clientMutex);
@@ -254,9 +254,10 @@ UA_Client_Subscriptions_modify_async(UA_Client *client,
     cc->userCallback = callback;
 
     UA_StatusCode res =
-        __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
-                                 ua_Subscriptions_modify_handler, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE],
-                                 cc, requestId);
+        __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
+                              ua_Subscriptions_modify_handler, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE],
+                              cc, requestId);
+
     UA_UNLOCK(&client->clientMutex);
     return res;
 }
@@ -385,14 +386,16 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
 UA_DeleteSubscriptionsResponse
 UA_Client_Subscriptions_delete(UA_Client *client,
                                const UA_DeleteSubscriptionsRequest request) {
+    UA_LOCK(&client->clientMutex);
+
     /* Send the request */
     UA_DeleteSubscriptionsResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE]);
+    __Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
+                     &response, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE]);
 
     /* Process */
-    UA_LOCK(&client->clientMutex);
     __Client_Subscription_processDelete(client, &request, &response);
+
     UA_UNLOCK(&client->clientMutex);
     return response;
 }

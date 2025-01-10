@@ -657,7 +657,7 @@ UA_Client_renewSecureChannel(UA_Client *client) {
 static void
 responseActivateSession(UA_Client *client, void *userdata,
                         UA_UInt32 requestId, void *response) {
-    UA_LOCK(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     UA_ActivateSessionResponse *ar = (UA_ActivateSessionResponse*)response;
     if(ar->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
@@ -672,7 +672,6 @@ responseActivateSession(UA_Client *client, void *userdata,
                          UA_StatusCode_name(ar->responseHeader.serviceResult));
             client->connectStatus = ar->responseHeader.serviceResult;
             closeSecureChannel(client);
-            UA_UNLOCK(&client->clientMutex);
             return;
         }
 
@@ -682,7 +681,6 @@ responseActivateSession(UA_Client *client, void *userdata,
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Session to be activated no longer exists. Create a new Session.");
             client->connectStatus = createSessionAsync(client);
-            UA_UNLOCK(&client->clientMutex);
             return;
         }
 
@@ -693,7 +691,6 @@ responseActivateSession(UA_Client *client, void *userdata,
                      UA_StatusCode_name(ar->responseHeader.serviceResult));
         client->connectStatus = ar->responseHeader.serviceResult;
         closeSecureChannel(client);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
@@ -710,8 +707,6 @@ responseActivateSession(UA_Client *client, void *userdata,
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     __Client_Subscriptions_backgroundPublish(client);
 #endif
-
-    UA_UNLOCK(&client->clientMutex);
 }
 
 static UA_StatusCode
@@ -961,7 +956,7 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint) {
 static void
 responseGetEndpoints(UA_Client *client, void *userdata,
                      UA_UInt32 requestId, void *response) {
-    UA_LOCK(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     client->endpointsHandshake = false;
 
@@ -984,7 +979,6 @@ responseGetEndpoints(UA_Client *client, void *userdata,
         }
 
         UA_GetEndpointsResponse_clear(resp);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
@@ -1027,7 +1021,6 @@ responseGetEndpoints(UA_Client *client, void *userdata,
                      "No suitable endpoint found");
         client->connectStatus = UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
         closeSecureChannel(client);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
@@ -1056,7 +1049,6 @@ responseGetEndpoints(UA_Client *client, void *userdata,
        !UA_String_equal(&client->endpoint.securityPolicyUri,
                         &client->channel.securityPolicy->policyUri)) {
         closeSecureChannel(client);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
@@ -1066,13 +1058,11 @@ responseGetEndpoints(UA_Client *client, void *userdata,
     if(client->discoveryUrl.length > 0 &&
        !UA_String_equal(&client->discoveryUrl, &client->endpoint.endpointUrl)) {
         closeSecureChannel(client);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
     /* Nothing to do. We have selected an endpoint that we can use to open a
      * Session on the current SecureChannel. */
-    UA_UNLOCK(&client->clientMutex);
 }
 
 static UA_StatusCode
@@ -1216,7 +1206,7 @@ requestFindServers(UA_Client *client) {
 static void
 createSessionCallback(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, void *response) {
-    UA_LOCK(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     UA_CreateSessionResponse *sessionResponse = (UA_CreateSessionResponse*)response;
     UA_StatusCode res = sessionResponse->responseHeader.serviceResult;
@@ -1258,8 +1248,6 @@ createSessionCallback(UA_Client *client, void *userdata,
     client->connectStatus = res;
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         client->sessionState = UA_SESSIONSTATE_CLOSED;
-
-    UA_UNLOCK(&client->clientMutex);
 }
 
 static UA_StatusCode
