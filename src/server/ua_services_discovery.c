@@ -617,12 +617,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             return;
         }
 
-        if(dm->registerServerCallback) {
-            UA_UNLOCK(&server->serviceMutex);
-            dm->registerServerCallback(requestServer,
-                                       dm->registerServerCallbackData);
-            UA_LOCK(&server->serviceMutex);
-        }
+        if(dm->registerServerCallback)
+            dm->registerServerCallback(requestServer, dm->registerServerCallbackData);
 
         // server found, remove from list
         LIST_REMOVE(registeredServer_entry, pointers);
@@ -657,12 +653,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     // Previously we only called it if it was a new register call. It may be the case that this endpoint
     // registered before, then crashed, restarts and registeres again. In that case the entry is not deleted
     // and the callback would not be called.
-    if(dm->registerServerCallback) {
-        UA_UNLOCK(&server->serviceMutex);
-        dm->registerServerCallback(requestServer,
-                                   dm->registerServerCallbackData);
-        UA_LOCK(&server->serviceMutex);
-    }
+    if(dm->registerServerCallback)
+        dm->registerServerCallback(requestServer, dm->registerServerCallbackData);
 
     // copy the data from the request into the list
     UA_RegisteredServer_copy(requestServer, &registeredServer_entry->registeredServer);
