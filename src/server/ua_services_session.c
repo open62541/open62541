@@ -48,11 +48,9 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
 
     /* Callback into userland access control */
     if(server->config.accessControl.closeSession) {
-        UA_UNLOCK(&server->serviceMutex);
         server->config.accessControl.
             closeSession(server, &server->config.accessControl,
                          &session->sessionId, session->sessionHandle);
-        UA_LOCK(&server->serviceMutex);
     }
 
     /* Detach the Session from the SecureChannel */
@@ -576,10 +574,7 @@ decryptUserToken(UA_Server *server, UA_Session *session,
      * TODO: We should not need a ChannelContext at all for asymmetric
      * decryption where the remote certificate is not used. */
     void *tempChannelContext = NULL;
-    UA_UNLOCK(&server->serviceMutex);
-    UA_StatusCode res =
-        sp->channelModule.newContext(sp, &sp->localCertificate, &tempChannelContext);
-    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = sp->channelModule.newContext(sp, &sp->localCertificate, &tempChannelContext);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Failed to create a "
@@ -644,9 +639,7 @@ decryptUserToken(UA_Server *server, UA_Session *session,
     UA_ByteString_clear(&secret);
 
     /* Remove the temporary channel context */
-    UA_UNLOCK(&server->serviceMutex);
     sp->channelModule.deleteContext(tempChannelContext);
-    UA_LOCK(&server->serviceMutex);
 
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
@@ -668,10 +661,7 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
     /* We need a channel context with the user certificate in order to reuse
      * the signature checking code. */
     void *tempChannelContext;
-    UA_UNLOCK(&server->serviceMutex);
-    UA_StatusCode res = sp->channelModule.
-        newContext(sp, &token->certificateData, &tempChannelContext);
-    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = sp->channelModule. newContext(sp, &token->certificateData, &tempChannelContext);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Failed to create a context "
@@ -691,9 +681,7 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
     }
 
     /* Delete the temporary channel context */
-    UA_UNLOCK(&server->serviceMutex);
     sp->channelModule.deleteContext(tempChannelContext);
-    UA_LOCK(&server->serviceMutex);
     return res;
 }
 #endif
@@ -806,12 +794,10 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 #endif
 
     /* Callback into userland access control */
-    UA_UNLOCK(&server->serviceMutex);
     resp->responseHeader.serviceResult = server->config.accessControl.
         activateSession(server, &server->config.accessControl, ed,
                         &channel->remoteCertificate, &session->sessionId,
                         &req->userIdentityToken, &session->sessionHandle);
-    UA_LOCK(&server->serviceMutex);
     if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: The AccessControl "
