@@ -387,9 +387,7 @@ UA_Server_init(UA_Server *server) {
     UA_CHECK_STATUS(res, goto cleanup);
 
 #ifdef UA_ENABLE_NODESET_INJECTOR
-    UA_UNLOCK(&server->serviceMutex);
     res = UA_Server_injectNodesets(server);
-    UA_LOCK(&server->serviceMutex);
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
@@ -544,19 +542,16 @@ UA_Server_updateCertificate(UA_Server *server,
     UA_CHECK(server && oldCertificate && newCertificate && newPrivateKey,
              return UA_STATUSCODE_BADINTERNALERROR);
 
+    UA_LOCK(&server->serviceMutex);
+
     if(closeSessions) {
         session_list_entry *current;
         LIST_FOREACH(current, &server->sessions, pointers) {
             UA_SessionHeader *header = &current->session.header;
-            if(UA_ByteString_equal(oldCertificate,
-                                    &header->channel->securityPolicy->localCertificate)) {
-                UA_LOCK(&server->serviceMutex);
+            if(UA_ByteString_equal(oldCertificate, &header->channel->securityPolicy->localCertificate))
                 UA_Server_removeSessionByToken(server, &header->authenticationToken,
                                                UA_SHUTDOWNREASON_CLOSE);
-                UA_UNLOCK(&server->serviceMutex);
-            }
         }
-
     }
 
     /* Gracefully close all SecureChannels. And restart the
@@ -571,6 +566,7 @@ UA_Server_updateCertificate(UA_Server *server,
     }
 
     size_t i = 0;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     while(i < server->config.endpointsSize) {
         UA_EndpointDescription *ed = &server->config.endpoints[i];
         if(UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
@@ -578,13 +574,18 @@ UA_Server_updateCertificate(UA_Server *server,
             UA_String_copy(newCertificate, &ed->serverCertificate);
             UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
                             &server->config.endpoints[i].securityPolicyUri);
-            UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+            if(!sp) {
+                res = UA_STATUSCODE_BADINTERNALERROR;
+                break;
+            }
             sp->updateCertificateAndPrivateKey(sp, *newCertificate, *newPrivateKey);
         }
         i++;
     }
 
-    return UA_STATUSCODE_GOOD;
+    UA_UNLOCK(&server->serviceMutex);
+
+    return res;
 }
 
 /***************************/
@@ -651,15 +652,11 @@ UA_Server_getStatistics(UA_Server *server) {
 void
 setServerLifecycleState(UA_Server *server, UA_LifecycleState state) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
     if(server->state == state)
         return;
     server->state = state;
-    if(server->config.notifyLifecycleState) {
-        UA_UNLOCK(&server->serviceMutex);
+    if(server->config.notifyLifecycleState)
         server->config.notifyLifecycleState(server, server->state);
-        UA_LOCK(&server->serviceMutex);
-    }
 }
 
 UA_LifecycleState
@@ -891,9 +888,7 @@ UA_Server_run_shutdown(UA_Server *server) {
     UA_EventLoop *el = server->config.eventLoop;
     while(!testStoppedCondition(server) &&
           res == UA_STATUSCODE_GOOD) {
-        UA_UNLOCK(&server->serviceMutex);
         res = el->run(el, 100);
-        UA_LOCK(&server->serviceMutex);
     }
 
     /* Stop the EventLoop. Iterate until stopped. */
@@ -901,9 +896,7 @@ UA_Server_run_shutdown(UA_Server *server) {
     while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
           el->state != UA_EVENTLOOPSTATE_FRESH &&
           res == UA_STATUSCODE_GOOD) {
-        UA_UNLOCK(&server->serviceMutex);
         res = el->run(el, 100);
-        UA_LOCK(&server->serviceMutex);
     }
 
     /* Set server lifecycle state to stopped if not already the case */
