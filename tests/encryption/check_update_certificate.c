@@ -15,10 +15,10 @@
 #include "test_helpers.h"
 #include "certificates.h"
 
-#ifdef __linux__
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 #include "mp_printf.h"
-#include <linux/limits.h>
-#endif
+#define TEST_PATH_MAX 256
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 UA_Server *server;
 
@@ -37,7 +37,7 @@ static void setup(void) {
     ck_assert(server != NULL);
 }
 
-#ifdef __linux__ /* Linux only so far */
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 static void setup2(void) {
     /* Load certificate and private key */
     UA_ByteString certificate;
@@ -48,9 +48,9 @@ static void setup2(void) {
     privateKey.length = KEY_DER_LENGTH;
     privateKey.data = KEY_DER_DATA;
 
-    char storePathDir[PATH_MAX];
-    getcwd(storePathDir, PATH_MAX - 4);
-    mp_snprintf(storePathDir, PATH_MAX, "%s/pki", storePathDir);
+    char storePathDir[TEST_PATH_MAX];
+    getcwd(storePathDir, TEST_PATH_MAX - 4);
+    mp_snprintf(storePathDir, TEST_PATH_MAX, "%s/pki", storePathDir);
 
     const UA_String storePath = UA_STRING(storePathDir);
     server =
@@ -58,7 +58,7 @@ static void setup2(void) {
                                                                &privateKey, storePath);
     ck_assert(server != NULL);
 }
-#endif
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 static void teardown(void) {
     UA_Server_delete(server);
@@ -156,16 +156,16 @@ static Suite* testSuite_create_certificate(void) {
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
 
-#ifdef __linux__ /* Linux only so far */
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
     TCase *tc_cert_filestore = tcase_create("Update Certificate Filestore");
     tcase_add_checked_fixture(tc_cert_filestore, setup2, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert_filestore, update_certificate);
-    tcase_add_test(tc_cert, update_certificate_wrongKey);
-    tcase_add_test(tc_cert, update_certificate_noKey);
+    tcase_add_test(tc_cert_filestore, update_certificate_wrongKey);
+    tcase_add_test(tc_cert_filestore, update_certificate_noKey);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert_filestore);
-#endif
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
     return s;
 }
