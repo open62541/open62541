@@ -72,9 +72,7 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
 
     /* Run once after creation. The Publish callback itself takes the server
      * mutex. So we release it first. */
-    UA_UNLOCK(&server->serviceMutex);
     UA_WriterGroup_publishCallback(server, wg);
-    UA_LOCK(&server->serviceMutex);
     return retval;
 }
 
@@ -1255,6 +1253,7 @@ sampleOffsetPublishingValues(UA_Server *server, UA_WriterGroup *wg) {
 static void
 publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
                    UA_PubSubConnection *connection) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_assert(writerGroup->configurationFrozen);
 
     /* Fixed size but no direct value access. Sample to get recent values into
@@ -1360,6 +1359,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_assert(writerGroup != NULL);
     UA_assert(server != NULL);
 
+    UA_LOCK(&server->serviceMutex);
+
     UA_LOG_DEBUG_WRITERGROUP(server->config.logging, writerGroup, "Publish Callback");
 
     /* Find the connection associated with the writer */
@@ -1367,7 +1368,6 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     if(!connection) {
         UA_LOG_ERROR_WRITERGROUP(server->config.logging, writerGroup,
                                  "Publish failed. PubSubConnection invalid");
-        UA_LOCK(&server->serviceMutex);
         UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_ERROR,
                                       UA_STATUSCODE_BADNOTCONNECTED);
         UA_UNLOCK(&server->serviceMutex);
@@ -1377,10 +1377,9 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     /* Realtime path - update the buffer message and send directly */
     if(writerGroup->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
         publishWithOffsets(server, writerGroup, connection);
+        UA_UNLOCK(&server->serviceMutex);
         return;
     }
-
-    UA_LOCK(&server->serviceMutex);
 
     /* Nothing to do? */
     if(writerGroup->writersCount == 0) {

@@ -593,12 +593,13 @@ cleanup:
                      UA_StatusCode_name(retval));
     }
     /* call user callback to notify about the status */
-    UA_UNLOCK(&server->serviceMutex);
     if(ks->sksConfig.userNotifyCallback)
         ks->sksConfig.userNotifyCallback(server, retval, ks->sksConfig.context);
     ks->sksConfig.reqId = 0;
     UA_Client_disconnectAsync(client);
     addDelayedSksClientCleanupCb(client, ctx);
+
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 static UA_StatusCode
