@@ -5,6 +5,9 @@
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
+#ifndef UA_FILESTORE_COMMON_H_
+#define UA_FILESTORE_COMMON_H_
+
 #include <open62541/util.h>
 
 #ifdef UA_ENABLE_ENCRYPTION
@@ -110,3 +113,5 @@ writeByteStringToFile(const char *const path,
 #endif /* __linux__ || UA_ARCHITECTURE_WIN32 */
 
 #endif /* UA_ENABLE_ENCRYPTION */
+
+#endif /* UA_FILESTORE_COMMON_H_ */
