@@ -21,7 +21,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/stat.h>
-#include "dirent.h"
+#include "tr_dirent.h"
 
 _UA_BEGIN_DECLS
 char *
