@@ -810,7 +810,7 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.h)
 
 if(UA_ENABLE_ENCRYPTION AND UA_ARCHITECTURE_WIN32)
-    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/dirent.h)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/tr_dirent.h)
 endif()
 
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
