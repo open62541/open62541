@@ -18,29 +18,6 @@
 #include "ua_pubsub_keystorage.h"
 #endif
 
-#define MALLOCMEMBUFSIZE 256
-
-typedef struct {
-    size_t pos;
-    char buf[MALLOCMEMBUFSIZE];
-} MembufCalloc;
-
-static void *
-membufCalloc(void *context,
-             size_t nelem, size_t elsize) {
-    if(nelem > MALLOCMEMBUFSIZE || elsize > MALLOCMEMBUFSIZE)
-        return NULL;
-    size_t total = nelem * elsize;
-
-    MembufCalloc *mc = (MembufCalloc*)context;
-    if(mc->pos + total > MALLOCMEMBUFSIZE)
-        return NULL;
-    void *mem = mc->buf + mc->pos;
-    mc->pos += total;
-    memset(mem, 0, total);
-    return mem;
-}
-
 UA_ReaderGroup *
 UA_ReaderGroup_find(UA_PubSubManager *psm, const UA_NodeId id) {
     if(!psm)
@@ -313,24 +290,12 @@ UA_ReaderGroup_freezeConfiguration(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
         }
     }
 
-    /* Reset the OffsetBuffer. The OffsetBuffer for a frozen configuration is
-     * generated when the first message is received. So we know the exact
-     * settings which headers are present, etc. Until then the ReaderGroup is
-     * "PreOperational". */
-    UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage);
     return UA_STATUSCODE_GOOD;
 }
 
 static void
 UA_ReaderGroup_unfreezeConfiguration(UA_ReaderGroup *rg) {
-    if(!rg->configurationFrozen)
-        return;
     rg->configurationFrozen = false;
-
-    UA_DataSetReader *dataSetReader;
-    LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
-        UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage);
-    }
 }
 
 UA_StatusCode
@@ -555,79 +520,6 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                                          &nm->payload.dataSetPayload.dataSetMessages[i]);
             }
         }
-    }
-
-    return processed;
-}
-
-UA_Boolean
-UA_ReaderGroup_decodeAndProcessRT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
-                                  UA_ByteString buf) {
-    /* Received a (first) message for the ReaderGroup.
-     * Transition from PreOperational to Operational. */
-    rg->hasReceived = true;
-    if(rg->head.state == UA_PUBSUBSTATE_PREOPERATIONAL)
-        UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
-
-    /* Set up the decoding context */
-    Ctx ctx;
-    ctx.pos = buf.data;
-    ctx.end = buf.data + buf.length;
-    ctx.depth = 0;
-    memset(&ctx.opts, 0, sizeof(UA_DecodeBinaryOptions));
-    ctx.opts.customTypes = psm->sc.server->config.customDataTypes;
-
-    UA_Boolean processed = false;
-    UA_NetworkMessage currentNetworkMessage;
-    memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
-
-    /* Set the arena-based calloc for realtime processing. This is because the
-     * header can (in theory) contain PromotedFields that require
-     * heap-allocation.
-     *
-     * The arena is stack-allocated and rather small. So this method is
-     * reentrant. Typically the arena-based calloc is not used at all for the
-     * "static" network message headers encountered in an RT context. */
-    MembufCalloc mc;
-    mc.pos = 0;
-    ctx.opts.callocContext = &mc;
-    ctx.opts.calloc = membufCalloc;
-
-    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(&ctx, &currentNetworkMessage);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, rg,
-                              "PubSub receive. decoding headers failed");
-        return false;
-    }
-
-    /* Decrypt the message. Keep pos right after the header. */
-    rv = verifyAndDecryptNetworkMessage(psm->logging, buf, &ctx,
-                                        &currentNetworkMessage, rg);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, rg, "Subscribe failed. "
-                              "Verify and decrypt network message failed.");
-        return false;
-    }
-
-    /* Process the message for each reader */
-    UA_DataSetReader *dsr;
-    LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        /* Check if the reader is enabled */
-        if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
-           dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
-            continue;
-
-        /* Check the identifier */
-        rv = UA_DataSetReader_checkIdentifier(psm, dsr, &currentNetworkMessage);
-        if(rv != UA_STATUSCODE_GOOD) {
-            UA_LOG_DEBUG_PUBSUB(psm->logging, dsr,
-                                "PubSub receive. Message intended for a different reader.");
-            continue;
-        }
-
-        /* Process the message */
-        UA_DataSetReader_decodeAndProcessRT(psm, dsr, buf);
-        processed = true;
     }
 
     return processed;
@@ -887,13 +779,6 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
                               "Received a messaage for a non-operational ReaderGroup");
-        UA_UNLOCK(&server->serviceMutex);
-        return;
-    }
-
-    /* ReaderGroup with realtime processing */
-    if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
-        UA_ReaderGroup_decodeAndProcessRT(psm, rg, msg);
         UA_UNLOCK(&server->serviceMutex);
         return;
     }

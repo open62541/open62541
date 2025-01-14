@@ -280,29 +280,17 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
     UA_LOG_TRACE_PUBSUB(psm->logging, c, "Processing a received buffer");
 
     /* Process RT ReaderGroups */
-    UA_ReaderGroup *rg;
     UA_Boolean processed = false;
-    UA_ReaderGroup *nonRtRg = NULL;
-    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-        if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
-           rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
-            continue;
-        if(!(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE)) {
-            nonRtRg = rg;
-            continue;
-        } 
-        processed |= UA_ReaderGroup_decodeAndProcessRT(psm, rg, msg);
-    }
-
-    /* Any non-RT ReaderGroups? */
-    if(!nonRtRg)
+    UA_ReaderGroup *rg = LIST_FIRST(&c->readerGroups);
+    /* Any interested ReaderGroups? */
+    if(!rg)
         goto finish;
 
     /* Decode the received message for the non-RT ReaderGroups */
     UA_StatusCode res;
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
-    if(nonRtRg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+    if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
         res = UA_PubSubConnection_decodeNetworkMessage(psm, c, msg, &nm);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
@@ -325,8 +313,6 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
         if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
            rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
-            continue;
-        if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE)
             continue;
         processed |= UA_ReaderGroup_process(psm, rg, &nm);
     }
