@@ -918,26 +918,24 @@ cleanup:
 }
 
 static UA_Boolean
-increaseOffsetArray(UA_NetworkMessageOffsetBuffer *offsetBuffer) {
-    UA_NetworkMessageOffset *tmpOffsets = (UA_NetworkMessageOffset *)
-        UA_realloc(offsetBuffer->offsets,
-                   sizeof(UA_NetworkMessageOffset) *
-                   (offsetBuffer->offsetsSize + (size_t)1));
+incrOffsetTable(UA_PubSubOffsetTable *ot) {
+    UA_PubSubOffset *tmpOffsets = (UA_PubSubOffset *)
+        UA_realloc(ot->offsets, sizeof(UA_PubSubOffset) * (ot->offsetsSize + 1));
     UA_CHECK_MEM(tmpOffsets, return false);
-    memset(&tmpOffsets[offsetBuffer->offsetsSize], 0, sizeof(UA_NetworkMessageOffset));
-    offsetBuffer->offsets = tmpOffsets;
-    offsetBuffer->offsetsSize++;
+    memset(&tmpOffsets[ot->offsetsSize], 0, sizeof(UA_PubSubOffset));
+    ot->offsets = tmpOffsets;
+    ot->offsetsSize++;
     return true;
 }
 
 size_t
 UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage *p) {
-    return UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(p, NULL);
+    return UA_NetworkMessage_calcSizeBinaryWithOffsetTable(p, NULL);
 }
 
 size_t
-UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
-    const UA_NetworkMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer) {
+UA_NetworkMessage_calcSizeBinaryWithOffsetTable(const UA_NetworkMessage *p,
+                                                UA_PubSubOffsetTable *ot) {
     size_t size = 1; /* byte */
     if(UA_NetworkMessage_ExtendedFlags1Enabled(p)) {
         size += 1; /* byte */
@@ -946,15 +944,6 @@ UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
     }
 
     if(p->publisherIdEnabled) {
-        if(offsetBuffer) {
-            size_t pos = offsetBuffer->offsetsSize;
-            if(!increaseOffsetArray(offsetBuffer))
-                return 0;
-
-            offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_PUBLISHERID;
-        }
-
         switch(p->publisherId.idType) {
             case UA_PUBLISHERIDTYPE_BYTE:
                 size += 1; /* byte */
@@ -981,26 +970,17 @@ UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
     if(p->groupHeaderEnabled) {
         size += 1; /* byte */
 
-        if(p->groupHeader.writerGroupIdEnabled) {
-            if(offsetBuffer) {
-                size_t pos = offsetBuffer->offsetsSize;
-                if(!increaseOffsetArray(offsetBuffer))
-                    return 0;
-
-                offsetBuffer->offsets[pos].offset = size;
-                offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_WRITERGROUPID;
-            }
+        if(p->groupHeader.writerGroupIdEnabled)
             size += 2; /* UA_UInt16_calcSizeBinary(&p->groupHeader.writerGroupId) */
-        }
 
         if(p->groupHeader.groupVersionEnabled) {
-            if(offsetBuffer) {
-                size_t pos = offsetBuffer->offsetsSize;
-                if(!increaseOffsetArray(offsetBuffer))
+            if(ot) {
+                size_t pos = ot->offsetsSize;
+                if(!incrOffsetTable(ot))
                     return 0;
-                offsetBuffer->offsets[pos].offset = size;
-                offsetBuffer->offsets[pos].contentType =
-                    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_GROUPVERSION;
+                ot->offsets[pos].offset = size;
+                ot->offsets[pos].offsetType =
+                    UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_GROUPVERSION;
             }
             size += 4; /* UA_UInt32_calcSizeBinary(&p->groupHeader.groupVersion) */
         }
@@ -1010,15 +990,13 @@ UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
         }
 
         if(p->groupHeader.sequenceNumberEnabled){
-            if(offsetBuffer){
-                size_t pos = offsetBuffer->offsetsSize;
-                if(!increaseOffsetArray(offsetBuffer))
+            if(ot){
+                size_t pos = ot->offsetsSize;
+                if(!incrOffsetTable(ot))
                     return 0;
-                offsetBuffer->offsets[pos].offset = size;
-                offsetBuffer->offsets[pos].content.sequenceNumber =
-                    p->groupHeader.sequenceNumber;
-                offsetBuffer->offsets[pos].contentType =
-                    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER;
+                ot->offsets[pos].offset = size;
+                ot->offsets[pos].offsetType =
+                    UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER;
             }
             size += 2; /* UA_UInt16_calcSizeBinary(&p->groupHeader.sequenceNumber) */
         }
@@ -1029,34 +1007,27 @@ UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
         if(p->networkMessageType != UA_NETWORKMESSAGE_DATASET)
             return 0; /* not implemented */
         size += 1; /* p->payloadHeader.dataSetPayloadHeader.count */
-        if(offsetBuffer) {
-            size_t pos = offsetBuffer->offsetsSize;
-            if(!increaseOffsetArray(offsetBuffer))
-                return 0;
-            offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_DATASETWRITERID;
-        }
         size += (size_t)(2LU * p->payload.dataSetPayload.dataSetMessagesSize); /* uint16 */
     }
 
     if(p->timestampEnabled) {
-        if(offsetBuffer){
-            size_t pos = offsetBuffer->offsetsSize;
-            if(!increaseOffsetArray(offsetBuffer))
+        if(ot) {
+            size_t pos = ot->offsetsSize;
+            if(!incrOffsetTable(ot))
                 return 0;
-            offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_TIMESTAMP;
+            ot->offsets[pos].offset = size;
+            ot->offsets[pos].offsetType = UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_TIMESTAMP;
         }
         size += 8; /* UA_DateTime_calcSizeBinary(&p->timestamp) */
     }
 
     if(p->picosecondsEnabled){
-        if(offsetBuffer) {
-            size_t pos = offsetBuffer->offsetsSize;
-            if(!increaseOffsetArray(offsetBuffer))
+        if(ot) {
+            size_t pos = ot->offsetsSize;
+            if(!incrOffsetTable(ot))
                 return 0;
-            offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_PICOSECONDS;
+            ot->offsets[pos].offset = size;
+            ot->offsets[pos].offsetType = UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_PICOSECONDS;
         }
         size += 2; /* UA_UInt16_calcSizeBinary(&p->picoseconds) */
     }
@@ -1084,18 +1055,10 @@ UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
     if(p->payloadHeaderEnabled && count > 1)
         size += (size_t)(2LU * count); /* DataSetMessagesSize (uint16) */
     for(size_t i = 0; i < count; i++) {
-        if(offsetBuffer) {
-            size_t pos = offsetBuffer->offsetsSize;
-            if(!increaseOffsetArray(offsetBuffer))
-                return 0;
-            offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE;
-        }
-
         /* size = ... as the original size is used as the starting point in
          * UA_DataSetMessage_calcSizeBinary */
         UA_DataSetMessage *dsm = &p->payload.dataSetPayload.dataSetMessages[i];
-        size = UA_DataSetMessage_calcSizeBinary(dsm, offsetBuffer, size);
+        size = UA_DataSetMessage_calcSizeBinary(dsm, ot, size);
     }
 
     if(p->securityEnabled && p->securityHeader.securityFooterEnabled)
@@ -1624,21 +1587,14 @@ UA_DataSetMessage_decodeBinary(Ctx *ctx, UA_DataSetMessage *dst, UA_UInt16 dsmSi
 }
 
 size_t
-UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
-                                 UA_NetworkMessageOffsetBuffer *offsetBuffer,
-                                 size_t currentOffset) {
-    size_t size = currentOffset;
-
-    if(offsetBuffer) {
-        size_t pos = offsetBuffer->offsetsSize;
-        if(!increaseOffsetArray(offsetBuffer))
+UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p, UA_PubSubOffsetTable *ot,
+                                 size_t size) {
+    if(ot) {
+        size_t pos = ot->offsetsSize;
+        if(!incrOffsetTable(ot))
             return 0;
-        offsetBuffer->offsets[pos].offset = size;
-        UA_DataValue_init(&offsetBuffer->offsets[pos].content.value);
-        UA_Variant_setScalar(&offsetBuffer->offsets[pos].content.value.value,
-                             &p->header.fieldEncoding, &UA_TYPES[UA_TYPES_UINT32]);
-        offsetBuffer->offsets[pos].contentType =
-            UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING;
+        ot->offsets[pos].offset = size;
+        ot->offsets[pos].offsetType = UA_PUBSUBOFFSETTYPE_DATASETMESSAGE;
     }
 
     size += 1; /* byte: DataSetMessage Type + Flags */
@@ -1646,51 +1602,45 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
         size += 1; /* byte */
 
     if(p->header.dataSetMessageSequenceNrEnabled) {
-        if(offsetBuffer) {
-            size_t pos = offsetBuffer->offsetsSize;
-            if(!increaseOffsetArray(offsetBuffer))
+        if(ot) {
+            size_t pos = ot->offsetsSize;
+            if(!incrOffsetTable(ot))
                 return 0;
-            offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].content.sequenceNumber =
-                p->header.dataSetMessageSequenceNr;
-            offsetBuffer->offsets[pos].contentType =
-                UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER;
+            ot->offsets[pos].offset = size;
+            ot->offsets[pos].offsetType = UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER;
         }
         size += 2; /* UA_UInt16_calcSizeBinary(&p->header.dataSetMessageSequenceNr) */
     }
 
     if(p->header.timestampEnabled) {
-        if(offsetBuffer) {
-            size_t pos = offsetBuffer->offsetsSize;
-            if(!increaseOffsetArray(offsetBuffer))
+        if(ot) {
+            size_t pos = ot->offsetsSize;
+            if(!incrOffsetTable(ot))
                 return 0;
-            offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].contentType =
-                UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_TIMESTAMP;
+            ot->offsets[pos].offset = size;
+            ot->offsets[pos].offsetType = UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_TIMESTAMP;
         }
         size += 8; /* UA_DateTime_calcSizeBinary(&p->header.timestamp) */
     }
 
     if(p->header.picoSecondsIncluded) {
-        if(offsetBuffer) {
-            size_t pos = offsetBuffer->offsetsSize;
-            if(!increaseOffsetArray(offsetBuffer))
+        if(ot) {
+            size_t pos = ot->offsetsSize;
+            if(!incrOffsetTable(ot))
                 return 0;
-            offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].contentType =
-                UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_PICOSECONDS;
+            ot->offsets[pos].offset = size;
+            ot->offsets[pos].offsetType = UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_PICOSECONDS;
         }
         size += 2; /* UA_UInt16_calcSizeBinary(&p->header.picoSeconds) */
     }
 
     if(p->header.statusEnabled) {
-        if(offsetBuffer) {
-            size_t pos = offsetBuffer->offsetsSize;
-            if(!increaseOffsetArray(offsetBuffer))
+        if(ot) {
+            size_t pos = ot->offsetsSize;
+            if(!incrOffsetTable(ot))
                 return 0;
-            offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].contentType =
-                UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_STATUS;
+            ot->offsets[pos].offset = size;
+            ot->offsets[pos].offsetType = UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_STATUS;
         }
         size += 2; /* UA_UInt16_calcSizeBinary(&p->header.status) */
     }
@@ -1712,37 +1662,35 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
             size += 2; /* p->data.keyFrameData.fieldCount */
 
         for(UA_UInt16 i = 0; i < p->data.keyFrameData.fieldCount; i++){
-            UA_NetworkMessageOffset *nmo = NULL;
+            UA_PubSubOffset *offset = NULL;
             const UA_DataValue *v = &p->data.keyFrameData.dataSetFields[i];
-            if(offsetBuffer) {
-                size_t pos = offsetBuffer->offsetsSize;
-                if(!increaseOffsetArray(offsetBuffer))
+            if(ot) {
+                size_t pos = ot->offsetsSize;
+                if(!incrOffsetTable(ot))
                     return 0;
-                nmo = &offsetBuffer->offsets[pos];
-                nmo->offset = size;
+                offset = &ot->offsets[pos];
+                offset->offset = size;
             }
 
             if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
-                if(offsetBuffer)
-                    nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT;
+                if(ot)
+                    offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT;
                 size += UA_calcSizeBinary(&v->value, &UA_TYPES[UA_TYPES_VARIANT], NULL);
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
                 if(p->data.keyFrameData.dataSetFields != NULL) {
-                    if(offsetBuffer) {
+                    if(ot) {
                         if(!v->value.type || !v->value.type->pointerFree)
                             return 0; /* only integer types for now */
                         /* Count the memory size of the specific field */
-                        offsetBuffer->rawMessageLength += v->value.type->memSize;
-                        nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
+                        offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW;
                     }
                     UA_FieldMetaData *fmd =
                         &p->data.keyFrameData.dataSetMetaDataType->fields[i];
 
                     /* For arrays add encoded array length (4 bytes for each dimension) */
                     size += fmd->arrayDimensionsSize * sizeof(UA_UInt32);
-                    if(offsetBuffer) {
-                        nmo->offset += fmd->arrayDimensionsSize * sizeof(UA_UInt32);
-                    }
+                    if(ot)
+                        offset->offset += fmd->arrayDimensionsSize * sizeof(UA_UInt32);
 
                     /* We need to know how many elements there are */
                     size_t elemCnt = 1;
@@ -1765,22 +1713,20 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
                     }
                 } else {
                     /* get length calculated in UA_DataSetMessage_decodeBinary */
-                    if(offsetBuffer) {
-                        offsetBuffer->rawMessageLength = p->data.keyFrameData.rawFields.length;
-                        nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
-                    }
+                    if(ot)
+                        offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW;
                     size += p->data.keyFrameData.rawFields.length;
                     /* no iteration needed */
                     break;
                 }
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
-                if(offsetBuffer)
-                    nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE;
+                if(ot)
+                    offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE;
                 size += UA_calcSizeBinary(v, &UA_TYPES[UA_TYPES_DATAVALUE], NULL);
             }
         }
     } else if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME) {
-        if(offsetBuffer)
+        if(ot)
             return 0; /* Not supported for RT */
 
         if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA)
@@ -1804,7 +1750,6 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
         /* If the message is larger than the configuredSize, it shall be set to not valid */
         if(p->configuredSize < size) 
             p->header.dataSetMessageValid = UA_FALSE;
-        
         size = p->configuredSize;
     }
     
