@@ -175,7 +175,7 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
        UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, wg,
                               "Cannot add a DataSetWriter while the "
-                              "WriterGroup with realtime options is enabled");
+                              "WriterGroup is enabled");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 

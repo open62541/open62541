@@ -243,9 +243,6 @@ START_TEST(SinglePublishSubscribeDateTime){
                                           &readerGroupIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-        retval = UA_Server_enableAllPubSubComponents(server);
-        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-
         // add DataSetReader
         memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
         readerConfig.name = UA_STRING("DataSet Reader 1");
@@ -260,7 +257,6 @@ START_TEST(SinglePublishSubscribeDateTime){
         retval = UA_Server_addDataSetReader(server, readerGroupIdent, &readerConfig,
                                             &subscribedDataSetIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-
 
         // add SubscribedVariables
         UA_NodeId folderId;
@@ -321,6 +317,9 @@ START_TEST(SinglePublishSubscribeDateTime){
 
         UA_free(targetVars);
         UA_free(readerConfig.dataSetMetaData.fields);
+
+        retval = UA_Server_enableAllPubSubComponents(server);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     } END_TEST
 

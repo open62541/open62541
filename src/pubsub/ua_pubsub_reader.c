@@ -302,7 +302,6 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
     UA_LOG_INFO_PUBSUB(psm->logging, dsr, "DataSetReader deleted");
 
     UA_DataSetReaderConfig_clear(&dsr->config);
-    UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage);
     UA_PubSubComponentHead_clear(&dsr->head);
     UA_free(dsr);
 
@@ -744,74 +743,6 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                "Error writing KeyFrame field %u: %s",
                                (unsigned)i, UA_StatusCode_name(res));
     }
-}
-
-UA_StatusCode
-UA_DataSetReader_prepareOffsetBuffer(Ctx *ctx, UA_DataSetReader *reader,
-                                     UA_ByteString *buf) {
-    UA_NetworkMessage *nm = (UA_NetworkMessage *)
-        UA_calloc(1, sizeof(UA_NetworkMessage));
-    if(!nm)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* Decode using the non-rt decoding */
-    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(ctx, nm);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_NetworkMessage_clear(nm);
-        UA_free(nm);
-        return rv;
-    }
-    rv |= UA_NetworkMessage_decodePayload(ctx, nm);
-    rv |= UA_NetworkMessage_decodeFooters(ctx, nm);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_NetworkMessage_clear(nm);
-        UA_free(nm);
-        return rv;
-    }
-
-    /* Compute and store the offsets necessary to decode */
-    size_t nmSize = UA_NetworkMessage_calcSizeBinaryWithOffsetTable(nm, NULL);
-    if(nmSize == 0) {
-        UA_NetworkMessage_clear(nm);
-        UA_free(nm);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Set the offset buffer in the reader */
-    reader->bufferedMessage.nm = nm;
-    return UA_STATUSCODE_GOOD;
-}
-
-void
-UA_DataSetReader_decodeAndProcessRT(UA_PubSubManager *psm, UA_DataSetReader *dsr,
-                                    UA_ByteString buf) {
-    /* Set up the decoding context */
-    Ctx ctx;
-    ctx.pos = buf.data;
-    ctx.end = buf.data + buf.length;
-    ctx.depth = 0;
-    memset(&ctx.opts, 0, sizeof(UA_DecodeBinaryOptions));
-    ctx.opts.customTypes = psm->sc.server->config.customDataTypes;
-
-    UA_StatusCode rv;
-    if(!dsr->bufferedMessage.nm) {
-        /* This is the first message being received for the RT fastpath.
-         * Prepare the offset buffer. */
-        rv = UA_DataSetReader_prepareOffsetBuffer(&ctx, dsr, &buf);
-    } else {
-        /* Decode with offset information and update the networkMessage */
-        rv = UA_NetworkMessage_updateBufferedNwMessage(&ctx, &dsr->bufferedMessage);
-    }
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
-                              "PubSub decoding failed. Could not decode with "
-                              "status code %s.", UA_StatusCode_name(rv));
-        return;
-    }
-
-    UA_DataSetMessage *dsm =
-        dsr->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages;
-    UA_DataSetReader_process(psm, dsr, dsm);
 }
 
 /**************/
