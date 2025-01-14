@@ -1021,6 +1021,67 @@ UA_Server_setWriterGroupActivateKey(UA_Server *server,
 
 #endif /* UA_ENABLE_PUBSUB_SKS */
 
+/**
+ * Offset Table
+ * ------------
+ * When the content of a PubSub Networkmessage has a fixed length, then only a
+ * few "content bytes" at known locations within the NetworkMessage change
+ * between publish cycles. The so-called offset table exposes this to enable
+ * fast-path implementations for realtime applications. */
+
+typedef enum {
+    UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_GROUPVERSION,   /* UInt32 */
+    UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER, /* UInt16 */
+    UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_TIMESTAMP,      /* DateTime */
+    UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_PICOSECONDS,    /* UInt16 */
+    UA_PUBSUBOFFSETTYPE_DATASETMESSAGE, /* no content, marks the DSM beginning */
+    UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER, /* UInt16 */
+    UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_STATUS,         /* UInt16 */
+    UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_TIMESTAMP,      /* DateTime */
+    UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_PICOSECONDS,    /* UInt16 */
+    UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE,
+    UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT,
+    UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW
+} UA_PubSubOffsetType;
+
+typedef struct {
+    UA_PubSubOffsetType offsetType; /* Content type at the offset */
+    size_t offset;                  /* Offset in the NetworkMessage */
+
+    /* The PubSub component that originates / receives the offset content.
+     * - For NetworkMessage-offsets this is the ReaderGroup / WriterGroup.
+     * - For DataSetMessage-offsets this is DataSetReader / DataSetWriter.
+     * - For DataSetFields this is the NodeId associated with the field:
+     *   - For Writers the NodeId of the DataSetField (in a PublishedDataSet).
+     *   - For Readers the TargetNodeId of the FieldTargetDataType (this can
+     *     come from a SubscribedDataSet or a StandaloneSubscribedDataSets).
+     *     Access more metadata from the FieldTargetVariable by counting the
+     *     index of the current DataSetField-offset within the DataSetMessage
+     *     and use that index for the lookup in the DataSetReader configuration. */
+    UA_NodeId component;
+} UA_PubSubOffset;
+
+typedef struct {
+    UA_PubSubOffset *offsets;      /* Array of offset entries */
+    size_t offsetsSize;            /* Number of entries */
+    UA_ByteString networkMessage;  /* Current NetworkMessage in binary encoding */
+} UA_PubSubOffsetTable;
+
+UA_EXPORT void
+UA_PubSubOffsetTable_clear(UA_PubSubOffsetTable *ot);
+
+/* Compute the offset table for a WriterGroup */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
+                                        const UA_NodeId writerGroupId,
+                                        UA_PubSubOffsetTable *ot);
+
+/* Compute the offset table for a ReaderGroup */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
+                                        const UA_NodeId readerGroupId,
+                                        UA_PubSubOffsetTable *ot);
+
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS
