@@ -1298,10 +1298,9 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String *servername,
 
     /* The first 63 characters of the hostname (or less) */
     size_t maxHostnameLen = UA_MIN(hostnameLen, 63);
-    char localDomain[65];
+    char localDomain[71];
     memcpy(localDomain, hostname->data, maxHostnameLen);
-    localDomain[maxHostnameLen] = '.';
-    localDomain[maxHostnameLen+1] = '\0';
+    strcpy(localDomain + maxHostnameLen, ".local.");
 
     /* [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname]. */
     r = mdnsd_unique(dm->mdnsDaemon, fullServiceDomain,
