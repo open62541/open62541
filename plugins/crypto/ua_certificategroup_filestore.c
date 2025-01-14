@@ -115,7 +115,7 @@ getCertFileName(const char *path, const UA_ByteString *certificate,
 
     UA_String thumbprint = UA_STRING_NULL;
     thumbprint.length = 40;
-    thumbprint.data = (UA_Byte*)UA_malloc(sizeof(UA_Byte)*thumbprint.length);
+    thumbprint.data = (UA_Byte*)UA_calloc(thumbprint.length, sizeof(UA_Byte));
 
     UA_String subjectName = UA_STRING_NULL;
 
@@ -194,7 +194,7 @@ readCertificates(UA_ByteString **list, size_t *listSize, const UA_String path) {
             continue;
         if(numActCerts < numCerts) {
             /* Create filename to load */
-            char filename[UA_PATH_MAX];
+            char filename[UA_PATH_MAX] = {0};
             if(mp_snprintf(filename, UA_PATH_MAX, "%s/%s", listPath, dirent->d_name) < 0) {
                 UA_closedir(dir);
                 return UA_STATUSCODE_BADINTERNALERROR;
@@ -293,7 +293,7 @@ writeCertificates(UA_CertificateGroup *certGroup, const UA_ByteString *list,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < listSize; i++) {
         /* Create filename to load */
-        char filename[UA_PATH_MAX];
+        char filename[UA_PATH_MAX] = {0};
         retval = getCertFileName(listPath, &list[i], filename, UA_PATH_MAX);
         if(retval != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
