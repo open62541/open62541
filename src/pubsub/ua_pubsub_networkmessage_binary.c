@@ -157,8 +157,23 @@ UA_NetworkMessage_updateBufferedNwMessage(Ctx *ctx, UA_NetworkMessageOffsetBuffe
         case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER:
             rv = DECODE_BINARY(&nm->groupHeader.sequenceNumber, UINT16);
             break;
+        case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_TIMESTAMP:
+            rv = DECODE_BINARY(&nm->timestamp, DATETIME);
+            break;
+        case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_PICOSECONDS:
+            rv = DECODE_BINARY(&nm->picoseconds, UINT16);
+            break;
         case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER:
             rv = DECODE_BINARY(&dsm->header.dataSetMessageSequenceNr, UINT16);
+            break;
+        case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_STATUS:
+            rv = DECODE_BINARY(&dsm->header.status, UINT16);
+            break;
+        case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_TIMESTAMP:
+            rv = DECODE_BINARY(&dsm->header.timestamp, DATETIME);
+            break;
+        case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_PICOSECONDS:
+            rv = DECODE_BINARY(&dsm->header.picoSeconds, UINT16);
             break;
         case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE:
             UA_DataValue_clear(&dsm->data.keyFrameData.dataSetFields[payloadCounter]);
@@ -976,8 +991,17 @@ UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
             size += 2; /* UA_UInt16_calcSizeBinary(&p->groupHeader.writerGroupId) */
         }
 
-        if(p->groupHeader.groupVersionEnabled)
+        if(p->groupHeader.groupVersionEnabled) {
+            if(offsetBuffer) {
+                size_t pos = offsetBuffer->offsetsSize;
+                if(!increaseOffsetArray(offsetBuffer))
+                    return 0;
+                offsetBuffer->offsets[pos].offset = size;
+                offsetBuffer->offsets[pos].contentType =
+                    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_GROUPVERSION;
+            }
             size += 4; /* UA_UInt32_calcSizeBinary(&p->groupHeader.groupVersion) */
+        }
 
         if(p->groupHeader.networkMessageNumberEnabled) {
             size += 2; /* UA_UInt16_calcSizeBinary(&p->groupHeader.networkMessageNumber) */
@@ -1019,7 +1043,7 @@ UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
             if(!increaseOffsetArray(offsetBuffer))
                 return 0;
             offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_TIMESTAMP;
+            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_TIMESTAMP;
         }
         size += 8; /* UA_DateTime_calcSizeBinary(&p->timestamp) */
     }
@@ -1030,7 +1054,7 @@ UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
             if(!increaseOffsetArray(offsetBuffer))
                 return 0;
             offsetBuffer->offsets[pos].offset = size;
-            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_TIMESTAMP_PICOSECONDS;
+            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_PICOSECONDS;
         }
         size += 2; /* UA_UInt16_calcSizeBinary(&p->picoseconds) */
     }
@@ -1625,14 +1649,41 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
         size += 2; /* UA_UInt16_calcSizeBinary(&p->header.dataSetMessageSequenceNr) */
     }
 
-    if(p->header.timestampEnabled)
+    if(p->header.timestampEnabled) {
+        if(offsetBuffer) {
+            size_t pos = offsetBuffer->offsetsSize;
+            if(!increaseOffsetArray(offsetBuffer))
+                return 0;
+            offsetBuffer->offsets[pos].offset = size;
+            offsetBuffer->offsets[pos].contentType =
+                UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_TIMESTAMP;
+        }
         size += 8; /* UA_DateTime_calcSizeBinary(&p->header.timestamp) */
+    }
 
-    if(p->header.picoSecondsIncluded)
+    if(p->header.picoSecondsIncluded) {
+        if(offsetBuffer) {
+            size_t pos = offsetBuffer->offsetsSize;
+            if(!increaseOffsetArray(offsetBuffer))
+                return 0;
+            offsetBuffer->offsets[pos].offset = size;
+            offsetBuffer->offsets[pos].contentType =
+                UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_PICOSECONDS;
+        }
         size += 2; /* UA_UInt16_calcSizeBinary(&p->header.picoSeconds) */
+    }
 
-    if(p->header.statusEnabled)
+    if(p->header.statusEnabled) {
+        if(offsetBuffer) {
+            size_t pos = offsetBuffer->offsetsSize;
+            if(!increaseOffsetArray(offsetBuffer))
+                return 0;
+            offsetBuffer->offsets[pos].offset = size;
+            offsetBuffer->offsets[pos].contentType =
+                UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_STATUS;
+        }
         size += 2; /* UA_UInt16_calcSizeBinary(&p->header.status) */
+    }
 
     if(p->header.configVersionMajorVersionEnabled)
         size += 4; /* UA_UInt32_calcSizeBinary(&p->header.configVersionMajorVersion) */
