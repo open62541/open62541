@@ -82,8 +82,8 @@ UA_StatusCode
 UA_NetworkMessage_updateBufferedNwMessage(Ctx *ctx, UA_NetworkMessageOffsetBuffer *buffer);
 
 size_t
-UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
-    const UA_NetworkMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer);
+UA_NetworkMessage_calcSizeBinaryWithOffsetTable(const UA_NetworkMessage *p,
+                                                UA_PubSubOffsetTable *ot);
 
 /**
  * DataSetMessage
@@ -104,8 +104,7 @@ UA_StatusCode
 UA_DataSetMessage_decodeBinary(Ctx *ctx, UA_DataSetMessage *dst, UA_UInt16 dsmSize);
 
 size_t
-UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p,
-                                 UA_NetworkMessageOffsetBuffer *offsetBuffer,
+UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p, UA_PubSubOffsetTable *ot,
                                  size_t currentOffset);
 
 void UA_DataSetMessage_clear(UA_DataSetMessage *p);
