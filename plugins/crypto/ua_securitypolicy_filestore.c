@@ -74,7 +74,7 @@ createCertName(const UA_ByteString *certificate, char *fileNameBuf, size_t fileN
 
     UA_String thumbprint = UA_STRING_NULL;
     thumbprint.length = 40;
-    thumbprint.data = (UA_Byte*)UA_malloc(sizeof(UA_Byte)*thumbprint.length);
+    thumbprint.data = (UA_Byte*)UA_calloc(thumbprint.length, sizeof(UA_Byte));
 
     UA_String subjectName = UA_STRING_NULL;
 
