@@ -1352,6 +1352,10 @@ UA_DataSetMessage_keyFrame_encodeBinary(const UA_DataSetMessage* src, UA_Byte **
     
     for(UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
         const UA_DataValue *v = &src->data.keyFrameData.dataSetFields[i];
+        if(!v->value.type) {
+            rv = UA_STATUSCODE_BADINTERNALERROR;
+            break;
+        }
         
         if(src->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
             rv = UA_Variant_encodeBinary(&v->value, bufPos, bufEnd);
@@ -1664,7 +1668,7 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
                 if(p->data.keyFrameData.dataSetFields != NULL) {
                     if(offsetBuffer) {
-                        if(!v->value.type->pointerFree)
+                        if(!v->value.type || !v->value.type->pointerFree)
                             return 0; /* only integer types for now */
                         /* Count the memory size of the specific field */
                         offsetBuffer->rawMessageLength += v->value.type->memSize;
