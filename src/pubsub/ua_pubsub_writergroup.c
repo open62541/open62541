@@ -1666,4 +1666,184 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
     return res;
 }
 
+UA_StatusCode
+UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
+                                        const UA_NodeId writerGroupId,
+                                        UA_PubSubOffsetTable *ot) {
+    /* Get the Writer Group */
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = (psm) ? UA_WriterGroup_find(psm, writerGroupId) : NULL;
+    if(!wg)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    /* Initialize variables so we can goto cleanup below */
+    memset(ot, 0, sizeof(UA_PubSubOffsetTable));
+
+    UA_NetworkMessage networkMessage;
+    memset(&networkMessage, 0, sizeof(networkMessage));
+
+    UA_NetworkMessageOffsetBuffer oldOffsetTable;
+    memset(&oldOffsetTable, 0, sizeof(UA_NetworkMessageOffsetBuffer));
+
+    /* Validate the DataSetWriters and generate their DataSetMessage */
+    size_t msgSize;
+    size_t dsmCount = 0;
+    UA_DataSetWriter *dsw;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
+    UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
+    memset(dsmStore, 0, sizeof(UA_DataSetMessage) * wg->writersCount);
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
+        res = UA_DataSetWriter_prepareDataSet(psm, dsw, &dsmStore[dsmCount]);
+        dsmCount++;
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Generate the NetworkMessage */
+    res = generateNetworkMessage(wg->linkedConnection, wg, dsmStore, dsWriterIds,
+                                 (UA_Byte) dsmCount, &wg->config.messageSettings,
+                                 &wg->config.transportSettings, &networkMessage);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    /* Compute the message length and generate the old format offset-table (done
+     * inside calcSizeBinary) */
+    msgSize = UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(&networkMessage,
+                                                               &oldOffsetTable);
+    if(msgSize == 0) {
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+    /* Create the encoded network message */
+    res = UA_NetworkMessage_encodeBinary(&networkMessage, &ot->networkMessage);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    /* Allocate memory for the output offset table */
+    ot->offsets = (UA_PubSubOffset*)
+        UA_calloc(oldOffsetTable.offsetsSize, sizeof(UA_PubSubOffset));
+    if(!ot->offsets) {
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
+
+    /* Walk over the (old) offset table and convert to the new schema.
+     * In parallel, pick up the component NodeIds. */
+    dsw = NULL;
+    size_t newo = 0;
+    UA_DataSetField *field = NULL;
+    for(size_t oldo = 0; oldo < oldOffsetTable.offsetsSize; oldo++) {
+        switch(oldOffsetTable.offsets[oldo].contentType) {
+        case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER:
+            ot->offsets[newo].offsetType = UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER;
+            ot->offsets[newo].offset = oldOffsetTable.offsets[oldo].offset;
+            UA_NodeId_copy(&wg->head.identifier, &ot->offsets[newo].component);
+            newo++;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_TIMESTAMP:
+            ot->offsets[newo].offsetType = UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_TIMESTAMP;
+            ot->offsets[newo].offset = oldOffsetTable.offsets[oldo].offset;
+            UA_NodeId_copy(&wg->head.identifier, &ot->offsets[newo].component);
+            newo++;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_PICOSECONDS:
+            ot->offsets[newo].offsetType = UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_PICOSECONDS;
+            ot->offsets[newo].offset = oldOffsetTable.offsets[oldo].offset;
+            UA_NodeId_copy(&wg->head.identifier, &ot->offsets[newo].component);
+            newo++;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_GROUPVERSION:
+            ot->offsets[newo].offsetType = UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_GROUPVERSION;
+            ot->offsets[newo].offset = oldOffsetTable.offsets[oldo].offset;
+            UA_NodeId_copy(&wg->head.identifier, &ot->offsets[newo].component);
+            newo++;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE:
+            dsw = (dsw == NULL) ? LIST_FIRST(&wg->writers) : LIST_NEXT(dsw, listEntry);
+            field = NULL;
+            ot->offsets[newo].offsetType = UA_PUBSUBOFFSETTYPE_DATASETMESSAGE;
+            ot->offsets[newo].offset = oldOffsetTable.offsets[oldo].offset;
+            UA_NodeId_copy(&dsw->head.identifier, &ot->offsets[newo].component);
+            newo++;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER:
+            ot->offsets[newo].offsetType = UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER;
+            ot->offsets[newo].offset = oldOffsetTable.offsets[oldo].offset;
+            UA_NodeId_copy(&dsw->head.identifier, &ot->offsets[newo].component);
+            newo++;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_STATUS:
+            ot->offsets[newo].offsetType = UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_STATUS;
+            ot->offsets[newo].offset = oldOffsetTable.offsets[oldo].offset;
+            UA_NodeId_copy(&dsw->head.identifier, &ot->offsets[newo].component);
+            newo++;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_TIMESTAMP:
+            ot->offsets[newo].offsetType = UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_TIMESTAMP;
+            ot->offsets[newo].offset = oldOffsetTable.offsets[oldo].offset;
+            UA_NodeId_copy(&dsw->head.identifier, &ot->offsets[newo].component);
+            newo++;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_PICOSECONDS:
+            ot->offsets[newo].offsetType = UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_PICOSECONDS;
+            ot->offsets[newo].offset = oldOffsetTable.offsets[oldo].offset;
+            UA_NodeId_copy(&dsw->head.identifier, &ot->offsets[newo].component);
+            newo++;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE:
+        case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE_EXTERNAL:
+            field = (field == NULL) ?
+                TAILQ_FIRST(&dsw->connectedDataSet->fields) : TAILQ_NEXT(field, listEntry);
+            ot->offsets[newo].offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE;
+            ot->offsets[newo].offset = oldOffsetTable.offsets[oldo].offset;
+            UA_NodeId_copy(&field->identifier, &ot->offsets[newo].component);
+            newo++;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT:
+        case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT_EXTERNAL:
+            field = (field == NULL) ?
+                TAILQ_FIRST(&dsw->connectedDataSet->fields) : TAILQ_NEXT(field, listEntry);
+            ot->offsets[newo].offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT;
+            ot->offsets[newo].offset = oldOffsetTable.offsets[oldo].offset;
+            UA_NodeId_copy(&field->identifier, &ot->offsets[newo].component);
+            newo++;
+            break;
+        case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
+        case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW_EXTERNAL:
+            field = (field == NULL) ?
+                TAILQ_FIRST(&dsw->connectedDataSet->fields) : TAILQ_NEXT(field, listEntry);
+            ot->offsets[newo].offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW;
+            ot->offsets[newo].offset = oldOffsetTable.offsets[oldo].offset;
+            UA_NodeId_copy(&field->identifier, &ot->offsets[newo].component);
+            newo++;
+            break;
+        default:
+            break;
+        }
+    }
+
+    ot->offsetsSize = newo;
+
+    /* Clean up */
+ cleanup:
+    UA_NetworkMessageOffsetBuffer_clear(&oldOffsetTable);
+    for(size_t i = 0; i < dsmCount; i++) {
+        UA_DataSetMessage_clear(&dsmStore[i]);
+    }
+    return res;
+}
+
+void
+UA_PubSubOffsetTable_clear(UA_PubSubOffsetTable *ot) {
+    for(size_t i = 0; i < ot->offsetsSize; i++) {
+        UA_NodeId_clear(&ot->offsets[i].component);
+    }
+    UA_ByteString_clear(&ot->networkMessage);
+    UA_free(ot->offsets);
+    memset(ot, 0, sizeof(UA_PubSubOffsetTable));
+}
+
 #endif /* UA_ENABLE_PUBSUB */

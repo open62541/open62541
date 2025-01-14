@@ -277,6 +277,7 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_subscribe_rt_levels.c)
     ua_add_test(pubsub/check_pubsub_multiple_subscribe_rt_levels.c)
 
+    ua_add_test(pubsub/check_pubsub_offset.c)
     if(UA_ARCHITECTURE_POSIX)
         ua_add_test(pubsub/check_pubsub_custom_state_machine.c)
     endif()

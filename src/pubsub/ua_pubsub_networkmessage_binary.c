@@ -195,6 +195,8 @@ UA_NetworkMessage_updateBufferedNwMessage(Ctx *ctx, UA_NetworkMessageOffsetBuffe
             }
             payloadCounter++;
             break;
+        case UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE:
+            break; /* Nothing to do */
         default:
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
@@ -1082,6 +1084,14 @@ UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
     if(p->payloadHeaderEnabled && count > 1)
         size += (size_t)(2LU * count); /* DataSetMessagesSize (uint16) */
     for(size_t i = 0; i < count; i++) {
+        if(offsetBuffer) {
+            size_t pos = offsetBuffer->offsetsSize;
+            if(!increaseOffsetArray(offsetBuffer))
+                return 0;
+            offsetBuffer->offsets[pos].offset = size;
+            offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE;
+        }
+
         /* size = ... as the original size is used as the starting point in
          * UA_DataSetMessage_calcSizeBinary */
         UA_DataSetMessage *dsm = &p->payload.dataSetPayload.dataSetMessages[i];
