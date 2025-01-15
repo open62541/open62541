@@ -90,8 +90,6 @@ AddWriterGroup(UA_NodeId *pConnectionId, char *pName, UA_UInt32 WriterGroupId,
                                            UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
                                            UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
     writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
-    if(UseFastPath)
-        writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
 
     ck_assert(UA_Server_addWriterGroup(server, *pConnectionId,
                                        &writerGroupConfig, opWriterGroupId) == UA_STATUSCODE_GOOD);
@@ -180,9 +178,6 @@ AddReaderGroup(UA_NodeId *pConnectionId, char *pName, UA_NodeId *opReaderGroupId
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING(pName);
-    if (UseFastPath) {
-        readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
-    }
     ck_assert(UA_Server_addReaderGroup(server, *pConnectionId, &readerGroupConfig,
                                        opReaderGroupId) == UA_STATUSCODE_GOOD);
 }

@@ -96,7 +96,6 @@ START_TEST(PublisherOffsets) {
     writerGroupConfig.publishingInterval = PUBSUB_CONFIG_PUBLISH_CYCLE_MS;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
 
     /* Change message settings of writerGroup to send PublisherId, WriterGroupId
      * in GroupHeader and DataSetWriterId in PayloadHeader of NetworkMessage */
@@ -200,7 +199,6 @@ addReaderGroup(UA_Server *server) {
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
-    readerGroupConfig.rtLevel = UA_PUBSUB_RT_DETERMINISTIC;
     UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                              &readerGroupIdentifier);
 }

@@ -133,8 +133,7 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     if(!rg)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(rg->config.rtLevel != UA_PUBSUB_RT_NONE &&
-       UA_PubSubState_isEnabled(rg->head.state)) {
+    if(UA_PubSubState_isEnabled(rg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
                               "Cannot add a DataSetReader while the "
                               "ReaderGroup with realtime options is enabled");
@@ -270,8 +269,7 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
     /* Check if the ReaderGroup is enabled with realtime options. Disallow
      * removal in that case. The RT path might still have a pointer to the
      * DataSetReader. Or we violate the fixed-size-message configuration.*/
-    if(rg->config.rtLevel != UA_PUBSUB_RT_NONE &&
-       UA_PubSubState_isEnabled(rg->head.state)) {
+    if(UA_PubSubState_isEnabled(rg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "Removal of DataSetReader not possible while "
                               "the ReaderGroup with realtime options is enabled");
