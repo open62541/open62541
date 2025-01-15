@@ -201,8 +201,8 @@ START_TEST(CreateLockAndEditConfiguration) {
                              folderBrowseName, UA_NODEID_NUMERIC (0,
                              UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
-    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
-        UA_calloc(dataSetReaderConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
+    UA_FieldTargetDataType *targetVars = (UA_FieldTargetDataType *)
+        UA_calloc(dataSetReaderConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetDataType));
     for(size_t i = 0; i < dataSetReaderConfig.dataSetMetaData.fieldsSize; i++) {
         /* Variable to subscribe data */
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -219,9 +219,8 @@ START_TEST(CreateLockAndEditConfiguration) {
                                             UA_QUALIFIEDNAME(1, (char *)dataSetReaderConfig.dataSetMetaData.fields[i].name.data),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                             vAttr, NULL, &newNode);
-        UA_FieldTargetDataType_init(&targetVars[i].targetVariable);
-        targetVars[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVars[i].targetVariable.targetNodeId = newNode;
+        targetVars[i].attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars[i].targetNodeId = newNode;
     }
 
     retVal = UA_Server_enableDataSetReader(server, dataSetReader1);
@@ -251,9 +250,6 @@ START_TEST(CreateLockAndEditConfiguration) {
                                                            targetVars);
     ck_assert(retVal == UA_STATUSCODE_GOOD);
     retVal = UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader2);
-    for(size_t i = 0; i < dataSetReaderConfig.dataSetMetaData.fieldsSize; i++)
-        UA_FieldTargetDataType_clear(&targetVars[i].targetVariable);
-
     UA_free(targetVars);
     UA_free(dataSetReaderConfig.dataSetMetaData.fields);
     ck_assert(retVal == UA_STATUSCODE_GOOD);

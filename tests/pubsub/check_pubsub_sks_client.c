@@ -430,8 +430,8 @@ addSubscriber(UA_Server *server) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);    
-    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)UA_calloc(
-        readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
+    UA_FieldTargetDataType *targetVars = (UA_FieldTargetDataType*)
+        UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetDataType));
     /* Variable to subscribe data */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     UA_LocalizedText_copy(&readerConfig.dataSetMetaData.fields->description,
@@ -447,14 +447,12 @@ addSubscriber(UA_Server *server) {
         UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields->name.data),
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newNode);
 
-    /* For creating Targetvariables */
-    UA_FieldTargetDataType_init(&targetVars->targetVariable);
-    targetVars->targetVariable.attributeId = UA_ATTRIBUTEID_VALUE;
-    targetVars->targetVariable.targetNodeId = newNode;
+    targetVars->attributeId = UA_ATTRIBUTEID_VALUE;
+    targetVars->targetNodeId = newNode;
 
-    retval = UA_Server_DataSetReader_createTargetVariables(
-        server, readerIdentifier, readerConfig.dataSetMetaData.fieldsSize, targetVars);
-    UA_FieldTargetDataType_clear(&targetVars->targetVariable);
+    retval = UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
+                                                           readerConfig.dataSetMetaData.fieldsSize,
+                                                           targetVars);
 
     UA_free(targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);

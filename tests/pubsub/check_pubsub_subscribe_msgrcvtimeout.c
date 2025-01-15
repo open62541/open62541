@@ -139,7 +139,6 @@ AddPublishedDataSet(UA_NodeId *pWriterGroupId, char *pPublishedDataSetName,
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable = *opPublishedVarId;
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     if (UseFastPath) {
-        dataSetFieldConfig.field.variable.rtValueSource.rtInformationModelNode = UA_TRUE;
         pFastPathPublisherValue = UA_DataValue_new();
         ck_assert(pFastPathPublisherValue != 0);
         UA_Int32 *pPublisherData  = UA_Int32_new();
@@ -260,19 +259,16 @@ AddDataSetReader(UA_NodeId *pReaderGroupId, char *pName, UA_UInt32 PublisherId,
                                                                 valueBackend));
     }
 
-    UA_FieldTargetVariable *pTargetVariables =  (UA_FieldTargetVariable *)
-        UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
+    UA_FieldTargetDataType *pTargetVariables =  (UA_FieldTargetDataType *)
+        UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetDataType));
     ck_assert(pTargetVariables != 0);
 
-    UA_FieldTargetDataType_init(&pTargetVariables[0].targetVariable);
-
-    pTargetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-    pTargetVariables[0].targetVariable.targetNodeId = *opSubscriberVarId;
+    pTargetVariables->attributeId  = UA_ATTRIBUTEID_VALUE;
+    pTargetVariables->targetNodeId = *opSubscriberVarId;
 
     ck_assert(UA_Server_DataSetReader_createTargetVariables(server, *opDataSetReaderId,
         readerConfig.dataSetMetaData.fieldsSize, pTargetVariables) == UA_STATUSCODE_GOOD);
 
-    UA_FieldTargetDataType_clear(&pTargetVariables[0].targetVariable);
     UA_free(pTargetVariables);
     pTargetVariables = 0;
 

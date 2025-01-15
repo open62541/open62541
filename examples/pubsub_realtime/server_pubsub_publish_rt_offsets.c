@@ -74,8 +74,6 @@ int main(void) {
         /* Add the DataSetField */
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
         dsfConfig.field.variable.publishParameters.publishedVariable = publishVariables[i];
-        dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = true;
-        dsfConfig.field.variable.rtValueSource.staticValueSource = &dvPointers[i];
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 

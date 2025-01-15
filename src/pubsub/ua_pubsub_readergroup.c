@@ -990,7 +990,7 @@ UA_PubSubDataSetReader_generateKeyFrameMessage(UA_Server *server,
                                                UA_DataSetMessage *dsm,
                                                UA_DataSetReader *dsr) {
     /* Prepare DataSetMessageContent */
-    UA_TargetVariables *tv = &dsr->config.subscribedDataSet.subscribedDataSetTarget;
+    UA_TargetVariablesDataType *tv = &dsr->config.subscribedDataSet.target;
     dsm->header.dataSetMessageValid = true;
     dsm->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
     dsm->data.keyFrameData.fieldCount = (UA_UInt16) tv->targetVariablesSize;
@@ -1003,16 +1003,15 @@ UA_PubSubDataSetReader_generateKeyFrameMessage(UA_Server *server,
         &dsr->config.dataSetMetaData;
 
      for(size_t counter = 0; counter < tv->targetVariablesSize; counter++) {
-        /* Sample the value and set the source in the reader config */
+        /* Read the value and set the source in the reader config */
         UA_DataValue *dfv = &dsm->data.keyFrameData.dataSetFields[counter];
-        UA_FieldTargetVariable *ftv = &tv->targetVariables[counter];
+        UA_FieldTargetDataType *ftv = &tv->targetVariables[counter];
 
         UA_ReadValueId rvi;
         UA_ReadValueId_init(&rvi);
-        rvi.nodeId = ftv->targetVariable.targetNodeId;
-        rvi.attributeId = ftv->targetVariable.attributeId;
-        rvi.indexRange = ftv->targetVariable.writeIndexRange;
-
+        rvi.nodeId = ftv->targetNodeId;
+        rvi.attributeId = ftv->attributeId;
+        rvi.indexRange = ftv->writeIndexRange;
         *dfv = readWithSession(server, &server->adminSession, &rvi,
                                UA_TIMESTAMPSTORETURN_NEITHER);
 
@@ -1278,20 +1277,17 @@ UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
             UA_NodeId_copy(&dsr->head.identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE:
-            tv = &dsr->config.subscribedDataSet.subscribedDataSetTarget.
-                targetVariables[fieldindex].targetVariable;
+            tv = &dsr->config.subscribedDataSet.target.targetVariables[fieldindex];
             UA_NodeId_copy(&tv->targetNodeId, &o->component);
             fieldindex++;
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT:
-            tv = &dsr->config.subscribedDataSet.subscribedDataSetTarget.
-                targetVariables[fieldindex].targetVariable;
+            tv = &dsr->config.subscribedDataSet.target.targetVariables[fieldindex];
             UA_NodeId_copy(&tv->targetNodeId, &o->component);
             fieldindex++;
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW:
-            tv = &dsr->config.subscribedDataSet.subscribedDataSetTarget.
-                targetVariables[fieldindex].targetVariable;
+            tv = &dsr->config.subscribedDataSet.target.targetVariables[fieldindex];
             UA_NodeId_copy(&tv->targetNodeId, &o->component);
             fieldindex++;
             break;

@@ -18,20 +18,9 @@
 #define PUBSUB_CONFIG_FIELD_COUNT 10
 
 UA_Server *server;
-
+UA_DataSetReaderConfig readerConfig;
 static UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, connectionIdentifier;
 static UA_NodeId readerGroupIdentifier, readerIdentifier;
-
-/* Values in static locations. We cycle the dvPointers double-pointer to the
- * next with atomic operations. */
-UA_UInt32 valueStore[PUBSUB_CONFIG_FIELD_COUNT];
-UA_DataValue dvStore[PUBSUB_CONFIG_FIELD_COUNT];
-UA_DataValue *dvPointers[PUBSUB_CONFIG_FIELD_COUNT];
-
-UA_UInt32     repeatedFieldValues[PUBSUB_CONFIG_FIELD_COUNT];
-UA_DataValue *repeatedDataValueRT[PUBSUB_CONFIG_FIELD_COUNT];
-
-UA_DataSetReaderConfig readerConfig;
 
 static UA_NetworkAddressUrlDataType networkAddressUrl =
     {{0, NULL}, UA_STRING_STATIC("opc.udp://224.0.0.22:4840/")};
@@ -50,14 +39,6 @@ static void teardown(void) {
 }
 
 START_TEST(PublisherOffsets) {
-    /* Prepare the values */
-    for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
-        valueStore[i] = (UA_UInt32) i + 1;
-        UA_Variant_setScalar(&dvStore[i].value, &valueStore[i], &UA_TYPES[UA_TYPES_UINT32]);
-        dvStore[i].hasValue = true;
-        dvPointers[i] = &dvStore[i];
-    }
-
     /* Add a PubSubConnection */
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(connectionConfig));
@@ -84,8 +65,6 @@ START_TEST(PublisherOffsets) {
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
         /* TODO: Point to a variable in the information model */
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
-        dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = true;
-        dsfConfig.field.variable.rtValueSource.staticValueSource = &dvPointers[i];
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 
@@ -230,12 +209,10 @@ addSubscribedVariables (UA_Server *server) {
     /* Set the subscribed data to TargetVariable type */
     readerConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
     /* Create the TargetVariables with respect to DataSetMetaData fields */
-    readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize =
-        readerConfig.dataSetMetaData.fieldsSize;
-    readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables =
-        (UA_FieldTargetVariable *)UA_calloc(
-            readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize,
-            sizeof(UA_FieldTargetVariable));
+    readerConfig.subscribedDataSet.target.targetVariablesSize = readerConfig.dataSetMetaData.fieldsSize;
+    readerConfig.subscribedDataSet.target.targetVariables = (UA_FieldTargetDataType*)
+        UA_calloc(readerConfig.subscribedDataSet.target.targetVariablesSize, sizeof(UA_FieldTargetDataType));
+
     for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++) {
         /* Variable to subscribe data */
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -254,28 +231,10 @@ addSubscribedVariables (UA_Server *server) {
                                   UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
                                   UA_NS0ID(BASEDATAVARIABLETYPE),
                                   vAttr, NULL, &newnodeId);
-        repeatedFieldValues[i] = 0;
-        repeatedDataValueRT[i] = UA_DataValue_new();
-        UA_Variant_setScalar(&repeatedDataValueRT[i]->value, &repeatedFieldValues[i],
-                             &UA_TYPES[UA_TYPES_UINT32]);
-        repeatedDataValueRT[i]->value.storageType = UA_VARIANT_DATA_NODELETE;
-        repeatedDataValueRT[i]->hasValue = true;
 
-        /* Set the value backend of the above create node to 'external value source' */
-        UA_ValueBackend valueBackend;
-        memset(&valueBackend, 0, sizeof(UA_ValueBackend));
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = &repeatedDataValueRT[i];
-        UA_Server_setVariableNode_valueBackend(server, newnodeId, valueBackend);
-
-        UA_FieldTargetVariable *tv =
-            &readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
-        UA_FieldTargetDataType *ftdt = &tv->targetVariable;
-
-        /* For creating Targetvariables */
-        UA_FieldTargetDataType_init(ftdt);
-        ftdt->attributeId  = UA_ATTRIBUTEID_VALUE;
-        ftdt->targetNodeId = newnodeId;
+        UA_FieldTargetDataType *tv = &readerConfig.subscribedDataSet.target.targetVariables[i];
+        tv->attributeId  = UA_ATTRIBUTEID_VALUE;
+        tv->targetNodeId = newnodeId;
     }
 }
 
@@ -313,14 +272,7 @@ addDataSetReader(UA_Server *server) {
     addSubscribedVariables(server);
     UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig, &readerIdentifier);
 
-    for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++) {
-        UA_FieldTargetVariable *tv =
-            &readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
-        UA_FieldTargetDataType *ftdt = &tv->targetVariable;
-        UA_FieldTargetDataType_clear(ftdt);
-    }
-
-    UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
+    UA_free(readerConfig.subscribedDataSet.target.targetVariables);
     UA_free(readerConfig.dataSetMetaData.fields);
     UA_UadpDataSetReaderMessageDataType_delete(dataSetReaderMessage);
 }
@@ -344,9 +296,6 @@ START_TEST(SubscriberOffsets) {
     }
 
     UA_PubSubOffsetTable_clear(&ot);
-    for(UA_Int32 i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
-        UA_DataValue_delete(repeatedDataValueRT[i]);
-    }
 } END_TEST
 
 int main(void) {

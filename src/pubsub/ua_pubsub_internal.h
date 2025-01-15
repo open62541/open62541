@@ -495,27 +495,14 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
 UA_StatusCode
 UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr);
 
-/* Copy the configuration of Target Variables */
-UA_StatusCode UA_TargetVariables_copy(const UA_TargetVariables *src,
-                                      UA_TargetVariables *dst);
-
-/* Clear the Target Variables configuration */
-void UA_TargetVariables_clear(UA_TargetVariables *subscribedDataSetTarget);
-
-/* Copy the configuration of Field Target Variables */
-UA_StatusCode UA_FieldTargetVariable_copy(const UA_FieldTargetVariable *src,
-                                          UA_FieldTargetVariable *dst);
-
 UA_StatusCode
 DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr,
-                                    size_t targetVariablesSize,
-                                    const UA_FieldTargetVariable *targetVariables);
+                                    size_t targetsSize, const UA_FieldTargetDataType *targets);
 
 /* Returns an error reason if the target state is `Error` */
 void
 UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
-                                UA_PubSubState targetState,
-                                UA_StatusCode errorReason);
+                                UA_PubSubState targetState, UA_StatusCode errorReason);
 
 /**********************************************/
 /*                ReaderGroup                 */
