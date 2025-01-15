@@ -837,13 +837,23 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
     mbedtls_x509_crt publicKey;
     mbedtls_x509_crt_init(&publicKey);
 
-    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &publicKey);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    mbedtls_x509_crl crl;
+    mbedtls_x509_crl_init(&crl);
 
     char buf[1024];
-    int res = mbedtls_x509_dn_gets(buf, 1024, &publicKey.subject);
-    mbedtls_x509_crt_free(&publicKey);
+    int res = 0;
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &publicKey);
+    if(retval == UA_STATUSCODE_GOOD) {
+        res = mbedtls_x509_dn_gets(buf, 1024, &publicKey.subject);
+        mbedtls_x509_crt_free(&publicKey);
+    } else {
+        retval = UA_mbedTLS_LoadCrl(certificate, &crl);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        res = mbedtls_x509_dn_gets(buf, 1024, &crl.issuer);
+        mbedtls_x509_crl_free(&crl);
+    }
+
     if(res < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_String tmp = {(size_t)res, (UA_Byte*)buf};
