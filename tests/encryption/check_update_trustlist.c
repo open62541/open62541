@@ -56,6 +56,16 @@ static void setup2(void) {
     server =
         UA_Server_newForUnitTestWithSecurityPolicies_Filestore(4840, &certificate,
                                                                &privateKey, storePath);
+
+    /* Reset the trust list for each test case.
+     * This is necessary so that all of the old certificates
+     * from previous test cases are deleted from the PKI file store */
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    server->config.secureChannelPKI.setTrustList(&server->config.secureChannelPKI, &trustList);
+    UA_TrustListDataType_clear(&trustList);
+
     ck_assert(server != NULL);
 }
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
