@@ -94,8 +94,8 @@ MemoryCertStore_setTrustList(UA_CertificateGroup *certGroup, const UA_TrustListD
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     context->reloadRequired = true;
-    UA_TrustListDataType_clear(&context->trustList);
-    return UA_TrustListDataType_add(trustList, &context->trustList);
+    /* Remove the section of the trust list that needs to be reset, while keeping the remaining parts intact */
+    return UA_TrustListDataType_set(trustList, &context->trustList);
 }
 
 static UA_StatusCode
