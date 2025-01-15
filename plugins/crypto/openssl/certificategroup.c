@@ -92,8 +92,8 @@ MemoryCertStore_setTrustList(UA_CertificateGroup *certGroup, const UA_TrustListD
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     context->reloadRequired = true;
-    UA_TrustListDataType_clear(&context->trustList);
-    return UA_TrustListDataType_add(trustList, &context->trustList);
+    /* Remove the section of the trust list that needs to be reset, while keeping the remaining parts intact */
+    return UA_TrustListDataType_set(trustList, &context->trustList);
 }
 
 static UA_StatusCode
@@ -858,14 +858,24 @@ UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName) {
+    X509_NAME *sn = NULL;
     X509 *x509 = UA_OpenSSL_LoadCertificate(certificate);
-    if(!x509)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    X509_CRL *x509_crl = NULL;
 
-    X509_NAME *sn = X509_get_subject_name(x509);
+    if(x509) {
+        sn = X509_get_subject_name(x509);
+    } else {
+        x509_crl = UA_OpenSSL_LoadCrl(certificate);
+        if(!x509_crl)
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        sn = X509_CRL_get_issuer(x509_crl);
+    }
+
     char buf[1024];
     *subjectName = UA_STRING_ALLOC(X509_NAME_oneline(sn, buf, 1024));
-    X509_free(x509);
+
+    if (x509) X509_free(x509);
+    if (x509_crl) X509_CRL_free(x509_crl);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -875,15 +885,25 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
     if(certificate == NULL || thumbprint->length != (SHA1_DIGEST_LENGTH * 2))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
-    if(!cert)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-
     unsigned char digest[SHA1_DIGEST_LENGTH];
     unsigned int digestLen;
-    if(X509_digest(cert, EVP_sha1(), digest, &digestLen) != 1) {
+
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    if(cert) {
+        if(X509_digest(cert, EVP_sha1(), digest, &digestLen) != 1) {
+            X509_free(cert);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
         X509_free(cert);
-        return UA_STATUSCODE_BADINTERNALERROR;
+    } else {
+        X509_CRL *crl = UA_OpenSSL_LoadCrl(certificate);
+        if(!crl)
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        if(X509_CRL_digest(crl, EVP_sha1(), digest, &digestLen) != 1) {
+            X509_CRL_free(crl);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        X509_CRL_free(crl);
     }
 
     UA_String thumb = UA_STRING_NULL;
@@ -897,8 +917,6 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
     }
 
     memcpy(thumbprint->data, thumb.data, thumbprint->length);
-
-    X509_free(cert);
     free(thumb.data);
 
     return UA_STATUSCODE_GOOD;
