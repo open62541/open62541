@@ -65,7 +65,7 @@ UA_WriterGroup_addPublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
         return UA_STATUSCODE_GOOD;
 
     /* Use EventLoop for cyclic callbacks */
-    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, wg->linkedConnection);
+    UA_EventLoop *el = psm->sc.server->config.eventLoop;
     return el->addTimer(el, (UA_Callback)UA_WriterGroup_publishCallback,
                         psm, wg, wg->config.publishingInterval,
                         NULL /* TODO: use basetime */,
@@ -77,7 +77,7 @@ void
 UA_WriterGroup_removePublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     if(wg->publishCallbackId == 0)
         return;
-    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, wg->linkedConnection);
+    UA_EventLoop *el = psm->sc.server->config.eventLoop;
     el->removeTimer(el, wg->publishCallbackId);
     wg->publishCallbackId = 0;
 }
@@ -850,7 +850,7 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     size_t enabledWriters = 0;
 
     UA_DataSetWriter *dsw;
-    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, wg->linkedConnection);
+    UA_EventLoop *el = psm->sc.server->config.eventLoop;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         if(dsw->head.state != UA_PUBSUBSTATE_OPERATIONAL)
             continue;
@@ -1167,7 +1167,7 @@ UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
     if(wg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
         return UA_STATUSCODE_GOOD;
 
-    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, wg->linkedConnection);
+    UA_EventLoop *el = psm->sc.server->config.eventLoop;
     if(!el) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg, "No EventLoop configured");
         UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);

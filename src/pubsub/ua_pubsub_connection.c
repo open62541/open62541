@@ -250,7 +250,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     /* The WriterGroups / ReaderGroups are not deleted. Try again in the next
      * iteration of the event loop.*/
     if(!LIST_EMPTY(&c->writerGroups) || !LIST_EMPTY(&c->readerGroups)) {
-        UA_EventLoop *el = UA_PubSubConnection_getEL(psm, c);
+        UA_EventLoop *el = psm->sc.server->config.eventLoop;
         c->dc.callback = delayedPubSubConnection_delete;
         c->dc.application = psm;
         c->dc.context = c;
@@ -453,13 +453,6 @@ disablePubSubConnection(UA_PubSubManager *psm, const UA_NodeId connectionId) {
     UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
     return (c) ? UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED)
         : UA_STATUSCODE_BADNOTFOUND;
-}
-
-UA_EventLoop *
-UA_PubSubConnection_getEL(UA_PubSubManager *psm, UA_PubSubConnection *c) {
-    if(c->config.eventLoop)
-        return c->config.eventLoop;
-    return psm->sc.server->config.eventLoop;
 }
 
 /***********************/
@@ -820,7 +813,7 @@ UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
     UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, c);
+    UA_EventLoop *el = psm->sc.server->config.eventLoop;
     if(!el) {
         UA_LOG_ERROR_PUBSUB(psm->logging, c, "No EventLoop configured");
         return UA_STATUSCODE_BADINTERNALERROR;;

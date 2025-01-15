@@ -284,11 +284,6 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 void
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c);
 
-/* Returns either the eventloop configured in the connection or, in its absence,
- * for the server */
-UA_EventLoop *
-UA_PubSubConnection_getEL(UA_PubSubManager *psm, UA_PubSubConnection *c);
-
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                    UA_PubSubState targetState);

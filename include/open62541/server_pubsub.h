@@ -232,11 +232,6 @@ typedef struct {
     UA_Variant connectionTransportSettings;
 
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
-
-    UA_EventLoop *eventLoop; /* Use an external EventLoop (use the EventLoop of
-                              * the server if this is NULL). Propagates to the
-                              * ReaderGroup/WriterGroup attached to the
-                              * Connection. */
 } UA_PubSubConnectionConfig;
 
 /* Add a new PubSub connection to the given server and open it.
