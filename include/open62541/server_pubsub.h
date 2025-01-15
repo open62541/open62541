@@ -433,27 +433,6 @@ typedef enum {
     UA_PUBSUB_ENCODING_JSON
 } UA_PubSubEncodingType;
 
-/**
- * The user can define his own callback implementation for publishing and
- * subscribing. The user must take care of the callback to call for every
- * publishing or subscibing interval. The configured base time and timer policy
- * are provided as an argument so that the user can implement his callback
- * (thread) considering base time and timer policies */
-
-typedef struct {
-    UA_StatusCode (*addCustomCallback)(UA_Server *server, UA_NodeId identifier,
-                                       UA_ServerCallback callback, void *data,
-                                       UA_Double interval_ms, UA_DateTime *baseTime,
-                                       UA_TimerPolicy timerPolicy,
-                                       UA_UInt64 *callbackId);
-    UA_StatusCode (*changeCustomCallback)(UA_Server *server, UA_NodeId identifier,
-                                          UA_UInt64 callbackId, UA_Double interval_ms,
-                                          UA_DateTime *baseTime,
-                                          UA_TimerPolicy timerPolicy);
-    void (*removeCustomCallback)(UA_Server *server, UA_NodeId identifier,
-                                 UA_UInt64 callbackId);
-} UA_PubSub_CallbackLifecycle;
-
 typedef struct {
     UA_String name;
     UA_UInt16 writerGroupId;
@@ -464,8 +443,7 @@ typedef struct {
     UA_ExtensionObject messageSettings;
     UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
-    /* PubSub Manager Callback */
-    UA_PubSub_CallbackLifecycle pubsubManagerCallback;
+
     /* non std. config parameter. maximum count of embedded DataSetMessage in
      * one NetworkMessage */
     UA_UInt16 maxEncapsulatedDataSetMessageCount;

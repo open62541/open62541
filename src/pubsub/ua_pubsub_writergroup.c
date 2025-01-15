@@ -56,17 +56,6 @@ UA_WriterGroup_canConnect(UA_WriterGroup *wg) {
     return true;
 }
 
-static void
-UA_WriterGroup_publishCallback_server(UA_Server *server, UA_WriterGroup *wg) {
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
-                              "Cannot publish -- PubSub not configured for the server");
-        return;
-    }
-    UA_WriterGroup_publishCallback(psm, wg);
-}
-
 UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
@@ -75,39 +64,21 @@ UA_WriterGroup_addPublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     if(wg->publishCallbackId != 0)
         return UA_STATUSCODE_GOOD;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(wg->config.pubsubManagerCallback.addCustomCallback) {
-        /* Use configured mechanism for cyclic callbacks */
-        retval = wg->config.pubsubManagerCallback.
-            addCustomCallback(psm->sc.server, wg->head.identifier,
-                              (UA_ServerCallback)UA_WriterGroup_publishCallback_server,
-                              wg, wg->config.publishingInterval,
-                              NULL, UA_TIMERPOLICY_CURRENTTIME,
-                              &wg->publishCallbackId);
-    } else {
-        /* Use EventLoop for cyclic callbacks */
-        UA_EventLoop *el = UA_PubSubConnection_getEL(psm, wg->linkedConnection);
-        retval = el->addTimer(el, (UA_Callback)UA_WriterGroup_publishCallback,
-                              psm, wg, wg->config.publishingInterval,
-                              NULL /* TODO: use basetime */,
-                              UA_TIMERPOLICY_CURRENTTIME,
-                              &wg->publishCallbackId);
-    }
-
-    return retval;
+    /* Use EventLoop for cyclic callbacks */
+    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, wg->linkedConnection);
+    return el->addTimer(el, (UA_Callback)UA_WriterGroup_publishCallback,
+                        psm, wg, wg->config.publishingInterval,
+                        NULL /* TODO: use basetime */,
+                        UA_TIMERPOLICY_CURRENTTIME,
+                        &wg->publishCallbackId);
 }
 
 void
 UA_WriterGroup_removePublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     if(wg->publishCallbackId == 0)
         return;
-    if(wg->config.pubsubManagerCallback.removeCustomCallback) {
-        wg->config.pubsubManagerCallback.
-            removeCustomCallback(psm->sc.server, wg->head.identifier, wg->publishCallbackId);
-    } else {
-        UA_EventLoop *el = UA_PubSubConnection_getEL(psm, wg->linkedConnection);
-        el->removeTimer(el, wg->publishCallbackId);
-    }
+    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, wg->linkedConnection);
+    el->removeTimer(el, wg->publishCallbackId);
     wg->publishCallbackId = 0;
 }
 
