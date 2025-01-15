@@ -45,7 +45,6 @@ START_TEST(CreateAndLockConfiguration) {
     UA_ReaderGroupConfig readerGroupConfig;
     memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup 1");
-    readerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     retVal |= UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
 
     UA_PubSubManager *psm = getPSM(server);
@@ -96,7 +95,6 @@ START_TEST(CreateAndReleaseMultipleLocks) {
     UA_ReaderGroupConfig readerGroupConfig;
     memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup 1");
-    readerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     retVal |= UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
     readerGroupConfig.name = UA_STRING("ReaderGroup 2");
     retVal |= UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup2);
@@ -151,7 +149,6 @@ START_TEST(CreateLockAndEditConfiguration) {
     UA_ReaderGroupConfig readerGroupConfig;
     memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup 1");
-    readerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     retVal |= UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
 
     UA_PubSubManager *psm = getPSM(server);

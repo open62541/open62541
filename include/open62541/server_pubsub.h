@@ -436,43 +436,7 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsfId);
  * container for :ref:`dsw` and network message settings. The WriterGroup can be
  * imagined as producer of the network messages. The creation of network
  * messages is controlled by parameters like the publish interval, which is e.g.
- * contained in the WriterGroup.
- *
- * The message publishing can be configured for realtime requirements. The RT-levels
- * go along with different requirements. The below listed levels can be configured:
- *
- * UA_PUBSUB_RT_NONE
- *    No realtime-specific configuration.
- *
- * UA_PUBSUB_RT_DIRECT_VALUE_ACCESS
- *    All PublishedDataSets need to point to a variable with a
- *    ``UA_VALUEBACKENDTYPE_EXTERNAL`` value backend. The value backend gets
- *    cached when the configuration is frozen. No lookup of the variable from
- *    the information is performed afterwards. This enables also big data
- *    structures to be updated atomically with a compare-and-switch operation on
- *    the ``UA_DataValue`` double-pointer in the backend.
- *
- * UA_PUBSUB_RT_FIXED_SIZE
- *    Validate that the message constains only fields with a known size.
- *    Then the message fields have fixed offsets that are known ahead of time.
- *
- * UA_PUBSUB_RT_DETERMINISTIC
- *    Both direct-access and fixed-size is being used. The server pre-allocates
- *    buffers when the configuration is frozen and uses only memcpy operations
- *    to update the PubSub network messages for sending.
- *
- * WARNING! For hard real time requirements the underlying system must be
- * RT-capable. Also note that each PubSubConnection can have a dedicated
- * EventLoop. That way normal client/server operations can run independently
- * from PubSub. The double-pointer in the ``UA_VALUEBACKENDTYPE_EXTERNAL`` value
- * backend allows avoid race-condition with non-blocking atomic operations. */
-
-typedef enum {
-    UA_PUBSUB_RT_NONE = 0,
-    UA_PUBSUB_RT_DIRECT_VALUE_ACCESS = 1,
-    UA_PUBSUB_RT_FIXED_SIZE = 2,
-    UA_PUBSUB_RT_DETERMINISTIC = 3,
-} UA_PubSubRTLevel;
+ * contained in the WriterGroup. */
 
 typedef enum {
     UA_PUBSUB_ENCODING_UADP = 0,
@@ -515,8 +479,6 @@ typedef struct {
     /* non std. config parameter. maximum count of embedded DataSetMessage in
      * one NetworkMessage */
     UA_UInt16 maxEncapsulatedDataSetMessageCount;
-    /* non std. field */
-    UA_PubSubRTLevel rtLevel;
 
     /* Security Configuration
      * Message are encrypted if a SecurityPolicy is configured and the
@@ -836,7 +798,6 @@ typedef struct {
     UA_String name;
 
     /* non std. field */
-    UA_PubSubRTLevel rtLevel;
     UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
     UA_ExtensionObject transportSettings;

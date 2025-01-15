@@ -48,7 +48,6 @@ START_TEST(CreateAndLockConfiguration) {
     writerGroupConfig.name = UA_STRING("WriterGroup 1");
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
 
     UA_PublishedDataSetConfig pdsConfig;
@@ -128,7 +127,6 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         writerGroupConfig.name = UA_STRING("WriterGroup 1");
         writerGroupConfig.publishingInterval = 10;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-        writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
         retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
 
         UA_PublishedDataSetConfig pdsConfig;
@@ -196,7 +194,6 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     writerGroupConfig.name = UA_STRING("WriterGroup 1");
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
     writerGroupConfig.name = UA_STRING("WriterGroup 2");
     retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup2);
@@ -271,7 +268,6 @@ START_TEST(CreateLockAndEditConfiguration) {
     writerGroupConfig.name = UA_STRING("WriterGroup 1");
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
 
     UA_PublishedDataSetConfig pdsConfig;
@@ -337,7 +333,6 @@ START_TEST(CreateConfigWithStaticFieldSource) {
     writerGroupConfig.name = UA_STRING("WriterGroup 1");
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
 
     UA_PublishedDataSetConfig pdsConfig;

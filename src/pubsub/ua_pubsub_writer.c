@@ -171,8 +171,7 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    if(wg->config.rtLevel != UA_PUBSUB_RT_NONE &&
-       UA_PubSubState_isEnabled(wg->head.state)) {
+    if(UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, wg,
                               "Cannot add a DataSetWriter while the "
                               "WriterGroup is enabled");
@@ -188,19 +187,6 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
                                   "Cannot add the DataSetWriter: "
                                   "The PublishedDataSet was not found");
             return UA_STATUSCODE_BADNOTFOUND;
-        }
-
-        if(wg->config.rtLevel != UA_PUBSUB_RT_NONE) {
-            UA_DataSetField *tmpDSF;
-            TAILQ_FOREACH(tmpDSF, &pds->fields, listEntry) {
-                if(!tmpDSF->config.field.variable.rtValueSource.rtFieldSourceEnabled &&
-                   !tmpDSF->config.field.variable.rtValueSource.rtInformationModelNode) {
-                    UA_LOG_WARNING_PUBSUB(psm->logging, pds,
-                                          "Adding DataSetWriter failed: "
-                                          "Fields in PDS are not RT capable");
-                    return UA_STATUSCODE_BADCONFIGURATIONERROR;
-                }
-            }
         }
     }
 
@@ -292,15 +278,6 @@ UA_DataSetWriter_prepareDataSet(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
     UA_assert(wg);
 
-    /* Promoted Fields not allowed if RT is enabled */
-    if(wg->config.rtLevel > UA_PUBSUB_RT_NONE &&
-       pds->promotedFieldsCount > 0) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                              "PubSub-RT configuration fail: "
-                              "PDS contains promoted fields");
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-    }
-
     /* Test the DataSetFields */
     UA_DataSetField *dsf;
     TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
@@ -318,39 +295,6 @@ UA_DataSetWriter_prepareDataSet(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
         UA_NODESTORE_RELEASE(psm->sc.server, (const UA_Node *)rtNode);
-
-        /* TODO: Get the External Value Source from the node instead of from the config */
-
-        /* If direct-value-access is enabled, the pointers need to be set */
-        if(wg->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
-           !dsf->config.field.variable.rtValueSource.rtFieldSourceEnabled) {
-            UA_LOG_ERROR_PUBSUB(psm->logging, dsw,
-                                "PubSub-RT configuration fail: PDS published-variable "
-                                "does not have an external data source");
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        }
-
-        /* Check that the values have a fixed size if fixed offsets are needed */
-        if(wg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
-            if((UA_NodeId_equal(&dsf->fieldMetaData.dataType,
-                                &UA_TYPES[UA_TYPES_STRING].typeId) ||
-                UA_NodeId_equal(&dsf->fieldMetaData.dataType,
-                                &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
-               dsf->fieldMetaData.maxStringLength == 0) {
-                UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                                      "PubSub-RT configuration fail: "
-                                      "PDS contains String/ByteString with dynamic length");
-                return UA_STATUSCODE_BADNOTSUPPORTED;
-            } else if(!UA_DataType_isNumeric(
-                          UA_findDataType(&dsf->fieldMetaData.dataType)) &&
-                      !UA_NodeId_equal(&dsf->fieldMetaData.dataType,
-                                       &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
-                UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                                      "PubSub-RT configuration fail: "
-                                      "PDS contains variable with dynamic size");
-                return UA_STATUSCODE_BADNOTSUPPORTED;
-            }
-        }
     }
 
     /* Generate the DSM */
@@ -371,11 +315,8 @@ UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
     UA_assert(wg);
 
-    /* Check if the WriterGroup is enabled with RT options. Disallow removal in
-     * that case. The RT path might still have a pointer to the DataSetWriter.
-     * Or we violate the fixed-size-message configuration.*/
-    if(wg->config.rtLevel != UA_PUBSUB_RT_NONE &&
-       UA_PubSubState_isEnabled(wg->head.state)) {
+    /* Check if the WriterGroup is enabled. Disallow removal in that case. */
+    if(UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
                               "Removal of DataSetWriter not possible while "
                               "the WriterGroup with realtime options is enabled");

@@ -906,15 +906,7 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
             sendNetworkMessage(psm, wg, connection, &dsmStore[dsmCount],
                                &dsWriterIds[dsmCount], 1);
 
-            /* Clean up the current store entry */
-            if(wg->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
-               dsmStore[dsmCount].header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
-                for(size_t i = 0; i < dsmStore[dsmCount].data.keyFrameData.fieldCount; ++i) {
-                    dsmStore[dsmCount].data.keyFrameData.dataSetFields[i].value.data = NULL;
-                }
-            }
             UA_DataSetMessage_clear(&dsmStore[dsmCount]);
-
             continue; /* Don't increase the dsmCount, reuse the slot */
         }
 
@@ -942,12 +934,6 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 
     /* Clean up DSM */
     for(size_t i = 0; i < dsmCount; i++) {
-        if(wg->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
-           dsmStore[i].header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
-            for(size_t j = 0; j < dsmStore[i].data.keyFrameData.fieldCount; ++j) {
-                dsmStore[i].data.keyFrameData.dataSetFields[j].value.data = NULL;
-            }
-        }
         UA_DataSetMessage_clear(&dsmStore[i]);
     }
 
