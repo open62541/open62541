@@ -385,7 +385,7 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     /* Only keep the timeout callback if the reader is operational */
     if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
        dsr->msgRcvTimeoutTimerId != 0) {
-        UA_EventLoop *el = UA_PubSubConnection_getEL(psm, rg->linkedConnection);
+        UA_EventLoop *el = psm->sc.server->config.eventLoop;
         el->removeTimer(el, dsr->msgRcvTimeoutTimerId);
         dsr->msgRcvTimeoutTimerId = 0;
     }
@@ -600,8 +600,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     /* Configure / Update the timeout callback */
     if(dsr->config.messageReceiveTimeout > 0.0) {
-        UA_EventLoop *el =
-            UA_PubSubConnection_getEL(psm, dsr->linkedReaderGroup->linkedConnection);
+        UA_EventLoop *el = psm->sc.server->config.eventLoop;
         if(dsr->msgRcvTimeoutTimerId == 0) {
             el->addTimer(el, (UA_Callback)UA_DataSetReader_handleMessageReceiveTimeout,
                          psm, dsr, dsr->config.messageReceiveTimeout, NULL,
