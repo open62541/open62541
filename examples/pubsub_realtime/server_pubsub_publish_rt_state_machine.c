@@ -154,8 +154,6 @@ int main(void) {
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
         /* TODO: Point to a variable in the information model */
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
-        dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = true;
-        dsfConfig.field.variable.rtValueSource.staticValueSource = &dvPointers[i];
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 

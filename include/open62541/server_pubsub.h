@@ -376,20 +376,10 @@ typedef struct {
     UA_Boolean promotedField;
     UA_PublishedVariableDataType publishParameters;
 
-    /* non std. field */
-    struct {
-        UA_Boolean rtFieldSourceEnabled;
-        /* If the rtInformationModelNode is set, the nodeid in publishParameter
-         * must point to a node with external data source backend defined */
-        UA_Boolean rtInformationModelNode;
-        /* TODO: Decide if suppress C++ warnings and use 'UA_DataValue * * const
-         * staticValueSource;' */
-        UA_DataValue ** staticValueSource;
-    } rtValueSource;
     UA_UInt32 maxStringLength;
     UA_LocalizedText description;
     /* If dataSetFieldId is not set, the GUID will be generated on adding the
-    *  field*/
+     * field */
     UA_Guid dataSetFieldId;
 } UA_DataSetVariableConfig;
 
@@ -631,41 +621,10 @@ typedef enum {
 } UA_SubscribedDataSetType;
 
 typedef struct {
-    /* Standard-defined FieldTargetDataType */
-    UA_FieldTargetDataType targetVariable;
-
-    /* If realtime-handling is required, set this pointer non-NULL and it will be used
-     * to memcpy the value instead of using the Write service.
-     * If the beforeWrite method pointer is set, it will be called before a memcpy update
-     * to the value. But param externalDataValue already contains the new value.
-     * If the afterWrite method pointer is set, it will be called after a memcpy update
-     * to the value. */
-    UA_DataValue **externalDataValue;
-    void *targetVariableContext; /* user-defined pointer */
-    void (*beforeWrite)(UA_Server *server,
-                        const UA_NodeId *readerIdentifier,
-                        const UA_NodeId *readerGroupIdentifier,
-                        const UA_NodeId *targetVariableIdentifier,
-                        void *targetVariableContext,
-                        UA_DataValue **externalDataValue);
-    void (*afterWrite)(UA_Server *server,
-                       const UA_NodeId *readerIdentifier,
-                       const UA_NodeId *readerGroupIdentifier,
-                       const UA_NodeId *targetVariableIdentifier,
-                       void *targetVariableContext,
-                       UA_DataValue **externalDataValue);
-} UA_FieldTargetVariable;
-
-typedef struct {
-    size_t targetVariablesSize;
-    UA_FieldTargetVariable *targetVariables;
-} UA_TargetVariables;
-
-typedef struct {
     UA_String name;
     UA_SubscribedDataSetType subscribedDataSetType;
     union {
-        /* datasetmirror is currently not implemented */
+        /* DataSetMirror is currently not implemented */
         UA_TargetVariablesDataType target;
     } subscribedDataSet;
     UA_DataSetMetaDataType dataSetMetaData;
@@ -719,10 +678,9 @@ typedef struct {
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
     UA_SubscribedDataSetType subscribedDataSetType;
-    /* TODO UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
     union {
-        UA_TargetVariables subscribedDataSetTarget;
-        // UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror;
+        /* TODO: UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
+        UA_TargetVariablesDataType target;
     } subscribedDataSet;
     /* non std. fields */
     UA_String linkedStandaloneSubscribedDataSetName;
@@ -763,10 +721,8 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_disableDataSetReader(UA_Server *server, const UA_NodeId dsrId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_setDataSetReaderTargetVariables(UA_Server *server,
-                                          const UA_NodeId dsrId,
-                                          size_t tvsSize,
-                                          const UA_FieldTargetVariable *tvs);
+UA_Server_setDataSetReaderTargetVariables(UA_Server *server, const UA_NodeId dsrId,
+    size_t targetVariablesSize, const UA_FieldTargetDataType *targetVariables);
 
 /* Legacy API */
 #define UA_Server_DataSetReader_getConfig(server, dsrId, config) \
@@ -786,13 +742,7 @@ UA_Server_setDataSetReaderTargetVariables(UA_Server *server,
  * DataSetReader.
  *
  * The RT-levels go along with different requirements. The below listed levels
- * can be configured for a ReaderGroup.
- *
- * - UA_PUBSUB_RT_NONE: RT applied to this level
- * - UA_PUBSUB_RT_FIXED_SIZE: Extends PubSub RT functionality and implements
- *   fast path message decoding in the Subscriber. Uses a buffered network
- *   message and only decodes the necessary offsets stored in an offset
- *   buffer. */
+ * can be configured for a ReaderGroup. */
 
 typedef struct {
     UA_String name;
