@@ -19,7 +19,6 @@ static UA_Server *server = NULL;
 UA_Logger logger;
 
 /* global variables for test configuration */
-static UA_Boolean UseFastPath = UA_FALSE;
 static UA_Boolean UseRawEncoding = UA_FALSE;
 
 static void setup(void) {
@@ -116,20 +115,7 @@ AddPublishedDataSet(UA_NodeId *pWriterGroupId, char *pPublishedDataSetName,
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable = *opPublishedVarId;
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-    if (UseFastPath) {
-        *oppFastPathPublisherDataValue = UA_DataValue_new();
-        ck_assert(*oppFastPathPublisherDataValue != 0);
-        UA_Int32 *pPublisherData  = UA_Int32_new();
-        ck_assert(pPublisherData != 0);
-        *pPublisherData = 42;
-        UA_Variant_setScalar(&((**oppFastPathPublisherDataValue).value), pPublisherData, &UA_TYPES[UA_TYPES_INT32]);
-        /* add external value backend for fast-path */
-        UA_ValueBackend valueBackend;
-        memset(&valueBackend, 0, sizeof(valueBackend));
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = oppFastPathPublisherDataValue;
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setVariableNode_valueBackend(server, *opPublishedVarId, valueBackend));
-    }
+
     UA_DataSetFieldResult PdsFieldResult =
         UA_Server_addDataSetField(server, *opPublishedDataSetId, &dataSetFieldConfig, &dataSetFieldId);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, PdsFieldResult.result);
@@ -221,21 +207,6 @@ AddDataSetReader(UA_NodeId *pReaderGroupId, char *pName,
                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                   attr, NULL, opSubscriberVarId));
 
-    if (UseFastPath) {
-        *oppFastPathSubscriberDataValue = UA_DataValue_new();
-        ck_assert(*oppFastPathSubscriberDataValue != 0);
-        UA_Int32 *pSubscriberData  = UA_Int32_new();
-        ck_assert(pSubscriberData != 0);
-        *pSubscriberData = 0;
-        UA_Variant_setScalar(&((**oppFastPathSubscriberDataValue).value), pSubscriberData, &UA_TYPES[UA_TYPES_INT32]);
-        /* add external value backend for fast-path */
-        UA_ValueBackend valueBackend;
-        memset(&valueBackend, 0, sizeof(valueBackend));
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = oppFastPathSubscriberDataValue;
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setVariableNode_valueBackend(server, *opSubscriberVarId, valueBackend));
-    }
-
     UA_FieldTargetDataType targetVariable;
     UA_FieldTargetDataType_init(&targetVariable);
     targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
@@ -263,16 +234,11 @@ ValidatePublishSubscribe(
     UA_Int32 tmpValue = TestValue;
     for (UA_UInt32 i = 0; i < NoOfTestVars; i++) {
         tmpValue = TestValue + (UA_Int32) i;
-        if (UseFastPath) {
-            ck_assert((fastPathPublisherValues != 0) && (fastPathPublisherValues[i] != 0));
-            *((UA_Int32 *) (fastPathPublisherValues[i]->value.data)) = tmpValue;
-        } else {
-            UA_Variant writeValue;
-            UA_Variant_init(&writeValue);
-            UA_Variant_setScalarCopy(&writeValue, &tmpValue, &UA_TYPES[UA_TYPES_INT32]);
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_writeValue(server, publisherVarIds[i], writeValue));
-            UA_Variant_clear(&writeValue);
-        }
+        UA_Variant writeValue;
+        UA_Variant_init(&writeValue);
+        UA_Variant_setScalarCopy(&writeValue, &tmpValue, &UA_TYPES[UA_TYPES_INT32]);
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_writeValue(server, publisherVarIds[i], writeValue));
+        UA_Variant_clear(&writeValue);
     }
 
     UA_Boolean done = false;
@@ -283,27 +249,18 @@ ValidatePublishSubscribe(
         UA_UInt32 i = 0;
         for(i = 0; i < NoOfTestVars; i++) {
             tmpValue = TestValue + (UA_Int32)i;
-            if(UseFastPath) {
-                ck_assert(fastPathSubscriberValues[i] != 0);
-                if(tmpValue != *((UA_Int32 *)fastPathSubscriberValues[i]->value.data)) {
-                    done = false;
-                    break;
-                }
-            } else {
-                UA_Variant SubscribedNodeData;
-                UA_Variant_init(&SubscribedNodeData);
-                UA_Server_readValue(server, subscriberVarIds[i], &SubscribedNodeData);
-                if(tmpValue != *(UA_Int32 *)SubscribedNodeData.data)
-                    done = false;
-                UA_Variant_clear(&SubscribedNodeData);
-            }
+            UA_Variant SubscribedNodeData;
+            UA_Variant_init(&SubscribedNodeData);
+            UA_Server_readValue(server, subscriberVarIds[i], &SubscribedNodeData);
+            if(tmpValue != *(UA_Int32 *)SubscribedNodeData.data)
+                done = false;
+            UA_Variant_clear(&SubscribedNodeData);
         }
     }
 }
 
 static void DoTest_1_Connection(UA_PublisherId publisherId) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_1_Connection() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "fast-path     = %s", (UseFastPath) ? "enabled" : "disabled");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
 #define DOTEST_1_CONNECTION_MAX_VARS 1
@@ -345,28 +302,6 @@ static void DoTest_1_Connection(UA_PublisherId publisherId) {
                      &subscriberVarIds[0], &fastPathSubscriberDataValues[0],
                      &DSRId_Conn1_RG1_DSR1);
 
-    /* string PublisherId is not supported with fast-path */
-    if(UseFastPath && publisherId.idType == UA_PUBLISHERIDTYPE_STRING) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "test case: STRING publisherId with fast-path");
-
-        /* cleanup and continue with other tests */
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnId_1));
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PDSId_Conn1_WG1_PDS1));
-
-        /* Iterate so the connections are actually deleted */
-        UA_Server_run_iterate(server, false);
-
-        for (UA_UInt32 i = 0; i < DOTEST_1_CONNECTION_MAX_VARS; i++) {
-            UA_DataValue_clear(fastPathPublisherDataValues[i]);
-            UA_DataValue_delete(fastPathPublisherDataValues[i]);
-            UA_DataValue_clear(fastPathSubscriberDataValues[i]);
-            UA_DataValue_delete(fastPathSubscriberDataValues[i]);
-        }
-
-        return;
-    }
-
     /* set groups operational */
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
 
@@ -392,15 +327,6 @@ static void DoTest_1_Connection(UA_PublisherId publisherId) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PDS");
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PDSId_Conn1_WG1_PDS1));
 
-    if (UseFastPath) {
-        for (UA_UInt32 i = 0; i < DOTEST_1_CONNECTION_MAX_VARS; i++) {
-            UA_DataValue_clear(fastPathPublisherDataValues[i]);
-            UA_DataValue_delete(fastPathPublisherDataValues[i]);
-            UA_DataValue_clear(fastPathSubscriberDataValues[i]);
-            UA_DataValue_delete(fastPathSubscriberDataValues[i]);
-        }
-    }
-
     /* Iterate so the connections are actually deleted */
     UA_Server_run_iterate(server, false);
 
@@ -418,19 +344,9 @@ START_TEST(Test_1_connection) {
     publisherId.idType = UA_PUBLISHERIDTYPE_BYTE;
     publisherId.id.byte = 2;
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_FALSE;
     DoTest_1_Connection(publisherId);
 
-    UseFastPath = UA_FALSE;
-    UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherId);
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherId);
-
-    UseFastPath = UA_TRUE;
     UseRawEncoding = UA_TRUE;
     DoTest_1_Connection(publisherId);
 
@@ -439,19 +355,9 @@ START_TEST(Test_1_connection) {
     publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
     publisherId.id.uint16 = 3;
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_FALSE;
     DoTest_1_Connection(publisherId);
 
-    UseFastPath = UA_FALSE;
-    UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherId);
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherId);
-
-    UseFastPath = UA_TRUE;
     UseRawEncoding = UA_TRUE;
     DoTest_1_Connection(publisherId);
 
@@ -460,19 +366,9 @@ START_TEST(Test_1_connection) {
     publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
     publisherId.id.uint32 = 5;
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_FALSE;
     DoTest_1_Connection(publisherId);
 
-    UseFastPath = UA_FALSE;
-    UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherId);
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherId);
-
-    UseFastPath = UA_TRUE;
     UseRawEncoding = UA_TRUE;
     DoTest_1_Connection(publisherId);
 
@@ -481,19 +377,9 @@ START_TEST(Test_1_connection) {
     publisherId.idType = UA_PUBLISHERIDTYPE_UINT64;
     publisherId.id.uint64 = 6;
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_FALSE;
     DoTest_1_Connection(publisherId);
 
-    UseFastPath = UA_FALSE;
-    UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherId);
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherId);
-
-    UseFastPath = UA_TRUE;
     UseRawEncoding = UA_TRUE;
     DoTest_1_Connection(publisherId);
 
@@ -502,20 +388,9 @@ START_TEST(Test_1_connection) {
     publisherId.idType = UA_PUBLISHERIDTYPE_STRING;
     publisherId.id.string = UA_STRING("My PublisherId");
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_FALSE;
     DoTest_1_Connection(publisherId);
 
-    UseFastPath = UA_FALSE;
-    UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherId);
-
-    /* Note: STRING publisherId is not supported with fast-path */
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherId);
-
-    UseFastPath = UA_TRUE;
     UseRawEncoding = UA_TRUE;
     DoTest_1_Connection(publisherId);
 
@@ -527,7 +402,6 @@ START_TEST(Test_1_connection) {
 static void DoTest_multiple_Connections(void) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_Connections() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "fast-path     = %s", (UseFastPath) ? "enabled" : "disabled");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
     /*  Writers                             -> Readers
@@ -814,16 +688,6 @@ static void DoTest_multiple_Connections(void) {
                                                           PublishedDataSetIds[i]));
     }
 
-    if (UseFastPath) {
-        for (size_t i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-            UA_DataValue_clear(fastPathPublisherDataValues[i]);
-            UA_DataValue_delete(fastPathPublisherDataValues[i]);
-
-            UA_DataValue_clear(fastPathSubscriberDataValues[i]);
-            UA_DataValue_delete(fastPathSubscriberDataValues[i]);
-        }
-    }
-
     /* Iterate so the connections are actually deleted */
     UA_Server_run_iterate(server, false);
 
@@ -839,19 +703,9 @@ START_TEST(Test_multiple_connections) {
         - multiple groups and/or DataSets yet, therefore we only test multiple connections
         - STRING publisherIds */
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_FALSE;
     DoTest_multiple_Connections();
 
-    UseFastPath = UA_FALSE;
-    UseRawEncoding = UA_TRUE;
-    DoTest_multiple_Connections();
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_FALSE;
-    DoTest_multiple_Connections();
-
-    UseFastPath = UA_TRUE;
     UseRawEncoding = UA_TRUE;
     DoTest_multiple_Connections();
 
@@ -904,7 +758,6 @@ Test_string_PublisherId_InformationModel(const UA_NodeId connectionId,
 static void DoTest_string_PublisherId(void) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_string_PublisherId() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "fast-path     = %s", (UseFastPath) ? "enabled" : "disabled");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
     /*  Writers                                     -> Readers
@@ -1163,16 +1016,6 @@ static void DoTest_string_PublisherId(void) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PublishedDataSetIds[i]));
     }
 
-    if (UseFastPath) {
-        for (size_t i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
-            UA_DataValue_clear(fastPathPublisherDataValues[i]);
-            UA_DataValue_delete(fastPathPublisherDataValues[i]);
-
-            UA_DataValue_clear(fastPathSubscriberDataValues[i]);
-            UA_DataValue_delete(fastPathSubscriberDataValues[i]);
-        }
-    }
-
     /* Iterate so the connections are actually deleted */
     UA_Server_run_iterate(server, false);
 
@@ -1184,9 +1027,6 @@ static void DoTest_string_PublisherId(void) {
 /* test string PublisherId */
 START_TEST(Test_string_publisherId) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_string_publisherId");
-
-    /* note: fast-path does not support STRING publisherIds */
-    UseFastPath = UA_FALSE;
 
     UseRawEncoding = UA_FALSE;
     DoTest_string_PublisherId();
@@ -1205,7 +1045,6 @@ START_TEST(Test_string_publisherId_file_config) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_string_publisherId_file_config");
 
     UseRawEncoding = UA_FALSE;
-    UseFastPath = UA_FALSE;
 
 #define STRING_PUBLISHERID_FILE_MAX_COMPONENTS 1
     /* Attention: Publisher and corresponding Subscriber NodeId and DataValue must have the same index
@@ -1456,7 +1295,6 @@ START_TEST(Test_string_publisherId_file_config) {
 static void DoTest_multiple_Groups(void) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_Groups() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "fast-path     = %s", (UseFastPath) ? "enabled" : "disabled");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
     /*  Writers                             -> Readers              -> Var Index
@@ -1787,16 +1625,6 @@ static void DoTest_multiple_Groups(void) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PublishedDataSetIds[i]));
     }
 
-    if (UseFastPath) {
-        for (size_t i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_VARS; i++) {
-            UA_DataValue_clear(fastPathPublisherDataValues[i]);
-            UA_DataValue_delete(fastPathPublisherDataValues[i]);
-
-            UA_DataValue_clear(fastPathSubscriberDataValues[i]);
-            UA_DataValue_delete(fastPathSubscriberDataValues[i]);
-        }
-    }
-
     /* Iterate so the connections are actually deleted */
     UA_Server_run_iterate(server, false);
 
@@ -1806,10 +1634,6 @@ static void DoTest_multiple_Groups(void) {
 /***************************************************************************************************/
 START_TEST(Test_multiple_groups) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_multiple_groups");
-
-    /* note: fast-path does not multiple groups/datasets/string publisher Ids
-        therefore fast-path is not enabled at this test */
-    UseFastPath = UA_FALSE;
 
     UseRawEncoding = UA_FALSE;
     DoTest_multiple_Groups();
@@ -1825,7 +1649,6 @@ START_TEST(Test_multiple_groups) {
 static void DoTest_multiple_DataSets(void) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_DataSets() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "fast-path     = %s", (UseFastPath) ? "enabled" : "disabled");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
     /*  Writers                             -> Readers              -> Var Index
@@ -2052,16 +1875,6 @@ static void DoTest_multiple_DataSets(void) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PublishedDataSetIds[i]));
     }
 
-    if (UseFastPath) {
-        for (size_t i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_VARS; i++) {
-            UA_DataValue_clear(fastPathPublisherDataValues[i]);
-            UA_DataValue_delete(fastPathPublisherDataValues[i]);
-
-            UA_DataValue_clear(fastPathSubscriberDataValues[i]);
-            UA_DataValue_delete(fastPathSubscriberDataValues[i]);
-        }
-    }
-
     /* Iterate so the connections are actually deleted */
     UA_Server_run_iterate(server, false);
 
@@ -2071,10 +1884,6 @@ static void DoTest_multiple_DataSets(void) {
 /***************************************************************************************************/
 START_TEST(Test_multiple_datasets) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_multiple_datasets");
-
-    /* note: fast-path does not multiple groups/datasets/string publisher Ids
-        therefore fast-path is not enabled at this test */
-    UseFastPath = UA_FALSE;
 
     UseRawEncoding = UA_FALSE;
     DoTest_multiple_DataSets();
