@@ -1200,14 +1200,15 @@ UA_DataSetMessage_keyFrame_encodeBinary(const UA_DataSetMessage* src, UA_Byte **
     
     for(UA_UInt16 i = 0; i < src->data.keyFrameData.fieldCount; i++) {
         const UA_DataValue *v = &src->data.keyFrameData.dataSetFields[i];
-        if(!v->value.type) {
-            rv = UA_STATUSCODE_BADINTERNALERROR;
-            break;
-        }
         
         if(src->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
             rv = UA_Variant_encodeBinary(&v->value, bufPos, bufEnd);
+        } else if(src->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
+            rv = UA_DataValue_encodeBinary(v, bufPos, bufEnd);
         } else if(src->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
+            if(!v->value.type)
+                return UA_STATUSCODE_BADINTERNALERROR;
+
             UA_FieldMetaData *fmd = &src->data.keyFrameData.dataSetMetaDataType->fields[i];
 
             /* For arrays we need to encode the dimension sizes before the actual data */
@@ -1242,8 +1243,6 @@ UA_DataSetMessage_keyFrame_encodeBinary(const UA_DataSetMessage* src, UA_Byte **
                 }
                 valuePtr += v->value.type->memSize;
             }
-        } else if(src->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
-            rv = UA_DataValue_encodeBinary(v, bufPos, bufEnd);
         }
         
         UA_CHECK_STATUS(rv, return rv);
