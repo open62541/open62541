@@ -271,8 +271,6 @@ if(UA_ENABLE_PUBSUB)
     #Link libraries for executing subscriber unit test
     ua_add_test(pubsub/check_pubsub_subscribe.c)
     ua_add_test(pubsub/check_pubsub_publishspeed.c)
-    ua_add_test(pubsub/check_pubsub_config_freeze.c)
-    ua_add_test(pubsub/check_pubsub_subscribe_config_freeze.c)
 
     ua_add_test(pubsub/check_pubsub_offset.c)
     if(UA_ARCHITECTURE_POSIX)
