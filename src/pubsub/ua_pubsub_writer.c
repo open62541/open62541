@@ -523,8 +523,8 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
 /* Generate a DataSetMessage for the given writer. */
 UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
-                                        UA_DataSetMessage *dataSetMessage,
-                                        UA_DataSetWriter *dsw) {
+                                        UA_DataSetWriter *dsw,
+                                        UA_DataSetMessage *dataSetMessage) {
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
 
     /* Heartbeat message if no pds is connected */

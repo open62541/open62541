@@ -339,8 +339,8 @@ UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
 
 UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
-                                        UA_DataSetMessage *dsm,
-                                        UA_DataSetWriter *dsw);
+                                        UA_DataSetWriter *dsw,
+                                        UA_DataSetMessage *dsm);
 
 UA_StatusCode
 UA_DataSetWriter_create(UA_PubSubManager *psm,

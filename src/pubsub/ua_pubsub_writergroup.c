@@ -839,7 +839,7 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
         /* Generate the DSM */
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
         UA_StatusCode res =
-            UA_DataSetWriter_generateDataSetMessage(psm, &dsmStore[dsmCount], dsw);
+            UA_DataSetWriter_generateDataSetMessage(psm, dsw, &dsmStore[dsmCount]);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(psm->logging, dsw,
                                 "PubSub Publish: DataSetMessage creation failed");
@@ -1379,7 +1379,7 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     memset(dsmStore, 0, sizeof(UA_DataSetMessage) * wg->writersCount);
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
-        res = UA_DataSetWriter_generateDataSetMessage(psm, &dsmStore[dsmCount], dsw);
+        res = UA_DataSetWriter_generateDataSetMessage(psm, dsw, &dsmStore[dsmCount]);
         dsmCount++;
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
