@@ -184,6 +184,9 @@ typedef struct UA_PublishedDataSet {
     UA_DataSetMetaDataType dataSetMetaData;
     UA_UInt16 fieldSize;
     UA_UInt16 promotedFieldsCount;
+
+    /* The counter is required because the PDS has not state.
+     * Check if it is actively used when changes are introduced. */
     UA_UInt16 configurationFreezeCounter;
 } UA_PublishedDataSet;
 
@@ -367,7 +370,6 @@ struct UA_WriterGroup {
 
     UA_UInt64 publishCallbackId; /* registered if != 0 */
     UA_UInt16 sequenceNumber; /* Increased after every sent message */
-    UA_Boolean configurationFrozen;
     UA_DateTime lastPublishTimeStamp;
 
     /* The ConnectionManager pointer is stored in the Connection. The channels
@@ -512,7 +514,6 @@ struct UA_ReaderGroup {
     LIST_HEAD(, UA_DataSetReader) readers;
     UA_UInt32 readersCount;
 
-    UA_Boolean configurationFrozen;
     UA_Boolean hasReceived; /* Received a message since the last _connect */
 
     /* The ConnectionManager pointer is stored in the Connection. The channels 

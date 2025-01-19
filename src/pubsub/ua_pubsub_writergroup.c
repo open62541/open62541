@@ -266,18 +266,6 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
 }
 
-static UA_StatusCode
-UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
-    wg->configurationFrozen = true;
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-UA_WriterGroup_unfreezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
-    wg->configurationFrozen = false;
-}
-
 UA_StatusCode
 UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
                           UA_WriterGroupConfig *dst) {
@@ -386,11 +374,6 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
         ret = wg->config.customStateMachine(server, wg->head.identifier, wg->config.context,
                                             &wg->head.state, targetState);
         UA_LOCK(&server->serviceMutex);
-        if(wg->head.state == UA_PUBSUBSTATE_DISABLED ||
-           wg->head.state == UA_PUBSUBSTATE_ERROR)
-            UA_WriterGroup_unfreezeConfiguration(psm, wg);
-        else
-            UA_WriterGroup_freezeConfiguration(psm, wg);
         goto finalize_state_machine;
     }
 
@@ -400,7 +383,6 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     case UA_PUBSUBSTATE_DISABLED:
     case UA_PUBSUBSTATE_ERROR:
         wg->head.state = targetState;
-        UA_WriterGroup_unfreezeConfiguration(psm, wg);
         UA_WriterGroup_disconnect(wg);
         UA_WriterGroup_removePublishCallback(psm, wg);
         break;
@@ -409,11 +391,6 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     case UA_PUBSUBSTATE_PAUSED:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
-        /* Freeze the configuration */
-        ret = UA_WriterGroup_freezeConfiguration(psm, wg);
-        if(ret != UA_STATUSCODE_GOOD)
-            break;
-
         /* PAUSED has no open connections and periodic callbacks */
         if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
             /* Avoid repeat warnings */
@@ -463,7 +440,6 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     /* Failure */
     if(ret != UA_STATUSCODE_GOOD) {
         wg->head.state = UA_PUBSUBSTATE_ERROR;;
-        UA_WriterGroup_unfreezeConfiguration(psm, wg);
         UA_WriterGroup_disconnect(wg);
         UA_WriterGroup_removePublishCallback(psm, wg);
     }

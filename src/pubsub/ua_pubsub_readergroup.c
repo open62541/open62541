@@ -209,18 +209,6 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
     UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
 }
 
-static UA_StatusCode
-UA_ReaderGroup_freezeConfiguration(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
-    rg->configurationFrozen = true;
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-UA_ReaderGroup_unfreezeConfiguration(UA_ReaderGroup *rg) {
-    rg->configurationFrozen = false;
-}
-
 UA_StatusCode
 UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                               UA_PubSubState targetState) {
@@ -247,11 +235,6 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
         ret = rg->config.customStateMachine(server, rg->head.identifier, rg->config.context,
                                             &rg->head.state, targetState);
         UA_LOCK(&server->serviceMutex);
-        if(rg->head.state == UA_PUBSUBSTATE_DISABLED ||
-           rg->head.state == UA_PUBSUBSTATE_ERROR)
-            UA_ReaderGroup_unfreezeConfiguration(rg);
-        else
-            UA_ReaderGroup_freezeConfiguration(psm, rg);
         goto finalize_state_machine;
     }
 
@@ -261,7 +244,6 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     case UA_PUBSUBSTATE_DISABLED:
     case UA_PUBSUBSTATE_ERROR:
         rg->head.state = targetState;
-        UA_ReaderGroup_unfreezeConfiguration(rg);
         UA_ReaderGroup_disconnect(rg);
         rg->hasReceived = false;
         break;
@@ -270,11 +252,6 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     case UA_PUBSUBSTATE_PAUSED:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
-        /* Freeze the configuration */
-        ret = UA_ReaderGroup_freezeConfiguration(psm, rg);
-        if(ret != UA_STATUSCODE_GOOD)
-            break;
-
         if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
             /* Avoid repeat warnings */
             if(oldState != UA_PUBSUBSTATE_PAUSED) {
@@ -312,7 +289,6 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     /* Failure */
     if(ret != UA_STATUSCODE_GOOD) {
         rg->head.state = UA_PUBSUBSTATE_ERROR;
-        UA_ReaderGroup_unfreezeConfiguration(rg);
         UA_ReaderGroup_disconnect(rg);
         rg->hasReceived = false;
     }
