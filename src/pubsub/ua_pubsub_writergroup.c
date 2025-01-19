@@ -1357,11 +1357,18 @@ UA_StatusCode
 UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
                                         const UA_NodeId writerGroupId,
                                         UA_PubSubOffsetTable *ot) {
+    if(!server || !ot)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_LOCK(&server->serviceMutex);
+
     /* Get the Writer Group */
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = (psm) ? UA_WriterGroup_find(psm, writerGroupId) : NULL;
-    if(!wg)
+    if(!wg) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
+    }
 
     /* Initialize variables so we can goto cleanup below */
     UA_DataSetField *field = NULL;
@@ -1451,6 +1458,9 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     for(size_t i = 0; i < dsmCount; i++) {
         UA_DataSetMessage_clear(&dsmStore[i]);
     }
+
+    UA_UNLOCK(&server->serviceMutex);
+
     return res;
 }
 
