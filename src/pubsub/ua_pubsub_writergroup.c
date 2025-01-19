@@ -1379,7 +1379,7 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     memset(dsmStore, 0, sizeof(UA_DataSetMessage) * wg->writersCount);
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
-        res = UA_DataSetWriter_prepareDataSet(psm, dsw, &dsmStore[dsmCount]);
+        res = UA_DataSetWriter_generateDataSetMessage(psm, &dsmStore[dsmCount], dsw);
         dsmCount++;
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;

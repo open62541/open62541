@@ -260,55 +260,6 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
 }
 
 UA_StatusCode
-UA_DataSetWriter_prepareDataSet(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
-                                UA_DataSetMessage *dsm) {
-    /* No PublishedDataSet defined -> Heartbeat messages only */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_PublishedDataSet *pds = dsw->connectedDataSet;
-    if(!pds) {
-        res = UA_DataSetWriter_generateDataSetMessage(psm, dsm, dsw);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                                  "PubSub-RT configuration fail: "
-                                  "Heartbeat DataSetMessage creation failed");
-        }
-        return res;
-    }
-
-    UA_WriterGroup *wg = dsw->linkedWriterGroup;
-    UA_assert(wg);
-
-    /* Test the DataSetFields */
-    UA_DataSetField *dsf;
-    TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
-        UA_NodeId *publishedVariable =
-            &dsf->config.field.variable.publishParameters.publishedVariable;
-
-        /* Check that the target is a VariableNode */
-        const UA_VariableNode *rtNode = (const UA_VariableNode*)
-            UA_NODESTORE_GET(psm->sc.server, publishedVariable);
-        if(rtNode && rtNode->head.nodeClass != UA_NODECLASS_VARIABLE) {
-            UA_LOG_ERROR_PUBSUB(psm->logging, dsw,
-                                "PubSub-RT configuration fail: "
-                                "PDS points to a node that is not a variable");
-            UA_NODESTORE_RELEASE(psm->sc.server, (const UA_Node *)rtNode);
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        }
-        UA_NODESTORE_RELEASE(psm->sc.server, (const UA_Node *)rtNode);
-    }
-
-    /* Generate the DSM */
-    res = UA_DataSetWriter_generateDataSetMessage(psm, dsm, dsw);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                              "PubSub-RT configuration fail: "
-                              "DataSetMessage buffering failed");
-    }
-
-    return res;
-}
-
-UA_StatusCode
 UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
