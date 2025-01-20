@@ -63,7 +63,8 @@ struct UA_CertificateGroup {
 UA_EXPORT UA_StatusCode
 UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
                                          const UA_ByteString *certificate,
-                                         const UA_String *applicationURI);
+                                         const UA_String *applicationURI,
+                                         UA_Logger *logger);
 
 /* Get the expire date from certificate */
 UA_EXPORT UA_StatusCode

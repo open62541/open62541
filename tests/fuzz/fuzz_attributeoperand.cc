@@ -28,6 +28,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     const UA_String input = {size, (UA_Byte *) (void *) data};
     UA_String out = UA_STRING_NULL;
+    UA_String out2 = UA_STRING_NULL;
 
     UA_AttributeOperand ao;
     UA_AttributeOperand ao2;
@@ -46,10 +47,17 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         goto cleanup;
     UA_assert(ret == UA_STATUSCODE_GOOD);
 
+    ret = UA_AttributeOperand_print(&ao2, &out2);
+    if(ret == UA_STATUSCODE_BADOUTOFMEMORY)
+        goto cleanup;
+    UA_assert(ret == UA_STATUSCODE_GOOD);
+
+    UA_assert(UA_String_equal(&out, &out2));
     UA_assert(UA_equal(&ao, &ao2, &UA_TYPES[UA_TYPES_ATTRIBUTEOPERAND]));
 
  cleanup:
     UA_String_clear(&out);
+    UA_String_clear(&out2);
     UA_AttributeOperand_clear(&ao);
     UA_AttributeOperand_clear(&ao2);
     return 0;

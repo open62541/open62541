@@ -83,7 +83,6 @@ START_TEST(SinglePublishDataSetField) {
     writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
     retVal |= UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup3);
-    retVal |= UA_Server_enableWriterGroup(server, writerGroup3);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     UA_PublishedDataSetConfig pdsConfig;
@@ -117,6 +116,9 @@ START_TEST(SinglePublishDataSetField) {
     UA_ByteString kn = {UA_AES256CTR_KEYNONCE_LENGTH, keyNonce};
 
     UA_Server_setWriterGroupEncryptionKeys(server, writerGroup3, 1, sk, ek, kn);
+
+    retVal |= UA_Server_enableAllPubSubComponents(server);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup3);

@@ -29,8 +29,7 @@ typedef struct {
     UA_Boolean useReversible;
     UA_Boolean calcOnly; /* Only compute the length of the decoding */
 
-    size_t namespacesSize;
-    const UA_String *namespaces;
+    UA_NamespaceMapping *namespaceMapping;
 
     size_t serverUrisSize;
     const UA_String *serverUris;
@@ -63,19 +62,12 @@ typedef struct {
     size_t index;
     UA_Byte depth;
 
-    size_t namespacesSize;
-    const UA_String *namespaces;
+    UA_NamespaceMapping *namespaceMapping;
 
     size_t serverUrisSize;
     const UA_String *serverUris;
 
     const UA_DataTypeArray *customTypes;
-
-    /* Additonal data for special cases such as networkmessage/datasetmessage
-     * Currently only used for dataSetWriterIds */
-    size_t numCustom;
-    void * custom;
-    size_t currentCustomIndex;
 } ParseCtx;
 
 typedef UA_StatusCode

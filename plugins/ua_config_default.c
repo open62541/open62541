@@ -207,8 +207,7 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 #define PRODUCT_NAME "open62541 OPC UA Server"
 #define PRODUCT_URI "http://open62541.org"
 #define APPLICATION_NAME "open62541-based OPC UA Application"
-#define APPLICATION_URI "urn:unconfigured:application"
-#define APPLICATION_URI_SERVER "urn:open62541.server.application"
+#define APPLICATION_URI "urn:open62541.unconfigured.application"
 
 #define SECURITY_POLICY_SIZE 7
 
@@ -368,7 +367,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     conf->buildInfo.buildDate = UA_DateTime_now();
 
     UA_ApplicationDescription_clear(&conf->applicationDescription);
-    conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI_SERVER);
+    conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);
     conf->applicationDescription.productUri = UA_STRING_ALLOC(PRODUCT_URI);
     conf->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("en", APPLICATION_NAME);
@@ -380,10 +379,12 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&conf->mdnsConfig);
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
     conf->mdnsInterfaceIP = UA_STRING_NULL;
-# if !defined(UA_HAS_GETIFADDR)
+#  if !defined(UA_HAS_GETIFADDR)
     conf->mdnsIpAddressList = NULL;
     conf->mdnsIpAddressListSize = 0;
+#  endif
 # endif
 #endif
 
@@ -1220,7 +1221,7 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef __linux__ /* Linux only so far */
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 
 UA_StatusCode
 UA_ServerConfig_addSecurityPolicy_Filestore(UA_ServerConfig *config,
@@ -1579,9 +1580,9 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
     return retval;
 }
 
-#endif
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
-#endif
+#endif /* UA_ENABLE_ENCRYPTION */
 
 /***************************/
 /* Default Client Settings */

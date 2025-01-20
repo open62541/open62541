@@ -3,6 +3,32 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### New Realtime-PubSub model
+
+The new Realtime-PubSub model builds upon two new public APIS: (i) The
+possibility to integrate custom state machines to control the state of
+PubSub-components and (ii) the generation of offset-tables for the content of
+PubSub NetworkMessages. The approach is described in
+/examples/pubsub_realtime/README.md with code examples in the same folder.
+
+### JSON encoding changed with the v1.05 specification
+
+The JSON encoding was reworked for the v1.05 version of the OPC UA
+specification. The change breaks backwards compatibility. The legacy JSON
+encoding is still available throught the UA_ENABLE_JSON_ENCODING_LEGACY build
+option. This legacy feature wil get removed at some point in the future.
+
+### PubSub NetworkMessage structure has an explicit DataSetMessageSize
+
+In prior versions of the standard, when the PayloadHeader was missing, the
+PubSub NetworkMessage needed to have exactly one DataSetMessage. In the current
+standard there can be several DataSetMessages also without a PayloadHeader. To
+allow for this the UA_NetworkMessage structure now contains an explicit
+DataSetMessageSize field outside of the PayloadHeader.
+
+Note that code could before rely on the default of one DataSetMessage. This code
+needs to be revised to set the new DataSetMessageSize field to one.
+
 ### PubSub Components are disabled initially
 
 PubSubComponents (PubSubConnections, ReaderGroups, ...) are no longer enabled

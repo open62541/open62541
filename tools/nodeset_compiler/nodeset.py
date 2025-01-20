@@ -37,7 +37,7 @@ def getSubTypesOf(nodeset, node, skipNodes=[]):
     re = set()
     re.add(node)
     for ref in node.references:
-        if (ref.referenceType == hassubtype):
+        if ref.referenceType == hassubtype:
             skipAll = set()
             skipAll.update(skipNodes)
             skipAll.update(re)
@@ -111,7 +111,7 @@ class NodeSet:
 
     def sanitize(self):
         for n in self.nodes.values():
-            if n.sanitize() == False:
+            if n.sanitize() is False:
                 raise Exception("Failed to sanitize node " + str(n))
 
         # Sanitize reference consistency

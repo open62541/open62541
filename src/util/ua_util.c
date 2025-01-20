@@ -1136,6 +1136,31 @@ UA_TrustListDataType_add(const UA_TrustListDataType *src, UA_TrustListDataType *
 }
 
 UA_StatusCode
+UA_TrustListDataType_set(const UA_TrustListDataType *src, UA_TrustListDataType *dst) {
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
+        UA_Array_delete(dst->trustedCertificates, dst->trustedCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->trustedCertificates = NULL;
+        dst->trustedCertificatesSize = 0;
+    }
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
+        UA_Array_delete(dst->trustedCrls, dst->trustedCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->trustedCrls = NULL;
+        dst->trustedCrlsSize = 0;
+    }
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
+        UA_Array_delete(dst->issuerCertificates, dst->issuerCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->issuerCertificates = NULL;
+        dst->issuerCertificatesSize = 0;
+    }
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS) {
+        UA_Array_delete(dst->issuerCrls, dst->issuerCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->issuerCrls = NULL;
+        dst->issuerCrlsSize = 0;
+    }
+    return UA_TrustListDataType_add(src, dst);
+}
+
+UA_StatusCode
 UA_TrustListDataType_remove(const UA_TrustListDataType *src, UA_TrustListDataType *dst) {
     if(!dst)
         return UA_STATUSCODE_BADINVALIDARGUMENT;

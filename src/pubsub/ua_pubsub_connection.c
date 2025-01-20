@@ -23,7 +23,7 @@ UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
 
 static void
 UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
-                            UA_ByteString msg);
+                            const UA_ByteString msg);
 
 static void
 UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
@@ -250,7 +250,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     /* The WriterGroups / ReaderGroups are not deleted. Try again in the next
      * iteration of the event loop.*/
     if(!LIST_EMPTY(&c->writerGroups) || !LIST_EMPTY(&c->readerGroups)) {
-        UA_EventLoop *el = UA_PubSubConnection_getEL(psm, c);
+        UA_EventLoop *el = psm->sc.server->config.eventLoop;
         c->dc.callback = delayedPubSubConnection_delete;
         c->dc.application = psm;
         c->dc.context = c;
@@ -276,33 +276,21 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
 
 static void
 UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
-                            UA_ByteString msg) {
+                            const UA_ByteString msg) {
     UA_LOG_TRACE_PUBSUB(psm->logging, c, "Processing a received buffer");
 
     /* Process RT ReaderGroups */
-    UA_ReaderGroup *rg;
     UA_Boolean processed = false;
-    UA_ReaderGroup *nonRtRg = NULL;
-    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-        if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
-           rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
-            continue;
-        if(!(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE)) {
-            nonRtRg = rg;
-            continue;
-        } 
-        processed |= UA_ReaderGroup_decodeAndProcessRT(psm, rg, msg);
-    }
-
-    /* Any non-RT ReaderGroups? */
-    if(!nonRtRg)
+    UA_ReaderGroup *rg = LIST_FIRST(&c->readerGroups);
+    /* Any interested ReaderGroups? */
+    if(!rg)
         goto finish;
 
     /* Decode the received message for the non-RT ReaderGroups */
     UA_StatusCode res;
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
-    if(nonRtRg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+    if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
         res = UA_PubSubConnection_decodeNetworkMessage(psm, c, msg, &nm);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
@@ -325,8 +313,6 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
         if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
            rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
-            continue;
-        if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE)
             continue;
         processed |= UA_ReaderGroup_process(psm, rg, &nm);
     }
@@ -357,9 +343,20 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
     UA_Boolean isTransient = c->head.transientState;
     c->head.transientState = true;
 
+    UA_Server *server = psm->sc.server;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = c->head.state;
 
+    /* Custom state machine */
+    if(c->config.customStateMachine) {
+        UA_UNLOCK(&server->serviceMutex);
+        ret = c->config.customStateMachine(server, c->head.identifier, c->config.context,
+                                           &c->head.state, targetState);
+        UA_LOCK(&server->serviceMutex);
+        goto finalize_state_machine;
+    }
+
+    /* Internal state machine */
     switch(targetState) {
         /* Disabled or Error */
         case UA_PUBSUBSTATE_ERROR:
@@ -405,6 +402,8 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
         UA_PubSubConnection_disconnect(c);
     }
 
+ finalize_state_machine:
+
     /* Only the top-level state update (if recursive calls are happening)
      * notifies the application and updates Reader and WriterGroups */
     c->head.transientState = isTransient;
@@ -413,15 +412,14 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
 
     /* Inform application about state change */
     if(c->head.state != oldState) {
-        UA_ServerConfig *config = &psm->sc.server->config;
         UA_LOG_INFO_PUBSUB(psm->logging, c, "%s -> %s",
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(c->head.state));
-        if(config->pubSubConfig.stateChangeCallback) {
-            UA_UNLOCK(&psm->sc.server->serviceMutex);
-            config->pubSubConfig.
-                stateChangeCallback(psm->sc.server, c->head.identifier, targetState, ret);
-            UA_LOCK(&psm->sc.server->serviceMutex);
+        if(server->config.pubSubConfig.stateChangeCallback) {
+            UA_UNLOCK(&server->serviceMutex);
+            server->config.pubSubConfig.
+                stateChangeCallback(server, c->head.identifier, targetState, ret);
+            UA_LOCK(&server->serviceMutex);
         }
     }
 
@@ -455,13 +453,6 @@ disablePubSubConnection(UA_PubSubManager *psm, const UA_NodeId connectionId) {
     UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
     return (c) ? UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED)
         : UA_STATUSCODE_BADNOTFOUND;
-}
-
-UA_EventLoop *
-UA_PubSubConnection_getEL(UA_PubSubManager *psm, UA_PubSubConnection *c) {
-    if(c->config.eventLoop)
-        return c->config.eventLoop;
-    return psm->sc.server->config.eventLoop;
 }
 
 /***********************/
@@ -822,7 +813,7 @@ UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
     UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, c);
+    UA_EventLoop *el = psm->sc.server->config.eventLoop;
     if(!el) {
         UA_LOG_ERROR_PUBSUB(psm->logging, c, "No EventLoop configured");
         return UA_STATUSCODE_BADINTERNALERROR;;
@@ -931,6 +922,31 @@ UA_Server_disablePubSubConnection(UA_Server *server, const UA_NodeId cId) {
     UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode res = (psm) ?
         disablePubSubConnection(psm, cId) : UA_STATUSCODE_BADINTERNALERROR;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_processPubSubConnectionReceive(UA_Server *server,
+                                         const UA_NodeId connectionId,
+                                         const UA_ByteString packet) {
+    if(!server)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    UA_PubSubManager *psm = getPSM(server);
+    if(psm) {
+        UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
+        if(c) {
+            res = UA_STATUSCODE_GOOD;
+            UA_PubSubConnection_process(psm, c, packet);
+        } else {
+            res = UA_STATUSCODE_BADCONNECTIONCLOSED;
+            UA_LOG_WARNING_PUBSUB(psm->logging, c,
+                                  "Cannot process a packet if the "
+                                  "PubSubConnection is not operational");
+        }
+    }
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

@@ -125,7 +125,7 @@ class ExtensionObject:
         content = self.val['content']
         if encoding == 0:
             return "UA_ExtensionObject()"
-        elif encoding == 1 or encoding == 2:
+        if encoding in (1, 2):
             encoded = content['encoded']
             return "UA_ExtensionObject({}, {})".format(encoded['typeId'], encoded['body'])
         decoded = content['decoded']
@@ -165,17 +165,17 @@ class Variant:
         return "UA_Variant<%s[%i]>(%s, arrayDimensions = %s)" % (tt, array_length, content, dims)
 
 def build_open62541_printer():
-   pp = gdb.printing.RegexpCollectionPrettyPrinter("open62541")
-   pp.add_printer('UA_String', '^UA_String$', String)
-   pp.add_printer('UA_ByteString', '^UA_ByteString$', ByteString)
-   pp.add_printer('UA_LocalizedText', '^UA_LocalizedText$', LocalizedText)
-   pp.add_printer('UA_QualifiedName', '^UA_QualifiedName$', QualifiedName)
-   pp.add_printer('UA_Guid', '^UA_Guid$', Guid)
-   pp.add_printer('UA_NodeId', '^UA_NodeId$', NodeId)
-   pp.add_printer('UA_ExpandedNodeId', '^UA_ExpandedNodeId$', ExpandedNodeId)
-   pp.add_printer('UA_ExtensionObject', '^UA_ExtensionObject$', ExtensionObject)
-   pp.add_printer('UA_Variant', '^UA_Variant$', Variant)
-   return pp
+    pp = gdb.printing.RegexpCollectionPrettyPrinter("open62541")
+    pp.add_printer('UA_String', '^UA_String$', String)
+    pp.add_printer('UA_ByteString', '^UA_ByteString$', ByteString)
+    pp.add_printer('UA_LocalizedText', '^UA_LocalizedText$', LocalizedText)
+    pp.add_printer('UA_QualifiedName', '^UA_QualifiedName$', QualifiedName)
+    pp.add_printer('UA_Guid', '^UA_Guid$', Guid)
+    pp.add_printer('UA_NodeId', '^UA_NodeId$', NodeId)
+    pp.add_printer('UA_ExpandedNodeId', '^UA_ExpandedNodeId$', ExpandedNodeId)
+    pp.add_printer('UA_ExtensionObject', '^UA_ExtensionObject$', ExtensionObject)
+    pp.add_printer('UA_Variant', '^UA_Variant$', Variant)
+    return pp
 
 gdb.printing.register_pretty_printer(gdb.current_objfile(),
                                      build_open62541_printer())

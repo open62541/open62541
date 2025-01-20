@@ -79,7 +79,7 @@ for fname in args.inputs:
 for fname in args.inputs:
     with open(fname, encoding='utf8', errors='replace') as infile:
         file.write("\n/**** amalgamated original file \"" + fname[initial:] + "\" ****/\n\n")
-        print ("Integrating file '" + fname + "' ... ", end=""),
+        print ("Integrating file '" + fname + "' ... ", end="")
         for line in infile:
             inc_res = include_re.match(line)
             guard_res = guard_re.match(line)
@@ -88,7 +88,7 @@ for fname in args.inputs:
         # Ensure file is written to disk.
         file.flush()
         os.fsync(file.fileno())
-        print ("done."),
+        print ("done.")
 
 if not is_c:
     file.write("#endif /* %s */\n" % (outname.upper() + "_H_"))

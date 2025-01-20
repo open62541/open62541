@@ -517,33 +517,19 @@ addSubscribedDataSet(UA_PubSubManager *psm, const UA_NodeId dsReaderIdent,
 
     if(subscribedDataSet->content.decoded.type ==
        &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]) {
-        UA_TargetVariablesDataType *tmpTargetVars = (UA_TargetVariablesDataType*)
+        UA_TargetVariablesDataType *targetVars = (UA_TargetVariablesDataType*)
             subscribedDataSet->content.decoded.data;
-        UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
-            UA_calloc(tmpTargetVars->targetVariablesSize, sizeof(UA_FieldTargetVariable));
-
-        for(size_t index = 0; index < tmpTargetVars->targetVariablesSize; index++) {
-            UA_FieldTargetDataType_copy(&tmpTargetVars->targetVariables[index],
-                                        &targetVars[index].targetVariable);
-        }
-
         UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
         UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsReaderIdent);
         if(dsr)
             res = DataSetReader_createTargetVariables(psm, dsr,
-                                                      tmpTargetVars->targetVariablesSize,
-                                                      targetVars);
+                                                      targetVars->targetVariablesSize,
+                                                      targetVars->targetVariables);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                          "[UA_PubSubManager_addSubscribedDataSet] "
                          "create TargetVariables failed");
         }
-
-        for(size_t index = 0; index < tmpTargetVars->targetVariablesSize; index++) {
-            UA_FieldTargetDataType_clear(&targetVars[index].targetVariable);
-        }
-
-        UA_free(targetVars);
         return res;
     }
 
@@ -989,21 +975,20 @@ generateDataSetReaderDataType(const UA_DataSetReader *src,
     UA_TargetVariablesDataType *tmpTarget = UA_TargetVariablesDataType_new();
     if(!tmpTarget)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_ExtensionObject_setValue(&dst->subscribedDataSet, tmpTarget,
-                                &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]);
 
-    const UA_TargetVariables *targets =
-        &src->config.subscribedDataSet.subscribedDataSetTarget;
+    const UA_TargetVariablesDataType *targets = &src->config.subscribedDataSet.target;
     tmpTarget->targetVariables = (UA_FieldTargetDataType *)
         UA_calloc(targets->targetVariablesSize, sizeof(UA_FieldTargetDataType));
     if(!tmpTarget->targetVariables)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     tmpTarget->targetVariablesSize = targets->targetVariablesSize;
-
     for(size_t i = 0; i < tmpTarget->targetVariablesSize; i++) {
-        res |= UA_FieldTargetDataType_copy(&targets->targetVariables[i].targetVariable,
+        res |= UA_FieldTargetDataType_copy(&targets->targetVariables[i],
                                            &tmpTarget->targetVariables[i]);
     }
+
+    UA_ExtensionObject_setValue(&dst->subscribedDataSet, tmpTarget,
+                                &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]);
 
     return res;
 }

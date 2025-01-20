@@ -9,7 +9,6 @@
 
 #include <open62541/util.h>
 #include <open62541/plugin/certificategroup_default.h>
-#include <open62541/plugin/log_stdout.h>
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #include <openssl/x509.h>
@@ -93,8 +92,8 @@ MemoryCertStore_setTrustList(UA_CertificateGroup *certGroup, const UA_TrustListD
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     context->reloadRequired = true;
-    UA_TrustListDataType_clear(&context->trustList);
-    return UA_TrustListDataType_add(trustList, &context->trustList);
+    /* Remove the section of the trust list that needs to be reset, while keeping the remaining parts intact */
+    return UA_TrustListDataType_set(trustList, &context->trustList);
 }
 
 static UA_StatusCode
@@ -159,8 +158,8 @@ openSSLFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
     /* Check if the certificate is a CA certificate.
      * Only a CA certificate can have a CRL. */
     if(!openSSLCheckCA(cert)) {
-        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
-                   "The certificate is not a CA certificate and therefore does not have a CRL.");
+        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "The certificate is not a CA certificate and therefore does not have a CRL.");
         X509_free(cert);
         return UA_STATUSCODE_GOOD;
     }
@@ -761,7 +760,8 @@ cleanup:
 UA_StatusCode
 UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
                                          const UA_ByteString *certificate,
-                                         const UA_String *applicationURI) {
+                                         const UA_String *applicationURI,
+                                         UA_Logger *logger) {
     const unsigned char * pData;
     X509 *                certificateX509;
     UA_String             subjectURI = UA_STRING_NULL;
@@ -810,12 +810,15 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
         ret = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
     }
 
-    if(ret != UA_STATUSCODE_GOOD && ruleHandling == UA_RULEHANDLING_DEFAULT) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                       "The certificate's application URI could not be verified. StatusCode %s",
-                       UA_StatusCode_name(ret));
-        ret = UA_STATUSCODE_GOOD;
+    if(ret != UA_STATUSCODE_GOOD && ruleHandling != UA_RULEHANDLING_ACCEPT) {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "The certificate's Subject Alternative Name URI (%S) "
+                       "does not match the ApplicationURI (%S)",
+                       subjectURI, *applicationURI);
     }
+
+    if(ruleHandling != UA_RULEHANDLING_ABORT)
+        ret = UA_STATUSCODE_GOOD;
 
     X509_free (certificateX509);
     sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
@@ -855,14 +858,24 @@ UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName) {
+    X509_NAME *sn = NULL;
     X509 *x509 = UA_OpenSSL_LoadCertificate(certificate);
-    if(!x509)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    X509_CRL *x509_crl = NULL;
 
-    X509_NAME *sn = X509_get_subject_name(x509);
+    if(x509) {
+        sn = X509_get_subject_name(x509);
+    } else {
+        x509_crl = UA_OpenSSL_LoadCrl(certificate);
+        if(!x509_crl)
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        sn = X509_CRL_get_issuer(x509_crl);
+    }
+
     char buf[1024];
     *subjectName = UA_STRING_ALLOC(X509_NAME_oneline(sn, buf, 1024));
-    X509_free(x509);
+
+    if (x509) X509_free(x509);
+    if (x509_crl) X509_CRL_free(x509_crl);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -872,15 +885,25 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
     if(certificate == NULL || thumbprint->length != (SHA1_DIGEST_LENGTH * 2))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
-    if(!cert)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-
     unsigned char digest[SHA1_DIGEST_LENGTH];
     unsigned int digestLen;
-    if(X509_digest(cert, EVP_sha1(), digest, &digestLen) != 1) {
+
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    if(cert) {
+        if(X509_digest(cert, EVP_sha1(), digest, &digestLen) != 1) {
+            X509_free(cert);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
         X509_free(cert);
-        return UA_STATUSCODE_BADINTERNALERROR;
+    } else {
+        X509_CRL *crl = UA_OpenSSL_LoadCrl(certificate);
+        if(!crl)
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        if(X509_CRL_digest(crl, EVP_sha1(), digest, &digestLen) != 1) {
+            X509_CRL_free(crl);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        X509_CRL_free(crl);
     }
 
     UA_String thumb = UA_STRING_NULL;
@@ -894,8 +917,6 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
     }
 
     memcpy(thumbprint->data, thumb.data, thumbprint->length);
-
-    X509_free(cert);
     free(thumb.data);
 
     return UA_STATUSCODE_GOOD;
