@@ -209,6 +209,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
         with:
           submodules: true
       - name: Install Dependencies
