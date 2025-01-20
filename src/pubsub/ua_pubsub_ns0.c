@@ -522,7 +522,6 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ExtensionObject *eoTargetVar = &dataSetReader->subscribedDataSet;
     if(eoTargetVar->encoding != UA_EXTENSIONOBJECT_DECODED ||
        eoTargetVar->content.decoded.type != &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE])
@@ -530,6 +529,10 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
 
     const UA_TargetVariablesDataType *targetVars =
         (UA_TargetVariablesDataType*)eoTargetVar->content.decoded.data;
+
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dataSetReaderId);
+    if(!dsr)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_NodeId folderId;
     UA_String folderName = pMetaData->name;
@@ -556,40 +559,25 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
      * Subscriber AddressSpace. The values subscribed from the Publisher are
      * updated in the value field of these variables */
 
-    /* Create the TargetVariables with respect to DataSetMetaData fields */
-    UA_FieldTargetVariable *targetVarsData = (UA_FieldTargetVariable *)
-        UA_calloc(targetVars->targetVariablesSize, sizeof(UA_FieldTargetVariable));
+    /* Add variable for the fields */
     for(size_t i = 0; i < targetVars->targetVariablesSize; i++) {
-        /* Prepare the output structure */
-        UA_FieldTargetDataType_init(&targetVarsData[i].targetVariable);
-        targetVarsData[i].targetVariable.attributeId  = targetVars->targetVariables[i].attributeId;
-
-        /* Add variable for the field */
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
         vAttr.description = pMetaData->fields[i].description;
         vAttr.displayName.locale = UA_STRING("");
         vAttr.displayName.text = pMetaData->fields[i].name;
         vAttr.dataType = pMetaData->fields[i].dataType;
         UA_QualifiedName varname = {1, pMetaData->fields[i].name};
-        retVal |= addNode(server, UA_NODECLASS_VARIABLE,
-                          targetVars->targetVariables[i].targetNodeId, folderId,
-                          UA_NS0ID(HASCOMPONENT), varname, UA_NS0ID(BASEDATAVARIABLETYPE),
-                          &vAttr, &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
-                          NULL, &targetVarsData[i].targetVariable.targetNodeId);
+        addNode(server, UA_NODECLASS_VARIABLE,
+                targetVars->targetVariables[i].targetNodeId, folderId,
+                UA_NS0ID(HASCOMPONENT), varname, UA_NS0ID(BASEDATAVARIABLETYPE),
+                &vAttr, &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
+                NULL, &targetVars->targetVariables[i].targetNodeId);
+    }
 
-    }
-    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dataSetReaderId);
-    if(dsr) {
-        retVal = DataSetReader_createTargetVariables(psm, dsr,
-                                                     targetVars->targetVariablesSize,
-                                                     targetVarsData);
-    } else {
-        retVal = UA_STATUSCODE_BADINTERNALERROR;
-    }
-    for(size_t j = 0; j < targetVars->targetVariablesSize; j++)
-        UA_FieldTargetDataType_clear(&targetVarsData[j].targetVariable);
-    UA_free(targetVarsData);
-    return retVal;
+    /* Set the TargetVariables in the DSR config */
+    return DataSetReader_createTargetVariables(psm, dsr,
+                                               targetVars->targetVariablesSize,
+                                               targetVars->targetVariables);
 }
 
 /**

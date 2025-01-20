@@ -56,18 +56,17 @@ static void setup2(void) {
     server =
         UA_Server_newForUnitTestWithSecurityPolicies_Filestore(4840, &certificate,
                                                                &privateKey, storePath);
-    ck_assert(server != NULL);
 
-    /* Clear old certificates */
-    UA_ByteString empty[2] = {0};
-    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(
-        0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    UA_StatusCode retval = UA_Server_addCertificates(server, defaultApplicationGroup,
-                                                     empty, 0, empty, 0, true, false);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    retval = UA_Server_addCertificates(server, defaultApplicationGroup, empty, 0, empty,
-                                       0, false, false);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    /* Reset the trust list for each test case.
+     * This is necessary so that all of the old certificates
+     * from previous test cases are deleted from the PKI file store */
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    server->config.secureChannelPKI.setTrustList(&server->config.secureChannelPKI, &trustList);
+    UA_TrustListDataType_clear(&trustList);
+
+    ck_assert(server != NULL);
 }
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
@@ -122,7 +121,7 @@ START_TEST(add_ca_certificate_trustlist) {
 
     UA_StatusCode retval =
             UA_Server_addCertificates(server, defaultApplicationGroup, trustedCertificates, 2,
-                                      trustedCrls, 2, true, true);
+                                      trustedCrls, 2, true, false);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_TrustListDataType trustList;
@@ -163,7 +162,7 @@ START_TEST(add_ca_certificate_issuerlist) {
 
     UA_StatusCode retval =
             UA_Server_addCertificates(server, defaultApplicationGroup, issuerCertificates, 2,
-                                      issuerCrls, 2, false, true);
+                                      issuerCrls, 2, false, false);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_TrustListDataType trustList;
@@ -204,7 +203,7 @@ START_TEST(remove_certificate_trustlist) {
 
     UA_StatusCode retval =
             UA_Server_addCertificates(server, defaultApplicationGroup, trustedCertificates, 2,
-                                      trustedCrls, 2, true, true);
+                                      trustedCrls, 2, true, false);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     retval = UA_Server_removeCertificates(server, defaultApplicationGroup,
@@ -249,7 +248,7 @@ START_TEST(remove_certificate_issuerlist) {
 
     UA_StatusCode retval =
             UA_Server_addCertificates(server, defaultApplicationGroup, issuerCertificates, 2,
-                                      issuerCrls, 2, false, true);
+                                      issuerCrls, 2, false, false);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     retval = UA_Server_removeCertificates(server, defaultApplicationGroup,

@@ -250,7 +250,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     /* The WriterGroups / ReaderGroups are not deleted. Try again in the next
      * iteration of the event loop.*/
     if(!LIST_EMPTY(&c->writerGroups) || !LIST_EMPTY(&c->readerGroups)) {
-        UA_EventLoop *el = UA_PubSubConnection_getEL(psm, c);
+        UA_EventLoop *el = psm->sc.server->config.eventLoop;
         c->dc.callback = delayedPubSubConnection_delete;
         c->dc.application = psm;
         c->dc.context = c;
@@ -280,29 +280,17 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
     UA_LOG_TRACE_PUBSUB(psm->logging, c, "Processing a received buffer");
 
     /* Process RT ReaderGroups */
-    UA_ReaderGroup *rg;
     UA_Boolean processed = false;
-    UA_ReaderGroup *nonRtRg = NULL;
-    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-        if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
-           rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
-            continue;
-        if(!(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE)) {
-            nonRtRg = rg;
-            continue;
-        } 
-        processed |= UA_ReaderGroup_decodeAndProcessRT(psm, rg, msg);
-    }
-
-    /* Any non-RT ReaderGroups? */
-    if(!nonRtRg)
+    UA_ReaderGroup *rg = LIST_FIRST(&c->readerGroups);
+    /* Any interested ReaderGroups? */
+    if(!rg)
         goto finish;
 
     /* Decode the received message for the non-RT ReaderGroups */
     UA_StatusCode res;
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
-    if(nonRtRg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+    if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
         res = UA_PubSubConnection_decodeNetworkMessage(psm, c, msg, &nm);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
@@ -325,8 +313,6 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
         if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
            rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
-            continue;
-        if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE)
             continue;
         processed |= UA_ReaderGroup_process(psm, rg, &nm);
     }
@@ -467,13 +453,6 @@ disablePubSubConnection(UA_PubSubManager *psm, const UA_NodeId connectionId) {
     UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
     return (c) ? UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED)
         : UA_STATUSCODE_BADNOTFOUND;
-}
-
-UA_EventLoop *
-UA_PubSubConnection_getEL(UA_PubSubManager *psm, UA_PubSubConnection *c) {
-    if(c->config.eventLoop)
-        return c->config.eventLoop;
-    return psm->sc.server->config.eventLoop;
 }
 
 /***********************/
@@ -834,7 +813,7 @@ UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
     UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, c);
+    UA_EventLoop *el = psm->sc.server->config.eventLoop;
     if(!el) {
         UA_LOG_ERROR_PUBSUB(psm->logging, c, "No EventLoop configured");
         return UA_STATUSCODE_BADINTERNALERROR;;

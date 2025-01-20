@@ -263,7 +263,7 @@ class VariableNode(Node):
             elif x.localName == "ArrayDimensions" and len(self.arrayDimensions) == 0:
                 elements = x.getElementsByTagName("ListOfUInt32")
                 if len(elements):
-                    for idx, v in enumerate(elements[0].getElementsByTagName("UInt32")):
+                    for _, v in enumerate(elements[0].getElementsByTagName("UInt32")):
                         self.arrayDimensions.append(v.firstChild.data)
             elif x.localName == "AccessLevel":
                 self.accessLevel = int(x.firstChild.data)
@@ -412,8 +412,7 @@ class DataTypeNode(Node):
             raise Exception("Encoding needs to be built first using buildEncoding()")
         if not self.__encodable__:
             return []
-        else:
-            return self.__baseTypeEncoding__
+        return self.__baseTypeEncoding__
 
 
     def buildEncoding(self, nodeset, indent=0, force=False, namespaceMapping=None):
@@ -455,7 +454,7 @@ class DataTypeNode(Node):
 
         prefix = " " + "|" * indent + "+"
 
-        if force==True:
+        if force is True:
             self.__encodable__ = None
 
         if self.__encodable__ is not None and self.__encodable__:
@@ -530,7 +529,7 @@ class DataTypeNode(Node):
                 enumVal = ""
                 valueRank = None
                 #symbolicName = None
-                arrayDimensions = None
+                #arrayDimensions = None
                 isOptional = ""
                 for at,av in x.attributes.items():
                     if at == "DataType":
@@ -540,9 +539,8 @@ class DataTypeNode(Node):
                     elif at == "Name":
                         fname = str(av)
                     elif at == "SymbolicName":
-                        # ignore
-                        continue
-                    #    symbolicName = str(av)
+                        pass # ignore
+                        #symbolicName = str(av)
                     elif at == "Value":
                         enumVal = int(av)
                         isEnum = True
@@ -551,10 +549,10 @@ class DataTypeNode(Node):
                     elif at == "IsOptional":
                         isOptional = str(av)
                     elif at == "ArrayDimensions":
-                        arrayDimensions = int(av)
+                        pass # ignore
+                        #arrayDimensions = int(av)
                     elif at == "AllowSubTypes":
-                        # ignore
-                        continue
+                        pass # ignore
                     else:
                         logger.warn("Unknown Field Attribute " + str(at))
                 # This can either be an enumeration OR a structure, not both.
@@ -571,7 +569,7 @@ class DataTypeNode(Node):
                     # This might be a subtype... follow the node defined as datatype to find out
                     # what encoding to use
                     fdTypeNodeId = NodeId(fdtype)
-                    if namespaceMapping != None:
+                    if namespaceMapping is not None:
                         fdTypeNodeId.ns = namespaceMapping[fdTypeNodeId.ns]
                     if fdTypeNodeId not in nodeset.nodes:
                         raise Exception(f"Node {fdTypeNodeId} not found in nodeset")
@@ -600,7 +598,7 @@ class DataTypeNode(Node):
         while len(self.__baseTypeEncoding__) == 1 and isinstance(self.__baseTypeEncoding__[0], list):
             self.__baseTypeEncoding__ = self.__baseTypeEncoding__[0]
 
-        if isOptionSet == True:
+        if isOptionSet is True:
             self.__isOptionSet__ = True
             subenc = parentType.buildEncoding(nodeset=nodeset, namespaceMapping=namespaceMapping)
             if not parentType.isEncodable():
@@ -610,7 +608,7 @@ class DataTypeNode(Node):
                 self.__definition__ = enumDict
             return self.__baseTypeEncoding__
 
-        if isEnum == True:
+        if isEnum is True:
             self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + ['Int32']
             self.__definition__ = enumDict
             self.__isEnum__ = True

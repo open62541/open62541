@@ -186,11 +186,16 @@ if(UA_ENABLE_PUBSUB)
     add_example(server_pubsub_publisher_iop pubsub/server_pubsub_publisher_iop.c)
     add_example(pubsub_subscribe_standalone_dataset pubsub/pubsub_subscribe_standalone_dataset.c)
 
+    add_example(server_pubsub_publish_rt_offsets pubsub_realtime/server_pubsub_publish_rt_offsets.c)
+    add_example(server_pubsub_subscribe_rt_offsets pubsub_realtime/server_pubsub_subscribe_rt_offsets.c)
+
     if(UA_ARCHITECTURE_POSIX)
-        add_example(server_pubsub_publish_rt pubsub_realtime/server_pubsub_publish_rt.c)
-        target_link_libraries(server_pubsub_publish_rt "rt")
-        add_example(server_pubsub_subscribe_rt pubsub_realtime/server_pubsub_subscribe_rt.c)
-        target_link_libraries(server_pubsub_subscribe_rt "rt")
+        add_example(server_pubsub_publish_rt_state_machine
+                    pubsub_realtime/server_pubsub_publish_rt_state_machine.c)
+        target_link_libraries(server_pubsub_publish_rt_state_machine "rt")
+        add_example(server_pubsub_subscribe_rt_state_machine
+                    pubsub_realtime/server_pubsub_subscribe_rt_state_machine.c)
+        target_link_libraries(server_pubsub_subscribe_rt_state_machine "rt")
     endif()
 
     if(UA_ENABLE_ENCRYPTION_MBEDTLS)

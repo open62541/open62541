@@ -297,7 +297,7 @@ updateCertificate(UA_Server *server,
 
     /* Verify that the privateKey is in a supported format and
      * that it matches the specified certificate */
-    if(privateKey && privateKey->data) {
+    if(privateKey && privateKey->length > 0) {
         const UA_String pemFormat = UA_STRING("PEM");
         const UA_String derFormat = UA_STRING("DER");
         if(!UA_String_equal(&pemFormat, privateKeyFormat) && !UA_String_equal(&derFormat, privateKeyFormat))
@@ -1146,10 +1146,10 @@ applyChangesToServer(UA_Server *server) {
         UA_ByteString certificate = certInfo.certificate;
         UA_ByteString privateKey = certInfo.privateKey;
 
-        for(size_t i = 0; i < server->config.endpointsSize; i++) {
-            UA_EndpointDescription *ed = &server->config.endpoints[i];
+        for(size_t j = 0; j < server->config.endpointsSize; j++) {
+            UA_EndpointDescription *ed = &server->config.endpoints[j];
             UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
-                                &server->config.endpoints[i].securityPolicyUri);
+                                &server->config.endpoints[j].securityPolicyUri);
             UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
 
             if(!UA_NodeId_equal(&sp->certificateTypeId, &certTypeId))
