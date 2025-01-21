@@ -320,32 +320,6 @@ function unit_tests_pubsub_sks {
 }
 
 ##########################################
-# Build and Run Unit Tests with Coverage #
-##########################################
-
-function unit_tests_with_coverage {
-    mkdir -p build; cd build; rm -rf *
-    cmake -DCMAKE_BUILD_TYPE=Debug \
-          -DUA_BUILD_EXAMPLES=ON \
-          -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_COVERAGE=ON \
-          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_JSON_ENCODING=ON \
-          -DUA_ENABLE_XML_ENCODING=ON \
-          -DUA_ENABLE_NODESETLOADER=ON \
-          -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_MQTT=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
-          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
-          -DUA_FORCE_WERROR=ON \
-          ..
-    make ${MAKEOPTS}
-    set_capabilities
-    make test ARGS="-V"
-    make gcov
-}
-
-##########################################
 # Build and Run Unit Tests with Valgrind #
 ##########################################
 
