@@ -795,7 +795,7 @@ mdnsAddConnection(UA_DiscoveryManager *dm, uintptr_t connectionId,
     if(!recv) {
         for(size_t i = 0; i < UA_MAXMDNSSENDSOCKETS; i++) {
             if(mdnsPrivateData.mdnsSendConnections[i] == connectionId)
-            return;
+                return;
         }
         for(size_t i = 0; i < UA_MAXMDNSSENDSOCKETS; i++) {
             if(mdnsPrivateData.mdnsSendConnections[i] != 0)
@@ -904,7 +904,7 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 static void
 UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm) {
     UA_ConnectionManager *cm = dm->cm;
-    if(!dm->cm || dm->mdnsSendConnectionsSize == 0)
+    if(!dm->cm || UA_DiscoveryManager_getMdnsSendConnectionCount() == 0)
         return;
 
     struct sockaddr ip;
@@ -920,14 +920,14 @@ UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm) {
         char* buf = (char*)message_packet(&mm);
         if(len <= 0)
             continue;
-        for(size_t i = 0; i < dm->mdnsSendConnectionsSize; i++) {
+        for(size_t i = 0; i < UA_DiscoveryManager_getMdnsSendConnectionCount(); i++) {
             UA_ByteString sendBuf = UA_BYTESTRING_NULL;
-            UA_StatusCode rv = cm->allocNetworkBuffer(cm, dm->mdnsSendConnections[i],
+            UA_StatusCode rv = cm->allocNetworkBuffer(cm, mdnsPrivateData.mdnsSendConnections[i],
                                                       &sendBuf, (size_t)len);
             if(rv != UA_STATUSCODE_GOOD)
                 continue;
             memcpy(sendBuf.data, buf, sendBuf.length);
-            cm->sendWithConnection(cm, dm->mdnsSendConnections[i],
+            cm->sendWithConnection(cm, mdnsPrivateData.mdnsSendConnections[i],
                                    &UA_KEYVALUEMAP_NULL, &sendBuf);
 		}
     }
@@ -1133,7 +1133,7 @@ discovery_createMulticastSocket(UA_DiscoveryManager *dm) {
 
     /* Open the send connection */
     listen = false;
-    if(dm->mdnsSendConnectionsSize == 0) {
+    if(UA_DiscoveryManager_getMdnsSendConnectionCount() == 0) {
 		const UA_String *addrs = (const UA_String *)UA_KeyValueMap_getScalar(
             &kvm, UA_QUALIFIEDNAME(0, "interface"), &UA_TYPES[UA_TYPES_STRING]);
         if(!addrs) {
@@ -1161,9 +1161,9 @@ UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm) {
 #endif
 
     /* Open the mdns listen socket */
-    if(mdnsPrivateData.mdnsSendConnectionsSize == 0)
+    if(UA_DiscoveryManager_getMdnsSendConnectionCount() == 0)
         discovery_createMulticastSocket(dm);
-    if(mdnsPrivateData.mdnsSendConnectionsSize == 0) {
+    if(UA_DiscoveryManager_getMdnsSendConnectionCount() == 0) {
         UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "Could not create multicast socket");
         return;
@@ -1251,7 +1251,12 @@ UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm) {
 
 UA_UInt32
 UA_DiscoveryManager_getMdnsConnectionCount(void) {
-    return mdnsPrivateData.mdnsRecvConnectionsSize + (mdnsPrivateData.mdnsSendConnection != 0);
+    return mdnsPrivateData.mdnsRecvConnectionsSize;
+}
+
+UA_UInt32
+UA_DiscoveryManager_getMdnsSendConnectionCount(void) {
+    return mdnsPrivateData.mdnsSendConnectionsSize;
 }
 
 void
