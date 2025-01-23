@@ -124,10 +124,6 @@ UA_DiscoveryManager_clearServerOnNetwork(UA_DiscoveryManager *dm);
 void
 UA_DiscoveryManager_mdnsCyclicTimer(UA_Server *server, void *data);
 
-void
-discovery_createMultiConnections(UA_Server *server, UA_DiscoveryManager *dm,
-                                 UA_KeyValuePair params[], UA_KeyValueMap kvm);
-
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
 #endif /* UA_ENABLE_DISCOVERY */
