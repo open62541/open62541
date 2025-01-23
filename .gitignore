@@ -58,27 +58,13 @@ coverage_report
 /.settings
 .autotools
 test-driver
-include/opcua.h
-include/ua_namespace_0.h
-src/opcua.c
-src/ua_namespace_0.c
-tests/check_builtin
-tests/check_create
-tests/check_decode
-tests/check_delete
-tests/check_encode
-tests/check_memory
-tests/check_namespace
-tests/coverage
 tests/**/CMakeFiles
 Testing
 Makefile
 /CMakeCache.txt
 /CMakeFiles/
 /cmake_install.cmake
-doc/
 doc_src/
-examples/
 /exampleClient
 /exampleClient_legacy
 /src_generated/
@@ -88,10 +74,11 @@ examples/
 Pipfile
 Pipfile.lock
 .vscode
+/.vs
 **/libxml2
-
+debian/*
+/CMakeSettings.json
 # clangd cache
 .cache/
-
 # project local vim settings
 .vim/

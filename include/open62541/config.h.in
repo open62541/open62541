@@ -53,11 +53,13 @@
 #cmakedefine UA_ENABLE_PARSING
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_EVENTS
 #cmakedefine UA_ENABLE_JSON_ENCODING
+#cmakedefine UA_ENABLE_JSON_ENCODING_LEGACY
 #cmakedefine UA_ENABLE_XML_ENCODING
 #cmakedefine UA_ENABLE_MQTT
 #cmakedefine UA_ENABLE_NODESET_INJECTOR
 #cmakedefine UA_INFORMATION_MODEL_AUTOLOAD
 #cmakedefine UA_ENABLE_ENCRYPTION_MBEDTLS
+#cmakedefine UA_ENABLE_GDS_PUSHMANAGEMENT
 #cmakedefine UA_ENABLE_TPM2_SECURITY
 #cmakedefine UA_ENABLE_ENCRYPTION_OPENSSL
 #cmakedefine UA_ENABLE_ENCRYPTION_LIBRESSL
@@ -76,7 +78,11 @@
 #cmakedefine UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS
 #cmakedefine UA_ENABLE_DETERMINISTIC_RNG
 #cmakedefine UA_ENABLE_DISCOVERY
-#cmakedefine UA_ENABLE_DISCOVERY_MULTICAST
+#cmakedefine UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
+#cmakedefine UA_ENABLE_DISCOVERY_MULTICAST_AVAHI
+#if defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD) || defined(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+#define UA_ENABLE_DISCOVERY_MULTICAST
+#endif
 #cmakedefine UA_ENABLE_QUERY
 #cmakedefine UA_ENABLE_MALLOC_SINGLETON
 #cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
@@ -150,6 +156,7 @@
  * C99 Definitions
  * --------------- */
 #include <stddef.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <inttypes.h>

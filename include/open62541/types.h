@@ -21,6 +21,9 @@
 #include <open62541/common.h>
 #include <open62541/statuscodes.h>
 
+struct UA_NamespaceMapping;
+typedef struct UA_NamespaceMapping UA_NamespaceMapping;
+
 _UA_BEGIN_DECLS
 
 /**
@@ -200,6 +203,9 @@ UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 UA_Boolean UA_EXPORT
 UA_String_isEmpty(const UA_String *s);
 
+UA_StatusCode UA_EXPORT
+UA_String_append(UA_String *s, const UA_String s2);
+
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 
 /**
@@ -220,6 +226,28 @@ UA_INLINABLE(UA_String
 
 /* Define strings at compile time (in ROM) */
 #define UA_STRING_STATIC(CHARS) {sizeof(CHARS)-1, (UA_Byte*)CHARS}
+
+/* The following methods implement the C standard's printf/vprintf.
+ *
+ * In addition to the format specifiers from the C standard, the following can
+ * be used also:
+ *
+ * - %S - UA_String (not wrapped in quotation marks in the output)
+ * - %N - UA_NodeId (using UA_NodeId_print)
+ *
+ * The output is written to the output string in the first argument. Memory of
+ * sufficient length is allocated when the output string initially has zero
+ * length.
+ *
+ * If the string in the first argument initially has non-zero length, then this
+ * string is used as buffer for encoding and its length is adjusted accordingly.
+ * If the length is too short, then UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED is
+ * reported. Also in that case the string is printed as much as possible. */
+UA_EXPORT UA_StatusCode
+UA_String_printf(UA_String *str, const char *format, ...);
+
+UA_EXPORT UA_StatusCode
+UA_String_vprintf(UA_String *str, const char *format, va_list args);
 
 /**
  * .. _datetime:
@@ -392,8 +420,7 @@ UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
-/* Print the NodeId in the human-readable format defined in Part 6,
- * 5.3.1.10.
+/* Print the NodeId in the human-readable format defined in Part 6.
  *
  * Examples:
  *   UA_NODEID("i=13")
@@ -407,12 +434,38 @@ UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 UA_StatusCode UA_EXPORT
 UA_NodeId_print(const UA_NodeId *id, UA_String *output);
 
+/* Extended NodeId printing. If nsMapping argument is non-NULL, then the
+ * NamespaceIndex is translated to the NamespaceUri. If that is not successful,
+ * the numerical NamespaceIndex is used instead.
+ *
+ * Examples:
+ *   nsu=http://widgets.com/schemas/hello;s=Hello World
+ */
+UA_StatusCode UA_EXPORT
+UA_NodeId_printEx(const UA_NodeId *id, UA_String *output,
+                  const UA_NamespaceMapping *nsMapping);
+
+#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
  * cleaned up. */
-#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_NodeId_parse(UA_NodeId *id, const UA_String str);
+
+/* Extended parsing that uses the provided namespace mapping to find the
+ * NamespaceIndex for a provided NamespaceUri.
+ *
+ * If the NodeId uses an unknown NamespaceUri, then a String-NodeId is returned
+ * that uses NamespaceIndex 0 and the full original encoding for the string
+ * part.
+ *
+ * Example:
+ *   nsu=my_uri;i=5 => s="nsu=my_uri;i=5" (The quotation marks are for
+ *       illustration purposes and not actually included)
+ */
+UA_StatusCode UA_EXPORT
+UA_NodeId_parseEx(UA_NodeId *id, const UA_String str,
+                  const UA_NamespaceMapping *nsMapping);
 
 UA_INLINABLE(UA_NodeId
              UA_NODEID(const char *chars), {
@@ -525,12 +578,28 @@ UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 UA_StatusCode UA_EXPORT
 UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output);
 
+/* Extended printing of ExpandedNodeId. It tries to map NamespaceIndex and
+ * ServerIndex to a Uri using the provided mapping.
+ *
+ * Examples:
+ *     svu=http://smith.com/west/factory;nsu=tag:acme.com,2023;i=1234
+ */
+UA_StatusCode UA_EXPORT
+UA_ExpandedNodeId_printEx(const UA_ExpandedNodeId *id, UA_String *output,
+                          const UA_NamespaceMapping *nsMapping,
+                          size_t serverUrisSize, const UA_String *serverUris);
+
+#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
  * cleaned up. */
-#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str);
+
+UA_StatusCode UA_EXPORT
+UA_ExpandedNodeId_parseEx(UA_ExpandedNodeId *id, const UA_String str,
+                          const UA_NamespaceMapping *nsMapping,
+                          size_t serverUrisSize, const UA_String *serverUris);
 
 UA_INLINABLE(UA_ExpandedNodeId
              UA_EXPANDEDNODEID(const char *chars), {
@@ -639,6 +708,42 @@ UA_INLINABLE(UA_QualifiedName
     qn.name = UA_STRING_ALLOC(chars);
     return qn;
 })
+
+/* Print the human-readable QualifiedName format. QualifiedNames can be printed
+ * with either the integer NamespaceIndex or using the NamespaceUri.
+ * The Namespace 0 is always omitted.
+ *
+ * The extended printing tries to translate the NamespaceIndex to the
+ * NamespaceUri from the mapping table. When the mapping fails, the integer
+ * NamespaceIndex from is used.
+ *
+ * Examples:
+ *    Namespace Zero: HelloWorld
+ *    NamespaceIndex Form: 3:HelloWorld
+ *    NamespaceUri Form: nsu=http://widgets.com/schemas/hello;HelloWorld
+ *
+ * The method can either use a pre-allocated string buffer or allocates memory
+ * internally if called with an empty output string. */
+UA_StatusCode UA_EXPORT
+UA_QualifiedName_print(const UA_QualifiedName *qn, UA_String *output);
+
+UA_StatusCode UA_EXPORT
+UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
+                         const UA_NamespaceMapping *nsMapping);
+
+#ifdef UA_ENABLE_PARSING
+/* Parse the human-readable QualifiedName format.
+ *
+ * The extended parsing tries to translate the NamespaceIndex to a NamespaceUri
+ * from the mapping table. When the mapping fails, the name component gets the
+ * entire string. */
+UA_StatusCode UA_EXPORT
+UA_QualifiedName_parse(UA_QualifiedName *qn, const UA_String str);
+
+UA_StatusCode UA_EXPORT
+UA_QualifiedName_parseEx(UA_QualifiedName *qn, const UA_String str,
+                         const UA_NamespaceMapping *nsMapping);
+#endif
 
 /**
  * LocalizedText
@@ -1221,16 +1326,83 @@ UA_INLINABLE(UA_Boolean
 })
 
 /**
+ * Namespace Mapping
+ * -----------------
+ *
+ * Every :ref:`nodeid` references a namespace index. Actually the namespace is
+ * identified by its URI. The namespace-array of the server maps the URI to the
+ * namespace index in the array. Namespace zero always has the URI
+ * ```http://opcfoundation.org/UA/```. Namespace one has the application URI of
+ * the server. All namespaces beyond get a custom assignment.
+ *
+ * In order to have predictable NodeIds, a client might predefined its own
+ * namespace array that is different from the server's. When a NodeId is decoded
+ * from a network message (binary or JSON), a mapping-table can be used to
+ * automatically translate between the remote and local namespace index. The
+ * mapping is typically done by the client who can generate the mapping table
+ * after reading the namespace-array of the server. The reverse mapping is done
+ * in the encoding if the mapping table is set in the options.
+ *
+ * The mapping table also contains the full URI names. It is also used to
+ * translate the ``NamespaceUri`` field of an ExpandedNodeId into the namespace
+ * index of the NodeId embedded in the ExpandedNodeId. */
+
+struct UA_NamespaceMapping {
+    /* Namespaces with their local index */
+    UA_String *namespaceUris;
+    size_t namespaceUrisSize;
+
+    /* Map from local to remote indices */
+    UA_UInt16 *local2remote;
+    size_t local2remoteSize;
+
+    /* Map from remote to local indices */
+    UA_UInt16 *remote2local;
+    size_t remote2localSize;
+};
+
+/* If the index is unknown, returns (UINT16_MAX - index) */
+UA_UInt16
+UA_NamespaceMapping_local2Remote(const UA_NamespaceMapping *nm,
+                                 UA_UInt16 localIndex);
+
+UA_UInt16
+UA_NamespaceMapping_remote2Local(const UA_NamespaceMapping *nm,
+                                 UA_UInt16 remoteIndex);
+
+/* Returns an error if the namespace uri was not found.
+ * The pointer to the index argument needs to be non-NULL. */
+UA_StatusCode
+UA_NamespaceMapping_uri2Index(const UA_NamespaceMapping *nm,
+                              UA_String uri, UA_UInt16 *index);
+
+/* Upon success, the uri string gets set. The string is not copied and must not
+ * outlive the namespace mapping structure. */
+UA_StatusCode
+UA_NamespaceMapping_index2Uri(const UA_NamespaceMapping *nm,
+                              UA_UInt16 index, UA_String *uri);
+
+void
+UA_NamespaceMapping_delete(UA_NamespaceMapping *nm);
+
+/**
  * Binary Encoding/Decoding
  * ------------------------
  *
  * Encoding and decoding routines for the binary format. For the binary decoding
  * additional data types can be forwarded. */
 
+typedef struct {
+    /* Mapping of namespace indices in NodeIds and of NamespaceUris in
+     * ExpandedNodeIds. */
+    UA_NamespaceMapping *namespaceMapping;
+} UA_EncodeBinaryOptions;
+
 /* Returns the number of bytes the value p takes in binary encoding. Returns
  * zero if an error occurs. */
 UA_EXPORT size_t
-UA_calcSizeBinary(const void *p, const UA_DataType *type);
+UA_calcSizeBinary(const void *p, const UA_DataType *type,
+                  UA_EncodeBinaryOptions *options);
 
 /* Encodes a data-structure in the binary format. If outBuf has a length of
  * zero, a buffer of the required size is allocated. Otherwise, encoding into
@@ -1238,7 +1410,7 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type);
  * small). */
 UA_EXPORT UA_StatusCode
 UA_encodeBinary(const void *p, const UA_DataType *type,
-                UA_ByteString *outBuf);
+                UA_ByteString *outBuf, UA_EncodeBinaryOptions *options);
 
 /* The structure with the decoding options may be extended in the future.
  * Zero-out the entire structure initially to ensure code-compatibility when
@@ -1246,6 +1418,10 @@ UA_encodeBinary(const void *p, const UA_DataType *type,
 typedef struct {
     /* Begin of a linked list with custom datatype definitions */
     const UA_DataTypeArray *customTypes;
+
+    /* Mapping of namespace indices in NodeIds and of NamespaceUris in
+     * ExpandedNodeIds. */
+    UA_NamespaceMapping *namespaceMapping;
 
     /* Override calloc for arena-based memory allocation. Note that allocated
      * memory is not freed if decoding fails afterwards. */
@@ -1285,8 +1461,10 @@ UA_decodeBinary(const UA_ByteString *inBuf,
 #ifdef UA_ENABLE_JSON_ENCODING
 
 typedef struct {
-    const UA_String *namespaces;
-    size_t namespacesSize;
+    /* Mapping of namespace indices in NodeIds and of NamespaceUris in
+     * ExpandedNodeIds. */
+    UA_NamespaceMapping *namespaceMapping;
+
     const UA_String *serverUris;
     size_t serverUrisSize;
     UA_Boolean useReversible;
@@ -1322,12 +1500,16 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
  * Zero-out the entire structure initially to ensure code-compatibility when
  * more fields are added in a later release. */
 typedef struct {
-    const UA_String *namespaces;
-    size_t namespacesSize;
+    /* Mapping of namespace indices in NodeIds and of NamespaceUris in
+     * ExpandedNodeIds. */
+    UA_NamespaceMapping *namespaceMapping;
+
     const UA_String *serverUris;
     size_t serverUrisSize;
+
     const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
                                           * datatype definitions */
+
     size_t *decodedLength; /* If non-NULL, the length of the decoded input is
                             * stored to the pointer. When this is set, decoding
                             * succeeds also if there is more content after the

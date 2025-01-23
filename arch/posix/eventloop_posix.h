@@ -81,6 +81,17 @@ typedef SSIZE_T ssize_t;
 #define UA_setsockopt(sockfd, level, optname, optval, optlen) \
     setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
 #define UA_inet_pton InetPton
+#define UA_socket socket
+#define UA_bind bind
+#define UA_recvfrom recvfrom
+#define UA_accept accept
+#define UA_listen listen
+#define UA_shutdown shutdown
+#define UA_getaddrinfo getaddrinfo
+#define UA_freeaddrinfo freeaddrinfo
+#define UA_inet_ntop inet_ntop
+#define UA_getsockname getsockname
+#define UA_gethostname gethostname
 
 #if UA_IPV6
 # define UA_if_nametoindex if_nametoindex
@@ -111,6 +122,7 @@ typedef SSIZE_T ssize_t;
 /* POSIX Definitions */
 /*********************/
 
+#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -166,6 +178,17 @@ typedef int SOCKET;
 #define UA_setsockopt setsockopt
 #define UA_inet_pton inet_pton
 #define UA_if_nametoindex if_nametoindex
+#define UA_socket socket
+#define UA_bind bind
+#define UA_recvfrom recvfrom
+#define UA_accept accept
+#define UA_listen listen
+#define UA_shutdown shutdown
+#define UA_getaddrinfo getaddrinfo
+#define UA_freeaddrinfo freeaddrinfo
+#define UA_inet_ntop inet_ntop
+#define UA_getsockname getsockname
+#define UA_gethostname gethostname
 
 #define UA_clean_errno(STR_FUN) \
     (errno == 0 ? (char*) "None" : (STR_FUN)(errno))

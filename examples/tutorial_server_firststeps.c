@@ -14,7 +14,7 @@
  * frontend, such as UAExpert by Unified Automation. That will enable you to
  * examine the information model of any OPC UA server.
  *
- * To get started, downdload the open62541 single-file release from
+ * To get started, download the open62541 single-file release from
  * http://open62541.org or generate it according to the :ref:`build instructions
  * <building>` with the "amalgamation" option enabled. From now on, we assume
  * you have the ``open62541.c/.h`` files in the current folder. Now create a new

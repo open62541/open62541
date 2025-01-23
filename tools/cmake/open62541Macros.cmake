@@ -66,7 +66,6 @@ function(ua_generate_nodeid_header)
 
     # Header containing defines for all NodeIds
     add_custom_command(OUTPUT ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h
-        PRE_BUILD
         COMMAND ${Python3_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_nodeid_header.py
         ${UA_GEN_ID_FILE_CSV}  ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME} ${UA_GEN_ID_ID_PREFIX}
         DEPENDS ${open62541_TOOLS_DIR}/generate_nodeid_header.py
@@ -218,7 +217,6 @@ function(ua_generate_datatypes)
 
     add_custom_command(OUTPUT ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
-        PRE_BUILD
         COMMAND ${ARG_CONV_EXCL_ENV} ${Python3_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
         ${NAMESPACE_MAP_TMP}
         ${SELECTED_TYPES_TMP}
@@ -395,7 +393,6 @@ function(ua_generate_nodeset)
 
     add_custom_command(OUTPUT ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c
                        ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h
-                       PRE_BUILD
                        COMMAND ${Python3_EXECUTABLE} ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset_compiler.py
                        ${GEN_INTERNAL_HEADERS}
                        ${GEN_NS0}

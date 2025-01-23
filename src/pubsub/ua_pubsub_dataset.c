@@ -118,42 +118,21 @@ generateFieldMetaData(UA_PubSubManager *psm, UA_PublishedDataSet *pds,
     if(field->config.dataSetFieldType != UA_PUBSUB_DATASETFIELD_VARIABLE)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
+    const UA_DataSetVariableConfig *var = &field->config.field.variable;
+
     /* Set the field identifier */
-    fieldMetaData->dataSetFieldId = UA_PubSubManager_generateUniqueGuid(psm);
+    if(!UA_Guid_equal(&var->dataSetFieldId, &UA_GUID_NULL)) {
+        fieldMetaData->dataSetFieldId = var->dataSetFieldId;
+    } else {
+        fieldMetaData->dataSetFieldId = UA_PubSubManager_generateUniqueGuid(psm);
+    }
 
     /* Set the description */
-    fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
+    UA_LocalizedText_copy(&var->description, &fieldMetaData->description);
 
     /* Set the name */
-    const UA_DataSetVariableConfig *var = &field->config.field.variable;
     UA_StatusCode res = UA_String_copy(&var->fieldNameAlias, &fieldMetaData->name);
     UA_CHECK_STATUS(res, return res);
-
-    /* Static value source. ToDo after freeze PR, the value source must be
-     * checked (other behavior for static value source) */
-    if(var->rtValueSource.rtFieldSourceEnabled &&
-       !var->rtValueSource.rtInformationModelNode) {
-        const UA_DataValue *svs = *var->rtValueSource.staticValueSource;
-        if(svs->value.arrayDimensionsSize > 0) {
-            fieldMetaData->arrayDimensions = (UA_UInt32 *)
-                UA_calloc(svs->value.arrayDimensionsSize, sizeof(UA_UInt32));
-            if(fieldMetaData->arrayDimensions == NULL)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            memcpy(fieldMetaData->arrayDimensions, svs->value.arrayDimensions,
-                   sizeof(UA_UInt32) * svs->value.arrayDimensionsSize);
-        }
-        fieldMetaData->arrayDimensionsSize = svs->value.arrayDimensionsSize;
-
-        if(svs->value.type)
-            res = UA_NodeId_copy(&svs->value.type->typeId, &fieldMetaData->dataType);
-        UA_CHECK_STATUS(res, return res);
-
-        //TODO collect value rank for the static field source
-        fieldMetaData->properties = NULL;
-        fieldMetaData->propertiesSize = 0;
-        fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
-        return UA_STATUSCODE_GOOD;
-    }
 
     /* Set the Array Dimensions */
     const UA_PublishedVariableDataType *pp = &var->publishParameters;
@@ -172,8 +151,6 @@ generateFieldMetaData(UA_PubSubManager *psm, UA_PublishedDataSet *pds,
             UA_calloc(value.arrayDimensionsSize, sizeof(UA_UInt32));
         if(!fieldMetaData->arrayDimensions)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        memcpy(fieldMetaData->arrayDimensions, value.arrayDimensions,
-               sizeof(UA_UInt32)*value.arrayDimensionsSize);
     }
     fieldMetaData->arrayDimensionsSize = value.arrayDimensionsSize;
 
@@ -294,7 +271,7 @@ UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
         return result;
     }
 
-    /* Initialize the field metadata. Also generates a FieldId */
+    /* Initialize the field metadata. Also generates a FieldId, if not given in config */
     UA_FieldMetaData fmd;
     UA_FieldMetaData_init(&fmd);
     result.result = generateFieldMetaData(psm, currDS, newField, &fmd);
@@ -450,13 +427,15 @@ UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src,
                           &dst->field.variable.fieldNameAlias);
     res |= UA_PublishedVariableDataType_copy(&src->field.variable.publishParameters,
                                              &dst->field.variable.publishParameters);
+    res |= UA_LocalizedText_copy(&src->field.variable.description,
+                                   &dst->field.variable.description);
     if(res != UA_STATUSCODE_GOOD)
         UA_DataSetFieldConfig_clear(dst);
     return res;
 }
 
 UA_DataSetField *
-UA_DataSetField_find(UA_PubSubManager *psm, UA_NodeId id) {
+UA_DataSetField_find(UA_PubSubManager *psm, const UA_NodeId id) {
     if(!psm)
         return NULL;
     UA_PublishedDataSet *tmpPDS;
@@ -475,6 +454,7 @@ UA_DataSetFieldConfig_clear(UA_DataSetFieldConfig *dataSetFieldConfig) {
     if(dataSetFieldConfig->dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE) {
         UA_String_clear(&dataSetFieldConfig->field.variable.fieldNameAlias);
         UA_PublishedVariableDataType_clear(&dataSetFieldConfig->field.variable.publishParameters);
+        UA_LocalizedText_clear(&dataSetFieldConfig->field.variable.description);
     }
 }
 
@@ -485,25 +465,13 @@ UA_PubSubDataSetField_sampleValue(UA_PubSubManager *psm, UA_DataSetField *field,
                                   UA_DataValue *value) {
     UA_PublishedVariableDataType *params = &field->config.field.variable.publishParameters;
 
-    /* Read the value */
-    if(field->config.field.variable.rtValueSource.rtInformationModelNode) {
-        const UA_VariableNode *rtNode = (const UA_VariableNode *)
-            UA_NODESTORE_GET(psm->sc.server, &params->publishedVariable);
-        *value = **rtNode->valueBackend.backend.external.value;
-        value->value.storageType = UA_VARIANT_DATA_NODELETE;
-        UA_NODESTORE_RELEASE(psm->sc.server, (const UA_Node *) rtNode);
-    } else if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled == false){
-        UA_ReadValueId rvid;
-        UA_ReadValueId_init(&rvid);
-        rvid.nodeId = params->publishedVariable;
-        rvid.attributeId = params->attributeId;
-        rvid.indexRange = params->indexRange;
-        *value = readWithSession(psm->sc.server, &psm->sc.server->adminSession,
-                                 &rvid, UA_TIMESTAMPSTORETURN_BOTH);
-    } else {
-        *value = **field->config.field.variable.rtValueSource.staticValueSource;
-        value->value.storageType = UA_VARIANT_DATA_NODELETE;
-    }
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = params->publishedVariable;
+    rvid.attributeId = params->attributeId;
+    rvid.indexRange = params->indexRange;
+    *value = readWithSession(psm->sc.server, &psm->sc.server->adminSession,
+                             &rvid, UA_TIMESTAMPSTORETURN_BOTH);
 }
 
 UA_AddPublishedDataSetResult
@@ -720,9 +688,10 @@ UA_SubscribedDataSetConfig_copy(const UA_SubscribedDataSetConfig *src,
     memcpy(dst, src, sizeof(UA_SubscribedDataSetConfig));
     res = UA_DataSetMetaDataType_copy(&src->dataSetMetaData, &dst->dataSetMetaData);
     res |= UA_String_copy(&src->name, &dst->name);
-    res |= UA_TargetVariablesDataType_copy(&src->subscribedDataSet.target,
-                                           &dst->subscribedDataSet.target);
-
+    if(src->subscribedDataSetType == UA_PUBSUB_SDS_TARGET) {
+        res |= UA_TargetVariablesDataType_copy(&src->subscribedDataSet.target,
+                                               &dst->subscribedDataSet.target);
+    }
     if(res != UA_STATUSCODE_GOOD)
         UA_SubscribedDataSetConfig_clear(dst);
     return res;

@@ -174,7 +174,7 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_encodeBinaryInternal(&messageHeader,
                                       &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
-                                      &header_pos, &buf_end, NULL, NULL);
+                                      &header_pos, &buf_end, NULL, NULL, NULL);
     retval |= UA_UInt32_encodeBinary(&secureChannelId, &header_pos, buf_end);
     UA_CHECK_STATUS(retval, return retval);
 
@@ -187,9 +187,9 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
         asymHeader.receiverCertificateThumbprint.length = 20;
         asymHeader.receiverCertificateThumbprint.data = channel->remoteCertificateThumbprint;
     }
-    retval = UA_encodeBinaryInternal(&asymHeader,
-                &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER],
-                &header_pos, &buf_end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(
+        &asymHeader, &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER],
+        &header_pos, &buf_end, NULL, NULL, NULL);
     UA_CHECK_STATUS(retval, return retval);
 
     /* Increase the sequence number in the channel */
@@ -199,7 +199,7 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
     seqHeader.requestId = requestId;
     seqHeader.sequenceNumber = channel->sendSequenceNumber;
     retval = UA_encodeBinaryInternal(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
-                                     &header_pos, &buf_end, NULL, NULL);
+                                     &header_pos, &buf_end, NULL, NULL, NULL);
     return retval;
 }
 
@@ -262,7 +262,7 @@ padChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cm,
     /* Write the padding. This is <= because the paddingSize byte also has to be
      * written */
     UA_Byte paddingByte = (UA_Byte)paddingLength;
-    for(UA_UInt16 i = 0; i <= paddingLength; ++i) {
+    for(size_t i = 0; i <= paddingLength; ++i) {
         **pos = paddingByte;
         ++*pos;
     }

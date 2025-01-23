@@ -468,7 +468,7 @@ Array_encodeBinary(Ctx *ctx, const void *src, size_t length, const UA_DataType *
         return UA_STATUSCODE_BADINTERNALERROR;
     if(length > 0)
         signed_length = (i32)length;
-    else if(src == UA_EMPTY_ARRAY_SENTINEL)
+    else if(src >= UA_EMPTY_ARRAY_SENTINEL) /* src != NULL */
         signed_length = 0;
 
     /* Encode the array length */
@@ -598,18 +598,25 @@ FUNC_DECODE_BINARY(Guid) {
 static status
 NodeId_encodeBinaryWithEncodingMask(Ctx *ctx, UA_NodeId const *src, u8 encoding) {
     status ret = UA_STATUSCODE_GOOD;
+
+    /* Mapping of the namespace index */
+    UA_UInt16 nsIndex = src->namespaceIndex;
+    if(ctx->opts.namespaceMapping)
+        nsIndex = UA_NamespaceMapping_local2Remote(ctx->opts.namespaceMapping,
+                                                   nsIndex);
+
     switch(src->identifierType) {
     case UA_NODEIDTYPE_NUMERIC:
-        if(src->identifier.numeric > UA_UINT16_MAX || src->namespaceIndex > UA_BYTE_MAX) {
+        if(src->identifier.numeric > UA_UINT16_MAX || nsIndex > UA_BYTE_MAX) {
             encoding |= UA_NODEIDTYPE_NUMERIC_COMPLETE;
             ret |= ENCODE_DIRECT(&encoding, Byte);
-            ret |= ENCODE_DIRECT(&src->namespaceIndex, UInt16);
+            ret |= ENCODE_DIRECT(&nsIndex, UInt16);
             ret |= ENCODE_DIRECT(&src->identifier.numeric, UInt32);
-        } else if(src->identifier.numeric > UA_BYTE_MAX || src->namespaceIndex > 0) {
+        } else if(src->identifier.numeric > UA_BYTE_MAX || nsIndex > 0) {
             encoding |= UA_NODEIDTYPE_NUMERIC_FOURBYTE;
             ret |= ENCODE_DIRECT(&encoding, Byte);
-            u8 nsindex = (u8)src->namespaceIndex;
-            ret |= ENCODE_DIRECT(&nsindex, Byte);
+            u8 nsindex8 = (u8)nsIndex;
+            ret |= ENCODE_DIRECT(&nsindex8, Byte);
             u16 identifier16 = (u16)src->identifier.numeric;
             ret |= ENCODE_DIRECT(&identifier16, UInt16);
         } else {
@@ -622,7 +629,7 @@ NodeId_encodeBinaryWithEncodingMask(Ctx *ctx, UA_NodeId const *src, u8 encoding)
     case UA_NODEIDTYPE_STRING:
         encoding |= (u8)UA_NODEIDTYPE_STRING;
         ret |= ENCODE_DIRECT(&encoding, Byte);
-        ret |= ENCODE_DIRECT(&src->namespaceIndex, UInt16);
+        ret |= ENCODE_DIRECT(&nsIndex, UInt16);
         UA_CHECK_STATUS(ret, return ret);
         /* Can exchange the buffer */
         ret = ENCODE_DIRECT(&src->identifier.string, String);
@@ -631,13 +638,13 @@ NodeId_encodeBinaryWithEncodingMask(Ctx *ctx, UA_NodeId const *src, u8 encoding)
     case UA_NODEIDTYPE_GUID:
         encoding |= (u8)UA_NODEIDTYPE_GUID;
         ret |= ENCODE_DIRECT(&encoding, Byte);
-        ret |= ENCODE_DIRECT(&src->namespaceIndex, UInt16);
+        ret |= ENCODE_DIRECT(&nsIndex, UInt16);
         ret |= ENCODE_DIRECT(&src->identifier.guid, Guid);
         break;
     case UA_NODEIDTYPE_BYTESTRING:
         encoding |= (u8)UA_NODEIDTYPE_BYTESTRING;
         ret |= ENCODE_DIRECT(&encoding, Byte);
-        ret |= ENCODE_DIRECT(&src->namespaceIndex, UInt16);
+        ret |= ENCODE_DIRECT(&nsIndex, UInt16);
         UA_CHECK_STATUS(ret, return ret);
         /* Can exchange the buffer */
         ret = ENCODE_DIRECT(&src->identifier.byteString, String); /* ByteString */
@@ -704,6 +711,13 @@ FUNC_DECODE_BINARY(NodeId) {
         ret |= UA_STATUSCODE_BADINTERNALERROR;
         break;
     }
+
+    /* Mapping of the namespace index */
+    if(ctx->opts.namespaceMapping)
+        dst->namespaceIndex =
+            UA_NamespaceMapping_remote2Local(ctx->opts.namespaceMapping,
+                                             dst->namespaceIndex);
+
     return ret;
 }
 
@@ -748,6 +762,15 @@ FUNC_DECODE_BINARY(ExpandedNodeId) {
     if(encoding & UA_EXPANDEDNODEID_NAMESPACEURI_FLAG) {
         dst->nodeId.namespaceIndex = 0;
         ret |= DECODE_DIRECT(&dst->namespaceUri, String);
+        /* Try to resolve the namespace uri to a namespace index */
+        if(ctx->opts.namespaceMapping) {
+            status foundNsUri =
+                UA_NamespaceMapping_uri2Index(ctx->opts.namespaceMapping,
+                                              dst->namespaceUri,
+                                              &dst->nodeId.namespaceIndex);
+            if(foundNsUri == UA_STATUSCODE_GOOD)
+                UA_String_clear(&dst->namespaceUri);
+        }
     }
 
     /* Decode the ServerIndex */
@@ -892,7 +915,10 @@ FUNC_ENCODE_BINARY(ExtensionObject) {
      * calcSizeBinary mode. This is avoids recursive cycles.*/
     i32 signed_len = 0;
     if(ctx->end != NULL) {
-        size_t len = UA_calcSizeBinary(src->content.decoded.data, contentType);
+        UA_EncodeBinaryOptions opts;
+        memset(&opts, 0, sizeof(UA_EncodeBinaryOptions));
+        opts.namespaceMapping = ctx->opts.namespaceMapping;
+        size_t len = UA_calcSizeBinary(src->content.decoded.data, contentType, &opts);
         UA_CHECK(len <= UA_INT32_MAX, return UA_STATUSCODE_BADENCODINGERROR);
         signed_len = (i32)len;
     }
@@ -1252,9 +1278,18 @@ FUNC_DECODE_BINARY(Variant) {
         }
 
         /* Decode array dimensions */
-        if((encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) > 0)
+        if((encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) > 0) {
             ret |= Array_decodeBinary(ctx, (void **)&dst->arrayDimensions,
                                       &dst->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+            /* Validate array length against array dimensions */
+            size_t totalSize = 1;
+            for(size_t i = 0; i < dst->arrayDimensionsSize; ++i) {
+                if(dst->arrayDimensions[i] == 0)
+                    ret = UA_STATUSCODE_BADDECODINGERROR;
+                totalSize *= dst->arrayDimensions[i];
+            }
+            UA_CHECK(totalSize == dst->arrayLength, ret = UA_STATUSCODE_BADDECODINGERROR);
+        }
     }
 
     ctx->depth--;
@@ -1634,6 +1669,7 @@ const encodeBinarySignature encodeBinaryJumpTable[UA_DATATYPEKINDS] = {
 status
 UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
                         u8 **bufPos, const u8 **bufEnd,
+                        UA_EncodeBinaryOptions *options,
                         UA_exchangeEncodeBuffer exchangeCallback,
                         void *exchangeHandle) {
     if(!type || !src)
@@ -1641,11 +1677,14 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
 
     /* Set up the context */
     Ctx ctx;
+    memset(&ctx, 0, sizeof(Ctx));
     ctx.pos = *bufPos;
     ctx.end = *bufEnd;
     ctx.depth = 0;
     ctx.exchangeBufferCallback = exchangeCallback;
     ctx.exchangeBufferCallbackHandle = exchangeHandle;
+    if(options)
+        ctx.opts.namespaceMapping = options->namespaceMapping;
 
     /* Encode */
     status ret = encodeWithExchangeBuffer(&ctx, src, type);
@@ -1660,12 +1699,12 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
 
 UA_StatusCode
 UA_encodeBinary(const void *p, const UA_DataType *type,
-                UA_ByteString *outBuf) {
+                UA_ByteString *outBuf, UA_EncodeBinaryOptions *options) {
     /* Allocate buffer */
     UA_Boolean allocated = false;
     status res = UA_STATUSCODE_GOOD;
     if(outBuf->length == 0) {
-        size_t len = UA_calcSizeBinary(p, type);
+        size_t len = UA_calcSizeBinary(p, type, options);
         res = UA_ByteString_allocBuffer(outBuf, len);
         if(res != UA_STATUSCODE_GOOD)
             return res;
@@ -1675,7 +1714,7 @@ UA_encodeBinary(const void *p, const UA_DataType *type,
     /* Encode */
     u8 *pos = outBuf->data;
     const u8 *posEnd = &outBuf->data[outBuf->length];
-    res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, NULL, NULL);
+    res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, options, NULL, NULL);
 
     /* Clean up */
     if(res == UA_STATUSCODE_GOOD) {
@@ -1895,10 +1934,11 @@ UA_decodeBinary(const UA_ByteString *inBuf,
  * throw an error when the buffer limits are exceeded. */
 
 size_t
-UA_calcSizeBinary(const void *p, const UA_DataType *type) {
+UA_calcSizeBinary(const void *p, const UA_DataType *type,
+                  UA_EncodeBinaryOptions *options) {
     u8 *pos = NULL;
     const u8 *posEnd = NULL;
-    UA_StatusCode res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, NULL, NULL);
+    UA_StatusCode res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, options, NULL, NULL);
     if(res != UA_STATUSCODE_GOOD)
         return 0;
     return (size_t)(uintptr_t)pos;

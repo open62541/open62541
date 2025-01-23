@@ -235,12 +235,12 @@ class Value:
                 if ebodypart.localName == "EncodingMask":
                     ebodypart = getNextElementNode(ebodypart)
                     # No optional fields are set.
-                    if(ebodypart is None):
+                    if ebodypart is None:
                         members = []
 
                 # The SwitchField must be checked. ebodypart could be None if only optional fields are included
                 # in the ExtensionObject and none of them is set.
-                if(ebodypart is not None):
+                if ebodypart is not None:
                     if ebodypart.localName == "SwitchField":
                         # The switch field is the index of the available union fields starting with 1
                         data = int(ebodypart.firstChild.data)
@@ -306,8 +306,8 @@ class Value:
                             logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is not a BuildinType, StructType or EnumerationType.")
                             return extobj
                     else:
-                            logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is not a StructMember.")
-                            return extobj
+                        logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is not a StructMember.")
+                        return extobj
 
                     ebodypart = getNextElementNode(ebodypart)
 
@@ -338,7 +338,7 @@ class Value:
                 else:
                     logger.error(str(parent.id) + ": Could not parse <SwitchFiled> for Union.")
                     return self
-                
+
 
             childValue = ebodypart.firstChild
             if not childValue.nodeType == ebodypart.ELEMENT_NODE:
@@ -669,7 +669,7 @@ class NodeId(Value):
         for p in idparts:
             if p[:2] == "ns":
                 self.ns = int(p[3:])
-                if(len(namespaceMapping.values()) > 0):
+                if len(namespaceMapping.values()) > 0:
                     self.ns = namespaceMapping[self.ns]
             elif p[:2] == "i=":
                 self.i = int(p[2:])

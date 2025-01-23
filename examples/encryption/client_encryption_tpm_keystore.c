@@ -375,7 +375,7 @@ int main(int argc, char* argv[]) {
     certificate.data = certificate_out_data->data;
     certificate.length = certificate_out_data->length;
 
-    /* Load the trustList. Load revocationList is not supported now */
+    /* Load the trust list */
     size_t trustListSize = 0;
     if(argc > MIN_ARGS)
         trustListSize = (size_t)argc-MIN_ARGS;
@@ -383,6 +383,7 @@ int main(int argc, char* argv[]) {
     for(size_t trustListCount = 0; trustListCount < trustListSize; trustListCount++)
         trustList[trustListCount] = loadFile(argv[trustListCount+7]);
 
+    /* Revocation lists are supported, but not used for the example here */
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 

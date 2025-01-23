@@ -11,6 +11,7 @@
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
  */
 
 #include <open62541/client.h>
@@ -206,10 +207,9 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 #define PRODUCT_NAME "open62541 OPC UA Server"
 #define PRODUCT_URI "http://open62541.org"
 #define APPLICATION_NAME "open62541-based OPC UA Application"
-#define APPLICATION_URI "urn:unconfigured:application"
-#define APPLICATION_URI_SERVER "urn:open62541.server.application"
+#define APPLICATION_URI "urn:open62541.unconfigured.application"
 
-#define SECURITY_POLICY_SIZE 6
+#define SECURITY_POLICY_SIZE 7
 
 #define STRINGIFY(arg) #arg
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
@@ -312,7 +312,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 #endif
 
         /* Add the Ethernet connection manager */
-#if defined(UA_ARCHITECTURE_POSIX)
+#if defined(UA_ARCHITECTURE_POSIX) && (defined(__linux__))
         UA_ConnectionManager *ethCM =
             UA_ConnectionManager_new_POSIX_Ethernet(UA_STRING("eth connection manager"));
         if(ethCM)
@@ -367,7 +367,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     conf->buildInfo.buildDate = UA_DateTime_now();
 
     UA_ApplicationDescription_clear(&conf->applicationDescription);
-    conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI_SERVER);
+    conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI);
     conf->applicationDescription.productUri = UA_STRING_ALLOC(PRODUCT_URI);
     conf->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("en", APPLICATION_NAME);
@@ -379,10 +379,12 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&conf->mdnsConfig);
+# ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
     conf->mdnsInterfaceIP = UA_STRING_NULL;
-# if !defined(UA_HAS_GETIFADDR)
+#  if !defined(UA_HAS_GETIFADDR)
     conf->mdnsIpAddressList = NULL;
     conf->mdnsIpAddressListSize = 0;
+#  endif
 # endif
 #endif
 
@@ -855,6 +857,43 @@ UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(UA_ServerConfig *config,
     return UA_STATUSCODE_GOOD;
 }
 
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP256(UA_ServerConfig *config,
+                                                     const UA_ByteString *certificate,
+                                                     const UA_ByteString *privateKey) {
+    /* Allocate the SecurityPolicies */
+    UA_SecurityPolicy *tmp = (UA_SecurityPolicy *)
+        UA_realloc(config->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (1 + config->securityPoliciesSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    config->securityPolicies = tmp;
+
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+        localPrivateKey = *privateKey;
+    UA_StatusCode retval =
+        UA_SecurityPolicy_EccNistP256(&config->securityPolicies[config->securityPoliciesSize],
+                                              UA_APPLICATIONTYPE_SERVER, localCertificate,
+                                              localPrivateKey, config->logging);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
+        return retval;
+    }
+
+    config->securityPoliciesSize++;
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 /* Always returns UA_STATUSCODE_GOOD. Logs a warning if policies could not be added. */
 static UA_StatusCode
 addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate,
@@ -953,6 +992,17 @@ addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate
     /*                    "Could not add SecurityPolicy#Basic256 with error code %s", */
     /*                    UA_StatusCode_name(retval)); */
     /* } */
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+    /* EccNistP256 */
+    retval = UA_ServerConfig_addSecurityPolicyEccNistP256(config, &localCertificate,
+                                                       &decryptedPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#EccNistP256 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+#endif
 
     UA_ByteString_memZero(&decryptedPrivateKey);
     UA_ByteString_clear(&decryptedPrivateKey);
@@ -1171,7 +1221,7 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef __linux__ /* Linux only so far */
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 
 UA_StatusCode
 UA_ServerConfig_addSecurityPolicy_Filestore(UA_ServerConfig *config,
@@ -1441,6 +1491,34 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
                        UA_StatusCode_name(retval));
     }
 
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+    /* EccNistP256 */
+    UA_SecurityPolicy *eccnistp256Policy =
+        (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
+    if(!eccnistp256Policy) {
+        UA_ByteString_memZero(&decryptedPrivateKey);
+        UA_ByteString_clear(&decryptedPrivateKey);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    retval = UA_SecurityPolicy_EccNistP256(eccnistp256Policy, UA_APPLICATIONTYPE_SERVER,
+                                        localCertificate, decryptedPrivateKey,
+                                        config->logging);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#ECC_nistP256 with error code %s",
+                       UA_StatusCode_name(retval));
+        eccnistp256Policy->clear(eccnistp256Policy);
+        UA_free(eccnistp256Policy);
+        eccnistp256Policy = NULL;
+    }
+    retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccnistp256Policy, storePath);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#ECC_nistP256 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+#endif
+
     UA_ByteString_memZero(&decryptedPrivateKey);
     UA_ByteString_clear(&decryptedPrivateKey);
     return UA_STATUSCODE_GOOD;
@@ -1455,6 +1533,12 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
     UA_StatusCode retval = setDefaultConfig(conf, portNumber);
     if(retval != UA_STATUSCODE_GOOD) {
         return retval;
+    }
+
+    if(!storePath.data) {
+        UA_LOG_ERROR(conf->logging, UA_LOGCATEGORY_USERLAND,
+                     "The path to a PKI folder has not been specified");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
     /* Set up the parameters */
@@ -1496,13 +1580,18 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
     return retval;
 }
 
-#endif
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
-#endif
+#endif /* UA_ENABLE_ENCRYPTION */
 
 /***************************/
 /* Default Client Settings */
 /***************************/
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+#define AUTH_SECURITY_POLICY_SIZE 4
+#else
+#define AUTH_SECURITY_POLICY_SIZE 3
+#endif
 
 UA_Client * UA_Client_new(void) {
     UA_ClientConfig config;
@@ -1625,7 +1714,7 @@ clientConfig_setAuthenticationSecurityPolicies(UA_ClientConfig *config,
                                                UA_ByteString certificateAuth,
                                                UA_ByteString privateKeyAuth) {
     UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
-        UA_realloc(config->authSecurityPolicies, sizeof(UA_SecurityPolicy) * 3);
+        UA_realloc(config->authSecurityPolicies, sizeof(UA_SecurityPolicy) * AUTH_SECURITY_POLICY_SIZE);
     if(!sp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->authSecurityPolicies = sp;
@@ -1688,6 +1777,18 @@ clientConfig_setAuthenticationSecurityPolicies(UA_ClientConfig *config,
                        "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
                        UA_StatusCode_name(retval));
     }
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+    sp = &config->authSecurityPolicies[config->authSecurityPoliciesSize];
+    retval = UA_SecurityPolicy_EccNistP256(sp, UA_APPLICATIONTYPE_CLIENT, certificateAuth, privateKeyAuth, config->logging);
+    if(retval == UA_STATUSCODE_GOOD) {
+        ++config->authSecurityPoliciesSize;
+    } else {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#EccNistP256 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+#endif
 
     if(config->authSecurityPoliciesSize == 0) {
         UA_free(config->authSecurityPolicies);
@@ -1836,6 +1937,19 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
                        "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
                        UA_StatusCode_name(retval));
     }
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+    retval = UA_SecurityPolicy_EccNistP256(&config->securityPolicies[config->securityPoliciesSize],
+                                                   UA_APPLICATIONTYPE_CLIENT, localCertificate,
+                                                   decryptedPrivateKey, config->logging);
+    if(retval == UA_STATUSCODE_GOOD) {
+        ++config->securityPoliciesSize;
+    } else {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#EccNistP256 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+#endif
 
     /* Set the same certificate also for authentication.
      * Can be overridden with a different certificate. */

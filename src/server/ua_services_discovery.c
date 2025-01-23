@@ -194,15 +194,15 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
 static UA_Boolean
 entryMatchesCapabilityFilter(size_t serverCapabilityFilterSize,
                              UA_String *serverCapabilityFilter,
-                             serverOnNetwork *current) {
+                             UA_ServerOnNetwork *current) {
     /* If the entry has less capabilities defined than the filter, there's no match */
-    if(serverCapabilityFilterSize > current->serverOnNetwork.serverCapabilitiesSize)
+    if(serverCapabilityFilterSize > current->serverCapabilitiesSize)
         return false;
     for(size_t i = 0; i < serverCapabilityFilterSize; i++) {
         UA_Boolean capabilityFound = false;
-        for(size_t j = 0; j < current->serverOnNetwork.serverCapabilitiesSize; j++) {
+        for(size_t j = 0; j < current->serverCapabilitiesSize; j++) {
             if(UA_String_equal_ignorecase(&serverCapabilityFilter[i],
-                               &current->serverOnNetwork.serverCapabilities[j])) {
+                               &current->serverCapabilities[j])) {
                 capabilityFound = true;
                 break;
             }
@@ -233,12 +233,14 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 
     /* Set LastCounterResetTime */
     response->lastCounterResetTime =
-        dm->serverOnNetworkRecordIdLastReset;
+        UA_DiscoveryManager_getServerOnNetworkCounterResetTime(dm);
 
     /* Compute the max number of records to return */
     UA_UInt32 recordCount = 0;
-    if(request->startingRecordId < dm->serverOnNetworkRecordIdCounter)
-        recordCount = dm->serverOnNetworkRecordIdCounter - request->startingRecordId;
+    UA_UInt32 serverOnNetworkRecordIdCounter =
+        UA_DiscoveryManager_getServerOnNetworkRecordIdCounter(dm);
+    if(request->startingRecordId < serverOnNetworkRecordIdCounter)
+        recordCount = serverOnNetworkRecordIdCounter - request->startingRecordId;
     if(request->maxRecordsToReturn && recordCount > request->maxRecordsToReturn)
         recordCount = UA_MIN(recordCount, request->maxRecordsToReturn);
     if(recordCount == 0) {
@@ -249,16 +251,21 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
     /* Iterate over all records and add to filtered list */
     UA_UInt32 filteredCount = 0;
     UA_STACKARRAY(UA_ServerOnNetwork*, filtered, recordCount);
-    serverOnNetwork *current;
-    LIST_FOREACH(current, &dm->serverOnNetwork, pointers) {
+    UA_ServerOnNetwork *current = UA_DiscoveryManager_getServerOnNetworkList(dm);
+    if(!current) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+        return;
+    }
+    for(size_t i = 0; i < recordCount; i++) {
         if(filteredCount >= recordCount)
             break;
-        if(current->serverOnNetwork.recordId < request->startingRecordId)
+        if(current->recordId < request->startingRecordId)
             continue;
         if(!entryMatchesCapabilityFilter(request->serverCapabilityFilterSize,
                                request->serverCapabilityFilter, current))
             continue;
-        filtered[filteredCount++] = &current->serverOnNetwork;
+        filtered[filteredCount++] = current;
+        current = UA_DiscoveryManager_getNextServerOnNetworkRecord(dm, current);
     }
 
     if(filteredCount == 0)
@@ -294,18 +301,17 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server) {
         if(!UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &sp->policyUri))
             return sp;
     }
-    return server->config.securityPoliciesSize > 0 ?
-        &server->config.securityPolicies[0] : NULL;
+    return NULL; /* No encrypted policy found */
 }
 
 const char *securityModeStrs[4] = {"-invalid", "-none", "-sign", "-sign+encrypt"};
 
-static UA_String
+UA_String
 securityPolicyUriPostfix(const UA_String uri) {
-    for(size_t i = 0; i < uri.length; i++) {
-        if(uri.data[i] != '#')
+    for(UA_Byte *b = uri.data + uri.length - 1; b >= uri.data; b--) {
+        if(*b != '#')
             continue;
-        UA_String postfix = {uri.length - i, &uri.data[i]};
+        UA_String postfix = {uri.length - (size_t)(b - uri.data), b};
         return postfix;
     }
     return uri;
@@ -321,30 +327,45 @@ updateEndpointUserIdentityToken(UA_Server *server, UA_EndpointDescription *ed) {
     /* Copy the UserTokenPolicies from the AccessControl plugin, but only the matching ones to the securityPolicyUri.
      * TODO: Different instances of the AccessControl plugin per Endpoint */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < server->config.accessControl.userTokenPoliciesSize; i++) {
-        UA_UserTokenPolicy *utp = &server->config.accessControl.userTokenPolicies[i];
-        if(UA_String_equal(&ed->securityPolicyUri, &utp->securityPolicyUri)) {
-             res = UA_Array_appendCopy((void**)&ed->userIdentityTokens,
-                                &ed->userIdentityTokensSize,
-                                utp,
-                                &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-            if(res != UA_STATUSCODE_GOOD)
-                return res;
-        }
-    }
+    UA_ServerConfig *sc = &server->config;
+    for(size_t i = 0; i < sc->accessControl.userTokenPoliciesSize; i++) {
+        UA_UserTokenPolicy *utp = &sc->accessControl.userTokenPolicies[i];
+        res = UA_Array_appendCopy((void**)&ed->userIdentityTokens,
+                                  &ed->userIdentityTokensSize, utp,
+                                  &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
 
-    for(size_t i = 0; i < ed->userIdentityTokensSize; i++) {
-        /* Use the securityPolicy of the SecureChannel. But not if the
-         * SecureChannel is unencrypted and there is a non-anonymous token. */
-        UA_UserTokenPolicy *utp = &ed->userIdentityTokens[i];
+        /* Select the SecurityPolicy for the UserTokenType.
+         * If not set, the SecurityPolicy of the SecureChannel is used. */
+        utp = &ed->userIdentityTokens[ed->userIdentityTokensSize - 1];
         UA_String_clear(&utp->securityPolicyUri);
-        if((!server->config.allowNonePolicyPassword || ed->userIdentityTokens[i].tokenType != UA_USERTOKENTYPE_USERNAME) &&
-           UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI) &&
-           utp->tokenType != UA_USERTOKENTYPE_ANONYMOUS) {
+#ifdef UA_ENABLE_ENCRYPTION
+        /* Anonymous tokens don't need encryption. All other tokens require
+         * encryption with the exception of Username/Password if also the
+         * allowNonePolicyPassword option has been set. The same logic is used
+         * in selectEndpointAndTokenPolicy (ua_services_session.c). */
+        if(utp->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
+           !(sc->allowNonePolicyPassword && utp->tokenType == UA_USERTOKENTYPE_USERNAME) &&
+           UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI)) {
             UA_SecurityPolicy *encSP = getDefaultEncryptedSecurityPolicy(server);
-            if(encSP)
-                res |= UA_String_copy(&encSP->policyUri, &utp->securityPolicyUri);
+            if(!encSP) {
+                /* No encrypted SecurityPolicy available */
+                UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_CLIENT,
+                               "Removing a UserTokenPolicy that would allow the "
+                               "password to be transmitted without encryption "
+                               "(Can be enabled via config->allowNonePolicyPassword)");
+                UA_StatusCode res2 =
+                    UA_Array_resize((void **)&ed->userIdentityTokens,
+                                    &ed->userIdentityTokensSize,
+                                    ed->userIdentityTokensSize - 1,
+                                    &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+                (void)res2;
+                continue;
+            }
+            res |= UA_String_copy(&encSP->policyUri, &utp->securityPolicyUri);
         }
+#endif
 
         /* Append the SecurityMode and SecurityPolicy postfix to the PolicyId to
          * make it unique */
@@ -477,27 +498,6 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
         setCurrentEndPointsArray(server, request->endpointUrl,
                                  request->profileUris, request->profileUrisSize,
                                  &response->endpoints, &response->endpointsSize);
-
-    /* Check if the ServerUrl is already present in the DiscoveryUrl array.
-     * Add if not already there. */
-    UA_SecureChannel *channel = session->channel;
-    for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
-        if(UA_String_equal(&channel->endpointUrl,
-                           &server->config.applicationDescription.discoveryUrls[i])) {
-            return;
-        }
-    }
-    if(server->config.applicationDescription.discoveryUrls == NULL){
-        server->config.applicationDescription.discoveryUrls = (UA_String*)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
-        server->config.applicationDescription.discoveryUrlsSize = 0;
-    }
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    retval = UA_Array_appendCopy((void**)&server->config.applicationDescription.discoveryUrls,
-                        &server->config.applicationDescription.discoveryUrlsSize,
-                        &request->endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Error adding the ServerUrl to theDiscoverUrl list.");
 }
 
 #ifdef UA_ENABLE_DISCOVERY

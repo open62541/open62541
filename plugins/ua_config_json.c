@@ -449,6 +449,7 @@ PARSE_JSON(MdnsConfigurationField) {
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &config->mdnsConfig.mdnsServerName, NULL);
             else if(strcmp(field_str, "serverCapabilities") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRINGARRAY](ctx, &config->mdnsConfig.serverCapabilities, &config->mdnsConfig.serverCapabilitiesSize);
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
             else if(strcmp(field_str, "mdnsInterfaceIP") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &config->mdnsInterfaceIP, NULL);
             /* mdnsIpAddressList and mdnsIpAddressListSize are only available if UA_HAS_GETIFADDR is not defined: */
@@ -456,6 +457,7 @@ PARSE_JSON(MdnsConfigurationField) {
             else if(strcmp(field_str, "mdnsIpAddressList") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32ARRAY](ctx, &config->mdnsIpAddressList, &config->mdnsIpAddressListSize);
 # endif
+#endif
             else {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
             }
@@ -771,7 +773,7 @@ PARSE_JSON(SecurityPkiField) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-#ifndef __linux__
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
     /* Currently not supported! */
     (void)config;
     return UA_STATUSCODE_GOOD;
@@ -957,10 +959,6 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->mdnsEnabled, NULL);
                 else if(strcmp(field, "mdns") == 0)
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_MDNSCONFIGURATION](&ctx, config, NULL);
-#if !defined(UA_HAS_GETIFADDR)
-                else if(strcmp(field, "mdnsIpAddressList") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32ARRAY](&ctx, &config->mdnsIpAddressList, &config->mdnsIpAddressListSize);
-#endif
 #endif
 #endif
 

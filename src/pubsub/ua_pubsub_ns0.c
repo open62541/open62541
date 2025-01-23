@@ -380,22 +380,64 @@ addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
     writerGroupConfig.name = writerGroup->name;
     writerGroupConfig.publishingInterval = writerGroup->publishingInterval;
     writerGroupConfig.writerGroupId = writerGroup->writerGroupId;
-    //TODO remove hard coded UADP
-    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.priority = writerGroup->priority;
 
-    UA_UadpWriterGroupMessageDataType writerGroupMessage;
     UA_ExtensionObject *eoWG = &writerGroup->messageSettings;
+    UA_UadpWriterGroupMessageDataType uadpWriterGroupMessage;
+    UA_JsonWriterGroupMessageDataType jsonWriterGroupMessage;
     if(eoWG->encoding == UA_EXTENSIONOBJECT_DECODED){
         writerGroupConfig.messageSettings.encoding  = UA_EXTENSIONOBJECT_DECODED;
         if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]){
-            if(UA_UadpWriterGroupMessageDataType_copy((UA_UadpWriterGroupMessageDataType *) eoWG->content.decoded.data,
-                                                        &writerGroupMessage) != UA_STATUSCODE_GOOD){
+            writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+            if(UA_UadpWriterGroupMessageDataType_copy(
+                    (UA_UadpWriterGroupMessageDataType *)eoWG->content.decoded.data,
+                    &uadpWriterGroupMessage) != UA_STATUSCODE_GOOD) {
                 return UA_STATUSCODE_BADOUTOFMEMORY;
             }
             writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-            writerGroupConfig.messageSettings.content.decoded.data = &writerGroupMessage;
+            writerGroupConfig.messageSettings.content.decoded.data = &uadpWriterGroupMessage;
+        } else if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE]) {
+            writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+            if(UA_JsonWriterGroupMessageDataType_copy(
+                   (UA_JsonWriterGroupMessageDataType *)eoWG->content.decoded.data,
+                   &jsonWriterGroupMessage) != UA_STATUSCODE_GOOD) {
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE];
+            writerGroupConfig.messageSettings.content.decoded.data = &jsonWriterGroupMessage;
         }
+    }
+
+    eoWG = &writerGroup->transportSettings;
+    UA_BrokerWriterGroupTransportDataType brokerWriterGroupTransport;
+    UA_DatagramWriterGroupTransportDataType datagramWriterGroupTransport;
+    if(eoWG->encoding == UA_EXTENSIONOBJECT_DECODED) {
+        writerGroupConfig.transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+        if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE]) {
+            if(UA_BrokerWriterGroupTransportDataType_copy(
+                    (UA_BrokerWriterGroupTransportDataType*)eoWG->content.decoded.data,
+                    &brokerWriterGroupTransport) != UA_STATUSCODE_GOOD) {
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            writerGroupConfig.transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE];
+            writerGroupConfig.transportSettings.content.decoded.data = &brokerWriterGroupTransport;
+        } else if(eoWG->content.decoded.type == &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORTDATATYPE]) {
+            if(UA_DatagramWriterGroupTransportDataType_copy(
+                   (UA_DatagramWriterGroupTransportDataType *)eoWG->content.decoded.data,
+                   &datagramWriterGroupTransport) != UA_STATUSCODE_GOOD) {
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            writerGroupConfig.transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORTDATATYPE];
+            writerGroupConfig.transportSettings.content.decoded.data = &datagramWriterGroupTransport;
+        }
+    }
+    if (writerGroupConfig.encodingMimeType == UA_PUBSUB_ENCODING_JSON
+        && (writerGroupConfig.transportSettings.encoding != UA_EXTENSIONOBJECT_DECODED ||
+        writerGroupConfig.transportSettings.content.decoded.type !=
+            &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE])) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "JSON encoding is supported only for MQTT transport");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     return UA_WriterGroup_create(psm, connectionId, &writerGroupConfig, writerGroupId);
@@ -480,7 +522,6 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ExtensionObject *eoTargetVar = &dataSetReader->subscribedDataSet;
     if(eoTargetVar->encoding != UA_EXTENSIONOBJECT_DECODED ||
        eoTargetVar->content.decoded.type != &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE])
@@ -488,6 +529,10 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
 
     const UA_TargetVariablesDataType *targetVars =
         (UA_TargetVariablesDataType*)eoTargetVar->content.decoded.data;
+
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dataSetReaderId);
+    if(!dsr)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_NodeId folderId;
     UA_String folderName = pMetaData->name;
@@ -514,40 +559,25 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
      * Subscriber AddressSpace. The values subscribed from the Publisher are
      * updated in the value field of these variables */
 
-    /* Create the TargetVariables with respect to DataSetMetaData fields */
-    UA_FieldTargetVariable *targetVarsData = (UA_FieldTargetVariable *)
-        UA_calloc(targetVars->targetVariablesSize, sizeof(UA_FieldTargetVariable));
+    /* Add variable for the fields */
     for(size_t i = 0; i < targetVars->targetVariablesSize; i++) {
-        /* Prepare the output structure */
-        UA_FieldTargetDataType_init(&targetVarsData[i].targetVariable);
-        targetVarsData[i].targetVariable.attributeId  = targetVars->targetVariables[i].attributeId;
-
-        /* Add variable for the field */
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
         vAttr.description = pMetaData->fields[i].description;
         vAttr.displayName.locale = UA_STRING("");
         vAttr.displayName.text = pMetaData->fields[i].name;
         vAttr.dataType = pMetaData->fields[i].dataType;
         UA_QualifiedName varname = {1, pMetaData->fields[i].name};
-        retVal |= addNode(server, UA_NODECLASS_VARIABLE,
-                          targetVars->targetVariables[i].targetNodeId, folderId,
-                          UA_NS0ID(HASCOMPONENT), varname, UA_NS0ID(BASEDATAVARIABLETYPE),
-                          &vAttr, &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
-                          NULL, &targetVarsData[i].targetVariable.targetNodeId);
+        addNode(server, UA_NODECLASS_VARIABLE,
+                targetVars->targetVariables[i].targetNodeId, folderId,
+                UA_NS0ID(HASCOMPONENT), varname, UA_NS0ID(BASEDATAVARIABLETYPE),
+                &vAttr, &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
+                NULL, &targetVars->targetVariables[i].targetNodeId);
+    }
 
-    }
-    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dataSetReaderId);
-    if(dsr) {
-        retVal = DataSetReader_createTargetVariables(psm, dsr,
-                                                     targetVars->targetVariablesSize,
-                                                     targetVarsData);
-    } else {
-        retVal = UA_STATUSCODE_BADINTERNALERROR;
-    }
-    for(size_t j = 0; j < targetVars->targetVariablesSize; j++)
-        UA_FieldTargetDataType_clear(&targetVarsData[j].targetVariable);
-    UA_free(targetVarsData);
-    return retVal;
+    /* Set the TargetVariables in the DSR config */
+    return DataSetReader_createTargetVariables(psm, dsr,
+                                               targetVars->targetVariablesSize,
+                                               targetVars->targetVariables);
 }
 
 /**
@@ -1323,6 +1353,26 @@ writeContentMask(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+readGroupVersion(UA_Server *server, const UA_NodeId *sessionId,
+                void *sessionContext, const UA_NodeId *nodeId,
+                void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                const UA_NumericRange *range, UA_DataValue *value) {
+    UA_WriterGroup *writerGroup = (UA_WriterGroup*)nodeContext;
+    if((writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED &&
+        writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
+       writerGroup->config.messageSettings.content.decoded.type !=
+       &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType*)
+        writerGroup->config.messageSettings.content.decoded.data;
+
+    UA_Variant_setScalarCopy(&value->value, &wgm->groupVersion,
+                             &UA_TYPES[UA_DATATYPEKIND_UINT32]);
+    value->hasValue = true;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -1435,6 +1485,22 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
         /* Make writable */
         writeAccessLevelAttribute(server, contentMaskId,
                                   UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_READ);
+
+    }
+    UA_NodeId groupVersionId =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "GroupVersion"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), messageSettingsId);
+    if(!UA_NodeId_isNull(&groupVersionId)) {
+        /* Set the callback */
+        UA_DataSource ds;
+        ds.read = readGroupVersion;
+        ds.write = NULL;
+        setVariableNode_dataSource(server, groupVersionId, ds);
+        setNodeContext(server, groupVersionId, writerGroup);
+
+        /* Read only */
+        writeAccessLevelAttribute(server, groupVersionId,
+                                  UA_ACCESSLEVELMASK_READ);
 
     }
 

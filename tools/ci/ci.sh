@@ -17,7 +17,7 @@ else
 fi
 
 # Allow to reuse TIME-WAIT sockets for new connections
-sudo echo 1 > /proc/sys/net/ipv4/tcp_tw_reuse
+sudo sysctl -w net.ipv4.tcp_tw_reuse=1
 
 ###########
 # cpplint #
@@ -66,7 +66,6 @@ function build_tpm_tool {
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_ENCRYPTION_TPM2=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
@@ -250,9 +249,11 @@ function unit_tests_encryption {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
+          -DUA_ENABLE_GDS_PUSHMANAGEMENT=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_FORCE_WERROR=ON \
+          -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -267,7 +268,6 @@ function unit_tests_encryption_mbedtls_pubsub {
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
-          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
@@ -284,7 +284,6 @@ function unit_tests_pubsub_sks {
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
-          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
           -DUA_FORCE_WERROR=ON \
@@ -371,7 +370,6 @@ function examples_valgrind {
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
-          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
@@ -393,11 +391,13 @@ function examples_valgrind {
 ##############################
 
 function build_clang_analyzer {
+    local version=$1
     mkdir -p build; cd build; rm -rf *
-    scan-build-11 cmake -DCMAKE_BUILD_TYPE=Debug \
+    scan-build-$version cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_ENABLE_GDS_PUSHMANAGEMENT=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
@@ -405,8 +405,12 @@ function build_clang_analyzer {
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_FORCE_WERROR=ON \
+          -DUA_NAMESPACE_ZERO=FULL \
           ..
-    scan-build-11 --status-bugs --exclude ../src/util make ${MAKEOPTS}
+    scan-build-$version --status-bugs \
+          -disable-checker unix.BlockInCriticalSection \
+          -disable-checker unix.Errno \
+          --exclude ../src/util make ${MAKEOPTS}
 }
 
 ###################################################
@@ -419,7 +423,7 @@ function build_all_companion_specs {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_FORCE_WERROR=ON \
-          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;ISA95-JOBCONTROL\;OpenSCS\;CNC\;AMB\;AutoID\;POWERLINK\;Machinery\;PackML\;PNEM\;PLCopen\;MachineTool\;PROFINET\;MachineVision\;FDT\;CommercialKitchenEquipment\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
+          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;ISA95-JOBCONTROL\;OpenSCS\;CNC\;AMB\;AutoID\;POWERLINK\;Machinery\;LADS\;PackML\;PNEM\;PLCopen\;MachineTool\;PROFINET\;MachineVision\;FDT\;CommercialKitchenEquipment\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS} check_nodeset_compiler_testnodeset

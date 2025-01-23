@@ -276,9 +276,151 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
     return retval;
 }
 
+/**********/
+/* Browse */
+/**********/
+
+UA_BrowseResult
+UA_Client_browse(UA_Client *client, const UA_ViewDescription *view,
+                 UA_UInt32 requestedMaxReferencesPerNode,
+                 const UA_BrowseDescription *nodesToBrowse) {
+    UA_BrowseResult res;
+    UA_BrowseRequest request;
+    UA_BrowseResponse response;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!nodesToBrowse) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto error;
+    }
+
+    /* Set up the request */
+    UA_BrowseRequest_init(&request);
+    if(view)
+        request.view = *view;
+    request.requestedMaxReferencesPerNode = requestedMaxReferencesPerNode;
+    request.nodesToBrowse = (UA_BrowseDescription*)(uintptr_t)nodesToBrowse;
+    request.nodesToBrowseSize = 1;
+
+    /* Call the service */
+    response = UA_Client_Service_browse(client, request);
+    retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(UA_StatusCode_isBad(retval))
+        goto error;
+
+    /* Return the result */
+    res = response.results[0];
+    response.resultsSize = 0;
+    UA_BrowseResponse_clear(&response);
+    return res;
+
+ error:
+    UA_BrowseResponse_clear(&response);
+    UA_BrowseResult_init(&res);
+    res.statusCode = retval;
+    return res;
+}
+
+UA_BrowseResult
+UA_Client_browseNext(UA_Client *client, UA_Boolean releaseContinuationPoint,
+                     UA_ByteString continuationPoint) {
+    /* Set up the request */
+    UA_BrowseNextRequest request;
+    UA_BrowseNextRequest_init(&request);
+    request.releaseContinuationPoints = releaseContinuationPoint;
+    request.continuationPoints = &continuationPoint;
+    request.continuationPointsSize = 1;
+
+    /* Call the service */
+    UA_BrowseResult res;
+    UA_BrowseNextResponse response = UA_Client_Service_browseNext(client, request);
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(UA_StatusCode_isBad(retval)) {
+        UA_BrowseNextResponse_clear(&response);
+        UA_BrowseResult_init(&res);
+        res.statusCode = retval;
+        return res;
+    }
+
+    /* Return the result */
+    res = response.results[0];
+    response.resultsSize = 0;
+    UA_BrowseNextResponse_clear(&response);
+    return res;
+}
+
+UA_BrowsePathResult
+UA_Client_translateBrowsePathToNodeIds(UA_Client *client,
+                                       const UA_BrowsePath *browsePath) {
+    UA_BrowsePathResult res;
+    UA_TranslateBrowsePathsToNodeIdsRequest request;
+    UA_TranslateBrowsePathsToNodeIdsResponse response;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!browsePath) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto error;
+    }
+
+    /* Set up the request */
+    UA_TranslateBrowsePathsToNodeIdsRequest_init(&request);
+    request.browsePaths = (UA_BrowsePath*)(uintptr_t)browsePath;
+    request.browsePathsSize = 1;
+
+    /* Call the service */
+    response = UA_Client_Service_translateBrowsePathsToNodeIds(client, request);
+    retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(UA_StatusCode_isBad(retval))
+        goto error;
+
+    /* Return the result */
+    res = response.results[0];
+    response.resultsSize = 0;
+    UA_TranslateBrowsePathsToNodeIdsResponse_clear(&response);
+    return res;
+
+ error:
+    UA_TranslateBrowsePathsToNodeIdsResponse_clear(&response);
+    UA_BrowsePathResult_init(&res);
+    res.statusCode = retval;
+    return res;
+}
+
 /********************/
 /* Write Attributes */
 /********************/
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_write(UA_Client *client, const UA_WriteValue *wv) {
+    if(!wv)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Set up the request */
+    UA_WriteRequest request;
+    UA_WriteRequest_init(&request);
+    request.nodesToWrite = (UA_WriteValue*)(uintptr_t)wv;
+    request.nodesToWriteSize = 1;
+
+    /* Call the service */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_WriteResponse response = UA_Client_Service_write(client, request);
+    retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(UA_StatusCode_isBad(retval)) {
+        UA_WriteResponse_clear(&response);
+        return retval;
+    }
+
+    /* Return the result */
+    retval = response.results[0];
+    UA_WriteResponse_clear(&response);
+    return retval;
+}
 
 UA_StatusCode
 __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
@@ -358,6 +500,36 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeI
 /*******************/
 /* Read Attributes */
 /*******************/
+
+UA_DataValue
+UA_Client_read(UA_Client *client, const UA_ReadValueId *rvi) {
+    /* Set up the request */
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    request.nodesToRead = (UA_ReadValueId*)(uintptr_t)rvi;
+    request.nodesToReadSize = 1;
+
+    /* Call the service */
+    UA_DataValue res;
+    UA_ReadResponse response = UA_Client_Service_read(client, request);
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(UA_StatusCode_isBad(retval)) {
+        UA_ReadResponse_clear(&response);
+        UA_DataValue_init(&res);
+        res.status = retval;
+        res.hasStatus = true;
+        return res;
+    }
+
+    /* Return the result */
+    res = response.results[0];
+    response.resultsSize = 0;
+    UA_ReadResponse_clear(&response);
+    return res;
+}
 
 UA_StatusCode
 __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
@@ -480,7 +652,7 @@ __UA_Client_HistoryRead(UA_Client *client, const UA_NodeId *nodeId,
     item.nodeId = *nodeId;
     item.indexRange = indexRange;
     item.continuationPoint = continuationPoint;
-    item.dataEncoding = UA_QUALIFIEDNAME(0, "");
+    item.dataEncoding = UA_QUALIFIEDNAME(0, NULL);
 
     UA_HistoryReadRequest request;
     UA_HistoryReadRequest_init(&request);

@@ -6,6 +6,7 @@
  *    Copyright 2020 (c) basysKom GmbH
  *    Copyright 2022 (c) Wind River Systems, Inc.
  *    Copyright 2022 (c) Fraunhofer IOSB (Author: Noel Graf)
+ *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
  */
 
 /*
@@ -29,11 +30,21 @@ modification history
 #include <openssl/aes.h>
 #include <openssl/pem.h>
 #include <openssl/rand.h>
+#include <openssl/ecdsa.h>
+#include <openssl/kdf.h>
+
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+#include <openssl/core_names.h>
+#endif
 
 #include "securitypolicy_common.h"
 
 #define SHA1_DIGEST_LENGTH 20          /* 160 bits */
 #define RSA_DECRYPT_BUFFER_LENGTH 2048 /* bytes */
+
+/* Strings for ECC policies */
+UA_String serverLabel = UA_STRING_STATIC("opcua-server");
+UA_String clientLabel = UA_STRING_STATIC("opcua-client");
 
 /* Cast to prevent warnings in LibreSSL */
 #define SHA256EVP() ((EVP_MD *)(uintptr_t)EVP_sha256())
@@ -1307,22 +1318,22 @@ cleanup:
 
 EVP_PKEY *
 UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
-    const unsigned char * pkData = privateKey->data;
-    long len = (long) privateKey->length;
-    if(len == 0)
+    if(privateKey->length == 0)
         return NULL;
 
     EVP_PKEY *result = NULL;
+    BIO *bio = NULL;
 
-    if (len > 1 && pkData[0] == 0x30 && pkData[1] == 0x82) { // Magic number for DER encoded keys
-        result = d2i_PrivateKey(EVP_PKEY_RSA, NULL,
-                                          &pkData, len);
-    } else {
-        BIO *bio = NULL;
-        bio = BIO_new_mem_buf((void *) privateKey->data, (int) privateKey->length);
+    bio = BIO_new_mem_buf((void *) privateKey->data, (int) privateKey->length);
+    /* Try to read DER encoded private key */
+    result = d2i_PrivateKey_bio(bio, NULL);
+
+    if (result == NULL) {
+        /* Try to read PEM encoded private key */
+        BIO_reset(bio);
         result = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
-        BIO_free(bio);
     }
+    BIO_free(bio);
 
     return result;
 }
@@ -1330,11 +1341,12 @@ UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
 X509 *
 UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate) {
     X509 * result = NULL;
-    const unsigned char *pData = certificate->data;
 
-    if (certificate->length > 1 && pData[0] == 0x30 && pData[1] == 0x82) { // Magic number for DER encoded files
-        result = UA_OpenSSL_LoadDerCertificate(certificate);
-    } else {
+    /* Try to decode DER encoded certificate */
+    result = UA_OpenSSL_LoadDerCertificate(certificate);
+
+    if (result == NULL) {
+        /* Try to decode PEM encoded certificate */
         result = UA_OpenSSL_LoadPemCertificate(certificate);
     }
 
@@ -1416,6 +1428,629 @@ UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString 
     }
 
     return UA_STATUSCODE_BADINVALIDARGUMENT;
+}
+
+#endif
+
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
+static UA_StatusCode
+UA_OpenSSL_ECDH (const int nid,
+                 EVP_PKEY * keyPairLocal,
+                 const UA_ByteString * keyPublicRemote,
+                 UA_ByteString * sharedSecretOut) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    EVP_PKEY_CTX * pctx = NULL;
+    EVP_PKEY_CTX * kctx = NULL;
+    EVP_PKEY * remotePubKey = NULL;
+    EVP_PKEY * params = NULL;
+    UA_ByteString keyPublicRemoteEncoded = UA_BYTESTRING_NULL;
+
+    /* We need one additional byte of memory for the encoding */
+    if (UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(&keyPublicRemoteEncoded, keyPublicRemote->length+1)) {
+        ret = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto errout;
+    }
+
+    /* Set the encoding to 0x04 (uncompressed) and copy the public key */
+    keyPublicRemoteEncoded.data[0] = 0x04;
+    memcpy(&keyPublicRemoteEncoded.data[1], keyPublicRemote->data, keyPublicRemote->length);
+
+    remotePubKey = EVP_PKEY_new();
+    if(remotePubKey == NULL) {
+        ret = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto errout;
+    }
+
+    pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
+    if (pctx == NULL) {
+        ret = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto errout;
+    }
+
+    if(EVP_PKEY_paramgen_init(pctx) != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if(EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pctx, nid) != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if(EVP_PKEY_paramgen(pctx, &params) != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if(EVP_PKEY_copy_parameters(remotePubKey, params) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    if(EVP_PKEY_set1_encoded_public_key(remotePubKey, keyPublicRemoteEncoded.data, keyPublicRemoteEncoded.length) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+#else
+    if(EVP_PKEY_set1_tls_encodedpoint(remotePubKey, keyPublicRemoteEncoded.data, keyPublicRemoteEncoded.length) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+#endif
+
+    kctx = EVP_PKEY_CTX_new(keyPairLocal, NULL);
+    if(kctx == NULL) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if(EVP_PKEY_derive_init(kctx) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if(EVP_PKEY_derive_set_peer(kctx, remotePubKey) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if(EVP_PKEY_derive(kctx, NULL, &sharedSecretOut->length) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if(UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(sharedSecretOut, sharedSecretOut->length)) {
+        ret = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto errout;
+    }
+
+    if(EVP_PKEY_derive(kctx, sharedSecretOut->data, &sharedSecretOut->length) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+errout:
+    UA_ByteString_clear(&keyPublicRemoteEncoded);
+    EVP_PKEY_free(remotePubKey);
+    EVP_PKEY_CTX_free(pctx);
+    EVP_PKEY_CTX_free(kctx);
+    EVP_PKEY_free(params);
+
+    return ret;
+}
+
+static UA_StatusCode
+UA_OpenSSL_ECC_GenerateSalt (const size_t L,
+                             const UA_ByteString * label,
+                             const UA_ByteString * key1,
+                             const UA_ByteString * key2,
+                             UA_ByteString * salt) {
+    size_t saltLen = sizeof(uint16_t) + label->length + key1->length + key2->length;
+
+    if (salt == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    if (UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(salt, saltLen)) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    salt->data[0] = (L) & 0xFF;
+    salt->data[1] = (L >> 8) & 0xFF;
+
+    UA_Byte * saltPtr = &salt->data[2];
+
+    memcpy(saltPtr, label->data, label->length);
+    saltPtr += label->length;
+    memcpy(saltPtr, key1->data, key1->length);
+    saltPtr += key1->length;
+    memcpy(saltPtr, key2->data, key2->length);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+static UA_StatusCode
+UA_OpenSSL_HKDF (char * hashAlgorithm,
+                 const UA_ByteString * ikm,
+                 const UA_ByteString * salt,
+                 const UA_ByteString * info,
+                 UA_ByteString * out) {
+
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    EVP_KDF * kdf = NULL;
+    EVP_KDF_CTX * kctx = NULL;
+    OSSL_PARAM params[5];
+    OSSL_PARAM * p = params;
+
+    kdf = EVP_KDF_fetch(NULL, "HKDF", NULL);
+    if(kdf == NULL) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    kctx = EVP_KDF_CTX_new(kdf);
+    if(kctx == NULL) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    *p++ = OSSL_PARAM_construct_utf8_string(OSSL_KDF_PARAM_DIGEST, hashAlgorithm, strlen(hashAlgorithm));
+    *p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_KEY, ikm->data, ikm->length);
+    *p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_INFO, info->data, info->length);
+    *p++ = OSSL_PARAM_construct_octet_string(OSSL_KDF_PARAM_SALT, salt->data, salt->length);
+    *p = OSSL_PARAM_construct_end();
+
+    if(EVP_KDF_derive(kctx, out->data, out->length, params) <= 0) {
+        ERR_print_errors_fp(stdout);
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+errout:
+    EVP_KDF_free(kdf);
+    EVP_KDF_CTX_free(kctx);
+
+    return ret;
+}
+#else
+
+static UA_StatusCode
+UA_OpenSSL_HKDF (char * hashAlgorithm,
+                 const UA_ByteString * ikm,
+                 const UA_ByteString * salt,
+                 const UA_ByteString * info,
+                 UA_ByteString * out) {
+
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    EVP_PKEY_CTX *pctx = NULL;
+    const EVP_MD *md = NULL;
+
+    /* Retrieve the digest pointer */
+    md = EVP_get_digestbyname(hashAlgorithm);
+    if (md == NULL) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_HKDF, NULL);
+    if (EVP_PKEY_derive_init(pctx) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+    if (EVP_PKEY_CTX_set_hkdf_md(pctx, md) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+    if (EVP_PKEY_CTX_set1_hkdf_salt(pctx, salt->data, salt->length) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+    if (EVP_PKEY_CTX_set1_hkdf_key(pctx, ikm->data, ikm->length) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+    if (EVP_PKEY_CTX_add1_hkdf_info(pctx, info->data, info->length) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+    if (EVP_PKEY_derive(pctx, out->data, &out->length) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+errout:
+    EVP_PKEY_CTX_free(pctx);
+
+    return ret;
+}
+#endif
+
+UA_StatusCode
+UA_OpenSSL_ECC_DeriveKeys (const int curveID,
+                           char * hashAlgorithm,
+                           const UA_ApplicationType applicationType,
+                           EVP_PKEY * localEphemeralKeyPair,
+                           const UA_ByteString * key1,
+                           const UA_ByteString * key2,
+                           UA_ByteString * out) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    UA_Boolean generateLocal = true;
+    const UA_ByteString * remotePublicKey = NULL;
+    UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
+    UA_ByteString salt = UA_BYTESTRING_NULL;
+
+    /* The order of ephemeral public keys (key1 and key2) tells us whether we
+     * need to generate the local keys or the remote keys. To figure that out,
+     * we compare the public part of localEphemeralKeyPair with key1 and key2. */
+    UA_Byte * keyPubEnc = NULL;
+    size_t keyPubEncSize = 0;
+
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    keyPubEncSize = EVP_PKEY_get1_encoded_public_key(localEphemeralKeyPair, &keyPubEnc);
+#else
+    keyPubEncSize = EVP_PKEY_get1_tls_encodedpoint(localEphemeralKeyPair, &keyPubEnc);
+#endif
+    if (keyPubEncSize <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    /* Comparing from the second byte since the first byte has 0x04 from the encoding */
+    if (memcmp(&keyPubEnc[1], key1->data, key1->length) == 0) {
+        /* Remote keys */
+        generateLocal = false;
+        remotePublicKey = key2;
+    }
+    else if (memcmp(&keyPubEnc[1], key2->data, key2->length) == 0) {
+        /* Local keys */
+        generateLocal = true;
+        remotePublicKey = key1;
+    }
+    else {
+        /* invalid */
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    /* Use ECDH to calculate shared secret */
+    if (UA_STATUSCODE_GOOD != UA_OpenSSL_ECDH(curveID, localEphemeralKeyPair, remotePublicKey, &sharedSecret)) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    /* Select label for salt generation */
+    UA_ByteString *label = NULL;
+
+    switch(applicationType) {
+    case UA_APPLICATIONTYPE_SERVER:
+        if (generateLocal)
+            label = &serverLabel;
+        else
+            label = &clientLabel;
+        break;
+    case UA_APPLICATIONTYPE_CLIENT:
+    if (generateLocal)
+            label = &clientLabel;
+        else
+            label = &serverLabel;
+        break;
+    default:
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        break;
+    }
+
+    /* Calculate salt */
+    if (UA_STATUSCODE_GOOD != UA_OpenSSL_ECC_GenerateSalt(out->length, label, key1, key2, &salt)) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    /* Call HKDF to derive keys */
+    if (UA_STATUSCODE_GOOD != UA_OpenSSL_HKDF(hashAlgorithm, &sharedSecret, &salt, &salt, out)) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+errout:
+    OPENSSL_free(keyPubEnc);
+    UA_ByteString_clear(&sharedSecret);
+    UA_ByteString_clear(&salt);
+
+    return ret;
+}
+
+static UA_StatusCode
+UA_OpenSSL_ECC_GenerateKey(const int curveId,
+                           EVP_PKEY ** keyPairOut,
+                           UA_ByteString * keyPublicEncOut) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    EVP_PKEY_CTX * pctx = NULL;
+    EVP_PKEY_CTX * kctx = NULL;
+    EVP_PKEY * params = NULL;
+    size_t keyPubEncSize = 0;
+    UA_Byte * keyPubEnc = NULL;
+
+    pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
+    if (pctx == NULL) {
+        ret = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto errout;
+    }
+
+    if(EVP_PKEY_paramgen_init(pctx) != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if (EVP_PKEY_CTX_set_ec_paramgen_curve_nid(pctx, curveId) != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if (EVP_PKEY_paramgen(pctx, &params) != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    kctx = EVP_PKEY_CTX_new(params, NULL);
+    if (kctx == NULL) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if (EVP_PKEY_keygen_init(kctx) != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if (EVP_PKEY_keygen(kctx, keyPairOut) != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    keyPubEncSize = EVP_PKEY_get1_encoded_public_key(*keyPairOut, &keyPubEnc);
+#else
+    keyPubEncSize = EVP_PKEY_get1_tls_encodedpoint(*keyPairOut, &keyPubEnc);
+#endif
+    if (keyPubEncSize <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    /* Omit the first byte (encoding) */
+    memcpy(keyPublicEncOut->data, &keyPubEnc[1], keyPubEncSize-1);
+
+errout:
+    EVP_PKEY_CTX_free(pctx);
+    EVP_PKEY_free(params);
+    EVP_PKEY_CTX_free(kctx);
+    OPENSSL_free(keyPubEnc);
+
+    return ret;
+}
+
+static UA_StatusCode
+UA_Openssl_ECDSA_Sign(const UA_ByteString * message,
+                      EVP_PKEY * privateKey,
+                      const EVP_MD * evpMd,
+                      UA_ByteString * outSignature) {
+    EVP_MD_CTX * mdctx = NULL;
+    int opensslRet = 0;
+    EVP_PKEY_CTX * evpKeyCtx = NULL;
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    UA_ByteString signatureEnc = UA_BYTESTRING_NULL;
+    ECDSA_SIG* signatureRaw = NULL;
+    const BIGNUM * pr = NULL;
+    const BIGNUM * ps = NULL;
+    size_t sizeEncCoordinate = 0;
+
+    if (privateKey == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    mdctx = EVP_MD_CTX_create();
+    if (mdctx == NULL) {
+        ret = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto errout;
+    }
+
+    opensslRet = EVP_DigestSignInit (mdctx, &evpKeyCtx, evpMd, NULL, privateKey);
+    if (opensslRet != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    opensslRet = EVP_DigestSignUpdate (mdctx, message->data, message->length);
+    if (opensslRet != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    /* Length required for internal computing */
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    signatureEnc.length = EVP_PKEY_get_size(privateKey);
+#else
+    signatureEnc.length = ECDSA_size(EVP_PKEY_get0_EC_KEY(privateKey));
+#endif
+
+    /* Temporary buffer for OpenSSL-internal signature computation */
+    if (UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(&signatureEnc, signatureEnc.length)) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    opensslRet = EVP_DigestSignFinal(mdctx, signatureEnc.data, &signatureEnc.length);
+    if (opensslRet != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    // using temp pointer since the function call increments it
+    const UA_Byte * ptmpData = signatureEnc.data;
+
+    signatureRaw = d2i_ECDSA_SIG(NULL, &ptmpData, signatureEnc.length);
+    if (signatureRaw == NULL) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    ECDSA_SIG_get0(signatureRaw, &pr, &ps);
+    if (pr == NULL || ps == NULL) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    sizeEncCoordinate = outSignature->length / 2;
+    if(sizeEncCoordinate <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if (BN_bn2binpad(pr, outSignature->data, sizeEncCoordinate) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if (BN_bn2binpad(ps, outSignature->data + sizeEncCoordinate, sizeEncCoordinate) <= 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+errout:
+    EVP_MD_CTX_destroy(mdctx);
+    UA_ByteString_clear(&signatureEnc);
+    ECDSA_SIG_free(signatureRaw);
+
+    return ret;
+}
+
+static UA_StatusCode
+UA_Openssl_ECDSA_Verify(const UA_ByteString * message,
+                        const EVP_MD * evpMd,
+                        X509 * publicKeyX509,
+                        const UA_ByteString * signature) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    EVP_MD_CTX *mdctx = NULL;
+    BIGNUM *pr = NULL;
+    BIGNUM *ps = NULL;
+    UA_ByteString signatureEnc = UA_BYTESTRING_NULL;
+    ECDSA_SIG *signatureRaw = NULL;
+    EVP_PKEY *evpPublicKey = NULL;
+    size_t sizeEncCoordinate = 0;
+
+    if (evpMd == EVP_sha256()) {
+        sizeEncCoordinate = 32;
+    } else if (evpMd == EVP_sha384()) {
+        sizeEncCoordinate = 48;
+    } else {
+        ret = UA_STATUSCODE_BADINVALIDARGUMENT;
+        goto errout;
+    }
+
+    pr = BN_bin2bn(signature->data, sizeEncCoordinate, NULL);
+    ps = BN_bin2bn(signature->data + sizeEncCoordinate, sizeEncCoordinate, NULL);
+    if(pr == NULL || ps == NULL) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    signatureRaw = ECDSA_SIG_new();
+    if (signatureRaw == NULL) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if(ECDSA_SIG_set0(signatureRaw, pr, ps) != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    // this call is to find out the length of the encoded signature
+    signatureEnc.length = i2d_ECDSA_SIG(signatureRaw, NULL);
+    if (signatureEnc.length == 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    if (UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(&signatureEnc, signatureEnc.length)) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    // use temp pointer since the function call increments it
+    UA_Byte * ptmpData = signatureEnc.data;
+
+    signatureEnc.length = i2d_ECDSA_SIG(signatureRaw, &ptmpData);
+    if (signatureEnc.length == 0) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    mdctx = EVP_MD_CTX_create();
+    if(!mdctx) {
+        ret = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto errout;
+    }
+
+    evpPublicKey = X509_get_pubkey(publicKeyX509);
+    if(!evpPublicKey) {
+        ret = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto errout;
+    }
+
+    EVP_PKEY_CTX * evpKeyCtx = NULL;
+    int opensslRet = EVP_DigestVerifyInit(mdctx, &evpKeyCtx, evpMd,
+                                          NULL, evpPublicKey);
+    if(opensslRet != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    opensslRet = EVP_DigestVerifyUpdate (mdctx, message->data, message->length);
+    if(opensslRet != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    opensslRet = EVP_DigestVerifyFinal(mdctx, signatureEnc.data, signatureEnc.length);
+    if(opensslRet != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    ret = UA_STATUSCODE_GOOD;
+
+errout:
+    EVP_PKEY_free(evpPublicKey);
+    EVP_MD_CTX_destroy(mdctx);
+    ECDSA_SIG_free(signatureRaw);
+    UA_ByteString_clear(&signatureEnc);
+
+    return ret;
+}
+
+UA_StatusCode
+UA_OpenSSL_ECC_NISTP256_GenerateKey (EVP_PKEY ** keyPairOut,
+                                     UA_ByteString * keyPublicEncOut) {
+    return UA_OpenSSL_ECC_GenerateKey (EC_curve_nist2nid("P-256"), keyPairOut,
+                                       keyPublicEncOut);
+}
+
+UA_StatusCode
+UA_Openssl_ECDSA_SHA256_Sign (const UA_ByteString * message,
+                              EVP_PKEY * privateKey,
+                              UA_ByteString * outSignature) {
+    return UA_Openssl_ECDSA_Sign (message, privateKey, EVP_sha256(),
+                                  outSignature);
+}
+
+UA_StatusCode
+UA_Openssl_ECDSA_SHA256_Verify (const UA_ByteString * message,
+                                X509 * publicKeyX509,
+                                const UA_ByteString * signature) {
+    return UA_Openssl_ECDSA_Verify (message, EVP_sha256(), publicKeyX509,
+                                    signature);
 }
 
 #endif

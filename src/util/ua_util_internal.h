@@ -73,9 +73,6 @@ find_unescaped(char *pos, const char *end, UA_Boolean extended);
 UA_StatusCode
 UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Boolean extended);
 
-UA_StatusCode
-UA_String_append(UA_String *s, const UA_String s2);
-
 /* Case insensitive lookup. Returns UA_ATTRIBUTEID_INVALID if not found. */
 UA_AttributeId
 UA_AttributeId_fromName(const UA_String name);
@@ -333,12 +330,12 @@ void UA_Guid_to_hex(const UA_Guid *guid, u8* out, UA_Boolean lower);
 #define UA_ENCODING_HELPERS(TYPE, UPCASE_TYPE)                          \
     static UA_INLINE size_t                                             \
     UA_##TYPE##_calcSizeBinary(const UA_##TYPE *src) {                    \
-        return UA_calcSizeBinary(src, &UA_TYPES[UA_TYPES_##UPCASE_TYPE]); \
+        return UA_calcSizeBinary(src, &UA_TYPES[UA_TYPES_##UPCASE_TYPE], NULL); \
     }                                                                   \
     static UA_INLINE UA_StatusCode                                      \
     UA_##TYPE##_encodeBinary(const UA_##TYPE *src, UA_Byte **bufPos, const UA_Byte *bufEnd) { \
         return UA_encodeBinaryInternal(src, &UA_TYPES[UA_TYPES_##UPCASE_TYPE], \
-                                       bufPos, &bufEnd, NULL, NULL);    \
+                                       bufPos, &bufEnd, NULL, NULL, NULL); \
     }                                                                   \
     static UA_INLINE UA_StatusCode                                      \
     UA_##TYPE##_decodeBinary(const UA_ByteString *src, size_t *offset, UA_##TYPE *dst) { \

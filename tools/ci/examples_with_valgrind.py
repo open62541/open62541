@@ -39,10 +39,9 @@ server_needed_examples = {
         "pubsub_subscribe_encrypted":"pubsub_publish_encrypted",
         "pubsub_subscribe_encrypted_sks":"server_pubsub_central_sks server_cert.der server_key.der --enableUnencrypted --enableAnonymous",
         "pubsub_subscribe_standalone_dataset":"tutorial_pubsub_publish",
-        "server_pubsub_publish_rt_level":"server_pubsub_subscribe_rt_level",
-        "server_pubsub_rt_information_model":"server_pubsub_subscribe_rt_level",
         "server_pubsub_subscribe_custom_monitoring":"server_pubsub_publish_on_demand",
-        "server_pubsub_subscribe_rt_level":"server_pubsub_publish_rt_level",
+        "server_pubsub_publish_rt":"server_pubsub_publish_rt",
+        "server_pubsub_subscribe_rt":"server_pubsub_subscribe_rt",
         "tutorial_client_events":"tutorial_server_events",
         "tutorial_client_firststeps":"tutorial_server_firststeps",
         "tutorial_pubsub_connection":"tutorial_pubsub_subscribe",
@@ -110,6 +109,9 @@ print(f"Current directory: {current_dir}")
 example_dir = os.path.join(current_dir, "bin", "examples")
 examples = os.listdir(example_dir)
 
+cur_dir = os.path.dirname(os.path.realpath(__file__)) # path of current file
+tests_path = os.path.join(cur_dir, os.pardir, os.pardir, "tests")
+
 # skipping examples that are in the blacklist
 for example in examples:
     if example in blacklist:
@@ -118,7 +120,9 @@ for example in examples:
 
     # get the arguments for the example
     args = example_args.get(example)
-    cmd = ["valgrind", "--errors-for-leak-kinds=all", "--leak-check=full", "--error-exitcode=1337", "./bin/examples/"+example]
+    cmd = ["valgrind", "--errors-for-leak-kinds=all", "--leak-check=full", "--error-exitcode=1337",
+           f"--suppressions={tests_path}/valgrind_suppressions.supp",
+           "./bin/examples/"+example]
     if args:
         args_list = args.split()
         cmd += args_list

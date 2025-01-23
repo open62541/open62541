@@ -4,9 +4,9 @@
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  */
 
-#include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
+#include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
 #include <stdio.h>
@@ -111,8 +111,8 @@ addReaderGroup(UA_Server *server) {
         readerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
 
     /* configure the mqtt publish topic */
-    UA_BrokerWriterGroupTransportDataType brokerTransportSettings;
-    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
+    UA_BrokerDataSetReaderTransportDataType brokerTransportSettings;
+    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerDataSetReaderTransportDataType));
     /* Assign the Topic at which MQTT publish should happen */
     /*ToDo: Pass the topic as argument from the reader group */
     brokerTransportSettings.queueName = UA_STRING(SUBSCRIBER_TOPIC);
@@ -215,8 +215,8 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
  * received DataSet fields and target Variables in the Subscriber AddressSpace.
  * The values subscribed from the Publisher are updated in the value field of these variables */
     /* Create the TargetVariables with respect to DataSetMetaData fields */
-    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
-        UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
+    UA_FieldTargetDataType  *targetVars = (UA_FieldTargetDataType *)
+        UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetDataType));
     for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++) {
         /* Variable to subscribe data */
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -233,17 +233,13 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
                                   UA_NS0ID(BASEDATAVARIABLETYPE),
                                   vAttr, NULL, &newNode);
 
-        /* For creating Targetvariables */
-        UA_FieldTargetDataType_init(&targetVars[i].targetVariable);
-        targetVars[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVars[i].targetVariable.targetNodeId = newNode;
+        targetVars[i].attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars[i].targetNodeId = newNode;
     }
 
     UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
                                                   readerConfig.dataSetMetaData.fieldsSize,
                                                   targetVars);
-    for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++)
-        UA_FieldTargetDataType_clear(&targetVars[i].targetVariable);
 
     UA_free(targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);

@@ -65,7 +65,7 @@ static void setup(void) {
         trustList[i] = loadFile(argv[i+3]);
     */
 
-    /* Loading of a revocation list currently unsupported */
+    /* Revocation lists are supported, but not used here */
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
@@ -91,7 +91,7 @@ static void setup(void) {
     THREAD_CREATE(server_thread, serverloop);
 }
 
-#ifdef __linux__ /* Linux only so far */
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 static void setup2(void) {
     running = true;
 
@@ -125,7 +125,7 @@ static void setup2(void) {
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
-#endif
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 static void teardown(void) {
     running = false;
@@ -167,7 +167,7 @@ START_TEST(encryption_connect) {
     UA_Array_delete(endpointArray, endpointArraySize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
-    /* TODO test trustList Load revocationList is not supported now
+    /* Revocation lists are supported, but not used here
     if(argc > MIN_ARGS) {
         trustListSize = (size_t)argc-MIN_ARGS;
         retval = UA_ByteString_allocBuffer(trustList, trustListSize);
@@ -249,7 +249,7 @@ START_TEST(encryption_connect_pem) {
     UA_Array_delete(endpointArray, endpointArraySize,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 
-    /* TODO test trustList Load revocationList is not supported now
+    /* Revocation lists are supported, but not used here
     if(argc > MIN_ARGS) {
         trustListSize = (size_t)argc-MIN_ARGS;
         retval = UA_ByteString_allocBuffer(trustList, trustListSize);
@@ -308,7 +308,7 @@ static Suite* testSuite_encryption(void) {
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption);
 
-#ifdef __linux__ /* Linux only so far */
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
     TCase *tc_encryption_filestore = tcase_create("Encryption basic256sha256 security policy filestore");
     tcase_add_checked_fixture(tc_encryption_filestore, setup2, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
@@ -316,7 +316,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_filestore, encryption_connect_pem);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption_filestore);
-#endif
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
     return s;
 }

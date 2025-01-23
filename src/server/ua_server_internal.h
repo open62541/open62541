@@ -109,6 +109,23 @@ void
 UA_GDSTransaction_delete(UA_GDSTransaction *transaction);
 
 /********************/
+/*   GDS Manager    */
+/********************/
+
+typedef struct {
+    /* Transaction for certificate management */
+    UA_GDSTransaction transaction;
+    /* Contains context information necessary for reading and writing the TrustList as a file type */
+    void *fileInfoContext;
+    /* Holds the ID for the repeated callback that verifies the presence of sessions
+     * with an active transaction or an open trust list */
+    UA_UInt64 checkSessionCallbackId;
+} UA_GDSManager;
+
+void
+UA_GDSManager_clear(UA_GDSManager *gdsManager);
+
+/********************/
 /* Server Component */
 /********************/
 
@@ -240,8 +257,8 @@ struct UA_Server {
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
 
-    /* Transaction for certificate management */
-    UA_GDSTransaction transaction;
+    /* GDS Manager for certificate management */
+    UA_GDSManager gdsManager;
 };
 
 /***********************/
@@ -606,6 +623,9 @@ UA_ServerComponent * UA_BinaryProtocolManager_new(UA_Server *server);
 UA_ServerComponent * UA_PubSubManager_new(UA_Server *server);
 #endif
 
+UA_String
+securityPolicyUriPostfix(const UA_String uri);
+
 /***********/
 /* RefTree */
 /***********/
@@ -781,6 +801,12 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 /**********************/
 
 UA_StatusCode initNS0(UA_Server *server);
+
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
+UA_StatusCode
+initNS0PushManagement(UA_Server *server);
+#endif
+
 
 #ifdef UA_ENABLE_DIAGNOSTICS
 void createSessionObject(UA_Server *server, UA_Session *session);

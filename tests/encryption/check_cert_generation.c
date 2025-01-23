@@ -32,7 +32,7 @@ START_TEST(certificate_generation) {
     UA_UInt32 lenSubject = 3;
     UA_String subjectAltName[2]= {
         UA_STRING_STATIC("DNS:localhost"),
-        UA_STRING_STATIC("URI:urn:open62541.server.application")
+        UA_STRING_STATIC("URI:urn:open62541.unconfigured.application")
     };
     UA_UInt32 lenSubjectAltName = 2;
     UA_KeyValueMap *kvm = UA_KeyValueMap_new();

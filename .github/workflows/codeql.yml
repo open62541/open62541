@@ -2,9 +2,9 @@ name: "Code Scanning"
 
 on:
   push: 
-    branches: [ master, 1\.1, 1\.2 ]
+    branches: [ master, 1.* ]
   pull_request:
-    branches: [ master, 1\.1, 1\.2 ]
+    branches: [ master, 1.* ]
     paths-ignore:
       - '**/*.md'
       - '**/*.txt'

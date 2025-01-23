@@ -49,9 +49,8 @@ LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {
         return 0;
     }
     UA_assert(retval == UA_STATUSCODE_GOOD);
-    /* TODO: Enable this assertion when the binary-JSON-binary roundtrip is complete.
-     * Waiting for Mantis issue #7750.
-     * UA_assert(UA_order(&value, &value2, &UA_TYPES[UA_TYPES_VARIANT]) == UA_ORDER_EQ); */
+
+    UA_assert(UA_order(&value, &value2, &UA_TYPES[UA_TYPES_VARIANT]) == UA_ORDER_EQ);
 
     UA_ByteString buf3 = UA_BYTESTRING_NULL;
     retval = UA_ByteString_allocBuffer(&buf3, jsonSize);
