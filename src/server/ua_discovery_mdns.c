@@ -36,7 +36,7 @@
 #endif
 
 #define UA_MAXMDNSRECVSOCKETS 8
-#define UA_MAXMDNSRECVSOCKETS 8
+#define UA_MAXMDNSSENDSOCKETS 8
 #define SERVER_ON_NETWORK_HASH_SIZE 1000
 typedef struct serverOnNetwork {
     LIST_ENTRY(serverOnNetwork) pointers;
