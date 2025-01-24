@@ -837,9 +837,9 @@ PARSE_JSON(RuleHandlingField) {
     return retval;
 }
 
-void  skipUnknownObject(ParsingCtx* ctx);
+static void  skipUnknownObject(ParsingCtx* ctx);
 
-void skipUnknownArray(ParsingCtx* ctx) {
+static void skipUnknownArray(ParsingCtx* ctx) {
     unsigned int ix;
     unsigned int tok_size = ctx->tokens[ctx->index].size;
     for (ix = 0; ix < tok_size; ix++) {
@@ -860,7 +860,7 @@ void skipUnknownArray(ParsingCtx* ctx) {
     }
 }
 
-void skipUnknownObject(ParsingCtx* ctx) {
+static void skipUnknownObject(ParsingCtx* ctx) {
     unsigned int ix;
     unsigned int obj_size = ctx->tokens[ctx->index].size;
     for (ix = 0; ix < obj_size / 2; ix++) {
@@ -882,7 +882,7 @@ void skipUnknownObject(ParsingCtx* ctx) {
     }
 }
 
-void  skipUnknownItem(ParsingCtx* ctx) {
+static void  skipUnknownItem(ParsingCtx* ctx) {
     ++ctx->index;
     switch (ctx->tokens[ctx->index].type) {
         case CJ5_TOKEN_OBJECT:
