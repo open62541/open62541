@@ -437,7 +437,11 @@ typedef struct {
     bool flag; /* For assertions that we hold the mutex */
 } UA_Lock;
 
-#define UA_LOCK_STATIC_INIT {PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP, false}
+#if defined(__GLIBC__)
+#define UA_LOCK_STATIC_INIT {PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP, 0}
+#else
+#define UA_LOCK_STATIC_INIT {PTHREAD_MUTEX_INITIALIZER, 0}
+#endif
 
 static UA_INLINE void
 UA_LOCK_INIT(UA_Lock *lock) {
