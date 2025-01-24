@@ -1,3 +1,7 @@
+---
+name: Bug Report
+about: 'Report a bug'
+---
 <!--
 !ATTENTION!
 Please read the following page carefully and provide us with all the
