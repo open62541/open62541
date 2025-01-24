@@ -65,6 +65,8 @@ setCustomAccessControl(UA_ServerConfig *config) {
 int main(void) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
+    /* Allow clients without encryption support to connect with username and password. Not recommended!  */
+    config->allowNonePolicyPassword = true;
     setCustomAccessControl(config);
 
     UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
