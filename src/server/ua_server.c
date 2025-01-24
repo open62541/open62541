@@ -407,6 +407,10 @@ UA_Server_init(UA_Server *server) {
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 #endif /* UA_ENABLE_PUBSUB */
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    initNs0ConditionAndAlarms(server);
+#endif
+
     UA_UNLOCK(&server->serviceMutex);
     return server;
 
@@ -708,8 +712,9 @@ UA_Server_run_startup(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Start the EventLoop if not already started */
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
+    /* Start the EventLoop if not already started */
     UA_EventLoop *el = config->eventLoop;
     UA_CHECK_MEM_ERROR(el, return UA_STATUSCODE_BADINTERNALERROR,
                        config->logging, UA_LOGCATEGORY_SERVER,

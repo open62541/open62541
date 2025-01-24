@@ -782,6 +782,31 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
     return retval;
 }
 
+UA_StatusCode
+getNodeIdWithBrowseName(UA_Server *server, const UA_NodeId *origin,
+                   UA_QualifiedName browseName, UA_NodeId *outNodeId)
+{
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_BrowsePathResult bpr =
+        browseSimplifiedBrowsePath(server, *origin, 1, &browseName);
+    if(bpr.statusCode != UA_STATUSCODE_GOOD)
+        return bpr.statusCode;
+    *outNodeId = bpr.targets[0].targetId.nodeId;
+    bpr.targets[0].targetId.nodeId = UA_NODEID_NULL;
+    UA_BrowsePathResult_clear(&bpr);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_getNodeIdWithBrowseName(UA_Server *server, const UA_NodeId *origin,
+                   UA_QualifiedName childBrowseName, UA_NodeId *outNodeId)
+{
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode retval = getNodeIdWithBrowseName(server, origin, childBrowseName, outNodeId);
+    UA_UNLOCK(&server->serviceMutex);
+    return retval;
+}
+
 /*****************/
 /* Type Checking */
 /*****************/

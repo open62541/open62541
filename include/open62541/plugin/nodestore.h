@@ -21,7 +21,7 @@
 
 _UA_BEGIN_DECLS
 
-/* Forward declaration */
+/* Forward declarations */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;

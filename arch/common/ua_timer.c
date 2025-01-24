@@ -172,6 +172,7 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
 
 void
 UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId) {
+
     UA_LOCK(&t->timerMutex);
     UA_TimerEntry *te = ZIP_FIND(UA_TimerIdTree, &t->idTree, &callbackId);
     if(UA_LIKELY(te != NULL)) {

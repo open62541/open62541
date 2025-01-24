@@ -13,6 +13,7 @@
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
+ *    Copyright 2024 (c) IOTechSystems (Author: Joe Riemersma)
  */
 
 #ifndef UA_SUBSCRIPTION_H_
@@ -330,10 +331,6 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
 void
 UA_Session_ensurePublishQueueSpace(UA_Server *server, UA_Session *session);
 
-/* Forward declaration for A&C used in ua_server_internal.h" */
-struct UA_ConditionSource;
-typedef struct UA_ConditionSource UA_ConditionSource;
-
 /* Event Handling */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
@@ -364,6 +361,13 @@ UA_StatusCode
 evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eventNode,
                     const UA_ContentFilter *contentFilter,
                     UA_ContentFilterResult *contentFilterResult);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
+void initNs0ConditionAndAlarms (UA_Server *server);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+
 
 #endif
 
