@@ -12,7 +12,7 @@
 #include "open62541/plugin/certificategroup_default.h"
 #endif
 
-#define MAX_TOKENS 256
+#define MAX_TOKENS 1024
 
 typedef struct {
     const char *json;
@@ -837,6 +837,68 @@ PARSE_JSON(RuleHandlingField) {
     return retval;
 }
 
+void  skipUnknownObject(ParsingCtx* ctx);
+
+void skipUnknownArray(ParsingCtx* ctx) {
+    unsigned int ix;
+    unsigned int tok_size = ctx->tokens[ctx->index].size;
+    for (ix = 0; ix < tok_size; ix++) {
+        /* items has no name */
+        switch (ctx->tokens[++ctx->index].type) {
+        case CJ5_TOKEN_OBJECT:
+            skipUnknownObject(ctx);
+            break;
+        case CJ5_TOKEN_ARRAY:
+            skipUnknownArray(ctx);
+            break;
+        case CJ5_TOKEN_NUMBER:
+        case CJ5_TOKEN_STRING:
+        case CJ5_TOKEN_BOOL:
+        case CJ5_TOKEN_NULL:
+            break;
+        }
+    }
+}
+
+void skipUnknownObject(ParsingCtx* ctx) {
+    unsigned int ix;
+    unsigned int obj_size = ctx->tokens[ctx->index].size;
+    for (ix = 0; ix < obj_size / 2; ix++) {
+        ++(ctx->index); /* skip name */
+        ++(ctx->index); /* point to value */
+        switch (ctx->tokens[ctx->index].type) {/* switch value type*/
+        case CJ5_TOKEN_OBJECT:
+            skipUnknownObject(ctx);
+            break;
+        case CJ5_TOKEN_ARRAY:
+            skipUnknownArray(ctx);
+            break;
+        case CJ5_TOKEN_NUMBER:
+        case CJ5_TOKEN_STRING:
+        case CJ5_TOKEN_BOOL:
+        case CJ5_TOKEN_NULL:
+            break;
+        }
+    }
+}
+
+void  skipUnknownItem(ParsingCtx* ctx) {
+    ++ctx->index;
+    switch (ctx->tokens[ctx->index].type) {
+        case CJ5_TOKEN_OBJECT:
+            skipUnknownObject(ctx);
+            break;
+        case CJ5_TOKEN_ARRAY:
+            skipUnknownArray(ctx);
+            break;
+        case CJ5_TOKEN_NUMBER:
+        case CJ5_TOKEN_STRING:
+        case CJ5_TOKEN_BOOL:
+        case CJ5_TOKEN_NULL:
+            break;
+    }
+}
+
 const parseJsonSignature parseJsonJumpTable[UA_SERVERCONFIGFIELDKINDS] = {
     /* Basic Types */
     (parseJsonSignature)Int64Field_parseJson,
@@ -980,7 +1042,7 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                 else if(strcmp(field, "pubsubEnabled") == 0)
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->pubsubEnabled, NULL);
                 else if(strcmp(field, "pubsub") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_PUBSUBCONFIGURATION](&ctx, config, NULL);
+                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_PUBSUBCONFIGURATION](&ctx, &config->pubSubConfig, NULL);
 #endif
 #ifdef UA_ENABLE_ENCRYPTION
                 else if(strcmp(field, "securityPolicies") == 0)
@@ -990,6 +1052,7 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 #endif
                 else {
                     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Field name '%s' unknown or misspelled. Maybe the feature is not enabled either.", field);
+                    skipUnknownItem(&ctx);
                 }
                 UA_free(field);
                 if(retval != UA_STATUSCODE_GOOD) {
