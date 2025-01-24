@@ -671,22 +671,18 @@ UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
             }
 
             /* Call the callback */
-            UA_UNLOCK(&server->serviceMutex);
             localMon->callback.
                 eventCallback(server, mon->monitoredItemId, localMon->context,
                               localMon->eventFields);
-            UA_LOCK(&server->serviceMutex);
             break;
 #endif
         default:
             getNodeContext(server, mon->itemToMonitor.nodeId, &nodeContext);
-            UA_UNLOCK(&server->serviceMutex);
             localMon->callback.
                 dataChangeCallback(server, mon->monitoredItemId, localMon->context,
                                    &mon->itemToMonitor.nodeId, nodeContext,
                                    mon->itemToMonitor.attributeId,
                                    &n->data.dataChange.value);
-            UA_LOCK(&server->serviceMutex);
             break;
         }
 
@@ -1276,14 +1272,12 @@ UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
         UA_Session *session = sub->session;
         void *targetContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
-        UA_UNLOCK(&server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server,
                                                      session ? &session->sessionId : NULL,
                                                      session ? session->context : NULL,
                                                      &mon->itemToMonitor.nodeId,
                                                      targetContext,
                                                      mon->itemToMonitor.attributeId, false);
-        UA_LOCK(&server->serviceMutex);
     }
 }
 
@@ -1305,14 +1299,12 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
         UA_Session *session = sub->session;
         void *targetContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
-        UA_UNLOCK(&server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server,
                                                      session ? &session->sessionId : NULL,
                                                      session ? session->context : NULL,
                                                      &mon->itemToMonitor.nodeId,
                                                      targetContext,
                                                      mon->itemToMonitor.attributeId, true);
-        UA_LOCK(&server->serviceMutex);
     }
 
     /* Deregister in Subscription and server */

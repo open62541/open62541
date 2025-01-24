@@ -231,10 +231,8 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
 
     /* Custom state machine */
     if(rg->config.customStateMachine) {
-        UA_UNLOCK(&server->serviceMutex);
         ret = rg->config.customStateMachine(server, rg->head.identifier, rg->config.context,
                                             &rg->head.state, targetState);
-        UA_LOCK(&server->serviceMutex);
         goto finalize_state_machine;
     }
 
@@ -307,10 +305,8 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(rg->head.state));
         if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            UA_UNLOCK(&server->serviceMutex);
             server->config.pubSubConfig.
                 stateChangeCallback(server, rg->head.identifier, rg->head.state, ret);
-            UA_LOCK(&server->serviceMutex);
         }
     }
 
@@ -757,9 +753,7 @@ UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     UA_Variant_setScalar(&kvp[4].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* Connect */
-    UA_UNLOCK(&server->serviceMutex);
     res = c->cm->openConnection(c->cm, &kvm, psm, rg, ReaderGroupChannelCallback);
-    UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, rg, "Could not open the MQTT connection");
     }

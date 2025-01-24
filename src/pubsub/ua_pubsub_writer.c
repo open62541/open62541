@@ -90,10 +90,8 @@ UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
 
     /* Custom state machine */
     if(dsw->config.customStateMachine) {
-        UA_UNLOCK(&server->serviceMutex);
         res = dsw->config.customStateMachine(server, dsw->head.identifier, dsw->config.context,
                                              &dsw->head.state, targetState);
-        UA_LOCK(&server->serviceMutex);
         if(dsw->head.state == UA_PUBSUBSTATE_DISABLED ||
            dsw->head.state == UA_PUBSUBSTATE_ERROR)
             UA_DataSetWriter_unfreezeConfiguration(dsw);
@@ -140,10 +138,8 @@ UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(dsw->head.state));
         if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            UA_UNLOCK(&server->serviceMutex);
             server->config.pubSubConfig.
                 stateChangeCallback(server, dsw->head.identifier, dsw->head.state, res);
-            UA_LOCK(&server->serviceMutex);
         }
     }
 

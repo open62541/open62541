@@ -577,9 +577,7 @@ UA_Server_init(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_NODESET_INJECTOR
-    UA_UNLOCK(&server->serviceMutex);
     res = UA_Server_injectNodesets(server);
-    UA_LOCK(&server->serviceMutex);
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
@@ -885,24 +883,34 @@ UA_Server_updateCertificate(UA_Server *server,
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(server->gdsManager.transaction.state == UA_GDSTRANSACIONSTATE_PENDING)
+    UA_LOCK(&server->serviceMutex);
+
+    if(server->gdsManager.transaction.state == UA_GDSTRANSACIONSTATE_PENDING) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
+    }
 
     /* The server currently only supports the DefaultApplicationGroup */
     UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup))
+    if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup)) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
 
     /* The server currently only supports the following certificate type */
     /* UA_NodeId certTypRsaMin = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE); */
     UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
-    if(!UA_NodeId_equal(&certificateTypeId, &certTypRsaSha256))
+    if(!UA_NodeId_equal(&certificateTypeId, &certTypRsaSha256)) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
 
     UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
     if(privateKey) {
-        if(UA_CertificateUtils_checkKeyPair(&certificate, privateKey) != UA_STATUSCODE_GOOD)
+        if(UA_CertificateUtils_checkKeyPair(&certificate, privateKey) != UA_STATUSCODE_GOOD) {
+            UA_UNLOCK(&server->serviceMutex);
             return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
         newPrivateKey = *privateKey;
     }
 
@@ -911,22 +919,26 @@ UA_Server_updateCertificate(UA_Server *server,
         UA_EndpointDescription *ed = &server->config.endpoints[i];
         UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
                             &server->config.endpoints[i].securityPolicyUri);
-        UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+        UA_CHECK_MEM(sp, UA_UNLOCK(&server->serviceMutex); return UA_STATUSCODE_BADINTERNALERROR);
 
         if(!UA_NodeId_equal(&sp->certificateTypeId, &certificateTypeId))
             continue;
 
         retval = sp->updateCertificateAndPrivateKey(sp, certificate, newPrivateKey);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_UNLOCK(&server->serviceMutex);
             return retval;
+        }
 
         UA_ByteString_clear(&ed->serverCertificate);
         UA_ByteString_copy(&certificate, &ed->serverCertificate);
     }
 
     UA_DelayedCallback *dc = (UA_DelayedCallback*)UA_calloc(1, sizeof(UA_DelayedCallback));
-    if(!dc)
+    if(!dc) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     UpdateCertInfo *certInfo = (UpdateCertInfo*)UA_calloc(1, sizeof(UpdateCertInfo));
     certInfo->server = server;
@@ -939,6 +951,7 @@ UA_Server_updateCertificate(UA_Server *server,
     UA_EventLoop *el = server->config.eventLoop;
     el->addDelayedCallback(el, dc);
 
+    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1075,11 +1088,8 @@ setServerLifecycleState(UA_Server *server, UA_LifecycleState state) {
     if(server->state == state)
         return;
     server->state = state;
-    if(server->config.notifyLifecycleState) {
-        UA_UNLOCK(&server->serviceMutex);
+    if(server->config.notifyLifecycleState)
         server->config.notifyLifecycleState(server, server->state);
-        UA_LOCK(&server->serviceMutex);
-    }
 }
 
 UA_LifecycleState
@@ -1315,9 +1325,7 @@ UA_Server_run_shutdown(UA_Server *server) {
     UA_EventLoop *el = server->config.eventLoop;
     while(!testStoppedCondition(server) &&
           res == UA_STATUSCODE_GOOD) {
-        UA_UNLOCK(&server->serviceMutex);
         res = el->run(el, 100);
-        UA_LOCK(&server->serviceMutex);
     }
 
     /* Stop the EventLoop. Iterate until stopped. */
@@ -1325,9 +1333,7 @@ UA_Server_run_shutdown(UA_Server *server) {
     while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
           el->state != UA_EVENTLOOPSTATE_FRESH &&
           res == UA_STATUSCODE_GOOD) {
-        UA_UNLOCK(&server->serviceMutex);
         res = el->run(el, 100);
-        UA_LOCK(&server->serviceMutex);
     }
 
     /* Set server lifecycle state to stopped if not already the case */

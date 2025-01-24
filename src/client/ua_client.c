@@ -334,11 +334,9 @@ notifyClientState(UA_Client *client) {
     client->oldChannelState = client->channel.state;
     client->oldSessionState = client->sessionState;
 
-    UA_UNLOCK(&client->clientMutex);
     if(client->config.stateCallback)
         client->config.stateCallback(client, client->channel.state,
                                      client->sessionState, client->connectStatus);
-    UA_LOCK(&client->clientMutex);
 }
 
 /****************/
@@ -522,10 +520,8 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
 
     /* Call the async callback. This is the only thread with access to ac. So we
      * can just unlock for the callback into userland. */
-    UA_UNLOCK(&client->clientMutex);
     if(ac->callback)
         ac->callback(client, ac->userdata, requestId, response);
-    UA_LOCK(&client->clientMutex);
 
     /* Clean up */
     UA_NodeId_clear(&responseTypeId);
@@ -660,9 +656,7 @@ __Client_Service(UA_Client *client, const void *request,
     while(true) {
         /* Unlock before dropping into the EventLoop. The client lock is
          * re-taken in the network callback if an event occurs. */
-        UA_UNLOCK(&client->clientMutex);
         retval = el->run(el, timeout_remaining);
-        UA_LOCK(&client->clientMutex);
 
         /* Was the response received? In that case we can directly return. The
          * ac was already removed from the internal linked list. */
@@ -731,9 +725,7 @@ __Client_AsyncService_cancel(UA_Client *client, AsyncServiceCall *ac,
         UA_Response response;
         UA_init(&response, ac->responseType);
         response.responseHeader.serviceResult = statusCode;
-        UA_UNLOCK(&client->clientMutex);
         ac->callback(client, ac->userdata, ac->requestId, &response);
-        UA_LOCK(&client->clientMutex);
 
         /* Clean up the response. The user callback might move data into it. For
          * whatever reasons. */
@@ -978,11 +970,8 @@ backgroundConnectivityCallback(UA_Client *client, void *userdata,
                                UA_UInt32 requestId, const UA_ReadResponse *response) {
     UA_LOCK(&client->clientMutex);
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
-        if(client->config.inactivityCallback) {
-            UA_UNLOCK(&client->clientMutex);
+        if(client->config.inactivityCallback)
             client->config.inactivityCallback(client);
-            UA_LOCK(&client->clientMutex);
-        }
     }
     UA_EventLoop *el = client->config.eventLoop;
     client->pendingConnectivityCheck = false;

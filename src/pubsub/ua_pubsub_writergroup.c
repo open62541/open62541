@@ -370,10 +370,8 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
 
     /* Custom state machine */
     if(wg->config.customStateMachine) {
-        UA_UNLOCK(&server->serviceMutex);
         ret = wg->config.customStateMachine(server, wg->head.identifier, wg->config.context,
                                             &wg->head.state, targetState);
-        UA_LOCK(&server->serviceMutex);
         goto finalize_state_machine;
     }
 
@@ -458,10 +456,8 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(wg->head.state));
         if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            UA_UNLOCK(&server->serviceMutex);
             server->config.pubSubConfig.
                 stateChangeCallback(server, wg->head.identifier, wg->head.state, ret);
-            UA_LOCK(&server->serviceMutex);
         }
     }
 
@@ -1051,9 +1047,7 @@ UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
 
     /* Connect */
     UA_ConnectionManager *cm = wg->linkedConnection->cm;
-    UA_UNLOCK(&server->serviceMutex);
     res = cm->openConnection(cm, &kvm, psm, wg, WriterGroupChannelCallback);
-    UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Could not open a UDP send channel");
     }
@@ -1109,9 +1103,7 @@ UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
     UA_Variant_setScalar(&kvp[4].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* Connect */
-    UA_UNLOCK(&server->serviceMutex);
     res = c->cm->openConnection(c->cm, &kvm, psm, wg, WriterGroupChannelCallback);
-    UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Could not open the MQTT connection");
     }

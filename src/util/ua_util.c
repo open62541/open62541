@@ -1009,7 +1009,7 @@ void
 UA_ByteString_memZero(UA_ByteString *bs) {
 #if defined(__STDC_LIB_EXT1__)
    memset_s(bs->data, bs->length, 0, bs->length);
-#elif defined(_WIN32)
+#elif defined(UA_ARCHITECTURE_WIN32)
    SecureZeroMemory(bs->data, bs->length);
 #else
    volatile unsigned char *volatile ptr =

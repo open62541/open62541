@@ -347,11 +347,9 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     /* Custom state machine */
     if(dsr->config.customStateMachine) {
-        UA_UNLOCK(&server->serviceMutex);
         errorReason = dsr->config.customStateMachine(server, dsr->head.identifier,
                                                      dsr->config.context,
                                                      &dsr->head.state, targetState);
-        UA_LOCK(&server->serviceMutex);
         goto finalize_state_machine;
     }
 
@@ -398,11 +396,9 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(dsr->head.state));
         if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            UA_UNLOCK(&server->serviceMutex);
             server->config.pubSubConfig.
                 stateChangeCallback(server, dsr->head.identifier,
                                     dsr->head.state, errorReason);
-            UA_LOCK(&server->serviceMutex);
         }
     }
 }

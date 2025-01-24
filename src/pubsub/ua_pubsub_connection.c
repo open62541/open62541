@@ -349,10 +349,8 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
 
     /* Custom state machine */
     if(c->config.customStateMachine) {
-        UA_UNLOCK(&server->serviceMutex);
         ret = c->config.customStateMachine(server, c->head.identifier, c->config.context,
                                            &c->head.state, targetState);
-        UA_LOCK(&server->serviceMutex);
         goto finalize_state_machine;
     }
 
@@ -416,10 +414,8 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(c->head.state));
         if(server->config.pubSubConfig.stateChangeCallback) {
-            UA_UNLOCK(&server->serviceMutex);
             server->config.pubSubConfig.
                 stateChangeCallback(server, c->head.identifier, targetState, ret);
-            UA_LOCK(&server->serviceMutex);
         }
     }
 
@@ -707,9 +703,7 @@ UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
 
     /* Open a recv connection */
     if(validate || (c->recvChannelsSize == 0 && c->readerGroupsSize > 0)) {
-        UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubRecvChannelCallback);
-        UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(psm->logging, c,
                                 "Could not open an UDP channel for receiving");
@@ -727,9 +721,7 @@ UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
     /* Open a send connection */
     if(validate || (c->sendChannel == 0 && c->writerGroupsSize > 0)) {
         listen = false;
-        UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubSendChannelCallback);
-        UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not open an UDP recv channel");
             return res;
@@ -774,9 +766,7 @@ UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
 
     /* Open recv channels */
     if(validate || (c->recvChannelsSize == 0 && c->readerGroupsSize > 0)) {
-        UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubRecvChannelCallback);
-        UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not open an ETH recv channel");
             return res;
@@ -786,9 +776,7 @@ UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
     /* Open send channels */
     if(validate || (c->sendChannel == 0 && c->writerGroupsSize > 0)) {
         listen = false;
-        UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubSendChannelCallback);
-        UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(psm->logging, c,
                                 "Could not open an ETH channel for sending");

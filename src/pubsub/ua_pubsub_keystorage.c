@@ -167,9 +167,13 @@ UA_PubSubKeyStorage_addKeyRolloverCallback(UA_PubSubManager *psm,
 
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
+    if(*callbackID != 0)
+        el->removeTimer(el, *callbackID);
+
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
     return el->addTimer(el, (UA_Callback)callback, psm, ks,
                         timeToNextMs, NULL, UA_TIMERPOLICY_ONCE, callbackID);
+
 }
 
 static UA_StatusCode
@@ -503,13 +507,15 @@ cleanup:
                      "Failed to store the fetched keys from SKS server with error: %s",
                      UA_StatusCode_name(retval));
     }
-    /* call user callback to notify about the status */
-    UA_UNLOCK(&psm->sc.server->serviceMutex);
+
+    /* Call user callback to notify about the status */
     if(ks->sksConfig.userNotifyCallback)
         ks->sksConfig.userNotifyCallback(psm->sc.server, retval, ks->sksConfig.context);
     ks->sksConfig.reqId = 0;
     UA_Client_disconnectAsync(client);
     addDelayedSksClientCleanupCb(client, ctx);
+
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 static UA_StatusCode

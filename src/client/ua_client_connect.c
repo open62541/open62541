@@ -768,7 +768,7 @@ readNamespacesArrayAsync(UA_Client *client) {
 static void
 responseActivateSession(UA_Client *client, void *userdata,
                         UA_UInt32 requestId, void *response) {
-    UA_LOCK(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex);
 
     UA_ActivateSessionResponse *ar = (UA_ActivateSessionResponse*)response;
     if(ar->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
@@ -783,7 +783,6 @@ responseActivateSession(UA_Client *client, void *userdata,
                          UA_StatusCode_name(ar->responseHeader.serviceResult));
             client->connectStatus = ar->responseHeader.serviceResult;
             closeSecureChannel(client);
-            UA_UNLOCK(&client->clientMutex);
             return;
         }
 
@@ -793,7 +792,6 @@ responseActivateSession(UA_Client *client, void *userdata,
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Session to be activated no longer exists. Create a new Session.");
             client->connectStatus = createSessionAsync(client);
-            UA_UNLOCK(&client->clientMutex);
             return;
         }
 
@@ -804,7 +802,6 @@ responseActivateSession(UA_Client *client, void *userdata,
                      UA_StatusCode_name(ar->responseHeader.serviceResult));
         client->connectStatus = ar->responseHeader.serviceResult;
         closeSecureChannel(client);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
@@ -825,8 +822,6 @@ responseActivateSession(UA_Client *client, void *userdata,
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     __Client_Subscriptions_backgroundPublish(client);
 #endif
-
-    UA_UNLOCK(&client->clientMutex);
 }
 
 static UA_StatusCode
@@ -1078,7 +1073,7 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint) {
 static void
 responseGetEndpoints(UA_Client *client, void *userdata,
                      UA_UInt32 requestId, void *response) {
-    UA_LOCK(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex);
 
     client->endpointsHandshake = false;
 
@@ -1101,7 +1096,6 @@ responseGetEndpoints(UA_Client *client, void *userdata,
         }
 
         UA_GetEndpointsResponse_clear(resp);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
@@ -1144,7 +1138,6 @@ responseGetEndpoints(UA_Client *client, void *userdata,
                      "No suitable endpoint found");
         client->connectStatus = UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
         closeSecureChannel(client);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
@@ -1171,7 +1164,6 @@ responseGetEndpoints(UA_Client *client, void *userdata,
        !UA_String_equal(&client->endpoint.securityPolicyUri,
                         &client->channel.securityPolicy->policyUri)) {
         closeSecureChannel(client);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
@@ -1181,13 +1173,11 @@ responseGetEndpoints(UA_Client *client, void *userdata,
     if(client->discoveryUrl.length > 0 &&
        !UA_String_equal(&client->discoveryUrl, &client->endpoint.endpointUrl)) {
         closeSecureChannel(client);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
     /* Nothing to do. We have selected an endpoint that we can use to open a
      * Session on the current SecureChannel. */
-    UA_UNLOCK(&client->clientMutex);
 }
 
 static UA_StatusCode
@@ -1330,7 +1320,7 @@ requestFindServers(UA_Client *client) {
 static void
 createSessionCallback(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, void *response) {
-    UA_LOCK(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex);
 
     UA_CreateSessionResponse *sessionResponse = (UA_CreateSessionResponse*)response;
     UA_StatusCode res = sessionResponse->responseHeader.serviceResult;
@@ -1370,8 +1360,6 @@ createSessionCallback(UA_Client *client, void *userdata,
     client->connectStatus = res;
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         client->sessionState = UA_SESSIONSTATE_CLOSED;
-
-    UA_UNLOCK(&client->clientMutex);
 }
 
 static UA_StatusCode
@@ -1866,10 +1854,7 @@ initConnect(UA_Client *client) {
         paramMap.mapSize = 3;
 
         /* Open the client TCP connection */
-        UA_UNLOCK(&client->clientMutex);
-        UA_StatusCode res =
-            cm->openConnection(cm, &paramMap, client, NULL, __Client_networkCallback);
-        UA_LOCK(&client->clientMutex);
+        UA_StatusCode res = cm->openConnection(cm, &paramMap, client, NULL, __Client_networkCallback);
         if(res == UA_STATUSCODE_GOOD)
             break;
     }
@@ -1922,9 +1907,7 @@ connectSync(UA_Client *client) {
         }
 
         /* Drop into the EventLoop */
-        UA_UNLOCK(&client->clientMutex);
         UA_StatusCode res = el->run(el, (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
-        UA_LOCK(&client->clientMutex);
         if(res != UA_STATUSCODE_GOOD) {
             client->connectStatus = res;
             closeSecureChannel(client);
@@ -2000,9 +1983,7 @@ activateSessionSync(UA_Client *client) {
         }
 
         /* Drop into the EventLoop */
-        UA_UNLOCK(&client->clientMutex);
         res = el->run(el, (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
-        UA_LOCK(&client->clientMutex);
         if(res != UA_STATUSCODE_GOOD) {
             client->connectStatus = res;
             closeSecureChannel(client);
@@ -2285,9 +2266,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     paramMap.map = params;
     paramMap.mapSize = 4;
 
-    UA_UNLOCK(&client->clientMutex);
     res = cm->openConnection(cm, &paramMap, client, NULL, __Client_reverseConnectCallback);
-    UA_LOCK(&client->clientMutex);
 
     /* Opening the TCP connection failed */
     if(res != UA_STATUSCODE_GOOD) {
@@ -2402,11 +2381,9 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
     if(sync && el &&
        el->state != UA_EVENTLOOPSTATE_FRESH &&
        el->state != UA_EVENTLOOPSTATE_STOPPED) {
-        UA_UNLOCK(&client->clientMutex);
         while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
             el->run(el, 100);
         }
-        UA_LOCK(&client->clientMutex);
     }
 
     notifyClientState(client);

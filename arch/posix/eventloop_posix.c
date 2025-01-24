@@ -149,9 +149,7 @@ processDelayed(UA_EventLoopPOSIX *el) {
             next = (UA_DelayedCallback *)UA_atomic_load((void**)&dc->next);
         if(!dc->callback)
             continue;
-        UA_UNLOCK(&el->elMutex);
         dc->callback(dc->application, dc->context);
-        UA_LOCK(&el->elMutex);
     }
 }
 
@@ -248,9 +246,7 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_EventSource *es = el->eventLoop.eventSources;
     while(es) {
-        UA_UNLOCK(&el->elMutex);
         res |= es->start(es);
-        UA_LOCK(&el->elMutex);
         es = es->next;
     }
 
@@ -317,9 +313,7 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
     for(; es; es = es->next) {
         if(es->state == UA_EVENTSOURCESTATE_STARTING ||
            es->state == UA_EVENTSOURCESTATE_STARTED) {
-            UA_UNLOCK(&el->elMutex);
             es->stop(es);
-            UA_LOCK(&el->elMutex);
         }
     }
 
@@ -359,9 +353,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     UA_DateTime dateBefore =
         el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
 
-    UA_UNLOCK(&el->elMutex);
     UA_DateTime dateNext = UA_Timer_process(&el->timer, dateBefore);
-    UA_LOCK(&el->elMutex);
 
     /* Process delayed callbacks here:
      * - Removes closed sockets already here instead of polling them again.
@@ -525,9 +517,7 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     /* Deregister and delete all the EventSources */
     while(el->eventLoop.eventSources) {
         UA_EventSource *es = el->eventLoop.eventSources;
-        UA_UNLOCK(&el->elMutex);
         UA_EventLoopPOSIX_deregisterEventSource(el, es);
-        UA_LOCK(&el->elMutex);
         es->free(es);
     }
 
@@ -537,7 +527,7 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     /* Process remaining delayed callbacks */
     processDelayed(el);
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     /* Stop the Windows networking subsystem */
     WSACleanup();
 #endif
@@ -565,7 +555,7 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     el->delayedTail = &el->delayedHead1;
     el->delayedHead2 = (UA_DelayedCallback*)0x01; /* sentinel value */
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     /* Start the WSA networking subsystem on Windows */
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -672,7 +662,7 @@ cmpFD(const UA_FD *a, const UA_FD *b) {
 
 UA_StatusCode
 UA_EventLoopPOSIX_setNonBlocking(UA_FD sockfd) {
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
     int opts = fcntl(sockfd, F_GETFL);
     if(opts < 0 || fcntl(sockfd, F_SETFL, opts | O_NONBLOCK) < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -698,7 +688,7 @@ UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd) {
 UA_StatusCode
 UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
     int enableReuseVal = 1;
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
     int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
                             (const char*)&enableReuseVal, sizeof(enableReuseVal));
     res |= UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
@@ -719,7 +709,7 @@ UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
 static void
 flushSelfPipe(UA_SOCKET s) {
     char buf[128];
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     recv(s, buf, 128, 0);
 #else
     ssize_t i;
@@ -840,7 +830,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     }
 
     struct timeval tmptv = {
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
         (time_t)(listenTimeout / UA_DATETIME_SEC),
         (suseconds_t)((listenTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
 #else
@@ -1026,7 +1016,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 
 #endif /* defined(UA_HAVE_EPOLL) */
 
-#if defined(_WIN32) || defined(__APPLE__)
+#if defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
 int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     struct sockaddr_in inaddr;
     memset(&inaddr, 0, sizeof(inaddr));
@@ -1046,7 +1036,7 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     fds[0] = socket(AF_INET, SOCK_STREAM, 0);
     int err = connect(fds[0], (struct sockaddr*)&addr, len);
     fds[1] = accept(lst, 0, 0);
-#ifdef __WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     closesocket(lst);
 #endif
 #ifdef __APPLE__
@@ -1070,7 +1060,7 @@ UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el) {
         return;
 
     /* Trigger the self-pipe */
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     int err = send(el->selfpipe[1], ".", 1, 0);
 #else
     ssize_t err = write(el->selfpipe[1], ".", 1);
