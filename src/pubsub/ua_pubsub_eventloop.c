@@ -151,7 +151,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_Server *server = (UA_Server*)application;
     UA_PubSubConnection *psc = (UA_PubSubConnection*)*connectionContext;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* The connection is closing in the EventLoop. This is the last callback
      * from that connection. Clean up the SecureChannel in the client. */
@@ -162,7 +162,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         /* PSC marked for deletion and the last EventLoop connection has closed */
         if(psc->deleteFlag && psc->recvChannelsSize == 0 && psc->sendChannel == 0) {
             UA_PubSubConnection_delete(server, psc);
-            UA_UNLOCK(&server->serviceMutex);
+            unlockServer(server);
             return;
         }
 
@@ -173,7 +173,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         if(psc->state == UA_PUBSUBSTATE_OPERATIONAL)
             UA_PubSubConnection_connect(server, psc, false);
 
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
@@ -186,13 +186,13 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                                   "No more space for an additional EventLoop connection");
         if(psc->cm)
             psc->cm->closeConnection(psc->cm, connectionId);
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
     /* No message received */
     if(!recv || msg.length == 0) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
@@ -263,7 +263,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         }
     }
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static void
@@ -526,7 +526,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_Server *server = (UA_Server*)application;
     UA_WriterGroup *wg = (UA_WriterGroup*)*connectionContext;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* The connection is closing in the EventLoop. This is the last callback
      * from that connection. Clean up the SecureChannel in the client. */
@@ -538,7 +538,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
             /* PSC marked for deletion and the last EventLoop connection has closed */
             if(wg->deleteFlag) {
                 UA_WriterGroup_remove(server, wg);
-                UA_UNLOCK(&server->serviceMutex);
+                unlockServer(server);
                 return;
             }
         }
@@ -550,7 +550,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         if(wg->state == UA_PUBSUBSTATE_OPERATIONAL)
             UA_WriterGroup_connect(server, wg, false);
 
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
@@ -558,7 +558,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(wg->sendChannel && wg->sendChannel != connectionId) {
         UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
                                   "WriterGroup is already bound to a different channel");
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
     wg->sendChannel = connectionId;
@@ -569,7 +569,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                                       UA_STATUSCODE_GOOD);
     
     /* Send-channels don't receive messages */
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static UA_StatusCode
@@ -826,7 +826,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_Server *server = (UA_Server*)application;
     UA_ReaderGroup *rg = (UA_ReaderGroup*)*connectionContext;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* The connection is closing in the EventLoop. This is the last callback
      * from that connection. Clean up the SecureChannel in the client. */
@@ -837,13 +837,13 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         /* PSC marked for deletion and the last EventLoop connection has closed */
         if(rg->deleteFlag && rg->recvChannelsSize == 0) {
             UA_ReaderGroup_remove(server, rg);
-            UA_UNLOCK(&server->serviceMutex);
+            unlockServer(server);
             return;
         }
 
         /* Reconnect if still operational */
         UA_ReaderGroup_setPubSubState(server, rg, rg->state, UA_STATUSCODE_GOOD);
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
@@ -855,13 +855,13 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         UA_PubSubConnection *c = rg->linkedConnection;
         if(c && c->cm)
             c->cm->closeConnection(c->cm, connectionId);
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
     /* No message received */
     if(msg.length == 0) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
@@ -878,14 +878,14 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(rg->state != UA_PUBSUBSTATE_OPERATIONAL) {
         UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                    "Received a messaage for a non-operational ReaderGroup");
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
     /* ReaderGroup with realtime processing */
     if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
         UA_ReaderGroup_decodeAndProcessRT(server, rg, &msg);
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
@@ -906,14 +906,14 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                   "Verify, decrypt and decode network message failed");
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
     /* Process the decoded message */
     UA_ReaderGroup_process(server, rg, &nm);
     UA_NetworkMessage_clear(&nm);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static UA_StatusCode
