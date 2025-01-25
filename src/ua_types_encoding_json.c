@@ -1101,7 +1101,7 @@ ENCODE_JSON(Variant) {
             if(hasDimensions) {
                 ret |= writeJsonKey(ctx, UA_JSONKEY_DIMENSION);
                 ret |= encodeJsonArray(ctx, src->arrayDimensions, src->arrayDimensionsSize,
-                                       &UA_TYPES[UA_TYPES_INT32]);
+                                       &UA_TYPES[UA_TYPES_UINT32]);
             }
         } else {
             /* Special case of non-reversible array with dimensions */
