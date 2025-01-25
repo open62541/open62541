@@ -417,6 +417,18 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     return UA_STATUSCODE_GOOD;
 }
 
+static void
+UA_EventLoopPOSIX_lock(UA_EventLoop *public_el) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_LOCK(&el->elMutex);
+}
+
+static void
+UA_EventLoopPOSIX_unlock(UA_EventLoop *public_el) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_UNLOCK(&el->elMutex);
+}
+
 UA_EventLoop *
 UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)
@@ -461,6 +473,9 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     el->eventLoop.deregisterEventSource =
         (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))
         UA_EventLoopPOSIX_deregisterEventSource;
+
+    el->eventLoop.lock = UA_EventLoopPOSIX_lock;
+    el->eventLoop.unlock = UA_EventLoopPOSIX_unlock;
 
     return &el->eventLoop;
 }
