@@ -534,11 +534,11 @@ START_TEST(AddValidSksClientwithWriterGroup) {
                   "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
     ck_assert(wg->keyStorage->keyListSize > 0);
-    UA_LOCK(&sksServer->serviceMutex);
+    lockServer(sksServer);
     UA_PubSubKeyListItem *sksKsItr =
         UA_PubSubKeyStorage_findKeyStorage(sksServer, securityGroupId)
             ->currentItem;
-    UA_UNLOCK(&sksServer->serviceMutex);
+    unlockServer(sksServer);
     UA_PubSubKeyListItem *wgKsItr = TAILQ_FIRST(&wg->keyStorage->keyList);
     for(size_t i = 0; i < wg->keyStorage->keyListSize; i++) {
         ck_assert_msg(UA_ByteString_equal(&sksKsItr->key, &wgKsItr->key) == UA_TRUE,
@@ -580,11 +580,11 @@ START_TEST(AddValidSksClientwithReaderGroup) {
                   "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
     ck_assert(rg->keyStorage->keyListSize > 0);
-    UA_LOCK(&sksServer->serviceMutex);
+    lockServer(sksServer);
     UA_PubSubKeyListItem *sksKsItr =
         UA_PubSubKeyStorage_findKeyStorage(sksServer, securityGroupId)
             ->currentItem;
-    UA_UNLOCK(&sksServer->serviceMutex);
+    unlockServer(sksServer);
     UA_PubSubKeyListItem *rgKsItr = TAILQ_FIRST(&rg->keyStorage->keyList);
     for(size_t i = 0; i < rg->keyStorage->keyListSize; i++) {
         ck_assert_msg(UA_ByteString_equal(&sksKsItr->key, &rgKsItr->key) == UA_TRUE,
@@ -860,14 +860,14 @@ START_TEST(FetchNextbatchOfKeys) {
     }
     ck_assert(retryCnt < MAX_RETRIES);
 
-    UA_LOCK(&publisherApp->serviceMutex);
+    lockServer(publisherApp);
     UA_PubSubKeyStorage *pubKs = UA_PubSubKeyStorage_findKeyStorage(
         publisherApp, securityGroupId);
-    UA_UNLOCK(&publisherApp->serviceMutex);
-    UA_LOCK(&subscriberApp->serviceMutex);
+    unlockServer(publisherApp);
+    lockServer(subscriberApp);
     UA_PubSubKeyStorage *subKs = UA_PubSubKeyStorage_findKeyStorage(
         subscriberApp, securityGroupId);
-    UA_UNLOCK(&subscriberApp->serviceMutex);
+    unlockServer(subscriberApp);
     retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
