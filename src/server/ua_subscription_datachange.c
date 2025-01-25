@@ -199,9 +199,9 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
 
 void
 UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     monitoredItem_sampleCallback(server, mon);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 void

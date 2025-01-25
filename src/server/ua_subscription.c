@@ -415,10 +415,10 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
 
 static void
 delayedPublishNotifications(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     sub->delayedCallbackRegistered = false;
     UA_Subscription_publish(server, sub);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 /* Try to publish now. Enqueue a "next publish" as a delayed callback if not
@@ -706,8 +706,9 @@ UA_Session_ensurePublishQueueSpace(UA_Server* server, UA_Session* session) {
 
 static void
 sampleAndPublishCallback(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK(&server->serviceMutex);
     UA_assert(sub);
+
+    lockServer(server);
 
     UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                               "Sample and Publish Callback");
@@ -722,7 +723,7 @@ sampleAndPublishCallback(UA_Server *server, UA_Subscription *sub) {
     /* Publish the queued notifications */
     UA_Subscription_publish(server, sub);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 UA_StatusCode

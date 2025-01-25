@@ -519,9 +519,9 @@ UA_CallMethodResult
 UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Operation_CallMethod(server, &server->adminSession, NULL, request, &result);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return result;
 }
 

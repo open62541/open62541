@@ -123,7 +123,7 @@ readSubscriptionDiagnosticsArray(UA_Server *server,
                                  const UA_NodeId *nodeId, void *nodeContext,
                                  UA_Boolean sourceTimestamp,
                                  const UA_NumericRange *range, UA_DataValue *value) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* Get the current session */
     size_t sdSize = 0;
@@ -136,7 +136,7 @@ readSubscriptionDiagnosticsArray(UA_Server *server,
     UA_SubscriptionDiagnosticsDataType *sd = (UA_SubscriptionDiagnosticsDataType*)
         UA_Array_new(sdSize, &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
     if(!sd) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -155,7 +155,7 @@ readSubscriptionDiagnosticsArray(UA_Server *server,
     UA_Variant_setArray(&value->value, sd, sdSize,
                         &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -313,7 +313,7 @@ readSessionDiagnosticsArray(UA_Server *server,
     if(!sd)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* Collect the statistics */
     size_t i = 0;
@@ -328,7 +328,7 @@ readSessionDiagnosticsArray(UA_Server *server,
     UA_Variant_setArray(&value->value, sd, server->sessionCount,
                         &UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE]);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -354,12 +354,12 @@ readSessionDiagnostics(UA_Server *server,
                        const UA_NodeId *nodeId, void *nodeContext,
                        UA_Boolean sourceTimestamp,
                        const UA_NumericRange *range, UA_DataValue *value) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* Get the Session */
     UA_Session *session = getSessionById(server, sessionId);
     if(!session) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -367,7 +367,7 @@ readSessionDiagnostics(UA_Server *server,
     UA_QualifiedName bn;
     UA_StatusCode res = readWithReadValue(server, nodeId, UA_ATTRIBUTEID_BROWSENAME, &bn);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return res;
     }
 
@@ -441,7 +441,7 @@ readSessionDiagnostics(UA_Server *server,
 
  cleanup:
     UA_QualifiedName_clear(&bn);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -458,7 +458,7 @@ readSessionSecurityDiagnostics(UA_Server *server,
     if(!sd)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* Collect the statistics */
     size_t i = 0;
@@ -473,7 +473,7 @@ readSessionSecurityDiagnostics(UA_Server *server,
     UA_Variant_setArray(&value->value, sd, server->sessionCount,
                         &UA_TYPES[UA_TYPES_SESSIONSECURITYDIAGNOSTICSDATATYPE]);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -547,7 +547,7 @@ readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
     void *data = NULL;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_UINT32]; /* Default */
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     switch(nodeId->identifier.numeric) {
     case UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY:
@@ -593,7 +593,7 @@ readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
         data = &server->serverDiagnosticsSummary.rejectedRequestsCount;
         break;
     default:
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -601,7 +601,7 @@ readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
     if(res == UA_STATUSCODE_GOOD)
         value->hasValue = true;
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 

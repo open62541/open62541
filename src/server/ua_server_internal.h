@@ -369,6 +369,16 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    const UA_DataType *responseOperationsType)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
+/*********************/
+/* Locking/Unlocking */
+/*********************/
+
+/* In order to prevent deadlocks between the EventLoop mutex and the
+ * server-mutex, we always take the EventLoop mutex first. */
+
+void lockServer(UA_Server *server);
+void unlockServer(UA_Server *server);
+
 /******************************************/
 /* Internal function calls, without locks */
 /******************************************/

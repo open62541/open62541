@@ -514,10 +514,10 @@ UA_Server_registerDiscovery(UA_Server *server, UA_ClientConfig *cc,
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                 "Registering at the DiscoveryServer: %.*s",
                 (int)discoveryServerUrl.length, discoveryServerUrl.data);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res =
         UA_Server_register(server, cc, false, discoveryServerUrl, semaphoreFilePath);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -527,10 +527,10 @@ UA_Server_deregisterDiscovery(UA_Server *server, UA_ClientConfig *cc,
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                 "Deregistering at the DiscoveryServer: %.*s",
                 (int)discoveryServerUrl.length, discoveryServerUrl.data);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res =
         UA_Server_register(server, cc, true, discoveryServerUrl, UA_STRING_NULL);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
