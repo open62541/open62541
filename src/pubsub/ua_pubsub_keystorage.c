@@ -374,7 +374,7 @@ nextGetSecuritykeysCallback(UA_Server *server, UA_PubSubKeyStorage *keyStorage) 
 void
 UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *keyStorage) {
     /* Callbacks from the EventLoop are initially unlocked */
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode retval =
         UA_PubSubKeyStorage_addKeyRolloverCallback(server, keyStorage,
                                      (UA_ServerCallback)UA_PubSubKeyStorage_keyRolloverCallback,
@@ -407,7 +407,7 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *
             server->config.eventLoop, (UA_Callback)nextGetSecuritykeysCallback, server,
             keyStorage, dateTimeToNextGetSecurityKeys, NULL);
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 UA_StatusCode
@@ -528,7 +528,7 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
     UA_Server *server = ctx->server;
     UA_StatusCode retval = response->responseHeader.serviceResult;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     /* check if the call to getSecurityKeys was a success */
     if(response->resultsSize != 0)
         retval = response->results->statusCode;
@@ -599,7 +599,7 @@ cleanup:
     UA_Client_disconnectAsync(client);
     addDelayedSksClientCleanupCb(client, ctx);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static UA_StatusCode
@@ -728,10 +728,10 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
     if(!ks) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return retval;
     }
 
@@ -751,7 +751,7 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
     if(ks->keyListSize == 0) {
         retval = getSecurityKeysAndStoreFetchedKeys(server, ks);
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retval;
 }
 
