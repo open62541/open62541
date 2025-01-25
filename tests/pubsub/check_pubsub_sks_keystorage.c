@@ -123,7 +123,7 @@ createKeyStoragewithkeys(UA_UInt32 currentTokenId, UA_UInt32 keysize,
     addTestWriterGroup(SecurityGroupId);
     addTestReaderGroup(SecurityGroupId);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubKeyStorage *tKeyStorage =
         UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
 
@@ -160,7 +160,7 @@ createKeyStoragewithkeys(UA_UInt32 currentTokenId, UA_UInt32 keysize,
     retval = UA_PubSubKeyStorage_addKeyRolloverCallback(
         server, tKeyStorage, (UA_ServerCallback)UA_PubSubKeyStorage_keyRolloverCallback, callbackTime,
         &tKeyStorage->callBackId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     return tKeyStorage;
 }
@@ -225,7 +225,7 @@ START_TEST(TestPubSubKeyStorage_initialize) {
         UA_calloc(1, sizeof(UA_PubSubKeyStorage));
     ck_assert_ptr_ne(tKeyStorage, NULL);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     retval =
         UA_PubSubKeyStorage_init(server, tKeyStorage,
@@ -244,7 +244,7 @@ START_TEST(TestPubSubKeyStorage_initialize) {
     /*check if the keystorage is in the Server Keystorage list*/
     ck_assert_ptr_eq(server->pubSubManager.pubSubKeyList.lh_first, tKeyStorage);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 } END_TEST
 
 START_TEST(TestPubSubKeyStorageSetKeys){
@@ -253,7 +253,7 @@ START_TEST(TestPubSubKeyStorageSetKeys){
     UA_Duration msTimeToNextKey = 2000;
     UA_String testSecurityGroupId = UA_STRING("TestSecurityGroup");
     UA_PubSubKeyStorage *tKeyStorage = createKeyStoragewithkeys(currentTokenId, futureKeySize, msTimeToNextKey, 0, testSecurityGroupId);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubKeyListItem *keyListIterator;
     ck_assert_ptr_ne(tKeyStorage, NULL);
     ck_assert_msg(UA_ByteString_equal(&currentKey, &tKeyStorage->keyList.tqh_first->key), "Expected CurrentKey to be equal to the first key in the KeyList");
@@ -267,7 +267,7 @@ START_TEST(TestPubSubKeyStorageSetKeys){
     ck_assert_msg(UA_ByteString_equal(&futureKey[futureKeySize - 1], &keyListIterator->key), "Expected lastItem to be equal to the last FutureKey");
     ck_assert_msg(futureKeySize + 1 == tKeyStorage->keyListSize,"Expected KeyListSize to be equal to FutureKeySize + 1");
     ck_assert_msg(tKeyStorage->keyLifeTime == msTimeToNextKey, "Expected keyLifetime to be equal to the Keystorage->keyLifeTime");
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 } END_TEST
 
 START_TEST(TestPubSubKeyStorage_MovetoNextKeyCallback){
@@ -277,11 +277,11 @@ START_TEST(TestPubSubKeyStorage_MovetoNextKeyCallback){
     UA_String testSecurityGroupId = UA_STRING("TestSecurityGroup");
 
     UA_PubSubKeyStorage *tKeyStorage = createKeyStoragewithkeys(currentTokenId, futureKeySize, msTimeToNextKey, 0, testSecurityGroupId);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     ck_assert_ptr_ne(tKeyStorage, NULL);
     UA_PubSubKeyListItem *nextCurrentKey = TAILQ_NEXT(tKeyStorage->currentItem, keyListEntry);
     UA_fakeSleep(2000);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     UA_Server_run_iterate(server,false);
     ck_assert_ptr_eq(nextCurrentKey, tKeyStorage->currentItem);
@@ -313,7 +313,7 @@ START_TEST(TestPubSubKeystorage_ImportedKey){
     UA_ByteString_copy(&buffer, &expect_buf);
 
     createKeyStoragewithkeys(currentTokenId, futureKeySize, msTimeToNextKey,0, testSecurityGroupId);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /*encrypt and sign with Writer channelContext*/
 
@@ -338,62 +338,62 @@ START_TEST(TestPubSubKeystorage_ImportedKey){
     UA_ByteString_clear(&signature);
     UA_ByteString_clear(&buffer);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 } END_TEST
 
 START_TEST(TestPubSubKeyStorage_InitWithWriterGroup){
     addTestWriterGroup(SecurityGroupId);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
     ck_assert_ptr_ne(wg->keyStorage, NULL);
     ck_assert_ptr_eq(ks, wg->keyStorage);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 } END_TEST
 
 START_TEST(TestPubSubKeyStorage_InitWithReaderGroup){
     addTestReaderGroup(SecurityGroupId);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
     ck_assert_ptr_ne(rg->keyStorage, NULL);
     ck_assert_ptr_eq(ks, rg->keyStorage);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 } END_TEST
 
 START_TEST(TestAddingNewGroupToExistingKeyStorage){
     addTestWriterGroup(SecurityGroupId);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
     ck_assert_msg(ks->referenceCount == 1, "Expected the reference Count to be exactly 1 after adding one Group");
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     addTestReaderGroup(SecurityGroupId);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     ck_assert_msg(ks->referenceCount == 2, "Expected the reference Count to be exactly 2 after adding second Group same SecurityGroupId");
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
     ck_assert_ptr_eq(ks, rg->keyStorage);
     ck_assert_ptr_eq(ks, wg->keyStorage);
     ck_assert_ptr_eq(rg->keyStorage, wg->keyStorage);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 } END_TEST
 
 START_TEST(TestRemoveAPubSubGroupWithKeyStorage){
     addTestWriterGroup(SecurityGroupId);
     addTestReaderGroup(SecurityGroupId);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
     UA_UInt32 refCountBefore = ks->referenceCount;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     UA_Server_removeWriterGroup(server, writerGroup);
     --refCountBefore;
     ck_assert_msg(ks->referenceCount == refCountBefore, "Expected keyStroage referenceCount to be One less then before after removing a Group");
     UA_Server_removeReaderGroup(server, readerGroup);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     ks = NULL;
     ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
     ck_assert_ptr_eq(ks, NULL);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 } END_TEST
 
 int
