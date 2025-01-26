@@ -2156,7 +2156,7 @@ getExtensionObjectType(ParseCtx *ctx) {
         return NULL;
 
     size_t oldIndex = ctx->index;
-    ctx->index = (UA_UInt16)typeIdIndex;
+    ctx->index = typeIdIndex;
 
     /* Decode the type NodeId */
     UA_NodeId typeId;
