@@ -938,9 +938,7 @@ ENCODE_JSON(ExtensionObject) {
         return writeChars(ctx, "null", 4);
 
     /* Must have a type set if data is decoded */
-    if(src->encoding != UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
-       src->encoding != UA_EXTENSIONOBJECT_ENCODED_XML &&
-       !src->content.decoded.type)
+    if(src->encoding >= UA_EXTENSIONOBJECT_DECODED && !src->content.decoded.type)
         return UA_STATUSCODE_BADENCODINGERROR;
 
     status ret = writeJsonObjStart(ctx);
