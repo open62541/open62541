@@ -100,6 +100,12 @@ UA_StatusCode lookAheadForKey(ParseCtx *ctx, const char *search, size_t *resultI
 UA_StatusCode tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize,
                        size_t *decodedLength);
 
+
+/* If ctx->index points to the beginning of an object, move the index to the
+ * next token after this object. Attention! The index can be moved after the
+ * last parsed token. So the array length has to be checked afterwards. */
+void skipObject(ParseCtx* ctx);
+
 static UA_INLINE
 cj5_token_type currentTokenType(const ParseCtx *ctx) {
     return ctx->tokens[ctx->index].type;
