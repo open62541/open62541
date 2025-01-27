@@ -17,10 +17,10 @@
 typedef struct {
     const char *json;
     const cj5_token *tokens;
-    cj5_result result;
-    unsigned int tokensSize;
+    size_t tokensSize;
     size_t index;
     UA_Byte depth;
+    cj5_result result;
 } ParsingCtx;
 
 static UA_ByteString
@@ -837,68 +837,6 @@ PARSE_JSON(RuleHandlingField) {
     return retval;
 }
 
-static void  skipUnknownObject(ParsingCtx* ctx);
-
-static void skipUnknownArray(ParsingCtx* ctx) {
-    unsigned int ix;
-    unsigned int tok_size = ctx->tokens[ctx->index].size;
-    for (ix = 0; ix < tok_size; ix++) {
-        /* items has no name */
-        switch (ctx->tokens[++ctx->index].type) {
-        case CJ5_TOKEN_OBJECT:
-            skipUnknownObject(ctx);
-            break;
-        case CJ5_TOKEN_ARRAY:
-            skipUnknownArray(ctx);
-            break;
-        case CJ5_TOKEN_NUMBER:
-        case CJ5_TOKEN_STRING:
-        case CJ5_TOKEN_BOOL:
-        case CJ5_TOKEN_NULL:
-            break;
-        }
-    }
-}
-
-static void skipUnknownObject(ParsingCtx* ctx) {
-    unsigned int ix;
-    unsigned int obj_size = ctx->tokens[ctx->index].size;
-    for (ix = 0; ix < obj_size / 2; ix++) {
-        ++(ctx->index); /* skip name */
-        ++(ctx->index); /* point to value */
-        switch (ctx->tokens[ctx->index].type) {/* switch value type*/
-        case CJ5_TOKEN_OBJECT:
-            skipUnknownObject(ctx);
-            break;
-        case CJ5_TOKEN_ARRAY:
-            skipUnknownArray(ctx);
-            break;
-        case CJ5_TOKEN_NUMBER:
-        case CJ5_TOKEN_STRING:
-        case CJ5_TOKEN_BOOL:
-        case CJ5_TOKEN_NULL:
-            break;
-        }
-    }
-}
-
-static void  skipUnknownItem(ParsingCtx* ctx) {
-    ++ctx->index;
-    switch (ctx->tokens[ctx->index].type) {
-        case CJ5_TOKEN_OBJECT:
-            skipUnknownObject(ctx);
-            break;
-        case CJ5_TOKEN_ARRAY:
-            skipUnknownArray(ctx);
-            break;
-        case CJ5_TOKEN_NUMBER:
-        case CJ5_TOKEN_STRING:
-        case CJ5_TOKEN_BOOL:
-        case CJ5_TOKEN_NULL:
-            break;
-    }
-}
-
 const parseJsonSignature parseJsonJumpTable[UA_SERVERCONFIGFIELDKINDS] = {
     /* Basic Types */
     (parseJsonSignature)Int64Field_parseJson,
@@ -1052,7 +990,14 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 #endif
                 else {
                     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Field name '%s' unknown or misspelled. Maybe the feature is not enabled either.", field);
-                    skipUnknownItem(&ctx);
+                    /* skip the name of item */
+                    ++ctx.index;
+                    /* skip value of unknown item */
+                    skipObject(&ctx);
+                    /* after skipObject() ctx->index points to the name of the following item.
+                       Decrement index in oder following increment will
+                       still set index to the right position (name of the following item) */
+                    --ctx.index;
                 }
                 UA_free(field);
                 if(retval != UA_STATUSCODE_GOOD) {
