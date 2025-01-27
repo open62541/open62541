@@ -34,10 +34,10 @@ static void teardown(void) {
 START_TEST(Server_addTestNodeset) {
     UA_StatusCode retval = namespace_tests_testnodeset_generated(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    size_t nsIndex = LONG_MAX;
+    UA_UInt16 nsIndex = UINT_MAX;
     retval = UA_Server_getNamespaceByName(server, UA_STRING("http://yourorganisation.org/test/"), &nsIndex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    testNamespaceIndex = (UA_UInt16) nsIndex;
+    testNamespaceIndex = nsIndex;
 }
 END_TEST
 
