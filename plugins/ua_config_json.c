@@ -11,6 +11,7 @@
 #ifdef UA_ENABLE_ENCRYPTION
 #include "open62541/plugin/certificategroup_default.h"
 #endif
+#include "../src/ua_types_encoding_json.h"
 
 #define MAX_TOKENS 1024
 
@@ -993,7 +994,7 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     /* skip the name of item */
                     ++ctx.index;
                     /* skip value of unknown item */
-                    skipObject(&ctx);
+                    skipObject((ParseCtx*)&ctx);
                     /* after skipObject() ctx->index points to the name of the following item.
                        Decrement index in oder following increment will
                        still set index to the right position (name of the following item) */
