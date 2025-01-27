@@ -33,6 +33,10 @@ _UA_BEGIN_DECLS
  */
 
 /* Callbacks defined for Subscriptions */
+typedef void (*UA_Client_DataChangeCallback)
+    (UA_Client *client, UA_UInt32 subId, void *subContext,
+     UA_DataChangeNotification *dataChangeNotification);
+
 typedef void (*UA_Client_DeleteSubscriptionCallback)
     (UA_Client *client, UA_UInt32 subId, void *subContext);
 
@@ -75,6 +79,39 @@ UA_Client_Subscriptions_create_async(UA_Client *client,
     void *subscriptionContext,
     UA_Client_StatusChangeNotificationCallback statusChangeCallback,
     UA_Client_DeleteSubscriptionCallback deleteCallback,
+    UA_ClientAsyncServiceCallback callback,
+    void *userdata, UA_UInt32 *requestId);
+
+/*
+ * Create a subscription with a single callback for a complete data change notification
+ * reviced from the server.
+ *
+ * When using this function it's necessary to manually set a unique clientHandle
+ * for every MonitoredItemCreateRequest.
+ *
+ * The DataChangeNotificationCallback passed to
+ * UA_Client_MonitoredItems_createDataChange will be ignored and can be set to NULL.
+ *
+ * This functionality is useful to receive all data changes in one single callback.
+ * In some cases this can be more efficient than handling every monitored item individually.
+ *
+ * See the example client_subscription_loop_complete_data_change.c for more information.
+ */
+UA_CreateSubscriptionResponse UA_EXPORT UA_THREADSAFE
+UA_Client_Subscriptions_createCompleteDataChange(UA_Client *client,
+    const UA_CreateSubscriptionRequest request,
+    void *subscriptionContext,
+    UA_Client_StatusChangeNotificationCallback statusChangeCallback,
+    UA_Client_DeleteSubscriptionCallback deleteCallback,
+    UA_Client_DataChangeCallback dataChangeCallback);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_Subscriptions_createCompleteDataChange_async(UA_Client *client,
+    const UA_CreateSubscriptionRequest request,
+    void *subscriptionContext,
+    UA_Client_StatusChangeNotificationCallback statusChangeCallback,
+    UA_Client_DeleteSubscriptionCallback deleteCallback,
+    UA_Client_DataChangeCallback dataChangeCallback,
     UA_ClientAsyncServiceCallback callback,
     void *userdata, UA_UInt32 *requestId);
 
@@ -144,10 +181,6 @@ UA_MonitoredItemCreateRequest_default(UA_NodeId nodeId) {
     request.requestedParameters.queueSize = 1;
     return request;
 }
-
-/**
- * The clientHandle parameter cannot be set by the user, any value will be replaced
- * by the client before sending the request to the server. */
 
 /* Callback for the deletion of a MonitoredItem */
 typedef void (*UA_Client_DeleteMonitoredItemCallback)
