@@ -11,7 +11,6 @@
 #ifdef UA_ENABLE_ENCRYPTION
 #include "open62541/plugin/certificategroup_default.h"
 #endif
-#include "../src/ua_types_encoding_json.h"
 
 #define MAX_TOKENS 1024
 
@@ -871,6 +870,20 @@ const parseJsonSignature parseJsonJumpTable[UA_SERVERCONFIGFIELDKINDS] = {
     (parseJsonSignature)RuleHandlingField_parseJson,
 };
 
+/* Skips unknown item (simple, object or array) in config file. 
+* Unknown items may happen if we don't support some features. 
+* E.g. if  UA_ENABLE_ENCRYPTION is not defined and config file 
+* contains "securityPolicies" entry.
+*/
+static void
+skipUnknownItem(ParsingCtx* ctx) {
+    unsigned int end = ctx->tokens[ctx->index].end;
+    do {
+        ctx->index++;
+    } while (ctx->index < ctx->tokensSize &&
+        ctx->tokens[ctx->index].start < end);
+}
+
 static UA_StatusCode
 parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
     // Parsing json config
@@ -994,9 +1007,9 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     /* skip the name of item */
                     ++ctx.index;
                     /* skip value of unknown item */
-                    skipObject((ParseCtx*)&ctx);
-                    /* after skipObject() ctx->index points to the name of the following item.
-                       Decrement index in oder following increment will
+                    skipUnknownItem(&ctx);
+                    /* after skipUnknownItem() ctx->index points to the name of the following item.
+                       We must decrement index in oder following increment will
                        still set index to the right position (name of the following item) */
                     --ctx.index;
                 }

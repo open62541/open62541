@@ -1139,7 +1139,7 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
 /* If ctx->index points to the beginning of an object, move the index to the
  * next token after this object. Attention! The index can be moved after the
  * last parsed token. So the array length has to be checked afterwards. */
-void
+static void
 skipObject(ParseCtx *ctx) {
     unsigned int end = ctx->tokens[ctx->index].end;
     do {
