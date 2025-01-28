@@ -288,7 +288,7 @@ UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
     lockServer(server);
     UA_Session *session = getSessionById(server, sessionId);
     if(!session) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADSESSIONIDINVALID;
     }
     if(!session->attributes)

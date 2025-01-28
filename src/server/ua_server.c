@@ -886,14 +886,14 @@ UA_Server_updateCertificate(UA_Server *server,
     lockServer(server);
 
     if(server->gdsManager.transaction.state == UA_GDSTRANSACIONSTATE_PENDING) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
     }
 
     /* The server currently only supports the DefaultApplicationGroup */
     UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup)) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -901,14 +901,14 @@ UA_Server_updateCertificate(UA_Server *server,
     /* UA_NodeId certTypRsaMin = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE); */
     UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
     if(!UA_NodeId_equal(&certificateTypeId, &certTypRsaSha256)) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
     UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
     if(privateKey) {
         if(UA_CertificateUtils_checkKeyPair(&certificate, privateKey) != UA_STATUSCODE_GOOD) {
-            UA_UNLOCK(&server->serviceMutex);
+            unlockServer(server);
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
         newPrivateKey = *privateKey;
@@ -919,14 +919,14 @@ UA_Server_updateCertificate(UA_Server *server,
         UA_EndpointDescription *ed = &server->config.endpoints[i];
         UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
                             &server->config.endpoints[i].securityPolicyUri);
-        UA_CHECK_MEM(sp, UA_UNLOCK(&server->serviceMutex); return UA_STATUSCODE_BADINTERNALERROR);
+        UA_CHECK_MEM(sp, unlockServer(server); return UA_STATUSCODE_BADINTERNALERROR);
 
         if(!UA_NodeId_equal(&sp->certificateTypeId, &certificateTypeId))
             continue;
 
         retval = sp->updateCertificateAndPrivateKey(sp, certificate, newPrivateKey);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_UNLOCK(&server->serviceMutex);
+            unlockServer(server);
             return retval;
         }
 

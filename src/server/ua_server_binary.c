@@ -472,10 +472,10 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     response.responseHeader.requestHandle = request.requestHeader.requestHandle;
 
     /* Process the request */
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Boolean async =
         UA_Server_processRequest(server, channel, requestId, sd, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     /* Send response if not async */
     if(UA_LIKELY(!async)) {

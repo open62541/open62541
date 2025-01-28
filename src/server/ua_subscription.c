@@ -651,7 +651,7 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
  * EventLoop. */
 void
 UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     sub->delayedCallbackRegistered = false;
 
     UA_Notification *n, *n_tmp;
@@ -702,7 +702,7 @@ UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
         UA_Notification_delete(n);
     }
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static void
@@ -1545,9 +1545,9 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
 
 static void
 UA_MonitoredItem_lockAndSample(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_MonitoredItem_sample(server, mon);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 UA_StatusCode

@@ -664,9 +664,9 @@ UA_Server_createEventMonitoredItemEx(UA_Server *server,
     cmc.localMon = localMon;
     cmc.timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Operation_CreateMonitoredItem(server, &server->adminSession, &cmc, &item, &result);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     /* If the service failed, clean up the local MonitoredItem structure */
     if(result.statusCode != UA_STATUSCODE_GOOD && cmc.localMon) {
