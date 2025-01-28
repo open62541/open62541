@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
- * Copyright (c) 2019, 2022 Fraunhofer IOSB (Author: Julius Pfrommer)
+ * Copyright (c) 2019, 2022, 2024 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
@@ -568,7 +568,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_LOG_TRACE_PUBSUB(psm->logging, psc,
                         "Connection Callback with state %i", state);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* The connection is closing in the EventLoop. This is the last callback
      * from that connection. Clean up the SecureChannel in the client. */
@@ -579,7 +579,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         /* PSC marked for deletion and the last EventLoop connection has closed */
         if(psc->deleteFlag && psc->recvChannelsSize == 0 && psc->sendChannel == 0) {
             UA_PubSubConnection_delete(psm, psc);
-            UA_UNLOCK(&server->serviceMutex);
+            unlockServer(server);
             return;
         }
 
@@ -594,7 +594,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * connection has closed */
         UA_PubSubManager_setState(psm, psm->sc.state);
 
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
@@ -607,7 +607,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                               "No more space for an additional EventLoop connection");
         if(psc->cm)
             psc->cm->closeConnection(psc->cm, connectionId);
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
@@ -618,7 +618,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(UA_LIKELY(recv && msg.length > 0))
         UA_PubSubConnection_process(psm, psc, msg);
     
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static void
@@ -851,11 +851,11 @@ UA_Server_getPubSubConnectionConfig(UA_Server *server, const UA_NodeId connectio
                                     UA_PubSubConnectionConfig *config) {
     if(!server || !config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubConnection *c = UA_PubSubConnection_find(getPSM(server), connection);
     UA_StatusCode res = (c) ?
         UA_PubSubConnectionConfig_copy(&c->config, config) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -865,11 +865,11 @@ UA_Server_addPubSubConnection(UA_Server *server,
                               UA_NodeId *cId) {
     if(!server || !cc)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode res = (psm) ?
         UA_PubSubConnection_create(psm, cc, cId) : UA_STATUSCODE_BADINTERNALERROR;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -877,16 +877,16 @@ UA_StatusCode
 UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId cId) {
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_PubSubConnection *c = UA_PubSubConnection_find(psm, cId);
     if(!c) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
     UA_PubSubConnection_delete(psm, c);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -894,11 +894,11 @@ UA_StatusCode
 UA_Server_enablePubSubConnection(UA_Server *server, const UA_NodeId cId) {
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode res = (psm) ?
         enablePubSubConnection(psm, cId) : UA_STATUSCODE_BADINTERNALERROR;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -906,11 +906,11 @@ UA_StatusCode
 UA_Server_disablePubSubConnection(UA_Server *server, const UA_NodeId cId) {
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode res = (psm) ?
         disablePubSubConnection(psm, cId) : UA_STATUSCODE_BADINTERNALERROR;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -920,7 +920,7 @@ UA_Server_processPubSubConnectionReceive(UA_Server *server,
                                          const UA_ByteString packet) {
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
     UA_PubSubManager *psm = getPSM(server);
     if(psm) {
@@ -935,7 +935,7 @@ UA_Server_processPubSubConnectionReceive(UA_Server *server,
                                   "PubSubConnection is not operational");
         }
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
