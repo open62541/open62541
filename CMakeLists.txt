@@ -1245,8 +1245,8 @@ if(UA_ENABLE_AMALGAMATION)
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${lib_headers}
                                ${lib_sources} ${plugin_sources})
 
-    add_custom_target(open62541-amalgamation DEPENDS ${PROJECT_BINARY_DIR}/open62541.c
-                                                     ${PROJECT_BINARY_DIR}/open62541.h)
+    add_custom_target(open62541-amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.c
+                                                         ${PROJECT_BINARY_DIR}/open62541.h)
 endif()
 
 # Generated NS0
