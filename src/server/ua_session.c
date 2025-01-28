@@ -247,7 +247,7 @@ UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry,
 
 UA_StatusCode
 UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     session_list_entry *entry;
     UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
     LIST_FOREACH(entry, &server->sessions, pointers) {
@@ -257,7 +257,7 @@ UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId) {
             break;
         }
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -285,7 +285,7 @@ UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                               const UA_QualifiedName key, const UA_Variant *value) {
     if(protectedAttribute(key))
         return UA_STATUSCODE_BADNOTWRITABLE;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Session *session = getSessionById(server, sessionId);
     if(!session) {
         UA_UNLOCK(&server->serviceMutex);
@@ -294,7 +294,7 @@ UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
     if(!session->attributes)
         session->attributes = UA_KeyValueMap_new();
     UA_StatusCode res = UA_KeyValueMap_set(session->attributes, key, value);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -303,17 +303,16 @@ UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                                  const UA_QualifiedName key) {
     if(protectedAttribute(key))
         return UA_STATUSCODE_BADNOTWRITABLE;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Session *session = getSessionById(server, sessionId);
     if(!session) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADSESSIONIDINVALID;
     }
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    if (session->attributes) {
+    if(session->attributes)
         res = UA_KeyValueMap_remove(session->attributes, key);
-    }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -369,18 +368,18 @@ getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
 UA_StatusCode
 UA_Server_getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                               const UA_QualifiedName key, UA_Variant *outValue) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = getSessionAttribute(server, sessionId, key, outValue, false);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
 UA_StatusCode
 UA_Server_getSessionAttributeCopy(UA_Server *server, const UA_NodeId *sessionId,
                                   const UA_QualifiedName key, UA_Variant *outValue) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = getSessionAttribute(server, sessionId, key, outValue, true);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -390,22 +389,22 @@ UA_Server_getSessionAttribute_scalar(UA_Server *server,
                                      const UA_QualifiedName key,
                                      const UA_DataType *type,
                                      void *outValue) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     UA_Variant attr;
     UA_StatusCode res = getSessionAttribute(server, sessionId, key, &attr, false);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return res;
     }
 
     if(!UA_Variant_hasScalarType(&attr, type)) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
     memcpy(outValue, attr.data, type->memSize);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }

@@ -1176,7 +1176,7 @@ UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
     UA_PubSubManager *psm = getPSM(server);
     UA_ReaderGroup *rg = (psm) ? UA_ReaderGroup_find(psm, readerGroupId) : NULL;
     if(!rg) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 

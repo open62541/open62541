@@ -310,7 +310,7 @@ UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeI
     UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode retval = addSecurityGroup(psm, securityGroupFolderNodeId,
                                             securityGroupConfig, securityGroupNodeId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retval;
 }
 

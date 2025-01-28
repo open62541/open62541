@@ -158,9 +158,9 @@ checkTimeouts(UA_Server *server, void *_) {
     UA_UNLOCK(&am->queueLock);
 
     /* Integrate async results and send out complete responses */
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     processAsyncResults(server);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 void
@@ -388,7 +388,7 @@ UA_StatusCode
 UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
                              UA_Boolean isAsync) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Node *node =
         UA_NODESTORE_GET_EDIT_SELECTIVE(server, &id, UA_NODEATTRIBUTESMASK_NONE,
                                         UA_REFERENCETYPESET_NONE,
@@ -402,7 +402,7 @@ UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
     } else {
         res = UA_STATUSCODE_BADNODEIDINVALID;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 

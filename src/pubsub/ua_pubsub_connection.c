@@ -204,9 +204,9 @@ delayedPubSubConnection_delete(void *application, void *context) {
     UA_PubSubManager *psm = (UA_PubSubManager*)application;
     UA_Server *server = psm->sc.server;
     UA_PubSubConnection *c = (UA_PubSubConnection*)context;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubConnection_delete(psm, c);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 /* Clean up the PubSubConnection. If no EventLoop connection is attached we can
