@@ -1190,28 +1190,28 @@ UA_Client_getConnectionAttribute_scalar(UA_Client *client,
 UA_StatusCode
 UA_Client_getNamespaceUri(UA_Client *client, UA_UInt16 index,
                           UA_String *nsUri) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(index > client->namespacesSize)
         res = UA_String_copy(&client->namespaces[index], nsUri);
     else
         res = UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return res;
 }
 
 UA_StatusCode
 UA_Client_getNamespaceIndex(UA_Client *client, const UA_String nsUri,
                             UA_UInt16 *outIndex) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     for(size_t i = 0; i < client->namespacesSize; i++) {
         if(UA_String_equal(&nsUri, &client->namespaces[i])) {
             *outIndex = (UA_UInt16)i;
-            UA_UNLOCK(&client->clientMutex);
+            unlockClient(client);
             return UA_STATUSCODE_GOOD;
         }
     }
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
@@ -1221,12 +1221,12 @@ UA_Client_addNamespace(UA_Client *client, const UA_String nsUri,
     UA_StatusCode res = UA_Client_getNamespaceIndex(client, nsUri, outIndex);
     if(res == UA_STATUSCODE_GOOD)
         return res;
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     res = UA_Array_appendCopy((void**)&client->namespaces, &client->namespacesSize,
                               &nsUri, &UA_TYPES[UA_TYPES_STRING]);
     if(res == UA_STATUSCODE_GOOD)
         *outIndex = (UA_UInt16)(client->namespacesSize - 1);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return res;
 }
 

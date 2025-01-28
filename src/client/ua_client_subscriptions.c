@@ -201,38 +201,38 @@ ua_Subscriptions_modify_handler(UA_Client *client, void *data, UA_UInt32 request
 }
 
 UA_StatusCode
-UA_Client_Subscriptions_getContext(UA_Client *client, UA_UInt32 subscriptionId, void **subContext)
-{
-	if (!client || !subContext)
+UA_Client_Subscriptions_getContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   void **subContext) {
+	if(!client || !subContext)
 		return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-	UA_LOCK(&client->clientMutex);
+	lockClient(client);
 	UA_Client_Subscription *sub = findSubscriptionById(client, subscriptionId);
-	if (!sub) {
-		UA_UNLOCK(&client->clientMutex);
+	if(!sub) {
+		unlockClient(client);
 		return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 	}
 
 	*subContext = sub->context;
-	UA_UNLOCK(&client->clientMutex);
+	unlockClient(client);
 	return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_Client_Subscriptions_setContext(UA_Client *client, UA_UInt32 subscriptionId, void *subContext)
-{
-	if (!client)
+UA_Client_Subscriptions_setContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   void *subContext) {
+	if(!client)
 		return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-	UA_LOCK(&client->clientMutex);
+	lockClient(client);
 	UA_Client_Subscription *sub = findSubscriptionById(client, subscriptionId);
-	if (!sub) {
-		UA_UNLOCK(&client->clientMutex);
+	if(!sub) {
+		unlockClient(client);
 		return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 	}
 
 	sub->context = subContext;
-	UA_UNLOCK(&client->clientMutex);
+	unlockClient(client);
 	return UA_STATUSCODE_GOOD;
 }
 
@@ -1066,50 +1066,50 @@ static UA_Client_MonitoredItem
 }
 
 UA_StatusCode
-UA_Client_MonitoredItem_getContext(UA_Client *client, UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId, void **monContext)
-{
-	if (!client || !monContext)
+UA_Client_MonitoredItem_getContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   UA_UInt32 monitoredItemId, void **monContext) {
+	if(!client || !monContext)
 		return UA_STATUSCODE_BADINVALIDARGUMENT;
 
 	*monContext = NULL;
 
-	UA_LOCK(&client->clientMutex);
+	lockClient(client);
 	UA_Client_Subscription *sub = findSubscriptionById(client, subscriptionId);
-	if (!sub) {
-		UA_UNLOCK(&client->clientMutex);
+	if(!sub) {
+		unlockClient(client);
 		return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 	}
 
 	UA_StatusCode status = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 	UA_Client_MonitoredItem *monItem = findMonitoredItemById(sub, monitoredItemId);
-	if (monItem) {
+	if(monItem) {
 		*monContext = monItem->context;
 		status = UA_STATUSCODE_GOOD;
 	}
-	UA_UNLOCK(&client->clientMutex);
+	unlockClient(client);
 	return status;
 }
 
 UA_StatusCode
-UA_Client_MonitoredItem_setContext(UA_Client *client, UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId, void *monContext)
-{
-	if (!client)
+UA_Client_MonitoredItem_setContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   UA_UInt32 monitoredItemId, void *monContext) {
+	if(!client)
 		return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-	UA_LOCK(&client->clientMutex);
+	lockClient(client);
 	UA_Client_Subscription *sub = findSubscriptionById(client, subscriptionId);
-	if (!sub) {
-		UA_UNLOCK(&client->clientMutex);
+	if(!sub) {
+		unlockClient(client);
 		return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 	}
 
 	UA_StatusCode status = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 	UA_Client_MonitoredItem *monItem = findMonitoredItemById(sub, monitoredItemId);
-	if (monItem) {
+	if(monItem) {
 		monItem->context = monContext;
 		status = UA_STATUSCODE_GOOD;
 	}
-	UA_UNLOCK(&client->clientMutex);
+	unlockClient(client);
 	return status;
 }
 
