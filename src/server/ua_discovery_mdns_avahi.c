@@ -302,14 +302,13 @@ UA_DiscoveryManager_clearServerOnNetwork(UA_DiscoveryManager *dm) {
 }
 
 UA_ServerOnNetwork*
-UA_DiscoveryManager_getServerOnNetworkList(UA_DiscoveryManager *dm) {
+UA_DiscoveryManager_getServerOnNetworkList(void) {
     serverOnNetwork* entry = LIST_FIRST(&mdnsPrivateData.serverOnNetwork);
     return entry ? &entry->serverOnNetwork : NULL;
 }
 
 UA_ServerOnNetwork*
-UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_DiscoveryManager *dm,
-                                   UA_ServerOnNetwork *current) {
+UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_ServerOnNetwork *current) {
     serverOnNetwork *entry = NULL;
     LIST_FOREACH(entry, &mdnsPrivateData.serverOnNetwork, pointers) {
         if(&entry->serverOnNetwork == current) {
@@ -656,7 +655,7 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
 }
 
 void
-UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm) {
+UA_DiscoveryManager_clearMdns(void) {
     /* Clean up the serverOnNetwork list */
     serverOnNetwork *son, *son_tmp;
     LIST_FOREACH_SAFE(son, &mdnsPrivateData.serverOnNetwork, pointers, son_tmp) {
