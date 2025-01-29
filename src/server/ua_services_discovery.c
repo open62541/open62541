@@ -251,7 +251,7 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
     /* Iterate over all records and add to filtered list */
     UA_UInt32 filteredCount = 0;
     UA_STACKARRAY(UA_ServerOnNetwork*, filtered, recordCount);
-    UA_ServerOnNetwork *current = UA_DiscoveryManager_getServerOnNetworkList(dm);
+    UA_ServerOnNetwork *current = UA_DiscoveryManager_getServerOnNetworkList();
     if(!current) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
@@ -265,7 +265,7 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                                request->serverCapabilityFilter, current))
             continue;
         filtered[filteredCount++] = current;
-        current = UA_DiscoveryManager_getNextServerOnNetworkRecord(dm, current);
+        current = UA_DiscoveryManager_getNextServerOnNetworkRecord(current);
     }
 
     if(filteredCount == 0)

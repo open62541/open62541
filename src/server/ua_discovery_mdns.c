@@ -549,7 +549,7 @@ mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
 
 /* set record in the given interface */
 static void
-mdns_set_address_record_if(UA_DiscoveryManager *dm, const char *fullServiceDomain,
+mdns_set_address_record_if(const char *fullServiceDomain,
                            const char *localDomain, char *addr, UA_UInt16 addr_len) {
     /* [servername]-[hostname]._opcua-tcp._tcp.local. A [ip]. */
     mdns_record_t *r = mdnsd_shared(mdnsPrivateData.mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
@@ -582,7 +582,7 @@ mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
             int family = address->Address.lpSockaddr->sa_family;
             if(AF_INET == family) {
                 SOCKADDR_IN* ipv4 = (SOCKADDR_IN*)(address->Address.lpSockaddr); /* IPv4 */
-                mdns_set_address_record_if(dm, fullServiceDomain,
+                mdns_set_address_record_if(fullServiceDomain,
                                            localDomain, (char *)&ipv4->sin_addr, 4);
             } else if(AF_INET6 == family) {
                 /* IPv6 */
@@ -645,7 +645,7 @@ mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
         /* IPv4 */
         if(ifa->ifa_addr->sa_family == AF_INET) {
             struct sockaddr_in* sa = (struct sockaddr_in*) ifa->ifa_addr;
-            mdns_set_address_record_if(dm, fullServiceDomain,
+            mdns_set_address_record_if(fullServiceDomain,
                                        localDomain, (char*)&sa->sin_addr.s_addr, 4);
         }
 
@@ -667,7 +667,7 @@ mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
     }
 
     for(size_t i=0; i< dm->sc.server->config.mdnsIpAddressListSize; i++) {
-        mdns_set_address_record_if(dm, fullServiceDomain, localDomain,
+        mdns_set_address_record_if(fullServiceDomain, localDomain,
                                    (char*)&dm->sc.server->config.mdnsIpAddressList[i], 4);
     }
 }
@@ -706,14 +706,13 @@ UA_DiscoveryManager_clearServerOnNetwork(UA_DiscoveryManager *dm) {
 }
 
 UA_ServerOnNetwork*
-UA_DiscoveryManager_getServerOnNetworkList(UA_DiscoveryManager *dm) {
+UA_DiscoveryManager_getServerOnNetworkList(void) {
     serverOnNetwork* entry = LIST_FIRST(&mdnsPrivateData.serverOnNetwork);
     return entry ? &entry->serverOnNetwork : NULL;
 }
 
 UA_ServerOnNetwork*
-UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_DiscoveryManager *dm,
-                                   UA_ServerOnNetwork *current) {
+UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_ServerOnNetwork *current) {
     serverOnNetwork *entry = NULL;
     LIST_FOREACH(entry, &mdnsPrivateData.serverOnNetwork, pointers) {
         if(&entry->serverOnNetwork == current) {
@@ -792,7 +791,7 @@ static int
 discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg);
 
 static void
-mdnsAddConnection(UA_DiscoveryManager *dm, uintptr_t connectionId,
+mdnsAddConnection(uintptr_t connectionId,
                   UA_Boolean recv) {
     if(!recv) {
         for(size_t i = 0; i < UA_MAXMDNSSENDSOCKETS; i++) {
@@ -823,7 +822,7 @@ mdnsAddConnection(UA_DiscoveryManager *dm, uintptr_t connectionId,
 }
 
 static void
-mdnsRemoveConnection(UA_DiscoveryManager *dm, uintptr_t connectionId,
+mdnsRemoveConnection(uintptr_t connectionId,
                      UA_Boolean recv) {
     for(size_t i = 0; i < UA_MAXMDNSSENDSOCKETS; i++) {
         if(mdnsPrivateData.mdnsSendConnections[i] != connectionId)
@@ -849,7 +848,7 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_DiscoveryManager *dm = *(UA_DiscoveryManager**)connectionContext;
 
     if(state == UA_CONNECTIONSTATE_CLOSING) {
-        mdnsRemoveConnection(dm, connectionId, recv);
+        mdnsRemoveConnection(connectionId, recv);
 
         /* Fully stopped? Internally checks if all sockets are closed. */
         UA_DiscoveryManager_setState(dm, dm->sc.state);
@@ -861,7 +860,7 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
-    mdnsAddConnection(dm, connectionId, recv);
+    mdnsAddConnection(connectionId, recv);
 
     if(msg.length == 0)
         return;
@@ -1225,7 +1224,7 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
 }
 
 void
-UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm) {
+UA_DiscoveryManager_clearMdns(void) {
     /* Clean up the serverOnNetwork list */
     serverOnNetwork *son, *son_tmp;
     LIST_FOREACH_SAFE(son, &mdnsPrivateData.serverOnNetwork, pointers, son_tmp) {
@@ -1368,7 +1367,7 @@ createFullServiceDomain(char *outServiceDomain, size_t maxLen,
 
 /* Check if mDNS already has an entry for given hostname and port combination */
 static UA_Boolean
-UA_Discovery_recordExists(UA_DiscoveryManager *dm, const char* fullServiceDomain,
+UA_Discovery_recordExists(const char* fullServiceDomain,
                           unsigned short port, const UA_DiscoveryProtocol protocol) {
     // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
     mdns_record_t *r  = mdnsd_get_published(mdnsPrivateData.mdnsDaemon, fullServiceDomain);
@@ -1397,7 +1396,7 @@ discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg) {
 
     /* Skip, if we already know about this server */
     UA_Boolean exists =
-        UA_Discovery_recordExists(dm, a->rdname, 0, UA_DISCOVERY_TCP);
+        UA_Discovery_recordExists(a->rdname, 0, UA_DISCOVERY_TCP);
     if(exists == true)
         return 0;
 
@@ -1455,7 +1454,7 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     char fullServiceDomain[63+24];
     createFullServiceDomain(fullServiceDomain, 63+24, servername, hostname);
 
-    UA_Boolean exists = UA_Discovery_recordExists(dm, fullServiceDomain,
+    UA_Boolean exists = UA_Discovery_recordExists(fullServiceDomain,
                                                   port, protocol);
     if(exists == true)
         return UA_STATUSCODE_GOOD;

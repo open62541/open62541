@@ -66,7 +66,7 @@ UA_DiscoveryManager_clear(struct UA_ServerComponent *sc) {
     }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_DiscoveryManager_clearMdns(dm);
+    UA_DiscoveryManager_clearMdns();
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
     return UA_STATUSCODE_GOOD;
