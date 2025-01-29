@@ -38,7 +38,7 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
 #endif
 
     /* Callback into userland access control */
-    if(server->config.accessControl.closeSession) {
+    if(server->config.accessControl.closeSession && &server->adminSession != session) {
         server->config.accessControl.
             closeSession(server, &server->config.accessControl,
                          &session->sessionId, session->sessionHandle);
