@@ -265,12 +265,15 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* Verify access rights */
     UA_Boolean executable = method->executable;
-    if(session != &server->adminSession) {
+    if (executable && session != &server->adminSession) {
+        UA_LOCK_ASSERT(&server->serviceMutex, 1);
+        UA_UNLOCK(&server->serviceMutex);
         executable = executable && server->config.accessControl.
             getUserExecutableOnObject(server, &server->config.accessControl,
                                       &session->sessionId, session->sessionHandle,
                                       &request->methodId, method->head.context,
                                       &request->objectId, object->head.context);
+        UA_LOCK(&server->serviceMutex);
     }
 
     if(!executable) {
@@ -347,11 +350,14 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     UA_NODESTORE_RELEASE(server, (const UA_Node*)outputArguments);
 
     /* Call the method */
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_UNLOCK(&server->serviceMutex); // It may be ASYNC (in other thread)
     result->statusCode = method->method(server, &session->sessionId, session->sessionHandle,
                                         &method->head.nodeId, method->head.context,
                                         &object->head.nodeId, object->head.context,
                                         request->inputArgumentsSize, mutableInputArgs,
                                         result->outputArgumentsSize, result->outputArguments);
+    UA_LOCK(&server->serviceMutex);
     /* TODO: Verify Output matches the argument definition */
 }
 
