@@ -37,6 +37,13 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     }
 #endif
 
+    /* Callback into userland access control */
+    if(server->config.accessControl.closeSession) {
+        server->config.accessControl.
+            closeSession(server, &server->config.accessControl,
+                         &session->sessionId, session->sessionHandle);
+    }
+
 #ifdef UA_ENABLE_DIAGNOSTICS
     deleteNode(server, session->sessionId, true);
 #endif

@@ -521,12 +521,37 @@ void Service_Call(UA_Server *server, UA_Session *session,
                   &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
 }
 
+UA_CallMethodResult UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
+    return UA_Server_callEx(server, request, NULL);
+}
+
 UA_CallMethodResult
-UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
+UA_Server_callEx(UA_Server *server, const UA_CallMethodRequest *request, void* context) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     UA_LOCK(&server->serviceMutex);
-    Operation_CallMethod(server, &server->adminSession, NULL, request, &result);
+
+    void *sessionToken = NULL;
+    UA_Session *session = &server->adminSession;
+
+    if (NULL != context) {
+        UA_AsyncOperation *ao = (UA_AsyncOperation*)context;
+        sessionToken = acquireSessionEntryById(server, &ao->parent->sessionId, &session);
+        if (NULL == sessionToken)
+            session = NULL;
+    }
+
+    if (NULL != session)
+        Operation_CallMethod(server, session, NULL, request, &result);
+    else
+        result.statusCode = UA_STATUSCODE_BADSESSIONIDINVALID;
+
+    if (NULL != sessionToken) {
+        UA_assert(NULL != context);
+        UA_assert(NULL != session);
+        releaseSessionEntry(server, sessionToken);
+    }
+
     UA_UNLOCK(&server->serviceMutex);
     return result;
 }

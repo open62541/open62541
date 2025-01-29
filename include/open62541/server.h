@@ -1217,6 +1217,9 @@ UA_Server_getMethodNodeCallback(UA_Server *server,
 
 UA_CallMethodResult UA_EXPORT UA_THREADSAFE
 UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
+
+UA_CallMethodResult UA_EXPORT UA_THREADSAFE
+UA_Server_callEx(UA_Server *server, const UA_CallMethodRequest *request, void* context);
 #endif
 
 /**

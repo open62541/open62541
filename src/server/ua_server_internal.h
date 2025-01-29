@@ -112,6 +112,7 @@ getServerComponentByName(UA_Server *server, UA_String name);
 /********************/
 
 typedef struct session_list_entry {
+    unsigned int nReferences;
     UA_DelayedCallback cleanupCallback;
     LIST_ENTRY(session_list_entry) pointers;
     UA_Session session;
@@ -264,6 +265,9 @@ getSessionByToken(UA_Server *server, const UA_NodeId *token);
 
 UA_Session *
 getSessionById(UA_Server *server, const UA_NodeId *sessionId);
+
+session_list_entry *acquireSessionEntryById(UA_Server *server, const UA_NodeId *sessionId, UA_Session **pSession);
+void releaseSessionEntry(UA_Server *server, session_list_entry *sentry);
 
 /*****************/
 /* Node Handling */

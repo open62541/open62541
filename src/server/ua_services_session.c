@@ -25,6 +25,31 @@ removeSessionCallback(UA_Server *server, session_list_entry *entry) {
     UA_free(entry);
 }
 
+static void removeReference(UA_Server *server, session_list_entry *sentry) {
+	UA_assert(NULL != server);
+	UA_assert(NULL != sentry);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    if (0 == --sentry->nReferences) {
+        /* Add a delayed callback to remove the session when the currently
+         * scheduled jobs have completed */
+        sentry->cleanupCallback.callback = (UA_Callback)removeSessionCallback;
+        sentry->cleanupCallback.application = server;
+        sentry->cleanupCallback.context = sentry;
+        UA_EventLoop *el = server->config.eventLoop;
+        el->addDelayedCallback(el, &sentry->cleanupCallback);
+    }
+}
+
+static void addReference(UA_Server *server, session_list_entry *sentry) {
+	UA_assert(NULL != server);
+	UA_assert(NULL != sentry);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    UA_assert(0 < sentry->nReferences);
+    ++sentry->nReferences;
+}
+
 void
 UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
                         UA_ShutdownReason shutdownReason) {
@@ -46,12 +71,6 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     }
 #endif
 
-    /* Callback into userland access control */
-    if(server->config.accessControl.closeSession) {
-        server->config.accessControl.
-            closeSession(server, &server->config.accessControl,
-                         &session->sessionId, session->sessionHandle);
-    }
 
     /* Detach the Session from the SecureChannel */
     UA_Session_detachFromSecureChannel(session);
@@ -88,13 +107,7 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
         break;
     }
 
-    /* Add a delayed callback to remove the session when the currently
-     * scheduled jobs have completed */
-    sentry->cleanupCallback.callback = (UA_Callback)removeSessionCallback;
-    sentry->cleanupCallback.application = server;
-    sentry->cleanupCallback.context = sentry;
-    UA_EventLoop *el = server->config.eventLoop;
-    el->addDelayedCallback(el, &sentry->cleanupCallback);
+    removeReference(server, sentry);
 }
 
 UA_StatusCode
@@ -150,6 +163,40 @@ getSessionByToken(UA_Server *server, const UA_NodeId *token) {
     }
 
     return NULL;
+}
+
+session_list_entry *acquireSessionEntryById(UA_Server *server, const UA_NodeId *sessionId, UA_Session **pSession) {
+    UA_assert(NULL != server);
+    UA_assert(NULL != sessionId);
+    UA_assert(NULL != pSession);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    session_list_entry *current = NULL;
+    LIST_FOREACH(current, &server->sessions, pointers) {
+        /* Token does not match */
+        if(!UA_NodeId_equal(&current->session.sessionId, sessionId))
+            continue;
+
+        /* Session has timed out */
+        if(UA_DateTime_nowMonotonic() > current->session.validTill) {
+            UA_LOG_INFO_SESSION(server->config.logging, &current->session,
+                                "Client tries to use a session that has timed out");
+            return NULL;
+        }
+
+        addReference(server, current);
+        *pSession = &current->session;
+        return current;
+    }
+
+    return NULL;
+}
+
+void releaseSessionEntry(UA_Server *server, session_list_entry *sentry) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_assert(NULL != server);
+    UA_assert(NULL != sentry);
+    removeReference(server, sentry);
 }
 
 UA_Session *
@@ -238,6 +285,7 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Initialize the Session */
     UA_Session_init(&newentry->session);
+    newentry->nReferences = 1;
     newentry->session.sessionId = UA_NODEID_GUID(1, UA_Guid_random());
     newentry->session.header.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
 
@@ -249,6 +297,7 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
     /* Attach the session to the channel. But don't activate for now. */
     if(channel)
         UA_Session_attachToSecureChannel(&newentry->session, channel);
+
     UA_Session_updateLifetime(&newentry->session);
 
     /* Add to the server */
