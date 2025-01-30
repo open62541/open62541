@@ -266,6 +266,8 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
             continue;
         filtered[filteredCount++] = current;
         current = UA_DiscoveryManager_getNextServerOnNetworkRecord(current);
+        if(!current)
+            break;
     }
 
     if(filteredCount == 0)
