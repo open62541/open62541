@@ -582,8 +582,8 @@ mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
             int family = address->Address.lpSockaddr->sa_family;
             if(AF_INET == family) {
                 SOCKADDR_IN* ipv4 = (SOCKADDR_IN*)(address->Address.lpSockaddr); /* IPv4 */
-                mdns_set_address_record_if(fullServiceDomain,
-                                           localDomain, (char *)&ipv4->sin_addr, 4);
+                mdns_set_address_record_if(fullServiceDomain, localDomain,
+                                           (char *)&ipv4->sin_addr, 4);
             } else if(AF_INET6 == family) {
                 /* IPv6 */
 #if 0
