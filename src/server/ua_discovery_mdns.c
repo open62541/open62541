@@ -549,8 +549,8 @@ mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
 
 /* set record in the given interface */
 static void
-mdns_set_address_record_if(const char *fullServiceDomain,
-                           const char *localDomain, char *addr, UA_UInt16 addr_len) {
+mdns_set_address_record_if(const char *fullServiceDomain, const char *localDomain,
+                           char *addr, UA_UInt16 addr_len) {
     /* [servername]-[hostname]._opcua-tcp._tcp.local. A [ip]. */
     mdns_record_t *r = mdnsd_shared(mdnsPrivateData.mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
     mdnsd_set_raw(mdnsPrivateData.mdnsDaemon, r, addr, addr_len);
