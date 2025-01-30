@@ -25,6 +25,7 @@
 # include <winsock2.h>
 # include <iphlpapi.h>
 # include <ws2tcpip.h>
+#define ADDR_BUFFER_SIZE 15000 /* recommended size in the MSVC docs */
 #else
 # include <sys/types.h>
 # include <sys/socket.h>
@@ -1022,8 +1023,8 @@ discovery_createMultiConnections(UA_Server *server, UA_DiscoveryManager *dm,
     kvm.mapSize++;
     params[5].key = UA_QUALIFIEDNAME(0, "interface");
 #ifdef _WIN32
-    ULONG outBufLen = 15000;
-    UA_STACKARRAY(char, addrBuf, 15000);
+    ULONG outBufLen = ADDR_BUFFER_SIZE;
+    UA_STACKARRAY(char, addrBuf, ADDR_BUFFER_SIZE);
     PIP_ADAPTER_ADDRESSES ifaddr = (IP_ADAPTER_ADDRESSES *)addrBuf;
     ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
                   GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_FRIENDLY_NAME;
