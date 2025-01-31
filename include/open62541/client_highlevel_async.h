@@ -22,7 +22,8 @@ _UA_BEGIN_DECLS
  * ^^^^^^^^^^^^^^
  *
  * Call OPC UA Services asynchronously with a callback. The (optional) requestId
- * output can be used to cancel the service while it is still pending. */
+ * output can be used to cancel the service while it is still pending, see
+ * UA_Client_cancelByRequestHandle() and UA_Client_cancelByRequestId(). */
 
 typedef void
 (*UA_ClientAsyncReadCallback)(UA_Client *client, void *userdata,
