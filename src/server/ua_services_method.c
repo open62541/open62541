@@ -348,12 +348,18 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     /* Release the output arguments node */
     UA_NODESTORE_RELEASE(server, (const UA_Node*)outputArguments);
 
-    /* Call the method */
+    /* Call the method. If this is an async method, unlock the server lock for
+     * the duration of the (long-running) call. */
+    if(method->async)
+        unlockServer(server);
     result->statusCode = method->method(server, &session->sessionId, session->context,
                                         &method->head.nodeId, method->head.context,
                                         &object->head.nodeId, object->head.context,
                                         request->inputArgumentsSize, mutableInputArgs,
                                         result->outputArgumentsSize, result->outputArguments);
+    if(method->async)
+        lockServer(server);
+
     /* TODO: Verify Output matches the argument definition */
 }
 
