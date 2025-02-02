@@ -1231,13 +1231,13 @@ UA_Client_addNamespace(UA_Client *client, const UA_String nsUri,
 }
 
 void lockClient(UA_Client *client) {
-    if(UA_LIKELY(client->config.eventLoop != NULL))
+    if(UA_LIKELY(client->config.eventLoop && client->config.eventLoop->lock))
         client->config.eventLoop->lock(client->config.eventLoop);
     UA_LOCK(&client->clientMutex);
 }
 
 void unlockClient(UA_Client *client) {
-    if(UA_LIKELY(client->config.eventLoop != NULL))
+    if(UA_LIKELY(client->config.eventLoop && client->config.eventLoop->unlock))
         client->config.eventLoop->unlock(client->config.eventLoop);
     UA_UNLOCK(&client->clientMutex);
 }

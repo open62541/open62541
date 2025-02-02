@@ -1359,13 +1359,13 @@ UA_Server_run(UA_Server *server, const volatile UA_Boolean *running) {
 }
 
 void lockServer(UA_Server *server) {
-    if(UA_LIKELY(server->config.eventLoop != NULL))
+    if(UA_LIKELY(server->config.eventLoop && server->config.eventLoop->lock))
         server->config.eventLoop->lock(server->config.eventLoop);
     UA_LOCK(&server->serviceMutex);
 }
 
 void unlockServer(UA_Server *server) {
-    if(UA_LIKELY(server->config.eventLoop != NULL))
+    if(UA_LIKELY(server->config.eventLoop && server->config.eventLoop->unlock))
         server->config.eventLoop->unlock(server->config.eventLoop);
     UA_UNLOCK(&server->serviceMutex);
 }
