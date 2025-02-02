@@ -1151,13 +1151,13 @@ UA_Client_getConnectionAttribute_scalar(UA_Client *client,
 }
 
 void lockClient(UA_Client *client) {
-    if(UA_LIKELY(client->config.eventLoop != NULL))
+    if(UA_LIKELY(client->config.eventLoop && client->config.eventLoop->lock))
         client->config.eventLoop->lock(client->config.eventLoop);
     UA_LOCK(&client->clientMutex);
 }
 
 void unlockClient(UA_Client *client) {
-    if(UA_LIKELY(client->config.eventLoop != NULL))
+    if(UA_LIKELY(client->config.eventLoop && client->config.eventLoop->unlock))
         client->config.eventLoop->unlock(client->config.eventLoop);
     UA_UNLOCK(&client->clientMutex);
 }
