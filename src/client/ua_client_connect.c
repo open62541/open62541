@@ -521,14 +521,6 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
         return;
     }
 
-    /* Response.securityToken.revisedLifetime is UInt32 we need to cast it to
-     * DateTime=Int64 we take 75% of lifetime to start renewing as described in
-     * standard */
-    UA_EventLoop *el = client->config.eventLoop;
-    client->nextChannelRenewal = el->dateTime_nowMonotonic(el)
-            + (UA_DateTime) (response.securityToken.revisedLifetime
-                    * (UA_Double) UA_DATETIME_MSEC * 0.75);
-
     /* Move the nonce out of the response */
     UA_ByteString_clear(&client->channel.remoteNonce);
     client->channel.remoteNonce = response.serverNonce;
@@ -540,6 +532,29 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     client->channel.altSecurityToken = client->channel.securityToken;
     client->channel.securityToken = response.securityToken;
     client->channel.renewState = UA_SECURECHANNELRENEWSTATE_NEWTOKEN_CLIENT;
+
+    /* Log a warning if the SecurityToken is not "fresh". Use the normal system
+     * clock to do the comparison. */
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_DateTime wallClockNow = el->dateTime_now(el);
+    if(wallClockNow - client->channel.securityToken.createdAt >= UA_DATETIME_SEC * 10 ||
+       wallClockNow - client->channel.securityToken.createdAt <= -UA_DATETIME_SEC * 10)
+        UA_LOG_WARNING_CHANNEL(client->config.logging, &client->channel, "The \"CreatedAt\" "
+                               "timestamp of the received ChannelSecurityToken does not match "
+                               "with the local system clock");
+
+    /* The internal "monotonic" clock is used by the SecureChannel to validate
+     * that the SecurityToken is still valid. The monotonic clock is independent
+     * from the system clock getting changed or synchronized to a master clock
+     * during runtime. */
+    client->channel.securityToken.createdAt = el->dateTime_nowMonotonic(el);
+
+    /* Response.securityToken.revisedLifetime is UInt32, we need to cast it to
+     * DateTime=Int64. After 75% of the lifetime the renewal takes place as
+     * described in standard */
+    client->nextChannelRenewal = client->channel.securityToken.createdAt +
+        (UA_DateTime) (response.securityToken.revisedLifetime *
+                       (UA_Double) UA_DATETIME_MSEC * 0.75);
 
     /* Compute the new local keys. The remote keys are updated when a message
      * with the new SecurityToken is received. */
