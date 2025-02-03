@@ -649,29 +649,29 @@ resendData(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
 
     /* Get the Session */
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Session *session = getSessionById(server, sessionId);
     if(!session) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Get the Subscription */
     UA_Subscription *subscription = getSubscriptionById(server, subscriptionId);
     if(!subscription) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
     /* The Subscription is not attached to this Session */
     if(subscription->session != session) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADUSERACCESSDENIED;
     }
 
     UA_Subscription_resendData(server, subscription);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 static UA_StatusCode
@@ -685,15 +685,16 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_Variant_setArray(&output[1], UA_Array_new(0, &UA_TYPES[UA_TYPES_UINT32]),
                         0, &UA_TYPES[UA_TYPES_UINT32]);
 
+    lockServer(server);
+
     /* Get the Session */
-    UA_LOCK(&server->serviceMutex);
     UA_Session *session = getSessionById(server, sessionId);
     if(!session) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(inputSize == 0 || !input[0].data) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
@@ -701,13 +702,13 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
     UA_Subscription *subscription = getSubscriptionById(server, subscriptionId);
     if(!subscription) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
     /* The Subscription is not attached to this Session */
     if(subscription->session != session) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADUSERACCESSDENIED;
     }
 
@@ -718,7 +719,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
         ++sizeOfOutput;
     }
     if(sizeOfOutput == 0) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -726,13 +727,13 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_UInt32 *clientHandles = (UA_UInt32*)
         UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     if(!clientHandles) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     UA_UInt32 *serverHandles = (UA_UInt32*)
         UA_Array_new(sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     if(!serverHandles) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         UA_free(clientHandles);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -747,7 +748,7 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_Variant_setArray(&output[0], serverHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Variant_setArray(&output[1], clientHandles, sizeOfOutput, &UA_TYPES[UA_TYPES_UINT32]);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 #endif /* defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS) */
@@ -915,10 +916,8 @@ initNS0(UA_Server *server) {
     UA_StatusCode retVal = createNS0_base(server);
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO
-    UA_UNLOCK(&server->serviceMutex);
     /* Load nodes and references generated from the XML ns0 definition */
     retVal |= namespace0_generated(server);
-    UA_LOCK(&server->serviceMutex);
 #else
     /* Create a minimal server object */
     retVal |= minimalServerObject(server);

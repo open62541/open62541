@@ -81,9 +81,9 @@ getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
 UA_StatusCode
 UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
                                     UA_PublishedDataSetConfig *config) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = getPublishedDataSetConfig(server, pds, config);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -92,12 +92,12 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds,
                                       UA_DataSetMetaDataType *metaData) {
     if(!metaData)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_findPDSbyId(server, pds);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(currentPDS)
         res = UA_DataSetMetaDataType_copy(&currentPDS->dataSetMetaData, metaData);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -414,10 +414,10 @@ UA_DataSetFieldResult
 UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
                           const UA_DataSetFieldConfig *fieldConfig,
                           UA_NodeId *fieldIdentifier) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_DataSetFieldResult res =
         UA_DataSetField_create(server, publishedDataSet, fieldConfig, fieldIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -510,17 +510,17 @@ UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
 
 UA_DataSetFieldResult
 UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_DataSetFieldResult res;
     memset(&res, 0, sizeof(UA_DataSetFieldResult));
     UA_DataSetField *field = UA_DataSetField_findDSFbyId(server, dsf);
     if(!field) {
         res.result = UA_STATUSCODE_BADNOTFOUND;
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return res;
     }
     res = UA_DataSetField_remove(server, field);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -545,12 +545,12 @@ UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsf,
                                 UA_DataSetFieldConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_DataSetField *currentDataSetField = UA_DataSetField_findDSFbyId(server, dsf);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(currentDataSetField)
         res = UA_DataSetFieldConfig_copy(&currentDataSetField->config, config);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -718,10 +718,10 @@ UA_AddPublishedDataSetResult
 UA_Server_addPublishedDataSet(UA_Server *server,
                               const UA_PublishedDataSetConfig *publishedDataSetConfig,
                               UA_NodeId *pdsIdentifier) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_AddPublishedDataSetResult res =
         UA_PublishedDataSet_create(server, publishedDataSetConfig, pdsIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -762,14 +762,14 @@ UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedData
 
 UA_StatusCode
 UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_findPDSbyId(server, pds);
     if(!currentPDS) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_StatusCode res = UA_PublishedDataSet_remove(server, currentPDS);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 

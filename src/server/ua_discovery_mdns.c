@@ -19,7 +19,7 @@
 
 #include "../deps/mp_printf.h"
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
 /* inet_ntoa is deprecated on MSVC but used for compatibility */
 # define _WINSOCK_DEPRECATED_NO_WARNINGS
 # include <winsock2.h>
@@ -132,7 +132,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
 
 /* see http://stackoverflow.com/a/10838854/869402 */
 static IP_ADAPTER_ADDRESSES *
@@ -178,7 +178,7 @@ getInterfaces(UA_DiscoveryManager *dm) {
     return adapter_addresses;
 }
 
-#endif /* _WIN32 */
+#endif /* UA_ARCHITECTURE_WIN32 */
 
 UA_StatusCode
 UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
@@ -523,7 +523,7 @@ mdns_set_address_record_if(UA_DiscoveryManager *dm, const char *fullServiceDomai
 }
 
 /* Loop over network interfaces and run set_address_record on each */
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
 
 void mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
                              const char *localDomain) {
@@ -617,7 +617,7 @@ mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
     /* Clean up */
     freeifaddrs(ifaddr);
 }
-#else /* _WIN32 */
+#else /* UA_ARCHITECTURE_WIN32 */
 
 void
 mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
@@ -634,7 +634,7 @@ mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
     }
 }
 
-#endif /* _WIN32 */
+#endif /* UA_ARCHITECTURE_WIN32 */
 
 typedef enum {
     UA_DISCOVERY_TCP,    /* OPC UA TCP mapping */
@@ -1068,14 +1068,14 @@ void
 UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
         getServerComponentByName(server, UA_STRING("discovery"));
     if(dm) {
         dm->serverOnNetworkCallback = cb;
         dm->serverOnNetworkCallbackData = data;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static void
@@ -1298,10 +1298,9 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String *servername,
 
     /* The first 63 characters of the hostname (or less) */
     size_t maxHostnameLen = UA_MIN(hostnameLen, 63);
-    char localDomain[65];
+    char localDomain[71];
     memcpy(localDomain, hostname->data, maxHostnameLen);
-    localDomain[maxHostnameLen] = '.';
-    localDomain[maxHostnameLen+1] = '\0';
+    strcpy(localDomain + maxHostnameLen, ".local.");
 
     /* [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname]. */
     r = mdnsd_unique(dm->mdnsDaemon, fullServiceDomain,

@@ -31,7 +31,7 @@ UA_fakeSleep(UA_UInt32 duration) {
 
 void
 UA_realSleep(UA_UInt32 duration) {
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     Sleep(duration);
 #else
     UA_UInt32 sec = duration / 1000;

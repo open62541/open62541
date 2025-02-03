@@ -98,9 +98,9 @@ createEvent(UA_Server *server, const UA_NodeId eventType, UA_NodeId *outNodeId) 
 UA_StatusCode
 UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                       UA_NodeId *outNodeId) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = createEvent(server, eventType, outNodeId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -433,10 +433,10 @@ UA_StatusCode
 UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                        const UA_NodeId origin, UA_ByteString *outEventId,
                        const UA_Boolean deleteEventNode) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res =
         triggerEvent(server, eventNodeId, origin, outEventId, deleteEventNode);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */

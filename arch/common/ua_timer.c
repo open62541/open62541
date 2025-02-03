@@ -204,9 +204,7 @@ processEntryCallback(void *context, UA_TimerEntry *te) {
      * Instead, whenever t->processTree != NULL, the entries are only marked for
      * deletion by setting elm->callback to NULL. */
     if(te->callback) {
-        UA_UNLOCK(&t->timerMutex);
         te->callback(te->application, te->data);
-        UA_LOCK(&t->timerMutex);
     }
 
     /* Remove and free the entry if marked for deletion or a one-time timed

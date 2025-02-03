@@ -110,9 +110,7 @@ processDelayed(UA_EventLoopPOSIX *el) {
          * StatusCode during "add" and don't validate. So test here. */
         if(!dc->callback)
             continue;
-        UA_UNLOCK(&el->elMutex);
         dc->callback(dc->application, dc->context);
-        UA_LOCK(&el->elMutex);
     }
 }
 
@@ -148,9 +146,7 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_EventSource *es = el->eventLoop.eventSources;
     while(es) {
-        UA_UNLOCK(&el->elMutex);
         res |= es->start(es);
-        UA_LOCK(&el->elMutex);
         es = es->next;
     }
 
@@ -213,9 +209,7 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
     for(; es; es = es->next) {
         if(es->state == UA_EVENTSOURCESTATE_STARTING ||
            es->state == UA_EVENTSOURCESTATE_STARTED) {
-            UA_UNLOCK(&el->elMutex);
             es->stop(es);
-            UA_LOCK(&el->elMutex);
         }
     }
 
@@ -255,9 +249,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     UA_DateTime dateBefore =
         el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
 
-    UA_UNLOCK(&el->elMutex);
     UA_DateTime dateNext = UA_Timer_process(&el->timer, dateBefore);
-    UA_LOCK(&el->elMutex);
 
     /* Process delayed callbacks here:
      * - Removes closed sockets already here instead of polling them again.
@@ -403,9 +395,7 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     /* Deregister and delete all the EventSources */
     while(el->eventLoop.eventSources) {
         UA_EventSource *es = el->eventLoop.eventSources;
-        UA_UNLOCK(&el->elMutex);
         UA_EventLoopPOSIX_deregisterEventSource(el, es);
-        UA_LOCK(&el->elMutex);
         es->free(es);
     }
 
@@ -415,7 +405,7 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     /* Process remaining delayed callbacks */
     processDelayed(el);
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     /* Stop the Windows networking subsystem */
     WSACleanup();
 #endif
@@ -425,6 +415,18 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     UA_LOCK_DESTROY(&el->elMutex);
     UA_free(el);
     return UA_STATUSCODE_GOOD;
+}
+
+static void
+UA_EventLoopPOSIX_lock(UA_EventLoop *public_el) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_LOCK(&el->elMutex);
+}
+
+static void
+UA_EventLoopPOSIX_unlock(UA_EventLoop *public_el) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_UNLOCK(&el->elMutex);
 }
 
 UA_EventLoop *
@@ -437,7 +439,7 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     UA_LOCK_INIT(&el->elMutex);
     UA_Timer_init(&el->timer);
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     /* Start the WSA networking subsystem on Windows */
     WSADATA wsaData;
     WSAStartup(MAKEWORD(2, 2), &wsaData);
@@ -471,6 +473,9 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     el->eventLoop.deregisterEventSource =
         (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))
         UA_EventLoopPOSIX_deregisterEventSource;
+
+    el->eventLoop.lock = UA_EventLoopPOSIX_lock;
+    el->eventLoop.unlock = UA_EventLoopPOSIX_unlock;
 
     return &el->eventLoop;
 }
@@ -519,7 +524,7 @@ cmpFD(const UA_FD *a, const UA_FD *b) {
 
 UA_StatusCode
 UA_EventLoopPOSIX_setNonBlocking(UA_FD sockfd) {
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
     int opts = fcntl(sockfd, F_GETFL);
     if(opts < 0 || fcntl(sockfd, F_SETFL, opts | O_NONBLOCK) < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -545,7 +550,7 @@ UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd) {
 UA_StatusCode
 UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
     int enableReuseVal = 1;
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
     int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
                             (const char*)&enableReuseVal, sizeof(enableReuseVal));
     res |= UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,

@@ -585,9 +585,9 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
 
     UA_MonitoredItemCreateResult result;
     UA_MonitoredItemCreateResult_init(&result);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Operation_CreateMonitoredItem(server, &server->adminSession, &cmc, &item, &result);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return result;
 }
 
@@ -810,16 +810,16 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 
 UA_StatusCode
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_MonitoredItem *mon, *mon_tmp;
     LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry, mon_tmp) {
         if(mon->monitoredItemId != monitoredItemId)
             continue;
         UA_MonitoredItem_delete(server, mon);
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_GOOD;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 }
 

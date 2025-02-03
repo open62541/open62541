@@ -1,13 +1,11 @@
 name: "Coverage Test"
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, 1.* ]
     tags:
       - v1.*
   pull_request:
-    branches: [ main, master ]
-    tags:
-      - v1.*
+    branches: [ main, master, 1.* ]
 
 jobs:
   run:

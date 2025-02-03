@@ -343,7 +343,12 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 
 /**
  * Locking for Multithreading
- * -------------------------- */
+ * --------------------------
+ * If locking is enabled, the locks must be reentrant. That is, the same thread
+ * must be able to take the same lock several times. This is required because we
+ * sometimes call a user-defined callback when the server-lock is still held.
+ * The user-defined code then should be able to call (public) methods which
+ * again take the server-lock. */
 
 #if UA_MULTITHREADING < 100
 
@@ -356,6 +361,7 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 #elif defined(UA_ARCHITECTURE_WIN32)
 
 typedef struct {
+    /* Critical sections on win32 are always recursive */
     CRITICAL_SECTION mutex;
     int mutexCounter;
 } UA_Lock;
@@ -374,18 +380,18 @@ UA_LOCK_DESTROY(UA_Lock *lock) {
 static UA_INLINE void
 UA_LOCK(UA_Lock *lock) {
     EnterCriticalSection(&lock->mutex);
-    UA_assert(++(lock->mutexCounter) == 1);
+    ++lock->mutexCounter;
 }
 
 static UA_INLINE void
 UA_UNLOCK(UA_Lock *lock) {
-    UA_assert(--(lock->mutexCounter) == 0);
+    --lock->mutexCounter;
     LeaveCriticalSection(&lock->mutex);
 }
 
 static UA_INLINE void
 UA_LOCK_ASSERT(UA_Lock *lock, int num) {
-    UA_assert(lock->mutexCounter == num);
+    UA_assert(num <= 0 || lock->mutexCounter > 0);
 }
 
 #elif defined(UA_ARCHITECTURE_POSIX)
@@ -397,11 +403,13 @@ typedef struct {
     int mutexCounter;
 } UA_Lock;
 
-#define UA_LOCK_STATIC_INIT {PTHREAD_MUTEX_INITIALIZER, 0}
-
 static UA_INLINE void
 UA_LOCK_INIT(UA_Lock *lock) {
-    pthread_mutex_init(&lock->mutex, NULL);
+    pthread_mutexattr_t mattr;
+    pthread_mutexattr_init(&mattr);
+    pthread_mutexattr_settype(&mattr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&lock->mutex, &mattr);
+    pthread_mutexattr_destroy(&mattr);
     lock->mutexCounter = 0;
 }
 
@@ -413,20 +421,18 @@ UA_LOCK_DESTROY(UA_Lock *lock) {
 static UA_INLINE void
 UA_LOCK(UA_Lock *lock) {
     pthread_mutex_lock(&lock->mutex);
-    UA_assert(lock->mutexCounter == 0);
     lock->mutexCounter++;
 }
 
 static UA_INLINE void
 UA_UNLOCK(UA_Lock *lock) {
-    UA_assert(lock->mutexCounter == 1);
     lock->mutexCounter--;
     pthread_mutex_unlock(&lock->mutex);
 }
 
 static UA_INLINE void
 UA_LOCK_ASSERT(UA_Lock *lock, int num) {
-    UA_assert(lock->mutexCounter == num);
+    UA_assert(num <= 0 || lock->mutexCounter > 0);
 }
 
 #endif

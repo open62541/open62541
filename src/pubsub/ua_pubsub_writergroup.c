@@ -72,9 +72,7 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
 
     /* Run once after creation. The Publish callback itself takes the server
      * mutex. So we release it first. */
-    UA_UNLOCK(&server->serviceMutex);
     UA_WriterGroup_publishCallback(server, wg);
-    UA_LOCK(&server->serviceMutex);
     return retval;
 }
 
@@ -213,10 +211,10 @@ UA_StatusCode
 UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                          const UA_WriterGroupConfig *writerGroupConfig,
                          UA_NodeId *writerGroupIdentifier) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = UA_WriterGroup_create(server, connection, writerGroupConfig,
                                               writerGroupIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -290,14 +288,14 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
 
 UA_StatusCode
 UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_StatusCode res = UA_WriterGroup_remove(server, wg);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -452,14 +450,14 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
 UA_StatusCode
 UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
                                          const UA_NodeId writerGroup) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_StatusCode res = UA_WriterGroup_freezeConfiguration(server, wg);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -489,21 +487,21 @@ UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
 UA_StatusCode
 UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
                                            const UA_NodeId writerGroup) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(!wg) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_StatusCode res = UA_WriterGroup_unfreezeConfiguration(server, wg);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
 UA_StatusCode
 UA_Server_setWriterGroupOperational(UA_Server *server,
                                     const UA_NodeId writerGroup) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(wg) {
@@ -512,7 +510,7 @@ UA_Server_setWriterGroupOperational(UA_Server *server,
             res = UA_PubSubKeyStorage_activateKeyToChannelContext(
                 server, wg->identifier, wg->config.securityGroupId);
             if(res != UA_STATUSCODE_GOOD) {
-                UA_UNLOCK(&server->serviceMutex);
+                unlockServer(server);
                 return res;
             }
         }
@@ -521,20 +519,20 @@ UA_Server_setWriterGroupOperational(UA_Server *server,
         res = UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL,
                                             UA_STATUSCODE_GOOD);
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
 UA_StatusCode
 UA_Server_setWriterGroupDisabled(UA_Server *server,
                                  const UA_NodeId writerGroup) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     if(wg)
         res = UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_DISABLED,
                                             UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -560,12 +558,12 @@ UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId writerGroup,
                                UA_WriterGroupConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_WriterGroup *currentWG = UA_WriterGroup_findWGbyId(server, writerGroup);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(currentWG)
         res = UA_WriterGroupConfig_copy(&currentWG->config, config);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -620,15 +618,15 @@ UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
 UA_StatusCode
 UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdentifier,
                                   const UA_WriterGroupConfig *config) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
     if(!wg) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
     UA_StatusCode res = UA_WriterGroup_updateConfig(server, wg, config);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -637,7 +635,7 @@ UA_Server_WriterGroup_getState(UA_Server *server, UA_NodeId writerGroupIdentifie
                                UA_PubSubState *state) {
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_WriterGroup *currentWriterGroup =
         UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -646,22 +644,22 @@ UA_Server_WriterGroup_getState(UA_Server *server, UA_NodeId writerGroupIdentifie
     } else {
         res = UA_STATUSCODE_BADNOTFOUND;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
 UA_StatusCode
 UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIdentifier){
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     //search WriterGroup ToDo create lookup table for more efficiency
     UA_WriterGroup *writerGroup;
     writerGroup = UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
     if(writerGroup == NULL){
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     UA_WriterGroup_publishCallback(server, writerGroup);
     return UA_STATUSCODE_GOOD;
 }
@@ -669,16 +667,16 @@ UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIden
 UA_StatusCode
 UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGroupId,
                                     UA_DateTime *timestamp){
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     //search WriterGroup ToDo create lookup table for more efficiency
     UA_WriterGroup *writerGroup;
     writerGroup = UA_WriterGroup_findWGbyId(server, writerGroupId);
     if(writerGroup == NULL){
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     *timestamp = writerGroup->lastPublishTimeStamp;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
@@ -740,10 +738,10 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
                                        const UA_ByteString signingKey,
                                        const UA_ByteString encryptingKey,
                                        const UA_ByteString keyNonce) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = setWriterGroupEncryptionKeys(server, writerGroup, securityTokenId,
                                                      signingKey, encryptingKey, keyNonce);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 #endif
@@ -1210,7 +1208,7 @@ sendNetworkMessageBinary(UA_Server *server, UA_PubSubConnection *connection, UA_
 
 static void
 sampleOffsetPublishingValues(UA_Server *server, UA_WriterGroup *wg) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     size_t fieldPos = 0;
     UA_DataSetWriter *dsw;
@@ -1249,12 +1247,13 @@ sampleOffsetPublishingValues(UA_Server *server, UA_WriterGroup *wg) {
         }
     }
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static void
 publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
                    UA_PubSubConnection *connection) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_assert(writerGroup->configurationFrozen);
 
     /* Fixed size but no direct value access. Sample to get recent values into
@@ -1360,6 +1359,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_assert(writerGroup != NULL);
     UA_assert(server != NULL);
 
+    lockServer(server);
+
     UA_LOG_DEBUG_WRITERGROUP(server->config.logging, writerGroup, "Publish Callback");
 
     /* Find the connection associated with the writer */
@@ -1367,24 +1368,22 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     if(!connection) {
         UA_LOG_ERROR_WRITERGROUP(server->config.logging, writerGroup,
                                  "Publish failed. PubSubConnection invalid");
-        UA_LOCK(&server->serviceMutex);
         UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_ERROR,
                                       UA_STATUSCODE_BADNOTCONNECTED);
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
     /* Realtime path - update the buffer message and send directly */
     if(writerGroup->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
         publishWithOffsets(server, writerGroup, connection);
+        unlockServer(server);
         return;
     }
 
-    UA_LOCK(&server->serviceMutex);
-
     /* Nothing to do? */
     if(writerGroup->writersCount == 0) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
@@ -1475,7 +1474,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_DataSetMessage_clear(&dsmStore[i]);
     }
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 #endif /* UA_ENABLE_PUBSUB */

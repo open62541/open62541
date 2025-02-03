@@ -81,9 +81,9 @@ START_TEST(readSpeed) {
         /* Set the NodeId */
         rvi.nodeId = readNodeIds[i % READNODES];
 
-        UA_LOCK(&server->serviceMutex);
+        lockServer(server);
         Service_Read(server, &server->adminSession, &request, &res);
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
 
         UA_ReadResponse_clear(&res);
     }
@@ -161,9 +161,9 @@ START_TEST(readSpeedWithEncoding) {
         size_t offset = 0;
         retval |= UA_decodeBinaryInternal(&request_msg, &offset, &req, &UA_TYPES[UA_TYPES_READREQUEST], NULL);
 
-        UA_LOCK(&server->serviceMutex);
+        lockServer(server);
         Service_Read(server, &server->adminSession, &req, &res);
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
 
         UA_Byte *rpos = response_msg.data;
         const UA_Byte *rend = &response_msg.data[response_msg.length];

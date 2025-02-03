@@ -232,9 +232,8 @@ static void
 onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
        const UA_NodeId *nodeid, void *context,
        const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_LOCK(&server->serviceMutex);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     onReadLocked(server, sessionId, sessionContext, nodeid, context, range, data);
-    UA_UNLOCK(&server->serviceMutex);
 }
 
 static void
@@ -293,9 +292,8 @@ static void
 onWrite(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         const UA_NodeId *nodeId, void *nodeContext,
         const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_LOCK(&server->serviceMutex);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     onWriteLocked(server, sessionId, sessionContext, nodeId, nodeContext, range, data);
-    UA_UNLOCK(&server->serviceMutex);
 }
 
 static UA_StatusCode
@@ -849,13 +847,11 @@ addPubSubConnectionAction(UA_Server *server,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addPubSubConnectionLocked(server, sessionId, sessionHandle,
-                                                  methodId, methodContext,
-                                                  objectId, objectContext,
-                                                  inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    return addPubSubConnectionLocked(server, sessionId, sessionHandle,
+                                     methodId, methodContext,
+                                     objectId, objectContext,
+                                     inputSize, input, outputSize, output);
 }
 
 static UA_StatusCode
@@ -978,12 +974,10 @@ addDataSetReaderAction(UA_Server *server,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output){
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addDataSetReaderLocked(server, sessionId, sessionHandle,
-                                               methodId, methodContext, objectId, objectContext,
-                                               inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    return addDataSetReaderLocked(server, sessionId, sessionHandle,
+                                  methodId, methodContext, objectId, objectContext,
+                                  inputSize, input, outputSize, output);
 }
 
 static UA_StatusCode
@@ -1504,26 +1498,25 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
 
 static UA_StatusCode
 addWriterGroupAction(UA_Server *server,
-                             const UA_NodeId *sessionId, void *sessionHandle,
-                             const UA_NodeId *methodId, void *methodContext,
-                             const UA_NodeId *objectId, void *objectContext,
-                             size_t inputSize, const UA_Variant *input,
-                             size_t outputSize, UA_Variant *output){
-    UA_LOCK(&server->serviceMutex);
+                     const UA_NodeId *sessionId, void *sessionHandle,
+                     const UA_NodeId *methodId, void *methodContext,
+                     const UA_NodeId *objectId, void *objectContext,
+                     size_t inputSize, const UA_Variant *input,
+                     size_t outputSize, UA_Variant *output){
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_WriterGroupDataType *writerGroup = ((UA_WriterGroupDataType *) input[0].data);
     UA_NodeId writerGroupId;
     retVal |= addWriterGroupConfig(server, *objectId, writerGroup, &writerGroupId);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER, "addWriterGroup failed");
-        UA_UNLOCK(&server->serviceMutex);
         return retVal;
     }
     // TODO: Need to handle the UA_Server_setWriterGroupOperational based on the
     // status variable in information model
 
     UA_Variant_setScalarCopy(output, &writerGroupId, &UA_TYPES[UA_TYPES_NODEID]);
-    UA_UNLOCK(&server->serviceMutex);
     return retVal;
 }
 
@@ -1609,12 +1602,10 @@ addReserveIdsAction(UA_Server *server,
                     const UA_NodeId *objectId, void *objectContext,
                     size_t inputSize, const UA_Variant *input,
                     size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addReserveIdsLocked(server, sessionId, sessionHandle,
-                                            methodId, methodContext, objectId, objectContext,
-                                            inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    return addReserveIdsLocked(server, sessionId, sessionHandle,
+                               methodId, methodContext, objectId, objectContext,
+                               inputSize, input, outputSize, output);
 }
 
 /**********************************************/
@@ -1656,22 +1647,21 @@ addReaderGroupAction(UA_Server *server,
                      const UA_NodeId *methodId, void *methodContext,
                      const UA_NodeId *objectId, void *objectContext,
                      size_t inputSize, const UA_Variant *input,
-                     size_t outputSize, UA_Variant *output){
-    UA_LOCK(&server->serviceMutex);
+                     size_t outputSize, UA_Variant *output) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ReaderGroupDataType *readerGroup = ((UA_ReaderGroupDataType *) input->data);
     UA_NodeId readerGroupId;
     retVal |= addReaderGroupConfig(server, *objectId, readerGroup, &readerGroupId);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER, "addReaderGroup failed");
-        UA_UNLOCK(&server->serviceMutex);
         return retVal;
     }
     // TODO: Need to handle the UA_Server_setReaderGroupOperational based on the
     // status variable in information model
 
     UA_Variant_setScalarCopy(output, &readerGroupId, &UA_TYPES[UA_TYPES_NODEID]);
-    UA_UNLOCK(&server->serviceMutex);
     return retVal;
 }
 
@@ -1910,12 +1900,10 @@ addDataSetWriterAction(UA_Server *server,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addDataSetWriterLocked(server, sessionId, sessionHandle,
-                                               methodId, methodContext, objectId, objectContext,
-                                               inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    return addDataSetWriterLocked(server, sessionId, sessionHandle,
+                                  methodId, methodContext, objectId, objectContext,
+                                  inputSize, input, outputSize, output);
 }
 
 static UA_StatusCode
@@ -2029,13 +2017,11 @@ setSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
                       const UA_NodeId *methodId, void *methodContext,
                       const UA_NodeId *objectId, void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = setSecurityKeysLocked(server, sessionId, sessionHandle,
-                                              methodId, methodContext,
-                                              objectId, objectContext, inputSize,
-                                              input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    return setSecurityKeysLocked(server, sessionId, sessionHandle,
+                                 methodId, methodContext,
+                                 objectId, objectContext, inputSize,
+                                 input, outputSize, output);
 }
 
 static UA_StatusCode
@@ -2174,13 +2160,11 @@ getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
                       const UA_NodeId *methodId, void *methodContext,
                       const UA_NodeId *objectId, void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = getSecurityKeysLocked(server, sessionId, sessionHandle,
-                                              methodId, methodContext,
-                                              objectId, objectContext, inputSize,
-                                              input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    return getSecurityKeysLocked(server, sessionId, sessionHandle,
+                                 methodId, methodContext,
+                                 objectId, objectContext, inputSize,
+                                 input, outputSize, output);
 }
 #endif
 
@@ -2193,7 +2177,7 @@ connectionTypeDestructor(UA_Server *server,
                          const UA_NodeId *sessionId, void *sessionContext,
                          const UA_NodeId *typeId, void *typeContext,
                          const UA_NodeId *nodeId, void **nodeContext) {
-    UA_LOCK(&server->serviceMutex);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
                 "Connection destructor called!");
     UA_NodeId publisherIdNode =
@@ -2203,7 +2187,6 @@ connectionTypeDestructor(UA_Server *server,
     getNodeContext(server, publisherIdNode, (void **)&ctx);
     if(!UA_NodeId_isNull(&publisherIdNode))
         UA_free(ctx);
-    UA_UNLOCK(&server->serviceMutex);
 }
 
 static void
@@ -2211,9 +2194,9 @@ writerGroupTypeDestructor(UA_Server *server,
                           const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *typeId, void *typeContext,
                           const UA_NodeId *nodeId, void **nodeContext) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
                 "WriterGroup destructor called!");
-    UA_LOCK(&server->serviceMutex);
     UA_NodeId intervalNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishingInterval"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
@@ -2221,7 +2204,6 @@ writerGroupTypeDestructor(UA_Server *server,
     getNodeContext(server, intervalNode, (void **)&ctx);
     if(!UA_NodeId_isNull(&intervalNode))
         UA_free(ctx);
-    UA_UNLOCK(&server->serviceMutex);
 }
 
 static void
@@ -2238,9 +2220,9 @@ dataSetWriterTypeDestructor(UA_Server *server,
                             const UA_NodeId *sessionId, void *sessionContext,
                             const UA_NodeId *typeId, void *typeContext,
                             const UA_NodeId *nodeId, void **nodeContext) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
                 "DataSetWriter destructor called!");
-    UA_LOCK(&server->serviceMutex);
     UA_NodeId dataSetWriterIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
@@ -2248,7 +2230,6 @@ dataSetWriterTypeDestructor(UA_Server *server,
     getNodeContext(server, dataSetWriterIdNode, (void **)&ctx);
     if(!UA_NodeId_isNull(&dataSetWriterIdNode))
         UA_free(ctx);
-    UA_UNLOCK(&server->serviceMutex);
 }
 
 static void
@@ -2256,9 +2237,9 @@ dataSetReaderTypeDestructor(UA_Server *server,
                             const UA_NodeId *sessionId, void *sessionContext,
                             const UA_NodeId *typeId, void *typeContext,
                             const UA_NodeId *nodeId, void **nodeContext) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
                 "DataSetReader destructor called!");
-    UA_LOCK(&server->serviceMutex);
     UA_NodeId publisherIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
@@ -2266,17 +2247,16 @@ dataSetReaderTypeDestructor(UA_Server *server,
     getNodeContext(server, publisherIdNode, (void **)&ctx);
     if(!UA_NodeId_isNull(&publisherIdNode))
         UA_free(ctx);
-    UA_UNLOCK(&server->serviceMutex);
 }
 
 static void
 publishedDataItemsTypeDestructor(UA_Server *server,
-                            const UA_NodeId *sessionId, void *sessionContext,
-                            const UA_NodeId *typeId, void *typeContext,
-                            const UA_NodeId *nodeId, void **nodeContext) {
+                                 const UA_NodeId *sessionId, void *sessionContext,
+                                 const UA_NodeId *typeId, void *typeContext,
+                                 const UA_NodeId *nodeId, void **nodeContext) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
                 "PublishedDataItems destructor called!");
-    UA_LOCK(&server->serviceMutex);
     void *childContext;
     UA_NodeId node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
@@ -2296,7 +2276,6 @@ publishedDataItemsTypeDestructor(UA_Server *server,
     getNodeContext(server, node, (void**)&childContext);
     if(!UA_NodeId_isNull(&node))
         UA_free(childContext);
-    UA_UNLOCK(&server->serviceMutex);
 }
 
 static void
@@ -2304,9 +2283,9 @@ standaloneSubscribedDataSetTypeDestructor(UA_Server *server,
                             const UA_NodeId *sessionId, void *sessionContext,
                             const UA_NodeId *typeId, void *typeContext,
                             const UA_NodeId *nodeId, void **nodeContext) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
                 "Standalone SubscribedDataSet destructor called!");
-    UA_LOCK(&server->serviceMutex);
     void *childContext;
     UA_NodeId node =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
@@ -2320,7 +2299,6 @@ standaloneSubscribedDataSetTypeDestructor(UA_Server *server,
     getNodeContext(server, node, (void**)&childContext);
     if(!UA_NodeId_equal(&UA_NODEID_NULL , &node))
         UA_free(childContext);
-    UA_UNLOCK(&server->serviceMutex);
 }
 
 /*************************************/
@@ -2338,11 +2316,10 @@ UA_loadPubSubConfigMethodCallback(UA_Server *server,
                                   const UA_NodeId *objectId, void *objectContext,
                                   size_t inputSize, const UA_Variant *input,
                                   size_t outputSize, UA_Variant *output) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(inputSize == 1) {
-        UA_LOCK(&server->serviceMutex);
         UA_ByteString *inputStr = (UA_ByteString*)input->data;
         UA_StatusCode res = UA_PubSubManager_loadPubSubConfigFromByteString(server, *inputStr);
-        UA_UNLOCK(&server->serviceMutex);
         return res;
     } else if(inputSize > 1) {
         return UA_STATUSCODE_BADTOOMANYARGUMENTS;
@@ -2360,9 +2337,8 @@ UA_deletePubSubConfigMethodCallback(UA_Server *server,
                                     const UA_NodeId *objectId, void *objectContext,
                                     size_t inputSize, const UA_Variant *input,
                                     size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_PubSubManager_delete(server, &server->pubSubManager);
-    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 

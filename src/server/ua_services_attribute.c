@@ -74,18 +74,14 @@ attributeId2AttributeMask(UA_AttributeId id) {
 static UA_UInt32
 getUserWriteMask(UA_Server *server, const UA_Session *session,
                  const UA_NodeHead *head) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(session == &server->adminSession)
         return 0xFFFFFFFF; /* the local admin user has all rights */
-    UA_UInt32 mask = head->writeMask;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_UNLOCK(&server->serviceMutex);
-    mask &= server->config.accessControl.
+    return head->writeMask & server->config.accessControl.
         getUserRightsMask(server, &server->config.accessControl,
                           session ? &session->sessionId : NULL,
                           session ? session->sessionHandle : NULL,
                           &head->nodeId, head->context);
-    UA_LOCK(&server->serviceMutex);
-    return mask;
 }
 
 static UA_Byte
@@ -99,36 +95,27 @@ getAccessLevel(UA_Server *server, const UA_Session *session,
 static UA_Byte
 getUserAccessLevel(UA_Server *server, const UA_Session *session,
                    const UA_VariableNode *node) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(session == &server->adminSession)
         return 0xFF; /* the local admin user has all rights */
-    UA_Byte retval = node->accessLevel;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_UNLOCK(&server->serviceMutex);
-    retval &= server->config.accessControl.
+    return node->accessLevel & server->config.accessControl.
         getUserAccessLevel(server, &server->config.accessControl,
                            session ? &session->sessionId : NULL,
                            session ? session->sessionHandle : NULL,
                            &node->head.nodeId, node->head.context);
-    UA_LOCK(&server->serviceMutex);
-    return retval;
 }
 
 static UA_Boolean
 getUserExecutable(UA_Server *server, const UA_Session *session,
                   const UA_MethodNode *node) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(session == &server->adminSession)
         return true; /* the local admin user has all rights */
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_UNLOCK(&server->serviceMutex);
-    UA_Boolean userExecutable = node->executable;
-    userExecutable &=
-        server->config.accessControl.
+    return node->executable & server->config.accessControl.
         getUserExecutable(server, &server->config.accessControl,
                           session ? &session->sessionId : NULL,
                           session ? session->sessionHandle : NULL,
                           &node->head.nodeId, node->head.context);
-    UA_LOCK(&server->serviceMutex);
-    return userExecutable;
 }
 
 /****************/
@@ -165,13 +152,11 @@ readValueAttributeFromNode(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     /* Update the value by the user callback */
     if(vn->value.data.callback.onRead) {
-        UA_UNLOCK(&server->serviceMutex);
         vn->value.data.callback.onRead(server,
                                        session ? &session->sessionId : NULL,
                                        session ? session->sessionHandle : NULL,
                                        &vn->head.nodeId, vn->head.context, rangeptr,
                                        &vn->value.data.value);
-        UA_LOCK(&server->serviceMutex);
         vn = (const UA_VariableNode*)
             UA_NODESTORE_GET_SELECTIVE(server, &vn->head.nodeId,
                                        UA_NODEATTRIBUTESMASK_VALUE,
@@ -209,14 +194,12 @@ readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
                                   timestamps == UA_TIMESTAMPSTORETURN_BOTH);
     UA_DataValue v2;
     UA_DataValue_init(&v2);
-    UA_UNLOCK(&server->serviceMutex);
     UA_StatusCode retval = vn->value.dataSource.
         read(server,
              session ? &session->sessionId : NULL,
              session ? session->sessionHandle : NULL,
              &vn->head.nodeId, vn->head.context,
              sourceTimeStamp, rangeptr, &v2);
-    UA_LOCK(&server->serviceMutex);
     if(v2.hasValue && v2.value.storageType == UA_VARIANT_DATA_NODELETE) {
         retval = UA_DataValue_copy(&v2, v);
         UA_DataValue_clear(&v2);
@@ -735,9 +718,9 @@ readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
 UA_DataValue
 UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_DataValue dv = readWithSession(server, &server->adminSession, item, timestamps);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return dv;
 }
 
@@ -746,9 +729,9 @@ UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
 UA_StatusCode
 __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
                  const UA_AttributeId attributeId, void *v) {
-   UA_LOCK(&server->serviceMutex);
+   lockServer(server);
    UA_StatusCode retval = readWithReadValue(server, nodeId, attributeId, v);
-   UA_UNLOCK(&server->serviceMutex);
+   unlockServer(server);
    return retval;
 }
 
@@ -793,9 +776,9 @@ UA_StatusCode
 UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              const UA_QualifiedName propertyName,
                              UA_Variant *value) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode retval = readObjectProperty(server, objectId, propertyName, value);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retval;
 }
 
@@ -1486,21 +1469,17 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
             /* Callback after writing */
             if(retval == UA_STATUSCODE_GOOD &&
                node->value.data.callback.onWrite) {
-                UA_UNLOCK(&server->serviceMutex);
                 node->value.data.callback.
                     onWrite(server, &session->sessionId, session->sessionHandle,
                             &node->head.nodeId, node->head.context,
                             rangeptr, &adjustedValue);
-                UA_LOCK(&server->serviceMutex);
             }
         } else if(node->value.dataSource.write) {
             /* Write via the datasource callback */
-            UA_UNLOCK(&server->serviceMutex);
             retval = node->value.dataSource.
                 write(server, &session->sessionId, session->sessionHandle,
                       &node->head.nodeId, node->head.context,
                       rangeptr, &adjustedValue);
-            UA_LOCK(&server->serviceMutex);
         }
         break;
 
@@ -1532,12 +1511,10 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     if(retval == UA_STATUSCODE_GOOD &&
        node->head.nodeClass == UA_NODECLASS_VARIABLE &&
        server->config.historyDatabase.setValue) {
-        UA_UNLOCK(&server->serviceMutex);
         server->config.historyDatabase.
             setValue(server, server->config.historyDatabase.context,
                      &session->sessionId, session->sessionHandle,
                      &node->head.nodeId, node->historizing, &adjustedValue);
-        UA_LOCK(&server->serviceMutex);
     }
 #endif
 
@@ -1855,9 +1832,9 @@ Service_Write(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Operation_Write(server, &server->adminSession, NULL, value, &res);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1866,10 +1843,10 @@ UA_StatusCode
 __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId,
                   const UA_DataType *attr_type, const void *attr) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = writeAttribute(server, &server->adminSession,
                                        nodeId, attributeId, attr, attr_type);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -2008,7 +1985,6 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                                     data, historyDataType);
         historyData[i] = data;
     }
-    UA_UNLOCK(&server->serviceMutex);
     readHistory(server, server->config.historyDatabase.context,
                 &session->sessionId, session->sessionHandle,
                 &request->requestHeader,
@@ -2017,7 +1993,6 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                 request->releaseContinuationPoints,
                 request->nodesToReadSize, request->nodesToRead,
                 response, historyData);
-    UA_LOCK(&server->serviceMutex);
     UA_free(historyData);
 }
 
@@ -2053,14 +2028,12 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
                 response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
                 continue;
             }
-            UA_UNLOCK(&server->serviceMutex);
             server->config.historyDatabase.
                 updateData(server, server->config.historyDatabase.context,
                            &session->sessionId, session->sessionHandle,
                            &request->requestHeader,
                            (UA_UpdateDataDetails*)updateDetailsData,
                            &response->results[i]);
-            UA_LOCK(&server->serviceMutex);
             continue;
         }
 
@@ -2069,14 +2042,12 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
                 response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
                 continue;
             }
-            UA_UNLOCK(&server->serviceMutex);
             server->config.historyDatabase.
                 deleteRawModified(server, server->config.historyDatabase.context,
                                   &session->sessionId, session->sessionHandle,
                                   &request->requestHeader,
                                   (UA_DeleteRawModifiedDetails*)updateDetailsData,
                                   &response->results[i]);
-            UA_LOCK(&server->serviceMutex);
             continue;
         }
 
@@ -2090,9 +2061,9 @@ UA_StatusCode
 UA_Server_writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
                               const UA_QualifiedName propertyName,
                               const UA_Variant value) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode retVal = writeObjectProperty(server, objectId, propertyName, value);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retVal;
 }
 
@@ -2142,10 +2113,10 @@ UA_StatusCode UA_EXPORT
 UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId,
                                      const UA_QualifiedName propertyName,
                                      const void *value, const UA_DataType *type) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode retval = 
         writeObjectProperty_scalar(server, objectId, propertyName, value, type);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retval;
 }
 

@@ -648,16 +648,16 @@ __Client_renewSecureChannel(UA_Client *client) {
 
 UA_StatusCode
 UA_Client_renewSecureChannel(UA_Client *client) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     UA_StatusCode res = __Client_renewSecureChannel(client);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return res;
 }
 
 static void
 responseActivateSession(UA_Client *client, void *userdata,
                         UA_UInt32 requestId, void *response) {
-    UA_LOCK(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     UA_ActivateSessionResponse *ar = (UA_ActivateSessionResponse*)response;
     if(ar->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
@@ -672,7 +672,6 @@ responseActivateSession(UA_Client *client, void *userdata,
                          UA_StatusCode_name(ar->responseHeader.serviceResult));
             client->connectStatus = ar->responseHeader.serviceResult;
             closeSecureChannel(client);
-            UA_UNLOCK(&client->clientMutex);
             return;
         }
 
@@ -682,7 +681,6 @@ responseActivateSession(UA_Client *client, void *userdata,
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Session to be activated no longer exists. Create a new Session.");
             client->connectStatus = createSessionAsync(client);
-            UA_UNLOCK(&client->clientMutex);
             return;
         }
 
@@ -693,7 +691,6 @@ responseActivateSession(UA_Client *client, void *userdata,
                      UA_StatusCode_name(ar->responseHeader.serviceResult));
         client->connectStatus = ar->responseHeader.serviceResult;
         closeSecureChannel(client);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
@@ -710,8 +707,6 @@ responseActivateSession(UA_Client *client, void *userdata,
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     __Client_Subscriptions_backgroundPublish(client);
 #endif
-
-    UA_UNLOCK(&client->clientMutex);
 }
 
 static UA_StatusCode
@@ -961,7 +956,7 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint) {
 static void
 responseGetEndpoints(UA_Client *client, void *userdata,
                      UA_UInt32 requestId, void *response) {
-    UA_LOCK(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     client->endpointsHandshake = false;
 
@@ -984,7 +979,6 @@ responseGetEndpoints(UA_Client *client, void *userdata,
         }
 
         UA_GetEndpointsResponse_clear(resp);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
@@ -1027,7 +1021,6 @@ responseGetEndpoints(UA_Client *client, void *userdata,
                      "No suitable endpoint found");
         client->connectStatus = UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
         closeSecureChannel(client);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
@@ -1056,7 +1049,6 @@ responseGetEndpoints(UA_Client *client, void *userdata,
        !UA_String_equal(&client->endpoint.securityPolicyUri,
                         &client->channel.securityPolicy->policyUri)) {
         closeSecureChannel(client);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
@@ -1066,13 +1058,11 @@ responseGetEndpoints(UA_Client *client, void *userdata,
     if(client->discoveryUrl.length > 0 &&
        !UA_String_equal(&client->discoveryUrl, &client->endpoint.endpointUrl)) {
         closeSecureChannel(client);
-        UA_UNLOCK(&client->clientMutex);
         return;
     }
 
     /* Nothing to do. We have selected an endpoint that we can use to open a
      * Session on the current SecureChannel. */
-    UA_UNLOCK(&client->clientMutex);
 }
 
 static UA_StatusCode
@@ -1216,7 +1206,7 @@ requestFindServers(UA_Client *client) {
 static void
 createSessionCallback(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, void *response) {
-    UA_LOCK(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     UA_CreateSessionResponse *sessionResponse = (UA_CreateSessionResponse*)response;
     UA_StatusCode res = sessionResponse->responseHeader.serviceResult;
@@ -1258,8 +1248,6 @@ createSessionCallback(UA_Client *client, void *userdata,
     client->connectStatus = res;
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         client->sessionState = UA_SESSIONSTATE_CLOSED;
-
-    UA_UNLOCK(&client->clientMutex);
 }
 
 static UA_StatusCode
@@ -1527,7 +1515,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                          UA_ByteString msg) {
     /* Take the client lock */
     UA_Client *client = (UA_Client*)application;
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
 
     UA_LOG_TRACE(client->config.logging, UA_LOGCATEGORY_CLIENT, "Client network callback");
 
@@ -1541,7 +1529,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                          "Cannot open a connection, the SecureChannel is already used");
             client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
             notifyClientState(client);
-            UA_UNLOCK(&client->clientMutex);
+            unlockClient(client);
             return;
         }
 
@@ -1650,7 +1638,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * If the connectStatus is still good (the SecureChannel was fully
          * opened before), then a reconnect is attempted. */
         closeSecureChannel(client);
-        UA_UNLOCK(&client->clientMutex);
+        unlockClient(client);
         return;
     }
 
@@ -1659,7 +1647,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(!isFullyConnected(client))
         connectActivity(client);
     notifyClientState(client);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
 }
 
 static void
@@ -1750,10 +1738,7 @@ initConnect(UA_Client *client) {
         paramMap.mapSize = 2;
 
         /* Open the client TCP connection */
-        UA_UNLOCK(&client->clientMutex);
-        UA_StatusCode res =
-            cm->openConnection(cm, &paramMap, client, NULL, __Client_networkCallback);
-        UA_LOCK(&client->clientMutex);
+        UA_StatusCode res = cm->openConnection(cm, &paramMap, client, NULL, __Client_networkCallback);
         if(res == UA_STATUSCODE_GOOD)
             break;
     }
@@ -1807,9 +1792,7 @@ connectSync(UA_Client *client) {
         }
 
         /* Drop into the EventLoop */
-        UA_UNLOCK(&client->clientMutex);
         UA_StatusCode res = el->run(el, (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
-        UA_LOCK(&client->clientMutex);
         if(res != UA_STATUSCODE_GOOD) {
             client->connectStatus = res;
             closeSecureChannel(client);
@@ -1848,9 +1831,9 @@ connectSecureChannel(UA_Client *client, const char *endpointUrl) {
 
 UA_StatusCode
 __UA_Client_connect(UA_Client *client, UA_Boolean async) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     connectInternal(client, async);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return client->connectStatus;
 }
 
@@ -1884,9 +1867,7 @@ activateSessionSync(UA_Client *client) {
         }
 
         /* Drop into the EventLoop */
-        UA_UNLOCK(&client->clientMutex);
         res = el->run(el, (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
-        UA_LOCK(&client->clientMutex);
         if(res != UA_STATUSCODE_GOOD) {
             client->connectStatus = res;
             closeSecureChannel(client);
@@ -1900,37 +1881,37 @@ activateSessionSync(UA_Client *client) {
 
 UA_StatusCode
 UA_Client_activateCurrentSession(UA_Client *client) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     UA_StatusCode res = activateSessionSync(client);
     notifyClientState(client);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return res != UA_STATUSCODE_GOOD ? res : client->connectStatus;
 }
 
 UA_StatusCode
 UA_Client_activateCurrentSessionAsync(UA_Client *client) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     UA_StatusCode res = activateSessionAsync(client);
     notifyClientState(client);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return res != UA_STATUSCODE_GOOD ? res : client->connectStatus;
 }
 
 UA_StatusCode
 UA_Client_getSessionAuthenticationToken(UA_Client *client, UA_NodeId *authenticationToken,
                                         UA_ByteString *serverNonce) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     if(client->sessionState != UA_SESSIONSTATE_CREATED &&
        client->sessionState != UA_SESSIONSTATE_ACTIVATED) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "There is no current session");
-        UA_UNLOCK(&client->clientMutex);
+        unlockClient(client);
         return UA_STATUSCODE_BADSESSIONCLOSED;
     }
 
     UA_StatusCode res = UA_NodeId_copy(&client->authenticationToken, authenticationToken);
     res |= UA_ByteString_copy(&client->serverSessionNonce, serverNonce);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return res;
 }
 
@@ -1965,15 +1946,15 @@ UA_StatusCode
 UA_Client_activateSession(UA_Client *client,
                           const UA_NodeId authenticationToken,
                           const UA_ByteString serverNonce) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     UA_StatusCode res = switchSession(client, authenticationToken, serverNonce);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_UNLOCK(&client->clientMutex);
+        unlockClient(client);
         return res;
     }
     res = activateSessionSync(client);
     notifyClientState(client);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return res != UA_STATUSCODE_GOOD ? res : client->connectStatus;
 }
 
@@ -1981,15 +1962,15 @@ UA_StatusCode
 UA_Client_activateSessionAsync(UA_Client *client,
                                const UA_NodeId authenticationToken,
                                const UA_ByteString serverNonce) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     UA_StatusCode res = switchSession(client, authenticationToken, serverNonce);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_UNLOCK(&client->clientMutex);
+        unlockClient(client);
         return res;
     }
     res = activateSessionAsync(client);
     notifyClientState(client);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return res != UA_STATUSCODE_GOOD ? res : client->connectStatus;
 }
 
@@ -2014,7 +1995,7 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
                                 UA_ConnectionState state, const UA_KeyValueMap *params,
                                 UA_ByteString msg) {
     UA_Client *client = (UA_Client*)application;
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
 
     if(!*connectionContext) {
         /* Store the new listen connection */
@@ -2032,7 +2013,7 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
         /* All slots are full, close */
         if(i == 16) {
             cm->closeConnection(cm, connectionId);
-            UA_UNLOCK(&client->clientMutex);
+            unlockClient(client);
             return;
         }
     } else if(*connectionContext == &client->channel ||
@@ -2044,7 +2025,7 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
             /* The client already has an active connection */
             if(client->channel.connectionId) {
                 cm->closeConnection(cm, connectionId);
-                UA_UNLOCK(&client->clientMutex);
+                unlockClient(client);
                 return;
             }
 
@@ -2063,7 +2044,7 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
         }
 
         /* Handle the active connection in the normal network callback */
-        UA_UNLOCK(&client->clientMutex);
+        unlockClient(client);
         __Client_networkCallback(cm, connectionId, application,
                                  connectionContext, state, params, msg);
         return;
@@ -2084,7 +2065,7 @@ __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId
     }
 
     notifyClientState(client);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
 }
 
 UA_StatusCode
@@ -2092,13 +2073,13 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
                                           const UA_String *listenHostnames,
                                           size_t listenHostnamesLength,
                                           UA_UInt16 port) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
 
     if(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Unable to listen for reverse connect while the client "
                        "is connected or already listening");
-        UA_UNLOCK(&client->clientMutex);
+        unlockClient(client);
         return UA_STATUSCODE_BADINVALIDSTATE;
     }
 
@@ -2123,13 +2104,13 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     if(!el) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "No EventLoop configured");
-        UA_UNLOCK(&client->clientMutex);
+        unlockClient(client);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     if(el->state != UA_EVENTLOOPSTATE_STARTED) {
         res = el->start(el);
-        UA_CHECK_STATUS(res, UA_UNLOCK(&client->clientMutex); return res);
+        UA_CHECK_STATUS(res, unlockClient(client); return res);
     }
 
     UA_ConnectionManager *cm = NULL;
@@ -2146,7 +2127,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Could not find a TCP connection manager, unable to "
                        "listen for reverse connect");
-        UA_UNLOCK(&client->clientMutex);
+        unlockClient(client);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -2168,9 +2149,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     paramMap.map = params;
     paramMap.mapSize = 4;
 
-    UA_UNLOCK(&client->clientMutex);
     res = cm->openConnection(cm, &paramMap, client, NULL, __Client_reverseConnectCallback);
-    UA_LOCK(&client->clientMutex);
 
     /* Opening the TCP connection failed */
     if(res != UA_STATUSCODE_GOOD) {
@@ -2179,7 +2158,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
         res = UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return res;
 }
 
@@ -2283,11 +2262,9 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
     if(sync && el &&
        el->state != UA_EVENTLOOPSTATE_FRESH &&
        el->state != UA_EVENTLOOPSTATE_STOPPED) {
-        UA_UNLOCK(&client->clientMutex);
         while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
             el->run(el, 100);
         }
-        UA_LOCK(&client->clientMutex);
     }
 
     notifyClientState(client);
@@ -2295,50 +2272,50 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
 
 UA_StatusCode
 UA_Client_disconnectSecureChannel(UA_Client *client) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     disconnectSecureChannel(client, true);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_Client_disconnectSecureChannelAsync(UA_Client *client) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     disconnectSecureChannel(client, false);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_Client_disconnect(UA_Client *client) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
         sendCloseSession(client);
     cleanupSession(client);
     disconnectSecureChannel(client, true);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return UA_STATUSCODE_GOOD;
 }
 
 static void
 closeSessionCallback(UA_Client *client, void *userdata,
                      UA_UInt32 requestId, void *response) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     cleanupSession(client);
     disconnectSecureChannel(client, false);
     notifyClientState(client);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
 }
 
 UA_StatusCode
 UA_Client_disconnectAsync(UA_Client *client) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
 
     if(client->sessionState == UA_SESSIONSTATE_CLOSED ||
        client->sessionState == UA_SESSIONSTATE_CLOSING) {
         disconnectSecureChannel(client, false);
         notifyClientState(client);
-        UA_UNLOCK(&client->clientMutex);
+        unlockClient(client);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -2360,6 +2337,6 @@ UA_Client_disconnectAsync(UA_Client *client) {
     }
 
     notifyClientState(client);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return res;
 }

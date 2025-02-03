@@ -13,6 +13,8 @@
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 
+#include "ua_server_internal.h"
+
 #include <check.h>
 #include <stdlib.h>
 
@@ -28,6 +30,11 @@ methodCallback(UA_Server *serverArg,
                const UA_NodeId *objectId, void *objectContext,
                size_t inputSize, const UA_Variant *input,
                size_t outputSize, UA_Variant *output) {
+    UA_NodeId asyncId = UA_NODEID_STRING(1, "asyncMethod");
+    if(UA_NodeId_equal(methodId, &asyncId))
+        ck_assert(server->serviceMutex.mutexCounter == 0);
+    else
+        ck_assert(server->serviceMutex.mutexCounter > 0);
     return UA_STATUSCODE_GOOD;
 }
 
