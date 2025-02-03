@@ -179,13 +179,13 @@ jobs:
             cmd_deps: sudo apt-get install -y -qq valgrind openssl mosquitto
             cmd_action: unit_tests_valgrind OPENSSL
 
-          - name: "Valgrind Examples with MbedTLS (gcc)"
+          - name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
-            cmd_action: examples_valgrind MBEDTLS
+            cmd_action: examples_valgrind MBEDTLS MDNSD
 
-          - name: "Valgrind Examples with OpenSSL (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev mosquitto
-            cmd_action: examples_valgrind OPENSSL
+          - name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev mosquitto libavahi-client-dev libavahi-common-dev
+            cmd_action: examples_valgrind OPENSSL AVAHI
 
           - name: "Clang Static Analyzer (clang11)"
             runs_on: "ubuntu-20.04"
