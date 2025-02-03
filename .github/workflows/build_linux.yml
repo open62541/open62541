@@ -223,3 +223,8 @@ jobs:
         run: source tools/ci/ci.sh && ${{ matrix.build.cmd_action }}
         env:
           ETHERNET_INTERFACE: eth0
+      - name: Upload coverage to Codecov
+        if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
