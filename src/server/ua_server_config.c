@@ -11,7 +11,7 @@
 #include "ua_server_internal.h"
 
 void
-UA_ServerConfig_clean(UA_ServerConfig *config) {
+UA_ServerConfig_clear(UA_ServerConfig *config) {
     if(!config)
         return;
 

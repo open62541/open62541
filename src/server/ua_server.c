@@ -300,7 +300,7 @@ UA_Server_delete(UA_Server *server) {
     unlockServer(server); /* The timer has its own mutex */
 
     /* Clean up the config */
-    UA_ServerConfig_clean(&server->config);
+    UA_ServerConfig_clear(&server->config);
 
 #if UA_MULTITHREADING >= 100
     UA_LOCK_DESTROY(&server->serviceMutex);
@@ -424,7 +424,7 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
                  config->logging, UA_LOGCATEGORY_SERVER, "No EventLoop configured");
 
     UA_Server *server = (UA_Server *)UA_calloc(1, sizeof(UA_Server));
-    UA_CHECK_MEM(server, UA_ServerConfig_clean(config); return NULL);
+    UA_CHECK_MEM(server, UA_ServerConfig_clear(config); return NULL);
 
     server->config = *config;
 
