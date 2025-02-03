@@ -385,6 +385,8 @@ function examples_valgrind {
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_DISCOVERY_MULTICAST=$2 \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
