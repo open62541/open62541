@@ -142,7 +142,7 @@ UA_PubSubKeyListItem *
 UA_PubSubKeyStorage_push(UA_PubSubKeyStorage *ks, const UA_ByteString *key,
                          UA_UInt32 keyID) {
     UA_PubSubKeyListItem *newItem = (UA_PubSubKeyListItem *)
-        malloc(sizeof(UA_PubSubKeyListItem));
+        UA_malloc(sizeof(UA_PubSubKeyListItem));
     if(!newItem)
         return NULL;
     newItem->keyID = keyID;
@@ -167,10 +167,11 @@ UA_PubSubKeyStorage_addKeyRolloverCallback(UA_PubSubManager *psm,
 
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
+    UA_EventLoop *el = psm->sc.server->config.eventLoop;
+
     if(*callbackID != 0)
         el->removeTimer(el, *callbackID);
 
-    UA_EventLoop *el = psm->sc.server->config.eventLoop;
     return el->addTimer(el, (UA_Callback)callback, psm, ks,
                         timeToNextMs, NULL, UA_TIMERPOLICY_ONCE, callbackID);
 
@@ -333,7 +334,7 @@ nextGetSecuritykeysCallback(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
 void
 UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     /* Callbacks from the EventLoop are initially unlocked */
-    lockServer(psm.server->serviceMutex);
+    lockServer(psm->sc.server);
 
     UA_StatusCode retval =
         UA_PubSubKeyStorage_addKeyRolloverCallback(psm, ks,
@@ -364,7 +365,8 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm, UA_PubSubKeyStora
                               ks, msTimeToNextGetSecurityKeys, NULL,
                               UA_TIMERPOLICY_ONCE, NULL);
     }
-    unlockServer(psm.server->serviceMutex);
+
+    unlockServer(psm->sc.server);
 }
 
 void
@@ -445,7 +447,7 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
     UA_PubSubManager *psm = ctx->psm;
     UA_StatusCode retval = response->responseHeader.serviceResult;
 
-    lockServer(psm.server->serviceMutex);
+    lockServer(psm->sc.server);
     /* check if the call to getSecurityKeys was a success */
     if(response->resultsSize != 0)
         retval = response->results->statusCode;
@@ -515,7 +517,7 @@ cleanup:
     UA_Client_disconnectAsync(client);
     addDelayedSksClientCleanupCb(client, ctx);
 
-    unlockServer(server);
+    unlockServer(psm->sc.server);
 }
 
 static UA_StatusCode
