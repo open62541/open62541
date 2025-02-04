@@ -171,8 +171,18 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
     }
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 
-    /* Add the new reader to the group */
-    LIST_INSERT_HEAD(&readerGroup->readers, newDataSetReader, listEntry);
+    /* Add the new reader to the group. Add to the end of the linked list to
+     * ensure the order for the realtime offsets is as expected. The received
+     * DataSetMessages are matched via UA_DataSetReader_checkIdentifier for the
+     * non-RT path. */
+    UA_DataSetReader *after = LIST_FIRST(&readerGroup->readers);
+    if(!after) {
+        LIST_INSERT_HEAD(&readerGroup->readers, newDataSetReader, listEntry);
+    } else {
+        while(LIST_NEXT(after, listEntry))
+            after = LIST_NEXT(after, listEntry);
+        LIST_INSERT_AFTER(after, newDataSetReader, listEntry);
+    }
     readerGroup->readersCount++;
 
     if(!UA_String_isEmpty(&newDataSetReader->config.linkedStandaloneSubscribedDataSetName)) {
