@@ -4,7 +4,7 @@ if(MSVC)
         $<$<CONFIG:>:/MD>
         $<$<CONFIG:Debug>:/MDd>
         $<$<CONFIG:Release>:/MD>
-    )    
+    )
 else()
     add_compile_options(-Wno-unused-variable -Wno-unused-function)
 endif()
@@ -13,7 +13,7 @@ endif()
 find_package(Check REQUIRED)
 set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
 if(NOT WIN32 AND NOT APPLE AND NOT (CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD"))
-  list(APPEND LIBS subunit)
+    list(APPEND LIBS subunit)
 endif()
 
 include_directories(${CHECK_INCLUDE_DIR})
@@ -90,7 +90,7 @@ set(test_plugin_sources
     )
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-  list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
+    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
 endif()
 
 if(UA_ENABLE_MQTT)
@@ -105,19 +105,19 @@ if(UA_ENABLE_HISTORIZING)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
-  list(INSERT test_plugin_sources 0
+    list(INSERT test_plugin_sources 0
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.h
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c)
 endif()
 
 if(UA_ENABLE_PUBSUB_ENCRYPTION)
-  list(INSERT test_plugin_sources 1
+    list(INSERT test_plugin_sources 1
     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
-  list(INSERT test_plugin_sources 1
+    list(INSERT test_plugin_sources 1
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
@@ -128,7 +128,7 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
-  list(INSERT test_plugin_sources 0
+    list(INSERT test_plugin_sources 0
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.h
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.c
               ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic128rsa15.c
@@ -213,8 +213,16 @@ function(ua_add_test test_path_relative)
     string(REPLACE "/" ";" QUALIFIED_PATHNAME ${PATH_WITHOUT_EXTENSION})
     list(POP_BACK QUALIFIED_PATHNAME TEST_NAME)
 
-    add_executable(${TEST_NAME} ${test_path_relative} ${ARGN} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-    target_link_libraries(${TEST_NAME} ${LIBS})
+    set(options)
+    set(oneValueArgs)
+    set(multiValueArgs EXTRASOURCES EXTRALIBS)
+    cmake_parse_arguments(arg "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    add_executable(${TEST_NAME} ${test_path_relative} ${arg_EXTRASOURCES} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    add_dependencies(${TEST_NAME} open62541-testplugins)
+    target_link_libraries(${TEST_NAME} ${LIBS} ${arg_EXTRALIBS})
+    target_compile_definitions(${TEST_NAME} PRIVATE -DUA_UNITTEST)
+    set_target_properties(${TEST_NAME} PROPERTIES FOLDER "tests")
     add_test_valgrind(${TEST_NAME} ${TESTS_BINARY_DIR}/${TEST_NAME})
     if(UA_ENABLE_NODESET_INJECTOR)
         set(UA_NODESETINJECTOR_TEST_NAMES ${TEST_NAME} ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
@@ -273,13 +281,11 @@ ua_add_test(server/check_services_attributes.c)
 ua_add_test(server/check_services_nodemanagement.c)
 ua_add_test(server/check_server_callbacks.c)
 
-add_executable(check_server_password server/check_server_password.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-target_link_libraries(check_server_password ${LIBS} -lcrypt)
+    ua_add_test(server/check_server_password.c EXTRALIBS -lcrypt)
 else()
-target_link_libraries(check_server_password ${LIBS})
+    ua_add_test(server/check_server_password.c)
 endif()
-add_test_valgrind(server_password ${TESTS_BINARY_DIR}/check_server_password)
 
 if (UA_MULTITHREADING GREATER_EQUAL 100)
     ua_add_test(multithreading/check_mt_addVariableNode.c)
@@ -294,15 +300,15 @@ if (UA_MULTITHREADING GREATER_EQUAL 100)
 endif()
 
 if(UA_ENABLE_METHODCALLS)
-  ua_add_test(server/check_services_call.c)
+    ua_add_test(server/check_services_call.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
-  ua_add_test(server/check_services_subscriptions.c)
-  ua_add_test(server/check_monitoreditem_filter.c)
+    ua_add_test(server/check_services_subscriptions.c)
+    ua_add_test(server/check_monitoreditem_filter.c)
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-  ua_add_test(server/check_subscription_events.c)
-  ua_add_test(server/check_subscription_event_filter.c)
+    ua_add_test(server/check_subscription_events.c)
+    ua_add_test(server/check_subscription_event_filter.c)
 endif()
 endif()
 
@@ -320,7 +326,7 @@ ua_add_test(server/check_server_userspace.c)
 ua_add_test(server/check_node_inheritance.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
-  ua_add_test(server/check_local_monitored_item.c)
+    ua_add_test(server/check_local_monitored_item.c)
 endif()
 
 if(UA_ENABLE_PUBSUB)
@@ -413,8 +419,8 @@ ua_add_test(client/check_client_async_connect.c)
 ua_add_test(client/check_client_highlevel.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
-  ua_add_test(client/check_client_subscriptions.c)
-  ua_add_test(client/check_subscriptionWithactivateSession.c)
+    ua_add_test(client/check_client_subscriptions.c)
+    ua_add_test(client/check_subscriptionWithactivateSession.c)
 endif()
 
 if(UA_ENABLE_HISTORIZING)
@@ -474,7 +480,7 @@ endif()
 
 # Tests for interfaces
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
-    ua_add_test(server/check_interfaces.c ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c)
+    ua_add_test(server/check_interfaces.c EXTRASOURCES ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c)
     target_include_directories(check_interfaces PRIVATE ${NODESET_COMPILER_OUTPUT_DIR})
 endif()
 
