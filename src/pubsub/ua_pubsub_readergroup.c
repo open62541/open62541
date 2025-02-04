@@ -231,10 +231,8 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
 
     /* Custom state machine */
     if(rg->config.customStateMachine) {
-        UA_UNLOCK(&server->serviceMutex);
         ret = rg->config.customStateMachine(server, rg->head.identifier, rg->config.context,
                                             &rg->head.state, targetState);
-        UA_LOCK(&server->serviceMutex);
         goto finalize_state_machine;
     }
 
@@ -307,10 +305,8 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(rg->head.state));
         if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            UA_UNLOCK(&server->serviceMutex);
             server->config.pubSubConfig.
                 stateChangeCallback(server, rg->head.identifier, rg->head.state, ret);
-            UA_LOCK(&server->serviceMutex);
         }
     }
 
@@ -628,7 +624,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_PubSubManager *psm = (UA_PubSubManager*)application;
     UA_Server *server = psm->sc.server;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* The connection is closing in the EventLoop. This is the last callback
      * from that connection. Clean up the SecureChannel in the client. */
@@ -639,7 +635,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         /* PSC marked for deletion and the last EventLoop connection has closed */
         if(rg->deleteFlag && rg->recvChannelsSize == 0) {
             UA_ReaderGroup_remove(psm, rg);
-            UA_UNLOCK(&server->serviceMutex);
+            unlockServer(server);
             return;
         }
 
@@ -650,7 +646,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * connection has closed */
         UA_PubSubManager_setState(psm, psm->sc.state);
 
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
@@ -662,7 +658,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         UA_PubSubConnection *c = rg->linkedConnection;
         if(c && c->cm)
             c->cm->closeConnection(c->cm, connectionId);
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
@@ -671,14 +667,14 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* No message received */
     if(msg.length == 0) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
     if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
                               "Received a messaage for a non-operational ReaderGroup");
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
@@ -697,14 +693,14 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
                               "Verify, decrypt and decode network message failed");
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return;
     }
 
     /* Process the decoded message */
     UA_ReaderGroup_process(psm, rg, &nm);
     UA_NetworkMessage_clear(&nm);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static UA_StatusCode
@@ -757,9 +753,7 @@ UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     UA_Variant_setScalar(&kvp[4].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* Connect */
-    UA_UNLOCK(&server->serviceMutex);
     res = c->cm->openConnection(c->cm, &kvm, psm, rg, ReaderGroupChannelCallback);
-    UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, rg, "Could not open the MQTT connection");
     }
@@ -839,12 +833,12 @@ UA_Server_addReaderGroup(UA_Server *server, const UA_NodeId connectionIdentifier
                          UA_NodeId *readerGroupIdentifier) {
     if(!server || !readerGroupConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode res =
         UA_ReaderGroup_create(psm, connectionIdentifier,
                               readerGroupConfig, readerGroupIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -852,7 +846,7 @@ UA_StatusCode
 UA_Server_removeReaderGroup(UA_Server *server, const UA_NodeId groupIdentifier) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_PubSubManager *psm = getPSM(server);
     UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, groupIdentifier);
@@ -860,7 +854,7 @@ UA_Server_removeReaderGroup(UA_Server *server, const UA_NodeId groupIdentifier) 
         UA_ReaderGroup_remove(psm, rg);
     else
         res = UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -869,11 +863,11 @@ UA_Server_getReaderGroupConfig(UA_Server *server, const UA_NodeId rgId,
                                UA_ReaderGroupConfig *config) {
     if(!server || !config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_ReaderGroup *rg = UA_ReaderGroup_find(getPSM(server), rgId);
     UA_StatusCode ret = (rg) ?
         UA_ReaderGroupConfig_copy(&rg->config, config) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return ret;
 }
 
@@ -882,14 +876,14 @@ UA_Server_getReaderGroupState(UA_Server *server, const UA_NodeId rgId,
                               UA_PubSubState *state) {
     if(!server || !state)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_find(getPSM(server), rgId);
     if(rg) {
         *state = rg->head.state;
         ret = UA_STATUSCODE_GOOD;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return ret;
 }
 
@@ -899,17 +893,17 @@ UA_Server_setReaderGroupActivateKey(UA_Server *server,
                                     const UA_NodeId readerGroupId) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
     if(!rg || !rg->keyStorage || !rg->keyStorage->currentItem) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_StatusCode ret =
         UA_PubSubKeyStorage_activateKeyToChannelContext(psm, rg->head.identifier,
                                                         rg->config.securityGroupId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return ret;
 }
 #endif
@@ -918,13 +912,13 @@ UA_StatusCode
 UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
     UA_StatusCode ret = (rg) ?
         UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL) :
         UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return ret;
 }
 
@@ -932,13 +926,13 @@ UA_StatusCode
 UA_Server_disableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
     UA_StatusCode ret = (rg) ?
         UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED) :
         UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return ret;
 }
 
@@ -951,13 +945,13 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
                                        const UA_ByteString keyNonce) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_ReaderGroup *rg = UA_ReaderGroup_find(getPSM(server), readerGroup);
     UA_StatusCode res = (rg) ?
         UA_ReaderGroup_setEncryptionKeys(psm, rg, securityTokenId, signingKey,
                                          encryptingKey, keyNonce) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1176,13 +1170,13 @@ UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
     if(!server || !ot)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* Get the ReaderGroup */
     UA_PubSubManager *psm = getPSM(server);
     UA_ReaderGroup *rg = (psm) ? UA_ReaderGroup_find(psm, readerGroupId) : NULL;
     if(!rg) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
@@ -1278,7 +1272,7 @@ UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
         UA_DataSetMessage_clear(&dsmStore[i]);
     }
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 

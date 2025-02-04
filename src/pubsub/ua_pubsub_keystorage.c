@@ -142,7 +142,7 @@ UA_PubSubKeyListItem *
 UA_PubSubKeyStorage_push(UA_PubSubKeyStorage *ks, const UA_ByteString *key,
                          UA_UInt32 keyID) {
     UA_PubSubKeyListItem *newItem = (UA_PubSubKeyListItem *)
-        malloc(sizeof(UA_PubSubKeyListItem));
+        UA_malloc(sizeof(UA_PubSubKeyListItem));
     if(!newItem)
         return NULL;
     newItem->keyID = keyID;
@@ -168,8 +168,13 @@ UA_PubSubKeyStorage_addKeyRolloverCallback(UA_PubSubManager *psm,
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
+
+    if(*callbackID != 0)
+        el->removeTimer(el, *callbackID);
+
     return el->addTimer(el, (UA_Callback)callback, psm, ks,
                         timeToNextMs, NULL, UA_TIMERPOLICY_ONCE, callbackID);
+
 }
 
 static UA_StatusCode
@@ -329,7 +334,7 @@ nextGetSecuritykeysCallback(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
 void
 UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     /* Callbacks from the EventLoop are initially unlocked */
-    UA_LOCK(&psm->sc.server->serviceMutex);
+    lockServer(psm->sc.server);
 
     UA_StatusCode retval =
         UA_PubSubKeyStorage_addKeyRolloverCallback(psm, ks,
@@ -360,7 +365,8 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm, UA_PubSubKeyStora
                               ks, msTimeToNextGetSecurityKeys, NULL,
                               UA_TIMERPOLICY_ONCE, NULL);
     }
-    UA_UNLOCK(&psm->sc.server->serviceMutex);
+
+    unlockServer(psm->sc.server);
 }
 
 void
@@ -441,7 +447,7 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
     UA_PubSubManager *psm = ctx->psm;
     UA_StatusCode retval = response->responseHeader.serviceResult;
 
-    UA_LOCK(&psm->sc.server->serviceMutex);
+    lockServer(psm->sc.server);
     /* check if the call to getSecurityKeys was a success */
     if(response->resultsSize != 0)
         retval = response->results->statusCode;
@@ -503,13 +509,15 @@ cleanup:
                      "Failed to store the fetched keys from SKS server with error: %s",
                      UA_StatusCode_name(retval));
     }
-    /* call user callback to notify about the status */
-    UA_UNLOCK(&psm->sc.server->serviceMutex);
+
+    /* Call user callback to notify about the status */
     if(ks->sksConfig.userNotifyCallback)
         ks->sksConfig.userNotifyCallback(psm->sc.server, retval, ks->sksConfig.context);
     ks->sksConfig.reqId = 0;
     UA_Client_disconnectAsync(client);
     addDelayedSksClientCleanupCb(client, ctx);
+
+    unlockServer(psm->sc.server);
 }
 
 static UA_StatusCode
@@ -641,11 +649,11 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     if(!ks) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return retval;
     }
 
@@ -665,7 +673,7 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
     if(ks->keyListSize == 0) {
         retval = getSecurityKeysAndStoreFetchedKeys(psm, ks);
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retval;
 }
 
