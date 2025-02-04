@@ -294,8 +294,16 @@ UA_DataSetWriter_create(UA_Server *server,
 
     newDataSetWriter->linkedWriterGroup = wg->identifier;
 
-    /* Add the new writer to the group */
-    LIST_INSERT_HEAD(&wg->writers, newDataSetWriter, listEntry);
+    /* Add the new writer to the group. Add to the end of the linked list to
+     * ensure the order in the generated NetworkMessage is as expected. */
+    UA_DataSetWriter *after = LIST_FIRST(&wg->writers);
+    if(!after) {
+        LIST_INSERT_HEAD(&wg->writers, newDataSetWriter, listEntry);
+    } else {
+        while(LIST_NEXT(after, listEntry))
+            after = LIST_NEXT(after, listEntry);
+        LIST_INSERT_AFTER(after, newDataSetWriter, listEntry);
+    }
     wg->writersCount++;
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
