@@ -20,7 +20,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y -qq python3-sphinx graphviz python-six texlive-fonts-recommended texlive-latex-extra texlive-plain-generic texlive-latex-recommended latexmk texlive-fonts-extra
+          sudo apt-get install -y -qq python3-sphinx graphviz texlive-fonts-recommended texlive-latex-extra texlive-plain-generic texlive-latex-recommended latexmk texlive-fonts-extra
           pip install sphinx-rtd-theme
       - name: Build Documentation
         run: source tools/ci/ci.sh && build_docs_pdf
@@ -33,7 +33,7 @@ jobs:
           persist-credentials: false
       - name: Get the current branch name
         shell: bash
-        run: echo "::set-output name=branch::${GITHUB_REF##*/}"
+        run: echo "branch=${GITHUB_REF##*/}" >> "$GITHUB_OUTPUT"
         id: myref
       - name: Copy Documentation Files to Website repository
         run: |

@@ -194,15 +194,15 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
 static UA_Boolean
 entryMatchesCapabilityFilter(size_t serverCapabilityFilterSize,
                              UA_String *serverCapabilityFilter,
-                             serverOnNetwork *current) {
+                             UA_ServerOnNetwork *current) {
     /* If the entry has less capabilities defined than the filter, there's no match */
-    if(serverCapabilityFilterSize > current->serverOnNetwork.serverCapabilitiesSize)
+    if(serverCapabilityFilterSize > current->serverCapabilitiesSize)
         return false;
     for(size_t i = 0; i < serverCapabilityFilterSize; i++) {
         UA_Boolean capabilityFound = false;
-        for(size_t j = 0; j < current->serverOnNetwork.serverCapabilitiesSize; j++) {
+        for(size_t j = 0; j < current->serverCapabilitiesSize; j++) {
             if(UA_String_equal_ignorecase(&serverCapabilityFilter[i],
-                               &current->serverOnNetwork.serverCapabilities[j])) {
+                               &current->serverCapabilities[j])) {
                 capabilityFound = true;
                 break;
             }
@@ -233,12 +233,14 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 
     /* Set LastCounterResetTime */
     response->lastCounterResetTime =
-        dm->serverOnNetworkRecordIdLastReset;
+        UA_DiscoveryManager_getServerOnNetworkCounterResetTime(dm);
 
     /* Compute the max number of records to return */
     UA_UInt32 recordCount = 0;
-    if(request->startingRecordId < dm->serverOnNetworkRecordIdCounter)
-        recordCount = dm->serverOnNetworkRecordIdCounter - request->startingRecordId;
+    UA_UInt32 serverOnNetworkRecordIdCounter =
+        UA_DiscoveryManager_getServerOnNetworkRecordIdCounter(dm);
+    if(request->startingRecordId < serverOnNetworkRecordIdCounter)
+        recordCount = serverOnNetworkRecordIdCounter - request->startingRecordId;
     if(request->maxRecordsToReturn && recordCount > request->maxRecordsToReturn)
         recordCount = UA_MIN(recordCount, request->maxRecordsToReturn);
     if(recordCount == 0) {
@@ -249,16 +251,23 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
     /* Iterate over all records and add to filtered list */
     UA_UInt32 filteredCount = 0;
     UA_STACKARRAY(UA_ServerOnNetwork*, filtered, recordCount);
-    serverOnNetwork *current;
-    LIST_FOREACH(current, &dm->serverOnNetwork, pointers) {
+    UA_ServerOnNetwork *current = UA_DiscoveryManager_getServerOnNetworkList(dm);
+    if(!current) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+        return;
+    }
+    for(size_t i = 0; i < recordCount; i++) {
         if(filteredCount >= recordCount)
             break;
-        if(current->serverOnNetwork.recordId < request->startingRecordId)
+        if(current->recordId < request->startingRecordId)
             continue;
         if(!entryMatchesCapabilityFilter(request->serverCapabilityFilterSize,
                                request->serverCapabilityFilter, current))
             continue;
-        filtered[filteredCount++] = &current->serverOnNetwork;
+        filtered[filteredCount++] = current;
+        current = UA_DiscoveryManager_getNextServerOnNetworkRecord(dm, current);
+        if(!current)
+            break;
     }
 
     if(filteredCount == 0)

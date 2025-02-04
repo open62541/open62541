@@ -60,14 +60,14 @@ def unix_exec():
     global data
 
     with open(args.outfile + ".c", "r+", encoding='utf8') as file:
-            # Acquire a lock on the file
-            fcntl.flock(file, fcntl.LOCK_EX)
+        # Acquire a lock on the file
+        fcntl.flock(file, fcntl.LOCK_EX)
 
-            # Write to the file
-            write_code_generation(file)
+        # Write to the file
+        write_code_generation(file)
 
-            # Release the lock on the file
-            fcntl.flock(file, fcntl.LOCK_UN)
+        # Release the lock on the file
+        fcntl.flock(file, fcntl.LOCK_UN)
 
 
 def print_include(string):

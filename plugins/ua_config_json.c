@@ -12,15 +12,15 @@
 #include "open62541/plugin/certificategroup_default.h"
 #endif
 
-#define MAX_TOKENS 256
+#define MAX_TOKENS 1024
 
 typedef struct {
     const char *json;
     const cj5_token *tokens;
-    cj5_result result;
-    unsigned int tokensSize;
+    size_t tokensSize;
     size_t index;
     UA_Byte depth;
+    cj5_result result;
 } ParsingCtx;
 
 static UA_ByteString
@@ -449,6 +449,7 @@ PARSE_JSON(MdnsConfigurationField) {
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &config->mdnsConfig.mdnsServerName, NULL);
             else if(strcmp(field_str, "serverCapabilities") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRINGARRAY](ctx, &config->mdnsConfig.serverCapabilities, &config->mdnsConfig.serverCapabilitiesSize);
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
             else if(strcmp(field_str, "mdnsInterfaceIP") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &config->mdnsInterfaceIP, NULL);
             /* mdnsIpAddressList and mdnsIpAddressListSize are only available if UA_HAS_GETIFADDR is not defined: */
@@ -456,6 +457,7 @@ PARSE_JSON(MdnsConfigurationField) {
             else if(strcmp(field_str, "mdnsIpAddressList") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32ARRAY](ctx, &config->mdnsIpAddressList, &config->mdnsIpAddressListSize);
 # endif
+#endif
             else {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
             }
@@ -771,7 +773,7 @@ PARSE_JSON(SecurityPkiField) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-#ifndef __linux__
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
     /* Currently not supported! */
     (void)config;
     return UA_STATUSCODE_GOOD;
@@ -868,6 +870,20 @@ const parseJsonSignature parseJsonJumpTable[UA_SERVERCONFIGFIELDKINDS] = {
     (parseJsonSignature)RuleHandlingField_parseJson,
 };
 
+/* Skips unknown item (simple, object or array) in config file. 
+* Unknown items may happen if we don't support some features. 
+* E.g. if  UA_ENABLE_ENCRYPTION is not defined and config file 
+* contains "securityPolicies" entry.
+*/
+static void
+skipUnknownItem(ParsingCtx* ctx) {
+    unsigned int end = ctx->tokens[ctx->index].end;
+    do {
+        ctx->index++;
+    } while (ctx->index < ctx->tokensSize &&
+        ctx->tokens[ctx->index].start < end);
+}
+
 static UA_StatusCode
 parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
     // Parsing json config
@@ -957,10 +973,6 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->mdnsEnabled, NULL);
                 else if(strcmp(field, "mdns") == 0)
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_MDNSCONFIGURATION](&ctx, config, NULL);
-#if !defined(UA_HAS_GETIFADDR)
-                else if(strcmp(field, "mdnsIpAddressList") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32ARRAY](&ctx, &config->mdnsIpAddressList, &config->mdnsIpAddressListSize);
-#endif
 #endif
 #endif
 
@@ -982,7 +994,7 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                 else if(strcmp(field, "pubsubEnabled") == 0)
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->pubsubEnabled, NULL);
                 else if(strcmp(field, "pubsub") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_PUBSUBCONFIGURATION](&ctx, config, NULL);
+                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_PUBSUBCONFIGURATION](&ctx, &config->pubSubConfig, NULL);
 #endif
 #ifdef UA_ENABLE_ENCRYPTION
                 else if(strcmp(field, "securityPolicies") == 0)
@@ -992,6 +1004,14 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 #endif
                 else {
                     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Field name '%s' unknown or misspelled. Maybe the feature is not enabled either.", field);
+                    /* skip the name of item */
+                    ++ctx.index;
+                    /* skip value of unknown item */
+                    skipUnknownItem(&ctx);
+                    /* after skipUnknownItem() ctx->index points to the name of the following item.
+                       We must decrement index in oder following increment will
+                       still set index to the right position (name of the following item) */
+                    --ctx.index;
                 }
                 UA_free(field);
                 if(retval != UA_STATUSCODE_GOOD) {

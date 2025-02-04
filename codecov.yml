@@ -4,8 +4,8 @@ coverage:
 
 # Ignore examples, tests and generated files
 ignore:
-  - "**/tests/**"
-  - "**/examples/**"
+  - "tests/"
+  - "examples/"
   - "**/ua_eventfilter_grammar.c"
   - "**/ua_eventfilter_lex.c"
   - "**/ua_types_lex.c"

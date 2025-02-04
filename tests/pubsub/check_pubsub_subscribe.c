@@ -606,17 +606,16 @@ START_TEST(SinglePublishSubscribeDateTime) {
         pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
         pMetaData->fields[0].valueRank = -1; /* scalar */
 
-        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 1;
-        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables     = (UA_FieldTargetVariable *)
-            UA_calloc(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize, sizeof(UA_FieldTargetVariable));
+        readerConfig.subscribedDataSet.target.targetVariablesSize = 1;
+        readerConfig.subscribedDataSet.target.targetVariables = (UA_FieldTargetDataType *)
+            UA_calloc(1, sizeof(UA_FieldTargetDataType));
 
         /* For creating Targetvariable */
-        UA_FieldTargetDataType_init(&readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable);
-        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.targetNodeId = nodeIdDateTime;
+        readerConfig.subscribedDataSet.target.targetVariables->attributeId  = UA_ATTRIBUTEID_VALUE;
+        readerConfig.subscribedDataSet.target.targetVariables->targetNodeId = nodeIdDateTime;
         retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig, &readerIdentifier);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
+        UA_free(readerConfig.subscribedDataSet.target.targetVariables);
 
         /* run server - publisher and subscriber */
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
@@ -692,19 +691,18 @@ START_TEST(SinglePublishSubscribeDateTimeRaw) {
         pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
         pMetaData->fields[0].valueRank = -1; /* scalar */
 
-        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 1;
-        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables     = (UA_FieldTargetVariable *)
-            UA_calloc(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize, sizeof(UA_FieldTargetVariable));
+        readerConfig.subscribedDataSet.target.targetVariablesSize = 1;
+        readerConfig.subscribedDataSet.target.targetVariables = (UA_FieldTargetDataType*)
+            UA_calloc(1, sizeof(UA_FieldTargetDataType));
 
         /* For creating Targetvariable */
-        UA_FieldTargetDataType_init(&readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable);
-        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.targetNodeId = nodeIdDateTime;
+        readerConfig.subscribedDataSet.target.targetVariables->attributeId  = UA_ATTRIBUTEID_VALUE;
+        readerConfig.subscribedDataSet.target.targetVariables->targetNodeId = nodeIdDateTime;
         retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig, &readerIdentifier);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
 
         /* run server - publisher and subscriber */
+        UA_free(readerConfig.subscribedDataSet.target.targetVariables);
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
         UA_free(pMetaData->fields);
 }END_TEST
@@ -831,18 +829,15 @@ START_TEST(SinglePublishSubscribeInt32) {
             UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
             vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetVariable targetVar;
-        memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
-        /* For creating Targetvariable */
-        UA_FieldTargetDataType_init(&targetVar.targetVariable);
-        targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVar.targetVariable.targetNodeId = newnodeId;
+
+        UA_FieldTargetDataType targetVar;
+        UA_FieldTargetDataType_init(&targetVar);
+        targetVar.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVar.targetNodeId = newnodeId;
         retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
                                                                 1, &targetVar);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
-
 
         /* run server - publisher and subscriber */
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
@@ -979,16 +974,14 @@ START_TEST(SinglePublishSubscribeInt32StatusCode) {
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed Int32"),
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetVariable targetVar;
-        memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
-        /* For creating Targetvariable */
-        UA_FieldTargetDataType_init(&targetVar.targetVariable);
-        targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVar.targetVariable.targetNodeId = newnodeId;
+
+        UA_FieldTargetDataType targetVar;
+        UA_FieldTargetDataType_init(&targetVar);
+        targetVar.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVar.targetNodeId = newnodeId;
         retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
                                                                 1, &targetVar);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
 
         /* Write the value back - but with a status code */
@@ -1149,16 +1142,14 @@ START_TEST(SinglePublishSubscribeInt64) {
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                            vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetVariable targetVar;
-        memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
-        /* For creating Targetvariable */
-        UA_FieldTargetDataType_init(&targetVar.targetVariable);
-        targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVar.targetVariable.targetNodeId = newnodeId;
+
+        UA_FieldTargetDataType targetVar;
+        UA_FieldTargetDataType_init(&targetVar);
+        targetVar.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVar.targetNodeId = newnodeId;
         retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
                                                                 1, &targetVar);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
@@ -1297,16 +1288,14 @@ START_TEST(SinglePublishSubscribeBool) {
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                            vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetVariable targetVar;
-        memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
-        /* For creating Targetvariable */
-        UA_FieldTargetDataType_init(&targetVar.targetVariable);
-        targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVar.targetVariable.targetNodeId = newnodeId;
+
+        UA_FieldTargetDataType targetVar;
+        UA_FieldTargetDataType_init(&targetVar);
+        targetVar.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVar.targetNodeId = newnodeId;
         retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
                                                                 1, &targetVar);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
@@ -1448,16 +1437,14 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                            vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetVariable targetVar;
-        memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
-        /* For creating Targetvariable */
-        UA_FieldTargetDataType_init(&targetVar.targetVariable);
-        targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVar.targetVariable.targetNodeId = newnodeId;
+
+        UA_FieldTargetDataType targetVar;
+        UA_FieldTargetDataType_init(&targetVar);
+        targetVar.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVar.targetNodeId = newnodeId;
         retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
                                                                 1, &targetVar);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
@@ -1533,12 +1520,6 @@ START_TEST(SinglePublishSubscribeHeartbeat) {
     retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
                                          &readerIdentifier);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    UA_FieldTargetVariable targetVar;
-    memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
-
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    //UA_FieldTargetDataType_clear(&targetVar.targetVariable);
     UA_free(pMetaData->fields);
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
@@ -1676,16 +1657,14 @@ START_TEST(SinglePublishSubscribeWithoutPayloadHeader) {
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed Int32"),
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetVariable targetVar;
-        memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
-        /* For creating Targetvariable */
-        UA_FieldTargetDataType_init(&targetVar.targetVariable);
-        targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVar.targetVariable.targetNodeId = newnodeId;
+
+        UA_FieldTargetDataType targetVar;
+        UA_FieldTargetDataType_init(&targetVar);
+        targetVar.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVar.targetNodeId = newnodeId;
         retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
                                                                 1, &targetVar);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
@@ -1826,10 +1805,10 @@ START_TEST(MultiPublishSubscribeInt32) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     /* For creating Targetvariable */
-    UA_FieldTargetVariable targetVar;
-    memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
-    targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-    targetVar.targetVariable.targetNodeId = newnodeId;
+    UA_FieldTargetDataType targetVar;
+    UA_FieldTargetDataType_init(&targetVar);
+    targetVar.attributeId  = UA_ATTRIBUTEID_VALUE;
+    targetVar.targetNodeId = newnodeId;
     retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier, 1, &targetVar);
 
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -1849,11 +1828,11 @@ START_TEST(MultiPublishSubscribeInt32) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     /* Create Targetvariable */
-    targetVar.targetVariable.targetNodeId = newnodeId2;
+    targetVar.targetNodeId = newnodeId2;
     retVal |= UA_Server_DataSetReader_createTargetVariables(server, reader2Id, 1, &targetVar);
 
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    UA_FieldTargetDataType_clear(&targetVar.targetVariable);
+    UA_FieldTargetDataType_clear(&targetVar);
     UA_free(pMetaData->fields);
 
     /* run server - publisher and subscriber */
@@ -2150,16 +2129,15 @@ START_TEST(SinglePublishOnDemand) {
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                            vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetVariable targetVar;
-        memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
-        /* For creating Targetvariable */
-        UA_FieldTargetDataType_init(&targetVar.targetVariable);
-        targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVar.targetVariable.targetNodeId = newnodeId;
+
+        UA_FieldTargetDataType targetVar;
+        UA_FieldTargetDataType_init(&targetVar);
+        targetVar.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVar.targetNodeId = newnodeId;
         retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
                                                                 1, &targetVar);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetDataType_clear(&targetVar.targetVariable);
+        UA_FieldTargetDataType_clear(&targetVar);
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
@@ -2307,16 +2285,14 @@ START_TEST(ValidConfiguredSizPublishSubscribe) {
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed Int32"),
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetVariable targetVar;
-        memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
-        /* For creating Targetvariable */
-        UA_FieldTargetDataType_init(&targetVar.targetVariable);
-        targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVar.targetVariable.targetNodeId = newnodeId;
+
+        UA_FieldTargetDataType targetVar;
+        UA_FieldTargetDataType_init(&targetVar);
+        targetVar.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVar.targetNodeId = newnodeId;
         retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
                                                                 1, &targetVar);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
@@ -2453,16 +2429,14 @@ START_TEST(InvalidConfiguredSizPublishSubscribe) {
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed Int32"),
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetVariable targetVar;
-        memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
-        /* For creating Targetvariable */
-        UA_FieldTargetDataType_init(&targetVar.targetVariable);
-        targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVar.targetVariable.targetNodeId = newnodeId;
+
+        UA_FieldTargetDataType targetVar;
+        UA_FieldTargetDataType_init(&targetVar);
+        targetVar.attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVar.targetNodeId = newnodeId;
         retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
                                                                 1, &targetVar);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */

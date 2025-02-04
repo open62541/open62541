@@ -6,16 +6,24 @@
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Lukas Meling)
  */
 
+/**
+ * This file contains the JSON encoding/decoding from before the v1.05 OPC UA
+ * specification. The changes in the v1.05 specification are breaking. The
+ * encoding is not compatible with new versions. Disable
+ * UA_ENABLE_JSON_ENCODING_LEGACY to use the new JSON encoding instead.
+ */
+
 #include <open62541/config.h>
 #include <open62541/types.h>
 
-#ifdef UA_ENABLE_JSON_ENCODING
+#ifdef UA_ENABLE_JSON_ENCODING_LEGACY
 
 #include "ua_types_encoding_json.h"
 
 #include <float.h>
 #include <math.h>
 
+#include "../deps/utf8.h"
 #include "../deps/itoa.h"
 #include "../deps/dtoa.h"
 #include "../deps/parse_num.h"
@@ -446,53 +454,8 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
     return ret | writeJsonArrEnd(ctx, type);
 }
 
-static const uint32_t min_codepoints[5] = {0x00, 0x00, 0x80, 0x800, 0x10000};
 static const u8 hexmap[16] =
     {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-
-/* Extract the next utf8 codepoint from the buffer. Return the next position in
- * the buffer or NULL upon an error. */
-static const unsigned char *
-extract_codepoint(const unsigned char *pos, size_t len, uint32_t *codepoint) {
-    UA_assert(len > 0);
-
-    *codepoint = pos[0];
-    if(UA_LIKELY(*codepoint < 0x80))
-        return pos + 1; /* Normal ASCII */
-
-    if(UA_UNLIKELY(*codepoint <= 0xC1))
-        return NULL; /* Continuation byte not allowed here */
-
-    unsigned char count;
-    if(*codepoint <= 0xDF) {
-        count = 2; /* 2-byte sequence */
-        *codepoint &= 0x1F;
-    } else if(*codepoint <= 0xEF) {
-        count = 3; /* 3-byte sequence */
-        *codepoint &= 0xF;
-    } else if(*codepoint <= 0xF4) {
-        count = 4; /* 4-byte sequence */
-        *codepoint &= 0x7;
-    } else {
-        return NULL; /* invalid utf8 */
-    }
-
-    if(UA_UNLIKELY(count > len))
-        return NULL; /* Not enough bytes left */
-
-    for(unsigned char i = 1; i < count; i++) {
-        unsigned char byte = pos[i];
-        if(UA_UNLIKELY(byte < 0x80 || byte > 0xBF))
-            return NULL; /* Not a continuation byte */
-        *codepoint = (*codepoint << 6) + (byte & 0x3F);
-    }
-
-    /* Not in Unicode range or too small for the encoding length */
-    if(UA_UNLIKELY(*codepoint > 0x10FFFF || *codepoint < min_codepoints[count]))
-        return NULL;
-
-    return pos + count; /* Return the new position in the pos */
-}
 
 ENCODE_JSON(String) {
     if(!src->data)
@@ -503,102 +466,63 @@ ENCODE_JSON(String) {
 
     UA_StatusCode ret = writeJsonQuote(ctx);
 
-    const unsigned char *str = src->data;
-    const unsigned char *pos = str;
-    const unsigned char *end = str;
-    const unsigned char *lim = str + src->length;
-    uint32_t codepoint = 0;
-    while(1) {
-        /* Iterate over codepoints in the utf8 encoding. Until the first
-         * character that needs to be escaped. */
-        while(end < lim) {
-            end = extract_codepoint(pos, (size_t)(lim - pos), &codepoint);
-            if(!end)  {
-                /* A malformed utf8 character. Print anyway and let the
-                 * receiving side choose how to handle it. */
-                pos++;
-                end = pos;
-                continue;
-            }
-
-            /* Escape unprintable ASCII and escape characters */
-            if(codepoint < ' '   || codepoint == 127  ||
-               codepoint == '\\' || codepoint == '\"')
+    const unsigned char *end = src->data + src->length;
+    for(const unsigned char *pos = src->data; pos < end; pos++) {
+        /* Skip to the first character that needs escaping */
+        const unsigned char *start = pos;
+        for(; pos < end; pos++) {
+            if(*pos < ' ' || *pos == 127 || *pos == '\\' || *pos == '\"')
                 break;
-
-            pos = end;
         }
 
-        /* Write out the characters that don't need escaping */
-        if(pos != str) {
-            if(ctx->pos + (pos - str) > ctx->end)
-                return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-            if(!ctx->calcOnly)
-                memcpy(ctx->pos, str, (size_t)(pos - str));
-            ctx->pos += pos - str;
-        }
-
-        /* Reached the end of the utf8 encoding */
-        if(end == pos)
-            break;
-
-        /* Handle an escaped character */
-        size_t length = 2;
-        u8 seq[13];
-        const char *text;
-
-        switch(codepoint) {
-        case '\\': text = "\\\\"; break;
-        case '\"': text = "\\\""; break;
-        case '\b': text = "\\b"; break;
-        case '\f': text = "\\f"; break;
-        case '\n': text = "\\n"; break;
-        case '\r': text = "\\r"; break;
-        case '\t': text = "\\t"; break;
-        default:
-            text = (char*)seq;
-            if(codepoint < 0x10000) {
-                /* codepoint is in BMP */
-                seq[0] = '\\';
-                seq[1] = 'u';
-                UA_Byte b1 = (UA_Byte)(codepoint >> 8u);
-                UA_Byte b2 = (UA_Byte)(codepoint >> 0u);
-                seq[2] = hexmap[(b1 & 0xF0u) >> 4u];
-                seq[3] = hexmap[b1 & 0x0Fu];
-                seq[4] = hexmap[(b2 & 0xF0u) >> 4u];
-                seq[5] = hexmap[b2 & 0x0Fu];
-                length = 6;
-            } else {
-                /* not in BMP -> construct a UTF-16 surrogate pair */
-                codepoint -= 0x10000;
-                UA_UInt32 first = 0xD800u | ((codepoint & 0xffc00u) >> 10u);
-                UA_UInt32 last = 0xDC00u | (codepoint & 0x003ffu);
-                UA_Byte fb1 = (UA_Byte)(first >> 8u);
-                UA_Byte fb2 = (UA_Byte)(first >> 0u);
-                UA_Byte lb1 = (UA_Byte)(last >> 8u);
-                UA_Byte lb2 = (UA_Byte)(last >> 0u);
-                seq[0] = '\\';
-                seq[1] = 'u';
-                seq[2] = hexmap[(fb1 & 0xF0u) >> 4u];
-                seq[3] = hexmap[fb1 & 0x0Fu];
-                seq[4] = hexmap[(fb2 & 0xF0u) >> 4u];
-                seq[5] = hexmap[fb2 & 0x0Fu];
-                seq[6] = '\\';
-                seq[7] = 'u';
-                seq[8] = hexmap[(lb1 & 0xF0u) >> 4u];
-                seq[9] = hexmap[lb1 & 0x0Fu];
-                seq[10] = hexmap[(lb2 & 0xF0u) >> 4u];
-                seq[11] = hexmap[lb2 & 0x0Fu];
-                length = 12;
-            }
-            break;
-        }
-        if(ctx->pos + length > ctx->end)
+        /* Write out the unescaped sequence */
+        if(ctx->pos + (pos - start) > ctx->end)
             return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
         if(!ctx->calcOnly)
-            memcpy(ctx->pos, text, length);
-        ctx->pos += length;
-        str = pos = end;
+            memcpy(ctx->pos, start, (size_t)(pos - start));
+        ctx->pos += pos - start;
+
+        /* The unescaped sequence reached the end */
+        if(pos == end)
+            break;
+
+        /* Write an escaped character */
+        char *escape_text;
+        char escape_buf[6];
+        size_t escape_len = 2;
+        switch(*pos) {
+        case '\b': escape_text = "\\b"; break;
+        case '\f': escape_text = "\\f"; break;
+        case '\n': escape_text = "\\n"; break;
+        case '\r': escape_text = "\\r"; break;
+        case '\t': escape_text = "\\t"; break;
+        default:
+            escape_text = escape_buf;
+            if(*pos >= ' ' && *pos != 127) {
+                /* Escape \ or " */
+                escape_buf[0] = '\\';
+                escape_buf[1] = *pos;
+            } else {
+                /* Unprintable characters need to be escaped */
+                escape_buf[0] = '\\';
+                escape_buf[1] = 'u';
+                escape_buf[2] = '0';
+                escape_buf[3] = '0';
+                escape_buf[4] = hexmap[*pos >> 4];
+                escape_buf[5] = hexmap[*pos & 0x0f];
+                escape_len = 6;
+            }
+            break;
+        }
+
+        /* Enough space? */
+        if(ctx->pos + escape_len > ctx->end)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+
+        /* Write the escaped character */
+        if(!ctx->calcOnly)
+            memcpy(ctx->pos, escape_text, escape_len);
+        ctx->pos += escape_len;
     }
 
     return ret | writeJsonQuote(ctx);
@@ -2915,4 +2839,4 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     return ret;
 }
 
-#endif /* UA_ENABLE_JSON_ENCODING */
+#endif /* UA_ENABLE_JSON_ENCODING_LEGACY */
