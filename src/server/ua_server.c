@@ -892,13 +892,12 @@ UA_Server_updateCertificate(UA_Server *server,
 
     UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     UA_NodeId certGroupId = certificateGroupId;
-    if(UA_NodeId_isNull(&certGroupId))
-    {
+    if(UA_NodeId_isNull(&certGroupId)) {
         /* Use default value if argument is empty */
         certGroupId = defaultApplicationGroup;
     }
     /* The server currently only supports the DefaultApplicationGroup */
-    if(!UA_NodeId_equal(&certGroupId, &defaultApplicationGroup))
+    if(!UA_NodeId_equal(&certGroupId, &defaultApplicationGroup)){
         unlockServer(server);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
