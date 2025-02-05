@@ -161,8 +161,6 @@ START_TEST(CustomPublisher) {
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
         /* TODO: Point to a variable in the information model */
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
-        dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = true;
-        dsfConfig.field.variable.rtValueSource.staticValueSource = &dvPointers[i];
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 
@@ -173,7 +171,6 @@ START_TEST(CustomPublisher) {
     writerGroupConfig.publishingInterval = PUBSUB_CONFIG_PUBLISH_CYCLE_MS;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     writerGroupConfig.customStateMachine = writerGroupStateMachine;
 
     /* Change message settings of writerGroup to send PublisherId, WriterGroupId
@@ -388,10 +385,6 @@ connectionStateMachine(UA_Server *server, const UA_NodeId componentId,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Simulate a custom data sink (e.g. shared memory) */
-UA_UInt32     repeatedFieldValues[PUBSUB_CONFIG_FIELD_COUNT];
-UA_DataValue *repeatedDataValueRT[PUBSUB_CONFIG_FIELD_COUNT];
-
 /* If the external data source is written over the information model, the
  * externalDataWriteCallback will be triggered. The user has to take care and assure
  * that the write leads not to synchronization issues and race conditions. */
@@ -491,7 +484,6 @@ addReaderGroup(UA_Server *server) {
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
-    readerGroupConfig.rtLevel = UA_PUBSUB_RT_DETERMINISTIC;
     UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                              &readerGroupIdentifier);
 }
@@ -523,12 +515,9 @@ addSubscribedVariables (UA_Server *server) {
     /* Set the subscribed data to TargetVariable type */
     readerConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
     /* Create the TargetVariables with respect to DataSetMetaData fields */
-    readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize =
-        readerConfig.dataSetMetaData.fieldsSize;
-    readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables =
-        (UA_FieldTargetVariable *)UA_calloc(
-            readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize,
-            sizeof(UA_FieldTargetVariable));
+    readerConfig.subscribedDataSet.target.targetVariablesSize = readerConfig.dataSetMetaData.fieldsSize;
+    readerConfig.subscribedDataSet.target.targetVariables = (UA_FieldTargetDataType*)
+        UA_calloc(readerConfig.subscribedDataSet.target.targetVariablesSize, sizeof(UA_FieldTargetDataType));
     for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++) {
         /* Variable to subscribe data */
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -547,33 +536,10 @@ addSubscribedVariables (UA_Server *server) {
                                   UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
                                   UA_NS0ID(BASEDATAVARIABLETYPE),
                                   vAttr, NULL, &newnodeId);
-        repeatedFieldValues[i] = 0;
-        repeatedDataValueRT[i] = UA_DataValue_new();
-        UA_Variant_setScalar(&repeatedDataValueRT[i]->value, &repeatedFieldValues[i],
-                             &UA_TYPES[UA_TYPES_UINT32]);
-        repeatedDataValueRT[i]->value.storageType = UA_VARIANT_DATA_NODELETE;
-        repeatedDataValueRT[i]->hasValue = true;
 
-        /* Set the value backend of the above create node to 'external value source' */
-        UA_ValueBackend valueBackend;
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = &repeatedDataValueRT[i];
-        valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
-        valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
-        UA_Server_setVariableNode_valueBackend(server, newnodeId, valueBackend);
-
-        UA_FieldTargetVariable *tv =
-            &readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
-        UA_FieldTargetDataType *ftdt = &tv->targetVariable;
-
-        /* For creating Targetvariables */
-        UA_FieldTargetDataType_init(ftdt);
-        ftdt->attributeId  = UA_ATTRIBUTEID_VALUE;
-        ftdt->targetNodeId = newnodeId;
-        /* set both before and after write callback to show the usage */
-        tv->beforeWrite = subscribeBeforeWriteCallback;
-        tv->externalDataValue = &repeatedDataValueRT[i];
-        tv->afterWrite = subscribeAfterWriteCallback;
+        UA_FieldTargetDataType *tv = &readerConfig.subscribedDataSet.target.targetVariables[i];
+        tv->attributeId  = UA_ATTRIBUTEID_VALUE;
+        tv->targetNodeId = newnodeId;
     }
 }
 
@@ -612,14 +578,7 @@ addDataSetReader(UA_Server *server) {
     addSubscribedVariables(server);
     UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig, &readerIdentifier);
 
-    for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++) {
-        UA_FieldTargetVariable *tv =
-            &readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
-        UA_FieldTargetDataType *ftdt = &tv->targetVariable;
-        UA_FieldTargetDataType_clear(ftdt);
-    }
-
-    UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
+    UA_free(readerConfig.subscribedDataSet.target.targetVariables);
     UA_free(readerConfig.dataSetMetaData.fields);
     UA_UadpDataSetReaderMessageDataType_delete(dataSetReaderMessage);
 }
@@ -639,11 +598,7 @@ START_TEST(CustomSubscriber) {
 
     pthread_join(listenThread, NULL);
 
-    UA_StatusCode rv = UA_Server_delete(server);
-    ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
-    for(UA_Int32 i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
-        UA_DataValue_delete(repeatedDataValueRT[i]);
-    }
+    UA_Server_delete(server);
 } END_TEST
 
 int main(void) {

@@ -87,6 +87,21 @@ function build_release {
     make ${MAKEOPTS}
 }
 
+function build_release_amalgamation {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=None \
+          -DUA_ENABLE_AMALGAMATION=ON \
+          -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_DATATYPES_ALL=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          ..
+
+    make ${MAKEOPTS}
+}
+
 ######################
 # Build Amalgamation #
 ######################
@@ -142,10 +157,20 @@ function unit_tests {
     else
         MULTITHREADING=100
     fi
+    # Only build coverage for gcc. Clang fails because coverage build passes
+    # invalid --coverage flag and clang complains because of
+    # -Werror,-Wunused-command-line-argument. tcc doesn't seem to support
+    # coverage at all.
+    if [[ "${CC:-gcc}" =~ gcc* ]]; then
+        COVERAGE=ON
+    else
+        COVERAGE=OFF
+    fi
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=${COVERAGE} \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
@@ -159,6 +184,9 @@ function unit_tests {
     make ${MAKEOPTS}
     set_capabilities
     make test ARGS="-V"
+    if [ "$COVERAGE" = "ON" ]; then
+        make gcov
+    fi
 }
 
 function unit_tests_32 {
@@ -185,6 +213,7 @@ function unit_tests_nosub {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_HISTORIZING=OFF \
           -DUA_ENABLE_SUBSCRIPTIONS=OFF \
           -DUA_FORCE_WERROR=ON \
@@ -192,6 +221,7 @@ function unit_tests_nosub {
     make ${MAKEOPTS}
     set_capabilities
     make test ARGS="-V"
+    make gcov
 }
 
 function unit_tests_diag {
@@ -199,6 +229,7 @@ function unit_tests_diag {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_DIAGNOSTICS=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
@@ -211,6 +242,7 @@ function unit_tests_diag {
     make ${MAKEOPTS}
     set_capabilities
     make test ARGS="-V"
+    make gcov
 }
 
 function unit_tests_mt {
@@ -219,12 +251,14 @@ function unit_tests_mt {
           -DUA_MULTITHREADING=200 \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
     make test ARGS="-V"
+    make gcov
 }
 
 function unit_tests_alarms {
@@ -232,6 +266,7 @@ function unit_tests_alarms {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_DA=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
@@ -243,6 +278,7 @@ function unit_tests_alarms {
     make ${MAKEOPTS}
     set_capabilities
     make test ARGS="-V"
+    make gcov
 }
 
 function unit_tests_encryption {
@@ -251,6 +287,7 @@ function unit_tests_encryption {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_ENABLE_GDS_PUSHMANAGEMENT=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_FORCE_WERROR=ON \
           -DUA_NAMESPACE_ZERO=FULL \
@@ -258,6 +295,7 @@ function unit_tests_encryption {
     make ${MAKEOPTS}
     set_capabilities
     make test ARGS="-V"
+    make gcov
 }
 
 function unit_tests_encryption_mbedtls_pubsub {
@@ -265,6 +303,7 @@ function unit_tests_encryption_mbedtls_pubsub {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
@@ -273,6 +312,7 @@ function unit_tests_encryption_mbedtls_pubsub {
     make ${MAKEOPTS}
     set_capabilities
     make test ARGS="-V"
+    make gcov
 }
 
 function unit_tests_pubsub_sks {
@@ -281,6 +321,7 @@ function unit_tests_pubsub_sks {
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
@@ -290,31 +331,6 @@ function unit_tests_pubsub_sks {
           ..
     make ${MAKEOPTS}
     sudo -E bash -c "make test ARGS=\"-V -R sks\""
-}
-
-##########################################
-# Build and Run Unit Tests with Coverage #
-##########################################
-
-function unit_tests_with_coverage {
-    mkdir -p build; cd build; rm -rf *
-    cmake -DCMAKE_BUILD_TYPE=Debug \
-          -DUA_BUILD_EXAMPLES=ON \
-          -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_COVERAGE=ON \
-          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_JSON_ENCODING=ON \
-          -DUA_ENABLE_XML_ENCODING=ON \
-          -DUA_ENABLE_NODESETLOADER=ON \
-          -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_MQTT=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
-          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
-          -DUA_FORCE_WERROR=ON \
-          ..
-    make ${MAKEOPTS}
-    set_capabilities
-    make test ARGS="-V"
     make gcov
 }
 
@@ -370,6 +386,8 @@ function examples_valgrind {
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_DISCOVERY_MULTICAST=$2 \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}

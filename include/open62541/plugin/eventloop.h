@@ -223,6 +223,18 @@ struct UA_EventLoop {
     /* Stops the EventSource before deregistrering it */
     UA_StatusCode
     (*deregisterEventSource)(UA_EventLoop *el, UA_EventSource *es);
+
+    /* Locking
+     * ~~~~~~~
+     *
+     * For multi-threading the EventLoop is protected by a mutex. The mutex is
+     * expected to be recursive (can be taken more than once from the same
+     * thread). A common approach to avoid deadlocks is to establish an absolute
+     * ordering between the locks. Where the "lower" locks needs to be taken
+     * before the "upper" lock. The EventLoop-mutex is exposed here to allow it
+     * to be taken from the outside. */
+    void (*lock)(UA_EventLoop *el);
+    void (*unlock)(UA_EventLoop *el);
 };
 
 /**
@@ -687,6 +699,7 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
 #endif
+
 /**
  * MQTT Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~

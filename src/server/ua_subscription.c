@@ -651,7 +651,7 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
  * EventLoop. */
 void
 UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     sub->delayedCallbackRegistered = false;
 
     UA_Notification *n, *n_tmp;
@@ -671,22 +671,18 @@ UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
             }
 
             /* Call the callback */
-            UA_UNLOCK(&server->serviceMutex);
             localMon->callback.
                 eventCallback(server, mon->monitoredItemId, localMon->context,
                               localMon->eventFields);
-            UA_LOCK(&server->serviceMutex);
             break;
 #endif
         default:
             getNodeContext(server, mon->itemToMonitor.nodeId, &nodeContext);
-            UA_UNLOCK(&server->serviceMutex);
             localMon->callback.
                 dataChangeCallback(server, mon->monitoredItemId, localMon->context,
                                    &mon->itemToMonitor.nodeId, nodeContext,
                                    mon->itemToMonitor.attributeId,
                                    &n->data.dataChange.value);
-            UA_LOCK(&server->serviceMutex);
             break;
         }
 
@@ -706,15 +702,15 @@ UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
         UA_Notification_delete(n);
     }
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static void
 delayedPublishNotifications(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     sub->delayedCallbackRegistered = false;
     UA_Subscription_publish(server, sub);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 /* Try to publish now. Enqueue a "next publish" as a delayed callback if not
@@ -1001,8 +997,9 @@ UA_Session_ensurePublishQueueSpace(UA_Server* server, UA_Session* session) {
 
 static void
 sampleAndPublishCallback(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK(&server->serviceMutex);
     UA_assert(sub);
+
+    lockServer(server);
 
     UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                               "Sample and Publish Callback");
@@ -1017,7 +1014,7 @@ sampleAndPublishCallback(UA_Server *server, UA_Subscription *sub) {
     /* Publish the queued notifications */
     UA_Subscription_publish(server, sub);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 UA_StatusCode
@@ -1276,14 +1273,12 @@ UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
         UA_Session *session = sub->session;
         void *targetContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
-        UA_UNLOCK(&server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server,
                                                      session ? &session->sessionId : NULL,
                                                      session ? session->context : NULL,
                                                      &mon->itemToMonitor.nodeId,
                                                      targetContext,
                                                      mon->itemToMonitor.attributeId, false);
-        UA_LOCK(&server->serviceMutex);
     }
 }
 
@@ -1305,14 +1300,12 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
         UA_Session *session = sub->session;
         void *targetContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
-        UA_UNLOCK(&server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server,
                                                      session ? &session->sessionId : NULL,
                                                      session ? session->context : NULL,
                                                      &mon->itemToMonitor.nodeId,
                                                      targetContext,
                                                      mon->itemToMonitor.attributeId, true);
-        UA_LOCK(&server->serviceMutex);
     }
 
     /* Deregister in Subscription and server */
@@ -1552,9 +1545,9 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
 
 static void
 UA_MonitoredItem_lockAndSample(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_MonitoredItem_sample(server, mon);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 UA_StatusCode

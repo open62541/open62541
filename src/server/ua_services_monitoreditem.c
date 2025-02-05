@@ -580,9 +580,9 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
     cmc.localMon = localMon;
     cmc.timestampsToReturn = timestampsToReturn;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Operation_CreateMonitoredItem(server, &server->adminSession, &cmc, &item, &result);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     /* If this failed, clean up the local MonitoredItem structure */
     if(result.statusCode != UA_STATUSCODE_GOOD && cmc.localMon)
@@ -664,9 +664,9 @@ UA_Server_createEventMonitoredItemEx(UA_Server *server,
     cmc.localMon = localMon;
     cmc.timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Operation_CreateMonitoredItem(server, &server->adminSession, &cmc, &item, &result);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     /* If the service failed, clean up the local MonitoredItem structure */
     if(result.statusCode != UA_STATUSCODE_GOOD && cmc.localMon) {
@@ -914,7 +914,7 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 
 UA_StatusCode
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     UA_Subscription *sub = server->adminSubscription;
     UA_MonitoredItem *mon;
@@ -929,7 +929,7 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
         res = UA_STATUSCODE_GOOD;
     }
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 

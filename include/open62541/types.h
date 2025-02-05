@@ -21,6 +21,9 @@
 #include <open62541/common.h>
 #include <open62541/statuscodes.h>
 
+struct UA_NamespaceMapping;
+typedef struct UA_NamespaceMapping UA_NamespaceMapping;
+
 _UA_BEGIN_DECLS
 
 /**
@@ -417,8 +420,7 @@ UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
-/* Print the NodeId in the human-readable format defined in Part 6,
- * 5.3.1.10.
+/* Print the NodeId in the human-readable format defined in Part 6.
  *
  * Examples:
  *   UA_NODEID("i=13")
@@ -432,12 +434,38 @@ UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 UA_StatusCode UA_EXPORT
 UA_NodeId_print(const UA_NodeId *id, UA_String *output);
 
+/* Extended NodeId printing. If nsMapping argument is non-NULL, then the
+ * NamespaceIndex is translated to the NamespaceUri. If that is not successful,
+ * the numerical NamespaceIndex is used instead.
+ *
+ * Examples:
+ *   nsu=http://widgets.com/schemas/hello;s=Hello World
+ */
+UA_StatusCode UA_EXPORT
+UA_NodeId_printEx(const UA_NodeId *id, UA_String *output,
+                  const UA_NamespaceMapping *nsMapping);
+
+#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
  * cleaned up. */
-#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_NodeId_parse(UA_NodeId *id, const UA_String str);
+
+/* Extended parsing that uses the provided namespace mapping to find the
+ * NamespaceIndex for a provided NamespaceUri.
+ *
+ * If the NodeId uses an unknown NamespaceUri, then a String-NodeId is returned
+ * that uses NamespaceIndex 0 and the full original encoding for the string
+ * part.
+ *
+ * Example:
+ *   nsu=my_uri;i=5 => s="nsu=my_uri;i=5" (The quotation marks are for
+ *       illustration purposes and not actually included)
+ */
+UA_StatusCode UA_EXPORT
+UA_NodeId_parseEx(UA_NodeId *id, const UA_String str,
+                  const UA_NamespaceMapping *nsMapping);
 
 UA_INLINABLE(UA_NodeId
              UA_NODEID(const char *chars), {
@@ -550,12 +578,28 @@ UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
 UA_StatusCode UA_EXPORT
 UA_ExpandedNodeId_print(const UA_ExpandedNodeId *id, UA_String *output);
 
+/* Extended printing of ExpandedNodeId. It tries to map NamespaceIndex and
+ * ServerIndex to a Uri using the provided mapping.
+ *
+ * Examples:
+ *     svu=http://smith.com/west/factory;nsu=tag:acme.com,2023;i=1234
+ */
+UA_StatusCode UA_EXPORT
+UA_ExpandedNodeId_printEx(const UA_ExpandedNodeId *id, UA_String *output,
+                          const UA_NamespaceMapping *nsMapping,
+                          size_t serverUrisSize, const UA_String *serverUris);
+
+#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
  * cleaned up. */
-#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str);
+
+UA_StatusCode UA_EXPORT
+UA_ExpandedNodeId_parseEx(UA_ExpandedNodeId *id, const UA_String str,
+                          const UA_NamespaceMapping *nsMapping,
+                          size_t serverUrisSize, const UA_String *serverUris);
 
 UA_INLINABLE(UA_ExpandedNodeId
              UA_EXPANDEDNODEID(const char *chars), {
@@ -664,6 +708,42 @@ UA_INLINABLE(UA_QualifiedName
     qn.name = UA_STRING_ALLOC(chars);
     return qn;
 })
+
+/* Print the human-readable QualifiedName format. QualifiedNames can be printed
+ * with either the integer NamespaceIndex or using the NamespaceUri.
+ * The Namespace 0 is always omitted.
+ *
+ * The extended printing tries to translate the NamespaceIndex to the
+ * NamespaceUri from the mapping table. When the mapping fails, the integer
+ * NamespaceIndex from is used.
+ *
+ * Examples:
+ *    Namespace Zero: HelloWorld
+ *    NamespaceIndex Form: 3:HelloWorld
+ *    NamespaceUri Form: nsu=http://widgets.com/schemas/hello;HelloWorld
+ *
+ * The method can either use a pre-allocated string buffer or allocates memory
+ * internally if called with an empty output string. */
+UA_StatusCode UA_EXPORT
+UA_QualifiedName_print(const UA_QualifiedName *qn, UA_String *output);
+
+UA_StatusCode UA_EXPORT
+UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
+                         const UA_NamespaceMapping *nsMapping);
+
+#ifdef UA_ENABLE_PARSING
+/* Parse the human-readable QualifiedName format.
+ *
+ * The extended parsing tries to translate the NamespaceIndex to a NamespaceUri
+ * from the mapping table. When the mapping fails, the name component gets the
+ * entire string. */
+UA_StatusCode UA_EXPORT
+UA_QualifiedName_parse(UA_QualifiedName *qn, const UA_String str);
+
+UA_StatusCode UA_EXPORT
+UA_QualifiedName_parseEx(UA_QualifiedName *qn, const UA_String str,
+                         const UA_NamespaceMapping *nsMapping);
+#endif
 
 /**
  * LocalizedText
@@ -1267,7 +1347,7 @@ UA_INLINABLE(UA_Boolean
  * translate the ``NamespaceUri`` field of an ExpandedNodeId into the namespace
  * index of the NodeId embedded in the ExpandedNodeId. */
 
-typedef struct {
+struct UA_NamespaceMapping {
     /* Namespaces with their local index */
     UA_String *namespaceUris;
     size_t namespaceUrisSize;
@@ -1279,27 +1359,27 @@ typedef struct {
     /* Map from remote to local indices */
     UA_UInt16 *remote2local;
     size_t remote2localSize;
-} UA_NamespaceMapping;
+};
 
 /* If the index is unknown, returns (UINT16_MAX - index) */
 UA_UInt16
-UA_NamespaceMapping_local2Remote(UA_NamespaceMapping *nm,
+UA_NamespaceMapping_local2Remote(const UA_NamespaceMapping *nm,
                                  UA_UInt16 localIndex);
 
 UA_UInt16
-UA_NamespaceMapping_remote2Local(UA_NamespaceMapping *nm,
+UA_NamespaceMapping_remote2Local(const UA_NamespaceMapping *nm,
                                  UA_UInt16 remoteIndex);
 
 /* Returns an error if the namespace uri was not found.
  * The pointer to the index argument needs to be non-NULL. */
 UA_StatusCode
-UA_NamespaceMapping_uri2Index(UA_NamespaceMapping *nm,
+UA_NamespaceMapping_uri2Index(const UA_NamespaceMapping *nm,
                               UA_String uri, UA_UInt16 *index);
 
 /* Upon success, the uri string gets set. The string is not copied and must not
  * outlive the namespace mapping structure. */
 UA_StatusCode
-UA_NamespaceMapping_index2Uri(UA_NamespaceMapping *nm,
+UA_NamespaceMapping_index2Uri(const UA_NamespaceMapping *nm,
                               UA_UInt16 index, UA_String *uri);
 
 void

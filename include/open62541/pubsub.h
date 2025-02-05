@@ -37,28 +37,42 @@ typedef enum {
 } UA_FieldEncoding;
 
 typedef enum {
-    UA_DATASETMESSAGE_DATAKEYFRAME   = 0,
-    UA_DATASETMESSAGE_DATADELTAFRAME = 1,
-    UA_DATASETMESSAGE_EVENT          = 2,
-    UA_DATASETMESSAGE_KEEPALIVE      = 3
+    UA_DATASETMESSAGETYPE_DATAKEYFRAME   = 0,
+    UA_DATASETMESSAGE_DATAKEYFRAME       = 0,
+    UA_DATASETMESSAGETYPE_DATADELTAFRAME = 1,
+    UA_DATASETMESSAGE_DATADELTAFRAME     = 1,
+    UA_DATASETMESSAGETYPE_EVENT          = 2,
+    UA_DATASETMESSAGE_EVENT              = 2,
+    UA_DATASETMESSAGETYPE_KEEPALIVE      = 3,
+    UA_DATASETMESSAGE_KEEPALIVE          = 3
 } UA_DataSetMessageType;
 
 typedef struct {
+    /* Settings and message fields enabled with the DataSetFlags1 */
     UA_Boolean dataSetMessageValid;
+
     UA_FieldEncoding fieldEncoding;
+
     UA_Boolean dataSetMessageSequenceNrEnabled;
-    UA_Boolean timestampEnabled;
-    UA_Boolean statusEnabled;
-    UA_Boolean configVersionMajorVersionEnabled;
-    UA_Boolean configVersionMinorVersionEnabled;
-    UA_DataSetMessageType dataSetMessageType;
-    UA_Boolean picoSecondsIncluded;
     UA_UInt16 dataSetMessageSequenceNr;
-    UA_UtcTime timestamp;
-    UA_UInt16 picoSeconds;
+
+    UA_Boolean statusEnabled;
     UA_UInt16 status;
+
+    UA_Boolean configVersionMajorVersionEnabled;
     UA_UInt32 configVersionMajorVersion;
+
+    UA_Boolean configVersionMinorVersionEnabled;
     UA_UInt32 configVersionMinorVersion;
+
+    /* Settings and message fields enabled with the DataSetFlags2 */
+    UA_DataSetMessageType dataSetMessageType;
+
+    UA_Boolean timestampEnabled;
+    UA_UtcTime timestamp;
+
+    UA_Boolean picoSecondsIncluded;
+    UA_UInt16 picoSeconds;
 } UA_DataSetMessageHeader;
 
 typedef struct {
@@ -104,12 +118,15 @@ typedef enum {
 
 typedef struct {
     UA_Boolean writerGroupIdEnabled;
-    UA_Boolean groupVersionEnabled;
-    UA_Boolean networkMessageNumberEnabled;
-    UA_Boolean sequenceNumberEnabled;
     UA_UInt16 writerGroupId;
+
+    UA_Boolean groupVersionEnabled;
     UA_UInt32 groupVersion;
+
+    UA_Boolean networkMessageNumberEnabled;
     UA_UInt16 networkMessageNumber;
+
+    UA_Boolean sequenceNumberEnabled;
     UA_UInt16 sequenceNumber;
 } UA_NetworkMessageGroupHeader;
 
@@ -117,40 +134,57 @@ typedef struct {
 
 typedef struct {
     UA_Boolean networkMessageSigned;
+
     UA_Boolean networkMessageEncrypted;
+
     UA_Boolean securityFooterEnabled;
-    UA_Boolean forceKeyReset;
-    UA_UInt32 securityTokenId;
-    UA_Byte messageNonce[UA_NETWORKMESSAGE_MAX_NONCE_LENGTH];
-    UA_UInt16 messageNonceSize;
     UA_UInt16 securityFooterSize;
+
+    UA_Boolean forceKeyReset;
+
+    UA_UInt32 securityTokenId;
+
+    UA_UInt16 messageNonceSize;
+    UA_Byte messageNonce[UA_NETWORKMESSAGE_MAX_NONCE_LENGTH];
 } UA_NetworkMessageSecurityHeader;
 
 typedef struct {
     UA_Byte version;
-    UA_Boolean messageIdEnabled;
-    UA_String messageId; /* For Json NetworkMessage */
-    UA_Boolean publisherIdEnabled;
-    UA_Boolean groupHeaderEnabled;
-    UA_Boolean payloadHeaderEnabled;
-    UA_Boolean dataSetClassIdEnabled;
-    UA_Boolean securityEnabled;
-    UA_Boolean timestampEnabled;
-    UA_Boolean picosecondsEnabled;
-    UA_Boolean chunkMessage;
-    UA_Boolean promotedFieldsEnabled;
-    UA_NetworkMessageType networkMessageType;
-    UA_PublisherId publisherId;
-    UA_Guid dataSetClassId;
 
+    /* Fields defined via the UADPFlags */
+    UA_Boolean publisherIdEnabled;
+    UA_PublisherId publisherId;
+
+    UA_Boolean groupHeaderEnabled;
     UA_NetworkMessageGroupHeader groupHeader;
 
-    UA_DateTime timestamp;
-    UA_UInt16 picoseconds;
-    UA_UInt16 promotedFieldsSize;
-    UA_Variant* promotedFields; /* BaseDataType */
+    UA_Boolean payloadHeaderEnabled;
 
+    /* Fields defined via the Extended1Flags */
+    UA_Boolean dataSetClassIdEnabled;
+    UA_Guid dataSetClassId;
+
+    UA_Boolean securityEnabled;
     UA_NetworkMessageSecurityHeader securityHeader;
+
+    UA_Boolean timestampEnabled;
+    UA_DateTime timestamp;
+
+    UA_Boolean picosecondsEnabled;
+    UA_UInt16 picoseconds;
+
+    /* Fields defined via the Extended2Flags */
+    UA_Boolean chunkMessage;
+
+    UA_Boolean promotedFieldsEnabled;
+    UA_UInt16 promotedFieldsSize;
+    UA_Variant *promotedFields; /* BaseDataType */
+
+    UA_NetworkMessageType networkMessageType;
+
+    /* For Json NetworkMessage */
+    UA_Boolean messageIdEnabled;
+    UA_String messageId;
 
     union {
         struct {
