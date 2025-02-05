@@ -184,6 +184,12 @@ struct UA_Client {
 #endif
 };
 
+/* In order to prevent deadlocks between the EventLoop mutex and the
+ * client-mutex, we always take the EventLoop mutex first. */
+
+void lockClient(UA_Client *client);
+void unlockClient(UA_Client *client);
+
 UA_StatusCode
 __Client_AsyncService(UA_Client *client, const void *request,
                       const UA_DataType *requestType,

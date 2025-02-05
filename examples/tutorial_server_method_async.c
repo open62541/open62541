@@ -38,7 +38,7 @@
 #include <stdlib.h>
 #include "common.h"
 
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
 #include <pthread.h>
 #define THREAD_HANDLE pthread_t
 #define THREAD_CREATE(handle, callback) do {            \

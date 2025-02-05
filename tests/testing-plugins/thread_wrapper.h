@@ -6,7 +6,7 @@
 
 /* Threads */
 
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
 #include <pthread.h>
 #define THREAD_HANDLE pthread_t
 #define THREAD_CREATE(handle, callback) pthread_create(&handle, NULL, callback, NULL)
@@ -31,7 +31,7 @@
 /* Windows returns non-zero on success and pthread returns zero,
  * so compare to zero to achieve consistent return values */
 
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
 #define MUTEX_HANDLE pthread_mutex_t
 
 /* Will return UA_TRUE when zero */

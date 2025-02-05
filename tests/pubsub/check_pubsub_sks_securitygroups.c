@@ -155,7 +155,7 @@ START_TEST(AddSecurityGroupWithvalidConfig) {
                                         &securityGroupNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_SecurityGroup *sg = UA_SecurityGroup_find(psm, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
@@ -166,7 +166,7 @@ START_TEST(AddSecurityGroupWithvalidConfig) {
 #endif
     ck_assert(UA_String_equal(&sg->securityGroupId, &config.securityGroupName) ==
               UA_TRUE);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     /*check properties*/
@@ -248,18 +248,18 @@ START_TEST(RemoveSecurityGroup) {
                                         &securityGroupNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_SecurityGroup *sg = UA_SecurityGroup_find(psm, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     UA_Server_removeSecurityGroup(server, securityGroupNodeId);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     sg = UA_SecurityGroup_find(psm, securityGroupNodeId);
     ck_assert_ptr_eq(sg, NULL);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 } END_TEST
 
 START_TEST(AddSecurityGroupWithKeyManagement){
@@ -280,7 +280,7 @@ START_TEST(AddSecurityGroupWithKeyManagement){
                                         &securityGroupNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_SecurityGroup *sg = UA_SecurityGroup_find(psm, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
@@ -302,7 +302,7 @@ START_TEST(AddSecurityGroupWithKeyManagement){
         iterator = TAILQ_NEXT(iterator, keyListEntry);
         expectKeyId++;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 } END_TEST
 
 START_TEST(SecurityGroupPeriodicInsertNewKeys) {
@@ -323,16 +323,16 @@ START_TEST(SecurityGroupPeriodicInsertNewKeys) {
                                         &securityGroupNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_SecurityGroup *sg = UA_SecurityGroup_find(psm, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, sg->securityGroupId);
     ck_assert_ptr_ne(ks, NULL);
-    UA_UNLOCK(&server->serviceMutex);
 
     UA_UInt32 expectKeyId = 1;
     UA_PubSubKeyListItem *preLastItem = TAILQ_LAST(&ks->keyList, keyListItems);
+    unlockServer(server);
     for (size_t i = 0; i < ks->keyListSize; i++) {
         UA_fakeSleep(500);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
