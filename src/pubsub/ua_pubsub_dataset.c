@@ -798,11 +798,11 @@ UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pdsId,
                                     UA_PublishedDataSetConfig *config) {
     if(!server || !config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PublishedDataSet *pds = UA_PublishedDataSet_find(getPSM(server), pdsId);
     UA_StatusCode res = (pds) ?
         UA_PublishedDataSetConfig_copy(&pds->config, config) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -811,11 +811,11 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pdsId,
                                       UA_DataSetMetaDataType *metaData) {
     if(!server || !metaData)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PublishedDataSet *pds = UA_PublishedDataSet_find(getPSM(server), pdsId);
     UA_StatusCode res = (pds) ?
         UA_DataSetMetaDataType_copy(&pds->dataSetMetaData, metaData) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -829,9 +829,9 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
         res.result = UA_STATUSCODE_BADINVALIDARGUMENT;
         return res;
     }
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     res = UA_DataSetField_create(getPSM(server), publishedDataSet, fieldConfig, fieldIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -843,11 +843,11 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
         res.result = UA_STATUSCODE_BADINVALIDARGUMENT;
         return res;
     }
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_DataSetField *field = UA_DataSetField_find(psm, dsf);
     res = UA_DataSetField_remove(psm, field);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -856,11 +856,11 @@ UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsfId,
                                 UA_DataSetFieldConfig *config) {
     if(!server || !config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_DataSetField *dsf = UA_DataSetField_find(getPSM(server), dsfId);
     UA_StatusCode res = (dsf) ?
         UA_DataSetFieldConfig_copy(&dsf->config, config) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -874,9 +874,9 @@ UA_Server_addPublishedDataSet(UA_Server *server,
         res.addResult = UA_STATUSCODE_BADINTERNALERROR;
         return res;
     }
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     res = UA_PublishedDataSet_create(getPSM(server), publishedDataSetConfig, pdsIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -884,12 +884,12 @@ UA_StatusCode
 UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pdsId) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_PublishedDataSet *pds = UA_PublishedDataSet_find(psm, pdsId);
     UA_StatusCode res = (pds) ?
         UA_PublishedDataSet_remove(psm, pds) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -899,9 +899,9 @@ UA_Server_addSubscribedDataSet(UA_Server *server,
                                UA_NodeId *sdsIdentifier) {
     if(!server || !sdsConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = addSubscribedDataSet(getPSM(server), sdsConfig, sdsIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -909,7 +909,7 @@ UA_StatusCode
 UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_SubscribedDataSet *sds = UA_SubscribedDataSet_find(psm, sdsId);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
@@ -917,7 +917,7 @@ UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId) {
         UA_SubscribedDataSet_remove(psm, sds);
         res = UA_STATUSCODE_GOOD;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 

@@ -6,7 +6,7 @@
 #include <errno.h>
 
 /* sleep_ms */
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
 # include <synchapi.h>
 # define sleep_ms(ms) Sleep(ms)
 #else

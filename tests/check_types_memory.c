@@ -142,14 +142,14 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
     UA_UInt32 buflen = 256;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, buflen); // fixed size
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     srand(42);
 #else
     srandom(42);
 #endif
     for(int n = 0;n < RANDOM_TESTS;n++) {
         for(UA_UInt32 i = 0;i < buflen;i++) {
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
             UA_UInt32 rnd;
             rnd = rand();
             msg1.data[i] = rnd;
@@ -178,7 +178,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
     UA_UInt32 buflen = 256;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, buflen); // fixed size
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     srand(42);
 #else
     srandom(42);
@@ -186,7 +186,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
     // when
     for(int n = 0; n < RANDOM_TESTS; n++) {
         for(UA_UInt32 i = 0; i < buflen; i++) {
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
             UA_UInt32 rnd;
             rnd = rand();
             msg1.data[i] = rnd;

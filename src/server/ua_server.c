@@ -91,9 +91,9 @@ UA_UInt16 UA_Server_addNamespace(UA_Server *server, const char* name) {
     UA_String nameString;
     nameString.length = strlen(name);
     nameString.data = (UA_Byte*)(uintptr_t)name;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_UInt16 retVal = addNamespace(server, nameString);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retVal;
 }
 
@@ -134,18 +134,18 @@ getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
 UA_StatusCode
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
                              size_t *foundIndex) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = getNamespaceByName(server, namespaceUri, foundIndex);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
 UA_StatusCode
 UA_Server_getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
                               UA_String *foundUri) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = getNamespaceByIndex(server, namespaceIndex, foundUri);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -433,7 +433,7 @@ UA_Server_delete(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     session_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &server->sessions, pointers, temp) {
@@ -475,7 +475,7 @@ UA_Server_delete(UA_Server *server) {
         UA_free(top);
     }
 
-    UA_UNLOCK(&server->serviceMutex); /* The timer has its own mutex */
+    unlockServer(server); /* The timer has its own mutex */
 
     /* Clean up the config */
     UA_ServerConfig_clear(&server->config);
@@ -495,10 +495,10 @@ UA_Server_delete(UA_Server *server) {
  * sessions. */
 static void
 serverHouseKeeping(UA_Server *server, void *_) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_EventLoop *el = server->config.eventLoop;
     UA_Server_cleanupSessions(server, el->dateTime_nowMonotonic(el));
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 /********************/
@@ -528,7 +528,7 @@ UA_Server_init(UA_Server *server) {
 #endif
 
     UA_LOCK_INIT(&server->serviceMutex);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* Initialize the adminSession */
     UA_Session_init(&server->adminSession);
@@ -577,9 +577,7 @@ UA_Server_init(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_NODESET_INJECTOR
-    UA_UNLOCK(&server->serviceMutex);
     res = UA_Server_injectNodesets(server);
-    UA_LOCK(&server->serviceMutex);
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
@@ -597,11 +595,11 @@ UA_Server_init(UA_Server *server) {
         addServerComponent(server, UA_PubSubManager_new(server), NULL);
 #endif
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return server;
 
  cleanup:
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     UA_Server_delete(server);
     return NULL;
 }
@@ -655,11 +653,11 @@ setServerShutdown(UA_Server *server) {
 UA_StatusCode
 UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode retval = server->config.eventLoop->
         addTimer(server->config.eventLoop, (UA_Callback)callback,
                  server, data, 0.0, &date, UA_TIMERPOLICY_ONCE, callbackId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retval;
 }
 
@@ -676,9 +674,9 @@ UA_StatusCode
 UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                               void *data, UA_Double interval_ms,
                               UA_UInt64 *callbackId) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = addRepeatedCallback(server, callback, data, interval_ms, callbackId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -694,10 +692,10 @@ changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
 UA_StatusCode
 UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                          UA_Double interval_ms) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode retval =
         changeRepeatedCallbackInterval(server, callbackId, interval_ms);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retval;
 }
 
@@ -711,9 +709,9 @@ removeCallback(UA_Server *server, UA_UInt64 callbackId) {
 
 void
 UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     removeCallback(server, callbackId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static void
@@ -885,24 +883,34 @@ UA_Server_updateCertificate(UA_Server *server,
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(server->gdsManager.transaction.state == UA_GDSTRANSACIONSTATE_PENDING)
+    lockServer(server);
+
+    if(server->gdsManager.transaction.state == UA_GDSTRANSACIONSTATE_PENDING) {
+        unlockServer(server);
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
+    }
 
     /* The server currently only supports the DefaultApplicationGroup */
     UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup))
+    if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup)) {
+        unlockServer(server);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
 
     /* The server currently only supports the following certificate type */
     /* UA_NodeId certTypRsaMin = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE); */
     UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
-    if(!UA_NodeId_equal(&certificateTypeId, &certTypRsaSha256))
+    if(!UA_NodeId_equal(&certificateTypeId, &certTypRsaSha256)) {
+        unlockServer(server);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
 
     UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
     if(privateKey) {
-        if(UA_CertificateUtils_checkKeyPair(&certificate, privateKey) != UA_STATUSCODE_GOOD)
+        if(UA_CertificateUtils_checkKeyPair(&certificate, privateKey) != UA_STATUSCODE_GOOD) {
+            unlockServer(server);
             return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
         newPrivateKey = *privateKey;
     }
 
@@ -911,22 +919,26 @@ UA_Server_updateCertificate(UA_Server *server,
         UA_EndpointDescription *ed = &server->config.endpoints[i];
         UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
                             &server->config.endpoints[i].securityPolicyUri);
-        UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+        UA_CHECK_MEM(sp, unlockServer(server); return UA_STATUSCODE_BADINTERNALERROR);
 
         if(!UA_NodeId_equal(&sp->certificateTypeId, &certificateTypeId))
             continue;
 
         retval = sp->updateCertificateAndPrivateKey(sp, certificate, newPrivateKey);
-        if(retval != UA_STATUSCODE_GOOD)
+        if(retval != UA_STATUSCODE_GOOD) {
+            unlockServer(server);
             return retval;
+        }
 
         UA_ByteString_clear(&ed->serverCertificate);
         UA_ByteString_copy(&certificate, &ed->serverCertificate);
     }
 
     UA_DelayedCallback *dc = (UA_DelayedCallback*)UA_calloc(1, sizeof(UA_DelayedCallback));
-    if(!dc)
+    if(!dc) {
+        unlockServer(server);
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     UpdateCertInfo *certInfo = (UpdateCertInfo*)UA_calloc(1, sizeof(UpdateCertInfo));
     certInfo->server = server;
@@ -939,6 +951,7 @@ UA_Server_updateCertificate(UA_Server *server,
     UA_EventLoop *el = server->config.eventLoop;
     el->addDelayedCallback(el, dc);
 
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1075,11 +1088,8 @@ setServerLifecycleState(UA_Server *server, UA_LifecycleState state) {
     if(server->state == state)
         return;
     server->state = state;
-    if(server->config.notifyLifecycleState) {
-        UA_UNLOCK(&server->serviceMutex);
+    if(server->config.notifyLifecycleState)
         server->config.notifyLifecycleState(server, server->state);
-        UA_LOCK(&server->serviceMutex);
-    }
 }
 
 UA_LifecycleState
@@ -1144,11 +1154,11 @@ UA_Server_run_startup(UA_Server *server) {
     }
 
     /* Take the server lock */
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* Does the ApplicationURI match the local certificates? */
     retVal = verifyServerApplicationURI(server);
-    UA_CHECK_STATUS(retVal, UA_UNLOCK(&server->serviceMutex); return retVal);
+    UA_CHECK_STATUS(retVal, unlockServer(server); return retVal);
 
 #if UA_MULTITHREADING >= 100
     /* Add regulare callback for async operation processing */
@@ -1166,7 +1176,7 @@ UA_Server_run_startup(UA_Server *server) {
     /* Add a regular callback for housekeeping tasks. With a 1s interval. */
     retVal = addRepeatedCallback(server, serverHouseKeeping,
                                  NULL, 1000.0, &server->houseKeepingCallbackId);
-    UA_CHECK_STATUS_ERROR(retVal, UA_UNLOCK(&server->serviceMutex); return retVal,
+    UA_CHECK_STATUS_ERROR(retVal, unlockServer(server); return retVal,
                           config->logging, UA_LOGCATEGORY_SERVER,
                           "Could not create the server housekeeping task");
 
@@ -1216,7 +1226,7 @@ UA_Server_run_startup(UA_Server *server) {
         /* Stop all server components that have already been started */
         ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
                  stopServerComponent, NULL);
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1224,7 +1234,7 @@ UA_Server_run_startup(UA_Server *server) {
      * UA_Server_run_shutdown(server) to stop the server. */
     setServerLifecycleState(server, UA_LIFECYCLESTATE_STARTED);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1272,12 +1282,12 @@ UA_Server_run_shutdown(UA_Server *server) {
     if(server == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     if(server->state != UA_LIFECYCLESTATE_STARTED) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "The server is not started, cannot be shut down");
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1306,7 +1316,7 @@ UA_Server_run_shutdown(UA_Server *server) {
 
     /* Only stop the EventLoop if it is coupled to the server lifecycle  */
     if(server->config.externalEventLoop) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -1315,9 +1325,7 @@ UA_Server_run_shutdown(UA_Server *server) {
     UA_EventLoop *el = server->config.eventLoop;
     while(!testStoppedCondition(server) &&
           res == UA_STATUSCODE_GOOD) {
-        UA_UNLOCK(&server->serviceMutex);
         res = el->run(el, 100);
-        UA_LOCK(&server->serviceMutex);
     }
 
     /* Stop the EventLoop. Iterate until stopped. */
@@ -1325,15 +1333,13 @@ UA_Server_run_shutdown(UA_Server *server) {
     while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
           el->state != UA_EVENTLOOPSTATE_FRESH &&
           res == UA_STATUSCODE_GOOD) {
-        UA_UNLOCK(&server->serviceMutex);
         res = el->run(el, 100);
-        UA_LOCK(&server->serviceMutex);
     }
 
     /* Set server lifecycle state to stopped if not already the case */
     setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1352,3 +1358,14 @@ UA_Server_run(UA_Server *server, const volatile UA_Boolean *running) {
     return UA_Server_run_shutdown(server);
 }
 
+void lockServer(UA_Server *server) {
+    if(UA_LIKELY(server->config.eventLoop && server->config.eventLoop->lock))
+        server->config.eventLoop->lock(server->config.eventLoop);
+    UA_LOCK(&server->serviceMutex);
+}
+
+void unlockServer(UA_Server *server) {
+    if(UA_LIKELY(server->config.eventLoop && server->config.eventLoop->unlock))
+        server->config.eventLoop->unlock(server->config.eventLoop);
+    UA_UNLOCK(&server->serviceMutex);
+}
