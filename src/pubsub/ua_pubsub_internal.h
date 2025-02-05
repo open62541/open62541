@@ -184,6 +184,9 @@ typedef struct UA_PublishedDataSet {
     UA_DataSetMetaDataType dataSetMetaData;
     UA_UInt16 fieldSize;
     UA_UInt16 promotedFieldsCount;
+
+    /* The counter is required because the PDS has not state.
+     * Check if it is actively used when changes are introduced. */
     UA_UInt16 configurationFreezeCounter;
 } UA_PublishedDataSet;
 
@@ -284,11 +287,6 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 void
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c);
 
-/* Returns either the eventloop configured in the connection or, in its absence,
- * for the server */
-UA_EventLoop *
-UA_PubSubConnection_getEL(UA_PubSubManager *psm, UA_PubSubConnection *c);
-
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                    UA_PubSubState targetState);
@@ -341,12 +339,8 @@ UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
 
 UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
-                                        UA_DataSetMessage *dsm,
-                                        UA_DataSetWriter *dsw);
-
-UA_StatusCode
-UA_DataSetWriter_prepareDataSet(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
-                                UA_DataSetMessage *dsm);
+                                        UA_DataSetWriter *dsw,
+                                        UA_DataSetMessage *dsm);
 
 UA_StatusCode
 UA_DataSetWriter_create(UA_PubSubManager *psm,
@@ -371,9 +365,7 @@ struct UA_WriterGroup {
     UA_UInt32 writersCount;
 
     UA_UInt64 publishCallbackId; /* registered if != 0 */
-    UA_NetworkMessageOffsetBuffer bufferedMessage;
     UA_UInt16 sequenceNumber; /* Increased after every sent message */
-    UA_Boolean configurationFrozen;
     UA_DateTime lastPublishTimeStamp;
 
     /* The ConnectionManager pointer is stored in the Connection. The channels
@@ -471,8 +463,6 @@ struct UA_DataSetReader {
     UA_DataSetReaderConfig config;
     UA_ReaderGroup *linkedReaderGroup;
 
-    UA_NetworkMessageOffsetBuffer bufferedMessage;
-
     /* MessageReceiveTimeout handling */
     UA_UInt64 msgRcvTimeoutTimerId;
 };
@@ -496,37 +486,16 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
                         UA_NodeId *readerIdentifier);
 
 UA_StatusCode
-UA_DataSetReader_prepareOffsetBuffer(Ctx *ctx, UA_DataSetReader *reader,
-                                     UA_ByteString *buf);
-
-void
-UA_DataSetReader_decodeAndProcessRT(UA_PubSubManager *psm, UA_DataSetReader *dsr,
-                                    UA_ByteString buf);
-
-UA_StatusCode
 UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr);
-
-/* Copy the configuration of Target Variables */
-UA_StatusCode UA_TargetVariables_copy(const UA_TargetVariables *src,
-                                      UA_TargetVariables *dst);
-
-/* Clear the Target Variables configuration */
-void UA_TargetVariables_clear(UA_TargetVariables *subscribedDataSetTarget);
-
-/* Copy the configuration of Field Target Variables */
-UA_StatusCode UA_FieldTargetVariable_copy(const UA_FieldTargetVariable *src,
-                                          UA_FieldTargetVariable *dst);
 
 UA_StatusCode
 DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr,
-                                    size_t targetVariablesSize,
-                                    const UA_FieldTargetVariable *targetVariables);
+                                    size_t targetsSize, const UA_FieldTargetDataType *targets);
 
 /* Returns an error reason if the target state is `Error` */
 void
 UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
-                                UA_PubSubState targetState,
-                                UA_StatusCode errorReason);
+                                UA_PubSubState targetState, UA_StatusCode errorReason);
 
 /**********************************************/
 /*                ReaderGroup                 */
@@ -541,7 +510,6 @@ struct UA_ReaderGroup {
     LIST_HEAD(, UA_DataSetReader) readers;
     UA_UInt32 readersCount;
 
-    UA_Boolean configurationFrozen;
     UA_Boolean hasReceived; /* Received a message since the last _connect */
 
     /* The ConnectionManager pointer is stored in the Connection. The channels 
@@ -594,10 +562,6 @@ UA_ReaderGroup_find(UA_PubSubManager *psm, const UA_NodeId id);
 UA_StatusCode
 UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                               UA_PubSubState targetState);
-
-UA_Boolean
-UA_ReaderGroup_decodeAndProcessRT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
-                                  UA_ByteString buf);
 
 UA_Boolean
 UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,

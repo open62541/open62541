@@ -58,7 +58,7 @@ typedef struct {
     void *context;
 
     struct sockaddr_storage sendAddr;
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     size_t sendAddrLength;
 #else
     socklen_t sendAddrLength;
@@ -104,7 +104,7 @@ multiCastType(struct addrinfo *info) {
     return MULTICASTTYPE_NONE;
 }
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
 
 #define ADDR_BUFFER_SIZE 15000 /* recommended size in the MSVC docs */
 
@@ -197,7 +197,7 @@ setMulticastInterface(const char *netif, struct addrinfo *info,
         if(ifa->ifa_addr->sa_family != info->ai_family)
             continue;
 
-#if defined(_WIN32) || defined(ip_mreqn)
+#if defined(UA_ARCHITECTURE_WIN32) || defined(ip_mreqn)
         idx = UA_if_nametoindex(ifa->ifa_name);
         if(idx == 0)
             continue;
@@ -242,7 +242,7 @@ setMulticastInterface(const char *netif, struct addrinfo *info,
     return UA_STATUSCODE_GOOD;
 }
 
-#endif /* _WIN32 */
+#endif /* UA_ARCHITECTURE_WIN32 */
 
 static UA_StatusCode
 setupMulticastRequest(UA_FD socket, MulticastRequest *req, const UA_KeyValueMap *params,
@@ -341,7 +341,7 @@ getConnectionInfoFromParams(const UA_KeyValueMap *params,
     hints.ai_socktype = SOCK_DGRAM;
     int error = UA_getaddrinfo(hostname, portStr, &hints, info);
     if(error != 0) {
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                            "UDP\t| Lookup of %s failed with error %d - %s",
@@ -546,7 +546,7 @@ setupSendMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params
 
     int result = -1;
     if(info->ai_family == AF_INET && multiCastType == MULTICASTTYPE_IPV4) {
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
         result = UA_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
                             (const char *)&req.ipv4.imr_interface,
                             sizeof(struct in_addr));
@@ -606,12 +606,10 @@ UDP_close(UA_POSIXConnectionManager *pcm, UDP_FD *conn) {
     pcm->fdsSize--;
 
     /* Signal closing to the application */
-    UA_UNLOCK(&el->elMutex);
     conn->applicationCB(&pcm->cm, (uintptr_t)conn->rfd.fd,
                         conn->application, &conn->context,
                         UA_CONNECTIONSTATE_CLOSING,
                         &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
 
     /* Close the socket */
     int ret = UA_close(conn->rfd.fd);
@@ -672,7 +670,7 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
 
     /* Receive */
     struct sockaddr_storage source;
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
     socklen_t sourceSize = (socklen_t)sizeof(struct sockaddr_storage);
     ssize_t ret = UA_recvfrom(conn->rfd.fd, (char*)response.data, response.length,
                            MSG_DONTWAIT, (struct sockaddr*)&source, &sourceSize);
@@ -733,12 +731,10 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
                  sourceAddr, sourcePort);
 
     /* Callback to the application layer */
-    UA_UNLOCK(&el->elMutex);
     conn->applicationCB(&pcm->cm, (uintptr_t)conn->rfd.fd,
                         conn->application, &conn->context,
                         UA_CONNECTIONSTATE_ESTABLISHED,
                         &kvm, response);
-    UA_LOCK(&el->elMutex);
 }
 
 static UA_StatusCode
@@ -788,7 +784,7 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     MultiCastType mc = multiCastType(info);
 
     /* Bind socket to the address */
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     /* On windows we need to bind the socket to INADDR_ANY before registering
      * for the multicast group */
     int ret = -1;
@@ -903,12 +899,10 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     pcm->fdsSize++;
 
     /* Register the listen socket in the application */
-    UA_UNLOCK(&el->elMutex);
     connectionCallback(&pcm->cm, (uintptr_t)newudpfd->rfd.fd,
                        application, &newudpfd->context,
                        UA_CONNECTIONSTATE_ESTABLISHED,
                        &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -938,7 +932,7 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
 
     int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
            UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger,
                           UA_LOGCATEGORY_NETWORK,
@@ -1221,11 +1215,9 @@ UDP_openSendConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *par
 
     /* Signal the connection as opening. The connection fully opens in the next
      * iteration of the EventLoop */
-    UA_UNLOCK(&el->elMutex);
     connectionCallback(&pcm->cm, (uintptr_t)newSock, application,
                        &conn->context, UA_CONNECTIONSTATE_ESTABLISHED,
                        &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
 
     return UA_STATUSCODE_GOOD;
 }

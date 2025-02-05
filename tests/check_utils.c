@@ -435,6 +435,33 @@ START_TEST(idToStringByte) {
     UA_String_clear(&str);
 } END_TEST
 
+START_TEST(idToStringWithMapping) {
+    UA_NamespaceMapping nsMapping;
+    memset(&nsMapping, 0, sizeof(UA_NamespaceMapping));
+
+    UA_String namespaces[2] = {
+        UA_STRING_STATIC("ns1"),
+        UA_STRING_STATIC("ns2")
+    };
+
+    nsMapping.namespaceUris = namespaces;
+    nsMapping.namespaceUrisSize = 2;
+
+    UA_NodeId n, n2;
+    UA_String str = UA_STRING_NULL;
+
+    n = UA_NODEID_NUMERIC(1,1234567890);
+    UA_NodeId_printEx(&n, &str, &nsMapping);
+    assertNodeIdString(&str, "nsu=ns2;i=1234567890");
+    UA_NodeId_parseEx(&n2, str, &nsMapping);
+    ck_assert(UA_NodeId_equal(&n, &n2));
+    UA_String_clear(&str);
+
+    n = UA_NODEID_NUMERIC(0xFFFF,0xFFFFFFFF);
+    UA_NodeId_print(&n, &str);
+    assertNodeIdString(&str, "ns=65535;i=4294967295");
+    UA_String_clear(&str);
+} END_TEST
 
 START_TEST(idOrderNs) {
     UA_NodeId id_ns1 = UA_NODEID_NUMERIC(1, 12345);
@@ -567,6 +594,173 @@ START_TEST(idOrderString) {
     ck_assert(UA_NodeId_order(&id_str_d, &id_str_c) == UA_ORDER_MORE);
 } END_TEST
 
+START_TEST(kvmContain) {
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+
+    UA_UInt16 value_1 = 1;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "value-1"), (void *)&value_1,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+
+    ck_assert(UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-1")));
+    ck_assert(!UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-2")));
+
+    UA_UInt16 value_2 = 2;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "value-2"), (void *)&value_2,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+
+    ck_assert(UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-1")));
+    ck_assert(UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-2")));
+
+    UA_KeyValueMap_clear(kvm);
+
+    ck_assert(!UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-1")));
+    ck_assert(!UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-2")));
+
+    UA_KeyValueMap_delete(kvm);
+} END_TEST
+
+START_TEST(kvmRemove) {
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+
+    UA_UInt16 value_1 = 1;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "value-1"), (void *)&value_1,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+    UA_UInt16 value_2 = 2;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "value-2"), (void *)&value_2,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+
+    UA_KeyValueMap_remove(kvm, UA_QUALIFIEDNAME(0, "value-1"));
+    ck_assert(UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-2")));
+
+    UA_KeyValueMap_delete(kvm);
+} END_TEST
+
+START_TEST(kvmMerge) {
+    UA_KeyValueMap *kvm_1 = UA_KeyValueMap_new();
+    UA_UInt16 value_11 = 11;
+    UA_KeyValueMap_setScalar(kvm_1, UA_QUALIFIEDNAME(0, "value-1"), (void *)&value_11,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+    UA_UInt16 value_12 = 12;
+    UA_KeyValueMap_setScalar(kvm_1, UA_QUALIFIEDNAME(0, "value-2"), (void *)&value_12,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+
+    UA_KeyValueMap *kvm_2 = UA_KeyValueMap_new();
+    UA_UInt16 value_22 = 22;
+    UA_KeyValueMap_setScalar(kvm_2, UA_QUALIFIEDNAME(0, "value-2"), (void *)&value_22,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+    UA_UInt16 value_23 = 23;
+    UA_KeyValueMap_setScalar(kvm_2, UA_QUALIFIEDNAME(0, "value-3"), (void *)&value_23,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+
+    UA_KeyValueMap_merge(kvm_1, kvm_2);
+
+    const UA_Variant *value_1 = UA_KeyValueMap_get(kvm_1, UA_QUALIFIEDNAME(0, "value-1"));
+    const UA_Variant *value_2 = UA_KeyValueMap_get(kvm_1, UA_QUALIFIEDNAME(0, "value-2"));
+    const UA_Variant *value_3 = UA_KeyValueMap_get(kvm_1, UA_QUALIFIEDNAME(0, "value-3"));
+    ck_assert(UA_Variant_hasScalarType(value_1, &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert(UA_Variant_hasScalarType(value_2, &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert(UA_Variant_hasScalarType(value_3, &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert(*((UA_UInt16 *) value_1->data) == 11);
+    ck_assert(*((UA_UInt16 *) value_2->data) == 22);
+    ck_assert(*((UA_UInt16 *) value_3->data) == 23);
+
+    UA_KeyValueMap_delete(kvm_1);
+    UA_KeyValueMap_delete(kvm_2);
+} END_TEST
+
+START_TEST(expIdToStringNumeric) {
+    UA_ExpandedNodeId n;
+    UA_String str = UA_STRING_NULL;
+
+    n = UA_EXPANDEDNODEID_NUMERIC(0,0);
+    UA_ExpandedNodeId_print(&n, &str);
+    assertNodeIdString(&str, "i=0");
+    UA_String_clear(&str);
+
+    n.serverIndex = 1;
+    UA_ExpandedNodeId_print(&n, &str);
+    assertNodeIdString(&str, "svr=1;i=0");
+    UA_String_clear(&str);
+
+    n.namespaceUri = UA_STRING("testuri");
+    UA_ExpandedNodeId_print(&n, &str);
+    assertNodeIdString(&str, "svr=1;nsu=testuri;i=0");
+    UA_String_clear(&str);
+} END_TEST
+
+START_TEST(expIdToStringNumericWithMapping) {
+    UA_String serverUris[2] = {
+        UA_STRING_STATIC("uri:server1"),
+        UA_STRING_STATIC("uri:server2")
+    };
+
+    UA_ExpandedNodeId n, n2;
+    UA_String str = UA_STRING_NULL;
+
+    n = UA_EXPANDEDNODEID_NUMERIC(0,0);
+    n.serverIndex = 1;
+    UA_ExpandedNodeId_printEx(&n, &str, NULL, 2, serverUris);
+    assertNodeIdString(&str, "svu=uri:server2;i=0");
+    UA_String_clear(&str);
+
+    n.namespaceUri = UA_STRING("testuri");
+    UA_ExpandedNodeId_printEx(&n, &str, NULL, 2, serverUris);
+    assertNodeIdString(&str, "svu=uri:server2;nsu=testuri;i=0");
+    UA_ExpandedNodeId_parseEx(&n2, str, NULL, 2, serverUris);
+    ck_assert(UA_ExpandedNodeId_equal(&n, &n2));
+    UA_ExpandedNodeId_clear(&n2);
+    UA_String_clear(&str);
+
+    n.namespaceUri = UA_STRING_NULL;
+    n.nodeId.namespaceIndex = 2;
+    UA_ExpandedNodeId_printEx(&n, &str, NULL, 0, NULL);
+    assertNodeIdString(&str, "svr=1;ns=2;i=0");
+    UA_ExpandedNodeId_parseEx(&n2, str, NULL, 0, NULL);
+    ck_assert(UA_ExpandedNodeId_equal(&n, &n2));
+    UA_ExpandedNodeId_clear(&n2);
+    UA_String_clear(&str);
+} END_TEST
+
+START_TEST(qualifiedNameNsUri) {
+    UA_String namespaces[2] = {
+        UA_STRING_STATIC("ns1"),
+        UA_STRING_STATIC("ns2")
+    };
+
+    UA_NamespaceMapping nsMapping;
+    memset(&nsMapping, 0, sizeof(UA_NamespaceMapping));
+    nsMapping.namespaceUris = namespaces;
+    nsMapping.namespaceUrisSize = 2;
+
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(1, "name");
+    UA_String str = UA_STRING_NULL;
+
+    UA_QualifiedName_printEx(&qn, &str, &nsMapping);
+    assertNodeIdString(&str, "ns2;name");
+
+    UA_QualifiedName qn2;
+    UA_QualifiedName_parseEx(&qn2, str, &nsMapping);
+    ck_assert(UA_QualifiedName_equal(&qn, &qn2));
+
+    UA_QualifiedName_clear(&qn2);
+    UA_String_clear(&str);
+} END_TEST
+
+START_TEST(qualifiedNameNsIndex) {
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(1, "name");
+    UA_String str = UA_STRING_NULL;
+
+    UA_QualifiedName_printEx(&qn, &str, NULL);
+    assertNodeIdString(&str, "1:name");
+
+    UA_QualifiedName qn2;
+    UA_QualifiedName_parseEx(&qn2, str, NULL);
+    ck_assert(UA_QualifiedName_equal(&qn, &qn2));
+
+    UA_QualifiedName_clear(&qn2);
+    UA_String_clear(&str);
+} END_TEST
+
 static Suite* testSuite_Utils(void) {
     Suite *s = suite_create("Utils");
     TCase *tc_endpointUrl_split = tcase_create("EndpointUrl_split");
@@ -582,12 +776,12 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc_utils, stringCompare);
     suite_add_tcase(s,tc_utils);
 
-
     TCase *tc1 = tcase_create("test nodeid string");
     tcase_add_test(tc1, idToStringNumeric);
     tcase_add_test(tc1, idToStringString);
     tcase_add_test(tc1, idToStringGuid);
     tcase_add_test(tc1, idToStringByte);
+    tcase_add_test(tc1, idToStringWithMapping);
     suite_add_tcase(s, tc1);
 
     TCase *tc2 = tcase_create("test nodeid order");
@@ -597,6 +791,22 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc1, idOrderGuid);
     tcase_add_test(tc1, idOrderString);
     suite_add_tcase(s, tc2);
+
+    TCase *tc3 = tcase_create("test keyvaluemap");
+    tcase_add_test(tc3, kvmContain);
+    tcase_add_test(tc3, kvmRemove);
+    tcase_add_test(tc3, kvmMerge);
+    suite_add_tcase(s, tc3);
+
+    TCase *tc4 = tcase_create("test expandednodeid string");
+    tcase_add_test(tc4, expIdToStringNumeric);
+    tcase_add_test(tc4, expIdToStringNumericWithMapping);
+    suite_add_tcase(s, tc4);
+
+    TCase *tc5 = tcase_create("test qualifiedname string");
+    tcase_add_test(tc5, qualifiedNameNsUri);
+    tcase_add_test(tc5, qualifiedNameNsIndex);
+    suite_add_tcase(s, tc5);
 
     return s;
 }

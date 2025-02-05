@@ -456,14 +456,16 @@ UA_KeyValueMap_remove(UA_KeyValueMap *map,
         m[i] = m[s-1];
         UA_KeyValuePair_init(&m[s-1]);
     }
-    
-    /* Ignore the result. In case resize fails, keep the longer original array
-     * around. Resize never fails when reducing the size to zero. Reduce the
-     * size integer in any case. */
+
+    /* In case resize fails, keep the longer original array around. Resize never
+     * fails when reducing the size to zero. */
     UA_StatusCode res =
         UA_Array_resize((void**)&map->map, &map->mapSize, map->mapSize - 1,
                           &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    (void)res;
+    /* Adjust map->mapSize only when UA_Array_resize() failed. On success, the
+     * value has already been decremented by UA_Array_resize(). */
+    if(res != UA_STATUSCODE_GOOD)
+        map->mapSize--;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1007,7 +1009,7 @@ void
 UA_ByteString_memZero(UA_ByteString *bs) {
 #if defined(__STDC_LIB_EXT1__)
    memset_s(bs->data, bs->length, 0, bs->length);
-#elif defined(_WIN32)
+#elif defined(UA_ARCHITECTURE_WIN32)
    SecureZeroMemory(bs->data, bs->length);
 #else
    volatile unsigned char *volatile ptr =
@@ -1131,6 +1133,31 @@ UA_TrustListDataType_add(const UA_TrustListDataType *src, UA_TrustListDataType *
     }
 
     return retval;
+}
+
+UA_StatusCode
+UA_TrustListDataType_set(const UA_TrustListDataType *src, UA_TrustListDataType *dst) {
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
+        UA_Array_delete(dst->trustedCertificates, dst->trustedCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->trustedCertificates = NULL;
+        dst->trustedCertificatesSize = 0;
+    }
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
+        UA_Array_delete(dst->trustedCrls, dst->trustedCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->trustedCrls = NULL;
+        dst->trustedCrlsSize = 0;
+    }
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
+        UA_Array_delete(dst->issuerCertificates, dst->issuerCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->issuerCertificates = NULL;
+        dst->issuerCertificatesSize = 0;
+    }
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS) {
+        UA_Array_delete(dst->issuerCrls, dst->issuerCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->issuerCrls = NULL;
+        dst->issuerCrlsSize = 0;
+    }
+    return UA_TrustListDataType_add(src, dst);
 }
 
 UA_StatusCode

@@ -6,10 +6,17 @@
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Lukas Meling)
  */
 
+/**
+ * This file contains the JSON encoding/decoding from before the v1.05 OPC UA
+ * specification. The changes in the v1.05 specification are breaking. The
+ * encoding is not compatible with new versions. Disable
+ * UA_ENABLE_JSON_ENCODING_LEGACY to use the new JSON encoding instead.
+ */
+
 #include <open62541/config.h>
 #include <open62541/types.h>
 
-#ifdef UA_ENABLE_JSON_ENCODING
+#ifdef UA_ENABLE_JSON_ENCODING_LEGACY
 
 #include "ua_types_encoding_json.h"
 
@@ -863,9 +870,7 @@ ENCODE_JSON(ExtensionObject) {
         return writeChars(ctx, "null", 4);
 
     /* Must have a type set if data is decoded */
-    if(src->encoding != UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
-       src->encoding != UA_EXTENSIONOBJECT_ENCODED_XML &&
-       !src->content.decoded.type)
+    if(src->encoding >= UA_EXTENSIONOBJECT_DECODED && !src->content.decoded.type)
         return UA_STATUSCODE_BADENCODINGERROR;
 
     status ret = writeJsonObjStart(ctx);
@@ -1033,7 +1038,7 @@ ENCODE_JSON(Variant) {
             if(hasDimensions) {
                 ret |= writeJsonKey(ctx, UA_JSONKEY_DIMENSION);
                 ret |= encodeJsonArray(ctx, src->arrayDimensions, src->arrayDimensionsSize,
-                                       &UA_TYPES[UA_TYPES_INT32]);
+                                       &UA_TYPES[UA_TYPES_UINT32]);
             }
         } else {
             /* Special case of non-reversible array with dimensions */
@@ -2079,7 +2084,7 @@ getExtensionObjectType(ParseCtx *ctx) {
         return NULL;
 
     size_t oldIndex = ctx->index;
-    ctx->index = (UA_UInt16)typeIdIndex;
+    ctx->index = typeIdIndex;
 
     /* Decode the type NodeId */
     UA_NodeId typeId;
@@ -2832,4 +2837,4 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     return ret;
 }
 
-#endif /* UA_ENABLE_JSON_ENCODING */
+#endif /* UA_ENABLE_JSON_ENCODING_LEGACY */

@@ -5,11 +5,16 @@
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
+#ifndef UA_FILESTORE_COMMON_H_
+#define UA_FILESTORE_COMMON_H_
+
 #include <open62541/util.h>
 
 #ifdef UA_ENABLE_ENCRYPTION
 
-#ifdef __linux__ /* Linux only so far */
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+
+#include "../../arch/posix/eventloop_posix.h"
 
 UA_StatusCode
 readFileToByteString(const char *const path,
@@ -19,6 +24,8 @@ UA_StatusCode
 writeByteStringToFile(const char *const path,
                       const UA_ByteString *data);
 
-#endif /* __linux__ */
+#endif /* __linux__ || UA_ARCHITECTURE_WIN32 */
 
 #endif /* UA_ENABLE_ENCRYPTION */
+
+#endif /* UA_FILESTORE_COMMON_H_ */

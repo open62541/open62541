@@ -46,7 +46,7 @@ class testing:
             for n in ns:
                 tmp.append(n)
                 for r in n.getReferences():
-                    if (r.target() not in tmp):
+                    if r.target() not in tmp:
                         tmp.append(r.target())
             print("...tmp, " + str(len(tmp)) + " nodes discovered")
             ns = []

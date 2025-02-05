@@ -306,11 +306,11 @@ UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeI
                            UA_NodeId *securityGroupNodeId) {
     if(!server || !securityGroupConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode retval = addSecurityGroup(psm, securityGroupFolderNodeId,
                                             securityGroupConfig, securityGroupNodeId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retval;
 }
 
@@ -338,7 +338,7 @@ UA_StatusCode
 UA_Server_removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroup) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_SecurityGroup *sg = UA_SecurityGroup_find(psm, securityGroup);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -346,7 +346,7 @@ UA_Server_removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroup) 
         UA_SecurityGroup_remove(psm, sg);
     else
         res = UA_STATUSCODE_BADBOUNDNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 

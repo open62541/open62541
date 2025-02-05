@@ -277,12 +277,10 @@ ETH_close(UA_POSIXConnectionManager *pcm, ETH_FD *conn) {
     pcm->fdsSize--;
 
     /* Signal closing to the application */
-    UA_UNLOCK(&el->elMutex);
     conn->applicationCB(&pcm->cm, (uintptr_t)conn->rfd.fd,
                         conn->application, &conn->context,
                         UA_CONNECTIONSTATE_CLOSING,
                         &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
 
     /* Close the socket */
     int ret = UA_close(conn->rfd.fd);
@@ -341,7 +339,7 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     UA_ByteString response = pcm->rxBuffer;;
 
     /* Receive */
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
     ssize_t ret = UA_recv(rfd->fd, (char*)response.data,
                           response.length, MSG_DONTWAIT);
 #else
@@ -419,10 +417,8 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     UA_KeyValueMap map = {paramsSize, params};
     response.data += headerSize;
     response.length -= headerSize;
-    UA_UNLOCK(&el->elMutex);
     conn->applicationCB(cm, (uintptr_t)rfd->fd, conn->application, &conn->context,
                         UA_CONNECTIONSTATE_ESTABLISHED, &map, response);
-    UA_LOCK(&el->elMutex);
     response.data -= headerSize;
     response.length += headerSize;
 }
@@ -753,10 +749,10 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     pcm->fdsSize++;
 
     /* Register the listen socket in the application */
-    UA_UNLOCK(&el->elMutex);
     connectionCallback(cm, (uintptr_t)sockfd, application, &conn->context,
                        UA_CONNECTIONSTATE_ESTABLISHED, &UA_KEYVALUEMAP_NULL,
                        UA_BYTESTRING_NULL);
+    UA_UNLOCK(&el->elMutex);
     return UA_STATUSCODE_GOOD;
 
  cleanup:

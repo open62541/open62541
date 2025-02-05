@@ -9,8 +9,8 @@
 
 #include "ua_discovery.h"
 #include "ua_server_internal.h"
-
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+#include "mdnsd/libmdnsd/mdnsd.h"
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
 
 #ifndef UA_ENABLE_AMALGAMATION
 #include "mdnsd/libmdnsd/xht.h"
@@ -19,7 +19,7 @@
 
 #include "../deps/mp_printf.h"
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
 /* inet_ntoa is deprecated on MSVC but used for compatibility */
 # define _WINSOCK_DEPRECATED_NO_WARNINGS
 # include <winsock2.h>
@@ -37,12 +37,55 @@
 # include <netdb.h> // for recvfrom in cygwin
 #endif
 
+#define UA_MAXMDNSRECVSOCKETS 8
+#define SERVER_ON_NETWORK_HASH_SIZE 1000
+typedef struct serverOnNetwork {
+    LIST_ENTRY(serverOnNetwork) pointers;
+    UA_ServerOnNetwork serverOnNetwork;
+    UA_DateTime created;
+    UA_DateTime lastSeen;
+    UA_Boolean txtSet;
+    UA_Boolean srvSet;
+    char* pathTmp;
+} serverOnNetwork;
+
+typedef struct serverOnNetwork_hash_entry {
+    serverOnNetwork *entry;
+    struct serverOnNetwork_hash_entry* next;
+} serverOnNetwork_hash_entry;
+
+typedef struct mdnsPrivate {
+    mdns_daemon_t *mdnsDaemon;
+    uintptr_t mdnsSendConnection;
+    uintptr_t mdnsRecvConnections[UA_MAXMDNSRECVSOCKETS];
+    size_t mdnsRecvConnectionsSize;
+    /* hash mapping domain name to serverOnNetwork list entry */
+    struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_SIZE];
+    LIST_HEAD(, serverOnNetwork) serverOnNetwork;
+    /* Name of server itself. Used to detect if received mDNS
+     * message was from itself */
+    UA_String selfMdnsRecord;
+
+    UA_UInt32 serverOnNetworkRecordIdCounter;
+    UA_DateTime serverOnNetworkRecordIdLastReset;
+} mdnsPrivate;
+
+
+static UA_StatusCode
+UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
+                                               const char *fqdnMdnsRecord,
+                                               UA_String serverName,
+                                               struct serverOnNetwork **addedEntry);
+
+
+static mdnsPrivate mdnsPrivateData;
+
 static struct serverOnNetwork *
 mdns_record_add_or_get(UA_DiscoveryManager *dm, const char *record,
                        UA_String serverName, UA_Boolean createNew) {
     UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)record,
                                            strlen(record)) % SERVER_ON_NETWORK_HASH_SIZE;
-    struct serverOnNetwork_hash_entry *hash_entry = dm->serverOnNetworkHash[hashIdx];
+    struct serverOnNetwork_hash_entry *hash_entry = mdnsPrivateData.serverOnNetworkHash[hashIdx];
 
     while(hash_entry) {
         size_t maxLen = serverName.length;
@@ -68,7 +111,7 @@ mdns_record_add_or_get(UA_DiscoveryManager *dm, const char *record,
 }
 
 
-UA_StatusCode
+static UA_StatusCode
 UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
                                                const char *fqdnMdnsRecord,
                                                UA_String serverName,
@@ -97,15 +140,15 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
     listEntry->txtSet = false;
     listEntry->srvSet = false;
     UA_ServerOnNetwork_init(&listEntry->serverOnNetwork);
-    listEntry->serverOnNetwork.recordId = dm->serverOnNetworkRecordIdCounter;
+    listEntry->serverOnNetwork.recordId = mdnsPrivateData.serverOnNetworkRecordIdCounter;
     UA_StatusCode res = UA_String_copy(&serverName, &listEntry->serverOnNetwork.serverName);
     if(res != UA_STATUSCODE_GOOD) {
         UA_free(listEntry);
         return res;
     }
-    dm->serverOnNetworkRecordIdCounter++;
-    if(dm->serverOnNetworkRecordIdCounter == 0)
-        dm->serverOnNetworkRecordIdLastReset = el->dateTime_now(el);
+    mdnsPrivateData.serverOnNetworkRecordIdCounter++;
+    if(mdnsPrivateData.serverOnNetworkRecordIdCounter == 0)
+        mdnsPrivateData.serverOnNetworkRecordIdLastReset = el->dateTime_now(el);
     listEntry->lastSeen = el->dateTime_nowMonotonic(el);
 
     /* add to hash */
@@ -118,18 +161,18 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
         UA_free(listEntry);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    newHashEntry->next = dm->serverOnNetworkHash[hashIdx];
-    dm->serverOnNetworkHash[hashIdx] = newHashEntry;
+    newHashEntry->next = mdnsPrivateData.serverOnNetworkHash[hashIdx];
+    mdnsPrivateData.serverOnNetworkHash[hashIdx] = newHashEntry;
     newHashEntry->entry = listEntry;
 
-    LIST_INSERT_HEAD(&dm->serverOnNetwork, listEntry, pointers);
+    LIST_INSERT_HEAD(&mdnsPrivateData.serverOnNetwork, listEntry, pointers);
     if(addedEntry != NULL)
         *addedEntry = listEntry;
 
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
 
 /* see http://stackoverflow.com/a/10838854/869402 */
 static IP_ADAPTER_ADDRESSES *
@@ -175,9 +218,9 @@ getInterfaces(UA_DiscoveryManager *dm) {
     return adapter_addresses;
 }
 
-#endif /* _WIN32 */
+#endif /* UA_ARCHITECTURE_WIN32 */
 
-UA_StatusCode
+static UA_StatusCode
 UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
                                                     const char *fqdnMdnsRecord,
                                                     UA_String serverName) {
@@ -199,12 +242,12 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
     /* remove from hash */
     UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)recordStr.data,
                                            recordStr.length) % SERVER_ON_NETWORK_HASH_SIZE;
-    struct serverOnNetwork_hash_entry *hash_entry = dm->serverOnNetworkHash[hashIdx];
+    struct serverOnNetwork_hash_entry *hash_entry = mdnsPrivateData.serverOnNetworkHash[hashIdx];
     struct serverOnNetwork_hash_entry *prevEntry = hash_entry;
     while(hash_entry) {
         if(hash_entry->entry == entry) {
-            if(dm->serverOnNetworkHash[hashIdx] == hash_entry)
-                dm->serverOnNetworkHash[hashIdx] = hash_entry->next;
+            if(mdnsPrivateData.serverOnNetworkHash[hashIdx] == hash_entry)
+                mdnsPrivateData.serverOnNetworkHash[hashIdx] = hash_entry->next;
             else if(prevEntry)
                 prevEntry->next = hash_entry->next;
             break;
@@ -215,7 +258,7 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
     UA_free(hash_entry);
 
     if(dm->serverOnNetworkCallback &&
-        !UA_String_equal(&dm->selfFqdnMdnsRecord, &recordStr))
+        !UA_String_equal(&mdnsPrivateData.selfMdnsRecord, &recordStr))
         dm->serverOnNetworkCallback(&entry->serverOnNetwork, false,
                                     entry->txtSet,
                                     dm->serverOnNetworkCallbackData);
@@ -342,7 +385,7 @@ setSrv(UA_DiscoveryManager *dm, const struct resource *r,
 }
 
 /* This will be called by the mDNS library on every record which is received */
-void
+static void
 mdns_record_received(const struct resource *r, void *data) {
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*) data;
 
@@ -360,7 +403,7 @@ mdns_record_received(const struct resource *r, void *data) {
     UA_String recordStr;
     recordStr.data = (UA_Byte*)r->name;
     recordStr.length = strlen(r->name);
-    UA_Boolean isSelfAnnounce = UA_String_equal(&dm->selfFqdnMdnsRecord, &recordStr);
+    UA_Boolean isSelfAnnounce = UA_String_equal(&mdnsPrivateData.selfMdnsRecord, &recordStr);
     if(isSelfAnnounce)
         return; // ignore itself
 
@@ -412,11 +455,11 @@ mdns_record_received(const struct resource *r, void *data) {
                                     dm->serverOnNetworkCallbackData);
 }
 
-void
+static void
 mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain, const char *path,
                 const UA_String *capabilites, const size_t capabilitiesSize,
                 void (*conflict)(char *host, int type, void *arg)) {
-    mdns_record_t *r = mdnsd_unique(dm->mdnsDaemon, fullServiceDomain,
+    mdns_record_t *r = mdnsd_unique(mdnsPrivateData.mdnsDaemon, fullServiceDomain,
                                     QTYPE_TXT, 600, conflict, dm);
     xht_t *h = xht_new(11);
     char *allocPath = NULL;
@@ -480,12 +523,12 @@ mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain, const ch
     if(caps)
         UA_free(caps);
     xht_free(h);
-    mdnsd_set_raw(dm->mdnsDaemon, r, (char *) packet,
+    mdnsd_set_raw(mdnsPrivateData.mdnsDaemon, r, (char *) packet,
                   (unsigned short) txtRecordLength);
     UA_free(packet);
 }
 
-mdns_record_t *
+static mdns_record_t *
 mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
                  const char *host, const char *rdname) {
     mdns_record_t *r = mdnsd_get_published(mdnsDaemon, host);
@@ -507,19 +550,19 @@ static void
 mdns_set_address_record_if(UA_DiscoveryManager *dm, const char *fullServiceDomain,
                            const char *localDomain, char *addr, UA_UInt16 addr_len) {
     /* [servername]-[hostname]._opcua-tcp._tcp.local. A [ip]. */
-    mdns_record_t *r = mdnsd_shared(dm->mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
-    mdnsd_set_raw(dm->mdnsDaemon, r, addr, addr_len);
+    mdns_record_t *r = mdnsd_shared(mdnsPrivateData.mdnsDaemon, fullServiceDomain, QTYPE_A, 600);
+    mdnsd_set_raw(mdnsPrivateData.mdnsDaemon, r, addr, addr_len);
 
     /* [hostname]. A [ip]. */
-    r = mdnsd_shared(dm->mdnsDaemon, localDomain, QTYPE_A, 600);
-    mdnsd_set_raw(dm->mdnsDaemon, r, addr, addr_len);
+    r = mdnsd_shared(mdnsPrivateData.mdnsDaemon, localDomain, QTYPE_A, 600);
+    mdnsd_set_raw(mdnsPrivateData.mdnsDaemon, r, addr, addr_len);
 }
 
 /* Loop over network interfaces and run set_address_record on each */
-#ifdef _WIN32
-
-void mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
-                             const char *localDomain) {
+#ifdef UA_ARCHITECTURE_WIN32
+static void
+mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
+                        const char *localDomain) {
     IP_ADAPTER_ADDRESSES* adapter_addresses = getInterfaces(dm);
     if(!adapter_addresses)
         return;
@@ -575,7 +618,7 @@ void mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDom
 
 #elif defined(UA_HAS_GETIFADDR)
 
-void
+static void
 mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
                         const char *localDomain) {
     struct ifaddrs *ifaddr;
@@ -610,7 +653,7 @@ mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
     /* Clean up */
     freeifaddrs(ifaddr);
 }
-#else /* _WIN32 */
+#else /* UA_ARCHITECTURE_WIN32 */
 
 void
 mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
@@ -627,7 +670,91 @@ mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
     }
 }
 
-#endif /* _WIN32 */
+#endif /* UA_ARCHITECTURE_WIN32 */
+
+UA_StatusCode
+UA_DiscoveryManager_clearServerOnNetwork(UA_DiscoveryManager *dm) {
+    if(!dm) {
+        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                     "DiscoveryManager is NULL");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    serverOnNetwork *son, *son_tmp;
+    LIST_FOREACH_SAFE(son, &mdnsPrivateData.serverOnNetwork, pointers, son_tmp) {
+        LIST_REMOVE(son, pointers);
+        UA_ServerOnNetwork_clear(&son->serverOnNetwork);
+        if(son->pathTmp)
+            UA_free(son->pathTmp);
+        UA_free(son);
+    }
+
+    UA_String_clear(&mdnsPrivateData.selfMdnsRecord);
+
+    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_SIZE; i++) {
+        serverOnNetwork_hash_entry* currHash = mdnsPrivateData.serverOnNetworkHash[i];
+        while(currHash) {
+            serverOnNetwork_hash_entry* nextHash = currHash->next;
+            UA_free(currHash);
+            currHash = nextHash;
+        }
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_ServerOnNetwork*
+UA_DiscoveryManager_getServerOnNetworkList(UA_DiscoveryManager *dm) {
+    serverOnNetwork* entry = LIST_FIRST(&mdnsPrivateData.serverOnNetwork);
+    return entry ? &entry->serverOnNetwork : NULL;
+}
+
+UA_ServerOnNetwork*
+UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_DiscoveryManager *dm,
+                                   UA_ServerOnNetwork *current) {
+    serverOnNetwork *entry = NULL;
+    LIST_FOREACH(entry, &mdnsPrivateData.serverOnNetwork, pointers) {
+        if(&entry->serverOnNetwork == current) {
+            entry = LIST_NEXT(entry, pointers);
+            break;
+        }
+    }
+    return entry ? &entry->serverOnNetwork : NULL;
+}
+
+
+UA_UInt32
+UA_DiscoveryManager_getServerOnNetworkRecordIdCounter(UA_DiscoveryManager *dm) {
+    if(!dm) {
+        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                     "DiscoveryManager is NULL");
+        return 0;
+    }
+    return mdnsPrivateData.serverOnNetworkRecordIdCounter;
+}
+
+UA_StatusCode
+UA_DiscoveryManager_resetServerOnNetworkRecordCounter(UA_DiscoveryManager *dm) {
+    if(!dm) {
+        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                     "DiscoveryManager is NULL");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    mdnsPrivateData.serverOnNetworkRecordIdCounter = 0;
+    mdnsPrivateData.serverOnNetworkRecordIdLastReset = dm->sc.server->config.eventLoop->dateTime_now(
+        dm->sc.server->config.eventLoop);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_DateTime
+UA_DiscoveryManager_getServerOnNetworkCounterResetTime(UA_DiscoveryManager *dm) {
+    if(!dm) {
+        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                     "DiscoveryManager is NULL");
+        return 0;
+    }
+    return mdnsPrivateData.serverOnNetworkRecordIdLastReset;
+}
 
 typedef enum {
     UA_DISCOVERY_TCP,    /* OPC UA TCP mapping */
@@ -666,19 +793,19 @@ static void
 mdnsAddConnection(UA_DiscoveryManager *dm, uintptr_t connectionId,
                   UA_Boolean recv) {
     if(!recv) {
-        dm->mdnsSendConnection = connectionId;
+        mdnsPrivateData.mdnsSendConnection = connectionId;
         return;
     }
     for(size_t i = 0; i < UA_MAXMDNSRECVSOCKETS; i++) {
-        if(dm->mdnsRecvConnections[i] == connectionId)
+        if(mdnsPrivateData.mdnsRecvConnections[i] == connectionId)
             return;
     }
 
     for(size_t i = 0; i < UA_MAXMDNSRECVSOCKETS; i++) {
-        if(dm->mdnsRecvConnections[i] != 0)
+        if(mdnsPrivateData.mdnsRecvConnections[i] != 0)
             continue;
-        dm->mdnsRecvConnections[i] = connectionId;
-        dm->mdnsRecvConnectionsSize++;
+        mdnsPrivateData.mdnsRecvConnections[i] = connectionId;
+        mdnsPrivateData.mdnsRecvConnectionsSize++;
         break;
     }
 }
@@ -686,15 +813,15 @@ mdnsAddConnection(UA_DiscoveryManager *dm, uintptr_t connectionId,
 static void
 mdnsRemoveConnection(UA_DiscoveryManager *dm, uintptr_t connectionId,
                      UA_Boolean recv) {
-    if(dm->mdnsSendConnection == connectionId) {
-        dm->mdnsSendConnection = 0;
+    if(mdnsPrivateData.mdnsSendConnection == connectionId) {
+        mdnsPrivateData.mdnsSendConnection = 0;
         return;
     }
     for(size_t i = 0; i < UA_MAXMDNSRECVSOCKETS; i++) {
-        if(dm->mdnsRecvConnections[i] != connectionId)
+        if(mdnsPrivateData.mdnsRecvConnections[i] != connectionId)
             continue;
-        dm->mdnsRecvConnections[i] = 0;
-        dm->mdnsRecvConnectionsSize--;
+        mdnsPrivateData.mdnsRecvConnections[i] = 0;
+        mdnsPrivateData.mdnsRecvConnectionsSize--;
         break;
     }
 }
@@ -756,15 +883,15 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     memset(&mm, 0, sizeof(struct message));
     UA_Boolean rr = message_parse(&mm, (unsigned char*)msg.data, msg.length);
     if(rr)
-        mdnsd_in(dm->mdnsDaemon, &mm, infoptr->ai_addr,
+        mdnsd_in(mdnsPrivateData.mdnsDaemon, &mm, infoptr->ai_addr,
                  (unsigned short)infoptr->ai_addrlen);
     freeaddrinfo(infoptr);
 }
 
-void
+static void
 UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm) {
     UA_ConnectionManager *cm = dm->cm;
-    if(!dm->cm || dm->mdnsSendConnection == 0)
+    if(!dm->cm || mdnsPrivateData.mdnsSendConnection == 0)
         return;
 
     struct sockaddr ip;
@@ -775,20 +902,24 @@ UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm) {
     memset(&mm, 0, sizeof(struct message));
 
     unsigned short sport = 0;
-    while(mdnsd_out(dm->mdnsDaemon, &mm, &ip, &sport) > 0) {
+    while(mdnsd_out(mdnsPrivateData.mdnsDaemon, &mm, &ip, &sport) > 0) {
         int len = message_packet_len(&mm);
         char* buf = (char*)message_packet(&mm);
         if(len <= 0)
             continue;
         UA_ByteString sendBuf = UA_BYTESTRING_NULL;
-        UA_StatusCode rv = cm->allocNetworkBuffer(cm, dm->mdnsSendConnection,
+        UA_StatusCode rv = cm->allocNetworkBuffer(cm, mdnsPrivateData.mdnsSendConnection,
                                                   &sendBuf, (size_t)len);
         if(rv != UA_STATUSCODE_GOOD)
             continue;
         memcpy(sendBuf.data, buf, sendBuf.length);
-        cm->sendWithConnection(cm, dm->mdnsSendConnection,
+        cm->sendWithConnection(cm, mdnsPrivateData.mdnsSendConnection,
                                &UA_KEYVALUEMAP_NULL, &sendBuf);
     }
+}
+
+void UA_DiscoveryManager_mdnsCyclicTimer(UA_Server *server, void *data) {
+    UA_DiscoveryManager_sendMulticastMessages((UA_DiscoveryManager*)data);
 }
 
 static void
@@ -901,7 +1032,7 @@ discovery_createMulticastSocket(UA_DiscoveryManager *dm) {
     UA_KeyValueMap kvm = {paramsSize, params};
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
-    if(dm->mdnsRecvConnectionsSize == 0) {
+    if(mdnsPrivateData.mdnsRecvConnectionsSize == 0) {
         res = dm->cm->openConnection(dm->cm, &kvm, dm->sc.server, dm,
                                      MulticastDiscoveryRecvCallback);
         if(res != UA_STATUSCODE_GOOD)
@@ -911,7 +1042,7 @@ discovery_createMulticastSocket(UA_DiscoveryManager *dm) {
 
     /* Open the send connection */
     listen = false;
-    if(dm->mdnsSendConnection == 0) {
+    if(mdnsPrivateData.mdnsSendConnection == 0) {
         res = dm->cm->openConnection(dm->cm, &kvm, dm->sc.server, dm,
                                      MulticastDiscoverySendCallback);
         if(res != UA_STATUSCODE_GOOD)
@@ -922,9 +1053,9 @@ discovery_createMulticastSocket(UA_DiscoveryManager *dm) {
 
 void
 UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm) {
-    if(!dm->mdnsDaemon) {
-        dm->mdnsDaemon = mdnsd_new(QCLASS_IN, 1000);
-        mdnsd_register_receive_callback(dm->mdnsDaemon, mdns_record_received, dm);
+    if(!mdnsPrivateData.mdnsDaemon) {
+        mdnsPrivateData.mdnsDaemon = mdnsd_new(QCLASS_IN, 1000);
+        mdnsd_register_receive_callback(mdnsPrivateData.mdnsDaemon, mdns_record_received, dm);
     }
 
 #if defined(UA_ARCHITECTURE_WIN32) || defined(UA_ARCHITECTURE_WEC7)
@@ -933,9 +1064,9 @@ UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm) {
 #endif
 
     /* Open the mdns listen socket */
-    if(dm->mdnsSendConnection == 0)
+    if(mdnsPrivateData.mdnsSendConnection == 0)
         discovery_createMulticastSocket(dm);
-    if(dm->mdnsSendConnection == 0) {
+    if(mdnsPrivateData.mdnsSendConnection == 0) {
         UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "Could not create multicast socket");
         return;
@@ -948,7 +1079,7 @@ UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm) {
 
     /* Send a multicast probe to find any other OPC UA server on the network
      * through mDNS */
-    mdnsd_query(dm->mdnsDaemon, "_opcua-tcp._tcp.local.",
+    mdnsd_query(mdnsPrivateData.mdnsDaemon, "_opcua-tcp._tcp.local.",
                 QTYPE_PTR,discovery_multicastQueryAnswer, dm->sc.server);
 }
 
@@ -957,6 +1088,7 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
     UA_Server *server = dm->sc.server;
     for(size_t i = 0; i < server->config.serverUrlsSize; i++) {
         UA_String hostname = UA_STRING_NULL;
+        char hoststr[256]; /* check with UA_MAXHOSTNAME_LENGTH */
         UA_String path = UA_STRING_NULL;
         UA_UInt16 port = 0;
 
@@ -964,30 +1096,64 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
             UA_parseEndpointUrl(&server->config.serverUrls[i],
                                 &hostname, &port, &path);
 
-        if(retval != UA_STATUSCODE_GOOD || hostname.length == 0)
+        if(retval != UA_STATUSCODE_GOOD)
             continue;
+
+        if(hostname.length == 0) {
+            gethostname(hoststr, sizeof(hoststr)-1);
+            hoststr[sizeof(hoststr)-1] = '\0';
+            hostname.data = (unsigned char *) hoststr;
+            hostname.length = strlen(hoststr);
+        }
 
         UA_Discovery_removeRecord(dm, server->config.mdnsConfig.mdnsServerName,
                                   hostname, port, true);
     }
 
-    /* Stop the cyclic polling callback */
-    if(dm->mdnsCallbackId != 0) {
-        UA_EventLoop *el = server->config.eventLoop;
-        if(el) {
-            el->removeTimer(el, dm->mdnsCallbackId);
-            dm->mdnsCallbackId = 0;
+    /* Close the socket */
+    if(dm->cm) {
+        if(mdnsPrivateData.mdnsSendConnection)
+            dm->cm->closeConnection(dm->cm, mdnsPrivateData.mdnsSendConnection);
+        for(size_t i = 0; i < UA_MAXMDNSRECVSOCKETS; i++)
+            if(mdnsPrivateData.mdnsRecvConnections[i] != 0)
+                dm->cm->closeConnection(dm->cm, mdnsPrivateData.mdnsRecvConnections[i]);
+    }
+}
+
+void
+UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm) {
+    /* Clean up the serverOnNetwork list */
+    serverOnNetwork *son, *son_tmp;
+    LIST_FOREACH_SAFE(son, &mdnsPrivateData.serverOnNetwork, pointers, son_tmp) {
+        LIST_REMOVE(son, pointers);
+        UA_ServerOnNetwork_clear(&son->serverOnNetwork);
+        if(son->pathTmp)
+            UA_free(son->pathTmp);
+        UA_free(son);
+    }
+
+    UA_String_clear(&mdnsPrivateData.selfMdnsRecord);
+
+    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_SIZE; i++) {
+        serverOnNetwork_hash_entry* currHash = mdnsPrivateData.serverOnNetworkHash[i];
+        while(currHash) {
+            serverOnNetwork_hash_entry* nextHash = currHash->next;
+            UA_free(currHash);
+            currHash = nextHash;
         }
     }
 
-    /* Close the socket */
-    if(dm->cm) {
-        if(dm->mdnsSendConnection)
-            dm->cm->closeConnection(dm->cm, dm->mdnsSendConnection);
-        for(size_t i = 0; i < UA_MAXMDNSRECVSOCKETS; i++)
-            if(dm->mdnsRecvConnections[i] != 0)
-                dm->cm->closeConnection(dm->cm, dm->mdnsRecvConnections[i]);
+    /* Clean up mdns daemon */
+    if(mdnsPrivateData.mdnsDaemon) {
+        mdnsd_shutdown(mdnsPrivateData.mdnsDaemon);
+        mdnsd_free(mdnsPrivateData.mdnsDaemon);
+        mdnsPrivateData.mdnsDaemon = NULL;
     }
+}
+
+UA_UInt32
+UA_DiscoveryManager_getMdnsConnectionCount(void) {
+    return mdnsPrivateData.mdnsRecvConnectionsSize + (mdnsPrivateData.mdnsSendConnection != 0);
 }
 
 void
@@ -1036,14 +1202,14 @@ void
 UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
         getServerComponentByName(server, UA_STRING("discovery"));
     if(dm) {
         dm->serverOnNetworkCallback = cb;
         dm->serverOnNetworkCallbackData = data;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static void
@@ -1096,7 +1262,7 @@ static UA_Boolean
 UA_Discovery_recordExists(UA_DiscoveryManager *dm, const char* fullServiceDomain,
                           unsigned short port, const UA_DiscoveryProtocol protocol) {
     // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
-    mdns_record_t *r  = mdnsd_get_published(dm->mdnsDaemon, fullServiceDomain);
+    mdns_record_t *r  = mdnsd_get_published(mdnsPrivateData.mdnsDaemon, fullServiceDomain);
     while(r) {
         const mdns_answer_t *data = mdnsd_record_data(r);
         if(data->type == QTYPE_SRV && (port == 0 || data->srv.port == port))
@@ -1126,15 +1292,15 @@ discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg) {
     if(exists == true)
         return 0;
 
-    if(mdnsd_has_query(dm->mdnsDaemon, a->rdname))
+    if(mdnsd_has_query(mdnsPrivateData.mdnsDaemon, a->rdname))
         return 0;
 
     UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                  "mDNS send query for: %s SRV&TXT %s", a->name, a->rdname);
 
-    mdnsd_query(dm->mdnsDaemon, a->rdname, QTYPE_SRV,
+    mdnsd_query(mdnsPrivateData.mdnsDaemon, a->rdname, QTYPE_SRV,
                 discovery_multicastQueryAnswer, server);
-    mdnsd_query(dm->mdnsDaemon, a->rdname, QTYPE_TXT,
+    mdnsd_query(mdnsPrivateData.mdnsDaemon, a->rdname, QTYPE_TXT,
                 discovery_multicastQueryAnswer, server);
     return 0;
 }
@@ -1170,9 +1336,9 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
 
     if(!dm->mdnsMainSrvAdded) {
         mdns_record_t *r =
-            mdnsd_shared(dm->mdnsDaemon, "_services._dns-sd._udp.local.",
+            mdnsd_shared(mdnsPrivateData.mdnsDaemon, "_services._dns-sd._udp.local.",
                          QTYPE_PTR, 600);
-        mdnsd_set_host(dm->mdnsDaemon, r, "_opcua-tcp._tcp.local.");
+        mdnsd_set_host(mdnsPrivateData.mdnsDaemon, r, "_opcua-tcp._tcp.local.");
         dm->mdnsMainSrvAdded = true;
     }
 
@@ -1188,9 +1354,9 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                 "Multicast DNS: add record for domain: %s", fullServiceDomain);
 
-    if(isSelf && dm->selfFqdnMdnsRecord.length == 0) {
-        dm->selfFqdnMdnsRecord = UA_STRING_ALLOC(fullServiceDomain);
-        if(!dm->selfFqdnMdnsRecord.data)
+    if(isSelf && mdnsPrivateData.selfMdnsRecord.length == 0) {
+        mdnsPrivateData.selfMdnsRecord = UA_STRING_ALLOC(fullServiceDomain);
+        if(!mdnsPrivateData.selfMdnsRecord.data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -1248,25 +1414,24 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
 
     /* _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local. */
     mdns_record_t *r =
-        mdns_find_record(dm->mdnsDaemon, QTYPE_PTR,
+        mdns_find_record(mdnsPrivateData.mdnsDaemon, QTYPE_PTR,
                          "_opcua-tcp._tcp.local.", fullServiceDomain);
     if(!r) {
-        r = mdnsd_shared(dm->mdnsDaemon, "_opcua-tcp._tcp.local.",
+        r = mdnsd_shared(mdnsPrivateData.mdnsDaemon, "_opcua-tcp._tcp.local.",
                          QTYPE_PTR, 600);
-        mdnsd_set_host(dm->mdnsDaemon, r, fullServiceDomain);
+        mdnsd_set_host(mdnsPrivateData.mdnsDaemon, r, fullServiceDomain);
     }
 
     /* The first 63 characters of the hostname (or less) */
     size_t maxHostnameLen = UA_MIN(hostname.length, 63);
-    char localDomain[65];
+    char localDomain[71];
     memcpy(localDomain, hostname.data, maxHostnameLen);
-    localDomain[maxHostnameLen] = '.';
-    localDomain[maxHostnameLen+1] = '\0';
+    strcpy(localDomain + maxHostnameLen, ".local.");
 
     /* [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname]. */
-    r = mdnsd_unique(dm->mdnsDaemon, fullServiceDomain,
+    r = mdnsd_unique(mdnsPrivateData.mdnsDaemon, fullServiceDomain,
                      QTYPE_SRV, 600, UA_Discovery_multicastConflict, dm);
-    mdnsd_set_srv(dm->mdnsDaemon, r, 0, 0, port, localDomain);
+    mdnsd_set_srv(mdnsPrivateData.mdnsDaemon, r, 0, 0, port, localDomain);
 
     /* A/AAAA record for all ip addresses.
      * [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
@@ -1319,7 +1484,7 @@ UA_Discovery_removeRecord(UA_DiscoveryManager *dm, const UA_String servername,
 
     /* _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local. */
     mdns_record_t *r =
-        mdns_find_record(dm->mdnsDaemon, QTYPE_PTR,
+        mdns_find_record(mdnsPrivateData.mdnsDaemon, QTYPE_PTR,
                          "_opcua-tcp._tcp.local.", fullServiceDomain);
     if(!r) {
         UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
@@ -1327,14 +1492,14 @@ UA_Discovery_removeRecord(UA_DiscoveryManager *dm, const UA_String servername,
                        "PTR Record not found for domain: %s", fullServiceDomain);
         return UA_STATUSCODE_BADNOTHINGTODO;
     }
-    mdnsd_done(dm->mdnsDaemon, r);
+    mdnsd_done(mdnsPrivateData.mdnsDaemon, r);
 
     /* looks for [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5
      * port hostname.local. and TXT record:
      * [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
      * and A record: [servername]-[hostname]._opcua-tcp._tcp.local. A [ip] */
     mdns_record_t *r2 =
-        mdnsd_get_published(dm->mdnsDaemon, fullServiceDomain);
+        mdnsd_get_published(mdnsPrivateData.mdnsDaemon, fullServiceDomain);
     if(!r2) {
         UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                        "Multicast DNS: could not remove record. Record not "
@@ -1348,7 +1513,7 @@ UA_Discovery_removeRecord(UA_DiscoveryManager *dm, const UA_String servername,
         if((removeTxt && data->type == QTYPE_TXT) ||
            (removeTxt && data->type == QTYPE_A) ||
            data->srv.port == port) {
-            mdnsd_done(dm->mdnsDaemon, r2);
+            mdnsd_done(mdnsPrivateData.mdnsDaemon, r2);
         }
         r2 = next;
     }

@@ -26,8 +26,8 @@ UA_DiscoveryManager_setState(UA_DiscoveryManager *dm,
     if(state == UA_LIFECYCLESTATE_STOPPING ||
        state == UA_LIFECYCLESTATE_STOPPED) {
         state = UA_LIFECYCLESTATE_STOPPED;
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-        if(dm->mdnsRecvConnectionsSize != 0 || dm->mdnsSendConnection != 0)
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD 
+        if(UA_DiscoveryManager_getMdnsConnectionCount() > 0)
             state = UA_LIFECYCLESTATE_STOPPING;
 #endif
 
@@ -66,32 +66,7 @@ UA_DiscoveryManager_clear(struct UA_ServerComponent *sc) {
     }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    serverOnNetwork *son, *son_tmp;
-    LIST_FOREACH_SAFE(son, &dm->serverOnNetwork, pointers, son_tmp) {
-        LIST_REMOVE(son, pointers);
-        UA_ServerOnNetwork_clear(&son->serverOnNetwork);
-        if(son->pathTmp)
-            UA_free(son->pathTmp);
-        UA_free(son);
-    }
-
-    UA_String_clear(&dm->selfFqdnMdnsRecord);
-
-    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_SIZE; i++) {
-        serverOnNetwork_hash_entry* currHash = dm->serverOnNetworkHash[i];
-        while(currHash) {
-            serverOnNetwork_hash_entry* nextHash = currHash->next;
-            UA_free(currHash);
-            currHash = nextHash;
-        }
-    }
-
-    /* Clean up mdns daemon */
-    if(dm->mdnsDaemon) {
-        mdnsd_shutdown(dm->mdnsDaemon);
-        mdnsd_free(dm->mdnsDaemon);
-        dm->mdnsDaemon = NULL;
-    }
+    UA_DiscoveryManager_clearMdns(dm);
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
     return UA_STATUSCODE_GOOD;
@@ -154,10 +129,13 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server, void *data) {
             dm->registeredServersSize--;
         }
     }
+}
 
+static void
+UA_DiscoveryManager_cyclicTimer(UA_Server *server, void *data) {
+    UA_DiscoveryManager_cleanupTimedOut(server, data);
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    /* Send out multicast */
-    UA_DiscoveryManager_sendMulticastMessages(dm);
+    UA_DiscoveryManager_mdnsCyclicTimer(server, data);
 #endif
 }
 
@@ -172,12 +150,11 @@ UA_DiscoveryManager_start(struct UA_ServerComponent *sc,
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_EventLoop *el = server->config.eventLoop;
-    dm->serverOnNetworkRecordIdLastReset = el->dateTime_now(el);
+    UA_DiscoveryManager_resetServerOnNetworkRecordCounter(dm);
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
     UA_StatusCode res =
-        addRepeatedCallback(server, UA_DiscoveryManager_cleanupTimedOut,
+        addRepeatedCallback(server, UA_DiscoveryManager_cyclicTimer,
                             dm, 1000.0, &dm->discoveryCallbackId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -513,10 +490,10 @@ UA_Server_registerDiscovery(UA_Server *server, UA_ClientConfig *cc,
                             const UA_String semaphoreFilePath) {
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                 "Registering at the DiscoveryServer: %S", discoveryServerUrl);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res =
         UA_Server_register(server, cc, false, discoveryServerUrl, semaphoreFilePath);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -525,10 +502,10 @@ UA_Server_deregisterDiscovery(UA_Server *server, UA_ClientConfig *cc,
                               const UA_String discoveryServerUrl) {
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                 "Deregistering at the DiscoveryServer: %S", discoveryServerUrl);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res =
         UA_Server_register(server, cc, true, discoveryServerUrl, UA_STRING_NULL);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 

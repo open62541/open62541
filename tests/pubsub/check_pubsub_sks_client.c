@@ -430,8 +430,8 @@ addSubscriber(UA_Server *server) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);    
-    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)UA_calloc(
-        readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
+    UA_FieldTargetDataType *targetVars = (UA_FieldTargetDataType*)
+        UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetDataType));
     /* Variable to subscribe data */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     UA_LocalizedText_copy(&readerConfig.dataSetMetaData.fields->description,
@@ -447,14 +447,12 @@ addSubscriber(UA_Server *server) {
         UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields->name.data),
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newNode);
 
-    /* For creating Targetvariables */
-    UA_FieldTargetDataType_init(&targetVars->targetVariable);
-    targetVars->targetVariable.attributeId = UA_ATTRIBUTEID_VALUE;
-    targetVars->targetVariable.targetNodeId = newNode;
+    targetVars->attributeId = UA_ATTRIBUTEID_VALUE;
+    targetVars->targetNodeId = newNode;
 
-    retval = UA_Server_DataSetReader_createTargetVariables(
-        server, readerIdentifier, readerConfig.dataSetMetaData.fieldsSize, targetVars);
-    UA_FieldTargetDataType_clear(&targetVars->targetVariable);
+    retval = UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
+                                                           readerConfig.dataSetMetaData.fieldsSize,
+                                                           targetVars);
 
     UA_free(targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
@@ -558,11 +556,11 @@ START_TEST(AddValidSksClientwithWriterGroup) {
     ck_assert(wg != NULL);
     
     ck_assert(wg->keyStorage->keyListSize > 0);
-    UA_LOCK(&sksServer->serviceMutex);
+    lockServer(sksServer);
     UA_PubSubManager *sksPsm = getPSM(sksServer);
     UA_PubSubKeyListItem *sksKsItr =
         UA_PubSubKeyStorage_find(sksPsm, securityGroupId)->currentItem;
-    UA_UNLOCK(&sksServer->serviceMutex);
+    unlockServer(sksServer);
     UA_PubSubKeyListItem *wgKsItr = TAILQ_FIRST(&wg->keyStorage->keyList);
     for(size_t i = 0; i < wg->keyStorage->keyListSize; i++) {
         ck_assert_msg(UA_ByteString_equal(&sksKsItr->key, &wgKsItr->key) == UA_TRUE,
@@ -608,11 +606,11 @@ START_TEST(AddValidSksClientwithReaderGroup) {
                   "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
     ck_assert(rg->keyStorage->keyListSize > 0);
-    UA_LOCK(&sksServer->serviceMutex);
+    lockServer(sksServer);
     UA_PubSubManager *sksPsm = getPSM(sksServer);
     UA_PubSubKeyListItem *sksKsItr =
         UA_PubSubKeyStorage_find(sksPsm, securityGroupId)->currentItem;
-    UA_UNLOCK(&sksServer->serviceMutex);
+    unlockServer(sksServer);
     UA_PubSubKeyListItem *rgKsItr = TAILQ_FIRST(&rg->keyStorage->keyList);
     for(size_t i = 0; i < rg->keyStorage->keyListSize; i++) {
         ck_assert_msg(UA_ByteString_equal(&sksKsItr->key, &rgKsItr->key) == UA_TRUE,
@@ -912,14 +910,14 @@ START_TEST(FetchNextbatchOfKeys) {
     }
     ck_assert(retryCnt < MAX_RETRIES);
 
-    UA_LOCK(&publisherApp->serviceMutex);
+    lockServer(publisherApp);
     UA_PubSubManager *pubPsm = getPSM(publisherApp);
     UA_PubSubKeyStorage *pubKs = UA_PubSubKeyStorage_find(pubPsm, securityGroupId);
-    UA_UNLOCK(&publisherApp->serviceMutex);
-    UA_LOCK(&subscriberApp->serviceMutex);
+    unlockServer(publisherApp);
+    lockServer(subscriberApp);
     UA_PubSubManager *subPsm = getPSM(publisherApp);
     UA_PubSubKeyStorage *subKs = UA_PubSubKeyStorage_find(subPsm, securityGroupId);
-    UA_UNLOCK(&subscriberApp->serviceMutex);
+    unlockServer(subscriberApp);
 
     sksPullStatus = UA_STATUSCODE_BAD;
     UA_UInt16 sksPullIteration = 0;

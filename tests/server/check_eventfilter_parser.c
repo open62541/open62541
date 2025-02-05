@@ -158,7 +158,7 @@ START_TEST(Case_11) {
 /* JSON */
 START_TEST(Case_12) {
     char *inp = "SELECT /Severity "
-                "WHERE /Value == {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]}";
+                "WHERE /Value == {\"UaType\": 3,\"Value\": [1,2,1,5],\"Dimension\": [2,2]}";
     UA_String case1 = UA_STRING(inp);
     UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);

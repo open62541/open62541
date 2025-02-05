@@ -154,9 +154,9 @@ requestHistory(UA_DateTime start,
     request.nodesToReadSize = 1;
     request.nodesToRead = valueId;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_HistoryRead(server, &server->adminSession, &request, response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     UA_HistoryReadRequest_clear(&request);
 }
 
@@ -170,9 +170,9 @@ START_TEST(Server_HistorizingStrategyValueSet) {
     setting.historizingBackend = UA_HistoryDataBackend_Memory_Circular(3, 10);
     setting.maxHistoryDataResponseSize = 10;
     setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_VALUESET;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     retval = gathering->registerNodeId(server, gathering->context, &outNodeId, setting);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // Fill the data overcoming the buffer size and starting to write new values replacing the old ones.

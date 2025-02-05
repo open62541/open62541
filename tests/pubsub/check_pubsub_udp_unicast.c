@@ -256,16 +256,14 @@ setupSubscribing(UA_Server *server, UA_NodeId connectionId,
                                          &readerIdentifier);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
-    UA_FieldTargetVariable targetVar;
-    memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
+    UA_FieldTargetDataType targetVar;
     /* For creating Targetvariable */
-    UA_FieldTargetDataType_init(&targetVar.targetVariable);
-    targetVar.targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-    targetVar.targetVariable.targetNodeId = targetNodeId;
+    UA_FieldTargetDataType_init(&targetVar);
+    targetVar.attributeId  = UA_ATTRIBUTEID_VALUE;
+    targetVar.targetNodeId = targetNodeId;
     retVal = UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
-                                                            1, &targetVar);
+                                                           1, &targetVar);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    UA_FieldTargetDataType_clear(&targetVar.targetVariable);
     UA_free(pMetaData->fields);
 }
 

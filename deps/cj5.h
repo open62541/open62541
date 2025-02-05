@@ -121,8 +121,7 @@ typedef struct cj5_token {
 
 typedef struct cj5_result {
     cj5_error_code error;
-    unsigned int error_line;
-    unsigned int error_col;
+    unsigned int error_pos;
     unsigned int num_tokens;
     const cj5_token* tokens;
     const char* json5;
