@@ -418,8 +418,10 @@ UA_Guid_print(const UA_Guid *guid, UA_String *output) {
 UA_StatusCode
 UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
     UA_ByteString_init(bs);
-    if(length == 0)
+    if(length == 0) {
+        bs->data = (u8*)UA_EMPTY_ARRAY_SENTINEL;
         return UA_STATUSCODE_GOOD;
+    }
     bs->data = (u8*)UA_malloc(length);
     if(UA_UNLIKELY(!bs->data))
         return UA_STATUSCODE_BADOUTOFMEMORY;
