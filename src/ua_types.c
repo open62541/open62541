@@ -260,6 +260,12 @@ UA_QualifiedName_hash(const UA_QualifiedName *q) {
 UA_StatusCode
 UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
                          const UA_NamespaceMapping *nsMapping) {
+    /* If the QualifiedName is NULL, return a NULL string */
+    if(qn->name.data == NULL && qn->namespaceIndex == 0) {
+        UA_String_clear(output);
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* Start tracking the output length */
     size_t len = qn->name.length;
 
