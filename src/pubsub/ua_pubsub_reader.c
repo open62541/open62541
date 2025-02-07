@@ -266,10 +266,10 @@ UA_StatusCode
 UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
                            const UA_DataSetReaderConfig *dataSetReaderConfig,
                            UA_NodeId *readerIdentifier) {
-    lockServer(server);
+    UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_DataSetReader_create(server, readerGroupIdentifier,
                                                 dataSetReaderConfig, readerIdentifier);
-    unlockServer(server);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
@@ -347,14 +347,14 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
 
 UA_StatusCode
 UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
-    lockServer(server);
+    UA_LOCK(&server->serviceMutex);
     UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
     if(!dsr) {
-        unlockServer(server);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_StatusCode res = UA_DataSetReader_remove(server, dsr);
-    unlockServer(server);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
@@ -433,15 +433,15 @@ UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderI
     if(config == NULL)
        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    lockServer(server);
+    UA_LOCK(&server->serviceMutex);
     UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
     if(!dsr || !rg) {
-        unlockServer(server);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_StatusCode res = DataSetReader_updateConfig(server, rg, dsr, config);
-    unlockServer(server);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
@@ -450,12 +450,12 @@ UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIden
                                  UA_DataSetReaderConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    lockServer(server);
+    UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
     if(dsr)
         res = UA_DataSetReaderConfig_copy(&dsr->config, config);
-    unlockServer(server);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
@@ -521,14 +521,14 @@ UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdent
     if(!server || !state)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    lockServer(server);
+    UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
     if(dsr) {
         res = UA_STATUSCODE_GOOD;
         *state = dsr->state;
     }
-    unlockServer(server);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
@@ -672,15 +672,15 @@ UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
                                               UA_NodeId dataSetReaderIdentifier,
                                               size_t targetVariablesSize,
                                               const UA_FieldTargetVariable *targetVariables) {
-    lockServer(server);
+    UA_LOCK(&server->serviceMutex);
     UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
     if(!dataSetReader) {
-        unlockServer(server);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     UA_StatusCode res = DataSetReader_createTargetVariables(server, dataSetReader,
                                                             targetVariablesSize, targetVariables);
-    unlockServer(server);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 

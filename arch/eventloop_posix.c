@@ -110,7 +110,9 @@ processDelayed(UA_EventLoopPOSIX *el) {
          * StatusCode during "add" and don't validate. So test here. */
         if(!dc->callback)
             continue;
+        UA_UNLOCK(&el->elMutex);
         dc->callback(dc->application, dc->context);
+        UA_LOCK(&el->elMutex);
     }
 }
 
@@ -146,7 +148,9 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_EventSource *es = el->eventLoop.eventSources;
     while(es) {
+        UA_UNLOCK(&el->elMutex);
         res |= es->start(es);
+        UA_LOCK(&el->elMutex);
         es = es->next;
     }
 
@@ -209,7 +213,9 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
     for(; es; es = es->next) {
         if(es->state == UA_EVENTSOURCESTATE_STARTING ||
            es->state == UA_EVENTSOURCESTATE_STARTED) {
+            UA_UNLOCK(&el->elMutex);
             es->stop(es);
+            UA_LOCK(&el->elMutex);
         }
     }
 
@@ -249,7 +255,9 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     UA_DateTime dateBefore =
         el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
 
+    UA_UNLOCK(&el->elMutex);
     UA_DateTime dateNext = UA_Timer_process(&el->timer, dateBefore);
+    UA_LOCK(&el->elMutex);
 
     /* Process delayed callbacks here:
      * - Removes closed sockets already here instead of polling them again.
@@ -395,7 +403,9 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     /* Deregister and delete all the EventSources */
     while(el->eventLoop.eventSources) {
         UA_EventSource *es = el->eventLoop.eventSources;
+        UA_UNLOCK(&el->elMutex);
         UA_EventLoopPOSIX_deregisterEventSource(el, es);
+        UA_LOCK(&el->elMutex);
         es->free(es);
     }
 

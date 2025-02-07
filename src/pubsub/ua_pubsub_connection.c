@@ -124,13 +124,13 @@ UA_Server_getPubSubConnectionConfig(UA_Server *server, const UA_NodeId connectio
                                     UA_PubSubConnectionConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    lockServer(server);
+    UA_LOCK(&server->serviceMutex);
     UA_PubSubConnection *currentPubSubConnection =
         UA_PubSubConnection_findConnectionbyId(server, connection);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(currentPubSubConnection)
         res = UA_PubSubConnectionConfig_copy(&currentPubSubConnection->config, config);
-    unlockServer(server);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
@@ -218,9 +218,9 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
 UA_StatusCode
 UA_Server_addPubSubConnection(UA_Server *server, const UA_PubSubConnectionConfig *cc,
                               UA_NodeId *cId) {
-    lockServer(server);
+    UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_PubSubConnection_create(server, cc, cId);
-    unlockServer(server);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
@@ -228,9 +228,9 @@ static void
 delayedPubSubConnection_delete(void *application, void *context) {
     UA_Server *server = (UA_Server*)application;
     UA_PubSubConnection *c = (UA_PubSubConnection*)context;
-    lockServer(server);
+    UA_LOCK(&server->serviceMutex);
     UA_PubSubConnection_delete(server, c);
-    unlockServer(server);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 /* Clean up the PubSubConnection. If no EventLoop connection is attached we can
@@ -303,15 +303,15 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
 
 UA_StatusCode
 UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
-    lockServer(server);
+    UA_LOCK(&server->serviceMutex);
     UA_PubSubConnection *psc =
         UA_PubSubConnection_findConnectionbyId(server, connection);
     if(!psc) {
-        unlockServer(server);
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_PubSubConnection_delete(server, psc);
-    unlockServer(server);
+    UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 

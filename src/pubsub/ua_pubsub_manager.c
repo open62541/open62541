@@ -303,9 +303,9 @@ UA_StatusCode
 UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
                                          const UA_StandaloneSubscribedDataSetConfig *sdsConfig,
                                          UA_NodeId *sdsIdentifier) {
-    lockServer(server);
+    UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = addStandaloneSubscribedDataSet(server, sdsConfig, sdsIdentifier);
-    unlockServer(server);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
@@ -350,9 +350,9 @@ removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
 
 UA_StatusCode
 UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
-    lockServer(server);
+    UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = removeStandaloneSubscribedDataSet(server, sds);
-    unlockServer(server);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
