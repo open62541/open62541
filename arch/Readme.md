@@ -9,7 +9,7 @@ The arch-specific code covers:
 Currently open62541 supports
 
 - Windows
-- POSIX (Linux, BSD, Mac, etc.)
+- POSIX (Linux, BSD, Mac, QNX, etc.)
 
 Previously (until v1.3) there was additional support for:
 
