@@ -888,13 +888,22 @@ printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Escaping esc) {
                 res |= UA_String_append(&tmp, UA_STRING("#"));
             if(elm->isInverse)
                 res |= UA_String_append(&tmp, UA_STRING("!"));
-            UA_Byte bnBuf[512];
-            UA_String bnBufStr = {512, bnBuf};
-            res |= getRefTypeBrowseName(&elm->referenceTypeId, &bnBufStr);
             if(res != UA_STATUSCODE_GOOD)
                 break;
+
+            UA_Byte bnBuf[512];
+            UA_String bnBufStr = {512, bnBuf};
+            res = getRefTypeBrowseName(&elm->referenceTypeId, &bnBufStr);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_String_init(&bnBufStr);
+                res = getRefTypeBrowseName(&elm->referenceTypeId, &bnBufStr);
+                if(res != UA_STATUSCODE_GOOD)
+                    break;
+            }
             res |= UA_String_escapeAppend(&tmp, bnBufStr, esc);
             res |= UA_String_append(&tmp, UA_STRING(">"));
+            if(bnBufStr.data != bnBuf)
+                UA_String_clear(&bnBufStr);
         }
 
         /* Print the qualified name */
