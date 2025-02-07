@@ -996,14 +996,14 @@ UA_AttributeOperand_print(const UA_AttributeOperand *ao,
         UA_Byte nodeIdBuf[512];
         UA_String nodeIdBufStr = {512, nodeIdBuf};
         res |= nodeId_printEscape(&ao->nodeId, &nodeIdBufStr,
-                                  NULL, UA_ESCAPING_PERCENT);
+                                  NULL, UA_ESCAPING_PERCENT_EXTENDED);
         res |= UA_String_append(&tmp, nodeIdBufStr);
     }
 
     /* Print the BrowsePath */
     UA_String rpstr = UA_STRING_NULL;
     UA_assert(rpstr.data == NULL && rpstr.length == 0); /* pacify clang scan-build */
-    res |= printRelativePath(&ao->browsePath, &rpstr, UA_ESCAPING_PERCENT);
+    res |= printRelativePath(&ao->browsePath, &rpstr, UA_ESCAPING_PERCENT_EXTENDED);
     res |= UA_String_append(&tmp, rpstr);
     UA_String_clear(&rpstr);
 
