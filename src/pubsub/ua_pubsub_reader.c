@@ -149,8 +149,18 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     dsr->head.componentType = UA_PUBSUBCOMPONENT_DATASETREADER;
     dsr->linkedReaderGroup = rg;
 
-    /* Add the new reader to the group */
-    LIST_INSERT_HEAD(&rg->readers, dsr, listEntry);
+    /* Add the new reader to the group. Add to the end of the linked list to
+     * ensure the order for the realtime offsets is as expected. The received
+     * DataSetMessages are matched via UA_DataSetReader_checkIdentifier for the
+     * non-RT path. */
+    UA_DataSetReader *after = LIST_FIRST(&rg->readers);
+    if(!after) {
+        LIST_INSERT_HEAD(&rg->readers, dsr, listEntry);
+    } else {
+        while(LIST_NEXT(after, listEntry))
+            after = LIST_NEXT(after, listEntry);
+        LIST_INSERT_AFTER(after, dsr, listEntry);
+    }
     rg->readersCount++;
 
     /* Copy the config into the new dataSetReader */
