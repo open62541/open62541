@@ -121,7 +121,7 @@ UA_Client_Subscriptions_setPublishingMode(UA_Client *client,
 
 /**
  * MonitoredItems
- * --------------
+ * ~~~~~~~~~~~~~~
  *
  * MonitoredItems for Events indicate the ``EventNotifier`` attribute. This
  * indicates to the server not to monitor changes of the attribute, but to
@@ -284,12 +284,14 @@ UA_Client_MonitoredItems_setTriggering_async(UA_Client *client,
         userdata, requestId);
 }
 
-/* Retrieve or change the user supplied monitored item context */
+/* Retrieve or change the user supplied MonitoredItem context */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItem_getContext(UA_Client *client, UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId, void **monContext);
+UA_Client_MonitoredItem_getContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   UA_UInt32 monitoredItemId, void **monContext);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItem_setContext(UA_Client *client, UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId, void *monContext);
+UA_Client_MonitoredItem_setContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   UA_UInt32 monitoredItemId, void *monContext);
 
 _UA_END_DECLS
 

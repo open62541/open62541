@@ -19,7 +19,7 @@ _UA_BEGIN_DECLS
  * .. _client_async:
  *
  * Async Services
- * ^^^^^^^^^^^^^^
+ * --------------
  *
  * Call OPC UA Services asynchronously with a callback. The (optional) requestId
  * output can be used to cancel the service while it is still pending. */
@@ -87,7 +87,7 @@ UA_Client_sendAsyncBrowseNextRequest(
 
 /**
  * Asynchronous Operations
- * ^^^^^^^^^^^^^^^^^^^^^^^
+ * ~~~~~~~~~~~~~~~~~~~~~~~
  *
  * Many Services can be called with an array of operations. For example, a
  * request to the Read Service contains an array of ReadValueId, each
@@ -105,7 +105,7 @@ typedef void
 
 /**
  * Read Attribute
- * ^^^^^^^^^^^^^^
+ * ~~~~~~~~~~~~~~
  *
  * Asynchronously read a single attribute. The attribute is unpacked from the
  * response as the datatype of the attribute is known ahead of time. Value
@@ -394,7 +394,7 @@ UA_Client_readUserExecutableAttribute_async(
 
 /**
  * Write Attribute
- * ^^^^^^^^^^^^^^^
+ * ~~~~~~~~~~~~~~~
  *
  * The methods for async writing of attributes all have a similar API::
  *
@@ -466,7 +466,7 @@ UA_CLIENT_ASYNCWRITE(UA_Client_writeAccessLevelExAttribute_async,
 
 /**
  * Method Calling
- * ^^^^^^^^^^^^^^ */
+ * ~~~~~~~~~~~~~~ */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 __UA_Client_call_async(
     UA_Client *client,
@@ -493,7 +493,7 @@ UA_Client_call_async(
 
 /**
  * Node Management
- * ^^^^^^^^^^^^^^^ */
+ * ~~~~~~~~~~~~~~~ */
 typedef void
 (*UA_ClientAsyncAddNodesCallback)(
     UA_Client *client, void *userdata,
