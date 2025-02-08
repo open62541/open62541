@@ -45,14 +45,14 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h ${DOC_SRC_DIR}/pub
 add_custom_command(OUTPUT ${DOC_SRC_DIR}/client.rst
                    DEPENDS ${PROJECT_SOURCE_DIR}/tools/c2rst.py
                            ${PROJECT_SOURCE_DIR}/include/open62541/client.h
+                           ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
                            ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
                            ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h
-                           ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
                    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/c2rst.py
                                       ${PROJECT_SOURCE_DIR}/include/open62541/client.h
+                                      ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
                                       ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
                                       ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h
-                                      ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
                                       ${DOC_SRC_DIR}/client.rst)
 list(APPEND GENERATED_RST ${DOC_SRC_DIR}/client.rst)
 

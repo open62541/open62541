@@ -43,13 +43,10 @@ _UA_BEGIN_DECLS
  * convenience, some functionality has been wrapped in :ref:`high-level
  * abstractions <client-highlevel>`.
  *
- * **However**: At this time, the client does not yet contain its own thread or
- * event-driven main-loop, meaning that the client will not perform any actions
- * automatically in the background. This is especially relevant for
- * connection/session management and subscriptions. The user will have to
+ * **Attention**: The client does not start its own thread. The user has to
  * periodically call `UA_Client_run_iterate` to ensure that asynchronous events
- * are handled, including keeping a secure connection established.
- * See more about :ref:`asynchronicity<client-async-services>` and
+ * and housekeeping tasks are handled, including keeping a secure connection
+ * established. See more about :ref:`asynchronicity<client-async-services>` and
  * :ref:`subscriptions<client-subscriptions>`.
  *
  * .. _client-config:
@@ -91,10 +88,8 @@ struct UA_ClientConfig {
      * Such as "opc.tcp://host:port". */
     UA_String endpointUrl;
 
-    /**
-     * Connection configuration
+    /* Connection configuration
      * ~~~~~~~~~~~~~~~~~~~~~~~~
-     *
      * The following configuration elements reduce the "degrees of freedom" the
      * client has when connecting to a server. If no connection can be made
      * under these restrictions, then the connection will abort with an error
@@ -115,25 +110,21 @@ struct UA_ClientConfig {
                               * the intial one is lost. Instead abort the
                               * connection when the Session is lost. */
 
-    /**
-     * If either endpoint or userTokenPolicy has been set, then they are used
+    /* If either endpoint or userTokenPolicy has been set, then they are used
      * directly. Otherwise this information comes from the GetEndpoints response
      * from the server (filtered and selected for the SecurityMode, etc.). */
     UA_EndpointDescription endpoint;
     UA_UserTokenPolicy userTokenPolicy;
 
-    /**
-     * If the EndpointDescription has not been defined, the ApplicationURI
+    /* If the EndpointDescription has not been defined, the ApplicationURI
      * filters the servers considered in the FindServers service and the
      * Endpoints considered in the GetEndpoints service. */
     UA_String applicationUri;
 
-    /**
-     * The following settings are specific to OPC UA with TCP transport. */
+    /* The following settings are specific to OPC UA with TCP transport. */
     UA_Boolean tcpReuseAddr;
 
-    /**
-     * Custom Data Types
+    /* Custom Data Types
      * ~~~~~~~~~~~~~~~~~
      * The following is a linked list of arrays with custom data types. All data
      * types that are accessible from here are automatically considered for the
@@ -145,8 +136,7 @@ struct UA_ClientConfig {
      * data types are provided in ``/examples/custom_datatype/``. */
     const UA_DataTypeArray *customDataTypes;
 
-    /**
-     * Namespace Mapping
+    /* Namespace Mapping
      * ~~~~~~~~~~~~~~~~~
      * The namespaces index is "just" a mapping to the Uris in the namespace
      * array of the server. In order to have stable NodeIds across servers, the
@@ -171,8 +161,7 @@ struct UA_ClientConfig {
     UA_String *namespaces;
     size_t namespacesSize;
 
-    /**
-     * Advanced Client Configuration
+    /* Advanced Client Configuration
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
     UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
@@ -252,27 +241,17 @@ struct UA_ClientConfig {
 #endif
 };
 
-/**
- * @brief It makes a partial deep copy of the clientconfig. It makes a shallow
- * copies of the plugins (logger, eventloop, securitypolicy).
- *
- * NOTE: It makes a shallow copy of all the plugins from source to destination.
- * Therefore calling _clear on the dst object will also delete the plugins in src
- * object.
- */
+/* Makes a partial deep copy of the clientconfig. The copies of the plugins
+ * (logger, eventloop, securitypolicy) are shallow. Therefore calling _clear on
+ * the dst object will also delete the plugins in src object. */
 UA_EXPORT UA_StatusCode
 UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst);
 
-/**
- * @brief It cleans the client config and frees the pointer.
- */
+/* Cleans the client config and frees the pointer */
 UA_EXPORT void
 UA_ClientConfig_delete(UA_ClientConfig *config);
 
-/**
- * @brief It cleans the client config and deletes the plugins, whereas
- * _copy makes a shallow copy of the plugins.
- */
+/* Cleans the client config */
 UA_EXPORT void
 UA_ClientConfig_clear(UA_ClientConfig *config);
 
@@ -337,44 +316,6 @@ UA_Client_getContext(UA_Client *client) ,{
 /* (Disconnect and) delete the client */
 void UA_EXPORT
 UA_Client_delete(UA_Client *client);
-
-/**
- * Connection Attrbiutes
- * ---------------------
- *
- * Besides the client configuration, some attributes of the connection are
- * defined only at runtime. For example the choice of SecurityPolicy or the
- * ApplicationDescripton from the server. This API allows to access such
- * connection attributes.
- *
- * The currently defined connection attributes are:
- *
- * - 0:serverDescription [UA_ApplicationDescription]: Server description
- * - 0:securityPolicyUri [UA_String]: Uri of the SecurityPolicy used
- * - 0:securityMode [UA_MessageSecurityMode]: SecurityMode of the SecureChannel
- */
-
-/* Returns a shallow copy of the attribute. Don't _clear or _delete the value
- * variant. Don't use the value after returning the control flow to the client.
- * Also don't use this in a multi-threaded application. */
-UA_EXPORT UA_StatusCode
-UA_Client_getConnectionAttribute(UA_Client *client, const UA_QualifiedName key,
-                                 UA_Variant *outValue);
-
-/* Return a deep copy of the attribute */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Client_getConnectionAttributeCopy(UA_Client *client, const UA_QualifiedName key,
-                                     UA_Variant *outValue);
-
-/* Returns NULL if the attribute is not defined or not a scalar or not of the
- * right datatype. Otherwise a shallow copy of the scalar value is created at
- * the target location of the void pointer. Hence don't use this in a
- * multi-threaded application. */
-UA_EXPORT UA_StatusCode
-UA_Client_getConnectionAttribute_scalar(UA_Client *client,
-                                        const UA_QualifiedName key,
-                                        const UA_DataType *type,
-                                        void *outValue);
 
 /**
  * Connect to a Server
@@ -635,15 +576,19 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
  * The raw OPC UA services are exposed to the client. But most of the time, it
  * is better to use the convenience functions from ``ua_client_highlevel.h``
  * that wrap the raw services. */
+
 /* Don't use this function. Use the type versions below instead. */
 void UA_EXPORT UA_THREADSAFE
 __UA_Client_Service(UA_Client *client, const void *request,
                     const UA_DataType *requestType, void *response,
                     const UA_DataType *responseType);
 
-/*
+/**
  * Attribute Service Set
- * ^^^^^^^^^^^^^^^^^^^^^ */
+ * ~~~~~~~~~~~~~~~~~~~~~
+ * This Service Set provides Services to access Attributes that are part of
+ * Nodes. */
+
 UA_INLINABLE( UA_THREADSAFE UA_ReadResponse
 UA_Client_Service_read(UA_Client *client, const UA_ReadRequest request) ,{
     UA_ReadResponse response;
@@ -660,9 +605,6 @@ UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) ,{
     return response;
 })
 
-/*
-* Historical Access Service Set
-* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 UA_INLINABLE( UA_THREADSAFE UA_HistoryReadResponse
 UA_Client_Service_historyRead(UA_Client *client,
                               const UA_HistoryReadRequest request) ,{
@@ -683,9 +625,12 @@ UA_Client_Service_historyUpdate(UA_Client *client,
     return response;
 })
 
-/*
+/**
  * Method Service Set
- * ^^^^^^^^^^^^^^^^^^ */
+ * ~~~~~~~~~~~~~~~~~~
+ * Methods represent the function calls of Objects. The Method Service Set
+ * defines the means to invoke Methods. */
+
 UA_INLINABLE( UA_THREADSAFE UA_CallResponse
 UA_Client_Service_call(UA_Client *client,
                        const UA_CallRequest request) ,{
@@ -696,9 +641,12 @@ UA_Client_Service_call(UA_Client *client,
     return response;
 })
 
-/*
+/**
  * NodeManagement Service Set
- * ^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * This Service Set defines Services to add and delete AddressSpace Nodes and
+ * References between them. */
+
 UA_INLINABLE( UA_THREADSAFE UA_AddNodesResponse
 UA_Client_Service_addNodes(UA_Client *client,
                            const UA_AddNodesRequest request) ,{
@@ -739,9 +687,12 @@ UA_Client_Service_deleteReferences(
     return response;
 })
 
-/*
+/**
  * View Service Set
- * ^^^^^^^^^^^^^^^^ */
+ * ~~~~~~~~~~~~~~~~
+ * Clients use the browse Services of the View Service Set to navigate through
+ * the AddressSpace or through a View which is a subset of the AddressSpace. */
+
 UA_INLINABLE( UA_THREADSAFE UA_BrowseResponse
 UA_Client_Service_browse(UA_Client *client,
                          const UA_BrowseRequest request) ,{
@@ -795,9 +746,11 @@ UA_Client_Service_unregisterNodes(
     return response;
 })
 
-/*
+/**
  * Query Service Set
- * ^^^^^^^^^^^^^^^^^ */
+ * ~~~~~~~~~~~~~~~~~
+ * This Service Set is used to issue a Query to a Server. */
+
 #ifdef UA_ENABLE_QUERY
 
 UA_INLINABLE( UA_THREADSAFE UA_QueryFirstResponse
@@ -823,102 +776,69 @@ UA_Client_Service_queryNext(UA_Client *client,
 #endif
 
 /**
- * .. _client-async-services:
- *
- * Asynchronous Services
- * ---------------------
- * All OPC UA services are asynchronous in nature. So several service calls can
- * be made without waiting for the individual responses. Depending on the
- * server's priorities responses may come in a different ordering than sent. Use
- * the typed wrappers for async service requests instead of
- * `__UA_Client_AsyncService` directly. See :ref:`client_async`. However, the
- * general mechanism of async service calls is explained here.
- *
- * Connection and session management are performed in `UA_Client_run_iterate`,
- * so to keep a connection healthy any client needs to consider how and when it
- * is appropriate to do the call. This is especially true for the periodic
- * renewal of a SecureChannel's SecurityToken which is designed to have a
- * limited lifetime and will invalidate the connection if not renewed.
- *
- * We say that an async service call has been dispatched once
- * __UA_Client_AsyncService returns UA_STATUSCODE_GOOD. If there is an error
- * after an async service has been dispatched, the callback is called with an
- * "empty" response where the StatusCode has been set accordingly. This is also
- * done if the client is shutting down and the list of dispatched async services
- * is emptied.
- *
- * The StatusCode received when the client is shutting down is
- * UA_STATUSCODE_BADSHUTDOWN. The StatusCode received when the client doesn't
- * receive response after the specified in config->timeout (can be overridden
- * via the "timeoutHint" in the request header) is UA_STATUSCODE_BADTIMEOUT.
- *
- * The userdata and requestId arguments can be NULL. The (optional) requestId
- * output can be used to cancel the service while it is still pending. The
- * requestId is unique for each service request. Alternatively the requestHandle
- * can be manually set (non necessarily unique) in the request header for full
- * service call. This can be used to cancel all outstanding requests using that
- * handle together. Note that the client will auto-generate a requestHandle
- * >100,000 if none is defined. Avoid these when manually setting a requetHandle
- * in the requestHeader to avoid clashes. */
+ * Client Utility Functions
+ * ------------------------ */
 
-typedef void
-(*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
-                                 UA_UInt32 requestId, void *response);
+/* Lookup a datatype by its NodeId. Takes the custom types in the client
+ * configuration into account. Return NULL if none found. */
+UA_EXPORT const UA_DataType *
+UA_Client_findDataType(UA_Client *client, const UA_NodeId *typeId);
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-__UA_Client_AsyncService(UA_Client *client, const void *request,
-                         const UA_DataType *requestType,
-                         UA_ClientAsyncServiceCallback callback,
-                         const UA_DataType *responseType,
-                         void *userdata, UA_UInt32 *requestId);
+/* The string is allocated and needs to be cleared */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Client_getNamespaceUri(UA_Client *client, UA_UInt16 index,
+                          UA_String *nsUri);
 
-/* Cancel all dispatched requests with the given requestHandle.
- * The number if cancelled requests is returned by the server.
- * The output argument cancelCount is not set if NULL. */
-UA_EXPORT UA_THREADSAFE UA_StatusCode
-UA_Client_cancelByRequestHandle(UA_Client *client, UA_UInt32 requestHandle,
-                                UA_UInt32 *cancelCount);
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Client_getNamespaceIndex(UA_Client *client, const UA_String nsUri,
+                            UA_UInt16 *outIndex);
 
-/* Map the requestId to the requestHandle used for that request and call the
- * Cancel service for that requestHandle. */
-UA_EXPORT UA_THREADSAFE UA_StatusCode
-UA_Client_cancelByRequestId(UA_Client *client, UA_UInt32 requestId,
-                            UA_UInt32 *cancelCount);
+/* Returns the old index of the namespace already exists */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Client_addNamespace(UA_Client *client, const UA_String nsUri,
+                       UA_UInt16 *outIndex);
 
-/* Set new userdata and callback for an existing request.
+/**
+ * Connection Attributes
+ * ~~~~~~~~~~~~~~~~~~~~~
  *
- * @param client Pointer to the UA_Client
- * @param requestId RequestId of the request, which was returned by
- *        __UA_Client_AsyncService before
- * @param userdata The new userdata
- * @param callback The new callback
- * @return UA_StatusCode UA_STATUSCODE_GOOD on success
- *         UA_STATUSCODE_BADNOTFOUND when no request with requestId is found. */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_modifyAsyncCallback(UA_Client *client, UA_UInt32 requestId,
-                              void *userdata, UA_ClientAsyncServiceCallback callback);
-
-/* Listen on the network and process arriving asynchronous responses in the
- * background. Internal housekeeping, renewal of SecureChannels and subscription
- * management is done as well. */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
-
-/* Force the manual renewal of the SecureChannel. This is useful to renew the
- * SecureChannel during a downtime when no time-critical operations are
- * performed. This method is asynchronous. The renewal is triggered (the OPN
- * message is sent) but not completed. The OPN response is handled with
- * ``UA_Client_run_iterate`` or a synchronous service-call operation.
+ * Besides the client configuration, some attributes of the connection are
+ * defined only at runtime. For example the choice of SecurityPolicy or the
+ * ApplicationDescripton from the server. This API allows to access such
+ * connection attributes.
  *
- * @return The return value is UA_STATUSCODE_GOODCALLAGAIN if the SecureChannel
- *         has not elapsed at least 75% of its lifetime. Otherwise the
- *         ``connectStatus`` is returned. */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_renewSecureChannel(UA_Client *client);
+ * The currently defined connection attributes are:
+ *
+ * - ``0:serverDescription`` (``UA_ApplicationDescription``): Server description
+ * - ``0:securityPolicyUri`` (``UA_String``): Uri of the SecurityPolicy used
+ * - ``0:securityMode`` (``UA_MessageSecurityMode``): SecurityMode of the SecureChannel
+ */
+
+/* Returns a shallow copy of the attribute. Don't _clear or _delete the value
+ * variant. Don't use the value after returning the control flow to the client.
+ * Also don't use this in a multi-threaded application. */
+UA_EXPORT UA_StatusCode
+UA_Client_getConnectionAttribute(UA_Client *client, const UA_QualifiedName key,
+                                 UA_Variant *outValue);
+
+/* Return a deep copy of the attribute */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Client_getConnectionAttributeCopy(UA_Client *client, const UA_QualifiedName key,
+                                     UA_Variant *outValue);
+
+/* Returns NULL if the attribute is not defined or not a scalar or not of the
+ * right datatype. Otherwise a shallow copy of the scalar value is created at
+ * the target location of the void pointer. Hence don't use this in a
+ * multi-threaded application. */
+UA_EXPORT UA_StatusCode
+UA_Client_getConnectionAttribute_scalar(UA_Client *client,
+                                        const UA_QualifiedName key,
+                                        const UA_DataType *type,
+                                        void *outValue);
 
 /**
  * Timed Callbacks
- * ---------------
+ * ~~~~~~~~~~~~~~~
  * Repeated callbacks can be attached to a client and will be executed in the
  * defined interval. */
 
@@ -969,29 +889,6 @@ UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId);
 
 #define UA_Client_removeRepeatedCallback(server, callbackId)    \
     UA_Client_removeCallback(server, callbackId);
-
-/**
- * Client Utility Functions
- * ------------------------ */
-
-/* Lookup a datatype by its NodeId. Takes the custom types in the client
- * configuration into account. Return NULL if none found. */
-UA_EXPORT const UA_DataType *
-UA_Client_findDataType(UA_Client *client, const UA_NodeId *typeId);
-
-/* The string is allocated and needs to be cleared */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Client_getNamespaceUri(UA_Client *client, UA_UInt16 index,
-                          UA_String *nsUri);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Client_getNamespaceIndex(UA_Client *client, const UA_String nsUri,
-                            UA_UInt16 *outIndex);
-
-/* Returns the old index of the namespace already exists */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Client_addNamespace(UA_Client *client, const UA_String nsUri,
-                       UA_UInt16 *outIndex);
 
 _UA_END_DECLS
 
