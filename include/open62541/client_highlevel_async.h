@@ -92,12 +92,6 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_modifyAsyncCallback(UA_Client *client, UA_UInt32 requestId,
                               void *userdata, UA_ClientAsyncServiceCallback callback);
 
-/* Listen on the network and process arriving asynchronous responses in the
- * background. Internal housekeeping, renewal of SecureChannels and subscription
- * management is done as well. */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
-
 /* Force the manual renewal of the SecureChannel. This is useful to renew the
  * SecureChannel during a downtime when no time-critical operations are
  * performed. This method is asynchronous. The renewal is triggered (the OPN
@@ -109,7 +103,6 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
  *         ``connectStatus`` is returned. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_renewSecureChannel(UA_Client *client);
-
 
 /**
  * Asynchronous Service Calls
