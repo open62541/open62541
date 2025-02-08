@@ -317,6 +317,13 @@ UA_Client_getContext(UA_Client *client) ,{
 void UA_EXPORT
 UA_Client_delete(UA_Client *client);
 
+/* Listen on the network and process arriving asynchronous responses in the
+ * background. Internal housekeeping, renewal of SecureChannels and subscription
+ * management is done as well. Running _run_iterate is required for asynchronous
+ * operations. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
+
 /**
  * Connect to a Server
  * -------------------
