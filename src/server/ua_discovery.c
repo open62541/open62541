@@ -14,6 +14,7 @@
  */
 
 #include <open62541/client.h>
+#include <open62541/client_highlevel_async.h>
 #include "ua_discovery.h"
 #include "ua_server_internal.h"
 
