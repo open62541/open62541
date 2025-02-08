@@ -993,13 +993,6 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Client_addNamespace(UA_Client *client, const UA_String nsUri,
                        UA_UInt16 *outIndex);
 
-/**
- * .. toctree::
- *
- *    client_highlevel
- *    client_highlevel_async
- *    client_subscriptions */
-
 _UA_END_DECLS
 
 #endif /* UA_CLIENT_H_ */
