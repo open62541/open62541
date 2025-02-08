@@ -543,13 +543,11 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
 
 static void
 UA_EventLoopPOSIX_lock(UA_EventLoop *public_el) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&((UA_EventLoopPOSIX*)public_el)->elMutex);
 }
 static void
 UA_EventLoopPOSIX_unlock(UA_EventLoop *public_el) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&((UA_EventLoopPOSIX*)public_el)->elMutex);
 }
 
 UA_EventLoop *
