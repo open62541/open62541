@@ -69,37 +69,39 @@ def last_line(c):
             return i
     return len(c)-1
 
-if len(sys.argv) < 2:
-    print("Usage: python c2rst.py input.c/h output.rst")
+args = len(sys.argv)
+if args < 3:
+    print("Usage: python c2rst.py [input.c/h] output.rst")
     exit(0)
 
-with open(sys.argv[1]) as f:
-    c = f.readlines()
-
-with open(sys.argv[2], 'w') as rst:
-    in_doc = False
-    last = last_line(c)
-    for i in range(first_line(c), last+1):
-        line = c[i]
-        doc_start = False
-        doc_end = False
-        if in_doc:
-            doc_end = comment_end(line)
-            line = clean_comment(line)
-        else:
-            doc_start = comment_start(line)
-            if doc_start:
+with open(sys.argv[args-1], 'w') as rst:
+    for j in range(1,args-1):
+        with open(sys.argv[j]) as f:
+            c = f.readlines()
+        in_doc = False
+        last = last_line(c)
+        for i in range(first_line(c), last+1):
+            line = c[i]
+            doc_start = False
+            doc_end = False
+            if in_doc:
                 doc_end = comment_end(line)
                 line = clean_comment(line)
+            else:
+                doc_start = comment_start(line)
+                if doc_start:
+                    doc_end = comment_end(line)
+                    line = clean_comment(line)
 
-        if doc_start:
-            in_doc = True
+            if doc_start:
+                in_doc = True
 
-        if not ((doc_start or doc_end) and line == "\n"):
-            if not in_doc:
-                line = "   " + line
-            rst.write(clean_line(line))
+            if not ((doc_start or doc_end) and line == "\n"):
+                if not in_doc:
+                    line = "   " + line
+                rst.write(clean_line(line))
 
-        if doc_end and i < last:
-            rst.write("\n.. code-block:: c\n\n")
-            in_doc = False
+            if doc_end and i < last:
+                rst.write("\n.. code-block:: c\n\n")
+                in_doc = False
+        rst.write("\n")
