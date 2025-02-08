@@ -38,8 +38,17 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/common.h ${DOC_SRC_DIR}/com
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/util.h ${DOC_SRC_DIR}/util.rst)
 generate_rst(${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h ${DOC_SRC_DIR}/statuscodes.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server.h ${DOC_SRC_DIR}/server.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h ${DOC_SRC_DIR}/server_pubsub.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h ${DOC_SRC_DIR}/pubsub.rst)
+
+# PubSub docs are concatendated from multiple files
+add_custom_command(OUTPUT ${DOC_SRC_DIR}/pubsub.rst
+                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/c2rst.py
+                           ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
+                           ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
+                   COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/c2rst.py
+                                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
+                                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
+                                      ${DOC_SRC_DIR}/pubsub.rst)
+list(APPEND GENERATED_RST ${DOC_SRC_DIR}/pubsub.rst)
 
 # Client docs are concatendated from multiple files
 add_custom_command(OUTPUT ${DOC_SRC_DIR}/client.rst
