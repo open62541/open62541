@@ -20,14 +20,14 @@ _UA_BEGIN_DECLS
 /**
  * .. _raw-pubsub:
  *
- * Raw PubSub
- * ==========
+ * PubSub NetworkMessage
+ * ---------------------
  *
  * The following definitions enable to work directly with PubSub messages. This
  * is not required when :ref:`PubSub is integrated with a server<pubsub>`.
  *
  * DataSet Message
- * ^^^^^^^^^^^^^^^ */
+ * ~~~~~~~~~~~~~~~ */
 
 typedef enum {
     UA_FIELDENCODING_VARIANT   = 0,
@@ -108,7 +108,7 @@ typedef struct {
 
 /**
  * Network Message
- * ^^^^^^^^^^^^^^^ */
+ * ~~~~~~~~~~~~~~~ */
 
 typedef enum {
     UA_NETWORKMESSAGE_DATASET = 0,
@@ -202,7 +202,7 @@ UA_NetworkMessage_clear(UA_NetworkMessage* p);
 
 /**
  * NetworkMessage Encoding
- * ^^^^^^^^^^^^^^^^^^^^^^^ */
+ * ~~~~~~~~~~~~~~~~~~~~~~~ */
 
 /* The output buffer is allocated to the required size if initially empty.
  * Otherwise, upon success, the length is adjusted. */
