@@ -16,10 +16,104 @@
 _UA_BEGIN_DECLS
 
 /**
- * .. _client_async:
+ * .. _client-async-services:
  *
- * Async Services
- * --------------
+ * Asynchronous Services
+ * ---------------------
+ *
+ * All OPC UA services are asynchronous in nature. So several service calls can
+ * be made without waiting for the individual responses. Depending on the
+ * server's priorities responses may come in a different ordering than sent. Use
+ * the typed wrappers for async service requests instead of
+ * `__UA_Client_AsyncService` directly. However, the general mechanism of async
+ * service calls is explained here.
+ *
+ * Connection and session management are performed in `UA_Client_run_iterate`,
+ * so to keep a connection healthy any client needs to consider how and when it
+ * is appropriate to do the call. This is especially true for the periodic
+ * renewal of a SecureChannel's SecurityToken which is designed to have a
+ * limited lifetime and will invalidate the connection if not renewed.
+ *
+ * We say that an async service call has been dispatched once
+ * __UA_Client_AsyncService returns UA_STATUSCODE_GOOD. If there is an error
+ * after an async service has been dispatched, the callback is called with an
+ * "empty" response where the StatusCode has been set accordingly. This is also
+ * done if the client is shutting down and the list of dispatched async services
+ * is emptied.
+ *
+ * The StatusCode received when the client is shutting down is
+ * UA_STATUSCODE_BADSHUTDOWN. The StatusCode received when the client doesn't
+ * receive response after the specified in config->timeout (can be overridden
+ * via the "timeoutHint" in the request header) is UA_STATUSCODE_BADTIMEOUT.
+ *
+ * The userdata and requestId arguments can be NULL. The (optional) requestId
+ * output can be used to cancel the service while it is still pending. The
+ * requestId is unique for each service request. Alternatively the requestHandle
+ * can be manually set (non necessarily unique) in the request header for full
+ * service call. This can be used to cancel all outstanding requests using that
+ * handle together. Note that the client will auto-generate a requestHandle
+ * >100,000 if none is defined. Avoid these when manually setting a requetHandle
+ * in the requestHeader to avoid clashes. */
+
+typedef void
+(*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
+                                 UA_UInt32 requestId, void *response);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+__UA_Client_AsyncService(UA_Client *client, const void *request,
+                         const UA_DataType *requestType,
+                         UA_ClientAsyncServiceCallback callback,
+                         const UA_DataType *responseType,
+                         void *userdata, UA_UInt32 *requestId);
+
+/* Cancel all dispatched requests with the given requestHandle.
+ * The number if cancelled requests is returned by the server.
+ * The output argument cancelCount is not set if NULL. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Client_cancelByRequestHandle(UA_Client *client, UA_UInt32 requestHandle,
+                                UA_UInt32 *cancelCount);
+
+/* Map the requestId to the requestHandle used for that request and call the
+ * Cancel service for that requestHandle. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Client_cancelByRequestId(UA_Client *client, UA_UInt32 requestId,
+                            UA_UInt32 *cancelCount);
+
+/* Set new userdata and callback for an existing request.
+ *
+ * @param client Pointer to the UA_Client
+ * @param requestId RequestId of the request, which was returned by
+ *        __UA_Client_AsyncService before
+ * @param userdata The new userdata
+ * @param callback The new callback
+ * @return UA_StatusCode UA_STATUSCODE_GOOD on success
+ *         UA_STATUSCODE_BADNOTFOUND when no request with requestId is found. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_modifyAsyncCallback(UA_Client *client, UA_UInt32 requestId,
+                              void *userdata, UA_ClientAsyncServiceCallback callback);
+
+/* Listen on the network and process arriving asynchronous responses in the
+ * background. Internal housekeeping, renewal of SecureChannels and subscription
+ * management is done as well. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
+
+/* Force the manual renewal of the SecureChannel. This is useful to renew the
+ * SecureChannel during a downtime when no time-critical operations are
+ * performed. This method is asynchronous. The renewal is triggered (the OPN
+ * message is sent) but not completed. The OPN response is handled with
+ * ``UA_Client_run_iterate`` or a synchronous service-call operation.
+ *
+ * @return The return value is UA_STATUSCODE_GOODCALLAGAIN if the SecureChannel
+ *         has not elapsed at least 75% of its lifetime. Otherwise the
+ *         ``connectStatus`` is returned. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_renewSecureChannel(UA_Client *client);
+
+
+/**
+ * Asynchronous Service Calls
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~
  *
  * Call OPC UA Services asynchronously with a callback. The (optional) requestId
  * output can be used to cancel the service while it is still pending. */
@@ -98,6 +192,7 @@ UA_Client_sendAsyncBrowseNextRequest(
  * StatusCode is split in two parts. The status indicates the overall success of
  * the request and the operation. The result argument is non-NULL only if the
  * status is no good. */
+
 typedef void
 (*UA_ClientAsyncOperationCallback)(
     UA_Client *client, void *userdata, UA_UInt32 requestId,
@@ -105,7 +200,7 @@ typedef void
 
 /**
  * Read Attribute
- * ~~~~~~~~~~~~~~
+ * ^^^^^^^^^^^^^^
  *
  * Asynchronously read a single attribute. The attribute is unpacked from the
  * response as the datatype of the attribute is known ahead of time. Value
@@ -394,7 +489,7 @@ UA_Client_readUserExecutableAttribute_async(
 
 /**
  * Write Attribute
- * ~~~~~~~~~~~~~~~
+ * ^^^^^^^^^^^^^^^
  *
  * The methods for async writing of attributes all have a similar API::
  *
@@ -466,7 +561,8 @@ UA_CLIENT_ASYNCWRITE(UA_Client_writeAccessLevelExAttribute_async,
 
 /**
  * Method Calling
- * ~~~~~~~~~~~~~~ */
+ * ^^^^^^^^^^^^^^ */
+
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 __UA_Client_call_async(
     UA_Client *client,
@@ -493,7 +589,7 @@ UA_Client_call_async(
 
 /**
  * Node Management
- * ~~~~~~~~~~~~~~~ */
+ * ^^^^^^^^^^^^^^^ */
 typedef void
 (*UA_ClientAsyncAddNodesCallback)(
     UA_Client *client, void *userdata,
