@@ -260,6 +260,12 @@ UA_QualifiedName_hash(const UA_QualifiedName *q) {
 UA_StatusCode
 UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
                          const UA_NamespaceMapping *nsMapping) {
+    /* If the QualifiedName is NULL, return a NULL string */
+    if(qn->name.data == NULL && qn->namespaceIndex == 0) {
+        UA_String_clear(output);
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* Start tracking the output length */
     size_t len = qn->name.length;
 
@@ -291,7 +297,7 @@ UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
     }
 
     /* Print the namespace */
-    char *pos = (char*)output->data;
+    u8 *pos = output->data;
     if(nsUri.length > 0) {
         memcpy(pos, nsUri.data, nsUri.length);
         pos += nsUri.length;
@@ -418,8 +424,10 @@ UA_Guid_print(const UA_Guid *guid, UA_String *output) {
 UA_StatusCode
 UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
     UA_ByteString_init(bs);
-    if(length == 0)
+    if(length == 0) {
+        bs->data = (u8*)UA_EMPTY_ARRAY_SENTINEL;
         return UA_STATUSCODE_GOOD;
+    }
     bs->data = (u8*)UA_malloc(length);
     if(UA_UNLIKELY(!bs->data))
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -510,36 +518,41 @@ UA_NodeId_hash(const UA_NodeId *n) {
     }
 }
 
-/* Computes length for the encoding size and pre-encodes the numeric values */
+/* Computes length for the encoding size and pre-encodes the numeric values.
+ * This can be larger than the actual size due to the removed base64 padding
+ * (for the percent-escaping). */
 static size_t
-nodeIdSize(const UA_NodeId *id,
-           char *nsStr, size_t *nsStrSize,
-           char *numIdStr, size_t *numIdStrSize,
-           UA_String nsUri) {
+nodeIdSize(const UA_NodeId *id, u8 *nsStr, u8 *numIdStr, UA_String nsUri,
+           UA_Escaping idEsc) {
     /* Namespace length */
     size_t len = 0;
     if(nsUri.length > 0) {
         len += 5; /* nsu=; */
-        len += nsUri.length;
+        len += UA_String_escapedSize(nsUri, UA_ESCAPING_PERCENT);
     } else if(id->namespaceIndex > 0) {
         len += 4; /* ns=; */
-        *nsStrSize = itoaUnsigned(id->namespaceIndex, nsStr, 10);
-        len += *nsStrSize;
+        size_t nsStrSize = itoaUnsigned(id->namespaceIndex, (char*)nsStr, 10);
+        nsStr[nsStrSize] = 0;
+        len += nsStrSize;
     }
 
+    len += 2; /* ?= */
+
     switch (id->identifierType) {
-    case UA_NODEIDTYPE_NUMERIC:
-        *numIdStrSize = itoaUnsigned(id->identifier.numeric, numIdStr, 10);
-        len += 2 + *numIdStrSize;
+    case UA_NODEIDTYPE_NUMERIC: {
+        size_t numIdStrSize = itoaUnsigned(id->identifier.numeric, (char*)numIdStr, 10);
+        numIdStr[numIdStrSize] = 0;
+        len += numIdStrSize;
         break;
+    }
     case UA_NODEIDTYPE_STRING:
-        len += 2 + id->identifier.string.length;
+        len += UA_String_escapedSize(id->identifier.string, idEsc);
         break;
     case UA_NODEIDTYPE_GUID:
-        len += 2 + 36;
+        len += 36;
         break;
     case UA_NODEIDTYPE_BYTESTRING:
-        len += 2 + (4*((id->identifier.byteString.length + 2) / 3));
+        len += 4 * ((id->identifier.byteString.length + 2) / 3);
         break;
     default:
         len = 0;
@@ -547,68 +560,78 @@ nodeIdSize(const UA_NodeId *id,
     return len;
 }
 
-#define PRINT_NODEID                                           \
-    /* Encode the namespace */                                 \
-    if(nsUri.length > 0) {                                     \
-        memcpy(pos, "nsu=", 4);                                \
-        pos += 4;                                              \
-        memcpy(pos, nsUri.data, nsUri.length);                 \
-        pos += nsUri.length;                                   \
-        *pos++ = ';';                                          \
-    } else if(id->namespaceIndex > 0) {                        \
-        memcpy(pos, "ns=", 3);                                 \
-        pos += 3;                                              \
-        memcpy(pos, nsStr, nsStrSize);                         \
-        pos += nsStrSize;                                      \
-        *pos++ = ';';                                          \
-    }                                                          \
-                                                               \
-    /* Encode the identifier */                                \
-    switch(id->identifierType) {                               \
-    case UA_NODEIDTYPE_NUMERIC:                                \
-        memcpy(pos, "i=", 2);                                  \
-        pos += 2;                                              \
-        memcpy(pos, numIdStr, numIdStrSize);                   \
-        pos += numIdStrSize;                                   \
-        break;                                                 \
-    case UA_NODEIDTYPE_STRING:                                 \
-        memcpy(pos, "s=", 2);                                  \
-        pos += 2;                                              \
-        memcpy(pos, id->identifier.string.data,                \
-               id->identifier.string.length);                  \
-        pos += id->identifier.string.length;                   \
-        break;                                                 \
-    case UA_NODEIDTYPE_GUID:                                   \
-        memcpy(pos, "g=", 2);                                  \
-        pos += 2;                                              \
-        UA_Guid_to_hex(&id->identifier.guid,                   \
-                       (unsigned char*)pos, true);             \
-        pos += 36;                                             \
-        break;                                                 \
-    case UA_NODEIDTYPE_BYTESTRING:                             \
-        memcpy(pos, "b=", 2);                                  \
-        pos += 2;                                              \
-        pos += UA_base64_buf(id->identifier.byteString.data,   \
-                             id->identifier.byteString.length, \
-                             (unsigned char*)pos);             \
-        break;                                                 \
-    }                                                          \
-    do { } while(false)
+static u8 *
+printNodeIdBody(const UA_NodeId *id, UA_String nsUri, u8* nsStr, u8* numIdStr, u8 *pos,
+                const UA_NamespaceMapping *nsMapping, UA_Escaping idEsc) {
+    /* Encode the namespace */
+    if(nsUri.length > 0) {
+        memcpy(pos, "nsu=", 4);
+        pos += 4;
+        pos += UA_String_escapeInsert(pos, nsUri, UA_ESCAPING_PERCENT);
+        *pos++ = ';';
+    } else if(id->namespaceIndex > 0) {
+        memcpy(pos, "ns=", 3);
+        pos += 3;
+        size_t len = strlen((char*)nsStr);
+        memcpy(pos, nsStr, len);
+        pos += len;
+        *pos++ = ';';
+    }
+
+    /* Encode the identifier */
+    switch(id->identifierType) {
+    case UA_NODEIDTYPE_NUMERIC:
+        memcpy(pos, "i=", 2);
+        pos += 2;
+        size_t len = strlen((char*)numIdStr);
+        memcpy(pos, numIdStr, len);
+        pos += len;
+        break;
+    case UA_NODEIDTYPE_STRING:
+        memcpy(pos, "s=", 2);
+        pos += 2;
+        pos += UA_String_escapeInsert(pos, id->identifier.string, idEsc);
+        break;
+    case UA_NODEIDTYPE_GUID:
+        memcpy(pos, "g=", 2);
+        pos += 2;
+        UA_Guid_to_hex(&id->identifier.guid, pos, true);
+        pos += 36;
+        break;
+    case UA_NODEIDTYPE_BYTESTRING:
+        memcpy(pos, "b=", 2);
+        pos += 2;
+        /* Use base64url encoding for percent-escaping.
+         * Replace +/ with -_ and remove the padding. */
+        u8 *bpos = pos;
+        pos += UA_base64_buf(id->identifier.byteString.data,
+                             id->identifier.byteString.length, pos);
+        if(idEsc == UA_ESCAPING_PERCENT ||
+           idEsc == UA_ESCAPING_PERCENT_EXTENDED) {
+            while(pos > bpos && pos[-1] == '=')
+                pos--;
+            for(; bpos < pos; bpos++) {
+                if(*bpos == '+') *bpos = '-';
+                else if(*bpos == '/') *bpos = '_';
+            }
+        }
+        break;
+    }
+    return pos;
+}
 
 UA_StatusCode
-UA_NodeId_printEx(const UA_NodeId *id, UA_String *output,
-                  const UA_NamespaceMapping *nsMapping) {
+nodeId_printEscape(const UA_NodeId *id, UA_String *output,
+                   const UA_NamespaceMapping *nsMapping, UA_Escaping idEsc) {
     /* Try to map the NamespaceIndex to the Uri */
     UA_String nsUri = UA_STRING_NULL;
     if(id->namespaceIndex > 0 && nsMapping)
         UA_NamespaceMapping_index2Uri(nsMapping, id->namespaceIndex, &nsUri);
 
-    /* Compute the string length and print numerical identifiers */
-    char nsStr[6];
-    size_t nsStrSize = 0;
-    char numIdStr[11];
-    size_t numIdStrSize = 0;
-    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize, nsUri);
+    /* Compute the string length and print numerical identifiers. */
+    u8 nsStr[7];
+    u8 numIdStr[12];
+    size_t idLen = nodeIdSize(id, nsStr, numIdStr, nsUri, idEsc);
     if(idLen == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -624,11 +647,15 @@ UA_NodeId_printEx(const UA_NodeId *id, UA_String *output,
     }
 
     /* Print the NodeId */
-    char *pos = (char*)output->data;
-    PRINT_NODEID;
-
-    UA_assert(output->length == (size_t)((UA_Byte*)pos - output->data));
+    u8 *pos = printNodeIdBody(id, nsUri, nsStr, numIdStr, output->data, nsMapping, idEsc);
+    output->length = (size_t)(pos - output->data);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_NodeId_printEx(const UA_NodeId *id, UA_String *output,
+                  const UA_NamespaceMapping *nsMapping) {
+    return nodeId_printEscape(id, output, nsMapping, UA_ESCAPING_NONE);
 }
 
 UA_StatusCode
@@ -677,34 +704,30 @@ UA_StatusCode
 UA_ExpandedNodeId_printEx(const UA_ExpandedNodeId *eid, UA_String *output,
                           const UA_NamespaceMapping *nsMapping,
                           size_t serverUrisSize, const UA_String *serverUris) {
-    /* Shortahdn and for the print-macro below */
-    const UA_NodeId *id = &eid->nodeId;
-
     /* Try to map the NamespaceIndex to the Uri */
     UA_String nsUri = eid->namespaceUri;
-    if(nsUri.length == 0 && id->namespaceIndex > 0 && nsMapping)
-        UA_NamespaceMapping_index2Uri(nsMapping, id->namespaceIndex, &nsUri);
+    if(nsUri.length == 0 && eid->nodeId.namespaceIndex > 0 && nsMapping)
+        UA_NamespaceMapping_index2Uri(nsMapping, eid->nodeId.namespaceIndex, &nsUri);
 
     /* Try to map the ServerIndex to a Uri */
     UA_String srvUri = UA_STRING_NULL;
     if(eid->serverIndex > 0 && eid->serverIndex < serverUrisSize)
         srvUri = serverUris[eid->serverIndex];
 
-    /* Compute the NodeId string length */
-    char nsStr[6];
-    size_t nsStrSize = 0;
-    char numIdStr[11];
-    size_t numIdStrSize = 0;
-    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize, nsUri);
-    if(idLen == 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    /* No special escaping for ExpandedNodeIds */
+    UA_Escaping idEsc = UA_ESCAPING_NONE;
 
+    /* Compute the NodeId string length */
+    u8 nsStr[7];
+    u8 numIdStr[12];
     char srvIdxStr[11];
     size_t srvIdxSize = 0;
+    size_t idLen = nodeIdSize(&eid->nodeId, nsStr, numIdStr, nsUri, idEsc);
+    if(idLen == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
     if(srvUri.length  > 0) {
         idLen += 5; /* svu=; */
-        idLen += srvUri.length;
-        idLen += srvIdxSize;
+        idLen += UA_String_escapedSize(srvUri, UA_ESCAPING_PERCENT);
     } else if(eid->serverIndex > 0) {
         idLen += 5; /* svr=; */
         srvIdxSize = itoaUnsigned(eid->serverIndex, srvIdxStr, 10);
@@ -722,13 +745,12 @@ UA_ExpandedNodeId_printEx(const UA_ExpandedNodeId *eid, UA_String *output,
         output->length = idLen;
     }
 
-    /* Encode the ServerIndex */
-    char *pos = (char*)output->data;
+    /* Encode the ServerIndex or ServerUrl */
+    u8 *pos = output->data;
     if(srvUri.length  > 0) {
         memcpy(pos, "svu=", 4);
         pos += 4;
-        memcpy(pos, srvUri.data, srvUri.length);
-        pos += srvUri.length;
+        pos += UA_String_escapeInsert(pos, srvUri, UA_ESCAPING_PERCENT);
         *pos++ = ';';
     } else if(eid->serverIndex > 0) {
         memcpy(pos, "svr=", 4);
@@ -739,9 +761,8 @@ UA_ExpandedNodeId_printEx(const UA_ExpandedNodeId *eid, UA_String *output,
     }
 
     /* Print the NodeId */
-    PRINT_NODEID;
-
-    UA_assert(output->length == (size_t)((UA_Byte*)pos - output->data));
+    pos = printNodeIdBody(&eid->nodeId, nsUri, nsStr, numIdStr, pos, nsMapping, idEsc);
+    output->length = (size_t)(pos - output->data);
     return UA_STATUSCODE_GOOD;
 }
 

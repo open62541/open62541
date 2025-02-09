@@ -247,11 +247,15 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
 #endif
 
 /**
- * And-Escaping of Strings
- * -----------------------
- * The "and-escaping" of strings for is described in Part 4, A2. The ``&``
- * character is used to escape the reserved characters ``/.<>:#!&``.
- * So the string ``My.String`` becomes ``My&.String``.
+ * Escaping of Strings
+ * -------------------
+ *
+ * And-Escaping
+ * ~~~~~~~~~~~~
+ *
+ * The "and-escaping" of strings is described in Part 4, A2. The ``&`` character
+ * is used to escape the reserved characters ``/.<>:#!&``. So the string
+ * ``My.String`` becomes ``My&.String``.
  *
  * In addition to the standard we define "extended-and-escaping" where
  * additionaly commas, semicolons, brackets and whitespace characters are
@@ -261,6 +265,39 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  *
  * This documentation always states whether "and-escaping" or the
  * "extended-and-escaping is used.
+ *
+ * .. _percent-escaping:
+ *
+ * Percent-Escaping
+ * ~~~~~~~~~~~~~~~~
+ *
+ * Percent-escaped characters get encoded as ``%xx`` where xx is the hex-string
+ * for an 8-bit octet. Its use is stated in Part 6 of the OPC UA specification
+ * for human-readable QualifiedNames, NodeIds and ExpandedNodeIds. The
+ * specification (only) requires that the ``;`` characters gets escaped, and
+ * that decoders allow percent-escaping of any character.
+ *
+ * Percent-escaping was originally defined for URIs. RFC 3986 defines a set of
+ * reserved characters (delimiters) that require escaping when they are used
+ * within URI components. But the reserved characters can be used directly in an
+ * URI to "delimit" between its components.
+ *
+ * For the **percent-escaping** (e.g. used for the NamespaceUri part of the
+ * NodeId in ``UA_NodeId_printEx``), the reserved characters are the semicolon,
+ * the percent character, whitespaces and unprintable ASCII control codes.
+ * Besides those, any UTF8 encoding is allowed.
+ *
+ * In some contexts the semicolon alone is not sufficient as the delimiter. For
+ * our non-standard **extended-percent-escaping** the reserved characters are
+ * the following (in addition to whitespaces and unprintable ASCII control
+ * codes).::
+ *
+ *    ' ' - %20     '(' - %28     '>' - %3E
+ *    '"' - %22     ')' - %29     '[' - %5B
+ *    '#' - %23     ',' - %2C     '\' - %5C
+ *    '%' - %25     '/' - %2F     ']' - %5D
+ *    '&' - %26     ';' - %3B     '`' - %60
+ *    ''' - %27     '<' - %3C
  *
  * .. _relativepath:
  *

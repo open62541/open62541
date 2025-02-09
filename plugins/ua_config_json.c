@@ -12,15 +12,15 @@
 #include "open62541/plugin/certificategroup_default.h"
 #endif
 
-#define MAX_TOKENS 256
+#define MAX_TOKENS 1024
 
 typedef struct {
     const char *json;
     const cj5_token *tokens;
-    cj5_result result;
-    unsigned int tokensSize;
+    size_t tokensSize;
     size_t index;
     UA_Byte depth;
+    cj5_result result;
 } ParsingCtx;
 
 static UA_ByteString
@@ -649,6 +649,7 @@ PARSE_JSON(SecurityPolciesField) {
     UA_String basic256uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
     UA_String basic256Sha256uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     UA_String aes128sha256rsaoaepuri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
+    UA_String aes256sha256rsapssuri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss");
 
     cj5_token tok = ctx->tokens[++ctx->index];
     for(size_t j = tok.size; j > 0; j--) {
@@ -742,6 +743,13 @@ PARSE_JSON(SecurityPolciesField) {
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                                "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
+                               UA_StatusCode_name(retval));
+            }
+        } else if(UA_String_equal(&policy, &aes256sha256rsapssuri)) {
+             retval = UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(config, &certificate, &privateKey);
+             if(retval != UA_STATUSCODE_GOOD) {
+                 UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
+                                "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
                                UA_StatusCode_name(retval));
             }
         } else {
@@ -870,6 +878,20 @@ const parseJsonSignature parseJsonJumpTable[UA_SERVERCONFIGFIELDKINDS] = {
     (parseJsonSignature)RuleHandlingField_parseJson,
 };
 
+/* Skips unknown item (simple, object or array) in config file. 
+* Unknown items may happen if we don't support some features. 
+* E.g. if  UA_ENABLE_ENCRYPTION is not defined and config file 
+* contains "securityPolicies" entry.
+*/
+static void
+skipUnknownItem(ParsingCtx* ctx) {
+    unsigned int end = ctx->tokens[ctx->index].end;
+    do {
+        ctx->index++;
+    } while (ctx->index < ctx->tokensSize &&
+        ctx->tokens[ctx->index].start < end);
+}
+
 static UA_StatusCode
 parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
     // Parsing json config
@@ -980,7 +1002,7 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                 else if(strcmp(field, "pubsubEnabled") == 0)
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->pubsubEnabled, NULL);
                 else if(strcmp(field, "pubsub") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_PUBSUBCONFIGURATION](&ctx, config, NULL);
+                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_PUBSUBCONFIGURATION](&ctx, &config->pubSubConfig, NULL);
 #endif
 #ifdef UA_ENABLE_ENCRYPTION
                 else if(strcmp(field, "securityPolicies") == 0)
@@ -990,6 +1012,14 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 #endif
                 else {
                     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Field name '%s' unknown or misspelled. Maybe the feature is not enabled either.", field);
+                    /* skip the name of item */
+                    ++ctx.index;
+                    /* skip value of unknown item */
+                    skipUnknownItem(&ctx);
+                    /* after skipUnknownItem() ctx->index points to the name of the following item.
+                       We must decrement index in oder following increment will
+                       still set index to the right position (name of the following item) */
+                    --ctx.index;
                 }
                 UA_free(field);
                 if(retval != UA_STATUSCODE_GOOD) {

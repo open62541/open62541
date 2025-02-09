@@ -44,7 +44,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 8)
+set(OPEN62541_VER_PATCH 10)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -1242,8 +1242,8 @@ if(UA_ENABLE_AMALGAMATION)
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${lib_headers}
                                ${lib_sources} ${plugin_sources})
 
-    add_custom_target(open62541-amalgamation DEPENDS ${PROJECT_BINARY_DIR}/open62541.c
-                                                     ${PROJECT_BINARY_DIR}/open62541.h)
+    add_custom_target(open62541-amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.c
+                                                         ${PROJECT_BINARY_DIR}/open62541.h)
 endif()
 
 # Generated NS0

@@ -258,9 +258,9 @@ requestHistory(UA_DateTime start, UA_DateTime end, UA_HistoryReadResponse * resp
     request.nodesToReadSize = 1;
     request.nodesToRead = valueId;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_HistoryRead(server, &server->adminSession, &request, response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     UA_HistoryReadRequest_clear(&request);
 }
 
@@ -450,9 +450,9 @@ deleteHistory(UA_DateTime start, UA_DateTime end) {
 
     UA_HistoryUpdateResponse response;
     UA_HistoryUpdateResponse_init(&response);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_HistoryUpdate(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     UA_HistoryUpdateRequest_clear(&request);
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
@@ -505,9 +505,9 @@ updateHistory(UA_PerformUpdateType updateType, UA_DateTime *updateData,
 
     UA_HistoryUpdateResponse response;
     UA_HistoryUpdateResponse_init(&response);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_HistoryUpdate(server, &server->adminSession, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     UA_HistoryUpdateRequest_clear(&request);
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)

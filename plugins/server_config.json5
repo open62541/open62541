@@ -189,6 +189,11 @@
 //      policy: "http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep",
 //      certificate: "/path/to/certificate",
 //      privateKey: "/path/to/privateKey"
+//    },
+//    {
+//      policy: "http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss"",
+//      certificate: "/path/to/certificate",
+//      privateKey: "/path/to/privateKey"
 //    }
 //  ],
 

@@ -44,20 +44,16 @@ logCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server", "client",
      "userland", "security", "eventloop", "pubsub", "discovery"};
 
-/* Protect crosstalk during logging via global lock.
- * Use a spinlock on non-POSIX as we cannot statically initialize a global lock. */
+/* Protect crosstalk during logging via global lock. Use a spinlock as we cannot
+ * statically initialize a global lock across all platforms. */
 #if UA_MULTITHREADING >= 100
-# ifdef UA_ARCHITECTURE_POSIX
-UA_Lock logLock = UA_LOCK_STATIC_INIT;
-# else
-void * logSpinLock = NULL;
+void *logSpinLock = NULL;
 static UA_INLINE void spinLock(void) {
     while(UA_atomic_cmpxchg(&logSpinLock, NULL, (void*)0x1) != NULL) {}
 }
 static UA_INLINE void spinUnLock(void) {
     UA_atomic_xchg(&logSpinLock, NULL);
 }
-# endif
 #endif
 
 #ifdef __clang__
@@ -80,11 +76,7 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
 
     /* Lock */
 #if UA_MULTITHREADING >= 100
-# ifdef UA_ARCHITECTURE_POSIX
-    UA_LOCK(&logLock);
-# else
     spinLock();
-# endif
 #endif
 
 #define STDOUT_LOGBUFSIZE 512
@@ -101,11 +93,7 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
 
     /* Unlock */
 #if UA_MULTITHREADING >= 100
-# ifdef UA_ARCHITECTURE_POSIX
-    UA_UNLOCK(&logLock);
-# else
     spinUnLock();
-# endif
 #endif
 }
 

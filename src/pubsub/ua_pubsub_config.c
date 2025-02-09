@@ -754,11 +754,11 @@ UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     UA_PubSubManager *psm = getPSM(server);
     if(!psm) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -788,7 +788,7 @@ UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
     }
 
  cleanup:
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     UA_ExtensionObject_clear(&decodedFile);
     return res;
 }
@@ -1193,11 +1193,11 @@ UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     UA_PubSubManager *psm = getPSM(server);
     if(!psm) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     
@@ -1222,7 +1222,7 @@ UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
                 "Saving PubSub config was successful");
 
  cleanup:
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     UA_PubSubConfigurationDataType_clear(&config);
     return res;
 }

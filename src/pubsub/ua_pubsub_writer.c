@@ -90,10 +90,8 @@ UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
 
     /* Custom state machine */
     if(dsw->config.customStateMachine) {
-        UA_UNLOCK(&server->serviceMutex);
         res = dsw->config.customStateMachine(server, dsw->head.identifier, dsw->config.context,
                                              &dsw->head.state, targetState);
-        UA_LOCK(&server->serviceMutex);
         if(dsw->head.state == UA_PUBSUBSTATE_DISABLED ||
            dsw->head.state == UA_PUBSUBSTATE_ERROR)
             UA_DataSetWriter_unfreezeConfiguration(dsw);
@@ -140,10 +138,8 @@ UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(dsw->head.state));
         if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            UA_UNLOCK(&server->serviceMutex);
             server->config.pubSubConfig.
                 stateChangeCallback(server, dsw->head.identifier, dsw->head.state, res);
-            UA_LOCK(&server->serviceMutex);
         }
     }
 
@@ -232,8 +228,16 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         dsw->connectedDataSet = NULL;
     }
 
-    /* Add the new writer to the group */
-    LIST_INSERT_HEAD(&wg->writers, dsw, listEntry);
+    /* Add the new writer to the group. Add to the end of the linked list to
+     * ensure the order in the generated NetworkMessage is as expected. */
+    UA_DataSetWriter *after = LIST_FIRST(&wg->writers);
+    if(!after) {
+        LIST_INSERT_HEAD(&wg->writers, dsw, listEntry);
+    } else {
+        while(LIST_NEXT(after, listEntry))
+            after = LIST_NEXT(after, listEntry);
+        LIST_INSERT_AFTER(after, dsw, listEntry);
+    }
     wg->writersCount++;
 
     /* Add to the information model */
@@ -735,11 +739,11 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
                                  UA_DataSetWriterConfig *config) {
     if(!server || !config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_DataSetWriter *dsw = UA_DataSetWriter_find(getPSM(server), dswId);
     UA_StatusCode res = (dsw) ?
         UA_DataSetWriterConfig_copy(&dsw->config, config) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -748,14 +752,14 @@ UA_Server_getDataSetWriterState(UA_Server *server, const UA_NodeId dswId,
                                UA_PubSubState *state) {
     if(!server || !state)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_DataSetWriter *dsw = UA_DataSetWriter_find(getPSM(server), dswId);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;;
     if(dsw) {
         *state = dsw->head.state;
         res = UA_STATUSCODE_GOOD;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -763,13 +767,13 @@ UA_StatusCode
 UA_Server_enableDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
     UA_StatusCode ret = (dsw) ?
         UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_OPERATIONAL) :
         UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return ret;
 }
 
@@ -777,13 +781,13 @@ UA_StatusCode
 UA_Server_disableDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
     UA_StatusCode ret = (dsw) ?
         UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED) :
         UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return ret;
 }
 
@@ -794,17 +798,17 @@ UA_Server_addDataSetWriter(UA_Server *server,
                            UA_NodeId *writerIdentifier) {
     if(!server || !dataSetWriterConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     if(!psm) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     /* Delete the reserved IDs if the related session no longer exists. */
     UA_PubSubManager_freeIds(psm);
     UA_StatusCode res = UA_DataSetWriter_create(psm, writerGroup, dataSet,
                                                 dataSetWriterConfig, writerIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -812,12 +816,12 @@ UA_StatusCode
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
     UA_StatusCode res = (dsw) ?
         UA_DataSetWriter_remove(psm, dsw) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
