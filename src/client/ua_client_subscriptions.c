@@ -1052,17 +1052,16 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
 static void *
 ua_MonitoredItem_findByID(void *data, UA_Client_MonitoredItem *mon) {
 	UA_UInt32 monitorId = *(UA_UInt32*)data;
-	if (monitorId && (mon->monitoredItemId == monitorId)) {
+	if(monitorId && (mon->monitoredItemId == monitorId))
 		return mon;
-	}
 	return NULL;
 }
 
-static UA_Client_MonitoredItem
-*findMonitoredItemById(UA_Client_Subscription *sub, UA_UInt32 monitoredItemId)
-{
+static UA_Client_MonitoredItem *
+findMonitoredItemById(UA_Client_Subscription *sub, UA_UInt32 monitoredItemId) {
 	return (UA_Client_MonitoredItem *)
-		ZIP_ITER(MonitorItemsTree, &sub->monitoredItems, ua_MonitoredItem_findByID, &monitoredItemId);
+		ZIP_ITER(MonitorItemsTree, &sub->monitoredItems,
+                 ua_MonitoredItem_findByID, &monitoredItemId);
 }
 
 UA_StatusCode
