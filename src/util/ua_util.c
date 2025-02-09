@@ -121,19 +121,12 @@ UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
     return UA_readNumberWithBase(buf, buflen, number, 10);
 }
 
-struct urlSchema {
-    const char *schema;
-};
+#define UA_SCHEMAS_SIZE 4
+#define UA_ETH_SCHEMA_INDEX 2
 
-static const struct urlSchema schemas[] = {
-    {"opc.tcp://"},
-    {"opc.udp://"},
-    {"opc.eth://"},
-    {"opc.mqtt://"}
+static const char* schemas[UA_SCHEMAS_SIZE] = {
+    "opc.tcp://", "opc.udp://", "opc.eth://", "opc.mqtt://"
 };
-
-static const unsigned scNumSchemas = sizeof(schemas) / sizeof(schemas[0]);
-static const unsigned scEthSchemaIdx = 2;
 
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
@@ -145,17 +138,17 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
 
     /* Which type of schema is this? */
     unsigned schemaType = 0;
-    for(; schemaType < scNumSchemas; schemaType++) {
+    for(; schemaType < UA_SCHEMAS_SIZE; schemaType++) {
         if(strncmp((char*)endpointUrl->data,
-                   schemas[schemaType].schema,
-                   strlen(schemas[schemaType].schema)) == 0)
+                   schemas[schemaType],
+                   strlen(schemas[schemaType])) == 0)
             break;
     }
-    if(schemaType == scNumSchemas)
+    if(schemaType == UA_SCHEMAS_SIZE)
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
 
     /* Forward the current position until the first colon or slash */
-    size_t start = strlen(schemas[schemaType].schema);
+    size_t start = strlen(schemas[schemaType]);
     size_t curr = start;
     UA_Boolean ipv6 = false;
     if(endpointUrl->length > curr && endpointUrl->data[curr] == '[') {
@@ -201,7 +194,7 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
 
         /* ETH schema */
-        if(schemaType == scEthSchemaIdx) {
+        if(schemaType == UA_ETH_SCHEMA_INDEX) {
             if(outPath != NULL) {
                 outPath->data = &endpointUrl->data[curr];
                 outPath->length = endpointUrl->length - curr;
@@ -670,69 +663,169 @@ getRefTypeBrowseName(const UA_NodeId *refTypeId, UA_String *outBN) {
 /************************/
 
 static UA_INLINE UA_Boolean
-isReserved(char c) {
-    return (c == '/' || c == '.' || c == '<' || c == '>' ||
-            c == ':' || c == '#' || c == '!' || c == '&');
-}
-
-static UA_INLINE UA_Boolean
-isReservedExtended(char c) {
-    return (isReserved(c) || c == ',' || c == '(' || c == ')' ||
-            c == '[' || c == ']' || c == ' ' || c == '\t' ||
-            c == '\n' || c == '\v' || c == '\f' || c == '\r');
-}
-
-char *
-find_unescaped(char *pos, const char *end, UA_Boolean extended) {
-    while(pos < end) {
-        if(*pos == 0)
-            return pos;
-        if(*pos == '&') {
-            if(pos + 1 == end || pos[1] == 0)
-                return pos; /* Skip if & is the last character */
-            pos += 2;
-            continue;
-        }
-        UA_Boolean reserved = (extended) ? isReservedExtended(*pos) : isReserved(*pos);
-        if(reserved)
-            return pos;
-        pos++;
-    }
-    return (char*)(uintptr_t)end;
-}
-
-char *
-unescape(char *pos, const char *end) {
-    char *writepos = pos;
-    for(; pos < end; pos++) {
-        if(*pos == '&') {
-            pos++;
-            if(pos == end)
-                break;
-        }
-        *writepos = *pos;
-        writepos++;
-    }
-    return writepos;
+isHex(u8 c) {
+    return ((c >= 'a' && c <= 'f') ||
+            (c >= 'A' && c <= 'F') ||
+            (c >= '0' && c <= '9'));
 }
 
 UA_StatusCode
-UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Boolean extended) {
-    /* Allocate memory for the qn name.
-     * We allocate enough space to escape every character. */
-    UA_Byte *buf = (UA_Byte*)UA_realloc(s->data, s->length + (s2.length*2));
+UA_String_unescape(UA_String *str, UA_Boolean copyEscape, UA_Escaping esc) {
+    if(esc == UA_ESCAPING_NONE)
+        return UA_STATUSCODE_GOOD;
+
+    /* Does the string need escaping? */
+    UA_String tmp;
+    status res = UA_STATUSCODE_GOOD;
+    u8 *pos = str->data;
+    u8 *end = str->data + str->length;
+    u8 escape_char = (esc == UA_ESCAPING_PERCENT ||
+                      esc == UA_ESCAPING_PERCENT_EXTENDED) ? '%' : '&';
+    for(; pos < end; pos++) {
+        if(*pos == escape_char)
+            goto escape;
+    }
+
+    return UA_STATUSCODE_GOOD;
+
+ escape:
+    if(copyEscape) {
+        res = UA_String_copy(str, &tmp);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        pos = tmp.data;
+        end = tmp.data + tmp.length;
+    }
+
+    u8 byte = 0;
+    u8 *writepos = pos;
+
+    res = UA_STATUSCODE_BADDECODINGERROR;
+    if(esc == UA_ESCAPING_PERCENT ||
+       esc == UA_ESCAPING_PERCENT_EXTENDED) {
+        /* Percent-Escaping */
+        for(; pos < end; pos++) {
+            if(*pos == '%') {
+                if(pos + 2 >= end || !isHex(pos[1]) || !isHex(pos[2]))
+                    goto out;
+                if(pos[1] >= 'a')
+                    byte = pos[1] - ('a' - 10);
+                else if(pos[1] >= 'A')
+                    byte = pos[1] - ('A' - 10);
+                else
+                    byte = pos[1] - '0';
+                byte <<= 4;
+
+                if(pos[2] >= 'a')
+                    byte += pos[2] - ('a' - 10);
+                else if(pos[2] >= 'A')
+                    byte += pos[2] - ('A' - 10);
+                else
+                    byte += pos[2] - '0';
+
+                pos += 2;
+                *writepos++ = byte;
+                continue;
+            }
+            *writepos++ = *pos;
+        }
+    } else {
+        /* And-Escaping */
+        for(; pos < end; pos++) {
+            if(*pos == '&') {
+                pos++;
+                if(pos == end)
+                    goto out;
+            }
+            *writepos++ = *pos;
+        }
+    }
+    res = UA_STATUSCODE_GOOD;
+
+ out:
+    if(copyEscape) {
+        tmp.length = (size_t)(writepos - tmp.data);
+        if(tmp.length == 0)
+            UA_String_clear(&tmp);
+        if(res == UA_STATUSCODE_GOOD)
+            *str = tmp;
+        else
+            UA_String_clear(&tmp);
+    } else if(res == UA_STATUSCODE_GOOD) {
+        str->length = (size_t)(writepos - str->data);
+    }
+    return res;
+}
+
+static const u8 hexchars[16] =
+    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
+size_t
+UA_String_escapedSize(const UA_String s, UA_Escaping esc) {
+    /* Find out the overhead from escaping */
+    size_t overhead = 0;
+    for(size_t j = 0; j < s.length; j++) {
+        if(esc == UA_ESCAPING_AND_EXTENDED)
+            overhead += isReservedExtended(s.data[j]);
+        else if(esc == UA_ESCAPING_AND)
+            overhead += isReservedAnd(s.data[j]);
+        else if(esc == UA_ESCAPING_PERCENT)
+            overhead += (isReservedPercent(s.data[j]) ? 2 : 0);
+        else /* if(esc == UA_ESCAPING_PERCENT_EXTENDED) */
+            overhead += (isReservedPercentExtended(s.data[j]) ? 2 : 0);
+    }
+
+    return s.length + overhead;
+}
+
+size_t
+UA_String_escapeInsert(u8 *pos, const UA_String s2, UA_Escaping esc) {
+    u8 *begin = pos;
+
+    if(esc == UA_ESCAPING_NONE) {
+        for(size_t j = 0; j < s2.length; j++)
+            *pos++ = s2.data[j];
+    } else if(esc == UA_ESCAPING_PERCENT || esc == UA_ESCAPING_PERCENT_EXTENDED) {
+        for(size_t j = 0; j < s2.length; j++) {
+            UA_Boolean reserved = (esc == UA_ESCAPING_PERCENT_EXTENDED) ?
+                isReservedPercentExtended(s2.data[j]) : isReservedPercent(s2.data[j]);
+            if(UA_LIKELY(!reserved)) {
+                *pos++ = s2.data[j];
+            } else {
+                *pos++ = '%';
+                *pos++ = hexchars[s2.data[j] >> 4];
+                *pos++ = hexchars[s2.data[j] & 0x0f];
+            }
+        }
+    } else {
+        for(size_t j = 0; j < s2.length; j++) {
+            UA_Boolean reserved = (esc == UA_ESCAPING_AND_EXTENDED) ?
+                isReservedExtended(s2.data[j]) : isReservedAnd(s2.data[j]);
+            if(reserved)
+                *pos++ = '&';
+            *pos++ = s2.data[j];
+        }
+    }
+
+    return (size_t)(pos - begin);
+}
+
+UA_StatusCode
+UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Escaping esc) {
+    if(esc == UA_ESCAPING_NONE)
+        return UA_String_append(s, s2);
+
+    /* Allocate memory for the additional escaped string */
+    size_t escapedLength = UA_String_escapedSize(s2, esc);
+    UA_Byte *buf = (UA_Byte*)
+        UA_realloc(s->data, s->length + s2.length + escapedLength);
     if(!buf)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    s->data = buf;
 
-    /* Copy + escape s2 */
-    for(size_t j = 0; j < s2.length; j++) {
-        UA_Boolean reserved = (extended) ?
-            isReservedExtended(s2.data[j]) : isReserved(s2.data[j]);
-        if(reserved)
-            s->data[s->length++] = '&';
-        s->data[s->length++] = s2.data[j];
-    }
+    /* Escape and insert at the end */
+    s->data = buf;
+    UA_String_escapeInsert(s->data + s->length, s2, esc);
+    s->length += escapedLength;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -776,7 +869,7 @@ static const UA_NodeId objectsFolder =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OBJECTSFOLDER}};
 
 static UA_StatusCode
-printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Boolean extEscape) {
+printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Escaping esc) {
     UA_String tmp = UA_STRING_NULL;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < rp->elementsSize && res == UA_STATUSCODE_GOOD; i++) {
@@ -785,7 +878,8 @@ printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Boolean extEscap
         if(UA_NodeId_equal(&hierarchicalRefs, &elm->referenceTypeId) &&
            !elm->isInverse && elm->includeSubtypes) {
             res |= UA_String_append(&tmp, UA_STRING("/"));
-        } else if(UA_NodeId_equal(&aggregatesRefs, &elm->referenceTypeId) &&
+        } else if(esc == UA_ESCAPING_AND &&
+                  UA_NodeId_equal(&aggregatesRefs, &elm->referenceTypeId) &&
                   !elm->isInverse && elm->includeSubtypes) {
             res |= UA_String_append(&tmp, UA_STRING("."));
         } else {
@@ -794,16 +888,25 @@ printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Boolean extEscap
                 res |= UA_String_append(&tmp, UA_STRING("#"));
             if(elm->isInverse)
                 res |= UA_String_append(&tmp, UA_STRING("!"));
-            UA_Byte bnBuf[512];
-            UA_String bnBufStr = {512, bnBuf};
-            res |= getRefTypeBrowseName(&elm->referenceTypeId, &bnBufStr);
             if(res != UA_STATUSCODE_GOOD)
                 break;
-            res |= UA_String_escapeAppend(&tmp, bnBufStr, extEscape);
+
+            UA_Byte bnBuf[512];
+            UA_String bnBufStr = {512, bnBuf};
+            res = getRefTypeBrowseName(&elm->referenceTypeId, &bnBufStr);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_String_init(&bnBufStr);
+                res = getRefTypeBrowseName(&elm->referenceTypeId, &bnBufStr);
+                if(res != UA_STATUSCODE_GOOD)
+                    break;
+            }
+            res |= UA_String_escapeAppend(&tmp, bnBufStr, esc);
             res |= UA_String_append(&tmp, UA_STRING(">"));
+            if(bnBufStr.data != bnBuf)
+                UA_String_clear(&bnBufStr);
         }
 
-        /* Print the qualified name namespace */
+        /* Print the qualified name */
         UA_QualifiedName *qn = &elm->targetName;
         if(qn->namespaceIndex > 0) {
             char nsStr[8]; /* Enough for a uint16 */
@@ -811,7 +914,7 @@ printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Boolean extEscap
             res |= UA_String_append(&tmp, UA_STRING(nsStr));
             res |= UA_String_append(&tmp, UA_STRING(":"));
         }
-        res |= UA_String_escapeAppend(&tmp, qn->name, extEscape);
+        res |= UA_String_escapeAppend(&tmp, qn->name, esc);
     }
 
     /* Encoding failed, clean up */
@@ -825,14 +928,13 @@ printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Boolean extEscap
 
 UA_StatusCode
 UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
-    return printRelativePath(rp, out, false);
+    return printRelativePath(rp, out, UA_ESCAPING_AND);
 }
 
 static UA_NodeId baseEventTypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEEVENTTYPE}};
 
 UA_StatusCode
-UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
-                                UA_String *out) {
+UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao, UA_String *out) {
     UA_RelativePathElement rpe;
     UA_String tmp = UA_STRING_NULL;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -841,8 +943,9 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
     if(!UA_NodeId_equal(&baseEventTypeId, &sao->typeDefinitionId)) {
         UA_Byte nodeIdBuf[512];
         UA_String nodeIdBufStr = {512, nodeIdBuf};
-        res |= UA_NodeId_print(&sao->typeDefinitionId, &nodeIdBufStr);
-        res |= UA_String_escapeAppend(&tmp, nodeIdBufStr, true);
+        res |= nodeId_printEscape(&sao->typeDefinitionId, &nodeIdBufStr,
+                                  NULL, UA_ESCAPING_PERCENT);
+        res |= UA_String_append(&tmp, nodeIdBufStr);
     }
 
     /* Print the BrowsePath */
@@ -854,7 +957,7 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
         UA_String rpstr = UA_STRING_NULL;
         UA_assert(rpstr.data == NULL && rpstr.length == 0); /* pacify clang scan-build */
         rpe.targetName = sao->browsePath[i];
-        res |= printRelativePath(&rp, &rpstr, true);
+        res |= printRelativePath(&rp, &rpstr, UA_ESCAPING_PERCENT);
         res |= UA_String_append(&tmp, rpstr);
         UA_String_clear(&rpstr);
     }
@@ -892,14 +995,15 @@ UA_AttributeOperand_print(const UA_AttributeOperand *ao,
     if(!UA_NodeId_equal(&objectsFolder, &ao->nodeId)) {
         UA_Byte nodeIdBuf[512];
         UA_String nodeIdBufStr = {512, nodeIdBuf};
-        res |= UA_NodeId_print(&ao->nodeId, &nodeIdBufStr);
-        res |= UA_String_escapeAppend(&tmp, nodeIdBufStr, true);
+        res |= nodeId_printEscape(&ao->nodeId, &nodeIdBufStr,
+                                  NULL, UA_ESCAPING_PERCENT_EXTENDED);
+        res |= UA_String_append(&tmp, nodeIdBufStr);
     }
 
     /* Print the BrowsePath */
     UA_String rpstr = UA_STRING_NULL;
     UA_assert(rpstr.data == NULL && rpstr.length == 0); /* pacify clang scan-build */
-    res |= printRelativePath(&ao->browsePath, &rpstr, true);
+    res |= printRelativePath(&ao->browsePath, &rpstr, UA_ESCAPING_PERCENT_EXTENDED);
     res |= UA_String_append(&tmp, rpstr);
     UA_String_clear(&rpstr);
 
@@ -935,8 +1039,9 @@ UA_ReadValueId_print(const UA_ReadValueId *rvi, UA_String *out) {
     if(!UA_NodeId_equal(&UA_NODEID_NULL, &rvi->nodeId)) {
         UA_Byte nodeIdBuf[512];
         UA_String nodeIdBufStr = {512, nodeIdBuf};
-        res |= UA_NodeId_print(&rvi->nodeId, &nodeIdBufStr);
-        res |= UA_String_escapeAppend(&tmp, nodeIdBufStr, true);
+        res |= nodeId_printEscape(&rvi->nodeId, &nodeIdBufStr,
+                                  NULL, UA_ESCAPING_PERCENT);
+        res |= UA_String_append(&tmp, nodeIdBufStr);
     }
 
     /* Print the attribute name */
