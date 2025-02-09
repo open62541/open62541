@@ -334,7 +334,7 @@ if(UA_ENABLE_PUBSUB_SKS)
     endif()
 endif()
 
-option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" UA_ENABLE_PUBSUB)
+option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" ${UA_ENABLE_PUBSUB})
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
         message(FATAL_ERROR "PubSub information model representation cannot be used with MINIMAL namespace zero.")
