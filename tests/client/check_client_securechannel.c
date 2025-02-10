@@ -255,6 +255,24 @@ START_TEST(SecureChannel_serverCert) {
 }
 END_TEST
 
+/* The monotonic clock is 24h in the future */
+static UA_DateTime
+dateTime_nowMonotonicWithOffset(UA_EventLoop *el) {
+    return UA_DateTime_now() + (UA_DATETIME_SEC * 24 * 3600);
+}
+
+/* Simulate a deviation between the "wallclock" and the monotonic clock */
+START_TEST(SecureChannel_differentMonotonicClock) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 int main(void) {
     TCase *tc_sc = tcase_create("Client SecureChannel");
     tcase_add_checked_fixture(tc_sc, setup, teardown);
@@ -265,6 +283,7 @@ int main(void) {
     tcase_add_test(tc_sc, SecureChannel_reconnect);
     tcase_add_test(tc_sc, SecureChannel_cableunplugged);
     tcase_add_test(tc_sc, SecureChannel_serverCert);
+    tcase_add_test(tc_sc, SecureChannel_differentMonotonicClock);
 
     Suite *s = suite_create("Client");
     suite_add_tcase(s, tc_sc);
