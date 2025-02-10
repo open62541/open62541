@@ -147,9 +147,12 @@ UA_Client_Subscriptions_setPublishingMode(UA_Client *client,
  *
  * During the creation of a MonitoredItem, the server may return changed
  * adjusted parameters. Check the returned ``UA_CreateMonitoredItemsResponse``
- * to get the current parameters. */
+ * to get the current parameters.
+ *
+ * The clientHandle parameter cannot be set by the user, any value will be
+ * replaced by the client before sending the request to the server. */
 
-/* Provides default values for a new monitored item. */
+/* Default values for a new monitored item. */
 static UA_INLINE UA_MonitoredItemCreateRequest
 UA_MonitoredItemCreateRequest_default(UA_NodeId nodeId) {
     UA_MonitoredItemCreateRequest request;
@@ -164,77 +167,27 @@ UA_MonitoredItemCreateRequest_default(UA_NodeId nodeId) {
 }
 
 /**
- * The clientHandle parameter cannot be set by the user, any value will be
- * replaced by the client before sending the request to the server. */
+ * Within the client, every MonitoredItem has a user-defined context pointer
+ * attached during the initialization. The context pointer can be read and
+ * modified with the following methods. */
 
-/* Callback for the deletion of a MonitoredItem */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItem_getContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   UA_UInt32 monitoredItemId, void **monContext);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItem_setContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   UA_UInt32 monitoredItemId, void *monContext);
+
+/**
+ * **Deletion callback**
+ *
+ * The next callback is used for the application to receive a trigger when the
+ * MonitoredItem is deleted. */
+
 typedef void (*UA_Client_DeleteMonitoredItemCallback)
     (UA_Client *client, UA_UInt32 subId, void *subContext,
      UA_UInt32 monId, void *monContext);
-
-/* Callback for DataChange notifications */
-typedef void (*UA_Client_DataChangeNotificationCallback)
-    (UA_Client *client, UA_UInt32 subId, void *subContext,
-     UA_UInt32 monId, void *monContext,
-     UA_DataValue *value);
-
-/* Callback for Event notifications */
-typedef void (*UA_Client_EventNotificationCallback)
-    (UA_Client *client, UA_UInt32 subId, void *subContext,
-     UA_UInt32 monId, void *monContext,
-     size_t nEventFields, UA_Variant *eventFields);
-
-/* Don't use to monitor the EventNotifier attribute */
-UA_CreateMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItems_createDataChanges(UA_Client *client,
-    const UA_CreateMonitoredItemsRequest request, void **contexts,
-    UA_Client_DataChangeNotificationCallback *callbacks,
-    UA_Client_DeleteMonitoredItemCallback *deleteCallbacks);
-
-typedef void
-(*UA_ClientAsyncCreateMonitoredItemsCallback)(
-    UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_CreateMonitoredItemsResponse *response);
-
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItems_createDataChanges_async(UA_Client *client,
-    const UA_CreateMonitoredItemsRequest request, void **contexts,
-    UA_Client_DataChangeNotificationCallback *callbacks,
-    UA_Client_DeleteMonitoredItemCallback *deleteCallbacks,
-    UA_ClientAsyncCreateMonitoredItemsCallback createCallback,
-    void *userdata, UA_UInt32 *requestId);
-
-UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItems_createDataChange(UA_Client *client,
-    UA_UInt32 subscriptionId,
-    UA_TimestampsToReturn timestampsToReturn,
-    const UA_MonitoredItemCreateRequest item,
-    void *context, UA_Client_DataChangeNotificationCallback callback,
-    UA_Client_DeleteMonitoredItemCallback deleteCallback);
-
-/* Monitor the EventNotifier attribute only */
-UA_CreateMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItems_createEvents(UA_Client *client,
-    const UA_CreateMonitoredItemsRequest request, void **contexts,
-    UA_Client_EventNotificationCallback *callback,
-    UA_Client_DeleteMonitoredItemCallback *deleteCallback);
-
-/* Monitor the EventNotifier attribute only */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItems_createEvents_async(UA_Client *client,
-    const UA_CreateMonitoredItemsRequest request, void **contexts,
-    UA_Client_EventNotificationCallback *callbacks,
-    UA_Client_DeleteMonitoredItemCallback *deleteCallbacks,
-    UA_ClientAsyncCreateMonitoredItemsCallback createCallback,
-    void *userdata, UA_UInt32 *requestId);
-
-UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItems_createEvent(UA_Client *client,
-    UA_UInt32 subscriptionId,
-    UA_TimestampsToReturn timestampsToReturn,
-    const UA_MonitoredItemCreateRequest item,
-    void *context, UA_Client_EventNotificationCallback callback,
-    UA_Client_DeleteMonitoredItemCallback deleteCallback);
 
 UA_DeleteMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
 UA_Client_MonitoredItems_delete(UA_Client *client,
@@ -255,10 +208,6 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_MonitoredItems_deleteSingle(UA_Client *client,
     UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId);
 
-/**
- * The "ClientHandle" is part of the MonitoredItem configuration. The handle is
- * set internally and not exposed to the user. */
-
 UA_ModifyMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
 UA_Client_MonitoredItems_modify(UA_Client *client,
     const UA_ModifyMonitoredItemsRequest request);
@@ -274,9 +223,126 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
     UA_ClientAsyncModifyMonitoredItemsCallback callback,
     void *userdata, UA_UInt32 *requestId);
 
-UA_SetMonitoringModeResponse UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItems_setMonitoringMode(
-    UA_Client *client, const UA_SetMonitoringModeRequest request);
+/**
+ * **DataChange MonitoredItems**
+ *
+ * The next definitions are for MonitoredItems that monitor the value of
+ * attributes in the information model. Any attribute can be monitored with the
+ * exception of the ``EventNotifier``attribute. The latter is used to define
+ * Event-MonitoredItems where Events are emited by Objects in the information
+ * model. */
+
+typedef void (*UA_Client_DataChangeNotificationCallback)
+    (UA_Client *client, UA_UInt32 subId, void *subContext,
+     UA_UInt32 monId, void *monContext,
+     UA_DataValue *value);
+
+UA_CreateMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItems_createDataChanges(UA_Client *client,
+    const UA_CreateMonitoredItemsRequest request, void **contexts,
+    UA_Client_DataChangeNotificationCallback *callbacks,
+    UA_Client_DeleteMonitoredItemCallback *deleteCallbacks);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItems_createDataChanges_async(UA_Client *client,
+    const UA_CreateMonitoredItemsRequest request, void **contexts,
+    UA_Client_DataChangeNotificationCallback *callbacks,
+    UA_Client_DeleteMonitoredItemCallback *deleteCallbacks,
+    UA_ClientAsyncServiceCallback createCallback,
+    void *userdata, UA_UInt32 *requestId);
+
+UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItems_createDataChange(UA_Client *client,
+    UA_UInt32 subscriptionId,
+    UA_TimestampsToReturn timestampsToReturn,
+    const UA_MonitoredItemCreateRequest item,
+    void *context, UA_Client_DataChangeNotificationCallback callback,
+    UA_Client_DeleteMonitoredItemCallback deleteCallback);
+
+/**
+ * **Event MonitoredItems**
+ *
+ * Events are emotted by Objects in the information model. The Events themselves
+ * are specified by an *EventType* in the hierarchy of ObjectTypes. Hence Events
+ * instances can be though of as temporary Objects in the information model. The
+ * MonitoredItems is configured with an *EventFilter*. The EventFilter describes
+ * the elements (fields) to be transmitted for every Event.
+ *
+ * **Callback for Event notifications (Option 2)**
+ * This callback transmits the list of Event fields to the application. */
+
+typedef void (*UA_Client_EventNotificationCallback)
+    (UA_Client *client, UA_UInt32 subId, void *subContext,
+     UA_UInt32 monId, void *monContext,
+     size_t nEventFields, UA_Variant *eventFields);
+
+/* Monitor the EventNotifier attribute only */
+UA_CreateMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItems_createEvents(UA_Client *client,
+    const UA_CreateMonitoredItemsRequest request, void **contexts,
+    UA_Client_EventNotificationCallback *callback,
+    UA_Client_DeleteMonitoredItemCallback *deleteCallback);
+
+/* Monitor the EventNotifier attribute only */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItems_createEvents_async(UA_Client *client,
+    const UA_CreateMonitoredItemsRequest request, void **contexts,
+    UA_Client_EventNotificationCallback *callbacks,
+    UA_Client_DeleteMonitoredItemCallback *deleteCallbacks,
+    UA_ClientAsyncServiceCallback createCallback,
+    void *userdata, UA_UInt32 *requestId);
+
+UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItems_createEvent(UA_Client *client,
+    UA_UInt32 subscriptionId,
+    UA_TimestampsToReturn timestampsToReturn,
+    const UA_MonitoredItemCreateRequest item,
+    void *context, UA_Client_EventNotificationCallback callback,
+    UA_Client_DeleteMonitoredItemCallback deleteCallback);
+
+/**
+ * **Callback for Event notifications (Option 2)**
+ *
+ * The fields for an Event MonitoredItem are specified as a
+ * SimpleAttributeOperand. This callback option forwards a key-value map which
+ * maps from the human-readable SimpleAttributeOperand to the variant value. The
+ * ordering of the fields is identical to the order in which they are defined in
+ * the MonitoredItemCreateRequest for the configuration.
+ *
+ * See the section on :ref:`parse-sao` for details on the human-redable format
+ * for SimpleAttributeOperands. */
+typedef void (*UA_Client_NamedEventNotificationCallback)
+    (UA_Client *client, UA_UInt32 subId, void *subContext,
+     UA_UInt32 monId, void *monContext,
+     const UA_KeyValueMap fields);
+
+/* Monitor the EventNotifier attribute only */
+UA_CreateMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItems_createEventMonitoredItems(
+    UA_Client *client, const UA_CreateMonitoredItemsRequest request,
+    void **contexts, UA_Client_NamedEventNotificationCallback *callbacks,
+    UA_Client_DeleteMonitoredItemCallback *deleteCallbacks);
+
+/* Monitor the EventNotifier attribute only */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItems_createEventMonitoredItems_async(
+    UA_Client *client, const UA_CreateMonitoredItemsRequest request,
+    void **contexts, UA_Client_NamedEventNotificationCallback *callbacks,
+    UA_Client_DeleteMonitoredItemCallback *deleteCallbacks,
+    UA_ClientAsyncServiceCallback createCallback,
+    void *userdata, UA_UInt32 *requestId);
+
+UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItems_createEventMonitoredItem(
+    UA_Client *client, UA_UInt32 subscriptionId,
+    UA_TimestampsToReturn timestampsToReturn,
+    const UA_MonitoredItemCreateRequest item,
+    void *context, UA_Client_NamedEventNotificationCallback callback,
+    UA_Client_DeleteMonitoredItemCallback deleteCallback);
+
+/**
+ * The following service calls go directly to the server. The changes are not
+ * stored in the client. */
 
 typedef void
 (*UA_ClientAsyncSetMonitoringModeCallback)(
@@ -303,17 +369,6 @@ UA_Client_MonitoredItems_setTriggering_async(
     UA_Client *client, const UA_SetTriggeringRequest request,
     UA_ClientAsyncSetTriggeringCallback callback,
     void *userdata, UA_UInt32 *requestId);
-
-/* Retrieve or change the user supplied MonitoredItem context */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItem_getContext(UA_Client *client,
-    UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId,
-    void **monContext);
-
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItem_setContext(UA_Client *client,
-    UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId,
-    void *monContext);
 
 _UA_END_DECLS
 
