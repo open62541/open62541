@@ -332,7 +332,7 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * that matches any BrowseName.
  *
  * Example RelativePaths
- * `````````````````````
+ * ~~~~~~~~~~~~~~~~~~~~~
  * - ``/2:Block&.Output``
  * - ``/3:Truck.0:NodeVersion``
  * - ``<0:HasProperty>1:Boiler/1:HeatSensor``
@@ -406,7 +406,7 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
  * - For the index range, see the section on :ref:`numericrange`.
  *
  * Example SimpleAttributeOperands
- * ```````````````````````````````
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
  * - ``ns=2;s=TruckEventType/3:Truck/5:Wheel#Value[1:3]``
  * - ``/3:Truck/5:Wheel``
  * - ``#BrowseName`` */
