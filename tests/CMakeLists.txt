@@ -77,6 +77,13 @@ set(test_plugin_sources
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
 
+# Network replay tests currently require a Linux environment
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    list(APPEND test_plugin_sources
+                ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers_pcap.c)
+    list(APPEND LIBS pcap)
+endif()
+
 if(UA_ENABLE_PUBSUB)
     # Add ethernet_config.h to ensure the tests are rebuild when it changes
     list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/pubsub/ethernet_config.h)
