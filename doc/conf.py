@@ -10,12 +10,12 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'open62541'
-copyright = '2025, The open62541 authors'
-author = 'The open62541 authors'
-
 version = '${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}'
 release = '${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}${OPEN62541_VER_LABEL}'
+
+project = 'open62541 (' + version + ')'
+copyright = '2025, The open62541 authors'
+author = 'The open62541 authors'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
