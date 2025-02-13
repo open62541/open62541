@@ -27,19 +27,6 @@ function cpplint {
     make ${MAKEOPTS} cpplint
 }
 
-#######################
-# Build Documentation #
-#######################
-
-function build_docs {
-    mkdir -p build; cd build; rm -rf *
-    cmake -DCMAKE_BUILD_TYPE=Release \
-          -DUA_BUILD_EXAMPLES=ON \
-          -DUA_FORCE_WERROR=ON \
-          ..
-    make doc
-}
-
 #####################################
 # Build Documentation including PDF #
 #####################################
