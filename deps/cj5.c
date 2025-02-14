@@ -61,8 +61,6 @@ static const uint32_t CJ5__FALSE_FOURCC = CJ5__FOURCC('f', 'a', 'l', 's');
 
 typedef struct {
     unsigned int pos;
-    unsigned int line_start;
-    unsigned int line;
     cj5_error_code error;
 
     const char *json5;
@@ -139,10 +137,6 @@ cj5__parse_string(cj5__parser *parser) {
                 return;
             }
             parser->pos++;
-            if(json5[parser->pos] == '\n') {
-                parser->line++;
-                parser->line_start = parser->pos;
-            }
         }
     }
 
@@ -298,11 +292,6 @@ cj5__skip_comment(cj5__parser* parser) {
                 parser->pos++;
                 return;
             }
-            // Remember we passed a newline
-            if(json5[parser->pos] == '\n') {
-                parser->line++;
-                parser->line_start = parser->pos;
-            }
         }
     }
 
@@ -344,12 +333,8 @@ cj5_parse(const char *json5, unsigned int len,
     for(; parser.pos < len; parser.pos++) {
         char c = json5[parser.pos];
         switch(c) {
-        case '\n': // Skip newline
-            parser.line++;
-            parser.line_start = parser.pos;
-            break;
-
-        case '\r': // Skip whitespace
+        case '\n': // Skip newline and whitespace
+        case '\r':
         case '\t':
         case ' ':
             break;
@@ -527,8 +512,7 @@ cj5_parse(const char *json5, unsigned int len,
 
     memset(&r, 0x0, sizeof(r));
     r.error = parser.error;
-    r.error_line = parser.line;
-    r.error_col = parser.pos - parser.line_start;
+    r.error_pos = parser.pos;
     r.num_tokens = parser.token_count; // How many tokens (would) have been
                                        // consumed by the parser?
 

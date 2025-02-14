@@ -297,10 +297,10 @@ START_TEST(TestSetSecurityKeys_GOOD) {
 
     UA_StatusCode retval = encyrptedclientconnect(client);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n",
@@ -326,10 +326,10 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingList){
 
     UA_StatusCode retval = encyrptedclientconnect(client);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
@@ -350,10 +350,10 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKe
     size_t keyListSize;
     UA_StatusCode retval = encyrptedclientconnect(client);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
@@ -384,10 +384,10 @@ START_TEST(TestSetSecurityKeys_ReplaceExistingKeyListWithFetchedKeyList){
 
     UA_StatusCode retval = encyrptedclientconnect(client);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));

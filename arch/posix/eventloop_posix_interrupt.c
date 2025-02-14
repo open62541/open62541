@@ -186,7 +186,7 @@ triggerPOSIXInterruptEvent(int sig) {
     /* Mark as triggered */
     rs->triggered = true;
 
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     /* On WIN32 we have to re-arm the signal or it will go back to SIG_DFL */
     signal(sig, triggerPOSIXInterruptEvent);
 #endif

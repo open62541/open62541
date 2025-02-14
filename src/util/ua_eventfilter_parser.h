@@ -11,6 +11,7 @@
 #include "open62541/types.h"
 #include "open62541/plugin/log.h"
 #include "open62541_queue.h"
+#include "ua_util_internal.h"
 
 _UA_BEGIN_DECLS
 

@@ -34,6 +34,7 @@ server_needed_examples = {
         "custom_datatype_client":"custom_datatype_server",
         "discovery_client_find_servers":"discovery_server_lds",
         "discovery_server_register":"discovery_server_lds",
+        "discovery_server_multicast":"discovery_server_multicast",
         "pubsub_publish_encrypted":"pubsub_subscribe_encrypted",
         "pubsub_publish_encrypted_sks":"server_pubsub_central_sks server_cert.der server_key.der --enableUnencrypted --enableAnonymous",
         "pubsub_subscribe_encrypted":"pubsub_publish_encrypted",

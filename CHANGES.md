@@ -3,6 +3,14 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### New Realtime-PubSub model
+
+The new Realtime-PubSub model builds upon two new public APIS: (i) The
+possibility to integrate custom state machines to control the state of
+PubSub-components and (ii) the generation of offset-tables for the content of
+PubSub NetworkMessages. The approach is described in
+/examples/pubsub_realtime/README.md with code examples in the same folder.
+
 ### JSON encoding changed with the v1.05 specification
 
 The JSON encoding was reworked for the v1.05 version of the OPC UA

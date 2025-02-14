@@ -73,6 +73,8 @@ ua_Subscriptions_create(UA_Client *client, UA_Client_Subscription *newSub,
 static void
 ua_Subscriptions_create_handler(UA_Client *client, void *data,
                                 UA_UInt32 requestId, void *r) {
+    UA_LOCK_ASSERT(&client->clientMutex);
+
     UA_CreateSubscriptionResponse *response = (UA_CreateSubscriptionResponse *)r;
     CustomCallback *cc = (CustomCallback *)data;
     UA_Client_Subscription *newSub = (UA_Client_Subscription *)cc->clientData;
@@ -82,9 +84,7 @@ ua_Subscriptions_create_handler(UA_Client *client, void *data,
     }
 
     /* Prepare the internal representation */
-    UA_LOCK(&client->clientMutex);
     ua_Subscriptions_create(client, newSub, response);
-    UA_UNLOCK(&client->clientMutex);
 
 cleanup:
     if(cc->userCallback)
@@ -98,12 +98,15 @@ UA_Client_Subscriptions_create(UA_Client *client,
                                void *subscriptionContext,
                                UA_Client_StatusChangeNotificationCallback statusChangeCallback,
                                UA_Client_DeleteSubscriptionCallback deleteCallback) {
+    lockClient(client);
+
     UA_CreateSubscriptionResponse response;
     UA_Client_Subscription *sub = (UA_Client_Subscription *)
         UA_malloc(sizeof(UA_Client_Subscription));
     if(!sub) {
         UA_CreateSubscriptionResponse_init(&response);
         response.responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        unlockClient(client);
         return response;
     }
     sub->context = subscriptionContext;
@@ -111,18 +114,17 @@ UA_Client_Subscriptions_create(UA_Client *client,
     sub->deleteCallback = deleteCallback;
 
     /* Send the request as a synchronous service call */
-    __UA_Client_Service(client,
-                        &request, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
-    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_free (sub);
+    __Client_Service(client, &request, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
+                     &response, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_free(sub);
+        unlockClient(client);
         return response;
     }
 
-    UA_LOCK(&client->clientMutex);
     ua_Subscriptions_create(client, sub, &response);
-    UA_UNLOCK(&client->clientMutex);
 
+    unlockClient(client);
     return response;
 }
 
@@ -179,9 +181,10 @@ ua_Subscriptions_modify(UA_Client *client, UA_Client_Subscription *sub,
 static void
 ua_Subscriptions_modify_handler(UA_Client *client, void *data, UA_UInt32 requestId,
                                 void *r) {
+    UA_LOCK_ASSERT(&client->clientMutex);
+
     UA_ModifySubscriptionResponse *response = (UA_ModifySubscriptionResponse *)r;
     CustomCallback *cc = (CustomCallback *)data;
-    UA_LOCK(&client->clientMutex);
     UA_Client_Subscription *sub =
         findSubscriptionById(client, (UA_UInt32)(uintptr_t)cc->clientData);
     if(sub) {
@@ -191,7 +194,6 @@ ua_Subscriptions_modify_handler(UA_Client *client, void *data, UA_UInt32 request
                     "No internal representation of subscription %" PRIu32,
                     (UA_UInt32)(uintptr_t)cc->clientData);
     }
-    UA_UNLOCK(&client->clientMutex);
 
     if(cc->userCallback)
         cc->userCallback(client, cc->userData, requestId, response);
@@ -199,38 +201,38 @@ ua_Subscriptions_modify_handler(UA_Client *client, void *data, UA_UInt32 request
 }
 
 UA_StatusCode
-UA_Client_Subscriptions_getContext(UA_Client *client, UA_UInt32 subscriptionId, void **subContext)
-{
-	if (!client || !subContext)
+UA_Client_Subscriptions_getContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   void **subContext) {
+	if(!client || !subContext)
 		return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-	UA_LOCK(&client->clientMutex);
+	lockClient(client);
 	UA_Client_Subscription *sub = findSubscriptionById(client, subscriptionId);
-	if (!sub) {
-		UA_UNLOCK(&client->clientMutex);
+	if(!sub) {
+		unlockClient(client);
 		return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 	}
 
 	*subContext = sub->context;
-	UA_UNLOCK(&client->clientMutex);
+	unlockClient(client);
 	return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_Client_Subscriptions_setContext(UA_Client *client, UA_UInt32 subscriptionId, void *subContext)
-{
-	if (!client)
+UA_Client_Subscriptions_setContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   void *subContext) {
+	if(!client)
 		return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-	UA_LOCK(&client->clientMutex);
+	lockClient(client);
 	UA_Client_Subscription *sub = findSubscriptionById(client, subscriptionId);
-	if (!sub) {
-		UA_UNLOCK(&client->clientMutex);
+	if(!sub) {
+		unlockClient(client);
 		return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 	}
 
 	sub->context = subContext;
-	UA_UNLOCK(&client->clientMutex);
+	unlockClient(client);
 	return UA_STATUSCODE_GOOD;
 }
 
@@ -241,29 +243,28 @@ UA_Client_Subscriptions_modify(UA_Client *client,
     UA_ModifySubscriptionResponse_init(&response);
 
     /* Find the internal representation */
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     UA_Client_Subscription *sub = findSubscriptionById(client, request.subscriptionId);
-    UA_UNLOCK(&client->clientMutex);
     if(!sub) {
+        unlockClient(client);
         response.responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return response;
     }
 
     /* Call the service */
-    __UA_Client_Service(client,
-                        &request, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE]);
+    __Client_Service(client,
+                     &request, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
+                     &response, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE]);
 
     /* Adjust the internal representation. Lookup again for thread-safety. */
-    UA_LOCK(&client->clientMutex);
     sub = findSubscriptionById(client, request.subscriptionId);
     if(!sub) {
         response.responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-        UA_UNLOCK(&client->clientMutex);
+        unlockClient(client);
         return response;
     }
     ua_Subscriptions_modify(client, sub, &response);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return response;
 }
 
@@ -272,24 +273,31 @@ UA_Client_Subscriptions_modify_async(UA_Client *client,
                                      const UA_ModifySubscriptionRequest request,
                                      UA_ClientAsyncServiceCallback callback,
                                      void *userdata, UA_UInt32 *requestId) {
-    /* Find the internal representation */
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
+
     UA_Client_Subscription *sub = findSubscriptionById(client, request.subscriptionId);
-    UA_UNLOCK(&client->clientMutex);
-    if(!sub)
+    if(!sub) {
+        unlockClient(client);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    }
 
     CustomCallback *cc = (CustomCallback *)UA_calloc(1, sizeof(CustomCallback));
-    if(!cc)
+    if(!cc) {
+        unlockClient(client);
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     cc->clientData = (void *)(uintptr_t)request.subscriptionId;
     cc->userData = userdata;
     cc->userCallback = callback;
 
-    return __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
-                                    ua_Subscriptions_modify_handler, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE],
-                                    cc, requestId);
+    UA_StatusCode res =
+        __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONREQUEST],
+                              ua_Subscriptions_modify_handler, &UA_TYPES[UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE],
+                              cc, requestId);
+
+    unlockClient(client);
+    return res;
 }
 
 static void *
@@ -321,9 +329,7 @@ __Client_Subscription_deleteInternal(UA_Client *client,
     if(sub->deleteCallback) {
         void *subC = sub->context;
         UA_UInt32 subId = sub->subscriptionId;
-        UA_UNLOCK(&client->clientMutex);
         sub->deleteCallback(client, subId, subC);
-        UA_LOCK(&client->clientMutex);
     }
 
     /* Remove */
@@ -376,10 +382,10 @@ ua_Subscriptions_delete_handler(UA_Client *client, void *data,
     DeleteSubscriptionCallback *dsc =
         (DeleteSubscriptionCallback*)data;
 
+    lockClient(client);
+
     /* Delete */
-    UA_LOCK(&client->clientMutex);
     __Client_Subscription_processDelete(client, &dsc->request, response);
-    UA_UNLOCK(&client->clientMutex);
 
     /* Userland Callback */
     dsc->userCallback(client, dsc->userData, requestId, response);
@@ -387,6 +393,8 @@ ua_Subscriptions_delete_handler(UA_Client *client, void *data,
     /* Cleanup */
     UA_DeleteSubscriptionsRequest_clear(&dsc->request);
     UA_free(dsc);
+
+    unlockClient(client);
 }
 
 UA_StatusCode
@@ -416,15 +424,17 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
 UA_DeleteSubscriptionsResponse
 UA_Client_Subscriptions_delete(UA_Client *client,
                                const UA_DeleteSubscriptionsRequest request) {
+    lockClient(client);
+
     /* Send the request */
     UA_DeleteSubscriptionsResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE]);
+    __Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
+                     &response, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE]);
 
     /* Process */
-    UA_LOCK(&client->clientMutex);
     __Client_Subscription_processDelete(client, &request, &response);
-    UA_UNLOCK(&client->clientMutex);
+
+    unlockClient(client);
     return response;
 }
 
@@ -469,9 +479,7 @@ MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
         void *monC = mon->context;
         UA_UInt32 subId = sub->subscriptionId;
         UA_UInt32 monId = mon->monitoredItemId;
-        UA_UNLOCK(&client->clientMutex);
         mon->deleteCallback(client, subId, subC, monId, monC);
-        UA_LOCK(&client->clientMutex);
     }
     UA_free(mon);
 }
@@ -518,10 +526,8 @@ ua_MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
         if(response->results[i].statusCode != UA_STATUSCODE_GOOD) {
             void *subC = sub->context;
             UA_UInt32 subId = sub->subscriptionId;
-            UA_UNLOCK(&client->clientMutex);
             if(deleteCallbacks[i])
                 deleteCallbacks[i](client, subId, subC, 0, data->contexts[i]);
-            UA_LOCK(&client->clientMutex);
             continue;
         }
 
@@ -530,10 +536,8 @@ ua_MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
         if(!newMon) {
             void *subC = sub->context;
             UA_UInt32 subId = sub->subscriptionId;
-            UA_UNLOCK(&client->clientMutex);
             if(deleteCallbacks[i])
                 deleteCallbacks[i](client, subId, subC, 0, data->contexts[i]);
-            UA_LOCK(&client->clientMutex);
             continue;
         }
 
@@ -558,11 +562,9 @@ ua_MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
  cleanup:
     for(size_t i = 0; i < request->itemsToCreateSize; i++) {
         void *subC = sub ? sub->context : NULL;
-        UA_UNLOCK(&client->clientMutex);
         if(deleteCallbacks[i])
             deleteCallbacks[i](client, data->request.subscriptionId,
                                subC, 0, data->contexts[i]);
-        UA_LOCK(&client->clientMutex);
     }
 }
 
@@ -572,15 +574,17 @@ ua_MonitoredItems_create_async_handler(UA_Client *client, void *d, UA_UInt32 req
     UA_CreateMonitoredItemsResponse *response = (UA_CreateMonitoredItemsResponse *)r;
     MonitoredItems_CreateData *data = (MonitoredItems_CreateData *)d;
 
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
+
     ua_MonitoredItems_create(client, data, response);
     MonitoredItems_CreateData_clear(client, data);
-    UA_UNLOCK(&client->clientMutex);
 
     if(data->userCallback)
         data->userCallback(client, data->userData, requestId, response);
 
     UA_free(data);
+
+    unlockClient(client);
 }
 
 static UA_StatusCode
@@ -714,10 +718,10 @@ UA_Client_MonitoredItems_createDataChanges(UA_Client *client,
                                            UA_Client_DataChangeNotificationCallback *callbacks,
                                            UA_Client_DeleteMonitoredItemCallback *deleteCallbacks) {
     UA_CreateMonitoredItemsResponse response;
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     ua_Client_MonitoredItems_create(client, &request, contexts, (void **)callbacks,
                                     deleteCallbacks, &response);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return response;
 }
 
@@ -729,11 +733,11 @@ UA_Client_MonitoredItems_createDataChanges_async(UA_Client *client,
                                                  UA_Client_DeleteMonitoredItemCallback *deleteCallbacks,
                                                  UA_ClientAsyncServiceCallback createCallback,
                                                  void *userdata, UA_UInt32 *requestId) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     UA_StatusCode res =
         createDataChanges_async(client, request, contexts, (void **)callbacks,
                                 deleteCallbacks, createCallback, userdata, requestId);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return res;
 }
 
@@ -775,10 +779,10 @@ UA_Client_MonitoredItems_createEvents(UA_Client *client,
                                       UA_Client_EventNotificationCallback *callback,
                                       UA_Client_DeleteMonitoredItemCallback *deleteCallback) {
     UA_CreateMonitoredItemsResponse response;
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     ua_Client_MonitoredItems_create(client, &request, contexts, (void **)callback,
                                     deleteCallback, &response);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return response;
 }
 
@@ -791,11 +795,11 @@ UA_Client_MonitoredItems_createEvents_async(UA_Client *client,
                                             UA_Client_DeleteMonitoredItemCallback *deleteCallbacks,
                                             UA_ClientAsyncServiceCallback createCallback,
                                             void *userdata, UA_UInt32 *requestId) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     UA_StatusCode res =
         createDataChanges_async(client, request, contexts, (void **)callbacks, deleteCallbacks,
                                 createCallback, userdata, requestId);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     return res;
 }
 
@@ -861,7 +865,7 @@ ua_MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId
     UA_DeleteMonitoredItemsRequest *request =
         (UA_DeleteMonitoredItemsRequest *)cc->clientData;
 
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
 
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -878,11 +882,12 @@ ua_MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId
     ua_MonitoredItems_delete(client, sub, request, response);
 
 cleanup:
-    UA_UNLOCK(&client->clientMutex);
     if(cc->userCallback)
         cc->userCallback(client, cc->userData, requestId, response);
     UA_DeleteMonitoredItemsRequest_delete(request);
     UA_free(cc);
+
+    unlockClient(client);
 }
 
 UA_DeleteMonitoredItemsResponse
@@ -897,7 +902,7 @@ UA_Client_MonitoredItems_delete(UA_Client *client,
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return response;
 
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
 
     /* Find the internal subscription representation */
     UA_Client_Subscription *sub = findSubscriptionById(client, request.subscriptionId);
@@ -905,14 +910,14 @@ UA_Client_MonitoredItems_delete(UA_Client *client,
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
                     "No internal representation of subscription %" PRIu32,
                     request.subscriptionId);
-        UA_UNLOCK(&client->clientMutex);
+        unlockClient(client);
         return response;
     }
 
     /* Remove MonitoredItems in the internal representation */
     ua_MonitoredItems_delete(client, sub, &request, &response);
 
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
 
     return response;
 }
@@ -997,10 +1002,10 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
     UA_ModifyMonitoredItemsResponse response;
     UA_ModifyMonitoredItemsResponse_init(&response);
 
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     UA_Client_Subscription *sub = findSubscriptionById(client, request.subscriptionId);
     if(!sub) {
-        UA_UNLOCK(&client->clientMutex);
+        unlockClient(client);
         response.responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return response;
     }
@@ -1013,7 +1018,7 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
                      &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST], &response,
                      &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE]);
 
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
     return response;
 }
@@ -1023,10 +1028,11 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
                                       const UA_ModifyMonitoredItemsRequest request,
                                       UA_ClientAsyncServiceCallback callback,
                                       void *userdata, UA_UInt32 *requestId) {
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
+
     UA_Client_Subscription *sub = findSubscriptionById(client, request.subscriptionId);
     if(!sub) {
-        UA_UNLOCK(&client->clientMutex);
+        unlockClient(client);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
@@ -1038,7 +1044,7 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
         client, &modifiedRequest, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST],
         callback, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE], userdata, requestId);
 
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
     return statusCode;
 }
@@ -1046,64 +1052,63 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
 static void *
 ua_MonitoredItem_findByID(void *data, UA_Client_MonitoredItem *mon) {
 	UA_UInt32 monitorId = *(UA_UInt32*)data;
-	if (monitorId && (mon->monitoredItemId == monitorId)) {
+	if(monitorId && (mon->monitoredItemId == monitorId))
 		return mon;
-	}
 	return NULL;
 }
 
-static UA_Client_MonitoredItem
-*findMonitoredItemById(UA_Client_Subscription *sub, UA_UInt32 monitoredItemId)
-{
+static UA_Client_MonitoredItem *
+findMonitoredItemById(UA_Client_Subscription *sub, UA_UInt32 monitoredItemId) {
 	return (UA_Client_MonitoredItem *)
-		ZIP_ITER(MonitorItemsTree, &sub->monitoredItems, ua_MonitoredItem_findByID, &monitoredItemId);
+		ZIP_ITER(MonitorItemsTree, &sub->monitoredItems,
+                 ua_MonitoredItem_findByID, &monitoredItemId);
 }
 
 UA_StatusCode
-UA_Client_MonitoredItem_getContext(UA_Client *client, UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId, void **monContext)
-{
-	if (!client || !monContext)
+UA_Client_MonitoredItem_getContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   UA_UInt32 monitoredItemId, void **monContext) {
+	if(!client || !monContext)
 		return UA_STATUSCODE_BADINVALIDARGUMENT;
 
 	*monContext = NULL;
 
-	UA_LOCK(&client->clientMutex);
+	lockClient(client);
 	UA_Client_Subscription *sub = findSubscriptionById(client, subscriptionId);
-	if (!sub) {
-		UA_UNLOCK(&client->clientMutex);
+	if(!sub) {
+		unlockClient(client);
 		return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 	}
 
 	UA_StatusCode status = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 	UA_Client_MonitoredItem *monItem = findMonitoredItemById(sub, monitoredItemId);
-	if (monItem) {
+	if(monItem) {
 		*monContext = monItem->context;
 		status = UA_STATUSCODE_GOOD;
 	}
-	UA_UNLOCK(&client->clientMutex);
+	unlockClient(client);
 	return status;
 }
 
 UA_StatusCode
-UA_Client_MonitoredItem_setContext(UA_Client *client, UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId, void *monContext)
-{
-	if (!client)
+UA_Client_MonitoredItem_setContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   UA_UInt32 monitoredItemId, void *monContext) {
+	if(!client)
 		return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-	UA_LOCK(&client->clientMutex);
+	lockClient(client);
 	UA_Client_Subscription *sub = findSubscriptionById(client, subscriptionId);
-	if (!sub) {
-		UA_UNLOCK(&client->clientMutex);
+	if(!sub) {
+		unlockClient(client);
 		return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 	}
 
 	UA_StatusCode status = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 	UA_Client_MonitoredItem *monItem = findMonitoredItemById(sub, monitoredItemId);
-	if (monItem) {
+	if(monItem) {
 		monItem->context = monContext;
 		status = UA_STATUSCODE_GOOD;
 	}
-	UA_UNLOCK(&client->clientMutex);
+	unlockClient(client);
 	return status;
 }
 
@@ -1185,9 +1190,7 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
             void *monC = mon->context;
             UA_UInt32 subId = sub->subscriptionId;
             UA_UInt32 monId = mon->monitoredItemId;
-            UA_UNLOCK(&client->clientMutex);
             mon->handler.dataChangeCallback(client, subId, subC, monId, monC, &min->value);
-            UA_LOCK(&client->clientMutex);
         }
     }
 }
@@ -1225,11 +1228,9 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
         void *monC = mon->context;
         UA_UInt32 subId = sub->subscriptionId;
         UA_UInt32 monId = mon->monitoredItemId;
-        UA_UNLOCK(&client->clientMutex);
         mon->handler.eventCallback(client, subId, subC, monId, monC,
                                    eventFieldList->eventFieldsSize,
                                    eventFieldList->eventFields);
-        UA_LOCK(&client->clientMutex);
     }
 }
 
@@ -1262,10 +1263,8 @@ processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
         if(sub->statusChangeCallback) {
             void *subC = sub->context;
             UA_UInt32 subId = sub->subscriptionId;
-            UA_UNLOCK(&client->clientMutex);
             sub->statusChangeCallback(client, subId, subC,
                                       (UA_StatusChangeNotification*)msg->content.decoded.data);
-            UA_LOCK(&client->clientMutex);
         } else {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Dropped a StatusChangeNotification since no "
@@ -1341,9 +1340,7 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
         if(client->config.subscriptionInactivityCallback) {
             void *subC = sub->context;
             UA_UInt32 subId = sub->subscriptionId;
-            UA_UNLOCK(&client->clientMutex);
             client->config.subscriptionInactivityCallback(client, subId, subC);
-            UA_LOCK(&client->clientMutex);
         }
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Received Timeout for Publish Response");
@@ -1408,7 +1405,7 @@ processPublishResponseAsync(UA_Client *client, void *userdata,
     UA_PublishRequest *req = (UA_PublishRequest*)userdata;
     UA_PublishResponse *res = (UA_PublishResponse*)response;
 
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
 
     /* Process the response */
     __Client_Subscriptions_processPublishResponse(client, req, res);
@@ -1419,7 +1416,7 @@ processPublishResponseAsync(UA_Client *client, void *userdata,
     /* Fill up the outstanding publish requests */
     __Client_Subscriptions_backgroundPublish(client);
 
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
 }
 
 void
@@ -1465,9 +1462,7 @@ __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
             if(client->config.subscriptionInactivityCallback) {
                 void *subC = sub->context;
                 UA_UInt32 subId = sub->subscriptionId;
-                UA_UNLOCK(&client->clientMutex);
                 client->config.subscriptionInactivityCallback(client, subId, subC);
-                UA_LOCK(&client->clientMutex);
             }
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Inactivity for Subscription %" PRIu32 ".", sub->subscriptionId);

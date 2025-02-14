@@ -44,7 +44,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 8)
+set(OPEN62541_VER_PATCH 10)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -777,9 +777,9 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h)
@@ -877,6 +877,9 @@ if(UA_GENERATED_NAMESPACE_ZERO)
 endif()
 
 if(UA_ENABLE_PARSING)
+    if(NOT UA_ENABLE_JSON_ENCODING)
+        message(FATAL_ERROR "Parsing features require JSON to be enabled")
+    endif()
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c)
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
         list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.h)
@@ -1245,8 +1248,8 @@ if(UA_ENABLE_AMALGAMATION)
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${lib_headers}
                                ${lib_sources} ${plugin_sources})
 
-    add_custom_target(open62541-amalgamation DEPENDS ${PROJECT_BINARY_DIR}/open62541.c
-                                                     ${PROJECT_BINARY_DIR}/open62541.h)
+    add_custom_target(open62541-amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.c
+                                                         ${PROJECT_BINARY_DIR}/open62541.h)
 endif()
 
 # Generated NS0

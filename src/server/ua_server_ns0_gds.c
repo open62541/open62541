@@ -183,7 +183,7 @@ writeLastUpdateVariable(UA_Server *server, UA_CertificateGroup *group) {
  * and all open file handles are closed. */
 static void
 checkSessionActive(UA_Server *server, void *data) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_GDSManager *gdsManager = &server->gdsManager;
     UA_GDSTransaction *transaction = &gdsManager->transaction;
     UA_Boolean removingCallback = false;
@@ -255,7 +255,7 @@ checkSessionActive(UA_Server *server, void *data) {
         removeCallback(server, gdsManager->checkSessionCallbackId);
         gdsManager->checkSessionCallbackId = 0;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 static UA_StatusCode
@@ -1469,12 +1469,12 @@ updateCertificateAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = updateCertificate(server, sessionId, sessionHandle,
                                           methodId, methodContext,
                                           objectId, objectContext,
                                           inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1485,12 +1485,12 @@ createSigningRequestAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = createSigningRequest(server, sessionId, sessionHandle,
                                              methodId, methodContext,
                                              objectId, objectContext,
                                              inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1501,12 +1501,12 @@ getRejectedListAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = getRejectedList(server, sessionId, sessionHandle,
                                         methodId, methodContext,
                                         objectId, objectContext,
                                         inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1517,12 +1517,12 @@ applyChangesAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = applyChanges(server, sessionId, sessionHandle,
                                      methodId, methodContext,
                                      objectId, objectContext,
                                      inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1533,12 +1533,12 @@ addCertificateAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = addCertificate(server, sessionId, sessionHandle,
                                        methodId, methodContext,
                                        objectId, objectContext,
                                        inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1549,12 +1549,12 @@ removeCertificateAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = removeCertificate(server, sessionId, sessionHandle,
                                           methodId, methodContext,
                                           objectId, objectContext,
                                           inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1565,12 +1565,12 @@ openTrustListWithMaskAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = openTrustListWithMask(server, sessionId, sessionHandle,
                                               methodId, methodContext,
                                               objectId, objectContext,
                                               inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1581,12 +1581,12 @@ closeAndUpdateTrustListAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = closeAndUpdateTrustList(server, sessionId, sessionHandle,
                                                 methodId, methodContext,
                                                 objectId, objectContext,
                                                 inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1597,12 +1597,12 @@ openFileAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = openFile(server, sessionId, sessionHandle,
                                  methodId, methodContext,
                                  objectId, objectContext,
                                  inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1613,12 +1613,12 @@ readFileAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = readFile(server, sessionId, sessionHandle,
                                  methodId, methodContext,
                                  objectId, objectContext,
                                  inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1629,12 +1629,12 @@ writeFileAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = writeFile(server, sessionId, sessionHandle,
                                   methodId, methodContext,
                                   objectId, objectContext,
                                   inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1645,12 +1645,12 @@ closeFileAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = closeFile(server, sessionId, sessionHandle,
                                   methodId, methodContext,
                                   objectId, objectContext,
                                   inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1661,12 +1661,12 @@ getPositionFileAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = getPositionFile(server, sessionId, sessionHandle,
                                         methodId, methodContext,
                                         objectId, objectContext,
                                         inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1677,12 +1677,12 @@ setPositionFileAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = setPositionFile(server, sessionId, sessionHandle,
                                         methodId, methodContext,
                                         objectId, objectContext,
                                         inputSize, input, outputSize, output);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 

@@ -21,70 +21,6 @@
 
 _UA_BEGIN_DECLS
 
-/**********************************************/
-/*          Network Message Offsets           */
-/**********************************************/
-
-/* Offsets for buffered messages in the PubSub fast path. */
-typedef enum {
-    UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE, /* no content, marks the beginning of the DSM */
-    UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER,
-    UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_TIMESTAMP,
-    UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_PICOSECONDS,
-    UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_STATUS,
-    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER,
-    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING,
-    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_TIMESTAMP,
-    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_PICOSECONDS,
-    UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_GROUPVERSION,
-    UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE,
-    UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE_EXTERNAL,
-    UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT,
-    UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT_EXTERNAL,
-    UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW,
-    UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW_EXTERNAL,
-    /* For subscriber RT */
-    UA_PUBSUB_OFFSETTYPE_PUBLISHERID,
-    UA_PUBSUB_OFFSETTYPE_WRITERGROUPID,
-    UA_PUBSUB_OFFSETTYPE_DATASETWRITERID
-    /* Add more offset types as needed */
-} UA_NetworkMessageOffsetType;
-
-typedef struct {
-    UA_NetworkMessageOffsetType contentType;
-    union {
-        UA_UInt16 sequenceNumber;
-        UA_DataValue **externalValue;
-        UA_DataValue value;
-    } content;
-    size_t offset;
-} UA_NetworkMessageOffset;
-
-typedef struct {
-    UA_ByteString buffer; /* The precomputed message buffer */
-    UA_NetworkMessageOffset *offsets; /* Offsets for changes in the message buffer */
-    size_t offsetsSize;
-    UA_NetworkMessage *nm; /* The precomputed NetworkMessage for subscriber */
-    size_t rawMessageLength;
-    UA_ByteString encryptBuffer; /* The precomputed message buffer is copied
-                                  * into the encrypt buffer for encryption and
-                                  * signing*/
-    UA_Byte *payloadPosition; /* Payload Position of the message to encrypt*/
-} UA_NetworkMessageOffsetBuffer;
-
-void
-UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *nmob);
-
-UA_StatusCode
-UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer);
-
-UA_StatusCode
-UA_NetworkMessage_updateBufferedNwMessage(Ctx *ctx, UA_NetworkMessageOffsetBuffer *buffer);
-
-size_t
-UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
-    const UA_NetworkMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer);
-
 /**
  * DataSetMessage
  * ^^^^^^^^^^^^^^ */
@@ -104,8 +40,7 @@ UA_StatusCode
 UA_DataSetMessage_decodeBinary(Ctx *ctx, UA_DataSetMessage *dst, UA_UInt16 dsmSize);
 
 size_t
-UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p,
-                                 UA_NetworkMessageOffsetBuffer *offsetBuffer,
+UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p, UA_PubSubOffsetTable *ot,
                                  size_t currentOffset);
 
 void UA_DataSetMessage_clear(UA_DataSetMessage *p);
@@ -113,6 +48,10 @@ void UA_DataSetMessage_clear(UA_DataSetMessage *p);
 /**
  * NetworkMessage Encoding
  * ^^^^^^^^^^^^^^^^^^^^^^^ */
+
+size_t
+UA_NetworkMessage_calcSizeBinaryWithOffsetTable(const UA_NetworkMessage *p,
+                                                UA_PubSubOffsetTable *ot);
 
 UA_StatusCode
 UA_NetworkMessage_encodeHeaders(const UA_NetworkMessage *src,

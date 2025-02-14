@@ -472,10 +472,10 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     response.responseHeader.requestHandle = request.requestHeader.requestHandle;
 
     /* Process the request */
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Boolean async =
         UA_Server_processRequest(server, channel, requestId, sd, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     /* Send response if not async */
     if(UA_LIKELY(!async)) {
@@ -913,7 +913,7 @@ createServerConnection(UA_BinaryProtocolManager *bpm, const UA_String *serverUrl
 static void
 secureChannelHouseKeeping(UA_Server *server, void *context) {
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)context;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     UA_EventLoop *el = server->config.eventLoop;
     UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
@@ -926,7 +926,7 @@ secureChannelHouseKeeping(UA_Server *server, void *context) {
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_TIMEOUT);
         }
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 /**********************/
@@ -986,7 +986,7 @@ sendRHEMessage(UA_Server *server, uintptr_t connectionId,
 
 static void
 retryReverseConnectCallback(UA_Server *server, void *context) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)context;
 
@@ -999,7 +999,7 @@ retryReverseConnectCallback(UA_Server *server, void *context) {
         attemptReverseConnect(bpm, rc);
     }
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 UA_StatusCode
@@ -1122,7 +1122,7 @@ UA_Server_addReverseConnect(UA_Server *server, UA_String url,
     newContext->stateCallback = stateCallback;
     newContext->callbackContext = callbackContext;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* Register the retry callback */
     setReverseConnectRetryCallback(bpm, true);
@@ -1136,7 +1136,7 @@ UA_Server_addReverseConnect(UA_Server *server, UA_String url,
     /* Attempt to connect right away */
     res = attemptReverseConnect(bpm, newContext);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1144,7 +1144,7 @@ UA_StatusCode
 UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
     UA_StatusCode result = UA_STATUSCODE_BADNOTFOUND;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     UA_ServerComponent *sc =
         getServerComponentByName(server, UA_STRING("binary"));
@@ -1152,7 +1152,7 @@ UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
     if(!bpm) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "No BinaryProtocolManager configured");
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1180,8 +1180,7 @@ UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
     if(LIST_EMPTY(&bpm->reverseConnects))
         setReverseConnectRetryCallback(bpm, false);
 
-    UA_UNLOCK(&server->serviceMutex);
-
+    unlockServer(server);
     return result;
 }
 

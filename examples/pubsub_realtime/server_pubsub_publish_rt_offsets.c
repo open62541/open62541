@@ -74,8 +74,6 @@ int main(void) {
         /* Add the DataSetField */
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
         dsfConfig.field.variable.publishParameters.publishedVariable = publishVariables[i];
-        dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = true;
-        dsfConfig.field.variable.rtValueSource.staticValueSource = &dvPointers[i];
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 
@@ -86,7 +84,6 @@ int main(void) {
     writerGroupConfig.publishingInterval = PUBSUB_CONFIG_PUBLISH_CYCLE_MS;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
 
     /* Change message settings of writerGroup to send PublisherId, WriterGroupId
      * in GroupHeader and DataSetWriterId in PayloadHeader of NetworkMessage */
