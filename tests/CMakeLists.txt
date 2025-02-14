@@ -431,3 +431,8 @@ endif()
 if(UA_ENABLE_NODESET_INJECTOR)
     set(UA_NODESETINJECTOR_TEST_NAMES ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
 endif()
+
+# Only do the network replay test for 64bit builds, as there is a bug in the Debian multi-arch installation
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT)
+    ua_add_test(network_replay/check_network_replay.c)
+endif()
