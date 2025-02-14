@@ -1612,7 +1612,7 @@ verifyClientApplicationURI(const UA_Client *client) {
         UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
         if(!sp->localCertificate.data) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "skip verifying ApplicationURI for the SecurityPolicy %S",
+                           "Skip verifying ApplicationURI for the SecurityPolicy %S",
                            sp->policyUri);
             continue;
         }
