@@ -97,7 +97,7 @@ openTrustList(UA_Client *client, UA_Byte mode, UA_Variant* fileHandler) {
     callMethodRequest.inputArgumentsSize = 1;
     callMethodRequest.inputArguments = inputArguments;
     callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
-    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_OPEN);
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_OPEN);
 
     UA_CallRequest callOpenTrustList;
     UA_CallRequest_init(&callOpenTrustList);
@@ -158,7 +158,7 @@ readTrustList(UA_Client *client, UA_UInt32 fileHandler, UA_Int32 lengthToRead, U
     callMethodRequest.inputArgumentsSize = 2;
     callMethodRequest.inputArguments = inputArguments;
     callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
-    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_READ);
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_READ);
 
     UA_CallRequest callReadTrustList;
     UA_CallRequest_init(&callReadTrustList);
@@ -189,7 +189,7 @@ writeTrustList(UA_Client *client, UA_UInt32 fileHandler, UA_ByteString data) {
     callMethodRequest.inputArgumentsSize = 2;
     callMethodRequest.inputArguments = inputArguments;
     callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
-    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_WRITE);
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_WRITE);
 
     UA_CallRequest callWriteTrustList;
     UA_CallRequest_init(&callWriteTrustList);
@@ -217,7 +217,7 @@ closeTrustList(UA_Client *client, UA_UInt32 fileHandler) {
     callMethodRequest.inputArgumentsSize = 1;
     callMethodRequest.inputArguments = inputArguments;
     callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
-    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_CLOSE);
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST_CLOSE);
 
     UA_CallRequest callCloseTrustList;
     UA_CallRequest_init(&callCloseTrustList);
