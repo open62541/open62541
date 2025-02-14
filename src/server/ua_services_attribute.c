@@ -17,10 +17,11 @@
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+
  */
 
 #include "ua_server_internal.h"
-#include "../ua_types_encoding_binary.h"
 #include "ua_services.h"
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -473,6 +474,7 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         }
         retval = readValueAttributeComplete(server, session, &node->variableNode,
                                             timestampsToReturn, &id->indexRange, v);
+        /*ToDo Async here*/
         break;
     }
     case UA_ATTRIBUTEID_DATATYPE:
@@ -722,6 +724,19 @@ UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
     lockServer(server);
     UA_DataValue dv = readWithSession(server, &server->adminSession, item, timestamps);
     unlockServer(server);
+    return dv;
+}
+
+/* Exposes the Read service to local users */
+UA_DataValue
+UA_Server_readWithSession(UA_Server *server, UA_NodeId *sessionId,
+                          const UA_ReadValueId *item, UA_TimestampsToReturn timestamps) {
+    UA_LOCK(&server->serviceMutex);
+    UA_Session *session = NULL;
+    if(sessionId)
+        session = getSessionById(server, sessionId);
+    UA_DataValue dv = readWithSession(server, session, item, timestamps);
+    UA_UNLOCK(&server->serviceMutex);
     return dv;
 }
 
@@ -1073,6 +1088,107 @@ static void
 freeWrapperArray(void *app, void *context) {
     UA_free(context);
 }
+
+#if UA_MULTITHREADING >= 100
+static void
+Operation_ReadAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
+                          UA_UInt32 requestHandle, size_t opIndex,
+                          UA_ReadRequest *opRequest, UA_DataValue *opResult,
+                          UA_AsyncResponse **ar) {
+    /* Get the node (with only the selected attribute if the NodeStore supports that) */
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, &opRequest->nodesToRead[opIndex].nodeId,
+                                   attributeId2AttributeMask((UA_AttributeId) opRequest->nodesToRead[opIndex].attributeId),
+                                   UA_REFERENCETYPESET_NONE,
+                                   UA_BROWSEDIRECTION_INVALID);
+    if(!node){
+        opResult->hasStatus = true;
+        opResult->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        //ToDo create Testcase for UA_STATUSCODE_BADNODEIDUNKNOWN in case of async
+        return;
+    }
+
+    /* Synchronous execution */
+    if(!node->head.async) {
+        /* Perform the read operation */
+        ReadWithNode(node, server, session, opRequest->timestampsToReturn, &opRequest->nodesToRead[opIndex], opResult);
+        goto cleanup;
+    }
+
+    /* <-- Async read --> */
+
+    /* No AsyncResponse allocated so far */
+    if(!*ar) {
+        opResult->status =
+            UA_AsyncManager_createAsyncResponse(&server->asyncManager, server,
+                                                &session->sessionId, requestId, requestHandle,
+                                                UA_ASYNCOPERATIONTYPE_READ, ar);
+        if(opResult->status != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Create the Async Request to be taken by workers */
+    opResult->status =
+        UA_AsyncManager_createAsyncOp(&server->asyncManager,
+                                      server, *ar, opIndex, UA_ASYNCOPERATIONTYPE_READ, opRequest);
+
+cleanup:
+    /* Release the method and object node */
+    UA_NODESTORE_RELEASE(server, node);
+}
+
+void
+Service_ReadAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
+                  const UA_ReadRequest *request, UA_ReadResponse *response,
+                  UA_Boolean *finished) {
+    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing ReadRequestAsync");
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* Check if the timestampstoreturn is valid */
+    if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
+        return;
+    }
+
+    /* Check if maxAge is valid */
+    if(request->maxAge < 0) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
+        return;
+    }
+
+    /* Check if there are too many operations */
+    if(server->config.maxNodesPerRead != 0 &&
+       request->nodesToReadSize > server->config.maxNodesPerRead) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    UA_AsyncResponse *ar = NULL;
+    response->responseHeader.serviceResult =
+        UA_Server_processServiceOperationsAsync(server, session, requestId,
+                                                request->requestHeader.requestHandle,
+                                                (UA_AsyncServiceOperation)Operation_ReadAsync,
+                                                &request->nodesToReadSize,
+                                                &request, &UA_TYPES[UA_TYPES_READREQUEST],
+                                                &response->resultsSize, &UA_TYPES[UA_TYPES_DATAVALUE], &ar);
+
+    if(ar) {
+        if(ar->opCountdown > 0) {
+            /* Move all results to the AsyncResponse. The async operation
+             * results will be overwritten when the workers return results. */
+            ar->response.readResponse = *response;
+            UA_ReadResponse_init(response);
+            *finished = false;
+        } else {
+            /* If there is a new AsyncResponse, ensure it has at least one
+             * pending operation */
+            UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
+        }
+    }
+}
+#endif
 
 static void
 unwrapEOArray(UA_Server *server, UA_Variant *value) {
@@ -1788,6 +1904,90 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
+#if UA_MULTITHREADING >= 100
+static void
+Operation_WriteAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
+                    UA_UInt32 requestHandle, size_t opIndex,
+                    UA_WriteRequest *opRequest, UA_StatusCode *opResult,
+                    UA_AsyncResponse **ar) {
+    UA_assert(session != NULL);
+    /* Get the node (with only the selected attribute if the NodeStore supports that) */
+    const UA_Node *node =
+        UA_NODESTORE_GET_SELECTIVE(server, &opRequest->nodesToWrite[opIndex].nodeId,
+                                   attributeId2AttributeMask((UA_AttributeId) opRequest->nodesToWrite[opIndex].attributeId),
+                                   UA_REFERENCETYPESET_NONE,
+                                   UA_BROWSEDIRECTION_INVALID);
+    if(!node){
+        *opResult = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        return;
+    }
+    //Synchronous execution
+    if(!node->head.async) {
+        *opResult = UA_Server_editNode(server, session, &opRequest->nodesToWrite[opIndex].nodeId,
+                                     UA_ATTRIBUTEID_INVALID, UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH,
+                                     (UA_EditNodeCallback)copyAttributeIntoNode,
+                                     (void*)(uintptr_t) &opRequest->nodesToWrite[opIndex]);
+        goto cleanup;
+    }
+
+     /* Async Write No AsyncResponse allocated so far */
+    if(!*ar) {
+        *opResult =
+            UA_AsyncManager_createAsyncResponse(&server->asyncManager, server,
+                                                &session->sessionId, requestId, requestHandle,
+                                                UA_ASYNCOPERATIONTYPE_WRITE, ar);
+        if(*opResult != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    }
+
+    //Create the Async Request to be taken by workers
+    *opResult =
+        UA_AsyncManager_createAsyncOp(&server->asyncManager,
+                                      server, *ar, opIndex, UA_ASYNCOPERATIONTYPE_WRITE, opRequest);
+
+cleanup:
+    //Release the method and object node
+    UA_NODESTORE_RELEASE(server, node);
+}
+
+void
+Service_WriteAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
+                  const UA_WriteRequest *request, UA_WriteResponse *response,
+                  UA_Boolean *finished) {
+    UA_assert(session != NULL);
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
+                         "Processing Async WriteRequest");
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    if(server->config.maxNodesPerWrite != 0 &&
+       request->nodesToWriteSize > server->config.maxNodesPerWrite) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+        return;
+    }
+    UA_AsyncResponse *ar = NULL;
+    response->responseHeader.serviceResult = UA_Server_processServiceOperationsAsync(server, session, requestId,
+                                                                                     request->requestHeader.requestHandle,
+                                                                                     (UA_AsyncServiceOperation)Operation_WriteAsync,
+                                                                                     &request->nodesToWriteSize,
+                                                                                     &request, &UA_TYPES[UA_TYPES_WRITEREQUEST],
+                                                                                     &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE], &ar);
+
+    if(ar) {
+        if(ar->opCountdown > 0) {
+        /* Move all results to the AsyncResponse. The async operation
+         * results will be overwritten when the workers return results. */
+        ar->response.writeResponse = *response;
+        UA_WriteResponse_init(response);
+        *finished = false;
+        } else {
+        /* If there is a new AsyncResponse, ensure it has at least one
+         * pending operation */
+        UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
+        }
+    }
+}
+#endif
+
 void
 Operation_Write(UA_Server *server, UA_Session *session, void *context,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
@@ -1828,6 +2028,22 @@ UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
     lockServer(server);
     Operation_Write(server, &server->adminSession, NULL, value, &res);
     unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_writeWithSession(UA_Server *server, const UA_WriteValue *value, UA_NodeId *sessionId) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_LOCK(&server->serviceMutex);
+    UA_Session *session = NULL;
+    if(sessionId)
+        session = getSessionById(server, sessionId);
+    if(!sessionId || !session) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
+    }
+    Operation_Write(server, session, NULL, value, &res);
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
