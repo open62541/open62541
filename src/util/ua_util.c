@@ -526,6 +526,11 @@ UA_random_seed(u64 seed) {
     pcg32_srandom_r(&UA_rng, seed, (u64)UA_DateTime_now());
 }
 
+void
+UA_random_seed_deterministic(UA_UInt64 seed) {
+    pcg32_srandom_r(&UA_rng, seed, 0);
+}
+
 u32
 UA_UInt32_random(void) {
     return (u32)pcg32_random_r(&UA_rng);
