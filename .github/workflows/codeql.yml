@@ -36,7 +36,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y -qq python3-sphinx graphviz check
           sudo apt-get install -y -qq tcc clang-14 clang-tools-14 valgrind mosquitto
-          sudo apt-get install -y -qq libmbedtls-dev openssl
+          sudo apt-get install -y -qq libmbedtls-dev openssl libpcap-dev
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
