@@ -194,6 +194,59 @@ START_TEST(prosys_basic256sha256) {
 END_TEST
 #endif
 
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+START_TEST(softing_eccp256) {
+    UA_Client *client =
+        createReplayClient("../../../tests/network_replay/softing_eccp256.pcap");
+
+    UA_ByteString *trustList = NULL;
+    size_t trustListSize = 0;
+    UA_ByteString *revocationList = NULL;
+    size_t revocationListSize = 0;
+
+    /* Load certificate and private key */
+    UA_ByteString certificate;
+    certificate.length = CERT_P256_DER_LENGTH;
+    certificate.data = CERT_P256_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_P256_DER_LENGTH;
+    privateKey.data = KEY_P256_DER_DATA;
+
+    /* Secure client initialization */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                         trustList, trustListSize,
+                                         revocationList, revocationListSize);
+    cc->certificateVerification.clear(&cc->certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+    cc->securityPolicyUri =
+        UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256");
+
+    /* Replace the nonce-generating function in the SecurityPolicies */
+    for(size_t i = 0; i < cc->securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &cc->securityPolicies[i];
+        sp->symmetricModule.generateNonce = reproducibleNonce;
+    }
+
+    /* Reset the rng */
+    UA_random_seed_deterministic(0);
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://127.0.0.1:4880");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant namespaceArray;
+    retval = UA_Client_readValueAttribute(client, UA_NODEID_NUMERIC(0, 2255),
+                                           &namespaceArray);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&namespaceArray);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+#endif
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
@@ -201,6 +254,9 @@ static Suite* testSuite_Client(void) {
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_client, unified_cpp_basic256sha256);
     tcase_add_test(tc_client, prosys_basic256sha256);
+#endif
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
+    tcase_add_test(tc_client, softing_eccp256);
 #endif
     suite_add_tcase(s, tc_client);
     return s;
