@@ -922,6 +922,14 @@ UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo,
                                 void * UA_RESTRICT p,
                                 const UA_DataType *type);
 
+
+/* Decode the ByteString encoded content of the ExtensionObject.
+ * The encoded value will be cleared if the decoding succeed.
+ * Known values only are supported.
+ */
+UA_StatusCode UA_EXPORT
+UA_ExtensionObject_decode(UA_ExtensionObject* eo);                          
+
 /**
  * .. _datavalue:
  *
