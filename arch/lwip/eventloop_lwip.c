@@ -832,34 +832,38 @@ UA_EventLoopLWIP_pollFDs(UA_EventLoopLWIP *el, UA_DateTime listenTimeout) {
 }
 
 int UA_EventLoopLWIP_pipe(UA_FD fds[2]) {
-    struct sockaddr_in inaddr;
-    memset(&inaddr, 0, sizeof(inaddr));
-    inaddr.sin_family = AF_INET;
-    inaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    inaddr.sin_port = 0;
-
-    UA_FD lst = UA_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    UA_bind(lst, (struct sockaddr *)&inaddr, sizeof(inaddr));
-    UA_listen(lst, 1);
-
-    struct sockaddr_storage addr;
-    memset(&addr, 0, sizeof(addr));
-    socklen_t len = sizeof(addr);
-    UA_getsockname(lst, (struct sockaddr*)&addr, &len);
-
-    fds[0] = UA_socket(AF_INET, SOCK_STREAM, 0);
-    int err = UA_connect(fds[0], (struct sockaddr*)&addr, len);
-    fds[1] = UA_accept(lst, 0, 0);
-    UA_close(lst);
-
-    UA_EventLoopLWIP_setNoSigPipe(fds[0]);
-    UA_EventLoopLWIP_setReusable(fds[0]);
-    UA_EventLoopLWIP_setNonBlocking(fds[0]);
-    UA_EventLoopLWIP_setNoSigPipe(fds[1]);
-    UA_EventLoopLWIP_setReusable(fds[1]);
-    UA_EventLoopLWIP_setNonBlocking(fds[1]);
-    return err;
-}
+    #if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+        struct sockaddr_in inaddr;
+        memset(&inaddr, 0, sizeof(inaddr));
+        inaddr.sin_family = AF_INET;
+        inaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        inaddr.sin_port = 0;
+    
+        UA_FD lst = UA_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        UA_bind(lst, (struct sockaddr *)&inaddr, sizeof(inaddr));
+        UA_listen(lst, 1);
+    
+        struct sockaddr_storage addr;
+        memset(&addr, 0, sizeof(addr));
+        socklen_t len = sizeof(addr);
+        UA_getsockname(lst, (struct sockaddr*)&addr, &len);
+    
+        fds[0] = UA_socket(AF_INET, SOCK_STREAM, 0);
+        int err = UA_connect(fds[0], (struct sockaddr*)&addr, len);
+        fds[1] = UA_accept(lst, 0, 0);
+        UA_close(lst);
+    
+        UA_EventLoopLWIP_setNoSigPipe(fds[0]);
+        UA_EventLoopLWIP_setReusable(fds[0]);
+        UA_EventLoopLWIP_setNonBlocking(fds[0]);
+        UA_EventLoopLWIP_setNoSigPipe(fds[1]);
+        UA_EventLoopLWIP_setReusable(fds[1]);
+        UA_EventLoopLWIP_setNonBlocking(fds[1]);
+        return err;
+    #else
+        return 0;
+    #endif
+    }
 
 void
 UA_EventLoopLWIP_cancel(UA_EventLoopLWIP *el) {
