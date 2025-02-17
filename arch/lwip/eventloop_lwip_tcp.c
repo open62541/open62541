@@ -15,13 +15,14 @@
 #include "settings_lwip.h"
 
 /* Configuration parameters */
-#define TCP_PARAMETERSSIZE 6
+#define TCP_PARAMETERSSIZE 7
 #define TCP_PARAMINDEX_RECVBUF 0
 #define TCP_PARAMINDEX_ADDR 1
 #define TCP_PARAMINDEX_PORT 2
 #define TCP_PARAMINDEX_LISTEN 3
 #define TCP_PARAMINDEX_VALIDATE 4
 #define TCP_PARAMINDEX_REUSE 5
+#define TCP_PARAMINDEX_INIT_INTERFACE 6
 
 static UA_KeyValueRestriction TCPConfigParameters[TCP_PARAMETERSSIZE] = {
     {{0, UA_STRING_STATIC("recv-bufsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
@@ -29,7 +30,8 @@ static UA_KeyValueRestriction TCPConfigParameters[TCP_PARAMETERSSIZE] = {
     {{0, UA_STRING_STATIC("port")}, &UA_TYPES[UA_TYPES_UINT16], true, true, false},
     {{0, UA_STRING_STATIC("listen")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("validate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
-    {{0, UA_STRING_STATIC("reuse")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false}
+    {{0, UA_STRING_STATIC("reuse")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("init-interface")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false}
 };
 
 typedef struct {
@@ -1017,6 +1019,8 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     return res;
 }
 
+static bool initAlready = false;
+
 static UA_StatusCode
 TCP_eventSourceStart(UA_ConnectionManager *cm) {
     UA_LWIPConnectionManager *pcm = (UA_LWIPConnectionManager*)cm;
@@ -1042,6 +1046,28 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
                                         &cm->eventSource.params);
     if(res != UA_STATUSCODE_GOOD)
         goto finish;
+
+    /* The initialization can only be done once for the runtime of the process.
+     * Initialisation can be done from the stack or externally. */
+    const UA_Boolean *initInterfaceRequiredParam = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(&cm->eventSource.params, TCPConfigParameters[TCP_PARAMINDEX_INIT_INTERFACE].name,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Boolean initInterfaceRequired = true;
+    if(initInterfaceRequiredParam)
+        initInterfaceRequired = *initInterfaceRequiredParam;
+    if(!initAlready && initInterfaceRequired) {
+        tcpip_init(NULL, NULL);
+        ip4_addr_t ipaddr, netmask, gw;
+        LWIP_PORT_INIT_IPADDR(ipaddr);
+        LWIP_PORT_INIT_NETMASK(netmask);
+        LWIP_PORT_INIT_GW(gw);
+
+        LOCK_TCPIP_CORE();
+        init_default_netif(&ipaddr, &netmask, &gw);
+        netif_set_up(netif_default);
+        UNLOCK_TCPIP_CORE();
+    }
+    initAlready = true;
 
     /* Allocate the rx buffer */
     res = UA_EventLoopLWIP_allocateStaticBuffers(pcm);
@@ -1104,7 +1130,6 @@ TCP_eventSourceDelete(UA_ConnectionManager *cm) {
 }
 
 static const char *tcpName = "tcp";
-static bool init_already = false;
 
 UA_ConnectionManager *
 UA_ConnectionManager_new_LWIP_TCP(const UA_String eventSourceName) {
@@ -1116,21 +1141,6 @@ UA_ConnectionManager_new_LWIP_TCP(const UA_String eventSourceName) {
 #ifndef LWIP_TCPIP_CORE_LOCKING
 #error Core locking needs to be enabled
 #endif
-
-    /* The initialization can only be done once for the runtime of the process */
-    if(!init_already) {
-        tcpip_init(NULL, NULL);
-        ip4_addr_t ipaddr, netmask, gw;
-        LWIP_PORT_INIT_IPADDR(ipaddr);
-        LWIP_PORT_INIT_NETMASK(netmask);
-        LWIP_PORT_INIT_GW(gw);
-
-        LOCK_TCPIP_CORE();
-        init_default_netif(&ipaddr, &netmask, &gw);
-        netif_set_up(netif_default);
-        UNLOCK_TCPIP_CORE();
-    }
-    init_already = true;
 
     cm->cm.eventSource.eventSourceType = UA_EVENTSOURCETYPE_CONNECTIONMANAGER;
     UA_String_copy(&eventSourceName, &cm->cm.eventSource.name);

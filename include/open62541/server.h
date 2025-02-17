@@ -165,6 +165,7 @@ struct UA_ServerConfig {
     UA_UInt32 tcpMaxChunks;  /* Max number of chunks per message
                               * (default: 0 -> unbounded) */
     UA_Boolean tcpReuseAddr;
+    UA_Boolean tcpInitInterface;
 
     /* Security and Encryption
      * ~~~~~~~~~~~~~~~~~~~~~~~ */

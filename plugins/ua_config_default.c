@@ -301,6 +301,11 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 #elif defined(UA_ARCHITECTURE_LWIP)
         UA_ConnectionManager *tcpCM =
             UA_ConnectionManager_new_LWIP_TCP(UA_STRING("tcp connection manager"));
+        
+        UA_StatusCode res = UA_KeyValueMap_setScalar(&tcpCM->eventSource.params, UA_QUALIFIEDNAME(0, "init-interface"),
+                                                     (void *)&conf->tcpInitInterface, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
 #else
         UA_ConnectionManager *tcpCM =
             UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
