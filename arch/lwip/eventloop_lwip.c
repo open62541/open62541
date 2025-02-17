@@ -590,7 +590,7 @@ UA_EventLoopLWIP_freeNetworkBuffer(UA_ConnectionManager *cm,
 UA_StatusCode
 UA_EventLoopLWIP_allocateStaticBuffers(UA_LWIPConnectionManager *pcm) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
+    UA_UInt32 rxBufSize = 1u << 10; /* The default is 64kb */
     const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
                                  UA_QUALIFIEDNAME(0, "recv-bufsize"),
