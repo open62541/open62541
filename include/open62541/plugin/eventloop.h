@@ -150,12 +150,14 @@ struct UA_EventLoop {
      * non-NULL. */
     UA_StatusCode
     (*addCyclicCallback)(UA_EventLoop *el, UA_Callback cb, void *application,
-                         void *data, UA_Double interval_ms, UA_DateTime *baseTime,
+                         void *data, UA_Double interval_ms,
+                         const UA_DateTime *baseTime,
                          UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId);
 
     UA_StatusCode
     (*modifyCyclicCallback)(UA_EventLoop *el, UA_UInt64 callbackId,
-                            UA_Double interval_ms, UA_DateTime *baseTime,
+                            UA_Double interval_ms,
+                            const UA_DateTime *baseTime,
                             UA_TimerPolicy timerPolicy);
 
     void (*removeCyclicCallback)(UA_EventLoop *el, UA_UInt64 callbackId);

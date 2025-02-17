@@ -49,6 +49,14 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
     if(wg->publishCallbackId != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    const UA_DateTime *basetime = (const UA_DateTime *)
+        UA_KeyValueMap_getScalar(&wg->config.groupProperties,
+                                 UA_QUALIFIEDNAME(0, "__publish-basetime"),
+                                 &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_TimerPolicy timerpolicy = (basetime) ?
+        UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME :
+        UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME;
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(wg->config.pubsubManagerCallback.addCustomCallback) {
         /* Use configured mechanism for cyclic callbacks */
@@ -56,16 +64,13 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
                  addCustomCallback(server, wg->identifier,
                                    (UA_ServerCallback)UA_WriterGroup_publishCallback,
                                    wg, wg->config.publishingInterval,
-                                   NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                                   &wg->publishCallbackId);
+                                   basetime, timerpolicy, &wg->publishCallbackId);
     } else {
         /* Use EventLoop for cyclic callbacks */
         UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
         retval = el->addCyclicCallback(el, (UA_Callback)UA_WriterGroup_publishCallback,
                                        server, wg, wg->config.publishingInterval,
-                                       NULL /* TODO: use basetime */,
-                                       UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                                       &wg->publishCallbackId);
+                                       basetime, timerpolicy, &wg->publishCallbackId);
     }
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -388,7 +393,8 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_Byte *payloadPosition;
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, &payloadPosition);
-        wg->bufferedMessage.payloadPosition = payloadPosition;
+        wg->bufferedMessage.payloadOffset =
+            (size_t)(payloadPosition - wg->bufferedMessage.buffer.data);
         wg->bufferedMessage.nm = (UA_NetworkMessage *)UA_calloc(1,sizeof(UA_NetworkMessage));
         wg->bufferedMessage.nm->securityHeader = networkMessage.securityHeader;
         UA_ByteString_allocBuffer(&wg->bufferedMessage.encryptBuffer, msgSize);
@@ -1277,9 +1283,7 @@ publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
     if(writerGroup->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         size_t sigSize = writerGroup->config.securityPolicy->symmetricModule.cryptoModule.
             signatureAlgorithm.getLocalSignatureSize(writerGroup->securityPolicyContext);
-
-        UA_Byte payloadOffset = (UA_Byte)(writerGroup->bufferedMessage.payloadPosition -
-                                          writerGroup->bufferedMessage.buffer.data);
+        size_t payloadOffset = writerGroup->bufferedMessage.payloadOffset;
         memcpy(writerGroup->bufferedMessage.encryptBuffer.data,
                writerGroup->bufferedMessage.buffer.data,
                writerGroup->bufferedMessage.buffer.length);
