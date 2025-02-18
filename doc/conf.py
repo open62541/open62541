@@ -23,10 +23,10 @@ def try_get_branch():
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-version = '${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}'
+version = try_get_branch() or '${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}' or "unknown"
 release = '${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}${OPEN62541_VER_LABEL}'
 
-project = 'open62541 (' + (try_get_branch() or version or "unknown") + ')'
+project = 'open62541 (' + version + ')'
 copyright = '2025, The open62541 authors'
 author = 'The open62541 authors'
 
