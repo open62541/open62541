@@ -585,7 +585,7 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
     addPublishedDataItemsRepresentation(psm->sc.server, newPDS);
 #else
     /* Generate unique nodeId */
-    UA_PubSubManager_generateUniqueNodeId(psm, &newPDS->identifier);
+    UA_PubSubManager_generateUniqueNodeId(psm, &newPDS->head.identifier);
 #endif
 
     /* Cache the log string */
@@ -749,7 +749,7 @@ addSubscribedDataSet(UA_PubSubManager *psm,
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addSubscribedDataSetRepresentation(psm->sc.server, newSubscribedDataSet);
 #else
-    UA_PubSubManager_generateUniqueNodeId(psm, &newSubscribedDataSet->identifier);
+    UA_PubSubManager_generateUniqueNodeId(psm, &newSubscribedDataSet->head.identifier);
 #endif
 
     if(sdsIdentifier)
