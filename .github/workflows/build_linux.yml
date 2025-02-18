@@ -110,7 +110,7 @@ jobs:
             cmd_deps: ""
             cmd_action: build_all_companion_specs
     name: ${{matrix.build_name}}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
       with:
