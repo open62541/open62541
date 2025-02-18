@@ -7,13 +7,26 @@
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
+import subprocess
+
+
+def try_get_branch():
+    try:
+        git_res = subprocess.run(['git', 'branch', '--show-current'], capture_output=True, text=True)
+        if git_res.returncode != 0:
+            return None
+        return git_res.stdout.rstrip()
+    except OSError:
+        return None
+
+
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 version = '${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}'
 release = '${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}${OPEN62541_VER_LABEL}'
 
-project = 'open62541 (' + version + ')'
+project = 'open62541 (' + (try_get_branch() or version or "unknown") + ')'
 copyright = '2025, The open62541 authors'
 author = 'The open62541 authors'
 
