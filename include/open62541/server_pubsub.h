@@ -652,7 +652,7 @@ typedef struct {
     /* If realtime-handling is required, set this pointer non-NULL and it will be used
      * to memcpy the value instead of using the Write service.
      * If the beforeWrite method pointer is set, it will be called before a memcpy update
-     * to the value. But param externalDataValue already contains the new value.
+     * to the value.
      * If the afterWrite method pointer is set, it will be called after a memcpy update
      * to the value. */
     UA_DataValue **externalDataValue;
