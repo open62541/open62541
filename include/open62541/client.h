@@ -259,21 +259,10 @@ UA_ClientConfig_clear(UA_ClientConfig *config);
  * UA_ClientConfig_setAuthenticationCert for x509-based authentication, which is
  * implemented as a plugin (as it can be based on different crypto
  * libraries). */
-UA_INLINABLE( UA_StatusCode
+UA_EXPORT UA_StatusCode
 UA_ClientConfig_setAuthenticationUsername(UA_ClientConfig *config,
                                           const char *username,
-                                          const char *password) ,{
-    UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
-    if(!identityToken)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    identityToken->userName = UA_STRING_ALLOC(username);
-    identityToken->password = UA_BYTESTRING_ALLOC(password);
-
-    UA_ExtensionObject_clear(&config->userIdentityToken);
-    UA_ExtensionObject_setValue(&config->userIdentityToken, identityToken,
-                                &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]);
-    return UA_STATUSCODE_GOOD;
-})
+                                          const char *password);
 
 /**
  * Client Lifecycle
@@ -307,11 +296,9 @@ UA_Client_getState(UA_Client *client,
 UA_EXPORT UA_ClientConfig *
 UA_Client_getConfig(UA_Client *client);
 
-/* Get the client context */
-UA_INLINABLE( void *
-UA_Client_getContext(UA_Client *client) ,{
-    return UA_Client_getConfig(client)->clientContext; /* Cannot fail */
-})
+/* Get the client context (inside the context) */
+#define UA_Client_getContext(client) \
+    UA_Client_getConfig(client)->clientContext
 
 /* (Disconnect and) delete the client */
 void UA_EXPORT
@@ -328,103 +315,50 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
  * Connect to a Server
  * -------------------
  *
- * Once a client is connected to an endpointUrl, it is not possible to switch to
- * another server. A new client has to be created for that.
+ * A Client connecting to an OPC UA Server first opens a SecureChannel and on
+ * top of that opens a Session. The Session can also be moved to another
+ * SecureChannel. The Session lifetime is typically longer than the
+ * SecureChannel.
+ *
+ * The methods below are used to connect a client with a server. The supplied
+ * arguments (for example the EndpointUrl or username/password) are first copied
+ * into the client config. This is the same as modifying the client config first
+ * and then connecting without these extra arguments.
  *
  * Once a connection is established, the client keeps the connection open and
- * reconnects if necessary.
- *
- * If the connection fails unrecoverably (state->connectStatus is set to an
- * error), the client is no longer usable. Create a new client if required. */
+ * reconnects if necessary. But as the client has no dedicated thread, it might
+ * be necessary to call ``UA_Client_run_iterate`` in an interval for the
+ * housekeeping tasks. Note normal Service-calls (like reading a value) also
+ * triggers the scheduled house-keeping tasks. */
 
-/* Connect with the client configuration. For the async connection, finish
- * connecting via UA_Client_run_iterate (or manually running a configured
- * external EventLoop). */
+/* Copy the given endpointUrl into the configuration and connect. If the
+ * endpointURL is NULL, then the client configuration is not modified. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-__UA_Client_connect(UA_Client *client, UA_Boolean async);
+UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
-/* Connect to the server. First a SecureChannel is opened, then a Session. The
- * client configuration restricts the SecureChannel selection and contains the
- * UserIdentityToken for the Session.
- *
- * @param client to use
- * @param endpointURL to connect (for example "opc.tcp://localhost:4840")
- * @return Indicates whether the operation succeeded or returns an error code */
-UA_INLINABLE( UA_StatusCode
-UA_Client_connect(UA_Client *client, const char *endpointUrl), {
-    /* Update the configuration */
-    UA_ClientConfig *cc = UA_Client_getConfig(client);
-    cc->noSession = false; /* Open a Session */
-    UA_String_clear(&cc->endpointUrl);
-    cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
+/* Connect to the server and create+activate a Session with the given username
+ * and password. This first set the UserIdentityToken in the client config and
+ * then calls the regular connect method. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_connectUsername(UA_Client *client, const char *endpointUrl,
+                          const char *username, const char *password);
 
-    /* Connect */
-    return __UA_Client_connect(client, false);
-})
+/* Connect to the server with a SecureChannel, but without creating a Session */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl);
 
 /* Connect async (non-blocking) to the server. After initiating the connection,
  * call UA_Client_run_iterate repeatedly until the connection is fully
  * established. You can set a callback to client->config.stateCallback to be
  * notified when the connection status changes. Or use UA_Client_getState to get
  * the state manually. */
-UA_INLINABLE( UA_StatusCode
-UA_Client_connectAsync(UA_Client *client, const char *endpointUrl) ,{
-    /* Update the configuration */
-    UA_ClientConfig *cc = UA_Client_getConfig(client);
-    cc->noSession = false; /* Open a Session */
-    UA_String_clear(&cc->endpointUrl);
-    cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_connectAsync(UA_Client *client, const char *endpointUrl);
 
-    /* Connect */
-    return __UA_Client_connect(client, true);
-})
-
-/* Connect to the server without creating a session
- *
- * @param client to use
- * @param endpointURL to connect (for example "opc.tcp://localhost:4840")
- * @return Indicates whether the operation succeeded or returns an error code */
-UA_INLINABLE( UA_StatusCode
-UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl) ,{
-    /* Update the configuration */
-    UA_ClientConfig *cc = UA_Client_getConfig(client);
-    cc->noSession = true; /* Don't open a Session */
-    UA_String_clear(&cc->endpointUrl);
-    cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
-
-    /* Connect */
-    return __UA_Client_connect(client, false);
-})
-
-/* Connect async (non-blocking) only the SecureChannel */
-UA_INLINABLE( UA_StatusCode
-UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl) ,{
-    /* Update the configuration */
-    UA_ClientConfig *cc = UA_Client_getConfig(client);
-    cc->noSession = true; /* Don't open a Session */
-    UA_String_clear(&cc->endpointUrl);
-    cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
-
-    /* Connect */
-    return __UA_Client_connect(client, true);
-})
-
-/* Connect to the server and create+activate a Session with the given username
- * and password. This first set the UserIdentityToken in the client config and
- * then calls the regular connect method. */
-UA_INLINABLE( UA_StatusCode
-UA_Client_connectUsername(UA_Client *client, const char *endpointUrl,
-                          const char *username, const char *password) ,{
-    /* Set the user identity token */
-    UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_StatusCode res =
-        UA_ClientConfig_setAuthenticationUsername(cc, username, password);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    /* Connect */
-    return UA_Client_connect(client, endpointUrl);
-})
+/* Connect async to the server with a SecureChannel, but without creating a
+ * Session */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl);
 
 /* Sets up a listening socket for incoming reverse connect requests by OPC UA
  * servers. After the first server has connected, the listening socket is
@@ -440,9 +374,10 @@ UA_Client_connectUsername(UA_Client *client, const char *endpointUrl,
  * of the connect methods will also close the listening socket and the
  * connection to the remote server. */
 UA_StatusCode UA_EXPORT
-UA_Client_startListeningForReverseConnect(
-    UA_Client *client, const UA_String *listenHostnames,
-    size_t listenHostnamesLength, UA_UInt16 port);
+UA_Client_startListeningForReverseConnect(UA_Client *client,
+                                          const UA_String *listenHostnames,
+                                          size_t listenHostnamesLength,
+                                          UA_UInt16 port);
 
 /* Disconnect and close a connection to the selected server. Disconnection is
  * always performed async (without blocking). */
@@ -467,8 +402,9 @@ UA_Client_disconnectSecureChannelAsync(UA_Client *client);
 /* Get the AuthenticationToken and ServerNonce required to activate the current
  * Session on a different SecureChannel. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_getSessionAuthenticationToken(
-    UA_Client *client, UA_NodeId *authenticationToken, UA_ByteString *serverNonce);
+UA_Client_getSessionAuthenticationToken(UA_Client *client,
+                                        UA_NodeId *authenticationToken,
+                                        UA_ByteString *serverNonce);
 
 /* Re-activate the current session. A change of prefered locales can be done by
  * updating the client configuration. */
@@ -580,57 +516,37 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
  * Services
  * --------
  *
- * The raw OPC UA services are exposed to the client. But most of the time, it
- * is better to use the convenience functions from ``ua_client_highlevel.h``
- * that wrap the raw services. */
-
-/* Don't use this function. Use the type versions below instead. */
-void UA_EXPORT UA_THREADSAFE
-__UA_Client_Service(UA_Client *client, const void *request,
-                    const UA_DataType *requestType, void *response,
-                    const UA_DataType *responseType);
-
-/**
+ * The raw OPC UA services are exposed to the client. A Request-message
+ * typically contains an array of operations to be performed by the server. The
+ * convenience-methods from ``ua_client_highlevel.h`` are used to call
+ * individual operations and are often easier to use. For performance reasons it
+ * might however be better to request many operations in a single message.
+ *
+ * The raw Service-calls return the entire Response-message. Check the
+ * ResponseHeader for the overall StatusCode. The operations within the
+ * Service-call may return individual StatusCodes in addition.
+ *
+ * Note that some Services are not exposed here. For example, there is a
+ * dedicated client API for Subscriptions and for Session management.
+ *
  * Attribute Service Set
  * ~~~~~~~~~~~~~~~~~~~~~
  * This Service Set provides Services to access Attributes that are part of
  * Nodes. */
 
-UA_INLINABLE( UA_THREADSAFE UA_ReadResponse
-UA_Client_Service_read(UA_Client *client, const UA_ReadRequest request) ,{
-    UA_ReadResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_READRESPONSE]);
-    return response;
-})
+UA_ReadResponse UA_EXPORT UA_THREADSAFE
+UA_Client_Service_read(UA_Client *client, const UA_ReadRequest req);
 
-UA_INLINABLE( UA_THREADSAFE UA_WriteResponse
-UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) ,{
-    UA_WriteResponse response;
-    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_WRITEREQUEST],
-                        &response, &UA_TYPES[UA_TYPES_WRITERESPONSE]);
-    return response;
-})
+UA_WriteResponse UA_EXPORT UA_THREADSAFE
+UA_Client_Service_write(UA_Client *client, const UA_WriteRequest req);
 
-UA_INLINABLE( UA_THREADSAFE UA_HistoryReadResponse
+UA_HistoryReadResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_historyRead(UA_Client *client,
-                              const UA_HistoryReadRequest request) ,{
-    UA_HistoryReadResponse response;
-    __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_HISTORYREADREQUEST],
-        &response, &UA_TYPES[UA_TYPES_HISTORYREADRESPONSE]);
-    return response;
-})
+                              const UA_HistoryReadRequest req);
 
-UA_INLINABLE( UA_THREADSAFE UA_HistoryUpdateResponse
+UA_HistoryUpdateResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_historyUpdate(UA_Client *client,
-                                const UA_HistoryUpdateRequest request) ,{
-    UA_HistoryUpdateResponse response;
-    __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_HISTORYUPDATEREQUEST],
-        &response, &UA_TYPES[UA_TYPES_HISTORYUPDATERESPONSE]);
-    return response;
-})
+                                const UA_HistoryUpdateRequest req);
 
 /**
  * Method Service Set
@@ -638,15 +554,8 @@ UA_Client_Service_historyUpdate(UA_Client *client,
  * Methods represent the function calls of Objects. The Method Service Set
  * defines the means to invoke Methods. */
 
-UA_INLINABLE( UA_THREADSAFE UA_CallResponse
-UA_Client_Service_call(UA_Client *client,
-                       const UA_CallRequest request) ,{
-    UA_CallResponse response;
-    __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_CALLREQUEST],
-        &response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
-    return response;
-})
+UA_CallResponse UA_EXPORT UA_THREADSAFE
+UA_Client_Service_call(UA_Client *client, const UA_CallRequest req);
 
 /**
  * NodeManagement Service Set
@@ -654,45 +563,20 @@ UA_Client_Service_call(UA_Client *client,
  * This Service Set defines Services to add and delete AddressSpace Nodes and
  * References between them. */
 
-UA_INLINABLE( UA_THREADSAFE UA_AddNodesResponse
-UA_Client_Service_addNodes(UA_Client *client,
-                           const UA_AddNodesRequest request) ,{
-    UA_AddNodesResponse response;
-    __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_ADDNODESREQUEST],
-        &response, &UA_TYPES[UA_TYPES_ADDNODESRESPONSE]);
-    return response;
-})
+UA_AddNodesResponse UA_EXPORT UA_THREADSAFE
+UA_Client_Service_addNodes(UA_Client *client, const UA_AddNodesRequest req);
 
-UA_INLINABLE( UA_THREADSAFE UA_AddReferencesResponse
+UA_AddReferencesResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_addReferences(UA_Client *client,
-                                const UA_AddReferencesRequest request) ,{
-    UA_AddReferencesResponse response;
-    __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_ADDREFERENCESREQUEST],
-        &response, &UA_TYPES[UA_TYPES_ADDREFERENCESRESPONSE]);
-    return response;
-})
+                                const UA_AddReferencesRequest req);
 
-UA_INLINABLE( UA_THREADSAFE UA_DeleteNodesResponse
+UA_DeleteNodesResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_deleteNodes(UA_Client *client,
-                              const UA_DeleteNodesRequest request) ,{
-    UA_DeleteNodesResponse response;
-    __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_DELETENODESREQUEST],
-        &response, &UA_TYPES[UA_TYPES_DELETENODESRESPONSE]);
-    return response;
-})
+                              const UA_DeleteNodesRequest req);
 
-UA_INLINABLE( UA_THREADSAFE UA_DeleteReferencesResponse
-UA_Client_Service_deleteReferences(
-    UA_Client *client, const UA_DeleteReferencesRequest request) ,{
-    UA_DeleteReferencesResponse response;
-    __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_DELETEREFERENCESREQUEST],
-        &response, &UA_TYPES[UA_TYPES_DELETEREFERENCESRESPONSE]);
-    return response;
-})
+UA_DeleteReferencesResponse UA_EXPORT UA_THREADSAFE
+UA_Client_Service_deleteReferences(UA_Client *client,
+                                   const UA_DeleteReferencesRequest req);
 
 /**
  * View Service Set
@@ -700,58 +584,24 @@ UA_Client_Service_deleteReferences(
  * Clients use the browse Services of the View Service Set to navigate through
  * the AddressSpace or through a View which is a subset of the AddressSpace. */
 
-UA_INLINABLE( UA_THREADSAFE UA_BrowseResponse
-UA_Client_Service_browse(UA_Client *client,
-                         const UA_BrowseRequest request) ,{
-    UA_BrowseResponse response;
-    __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_BROWSEREQUEST],
-        &response, &UA_TYPES[UA_TYPES_BROWSERESPONSE]);
-    return response;
-})
+UA_BrowseResponse UA_EXPORT UA_THREADSAFE
+UA_Client_Service_browse(UA_Client *client, const UA_BrowseRequest req);
 
-UA_INLINABLE( UA_THREADSAFE UA_BrowseNextResponse
+UA_BrowseNextResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_browseNext(UA_Client *client,
-                             const UA_BrowseNextRequest request) ,{
-    UA_BrowseNextResponse response;
-    __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST],
-        &response, &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE]);
-    return response;
-})
+                             const UA_BrowseNextRequest req);
 
-UA_INLINABLE( UA_THREADSAFE UA_TranslateBrowsePathsToNodeIdsResponse
-UA_Client_Service_translateBrowsePathsToNodeIds(
-    UA_Client *client,
-    const UA_TranslateBrowsePathsToNodeIdsRequest request) ,{
-    UA_TranslateBrowsePathsToNodeIdsResponse response;
-    __UA_Client_Service(
-        client, &request,
-        &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSREQUEST],
-        &response,
-        &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE]);
-    return response;
-})
+UA_TranslateBrowsePathsToNodeIdsResponse UA_EXPORT UA_THREADSAFE
+UA_Client_Service_translateBrowsePathsToNodeIds(UA_Client *client,
+    const UA_TranslateBrowsePathsToNodeIdsRequest req);
 
-UA_INLINABLE( UA_THREADSAFE UA_RegisterNodesResponse
-UA_Client_Service_registerNodes(
-    UA_Client *client, const UA_RegisterNodesRequest request) ,{
-    UA_RegisterNodesResponse response;
-    __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_REGISTERNODESREQUEST],
-        &response, &UA_TYPES[UA_TYPES_REGISTERNODESRESPONSE]);
-    return response;
-})
+UA_RegisterNodesResponse UA_EXPORT UA_THREADSAFE
+UA_Client_Service_registerNodes(UA_Client *client,
+                                const UA_RegisterNodesRequest req);
 
-UA_INLINABLE( UA_THREADSAFE UA_UnregisterNodesResponse
-UA_Client_Service_unregisterNodes(
-    UA_Client *client, const UA_UnregisterNodesRequest request) ,{
-    UA_UnregisterNodesResponse response;
-    __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_UNREGISTERNODESREQUEST],
-        &response, &UA_TYPES[UA_TYPES_UNREGISTERNODESRESPONSE]);
-    return response;
-})
+UA_UnregisterNodesResponse UA_EXPORT UA_THREADSAFE
+UA_Client_Service_unregisterNodes(UA_Client *client,
+                                  const UA_UnregisterNodesRequest req);
 
 /**
  * Query Service Set
@@ -760,25 +610,13 @@ UA_Client_Service_unregisterNodes(
 
 #ifdef UA_ENABLE_QUERY
 
-UA_INLINABLE( UA_THREADSAFE UA_QueryFirstResponse
+UA_QueryFirstResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_queryFirst(UA_Client *client,
-                             const UA_QueryFirstRequest request) ,{
-    UA_QueryFirstResponse response;
-    __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_QUERYFIRSTREQUEST],
-        &response, &UA_TYPES[UA_TYPES_QUERYFIRSTRESPONSE]);
-    return response;
-})
+                             const UA_QueryFirstRequest req);
 
-UA_INLINABLE( UA_THREADSAFE UA_QueryNextResponse
+UA_QueryNextResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_queryNext(UA_Client *client,
-                            const UA_QueryNextRequest request) ,{
-    UA_QueryNextResponse response;
-    __UA_Client_Service(
-        client, &request, &UA_TYPES[UA_TYPES_QUERYFIRSTREQUEST],
-        &response, &UA_TYPES[UA_TYPES_QUERYFIRSTRESPONSE]);
-    return response;
-})
+                            const UA_QueryNextRequest req);
 
 #endif
 

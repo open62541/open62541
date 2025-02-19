@@ -333,7 +333,7 @@ discoveryClientStateCallback(UA_Client *client,
                 asyncRegisterRequest_clearAsync(ar); /* Clean up */
             } else {
                 ar->connectSuccess = false;
-                __UA_Client_connect(client, true);   /* Reconnect */
+                UA_Client_connectAsync(client, NULL);   /* Reconnect */
             }
         }
         return;
@@ -482,7 +482,7 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
     /* Connect asynchronously. The register service is called once the
      * connection is open. */
     ar->connectSuccess = false;
-    return __UA_Client_connect(ar->client, true);
+    return UA_Client_connectAsync(ar->client, NULL);
 }
 
 UA_StatusCode

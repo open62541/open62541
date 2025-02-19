@@ -1967,9 +1967,17 @@ connectSecureChannel(UA_Client *client, const char *endpointUrl) {
 }
 
 UA_StatusCode
-__UA_Client_connect(UA_Client *client, UA_Boolean async) {
+__UA_Client_connect(UA_Client *client, UA_Boolean async, const char *endpointUrl) {
     lockClient(client);
+
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    if(endpointUrl) {
+        UA_String_clear(&cc->endpointUrl);
+        cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
+    }
+
     connectInternal(client, async);
+
     unlockClient(client);
     return client->connectStatus;
 }

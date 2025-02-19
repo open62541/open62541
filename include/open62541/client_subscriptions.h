@@ -104,24 +104,23 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
 
 /* Delete a single subscription */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId);
+UA_Client_Subscriptions_deleteSingle(UA_Client *client,
+                                     UA_UInt32 subscriptionId);
 
 /* Retrieve or change the user supplied subscription contexts */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_Subscriptions_getContext(UA_Client *client, UA_UInt32 subscriptionId, void **subContext);
+UA_Client_Subscriptions_getContext(UA_Client *client,
+                                   UA_UInt32 subscriptionId,
+                                   void **subContext);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_Subscriptions_setContext(UA_Client *client, UA_UInt32 subscriptionId, void *subContext);
+UA_Client_Subscriptions_setContext(UA_Client *client,
+                                   UA_UInt32 subscriptionId,
+                                   void *subContext);
 
-static UA_INLINE UA_THREADSAFE UA_SetPublishingModeResponse
+UA_SetPublishingModeResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Subscriptions_setPublishingMode(UA_Client *client,
-    const UA_SetPublishingModeRequest request) {
-    UA_SetPublishingModeResponse response;
-    __UA_Client_Service(client,
-        &request, &UA_TYPES[UA_TYPES_SETPUBLISHINGMODEREQUEST],
-        &response, &UA_TYPES[UA_TYPES_SETPUBLISHINGMODERESPONSE]);
-    return response;
-}
+    const UA_SetPublishingModeRequest request);
 
 /**
  * MonitoredItems
@@ -150,8 +149,8 @@ UA_MonitoredItemCreateRequest_default(UA_NodeId nodeId) {
 }
 
 /**
- * The clientHandle parameter cannot be set by the user, any value will be replaced
- * by the client before sending the request to the server. */
+ * The clientHandle parameter cannot be set by the user, any value will be
+ * replaced by the client before sending the request to the server. */
 
 /* Callback for the deletion of a MonitoredItem */
 typedef void (*UA_Client_DeleteMonitoredItemCallback)
@@ -231,7 +230,10 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_MonitoredItems_deleteSingle(UA_Client *client,
     UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId);
 
-/* The clientHandle parameter will be filled automatically */
+/**
+ * The "ClientHandle" is part of the MonitoredItem configuration. The handle is
+ * set internally and not exposed to the user. */
+
 UA_ModifyMonitoredItemsResponse UA_EXPORT UA_THREADSAFE
 UA_Client_MonitoredItems_modify(UA_Client *client,
     const UA_ModifyMonitoredItemsRequest request);
@@ -242,60 +244,36 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
     UA_ClientAsyncServiceCallback callback,
     void *userdata, UA_UInt32 *requestId);
 
-/**
- * The following service calls go directly to the server. The MonitoredItem
- * settings are not stored in the client. */
+UA_SetMonitoringModeResponse UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItems_setMonitoringMode(
+    UA_Client *client, const UA_SetMonitoringModeRequest request);
 
-static UA_INLINE UA_THREADSAFE UA_SetMonitoringModeResponse
-UA_Client_MonitoredItems_setMonitoringMode(UA_Client *client,
-    const UA_SetMonitoringModeRequest request) {
-    UA_SetMonitoringModeResponse response;
-    __UA_Client_Service(client,
-        &request, &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST],
-        &response, &UA_TYPES[UA_TYPES_SETMONITORINGMODERESPONSE]);
-    return response;
-}
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItems_setMonitoringMode_async(
+    UA_Client *client, const UA_SetMonitoringModeRequest request,
+    UA_ClientAsyncServiceCallback callback, void *userdata,
+    UA_UInt32 *requestId);
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
-UA_Client_MonitoredItems_setMonitoringMode_async(UA_Client *client,
-    const UA_SetMonitoringModeRequest request,
-    UA_ClientAsyncServiceCallback callback,
-    void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, &request,
-        &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST], callback,
-        &UA_TYPES[UA_TYPES_SETMONITORINGMODERESPONSE],
-        userdata, requestId);
-}
+UA_SetTriggeringResponse UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItems_setTriggering(
+    UA_Client *client, const UA_SetTriggeringRequest request);
 
-static UA_INLINE UA_THREADSAFE UA_SetTriggeringResponse
-UA_Client_MonitoredItems_setTriggering(UA_Client *client,
-    const UA_SetTriggeringRequest request) {
-    UA_SetTriggeringResponse response;
-    __UA_Client_Service(client,
-        &request, &UA_TYPES[UA_TYPES_SETTRIGGERINGREQUEST],
-        &response, &UA_TYPES[UA_TYPES_SETTRIGGERINGRESPONSE]);
-    return response;
-}
-
-static UA_INLINE UA_THREADSAFE UA_StatusCode
-UA_Client_MonitoredItems_setTriggering_async(UA_Client *client,
-    const UA_SetTriggeringRequest request,
-    UA_ClientAsyncServiceCallback callback,
-    void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, &request,
-        &UA_TYPES[UA_TYPES_SETTRIGGERINGREQUEST], callback,
-        &UA_TYPES[UA_TYPES_SETTRIGGERINGRESPONSE],
-        userdata, requestId);
-}
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItems_setTriggering_async(
+    UA_Client *client, const UA_SetTriggeringRequest request,
+    UA_ClientAsyncServiceCallback callback, void *userdata,
+    UA_UInt32 *requestId);
 
 /* Retrieve or change the user supplied MonitoredItem context */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItem_getContext(UA_Client *client, UA_UInt32 subscriptionId,
-                                   UA_UInt32 monitoredItemId, void **monContext);
+UA_Client_MonitoredItem_getContext(UA_Client *client,
+    UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId,
+    void **monContext);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItem_setContext(UA_Client *client, UA_UInt32 subscriptionId,
-                                   UA_UInt32 monitoredItemId, void *monContext);
+UA_Client_MonitoredItem_setContext(UA_Client *client,
+    UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId,
+    void *monContext);
 
 _UA_END_DECLS
 
