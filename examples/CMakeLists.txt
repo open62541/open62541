@@ -157,7 +157,7 @@ add_example(server_inheritance server_inheritance.c)
 add_example(server_loglevel server_loglevel.c)
 
 if(UA_ENABLE_JSON_ENCODING)
-    add_example(server_file_based_config file_based_server/server_file_based_config.c)
+    add_example(server_file_based_config json_config/server_file_based_config.c)
 endif()
 
 if(UA_ENABLE_HISTORIZING)

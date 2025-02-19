@@ -365,7 +365,7 @@ function examples_valgrind {
     python3 ../tools/certs/create_self-signed.py -c client
 
     # copy json server config
-    cp ../plugins/server_config.json5 server_config.json5
+    cp ../examples/json_config/server_json_config.json5 server_json_config.json5
 
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
