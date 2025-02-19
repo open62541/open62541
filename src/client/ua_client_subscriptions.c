@@ -1508,3 +1508,12 @@ __Client_Subscriptions_backgroundPublish(UA_Client *client) {
         client->currentlyOutStandingPublishRequests++;
     }
 }
+
+UA_SetPublishingModeResponse
+UA_Client_Subscriptions_setPublishingMode(UA_Client *client,
+                                          const UA_SetPublishingModeRequest request) {
+    UA_SetPublishingModeResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_SETPUBLISHINGMODEREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_SETPUBLISHINGMODERESPONSE]);
+    return response;
+}

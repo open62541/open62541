@@ -1241,3 +1241,209 @@ void unlockClient(UA_Client *client) {
         client->config.eventLoop->unlock(client->config.eventLoop);
     UA_UNLOCK(&client->clientMutex);
 }
+
+/**********************/
+/* Connect Shorthands */
+/**********************/
+
+UA_StatusCode
+UA_ClientConfig_setAuthenticationUsername(UA_ClientConfig *config,
+                                          const char *username,
+                                          const char *password) {
+    UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
+    if(!identityToken)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    identityToken->userName = UA_STRING_ALLOC(username);
+    identityToken->password = UA_BYTESTRING_ALLOC(password);
+    UA_ExtensionObject_clear(&config->userIdentityToken);
+    UA_ExtensionObject_setValue(&config->userIdentityToken, identityToken,
+                                &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Client_connect(UA_Client *client, const char *endpointUrl) {
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->noSession = false;
+    return __UA_Client_connect(client, false, endpointUrl);
+}
+
+UA_StatusCode
+UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl) {
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->noSession = true; /* Don't open a Session */
+    return __UA_Client_connect(client, false, endpointUrl);
+}
+
+UA_StatusCode
+UA_Client_connectAsync(UA_Client *client, const char *endpointUrl) {
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->noSession = false; /* Open a Session */
+    return __UA_Client_connect(client, true, endpointUrl);
+}
+
+UA_StatusCode
+UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl) {
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->noSession = true; /* Don't open a Session */
+    return __UA_Client_connect(client, true, endpointUrl);
+}
+
+UA_StatusCode
+UA_Client_connectUsername(UA_Client *client, const char *endpointUrl,
+                          const char *username, const char *password) {
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_StatusCode res = UA_ClientConfig_setAuthenticationUsername(cc, username, password);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return UA_Client_connect(client, endpointUrl);
+}
+
+/**********************/
+/* Service Shorthands */
+/**********************/
+
+UA_ReadResponse
+UA_Client_Service_read(UA_Client *client, const UA_ReadRequest request) {
+    UA_ReadResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_READREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_READRESPONSE]);
+    return response;
+}
+
+UA_WriteResponse
+UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
+    UA_WriteResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_WRITEREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_WRITERESPONSE]);
+    return response;
+}
+
+UA_HistoryReadResponse
+UA_Client_Service_historyRead(UA_Client *client,
+                              const UA_HistoryReadRequest request) {
+    UA_HistoryReadResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_HISTORYREADREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_HISTORYREADRESPONSE]);
+    return response;
+}
+
+UA_HistoryUpdateResponse
+UA_Client_Service_historyUpdate(UA_Client *client,
+                                const UA_HistoryUpdateRequest request) {
+    UA_HistoryUpdateResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_HISTORYUPDATEREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_HISTORYUPDATERESPONSE]);
+    return response;
+}
+
+UA_CallResponse
+UA_Client_Service_call(UA_Client *client,
+                       const UA_CallRequest request) {
+    UA_CallResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_CALLREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
+    return response;
+}
+
+UA_AddNodesResponse
+UA_Client_Service_addNodes(UA_Client *client,
+                           const UA_AddNodesRequest request) {
+    UA_AddNodesResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ADDNODESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_ADDNODESRESPONSE]);
+    return response;
+}
+
+UA_AddReferencesResponse
+UA_Client_Service_addReferences(UA_Client *client,
+                                const UA_AddReferencesRequest request) {
+    UA_AddReferencesResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_ADDREFERENCESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_ADDREFERENCESRESPONSE]);
+    return response;
+}
+
+UA_DeleteNodesResponse
+UA_Client_Service_deleteNodes(UA_Client *client,
+                              const UA_DeleteNodesRequest request) {
+    UA_DeleteNodesResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETENODESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_DELETENODESRESPONSE]);
+    return response;
+}
+
+UA_DeleteReferencesResponse
+UA_Client_Service_deleteReferences(UA_Client *client,
+                                   const UA_DeleteReferencesRequest request) {
+    UA_DeleteReferencesResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_DELETEREFERENCESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_DELETEREFERENCESRESPONSE]);
+    return response;
+}
+
+UA_BrowseResponse
+UA_Client_Service_browse(UA_Client *client,
+                         const UA_BrowseRequest request) {
+    UA_BrowseResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_BROWSEREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_BROWSERESPONSE]);
+    return response;
+}
+
+UA_BrowseNextResponse
+UA_Client_Service_browseNext(UA_Client *client,
+                             const UA_BrowseNextRequest request) {
+    UA_BrowseNextResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE]);
+    return response;
+}
+
+UA_TranslateBrowsePathsToNodeIdsResponse
+UA_Client_Service_translateBrowsePathsToNodeIds(UA_Client *client,
+    const UA_TranslateBrowsePathsToNodeIdsRequest request) {
+    UA_TranslateBrowsePathsToNodeIdsResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE]);
+    return response;
+}
+
+UA_RegisterNodesResponse
+UA_Client_Service_registerNodes(UA_Client *client,
+                                const UA_RegisterNodesRequest request) {
+    UA_RegisterNodesResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_REGISTERNODESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_REGISTERNODESRESPONSE]);
+    return response;
+}
+
+UA_UnregisterNodesResponse
+UA_Client_Service_unregisterNodes(UA_Client *client,
+                                  const UA_UnregisterNodesRequest request) {
+    UA_UnregisterNodesResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_UNREGISTERNODESREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_UNREGISTERNODESRESPONSE]);
+    return response;
+}
+
+#ifdef UA_ENABLE_QUERY
+
+UA_QueryFirstResponse
+UA_Client_Service_queryFirst(UA_Client *client,
+                             const UA_QueryFirstRequest request) {
+    UA_QueryFirstResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_QUERYFIRSTREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_QUERYFIRSTRESPONSE]);
+    return response;
+}
+
+UA_QueryNextResponse
+UA_Client_Service_queryNext(UA_Client *client, const UA_QueryNextRequest request) {
+    UA_QueryNextResponse response;
+    __UA_Client_Service(client, &request, &UA_TYPES[UA_TYPES_QUERYFIRSTREQUEST],
+                        &response, &UA_TYPES[UA_TYPES_QUERYFIRSTRESPONSE]);
+    return response;
+}
+
+#endif
