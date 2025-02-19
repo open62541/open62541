@@ -35,7 +35,8 @@ _UA_BEGIN_DECLS
  * <client-services>`.
  *
  * Read Attributes
- * ^^^^^^^^^^^^^^^
+ * ~~~~~~~~~~~~~~~
+ *
  * The following functions can be used to retrieve a single node attribute. Use
  * the regular service to read several attributes at once. */
 
@@ -224,7 +225,8 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
 
 /**
  * Historical Access
- * ^^^^^^^^^^^^^^^^^
+ * ~~~~~~~~~~~~~~~~~
+ *
  * The following functions can be used to read a single node historically.
  * Use the regular service to read several nodes at once. */
 
@@ -276,7 +278,7 @@ UA_Client_HistoryUpdate_deleteRaw(
 
 /**
  * Write Attributes
- * ^^^^^^^^^^^^^^^^
+ * ~~~~~~~~~~~~~~~~
  *
  * The following functions can be use to write a single node attribute at a
  * time. Use the regular write service to write several attributes at once. */
@@ -483,7 +485,7 @@ UA_Client_writeUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId
 
 /**
  * Method Calling
- * ^^^^^^^^^^^^^^ */
+ * ~~~~~~~~~~~~~~ */
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_call(UA_Client *client,
@@ -493,7 +495,7 @@ UA_Client_call(UA_Client *client,
 
 /**
  * Browsing
- * ^^^^^^^^ */
+ * ~~~~~~~~ */
 
 UA_EXPORT UA_THREADSAFE UA_BrowseResult
 UA_Client_browse(UA_Client *client,
@@ -512,7 +514,7 @@ UA_Client_translateBrowsePathToNodeIds(UA_Client *client,
 
 /**
  * Node Management
- * ^^^^^^^^^^^^^^^
+ * ~~~~~~~~~~~~~~~
  * See the section on :ref:`server-side node management <addnodes>`. */
 
 UA_StatusCode UA_EXPORT
@@ -658,7 +660,7 @@ UA_Client_addMethodNode(UA_Client *client, const UA_NodeId requestedNewNodeId,
 
 /**
  * Misc Highlevel Functionality
- * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
 /* Get the namespace-index of a namespace-URI
  *

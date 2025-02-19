@@ -333,7 +333,8 @@ cj5_parse(const char *json5, unsigned int len,
     for(; parser.pos < len; parser.pos++) {
         char c = json5[parser.pos];
         switch(c) {
-        case '\r': // Skip newline and whitespace
+        case '\n': // Skip newline and whitespace
+        case '\r':
         case '\t':
         case ' ':
             break;

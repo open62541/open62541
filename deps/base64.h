@@ -23,7 +23,9 @@ size_t
 UA_base64_buf(const unsigned char *src, size_t len, unsigned char *out);
 
 /**
- * base64_decode - Base64 decode
+ * base64_decode - Base64 decode. The input can also be a base64url (with -_
+ * instead of +/ and no = for padding).
+ *
  * @src: Data to be decoded
  * @len: Length of the data to be decoded
  * @out_len: Pointer to output length variable

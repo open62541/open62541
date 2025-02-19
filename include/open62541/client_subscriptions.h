@@ -1,11 +1,15 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form i subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ */
 
 #ifndef UA_CLIENT_SUBSCRIPTIONS_H_
 #define UA_CLIENT_SUBSCRIPTIONS_H_
 
 #include <open62541/client.h>
+#include <open62541/client_highlevel_async.h>
 
 _UA_BEGIN_DECLS
 
@@ -121,7 +125,7 @@ UA_Client_Subscriptions_setPublishingMode(UA_Client *client,
 
 /**
  * MonitoredItems
- * --------------
+ * ~~~~~~~~~~~~~~
  *
  * MonitoredItems for Events indicate the ``EventNotifier`` attribute. This
  * indicates to the server not to monitor changes of the attribute, but to
@@ -284,12 +288,14 @@ UA_Client_MonitoredItems_setTriggering_async(UA_Client *client,
         userdata, requestId);
 }
 
-/* Retrieve or change the user supplied monitored item context */
+/* Retrieve or change the user supplied MonitoredItem context */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItem_getContext(UA_Client *client, UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId, void **monContext);
+UA_Client_MonitoredItem_getContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   UA_UInt32 monitoredItemId, void **monContext);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_MonitoredItem_setContext(UA_Client *client, UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId, void *monContext);
+UA_Client_MonitoredItem_setContext(UA_Client *client, UA_UInt32 subscriptionId,
+                                   UA_UInt32 monitoredItemId, void *monContext);
 
 _UA_END_DECLS
 

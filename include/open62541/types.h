@@ -436,7 +436,9 @@ UA_NodeId_print(const UA_NodeId *id, UA_String *output);
 
 /* Extended NodeId printing. If nsMapping argument is non-NULL, then the
  * NamespaceIndex is translated to the NamespaceUri. If that is not successful,
- * the numerical NamespaceIndex is used instead.
+ * the numerical NamespaceIndex is used instead. See the section on
+ * :ref:`percent-escaping` how NamespaceUris containing semicolons (and
+ * whitespace) are encoded.
  *
  * Examples:
  *   nsu=http://widgets.com/schemas/hello;s=Hello World
