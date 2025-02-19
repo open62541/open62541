@@ -697,15 +697,6 @@ __Client_Service(UA_Client *client, const void *request,
     respHeader->serviceResult = retval;
 }
 
-void
-__UA_Client_Service(UA_Client *client, const void *request,
-                    const UA_DataType *requestType, void *response,
-                    const UA_DataType *responseType) {
-    lockClient(client);
-    __Client_Service(client, request, requestType, response, responseType);
-    unlockClient(client);
-}
-
 /***********************************/
 /* Handling of Async Service Calls */
 /***********************************/
@@ -751,24 +742,6 @@ __Client_AsyncService_removeAll(UA_Client *client, UA_StatusCode statusCode) {
         LIST_REMOVE(ac, pointers);
         __Client_AsyncService_cancel(client, ac, statusCode);
     }
-}
-
-UA_StatusCode
-UA_Client_modifyAsyncCallback(UA_Client *client, UA_UInt32 requestId,
-                              void *userdata, UA_ClientAsyncServiceCallback callback) {
-    lockClient(client);
-    AsyncServiceCall *ac;
-    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    LIST_FOREACH(ac, &client->asyncServiceCalls, pointers) {
-        if(ac->requestId == requestId) {
-            ac->callback = callback;
-            ac->userdata = userdata;
-            res = UA_STATUSCODE_GOOD;
-            break;
-        }
-    }
-    unlockClient(client);
-    return res;
 }
 
 UA_StatusCode
@@ -826,20 +799,6 @@ __Client_AsyncService(UA_Client *client, const void *request,
     notifyClientState(client);
 
     return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-__UA_Client_AsyncService(UA_Client *client, const void *request,
-                         const UA_DataType *requestType,
-                         UA_ClientAsyncServiceCallback callback,
-                         const UA_DataType *responseType,
-                         void *userdata, UA_UInt32 *requestId) {
-    lockClient(client);
-    UA_StatusCode res =
-        __Client_AsyncService(client, request, requestType, callback, responseType,
-                              userdata, requestId);
-    unlockClient(client);
-    return res;
 }
 
 static UA_StatusCode
@@ -1303,6 +1262,15 @@ UA_Client_connectUsername(UA_Client *client, const char *endpointUrl,
 /* Service Shorthands */
 /**********************/
 
+void
+__UA_Client_Service(UA_Client *client, const void *request,
+                    const UA_DataType *requestType, void *response,
+                    const UA_DataType *responseType) {
+    lockClient(client);
+    __Client_Service(client, request, requestType, response, responseType);
+    unlockClient(client);
+}
+
 UA_ReadResponse
 UA_Client_Service_read(UA_Client *client, const UA_ReadRequest request) {
     UA_ReadResponse response;
@@ -1447,3 +1415,58 @@ UA_Client_Service_queryNext(UA_Client *client, const UA_QueryNextRequest request
 }
 
 #endif
+
+/********************/
+/* Async Shorthands */
+/********************/
+
+UA_StatusCode
+__UA_Client_AsyncService(UA_Client *client, const void *request,
+                         const UA_DataType *requestType,
+                         UA_ClientAsyncServiceCallback callback,
+                         const UA_DataType *responseType,
+                         void *userdata, UA_UInt32 *requestId) {
+    lockClient(client);
+    UA_StatusCode res =
+        __Client_AsyncService(client, request, requestType, callback, responseType,
+                              userdata, requestId);
+    unlockClient(client);
+    return res;
+}
+
+UA_StatusCode
+UA_Client_sendAsyncReadRequest(UA_Client *client, UA_ReadRequest *request,
+                               UA_ClientAsyncReadCallback readCallback,
+                               void *userdata, UA_UInt32 *reqId) {
+    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_READREQUEST],
+                                    (UA_ClientAsyncServiceCallback)readCallback,
+                                    &UA_TYPES[UA_TYPES_READRESPONSE], userdata, reqId);
+}
+
+UA_StatusCode
+UA_Client_sendAsyncWriteRequest(UA_Client *client, UA_WriteRequest *request,
+                                UA_ClientAsyncWriteCallback writeCallback,
+                                void *userdata, UA_UInt32 *reqId) {
+    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_WRITEREQUEST],
+                                    (UA_ClientAsyncServiceCallback)writeCallback,
+                                    &UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
+}
+
+UA_StatusCode
+UA_Client_sendAsyncBrowseRequest(UA_Client *client, UA_BrowseRequest *request,
+                                 UA_ClientAsyncBrowseCallback browseCallback,
+                                 void *userdata, UA_UInt32 *reqId) {
+    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_BROWSEREQUEST],
+                                    (UA_ClientAsyncServiceCallback)browseCallback,
+                                    &UA_TYPES[UA_TYPES_BROWSERESPONSE], userdata, reqId);
+}
+
+UA_StatusCode
+UA_Client_sendAsyncBrowseNextRequest(UA_Client *client,
+                                     UA_BrowseNextRequest *request,
+                                     UA_ClientAsyncBrowseNextCallback browseNextCallback,
+                                     void *userdata, UA_UInt32 *reqId) {
+    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST],
+                                    (UA_ClientAsyncServiceCallback)browseNextCallback,
+                                    &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE], userdata, reqId);
+}

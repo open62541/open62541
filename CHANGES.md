@@ -3,6 +3,14 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Client async methods are typed
+
+For more of the client async service calls, specialized callback types were
+added. With this the callbacks receive the accurate response type instead of
+void-pointers. The order of callback arguments did not change, thereby the
+change is ABI stable and old code continues to work (but might get a
+type-warning during compilation).
+
 ### New Realtime-PubSub model
 
 The new Realtime-PubSub model builds upon two new public APIS: (i) The
