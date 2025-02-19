@@ -193,9 +193,6 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     UA_PubSubManager *pubSubManager = &server->pubSubManager;
     TAILQ_INSERT_HEAD(&pubSubManager->connections, c, listEntry);
     pubSubManager->connectionsSize++;
-    /* Lock event loop mutex */
-    if(c->config.eventLoop)
-        c->config.eventLoop->lock(c->config.eventLoop);
 
     /* Validate-connect to check the parameters */
     ret = UA_PubSubConnection_connect(server, c, true);
@@ -222,25 +219,53 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
 UA_StatusCode
 UA_Server_addPubSubConnection(UA_Server *server, const UA_PubSubConnectionConfig *cc,
                               UA_NodeId *cId) {
+    UA_EventLoop *el = NULL;
+    /* Lock event loop mutex */
+    if(cc) {
+        if(cc->eventLoop)
+            el = cc->eventLoop;
+        else if(server)
+            el = server->config.eventLoop;
+        if(el)
+            el->lock(el);
+    }
     lockPubSubServer(server);
     UA_StatusCode res = UA_PubSubConnection_create(server, cc, cId);
+    if((res != UA_STATUSCODE_GOOD) && el) {
+        /* Unlock event loop mutex */
+        el->unlock(el);
+    }
     unlockPubSubServer(server);
     return res;
 }
 
 static void
 delayedPubSubConnection_delete(void *application, void *context) {
+    UA_EventLoop *el = NULL;
     UA_Server *server = (UA_Server*)application;
     UA_PubSubConnection *c = (UA_PubSubConnection*)context;
     lockPubSubServer(server);
-    UA_PubSubConnection_delete(server, c);
+    /* Get locked event loop mutex */
+    if(c) {
+        if(c->config.eventLoop)
+            el = c->config.eventLoop;
+        else if(server)
+            el = server->config.eventLoop;
+    }
+
+    UA_StatusCode ret = UA_PubSubConnection_delete(server, c);
+    if((ret == UA_STATUSCODE_GOOD) && el) {
+        /* Unlock event loop mutex */
+        el->unlock(el);
+    }
+
     unlockPubSubServer(server);
 }
 
 /* Clean up the PubSubConnection. If no EventLoop connection is attached we can
  * immediately free. Otherwise we close the EventLoop connections and free in
  * the connection callback. */
-void
+UA_StatusCode
 UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -278,7 +303,7 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
 
     /* Not all sockets are closed. This method will be called again */
     if(c->sendChannel != 0 || c->recvChannelsSize > 0)
-        return;
+        return UA_STATUSCODE_GOODCALLAGAIN;
 
     /* The WriterGroups / ReaderGroups are not deleted. Try again in the next
      * iteration of the event loop.*/
@@ -288,7 +313,7 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
         c->dc.application = server;
         c->dc.context = c;
         el->addDelayedCallback(el, &c->dc);
-        return;
+        return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
     }
 
     /* Remove from the information model */
@@ -296,10 +321,6 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     deleteNode(server, c->identifier, true);
 #endif
 
-    /* Unlock event loop mutex */
-    if(c->config.eventLoop && c->config.eventLoop->islocked(c->config.eventLoop))
-        c->config.eventLoop->unlock(c->config.eventLoop);
-    
     /* Unlink from the server */
     TAILQ_REMOVE(&server->pubSubManager.connections, c, listEntry);
     server->pubSubManager.connectionsSize--;
@@ -307,18 +328,29 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     UA_PubSubConnectionConfig_clear(&c->config);
     UA_NodeId_clear(&c->identifier);
     UA_free(c);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
     lockPubSubServer(server);
+    UA_EventLoop *el;
     UA_PubSubConnection *psc =
         UA_PubSubConnection_findConnectionbyId(server, connection);
     if(!psc) {
         unlockPubSubServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    UA_PubSubConnection_delete(server, psc);
+    /* Get locked event loop mutex */
+    if(psc->config.eventLoop)
+        el = psc->config.eventLoop;
+    else
+        el = server->config.eventLoop;
+
+    UA_StatusCode ret = UA_PubSubConnection_delete(server, psc);
+    if(ret == UA_STATUSCODE_GOOD)
+        el->unlock(el);  /* Unlock event loop mutex */
     unlockPubSubServer(server);
     return UA_STATUSCODE_GOOD;
 }
@@ -397,21 +429,27 @@ UA_PubSubConnection_getEL(UA_Server *server, UA_PubSubConnection *c) {
 
 void lockPubSubServer(UA_Server *server) {
 
-    UA_PubSubConnection *pubSubConnection;
-    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
-        if(pubSubConnection->config.eventLoop)
-            pubSubConnection->config.eventLoop->lock(pubSubConnection->config.eventLoop);
+    UA_PubSubConnection *c;
+    UA_EventLoop *el;
+    if (server) {
+        TAILQ_FOREACH(c, &server->pubSubManager.connections, listEntry){
+            el = UA_PubSubConnection_getEL(server, c);
+            el->lock(el);
+        }
+        UA_LOCK(&server->serviceMutex);
     }
-    UA_LOCK(&server->serviceMutex);
 }
 
 void unlockPubSubServer(UA_Server *server) {
-    UA_PubSubConnection *pubSubConnection;
-    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
-        if(pubSubConnection->config.eventLoop)
-            pubSubConnection->config.eventLoop->unlock(pubSubConnection->config.eventLoop);
+    UA_PubSubConnection *c;
+    UA_EventLoop *el;
+    if (server) {
+        TAILQ_FOREACH(c, &server->pubSubManager.connections, listEntry){
+            el = UA_PubSubConnection_getEL(server, c);
+            el->unlock(el);
+        }
+        UA_UNLOCK(&server->serviceMutex);
     }
-    UA_UNLOCK(&server->serviceMutex);
 }
 
 #endif /* UA_ENABLE_PUBSUB */

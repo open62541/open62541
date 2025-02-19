@@ -429,12 +429,6 @@ UA_EventLoopPOSIX_unlock(UA_EventLoop *public_el) {
     UA_UNLOCK(&el->elMutex);
 }
 
-static int
-UA_EventLoopPOSIX_islocked(UA_EventLoop *public_el) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
-    return UA_ISLOCKED(&el->elMutex);
-}
-
 UA_EventLoop *
 UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)
@@ -482,7 +476,6 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
 
     el->eventLoop.lock = UA_EventLoopPOSIX_lock;
     el->eventLoop.unlock = UA_EventLoopPOSIX_unlock;
-    el->eventLoop.islocked = UA_EventLoopPOSIX_islocked;
 
     return &el->eventLoop;
 }

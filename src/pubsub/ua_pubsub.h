@@ -184,7 +184,7 @@ UA_PubSubConnection_create(UA_Server *server,
 void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 
-void
+UA_StatusCode
 UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c);
 
 UA_StatusCode

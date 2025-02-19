@@ -162,7 +162,16 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* PSC marked for deletion and the last EventLoop connection has closed */
         if(psc->deleteFlag && psc->recvChannelsSize == 0 && psc->sendChannel == 0) {
-            UA_PubSubConnection_delete(server, psc);
+            UA_EventLoop *el;
+            UA_StatusCode ret;
+            /* Get locked event loop mutex */
+            if(psc->config.eventLoop)
+                el = psc->config.eventLoop;
+            else
+                el = server->config.eventLoop;
+            ret = UA_PubSubConnection_delete(server, psc);
+            if(ret == UA_STATUSCODE_GOOD)
+                el->unlock(el);  /* Unlock event loop mutex */
             unlockPubSubServer(server);
             return;
         }
