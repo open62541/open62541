@@ -39,7 +39,9 @@
  * ---------------
  * Changing the feature options has no effect on a pre-compiled library. */
 
+#ifndef UA_LOGLEVEL /* allows overriding UA_LOGLEVEL from an external Makefile */
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
+#endif
 #cmakedefine UA_ENABLE_AMALGAMATION
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
