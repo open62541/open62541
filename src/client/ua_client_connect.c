@@ -115,10 +115,6 @@ endpointUnconfigured(const UA_EndpointDescription *endpoint) {
 
 UA_Boolean
 isFullyConnected(UA_Client *client) {
-    /* No Session, but require one */
-    if(client->sessionState != UA_SESSIONSTATE_ACTIVATED && !client->config.noSession)
-        return false;
-
     /* No SecureChannel */
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN)
         return false;
@@ -130,6 +126,16 @@ isFullyConnected(UA_Client *client) {
     /* FindServers handshake ongoing or not yet done */
     if(client->findServersHandshake || client->discoveryUrl.length == 0)
         return false;
+
+    if(!client->config.noSession) {
+        /* No Session, but is required */
+        if(client->sessionState != UA_SESSIONSTATE_ACTIVATED)
+            return false;
+
+        /* NamespaceArray not yet read */
+        if(client->namespacesHandshake || !client->haveNamespaces)
+            return false;
+    }
 
     return true;
 }
@@ -1509,7 +1515,8 @@ connectActivity(UA_Client *client) {
     /* <-- The SecureChannel is open --> */
 
     /* Ongoing handshake -> Waiting for a response */
-    if(client->endpointsHandshake || client->findServersHandshake)
+    if(client->endpointsHandshake || client->findServersHandshake ||
+       client->namespacesHandshake)
         return;
 
     /* Call FindServers to see if we should reconnect with another EndpointUrl.
@@ -1612,7 +1619,7 @@ verifyClientApplicationURI(const UA_Client *client) {
         UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
         if(!sp->localCertificate.data) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "skip verifying ApplicationURI for the SecurityPolicy %S",
+                           "Skip verifying ApplicationURI for the SecurityPolicy %S",
                            sp->policyUri);
             continue;
         }
