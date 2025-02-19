@@ -17,6 +17,7 @@
 #include "../encryption/certificates.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_keystorage.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -296,9 +297,9 @@ START_TEST(TestSetSecurityKeys_GOOD) {
 
     UA_StatusCode retval = encyrptedclientconnect(client);
 
-    lockServer(server);
+    lockPubSubServer(server);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
-    unlockServer(server);
+    unlockPubSubServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n",
@@ -324,9 +325,9 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingList){
 
     UA_StatusCode retval = encyrptedclientconnect(client);
 
-    lockServer(server);
+    lockPubSubServer(server);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
-    unlockServer(server);
+    unlockPubSubServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
@@ -347,9 +348,9 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKe
     size_t keyListSize;
     UA_StatusCode retval = encyrptedclientconnect(client);
 
-    lockServer(server);
+    lockPubSubServer(server);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
-    unlockServer(server);
+    unlockPubSubServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
@@ -380,9 +381,9 @@ START_TEST(TestSetSecurityKeys_ReplaceExistingKeyListWithFetchedKeyList){
 
     UA_StatusCode retval = encyrptedclientconnect(client);
 
-    lockServer(server);
+    lockPubSubServer(server);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
-    unlockServer(server);
+    unlockPubSubServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));

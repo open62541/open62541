@@ -12,6 +12,7 @@
 
 #include "ua_pubsub.h"
 #include "ua_pubsub_ns0.h"
+#include "ua_pubsub_internal.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
@@ -303,9 +304,9 @@ UA_StatusCode
 UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
                                          const UA_StandaloneSubscribedDataSetConfig *sdsConfig,
                                          UA_NodeId *sdsIdentifier) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_StatusCode res = addStandaloneSubscribedDataSet(server, sdsConfig, sdsIdentifier);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -350,9 +351,9 @@ removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
 
 UA_StatusCode
 UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_StatusCode res = removeStandaloneSubscribedDataSet(server, sds);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 

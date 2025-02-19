@@ -12,6 +12,7 @@
 
 #ifdef UA_ENABLE_PUBSUB_SKS /* conditional compilation */
 
+#include "ua_pubsub_internal.h"
 #include "server/ua_server_internal.h"
 
 #define UA_PUBSUB_KEYMATERIAL_NONCELENGTH 32
@@ -277,10 +278,10 @@ UA_StatusCode
 UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
                            const UA_SecurityGroupConfig *securityGroupConfig,
                            UA_NodeId *securityGroupNodeId) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_StatusCode retval = addSecurityGroup(server, securityGroupFolderNodeId,
                                             securityGroupConfig, securityGroupNodeId);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return retval;
 }
 
@@ -340,7 +341,7 @@ removeSecurityGroup(UA_Server *server, UA_SecurityGroup *securityGroup) {
 
 UA_StatusCode
 UA_Server_removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroup) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroup);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(sg) {
@@ -348,7 +349,7 @@ UA_Server_removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroup) 
     } else {
         res = UA_STATUSCODE_BADBOUNDNOTFOUND;
     }
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 

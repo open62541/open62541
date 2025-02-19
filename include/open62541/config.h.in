@@ -355,6 +355,7 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_LOCK(lock)
 # define UA_UNLOCK(lock)
 # define UA_LOCK_ASSERT(lock, num)
+# define UA_ISLOCKED(lock)
 
 #elif defined(UA_ARCHITECTURE_WIN32)
 
@@ -390,6 +391,11 @@ UA_UNLOCK(UA_Lock *lock) {
 static UA_INLINE void
 UA_LOCK_ASSERT(UA_Lock *lock, int num) {
     UA_assert(num <= 0 || lock->mutexCounter > 0);
+}
+
+static UA_INLINE int
+UA_ISLOCKED(UA_Lock *lock) {
+    return (lock->mutexCounter > 0) ? 1 : 0;
 }
 
 #elif defined(UA_ARCHITECTURE_POSIX)
@@ -431,6 +437,11 @@ UA_UNLOCK(UA_Lock *lock) {
 static UA_INLINE void
 UA_LOCK_ASSERT(UA_Lock *lock, int num) {
     UA_assert(num <= 0 || lock->mutexCounter > 0);
+}
+
+static UA_INLINE int
+UA_ISLOCKED(UA_Lock *lock) {
+    return (lock->mutexCounter > 0) ? 1 : 0;
 }
 
 #endif

@@ -15,6 +15,7 @@
 
 #include "ua_pubsub.h"
 #include "ua_pubsub_keystorage.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -534,11 +535,11 @@ START_TEST(AddValidSksClientwithWriterGroup) {
                   "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
     ck_assert(wg->keyStorage->keyListSize > 0);
-    lockServer(sksServer);
+    lockPubSubServer(sksServer);
     UA_PubSubKeyListItem *sksKsItr =
         UA_PubSubKeyStorage_findKeyStorage(sksServer, securityGroupId)
             ->currentItem;
-    unlockServer(sksServer);
+    unlockPubSubServer(sksServer);
     UA_PubSubKeyListItem *wgKsItr = TAILQ_FIRST(&wg->keyStorage->keyList);
     for(size_t i = 0; i < wg->keyStorage->keyListSize; i++) {
         ck_assert_msg(UA_ByteString_equal(&sksKsItr->key, &wgKsItr->key) == UA_TRUE,
@@ -580,11 +581,11 @@ START_TEST(AddValidSksClientwithReaderGroup) {
                   "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
     ck_assert(rg->keyStorage->keyListSize > 0);
-    lockServer(sksServer);
+    lockPubSubServer(sksServer);
     UA_PubSubKeyListItem *sksKsItr =
         UA_PubSubKeyStorage_findKeyStorage(sksServer, securityGroupId)
             ->currentItem;
-    unlockServer(sksServer);
+    unlockPubSubServer(sksServer);
     UA_PubSubKeyListItem *rgKsItr = TAILQ_FIRST(&rg->keyStorage->keyList);
     for(size_t i = 0; i < rg->keyStorage->keyListSize; i++) {
         ck_assert_msg(UA_ByteString_equal(&sksKsItr->key, &rgKsItr->key) == UA_TRUE,
@@ -860,14 +861,14 @@ START_TEST(FetchNextbatchOfKeys) {
     }
     ck_assert(retryCnt < MAX_RETRIES);
 
-    lockServer(publisherApp);
+    lockPubSubServer(publisherApp);
     UA_PubSubKeyStorage *pubKs = UA_PubSubKeyStorage_findKeyStorage(
         publisherApp, securityGroupId);
-    unlockServer(publisherApp);
-    lockServer(subscriberApp);
+    unlockPubSubServer(publisherApp);
+    lockPubSubServer(subscriberApp);
     UA_PubSubKeyStorage *subKs = UA_PubSubKeyStorage_findKeyStorage(
         subscriberApp, securityGroupId);
-    unlockServer(subscriberApp);
+    unlockPubSubServer(subscriberApp);
     retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 

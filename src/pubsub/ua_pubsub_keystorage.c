@@ -12,6 +12,7 @@
 
 #define UA_REQ_CURRENT_TOKEN 0
 
+#include "ua_pubsub_internal.h"
 #include "server/ua_server_internal.h"
 #include "client/ua_client_internal.h"
 
@@ -374,7 +375,7 @@ nextGetSecuritykeysCallback(UA_Server *server, UA_PubSubKeyStorage *keyStorage) 
 void
 UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *keyStorage) {
     /* Callbacks from the EventLoop are initially unlocked */
-    lockServer(server);
+    lockPubSubServer(server);
     UA_StatusCode retval =
         UA_PubSubKeyStorage_addKeyRolloverCallback(server, keyStorage,
                                      (UA_ServerCallback)UA_PubSubKeyStorage_keyRolloverCallback,
@@ -407,7 +408,7 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *
             server->config.eventLoop, (UA_Callback)nextGetSecuritykeysCallback, server,
             keyStorage, dateTimeToNextGetSecurityKeys, NULL);
     }
-    unlockServer(server);
+    unlockPubSubServer(server);
 }
 
 UA_StatusCode
@@ -528,7 +529,7 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
     UA_Server *server = ctx->server;
     UA_StatusCode retval = response->responseHeader.serviceResult;
 
-    lockServer(server);
+    lockPubSubServer(server);
     /* check if the call to getSecurityKeys was a success */
     if(response->resultsSize != 0)
         retval = response->results->statusCode;
@@ -599,7 +600,7 @@ cleanup:
     UA_Client_disconnectAsync(client);
     addDelayedSksClientCleanupCb(client, ctx);
 
-    unlockServer(server);
+    unlockPubSubServer(server);
 }
 
 static UA_StatusCode
@@ -728,10 +729,10 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
-    lockServer(server);
+    lockPubSubServer(server);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
     if(!ks) {
-        unlockServer(server);
+        unlockPubSubServer(server);
         return retval;
     }
 
@@ -751,7 +752,7 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
     if(ks->keyListSize == 0) {
         retval = getSecurityKeysAndStoreFetchedKeys(server, ks);
     }
-    unlockServer(server);
+    unlockPubSubServer(server);
     return retval;
 }
 

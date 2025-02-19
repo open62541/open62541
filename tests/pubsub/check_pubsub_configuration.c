@@ -10,6 +10,7 @@
 #include "../common.h"
 
 #include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -34,9 +35,9 @@ static void teardown(void) {
 START_TEST(AddPublisherUsingBinaryFile) {
     UA_ByteString publisherConfiguration = loadFile("../../tests/pubsub/check_publisher_configuration.bin");
     ck_assert(publisherConfiguration.length > 0);
-    lockServer(server);
+    lockPubSubServer(server);
     UA_StatusCode retVal = UA_PubSubManager_loadPubSubConfigFromByteString(server, publisherConfiguration);
-    unlockServer(server);
+    unlockPubSubServer(server);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_PubSubConnection *connection;
     UA_WriterGroup *writerGroup;
@@ -69,9 +70,9 @@ START_TEST(AddPublisherUsingBinaryFile) {
 START_TEST(AddSubscriberUsingBinaryFile) {
     UA_ByteString subscriberConfiguration = loadFile("../../tests/pubsub/check_subscriber_configuration.bin");
     ck_assert(subscriberConfiguration.length > 0);
-    lockServer(server);
+    lockPubSubServer(server);
     UA_StatusCode retVal = UA_PubSubManager_loadPubSubConfigFromByteString(server, subscriberConfiguration);
-    unlockServer(server);
+    unlockPubSubServer(server);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_PubSubConnection *connection;
     UA_ReaderGroup *readerGroup;

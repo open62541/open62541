@@ -11,6 +11,7 @@
  */
 
 #include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
@@ -266,10 +267,10 @@ UA_StatusCode
 UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
                            const UA_DataSetReaderConfig *dataSetReaderConfig,
                            UA_NodeId *readerIdentifier) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_StatusCode res = UA_DataSetReader_create(server, readerGroupIdentifier,
                                                 dataSetReaderConfig, readerIdentifier);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -347,14 +348,14 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
 
 UA_StatusCode
 UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
     if(!dsr) {
-        unlockServer(server);
+        unlockPubSubServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_StatusCode res = UA_DataSetReader_remove(server, dsr);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -433,15 +434,15 @@ UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderI
     if(config == NULL)
        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    lockServer(server);
+    lockPubSubServer(server);
     UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
     if(!dsr || !rg) {
-        unlockServer(server);
+        unlockPubSubServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_StatusCode res = DataSetReader_updateConfig(server, rg, dsr, config);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -450,12 +451,12 @@ UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIden
                                  UA_DataSetReaderConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    lockServer(server);
+    lockPubSubServer(server);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
     if(dsr)
         res = UA_DataSetReaderConfig_copy(&dsr->config, config);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -521,14 +522,14 @@ UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdent
     if(!server || !state)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    lockServer(server);
+    lockPubSubServer(server);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
     if(dsr) {
         res = UA_STATUSCODE_GOOD;
         *state = dsr->state;
     }
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -672,15 +673,15 @@ UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
                                               UA_NodeId dataSetReaderIdentifier,
                                               size_t targetVariablesSize,
                                               const UA_FieldTargetVariable *targetVariables) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
     if(!dataSetReader) {
-        unlockServer(server);
+        unlockPubSubServer(server);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     UA_StatusCode res = DataSetReader_createTargetVariables(server, dataSetReader,
                                                             targetVariablesSize, targetVariables);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 

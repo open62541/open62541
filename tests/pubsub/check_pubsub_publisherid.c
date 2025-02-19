@@ -5,6 +5,7 @@
 #include "testing_clock.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 #include "ua_util_internal.h"
@@ -1566,9 +1567,9 @@ START_TEST(Test_string_publisherId_file_config) {
     UA_PubSubConfigurationDataType_clear(&config);
 }
     /* load and apply config from ByteString buffer */
-    lockServer(server);
+    lockPubSubServer(server);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_PubSubManager_loadPubSubConfigFromByteString(server, encodedConfigDataBuffer));
-    unlockServer(server);
+    unlockPubSubServer(server);
 
     /* groups are already operational */
     /* check that publish/subscribe works -> set some test values */

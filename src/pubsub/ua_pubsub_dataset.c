@@ -12,6 +12,7 @@
 
 #include "ua_pubsub.h"
 #include "ua_pubsub_ns0.h"
+#include "ua_pubsub_internal.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
@@ -81,9 +82,9 @@ getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
 UA_StatusCode
 UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
                                     UA_PublishedDataSetConfig *config) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_StatusCode res = getPublishedDataSetConfig(server, pds, config);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -92,12 +93,12 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds,
                                       UA_DataSetMetaDataType *metaData) {
     if(!metaData)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    lockServer(server);
+    lockPubSubServer(server);
     UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_findPDSbyId(server, pds);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(currentPDS)
         res = UA_DataSetMetaDataType_copy(&currentPDS->dataSetMetaData, metaData);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -414,10 +415,10 @@ UA_DataSetFieldResult
 UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
                           const UA_DataSetFieldConfig *fieldConfig,
                           UA_NodeId *fieldIdentifier) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_DataSetFieldResult res =
         UA_DataSetField_create(server, publishedDataSet, fieldConfig, fieldIdentifier);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -510,17 +511,17 @@ UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
 
 UA_DataSetFieldResult
 UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_DataSetFieldResult res;
     memset(&res, 0, sizeof(UA_DataSetFieldResult));
     UA_DataSetField *field = UA_DataSetField_findDSFbyId(server, dsf);
     if(!field) {
         res.result = UA_STATUSCODE_BADNOTFOUND;
-        unlockServer(server);
+        unlockPubSubServer(server);
         return res;
     }
     res = UA_DataSetField_remove(server, field);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -545,12 +546,12 @@ UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsf,
                                 UA_DataSetFieldConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    lockServer(server);
+    lockPubSubServer(server);
     UA_DataSetField *currentDataSetField = UA_DataSetField_findDSFbyId(server, dsf);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(currentDataSetField)
         res = UA_DataSetFieldConfig_copy(&currentDataSetField->config, config);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -718,10 +719,10 @@ UA_AddPublishedDataSetResult
 UA_Server_addPublishedDataSet(UA_Server *server,
                               const UA_PublishedDataSetConfig *publishedDataSetConfig,
                               UA_NodeId *pdsIdentifier) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_AddPublishedDataSetResult res =
         UA_PublishedDataSet_create(server, publishedDataSetConfig, pdsIdentifier);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -762,14 +763,14 @@ UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedData
 
 UA_StatusCode
 UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_findPDSbyId(server, pds);
     if(!currentPDS) {
-        unlockServer(server);
+        unlockPubSubServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_StatusCode res = UA_PublishedDataSet_remove(server, currentPDS);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 

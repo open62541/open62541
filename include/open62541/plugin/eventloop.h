@@ -210,6 +210,7 @@ struct UA_EventLoop {
      * to be taken from the outside. */
     void (*lock)(UA_EventLoop *el);
     void (*unlock)(UA_EventLoop *el);
+    int (*islocked)(UA_EventLoop *el);
 };
 
 /**
