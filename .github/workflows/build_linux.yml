@@ -172,18 +172,22 @@ jobs:
             cmd_action: build_amalgamation_mt
 
           - name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
+            runs_on: "ubuntu-24.04"
             cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
             cmd_action: unit_tests_valgrind MBEDTLS
 
           - name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
+            runs_on: "ubuntu-24.04"
             cmd_deps: sudo apt-get install -y -qq valgrind openssl mosquitto
             cmd_action: unit_tests_valgrind OPENSSL
 
           - name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
+            runs_on: "ubuntu-24.04"
             cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
             cmd_action: examples_valgrind MBEDTLS MDNSD
 
           - name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
+            runs_on: "ubuntu-24.04"
             cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev mosquitto libavahi-client-dev libavahi-common-dev
             cmd_action: examples_valgrind OPENSSL AVAHI
 
@@ -216,7 +220,7 @@ jobs:
         if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y -qq python3-sphinx graphviz check
+          sudo apt-get install -y -qq python3-sphinx graphviz check libpcap-dev
           ${{ matrix.build.cmd_deps }}
       - name: ${{ matrix.build.name }}
         if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}

@@ -98,8 +98,8 @@ function build_release_amalgamation {
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           ..
-
-    make ${MAKEOPTS}
+    make open62541-amalgamation ${MAKEOPTS}
+    gcc -Wall -Werror -c open62541.c
 }
 
 ######################
