@@ -44,7 +44,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 8)
+set(OPEN62541_VER_PATCH 10)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -617,6 +617,11 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
     check_add_cc_flag("-fno-strict-aliasing") # fewer compiler assumptions about pointer types
     check_add_cc_flag("-fexceptions") # recommended for multi-threaded C code, also in combination with C++ code
 
+    # Tree-shaking so that only used functions and data get linked into static binaries
+    # To be used in combination with --gc-sections below
+    check_add_cc_flag("-ffunction-sections")
+    check_add_cc_flag("-fdata-sections")
+
     # Generate position-independent code for shared libraries (adds a performance penalty)
     if(BUILD_SHARED_LIBS)
         add_cc_flag("-fPIC")
@@ -661,6 +666,13 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
 
     # Linker
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
+    if(APPLE)
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-dead_strip")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-dead_strip")
+    else()
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
+    endif()
 
     # Debug
     if(UA_ENABLE_DEBUG_SANITIZER AND BUILD_TYPE_LOWER_CASE STREQUAL "debug" AND UNIX AND NOT UA_BUILD_OSS_FUZZ AND
@@ -678,8 +690,6 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
 
     # Strip release builds
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-        check_add_cc_flag("-ffunction-sections")
-        check_add_cc_flag("-fdata-sections")
         check_add_cc_flag("-fno-unwind-tables")
         check_add_cc_flag("-fno-asynchronous-unwind-tables")
         check_add_cc_flag("-fno-math-errno")
@@ -692,13 +702,6 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
         if(NOT OS9)
             set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
             set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
-        endif()
-        if(APPLE)
-            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-dead_strip")
-            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-dead_strip")
-        else()
-            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
-            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
         endif()
         if(NOT WIN32 AND NOT CYGWIN AND NOT APPLE)
             # these settings reduce the binary size by ~2kb
@@ -777,9 +780,9 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h)
@@ -877,6 +880,9 @@ if(UA_GENERATED_NAMESPACE_ZERO)
 endif()
 
 if(UA_ENABLE_PARSING)
+    if(NOT UA_ENABLE_JSON_ENCODING)
+        message(FATAL_ERROR "Parsing features require JSON to be enabled")
+    endif()
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c)
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
         list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.h)

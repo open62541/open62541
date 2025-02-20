@@ -186,9 +186,7 @@ processEntryCallback(void *context, UA_TimerEntry *te) {
 
     /* Execute the callback */
     if(te->callback) {
-        UA_UNLOCK(&t->timerMutex);
         te->callback(te->application, te->data);
-        UA_LOCK(&t->timerMutex);
     }
 
     /* Remove the entry if marked for deletion or a "once" policy */

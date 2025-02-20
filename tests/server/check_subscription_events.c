@@ -151,10 +151,10 @@ removeSubscription(void) {
 
     UA_DeleteSubscriptionsResponse deleteSubscriptionsResponse;
     UA_DeleteSubscriptionsResponse_init(&deleteSubscriptionsResponse);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_DeleteSubscriptions(server, &server->adminSession, &deleteSubscriptionsRequest,
                                 &deleteSubscriptionsResponse);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     UA_DeleteSubscriptionsResponse_clear(&deleteSubscriptionsResponse);
 }
 
@@ -732,10 +732,10 @@ START_TEST(evaluateFilterWhereClause) {
             ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         }
     }
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     retval = evaluateWhereClause(server, &server->adminSession,
                                  &eventNodeId, &contentFilter, &contentFilterResult);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ContentFilterResult_clear(&contentFilterResult);
 
@@ -766,10 +766,10 @@ START_TEST(evaluateFilterWhereClause) {
             ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         }
     }
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     retval = evaluateWhereClause(server, &server->adminSession,
                                  &eventNodeId, &contentFilter, &contentFilterResult);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED);
     UA_ContentFilterResult_clear(&contentFilterResult);
 
@@ -793,21 +793,21 @@ START_TEST(evaluateFilterWhereClause) {
             ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         }
     }
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     retval = evaluateWhereClause(server, &server->adminSession,
                                  &eventNodeId, &contentFilter,
                                  &contentFilterResult);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED);
     UA_ContentFilterResult_clear(&contentFilterResult);
 
     /* No operand provided */
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_OFTYPE;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_ContentFilterElementResult elmRes =
         UA_ContentFilterElementValidation(server, 0, 1, &contentFilterElement);
     retval = elmRes.statusCode;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
     UA_ContentFilterElementResult_clear(&elmRes);
 
@@ -841,10 +841,10 @@ START_TEST(evaluateFilterWhereClause) {
             ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         }
     }
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     retval = evaluateWhereClause(server, &server->adminSession,
                                  &eventNodeId, &contentFilter, &contentFilterResult);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ContentFilterResult_clear(&contentFilterResult);
 
@@ -871,10 +871,10 @@ START_TEST(evaluateFilterWhereClause) {
             ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         }
     }
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     retval = evaluateWhereClause(server, &server->adminSession,
                                  &eventNodeId, &contentFilter, &contentFilterResult);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_ContentFilterResult_clear(&contentFilterResult);
 
@@ -900,10 +900,10 @@ START_TEST(evaluateFilterWhereClause) {
             ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         }
     }
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     retval = evaluateWhereClause(server, &server->adminSession,
                                  &eventNodeId, &contentFilter, &contentFilterResult);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
     UA_ContentFilterResult_clear(&contentFilterResult);
 }

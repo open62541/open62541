@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2020 (c) Fraunhofer IOSB (Author: Andreas Ebner)
- *    Copyright 2020 (c) Grigory Friedman
+ *    Copyright 2020 (c) Grigory Fridman
  *    Copyright 2014-2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014-2017 (c) Florian Palm
  *    Copyright 2014-2016 (c) Sten Grüner

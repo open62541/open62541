@@ -682,9 +682,9 @@ UA_SecurityPolicy_Aes256Sha256RsaPss(UA_SecurityPolicy *policy,
     channelModule->compareCertificate =
         UA_ChannelM_Aes256Sha256RsaPss_compareCertificate;
 
-    /* Copy the certificate and add a NULL to the end */
-
-    retval = UA_copyCertificate(&policy->localCertificate, &localCertificate);
+    /* Load and convert to DER if necessary */
+    retval =
+        UA_OpenSSL_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

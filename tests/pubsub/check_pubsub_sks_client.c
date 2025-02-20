@@ -556,11 +556,11 @@ START_TEST(AddValidSksClientwithWriterGroup) {
     ck_assert(wg != NULL);
     
     ck_assert(wg->keyStorage->keyListSize > 0);
-    UA_LOCK(&sksServer->serviceMutex);
+    lockServer(sksServer);
     UA_PubSubManager *sksPsm = getPSM(sksServer);
     UA_PubSubKeyListItem *sksKsItr =
         UA_PubSubKeyStorage_find(sksPsm, securityGroupId)->currentItem;
-    UA_UNLOCK(&sksServer->serviceMutex);
+    unlockServer(sksServer);
     UA_PubSubKeyListItem *wgKsItr = TAILQ_FIRST(&wg->keyStorage->keyList);
     for(size_t i = 0; i < wg->keyStorage->keyListSize; i++) {
         ck_assert_msg(UA_ByteString_equal(&sksKsItr->key, &wgKsItr->key) == UA_TRUE,
@@ -606,11 +606,11 @@ START_TEST(AddValidSksClientwithReaderGroup) {
                   "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
     ck_assert(rg->keyStorage->keyListSize > 0);
-    UA_LOCK(&sksServer->serviceMutex);
+    lockServer(sksServer);
     UA_PubSubManager *sksPsm = getPSM(sksServer);
     UA_PubSubKeyListItem *sksKsItr =
         UA_PubSubKeyStorage_find(sksPsm, securityGroupId)->currentItem;
-    UA_UNLOCK(&sksServer->serviceMutex);
+    unlockServer(sksServer);
     UA_PubSubKeyListItem *rgKsItr = TAILQ_FIRST(&rg->keyStorage->keyList);
     for(size_t i = 0; i < rg->keyStorage->keyListSize; i++) {
         ck_assert_msg(UA_ByteString_equal(&sksKsItr->key, &rgKsItr->key) == UA_TRUE,
@@ -910,14 +910,14 @@ START_TEST(FetchNextbatchOfKeys) {
     }
     ck_assert(retryCnt < MAX_RETRIES);
 
-    UA_LOCK(&publisherApp->serviceMutex);
+    lockServer(publisherApp);
     UA_PubSubManager *pubPsm = getPSM(publisherApp);
     UA_PubSubKeyStorage *pubKs = UA_PubSubKeyStorage_find(pubPsm, securityGroupId);
-    UA_UNLOCK(&publisherApp->serviceMutex);
-    UA_LOCK(&subscriberApp->serviceMutex);
+    unlockServer(publisherApp);
+    lockServer(subscriberApp);
     UA_PubSubManager *subPsm = getPSM(publisherApp);
     UA_PubSubKeyStorage *subKs = UA_PubSubKeyStorage_find(subPsm, securityGroupId);
-    UA_UNLOCK(&subscriberApp->serviceMutex);
+    unlockServer(subscriberApp);
 
     sksPullStatus = UA_STATUSCODE_BAD;
     UA_UInt16 sksPullIteration = 0;

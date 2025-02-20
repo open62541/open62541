@@ -179,6 +179,19 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
     /* Move/store the value for filter comparison and TransferSubscription */
     UA_DataValue_clear(&mon->lastValue);
     mon->lastValue = *value;
+
+    /* Call the local callback if the MonitoredItem is not attached to a
+     * subscription. Do this at the very end. Because the callback might delete
+     * the subscription. */
+    if(!mon->subscription) {
+        UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*) mon;
+        void *nodeContext = NULL;
+        getNodeContext(server, mon->itemToMonitor.nodeId, &nodeContext);
+        localMon->callback.dataChangeCallback(server,
+                                              mon->monitoredItemId, localMon->context,
+                                              &mon->itemToMonitor.nodeId, nodeContext,
+                                              mon->itemToMonitor.attributeId, value);
+    }
 }
 
 void

@@ -237,6 +237,7 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Reading from input failed\n");
             goto cleanup;
         }
+
         pos += c;
     } while (!feof(in));
 

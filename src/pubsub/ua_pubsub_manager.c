@@ -340,10 +340,10 @@ generateRandomUInt64(void) {
 
 UA_StatusCode
 UA_Server_enableAllPubSubComponents(UA_Server *server) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     if(!psm) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -373,7 +373,7 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
         res |= UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL);
     }
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -406,11 +406,11 @@ disableAllPubSubComponents(UA_PubSubManager *psm) {
 
 void
 UA_Server_disableAllPubSubComponents(UA_Server *server) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     if(psm)
         disableAllPubSubComponents(psm);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 void

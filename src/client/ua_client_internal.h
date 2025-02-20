@@ -184,6 +184,12 @@ struct UA_Client {
 #endif
 };
 
+/* In order to prevent deadlocks between the EventLoop mutex and the
+ * client-mutex, we always take the EventLoop mutex first. */
+
+void lockClient(UA_Client *client);
+void unlockClient(UA_Client *client);
+
 UA_StatusCode
 __Client_AsyncService(UA_Client *client, const void *request,
                       const UA_DataType *requestType,
@@ -198,6 +204,17 @@ __Client_Service(UA_Client *client, const void *request,
 
 UA_StatusCode
 __UA_Client_startup(UA_Client *client);
+
+/* Connect with the client configuration. For the async connection, finish
+ * connecting via UA_Client_run_iterate (or manually running a configured
+ * external EventLoop). */
+UA_StatusCode
+__UA_Client_connect(UA_Client *client, UA_Boolean async, const char *endpointUrl);
+
+void
+__UA_Client_Service(UA_Client *client, const void *request,
+                    const UA_DataType *requestType, void *response,
+                    const UA_DataType *responseType);
 
 UA_StatusCode
 __Client_renewSecureChannel(UA_Client *client);

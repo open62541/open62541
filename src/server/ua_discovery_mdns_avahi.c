@@ -724,14 +724,14 @@ void
 UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
         getServerComponentByName(server, UA_STRING("discovery"));
     if(dm) {
         dm->serverOnNetworkCallback = cb;
         dm->serverOnNetworkCallbackData = data;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 void

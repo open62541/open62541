@@ -14,6 +14,7 @@
  */
 
 #include <open62541/client.h>
+#include <open62541/client_highlevel_async.h>
 #include "ua_discovery.h"
 #include "ua_server_internal.h"
 
@@ -332,7 +333,7 @@ discoveryClientStateCallback(UA_Client *client,
                 asyncRegisterRequest_clearAsync(ar); /* Clean up */
             } else {
                 ar->connectSuccess = false;
-                __UA_Client_connect(client, true);   /* Reconnect */
+                UA_Client_connectAsync(client, NULL);   /* Reconnect */
             }
         }
         return;
@@ -481,7 +482,7 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
     /* Connect asynchronously. The register service is called once the
      * connection is open. */
     ar->connectSuccess = false;
-    return __UA_Client_connect(ar->client, true);
+    return UA_Client_connectAsync(ar->client, NULL);
 }
 
 UA_StatusCode
@@ -490,10 +491,10 @@ UA_Server_registerDiscovery(UA_Server *server, UA_ClientConfig *cc,
                             const UA_String semaphoreFilePath) {
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                 "Registering at the DiscoveryServer: %S", discoveryServerUrl);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res =
         UA_Server_register(server, cc, false, discoveryServerUrl, semaphoreFilePath);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -502,10 +503,10 @@ UA_Server_deregisterDiscovery(UA_Server *server, UA_ClientConfig *cc,
                               const UA_String discoveryServerUrl) {
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                 "Deregistering at the DiscoveryServer: %S", discoveryServerUrl);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res =
         UA_Server_register(server, cc, true, discoveryServerUrl, UA_STRING_NULL);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 

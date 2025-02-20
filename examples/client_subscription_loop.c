@@ -52,32 +52,27 @@ subscriptionInactivityCallback (UA_Client *client, UA_UInt32 subId, void *subCon
 
 static void
 monCallback(UA_Client *client, void *userdata,
-    UA_UInt32 requestId, void *r) {
-    UA_CreateMonitoredItemsResponse *monResponse = (UA_CreateMonitoredItemsResponse *)r;
-    if(0 < monResponse->resultsSize && monResponse->results[0].statusCode == UA_STATUSCODE_GOOD)
-    {
+            UA_UInt32 requestId, UA_CreateMonitoredItemsResponse *r) {
+    if(0 < r->resultsSize && r->results[0].statusCode == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u",
-                    monResponse->results[0].monitoredItemId);
+                    r->results[0].monitoredItemId);
     }
 }
 
 static void
-createSubscriptionCallback(UA_Client *client, void *userdata, UA_UInt32 requestId, void *r)
-{
-    UA_CreateSubscriptionResponse *response = (UA_CreateSubscriptionResponse *)r;
-    if (response->subscriptionId == 0)
+createSubscriptionCallback(UA_Client *client, void *userdata,
+                           UA_UInt32 requestId, UA_CreateSubscriptionResponse *r) {
+    if (r->subscriptionId == 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-            "response->subscriptionId == 0, %u", response->subscriptionId);
-    else if (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+                     "response->subscriptionId == 0, %u", r->subscriptionId);
+    } else if (r->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-            "Create subscription failed, serviceResult %u",
-            response->responseHeader.serviceResult);
-    else
-    {
+                    "Create subscription failed, serviceResult %u",
+                    r->responseHeader.serviceResult);
+    } else {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-            "Create subscription succeeded, id %u",
-            response->subscriptionId);
+            "Create subscription succeeded, id %u", r->subscriptionId);
 
         /* Add a MonitoredItem */
         UA_NodeId currentTime =
@@ -88,11 +83,13 @@ createSubscriptionCallback(UA_Client *client, void *userdata, UA_UInt32 requestI
             UA_MonitoredItemCreateRequest_default(currentTime);
         req.itemsToCreate = &monRequest;
         req.itemsToCreateSize = 1;
-        req.subscriptionId = response->subscriptionId;
+        req.subscriptionId = r->subscriptionId;
 
         UA_Client_DataChangeNotificationCallback dataChangeNotificationCallback[1] = { handler_currentTimeChanged };
         UA_StatusCode retval =
-            UA_Client_MonitoredItems_createDataChanges_async(client, req, NULL, dataChangeNotificationCallback, NULL, monCallback, NULL, NULL);
+            UA_Client_MonitoredItems_createDataChanges_async(client, req, NULL,
+                                                             dataChangeNotificationCallback, NULL,
+                                                             monCallback, NULL, NULL);
         if (retval != UA_STATUSCODE_GOOD)
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "UA_Client_MonitoredItems_createDataChanges_async ", UA_StatusCode_name(retval));
