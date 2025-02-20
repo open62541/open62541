@@ -205,6 +205,17 @@ __Client_Service(UA_Client *client, const void *request,
 UA_StatusCode
 __UA_Client_startup(UA_Client *client);
 
+/* Connect with the client configuration. For the async connection, finish
+ * connecting via UA_Client_run_iterate (or manually running a configured
+ * external EventLoop). */
+UA_StatusCode
+__UA_Client_connect(UA_Client *client, UA_Boolean async, const char *endpointUrl);
+
+void
+__UA_Client_Service(UA_Client *client, const void *request,
+                    const UA_DataType *requestType, void *response,
+                    const UA_DataType *responseType);
+
 UA_StatusCode
 __Client_renewSecureChannel(UA_Client *client);
 
