@@ -260,14 +260,11 @@ typedef int SOCKET;
 /*---------------------------*/
 
 #include <dirent.h>
-#include <errno.h>
-#include <fcntl.h>
 #include <libgen.h>
-#include <linux/limits.h>
+#include <limits.h>
 #include <stdio.h>
 #include <sys/inotify.h>
 #include <sys/stat.h>
-#include <unistd.h>
 
 #ifndef __ANDROID__
 #include <bits/stdio_lim.h>
