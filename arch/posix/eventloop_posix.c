@@ -1063,6 +1063,19 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     UA_EventLoopPOSIX_setNonBlocking(fds[1]);
     return err;
 }
+#elif defined(__QNX__)
+int UA_EventLoopPOSIX_pipe(int fds[2]) {
+    int err = pipe(fds); 
+    if(err == -1) {
+      return err;
+    }
+
+    err = fcntl(fds[0], F_SETFL, O_NONBLOCK);
+    if(err == -1) {
+      return err;
+    }
+    return err;
+}
 #endif
 
 void

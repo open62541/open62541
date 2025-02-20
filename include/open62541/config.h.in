@@ -122,6 +122,15 @@
 #endif
 
 /**
+ * QNX Flags
+ * -------------------
+ * Defining _QNX_SOURCE will ensure proper qnx types and other features 
+ * are available. */
+#if defined(__QNX__)
+# define _QNX_SOURCE 1
+#endif
+
+/**
  * POSIX Feature Flags
  * -------------------
  * These feature flags have to be set before including the first POSIX
