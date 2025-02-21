@@ -780,6 +780,9 @@ UA_EventLoop_new_LWIP(const UA_Logger *logger);
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_LWIP_TCP(const UA_String eventSourceName);
 
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_LWIP_UDP(const UA_String eventSourceName);
+
 #endif
 
 _UA_END_DECLS

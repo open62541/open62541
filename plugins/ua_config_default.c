@@ -314,7 +314,12 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)tcpCM);
 
         /* Add the UDP connection manager */
-#if !defined(UA_ARCHITECTURE_ZEPHYR) && !defined(UA_ARCHITECTURE_LWIP)
+#if defined(UA_ARCHITECTURE_LWIP)
+        UA_ConnectionManager *udpCM =
+            UA_ConnectionManager_new_LWIP_UDP(UA_STRING("udp connection manager"));
+        if(udpCM)
+            conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)udpCM);
+#elif !defined(UA_ARCHITECTURE_ZEPHYR)
         UA_ConnectionManager *udpCM =
             UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
         if(udpCM)

@@ -1036,7 +1036,8 @@ if(UA_ARCHITECTURE_LWIP)
          ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
          ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip.h
          ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip.c
-         ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip_tcp.c)
+         ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip_tcp.c
+         ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip_udp.c)
 endif()
 
 if(UA_ARCHITECTURE_FREERTOS)
