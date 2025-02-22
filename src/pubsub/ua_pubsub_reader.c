@@ -190,9 +190,6 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
                 dsr->head.identifier);
     dsr->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(psm->logging, dsr, "DataSetReader created (State: %s)",
-                       UA_PubSubState_name(dsr->head.state));
-
     /* Connect to StandaloneSubscribedDataSet if a name is defined */
     const UA_String sdsName = dsr->config.linkedStandaloneSubscribedDataSetName;
     UA_SubscribedDataSet *sds = (UA_String_isEmpty(&sdsName)) ?
@@ -250,6 +247,22 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
         }
     }
 
+    /* Notify the application that a new Reader was created.
+     * This may internally adjust the config */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, dsr->head.identifier,
+                                       UA_PUBSUBCOMPONENT_DATASETREADER, false);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_DataSetReader_remove(psm, dsr);
+            return res;
+        }
+    }
+
+    UA_LOG_INFO_PUBSUB(psm->logging, dsr, "DataSetReader created (State: %s)",
+                       UA_PubSubState_name(dsr->head.state));
+
     if(readerIdentifier)
         UA_NodeId_copy(&dsr->head.identifier, readerIdentifier);
 
@@ -263,14 +276,22 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
     UA_ReaderGroup *rg = dsr->linkedReaderGroup;
     UA_assert(rg);
 
-    /* Check if the ReaderGroup is enabled with realtime options. Disallow
-     * removal in that case. The RT path might still have a pointer to the
-     * DataSetReader. Or we violate the fixed-size-message configuration.*/
+    /* Check if the ReaderGroup is enabled */
     if(UA_PubSubState_isEnabled(rg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
-                              "Removal of DataSetReader not possible while "
-                              "the ReaderGroup with realtime options is enabled");
+                              "Removal of the DataSetReader not possible while "
+                              "the ReaderGroup is enabled");
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Check with the application if we can remove */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, dsr->head.identifier,
+                                       UA_PUBSUBCOMPONENT_DATASETREADER, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
     /* Disable and signal to the application */

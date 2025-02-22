@@ -188,6 +188,19 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
     mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %N\t| ", c->head.identifier);
     c->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
+    /* Notify the application that a new Connection was created.
+     * This may internally adjust the config */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, c->head.identifier,
+                                       UA_PUBSUBCOMPONENT_CONNECTION, false);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_PubSubConnection_delete(psm, c);
+            return res;
+        }
+    }
+
     UA_LOG_INFO_PUBSUB(psm->logging, c, "Connection created (State: %s)",
                        UA_PubSubState_name(c->head.state));
 
@@ -212,9 +225,19 @@ delayedPubSubConnection_delete(void *application, void *context) {
 /* Clean up the PubSubConnection. If no EventLoop connection is attached we can
  * immediately free. Otherwise we close the EventLoop connections and free in
  * the connection callback. */
-void
+UA_StatusCode
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+
+    /* Check with the application if we can remove */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, c->head.identifier,
+                                       UA_PUBSUBCOMPONENT_CONNECTION, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
     /* Disable (and disconnect) and set the deleteFlag. This prevents a
      * reconnect and triggers the deletion when the last open socket is
@@ -245,7 +268,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
 
     /* Not all sockets are closed. This method will be called again */
     if(c->sendChannel != 0 || c->recvChannelsSize > 0)
-        return;
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* The WriterGroups / ReaderGroups are not deleted. Try again in the next
      * iteration of the event loop.*/
@@ -255,7 +278,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
         c->dc.application = psm;
         c->dc.context = c;
         el->addDelayedCallback(el, &c->dc);
-        return;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Remove from the information model */
@@ -272,6 +295,8 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     UA_PubSubConnectionConfig_clear(&c->config);
     UA_PubSubComponentHead_clear(&c->head);
     UA_free(c);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static void

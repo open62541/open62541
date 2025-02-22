@@ -172,10 +172,23 @@ typedef enum  {
  */
 
 typedef struct {
-    /* Executed first thing in the state machine. The component config can be
-     * modified from within the beforeStateChangeCallback if the component is
-     * not enabled. Also the TargetState can be changed. For example to prevent
-     * the component from getting enabled. */
+    /* Notify the application when a new PubSubComponent is added removed. That
+     * way it is possible to keep track of the configurations coming in from the
+     * methods in ns0.
+     *
+     * When the return StatusCode is not good, then adding/removing the
+     * component is aborted. When a component is added, it is possible to call
+     * the public API _getConfig and _updateConfig methods on it from within the
+     * callback. */
+    UA_StatusCode
+    (*componentLifecycleCallback)(UA_Server *server, const UA_NodeId id,
+                                  const UA_PubSubComponentType componentType,
+                                  UA_Boolean remove);
+
+    /* The callback is executed first thing in the state machine. The component
+     * config can be modified from within the beforeStateChangeCallback if the
+     * component is not enabled. Also the TargetState can be changed. For
+     * example to prevent a component that is not ready from getting enabled. */
     void (*beforeStateChangeCallback)(UA_Server *server, const UA_NodeId id,
                                       UA_PubSubState *targetState);
 
