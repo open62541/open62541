@@ -155,6 +155,16 @@ UA_PublisherId_fromVariant(UA_PublisherId *p, const UA_Variant *src);
 UA_EXPORT void
 UA_PublisherId_toVariant(const UA_PublisherId *p, UA_Variant *dst);
 
+typedef enum  {
+    UA_PUBSUBCOMPONENT_CONNECTION  = 0,
+    UA_PUBSUBCOMPONENT_WRITERGROUP  = 1,
+    UA_PUBSUBCOMPONENT_DATASETWRITER  = 2,
+    UA_PUBSUBCOMPONENT_READERGROUP  = 3,
+    UA_PUBSUBCOMPONENT_DATASETREADER  = 4,
+    UA_PUBSUBCOMPONENT_PUBLISHEDDATASET  = 5,
+    UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET = 6,
+} UA_PubSubComponentType;
+
 /**
  * Server-wide PubSub Configuration
  * --------------------------------
