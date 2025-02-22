@@ -450,7 +450,6 @@ addPubSubConnection(UA_Server *server) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
     connectionConfig.publisherId.id.uint32 = UA_UInt32_random();
-    connectionConfig.customStateMachine = connectionStateMachine;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
 }
 
@@ -559,7 +558,35 @@ addDataSetReader(UA_Server *server) {
     UA_UadpDataSetReaderMessageDataType_delete(dataSetReaderMessage);
 }
 
+/* Add the custom state machine to the subscriber connection */
+static UA_StatusCode
+subscriberComponentLifecycleCallback(UA_Server *server, const UA_NodeId id,
+                                     const UA_PubSubComponentType componentType,
+                                     UA_Boolean remove) {
+    if(remove)
+        return UA_STATUSCODE_GOOD;
+    if(componentType != UA_PUBSUBCOMPONENT_CONNECTION)
+        return UA_STATUSCODE_GOOD;
+
+    printf("XXX Set the custom state machine for the new Connction\n");
+
+    UA_PubSubConnectionConfig cc;
+    UA_StatusCode res = UA_Server_getPubSubConnectionConfig(server, id, &cc);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    cc.customStateMachine = connectionStateMachine;
+    res = UA_Server_updatePubSubConnectionConfig(server, id, &cc);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_PubSubConnectionConfig_clear(&cc);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 START_TEST(CustomSubscriber) {
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->pubSubConfig.componentLifecycleCallback = subscriberComponentLifecycleCallback;
+
     addPubSubConnection(server);
     addReaderGroup(server);
     addDataSetReader(server);
