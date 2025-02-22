@@ -806,8 +806,14 @@ UA_Server_getReaderGroupState(UA_Server *server, const UA_NodeId rgId,
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_addReaderGroup(UA_Server *server, const UA_NodeId connectionId,
-                         const UA_ReaderGroupConfig *readerGroupConfig,
-                         UA_NodeId *readerGroupIdentifier);
+                         const UA_ReaderGroupConfig *config,
+                         UA_NodeId *rgId);
+
+/* The ReaderGroup must be disabled to update the config */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_updateReaderGroupConfig(UA_Server *server,
+                                  const UA_NodeId rgId,
+                                  const UA_ReaderGroupConfig *config);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeReaderGroup(UA_Server *server, const UA_NodeId rgId);
@@ -820,7 +826,8 @@ UA_Server_disableReaderGroup(UA_Server *server, const UA_NodeId rgId);
 
 /* Set the group key for the message encryption */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
+UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
+                                       const UA_NodeId rgId,
                                        UA_UInt32 securityTokenId,
                                        const UA_ByteString signingKey,
                                        const UA_ByteString encryptingKey,
