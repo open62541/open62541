@@ -123,8 +123,7 @@ UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
 }
 
 UA_PubSubConnection *
-UA_PubSubConnection_find(UA_PubSubManager *psm,
-                         const UA_NodeId id) {
+UA_PubSubConnection_find(UA_PubSubManager *psm, const UA_NodeId id) {
     if(!psm)
         return NULL;
     UA_PubSubConnection *c;
