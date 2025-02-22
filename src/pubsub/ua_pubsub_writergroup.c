@@ -124,27 +124,29 @@ static UA_StatusCode
 validateWriterGroupConfig(UA_PubSubManager *psm, UA_PubSubComponentHead *logHead,
                           const UA_WriterGroupConfig *config) {
     const UA_ExtensionObject *ms = &config->messageSettings;
-    if(ms->encoding != UA_EXTENSIONOBJECT_DECODED ||
-       !ms->content.decoded.type) {
+    if(ms->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
+        return UA_STATUSCODE_GOOD;
+
+    if(config->encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
+        if(!UA_ExtensionObject_hasDecodedType(ms,
+                &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE])) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
+                                  "WriTerGroupConfig MessageSettings need to be "
+                                  "of type JSONWriterGroupMessageDataType");
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
+    } else if(config->encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+        if(!UA_ExtensionObject_hasDecodedType(ms,
+                &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
+                                  "WriTerGroupConfig MessageSettings need to be "
+                                  "of type UADPWriterGroupMessageDataType");
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
+    } else {
         UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
-                              "WriTerGroupConfig has no MessageSettings defined");
+                              "Wrong encoding MIME-type");
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    if(config->encodingMimeType == UA_PUBSUB_ENCODING_JSON &&
-        ms->content.decoded.type != &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE]) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
-                              "WriTerGroupConfig MessageSettings need to be "
-                              "of type JSONWriterGroupMessageDataType");
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-    }
-
-    if(config->encodingMimeType == UA_PUBSUB_ENCODING_UADP &&
-        ms->content.decoded.type != &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
-                              "WriTerGroupConfig MessageSettings need to be "
-                              "of type UADPWriterGroupMessageDataType");
-        return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
     return UA_STATUSCODE_GOOD;
@@ -642,11 +644,16 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                        UA_ExtensionObject *messageSettings,
                        UA_ExtensionObject *transportSettings,
                        UA_NetworkMessage *nm) {
-    if(messageSettings->content.decoded.type !=
-       &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType*)
-            messageSettings->content.decoded.data;
+    UA_UadpWriterGroupMessageDataType tmpWgm;
+    UA_UadpWriterGroupMessageDataType *wgm;
+    if(UA_ExtensionObject_hasDecodedType(messageSettings,
+           &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
+        wgm = (UA_UadpWriterGroupMessageDataType*)messageSettings->content.decoded.data;
+    } else {
+        /* Use default settings */
+        UA_UadpWriterGroupMessageDataType_init(&tmpWgm);
+        wgm = &tmpWgm;
+    }
 
     nm->publisherIdEnabled =
         ((u64)wgm->networkMessageContentMask &
