@@ -132,16 +132,6 @@ UA_PubSubState_isEnabled(UA_PubSubState state) {
 
 /* All PubSubComponents share the same header structure */
 
-typedef enum  {
-    UA_PUBSUBCOMPONENT_CONNECTION  = 0,
-    UA_PUBSUBCOMPONENT_WRITERGROUP  = 1,
-    UA_PUBSUBCOMPONENT_DATASETWRITER  = 2,
-    UA_PUBSUBCOMPONENT_READERGROUP  = 3,
-    UA_PUBSUBCOMPONENT_DATASETREADER  = 4,
-    UA_PUBSUBCOMPONENT_PUBLISHEDDATASET  = 5,
-    UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET = 6,
-} UA_PubSubComponentType;
-
 typedef struct {
     UA_NodeId identifier;
     UA_PubSubComponentType componentType;
