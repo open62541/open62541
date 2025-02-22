@@ -558,6 +558,11 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
                                  UA_DataSetWriterConfig *config);
 
+/* The DataSetWriter must be disabled to update the config */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_updateDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
+                                    const UA_DataSetWriterConfig *config);
+
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_enableDataSetWriter(UA_Server *server, const UA_NodeId dswId);
 

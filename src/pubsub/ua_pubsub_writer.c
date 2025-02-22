@@ -825,4 +825,47 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     return res;
 }
 
+UA_StatusCode
+UA_Server_updateDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
+                                    const UA_DataSetWriterConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
+    if(!dsw) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(UA_PubSubState_isEnabled(dsw->head.state)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, dsw,
+                            "The DataSetWriter must be disabled to uodate the config");
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Make checks for a heartbeat */
+    if(!dsw->connectedDataSet && config->keyFrameCount != 1) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, dsw,
+                            "Adding DataSetWriter failed: DataSet can be null only for "
+                            "a heartbeat in which case KeyFrameCount shall be 1");
+        unlockServer(server);
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    /* Copy the config into the dsw */
+    UA_DataSetWriterConfig newConfig;
+    UA_StatusCode res = UA_DataSetWriterConfig_copy(config, &newConfig);
+    if(res == UA_STATUSCODE_GOOD) {
+        UA_DataSetWriterConfig_clear(&dsw->config);
+        dsw->config = newConfig;
+    }
+
+    unlockServer(server);
+    return res;
+}
+
 #endif /* UA_ENABLE_PUBSUB */
