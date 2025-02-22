@@ -703,26 +703,25 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 /**************/
 
 UA_StatusCode
-UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                           const UA_DataSetReaderConfig *dataSetReaderConfig,
-                           UA_NodeId *readerIdentifier) {
-    if(!server || !dataSetReaderConfig)
+UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupId,
+                           const UA_DataSetReaderConfig *config,
+                           UA_NodeId *dsrId) {
+    if(!server || !config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
     UA_StatusCode res =
-        UA_DataSetReader_create(getPSM(server), readerGroupIdentifier,
-                                dataSetReaderConfig, readerIdentifier);
+        UA_DataSetReader_create(getPSM(server), readerGroupId, config, dsrId);
     unlockServer(server);
     return res;
 }
 
 UA_StatusCode
-UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
+UA_Server_removeDataSetReader(UA_Server *server, const UA_NodeId readerId) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
-    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, readerIdentifier);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, readerId);
     UA_StatusCode res = (dsr) ?
         UA_DataSetReader_remove(psm, dsr) : UA_STATUSCODE_BADNOTFOUND;
     unlockServer(server);
@@ -795,7 +794,8 @@ UA_Server_disableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
 
 UA_StatusCode
 UA_Server_setDataSetReaderTargetVariables(UA_Server *server, const UA_NodeId dsrId,
-    size_t targetVariablesSize, const UA_FieldTargetDataType *targetVariables) {
+                                          size_t targetVariablesSize,
+                                          const UA_FieldTargetDataType *targetVariables) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
