@@ -726,6 +726,12 @@ UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupId,
                            const UA_DataSetReaderConfig *config,
                            UA_NodeId *dsrId);
 
+/* The DataSetReader must be disabled to update the config */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_updateDataSetReaderConfig(UA_Server *server,
+                                    const UA_NodeId dsrId,
+                                    const UA_DataSetReaderConfig *config);
+
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeDataSetReader(UA_Server *server, const UA_NodeId dsrId);
 
