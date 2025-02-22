@@ -722,13 +722,12 @@ UA_Server_getDataSetReaderState(UA_Server *server, const UA_NodeId dsrId,
                                 UA_PubSubState *state);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                           const UA_DataSetReaderConfig *dataSetReaderConfig,
-                           UA_NodeId *readerIdentifier);
+UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupId,
+                           const UA_DataSetReaderConfig *config,
+                           UA_NodeId *dsrId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
-
+UA_Server_removeDataSetReader(UA_Server *server, const UA_NodeId dsrId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dsrId);
@@ -737,8 +736,10 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_disableDataSetReader(UA_Server *server, const UA_NodeId dsrId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_setDataSetReaderTargetVariables(UA_Server *server, const UA_NodeId dsrId,
-    size_t targetVariablesSize, const UA_FieldTargetDataType *targetVariables);
+UA_Server_setDataSetReaderTargetVariables(
+    UA_Server *server, const UA_NodeId dsrId,
+    size_t targetVariablesSize,
+    const UA_FieldTargetDataType *targetVariables);
 
 /* Legacy API */
 #define UA_Server_DataSetReader_getConfig(server, dsrId, config) \
