@@ -1320,6 +1320,12 @@ UA_Server_run_shutdown(UA_Server *server) {
         return UA_STATUSCODE_GOOD;
     }
 
+    /* Unlock and do one "normal" iteration. This allows threads waiting for the
+     * server lock to proceed before the server lock is destroyed. */
+    unlockServer(server);
+    UA_Server_run_iterate(server, true);
+    lockServer(server);
+
     /* Iterate the EventLoop until the server is stopped */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_EventLoop *el = server->config.eventLoop;
