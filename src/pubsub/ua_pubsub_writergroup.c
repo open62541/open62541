@@ -82,6 +82,44 @@ UA_WriterGroup_removePublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) 
     wg->publishCallbackId = 0;
 }
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+static UA_StatusCode
+writerGroupAttachSKSKeystorage(UA_PubSubManager *psm, UA_WriterGroup *wg) {
+    /* No SecurityGroup defined */
+    if(UA_String_isEmpty(&wg->config.securityGroupId) || !wg->config.securityPolicy)
+        return UA_STATUSCODE_GOOD;
+
+    /* KeyStorage already connected */
+    if(wg->keyStorage)
+        return UA_STATUSCODE_GOOD;
+
+    /* Does the key storage already exist? */
+    wg->keyStorage = UA_PubSubKeyStorage_find(psm, wg->config.securityGroupId);
+    if(wg->keyStorage) {
+        wg->keyStorage->referenceCount++; /* Increase the ref count */
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Create a new key storage */
+    wg->keyStorage = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+    if(!wg->keyStorage)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Initialize the KeyStorage */
+    UA_StatusCode res =
+        UA_PubSubKeyStorage_init(psm, wg->keyStorage, &wg->config.securityGroupId,
+                                 wg->config.securityPolicy, 0, 0);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_PubSubKeyStorage_delete(psm, wg->keyStorage);
+        wg->keyStorage = NULL;
+        return res;
+    }
+
+    wg->keyStorage->referenceCount++; /* Increase the ref count */
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 static UA_StatusCode
 validateWriterGroupConfig(UA_PubSubManager *psm, UA_PubSubComponentHead *logHead,
                           const UA_WriterGroupConfig *config) {
@@ -182,33 +220,13 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 #ifdef UA_ENABLE_PUBSUB_SKS
     if(config->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        config->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        if(!UA_String_isEmpty(&config->securityGroupId) &&
-           config->securityPolicy) {
-            /* Does the key storage already exist? */
-            wg->keyStorage = UA_PubSubKeyStorage_find(psm, config->securityGroupId);
-
-            if(!wg->keyStorage) {
-                /* Create a new key storage */
-                wg->keyStorage = (UA_PubSubKeyStorage *)
-                    UA_calloc(1, sizeof(UA_PubSubKeyStorage));
-                if(!wg->keyStorage) {
-                    UA_WriterGroup_remove(psm, wg);
-                    return UA_STATUSCODE_BADOUTOFMEMORY;
-                }
-                res = UA_PubSubKeyStorage_init(psm, wg->keyStorage,
-                                               &config->securityGroupId,
-                                               config->securityPolicy, 0, 0);
-                if(res != UA_STATUSCODE_GOOD) {
-                    UA_WriterGroup_remove(psm, wg);
-                    return res;
-                }
-            }
-
-            /* Increase the ref count */
-            wg->keyStorage->referenceCount++;
+        res = writerGroupAttachSKSKeystorage(psm, wg);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Attaching the SKS KeyStorage failed");
+            UA_WriterGroup_remove(psm, wg);
+            return res;
         }
     }
-
 #endif
 
     /* Trigger the connection */
