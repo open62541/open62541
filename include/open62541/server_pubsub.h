@@ -268,6 +268,12 @@ UA_Server_getPubSubConnectionConfig(UA_Server *server,
                                     const UA_NodeId connectionId,
                                     UA_PubSubConnectionConfig *config);
 
+/* The PubSubConnection must be disabled to update the config */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_updatePubSubConnectionConfig(UA_Server *server,
+                                       const UA_NodeId connectionId,
+                                       const UA_PubSubConnectionConfig *config);
+
 /* Deletion of a PubSubConnection removes all "below" WriterGroups and
  * ReaderGroups. This can fail if the PubSubConnection is enabled. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
