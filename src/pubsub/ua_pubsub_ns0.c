@@ -2467,8 +2467,6 @@ UA_StatusCode
 connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId sdsId) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-
     UA_NodeId dataSetMetaDataOnDsrId =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
                             UA_NS0ID(HASPROPERTY), dsrId);
@@ -2491,13 +2489,11 @@ connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId sdsI
     UA_NODESTORE_REMOVE(server, &dataSetMetaDataOnDsrId);
     UA_NODESTORE_REMOVE(server, &subscribedDataSetOnDsrId);
 
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     retVal |= addRef(server, dsrId, UA_NS0ID(HASPROPERTY),
-                     UA_NODEID_NUMERIC(dataSetMetaDataOnSdsId.namespaceIndex,
-                                       dataSetMetaDataOnSdsId.identifier.numeric), true);
+                     dataSetMetaDataOnSdsId, true);
     retVal |= addRef(server, dsrId, UA_NS0ID(HASPROPERTY),
-                     UA_NODEID_NUMERIC(subscribedDataSetOnSdsId.namespaceIndex,
-                                       subscribedDataSetOnSdsId.identifier.numeric), true);
-
+                     subscribedDataSetOnSdsId, true);
     return retVal;
 }
 
