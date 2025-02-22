@@ -1037,6 +1037,10 @@ UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo,
                                 void * UA_RESTRICT p,
                                 const UA_DataType *type);
 
+UA_Boolean UA_EXPORT
+UA_ExtensionObject_hasDecodedType(const UA_ExtensionObject *eo,
+                                  const UA_DataType *type);
+
 /**
  * .. _datavalue:
  *
