@@ -896,6 +896,10 @@ UA_Server_updateDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
         dsw->config = newConfig;
     }
 
+    /* Call the state-machine. This can move the connection state from _ERROR to
+     * _DISABLED. */
+    UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
+
     unlockServer(server);
     return res;
 }

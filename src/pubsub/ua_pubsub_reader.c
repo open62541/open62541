@@ -911,6 +911,11 @@ UA_Server_updateDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
     if(retVal != UA_STATUSCODE_GOOD)
         goto errout;
 
+    /* Call the state-machine. This can move the connection state from _ERROR to
+     * _DISABLED. */
+    UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_DISABLED,
+                                    UA_STATUSCODE_GOOD);
+
     /* Clean up and return */
     UA_DataSetReaderConfig_clear(&oldConfig);
     unlockServer(server);
