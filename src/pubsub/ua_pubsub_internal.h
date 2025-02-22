@@ -274,7 +274,7 @@ UA_PubSubConnection_create(UA_PubSubManager *psm,
 void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 
-void
+UA_StatusCode
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c);
 
 UA_StatusCode
@@ -377,7 +377,7 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
                       const UA_WriterGroupConfig *writerGroupConfig,
                       UA_NodeId *writerGroupIdentifier);
 
-void
+UA_StatusCode
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
 /* Exposed so we can change the publish interval without having to stop */
@@ -522,7 +522,7 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
                       const UA_ReaderGroupConfig *rgc,
                       UA_NodeId *readerGroupId);
 
-void
+UA_StatusCode
 UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg);
 
 UA_StatusCode

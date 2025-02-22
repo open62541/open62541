@@ -207,9 +207,6 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
                 c->head.logIdString, wg->head.identifier);
     wg->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(psm->logging, wg, "WriterGroup created (State: %s)",
-                       UA_PubSubState_name(wg->head.state));
-
     /* Validate the connection settings */
     res = UA_WriterGroup_connect(psm, wg, true);
     if(res != UA_STATUSCODE_GOOD) {
@@ -231,7 +228,23 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
     }
 #endif
 
-    /* Trigger the connection */
+    /* Notify the application that a new WriterGroup was created.
+     * This may internally adjust the config */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, wg->head.identifier,
+                                       UA_PUBSUBCOMPONENT_WRITERGROUP, false);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_WriterGroup_remove(psm, wg);
+            return res;
+        }
+    }
+
+    UA_LOG_INFO_PUBSUB(psm->logging, wg, "WriterGroup created (State: %s)",
+                       UA_PubSubState_name(wg->head.state));
+
+    /* Trigger the connection as it might open a connection for the WG */
     UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
     /* Copying a numeric NodeId always succeeds */
@@ -241,9 +254,19 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
     return UA_STATUSCODE_GOOD;
 }
 
-void
+UA_StatusCode
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+
+    /* Check with the application if we can remove */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, wg->head.identifier,
+                                       UA_PUBSUBCOMPONENT_WRITERGROUP, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
     UA_PubSubConnection *connection = wg->linkedConnection;
     UA_assert(connection);
@@ -291,6 +314,8 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 
     /* Update the connection state */
     UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode

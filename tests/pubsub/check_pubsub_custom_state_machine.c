@@ -119,6 +119,31 @@ writerGroupStateMachine(UA_Server *server, const UA_NodeId componentId,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Add the custom state machine to the writer group */
+static UA_StatusCode
+testComponentLifecycleCallback(UA_Server *server, const UA_NodeId id,
+                               const UA_PubSubComponentType componentType,
+                               UA_Boolean remove) {
+    if(remove)
+        return UA_STATUSCODE_GOOD;
+    if(componentType != UA_PUBSUBCOMPONENT_WRITERGROUP)
+        return UA_STATUSCODE_GOOD;
+
+    printf("XXX Set the custom state machine for the new WriterGroup\n");
+
+    UA_WriterGroupConfig c;
+    UA_StatusCode res = UA_Server_getWriterGroupConfig(server, id, &c);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    c.customStateMachine = writerGroupStateMachine;
+    res = UA_Server_updateWriterGroupConfig(server, id, &c);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_WriterGroupConfig_clear(&c);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 START_TEST(CustomPublisher) {
     /* Prepare the values */
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
@@ -127,6 +152,9 @@ START_TEST(CustomPublisher) {
         dvStore[i].hasValue = true;
         dvPointers[i] = &dvStore[i];
     }
+
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->pubSubConfig.componentLifecycleCallback = testComponentLifecycleCallback;
 
     /* Initialize the timer */
     struct sigevent sigev;
@@ -171,7 +199,6 @@ START_TEST(CustomPublisher) {
     writerGroupConfig.publishingInterval = PUBSUB_CONFIG_PUBLISH_CYCLE_MS;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.customStateMachine = writerGroupStateMachine;
 
     /* Change message settings of writerGroup to send PublisherId, WriterGroupId
      * in GroupHeader and DataSetWriterId in PayloadHeader of NetworkMessage */
@@ -383,57 +410,6 @@ connectionStateMachine(UA_Server *server, const UA_NodeId componentId,
     }
 
     return UA_STATUSCODE_GOOD;
-}
-
-/* If the external data source is written over the information model, the
- * externalDataWriteCallback will be triggered. The user has to take care and assure
- * that the write leads not to synchronization issues and race conditions. */
-static UA_StatusCode
-externalDataWriteCallback(UA_Server *server, const UA_NodeId *sessionId,
-                          void *sessionContext, const UA_NodeId *nodeId,
-                          void *nodeContext, const UA_NumericRange *range,
-                          const UA_DataValue *data){
-    //node values are updated by using variables in the memory
-    //UA_Server_write is not used for updating node values.
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-externalDataReadNotificationCallback(UA_Server *server, const UA_NodeId *sessionId,
-                                     void *sessionContext, const UA_NodeId *nodeid,
-                                     void *nodeContext, const UA_NumericRange *range){
-    //allow read without any preparation
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-subscribeAfterWriteCallback(UA_Server *server, const UA_NodeId *dataSetReaderId,
-                            const UA_NodeId *readerGroupId,
-                            const UA_NodeId *targetVariableId,
-                            void *targetVariableContext,
-                            UA_DataValue **externalDataValue) {
-    (void) server;
-    (void) dataSetReaderId;
-    (void) readerGroupId;
-    (void) targetVariableContext;
-
-    ck_assert(targetVariableId != 0);
-    ck_assert(externalDataValue != 0);
-}
-
-/* Callback gets triggered before subscriber has received data received data
- * hasn't been copied/handled yet */
-static void
-subscribeBeforeWriteCallback(UA_Server *server, const UA_NodeId *dataSetReaderId,
-                             const UA_NodeId *readerGroupId, const UA_NodeId *targetVariableId,
-                             void *targetVariableContext, UA_DataValue **externalDataValue) {
-    (void) server;
-    (void) dataSetReaderId;
-    (void) readerGroupId;
-    (void) targetVariableContext;
-
-    ck_assert(targetVariableId != 0);
-    ck_assert(externalDataValue != 0);
 }
 
 /* Define MetaData for TargetVariables */

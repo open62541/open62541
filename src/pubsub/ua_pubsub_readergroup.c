@@ -147,6 +147,19 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
         return retval;
     }
 
+    /* Notify the application that a new ReaderGroup was created.
+     * This may internally adjust the config */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        retval = server->config.pubSubConfig.
+            componentLifecycleCallback(server, newGroup->head.identifier,
+                                       UA_PUBSUBCOMPONENT_READERGROUP, false);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_ReaderGroup_remove(psm, newGroup);
+            return retval;
+        }
+    }
+
     /* Trigger the connection */
     UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
@@ -157,12 +170,22 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
     return UA_STATUSCODE_GOOD;
 }
 
-void
+UA_StatusCode
 UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PubSubConnection *connection = rg->linkedConnection;
     UA_assert(connection);
+
+    /* Check with the application if we can remove */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, rg->head.identifier,
+                                       UA_PUBSUBCOMPONENT_READERGROUP, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
     /* Disable (and disconnect) and set the deleteFlag. This prevents a
      * reconnect and triggers the deletion when the last open socket is
@@ -207,6 +230,8 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
 
     /* Update the connection state */
     UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode

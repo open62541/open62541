@@ -263,6 +263,19 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
                 dsw->head.identifier);
     dsw->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
+    /* Notify the application that a new Writer was created.
+     * This may internally adjust the config */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, dsw->head.identifier,
+                                       UA_PUBSUBCOMPONENT_DATASETWRITER, false);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_DataSetWriter_remove(psm, dsw);
+            return res;
+        }
+    }
+
     UA_LOG_INFO_PUBSUB(psm->logging, dsw,
                        "DataSetWriter created (State: %s)",
                        UA_PubSubState_name(dsw->head.state));
@@ -282,9 +295,19 @@ UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
     /* Check if the WriterGroup is enabled. Disallow removal in that case. */
     if(UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                              "Removal of DataSetWriter not possible while "
-                              "the WriterGroup with realtime options is enabled");
+                              "Removal of the DataSetWriter not possible while "
+                              "the WriterGroup is enabled");
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Check with the application if we can remove */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, dsw->head.identifier,
+                                       UA_PUBSUBCOMPONENT_DATASETWRITER, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
     /* Disable and signal to the application */

@@ -109,6 +109,29 @@ writerGroupStateMachine(UA_Server *server, const UA_NodeId componentId,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Intercept the creation of a new WriterGroup and update the config. We set the
+ * custom state machine to control our own timer interrupts for the
+ * WriterGroup. */
+static UA_StatusCode
+testComponentLifecycleCallback(UA_Server *server, const UA_NodeId id,
+                               const UA_PubSubComponentType componentType,
+                               UA_Boolean remove) {
+    if(remove)
+        return UA_STATUSCODE_GOOD;
+    if(componentType != UA_PUBSUBCOMPONENT_WRITERGROUP)
+        return UA_STATUSCODE_GOOD;
+
+    printf("XXX Set the custom state machine for the new WriterGroup\n");
+
+    UA_WriterGroupConfig c;
+    UA_Server_getWriterGroupConfig(server, id, &c);
+    c.customStateMachine = writerGroupStateMachine;
+    UA_Server_updateWriterGroupConfig(server, id, &c);
+    UA_WriterGroupConfig_clear(&c);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 int main(void) {
     /* Prepare the values */
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
@@ -127,6 +150,10 @@ int main(void) {
 
     /* Initialize the server */
     server = UA_Server_new();
+
+    /* Set the PubSub-Component lifecycle callback */
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->pubSubConfig.componentLifecycleCallback = testComponentLifecycleCallback;
 
     /* Add a PubSubConnection */
     UA_PubSubConnectionConfig connectionConfig;
@@ -164,7 +191,6 @@ int main(void) {
     writerGroupConfig.publishingInterval = PUBSUB_CONFIG_PUBLISH_CYCLE_MS;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.customStateMachine = writerGroupStateMachine;
 
     /* Change message settings of writerGroup to send PublisherId, WriterGroupId
      * in GroupHeader and DataSetWriterId in PayloadHeader of NetworkMessage */
