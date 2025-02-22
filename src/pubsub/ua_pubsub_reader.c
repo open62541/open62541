@@ -347,12 +347,18 @@ UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg) {
 
 void
 UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
-                                UA_PubSubState targetState,
-                                UA_StatusCode errorReason) {
+                                UA_PubSubState targetState, UA_StatusCode errorReason) {
     UA_ReaderGroup *rg = dsr->linkedReaderGroup;
     UA_assert(rg);
 
+    /* Callback to modify the WriterGroup config and change the targetState
+     * before the state machine executes */
     UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.beforeStateChangeCallback) {
+        server->config.pubSubConfig.
+            beforeStateChangeCallback(server, dsr->head.identifier, &targetState);
+    }
+
     UA_PubSubState oldState = dsr->head.state;
 
     /* Custom state machine */

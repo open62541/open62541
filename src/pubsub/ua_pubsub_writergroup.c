@@ -386,11 +386,18 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Callback to modify the WriterGroup config and change the targetState
+     * before the state machine executes */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.beforeStateChangeCallback) {
+        server->config.pubSubConfig.
+            beforeStateChangeCallback(server, wg->head.identifier, &targetState);
+    }
+
     /* Are we doing a top-level state update or recursively? */
     UA_Boolean isTransient = wg->head.transientState;
     wg->head.transientState = true;
 
-    UA_Server *server = psm->sc.server;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = wg->head.state;
     UA_PubSubConnection *connection = wg->linkedConnection;

@@ -162,11 +162,15 @@ UA_PublisherId_toVariant(const UA_PublisherId *p, UA_Variant *dst);
  */
 
 typedef struct {
-    /* Callback for PubSub component state changes: If provided this callback
-     * informs the application about PubSub component state changes. E.g. state
-     * change from operational to error in case of a DataSetReader
-     * MessageReceiveTimeout. The status code provides additional
-     * information. */
+    /* Executed first thing in the state machine. The component config can be
+     * modified from within the beforeStateChangeCallback if the component is
+     * not enabled. Also the TargetState can be changed. For example to prevent
+     * the component from getting enabled. */
+    void (*beforeStateChangeCallback)(UA_Server *server, const UA_NodeId id,
+                                      UA_PubSubState *targetState);
+
+    /* Callback to notify the application about PubSub component state changes.
+     * The status code provides additional information. */
     void (*stateChangeCallback)(UA_Server *server, const UA_NodeId id,
                                 UA_PubSubState state, UA_StatusCode status);
 
