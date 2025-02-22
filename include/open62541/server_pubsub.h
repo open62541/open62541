@@ -261,6 +261,13 @@ typedef struct {
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
 } UA_PubSubConnectionConfig;
 
+UA_EXPORT UA_StatusCode
+UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
+                               UA_PubSubConnectionConfig *dst);
+
+UA_EXPORT void
+UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *cfg);
+
 /* Add a new PubSub connection to the given server and open it.
  * @param server The server to add the connection to.
  * @param connectionConfig The configuration for the newly added connection.

@@ -259,10 +259,6 @@ typedef struct UA_PubSubConnection {
     UA_DelayedCallback dc; /* For delayed freeing */
 } UA_PubSubConnection;
 
-UA_StatusCode
-UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
-                               UA_PubSubConnectionConfig *dst);
-
 UA_PubSubConnection *
 UA_PubSubConnection_find(UA_PubSubManager *psm, const UA_NodeId id);
 
@@ -270,9 +266,6 @@ UA_StatusCode
 UA_PubSubConnection_create(UA_PubSubManager *psm,
                            const UA_PubSubConnectionConfig *connectionConfig,
                            UA_NodeId *connectionIdentifier);
-
-void
-UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 
 UA_StatusCode
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c);
