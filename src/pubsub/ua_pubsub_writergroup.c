@@ -82,6 +82,36 @@ UA_WriterGroup_removePublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) 
     wg->publishCallbackId = 0;
 }
 
+static UA_StatusCode
+validateWriterGroupConfig(UA_PubSubManager *psm, UA_PubSubComponentHead *logHead,
+                          const UA_WriterGroupConfig *config) {
+    const UA_ExtensionObject *ms = &config->messageSettings;
+    if(ms->encoding != UA_EXTENSIONOBJECT_DECODED ||
+       !ms->content.decoded.type) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
+                              "WriTerGroupConfig has no MessageSettings defined");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    if(config->encodingMimeType == UA_PUBSUB_ENCODING_JSON &&
+        ms->content.decoded.type != &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE]) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
+                              "WriTerGroupConfig MessageSettings need to be "
+                              "of type JSONWriterGroupMessageDataType");
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    if(config->encodingMimeType == UA_PUBSUB_ENCODING_UADP &&
+        ms->content.decoded.type != &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
+                              "WriTerGroupConfig MessageSettings need to be "
+                              "of type UADPWriterGroupMessageDataType");
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
                       const UA_WriterGroupConfig *writerGroupConfig,
@@ -97,20 +127,9 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
         return UA_STATUSCODE_BADNOTFOUND;
 
     /* Validate messageSettings type */
-    const UA_ExtensionObject *ms = &writerGroupConfig->messageSettings;
-    if(ms->content.decoded.type) {
-        if(writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_JSON &&
-           (ms->encoding != UA_EXTENSIONOBJECT_DECODED ||
-            ms->content.decoded.type != &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE])) {
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        }
-
-        if(writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_UADP &&
-           (ms->encoding != UA_EXTENSIONOBJECT_DECODED ||
-            ms->content.decoded.type != &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        }
-    }
+    UA_StatusCode res = validateWriterGroupConfig(psm, &c->head, writerGroupConfig);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Allocate new WriterGroup */
     UA_WriterGroup *newWriterGroup = (UA_WriterGroup*)UA_calloc(1, sizeof(UA_WriterGroup));
@@ -122,19 +141,10 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 
     /* Deep copy of the config */
     UA_WriterGroupConfig *newConfig = &newWriterGroup->config;
-    UA_StatusCode res = UA_WriterGroupConfig_copy(writerGroupConfig, newConfig);
+    res = UA_WriterGroupConfig_copy(writerGroupConfig, newConfig);
     if(res != UA_STATUSCODE_GOOD) {
         UA_free(newWriterGroup);
         return res;
-    }
-
-    /* Create the datatype value if not present */
-    if(!newConfig->messageSettings.content.decoded.type) {
-        UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
-        newConfig->messageSettings.content.decoded.data = wgm;
-        newConfig->messageSettings.content.decoded.type =
-            &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-        newConfig->messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     }
 
     /* Attach to the connection */
