@@ -119,6 +119,88 @@ UA_DataSetReader_find(UA_PubSubManager *psm, const UA_NodeId id) {
     return NULL;
 }
 
+static UA_StatusCode
+validateDSRConfig(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
+    /* Check if used dataSet metaData is valid in context of the rest of the config */
+    if(dsr->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_RAWDATA) {
+        for(size_t i = 0; i < dsr->config.dataSetMetaData.fieldsSize; i++) {
+            const UA_FieldMetaData *field = &dsr->config.dataSetMetaData.fields[i];
+            if((field->builtInType == UA_NS0ID_STRING || field->builtInType == UA_NS0ID_BYTESTRING) &&
+               field->maxStringLength == 0) {
+                /* Fields of type String or ByteString need to have defined
+                 * MaxStringLength*/
+                UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
+                                    "Add DataSetReader failed. MaxStringLength must be "
+                                    "set in MetaData when using RawData field encoding.");
+                return UA_STATUSCODE_BADCONFIGURATIONERROR;
+            }
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Connect to StandaloneSubscribedDataSet if a name is defined */
+static UA_StatusCode
+connectDSR2Standalone(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
+    /* Check if a sds name is defined */
+    const UA_String sdsName = dsr->config.linkedStandaloneSubscribedDataSetName;
+    if(UA_String_isEmpty(&sdsName))
+        return UA_STATUSCODE_GOOD;
+
+    UA_SubscribedDataSet *sds = UA_SubscribedDataSet_findByName(psm, sdsName);
+    if(!sds)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    /* Already connected? */
+    if(sds->connectedReader) {
+        if(sds->connectedReader != dsr)
+            UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
+                                "Configured StandaloneSubscribedDataSet already "
+                                "connected to a different DataSetReader");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Check supported type */
+    if(sds->config.subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
+                            "Not implemented! Currently only SubscribedDataSet as "
+                            "TargetVariables is implemented");
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    }
+
+    UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "Connecting SubscribedDataSet");
+
+    /* Copy the metadata from the sds */
+    UA_DataSetMetaDataType metaData;
+    UA_StatusCode res = UA_DataSetMetaDataType_copy(&sds->config.dataSetMetaData, &metaData);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Prepare the input for _createTargetVariables and call it */
+    UA_TargetVariablesDataType *tvs = &sds->config.subscribedDataSet.target;
+    res = DataSetReader_createTargetVariables(psm, dsr, tvs->targetVariablesSize,
+                                              tvs->targetVariables);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_DataSetMetaDataType_clear(&metaData);
+        return res;
+    }
+
+    /* Use the metadata from the sds */
+    UA_DataSetMetaDataType_clear(&dsr->config.dataSetMetaData);
+    dsr->config.dataSetMetaData = metaData;
+
+    /* Set the backpointer from the sds */
+    sds->connectedReader = dsr;
+
+    /* Make the connection visible in the information model */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    return connectDataSetReaderToDataSet(psm->sc.server, dsr->head.identifier,
+                                         sds->head.identifier);
+#else
+    return UA_STATUSCODE_GOOD;
+#endif
+}
+
 UA_StatusCode
 UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
                         const UA_DataSetReaderConfig *dataSetReaderConfig,
@@ -186,65 +268,23 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "%SDataSetReader %N\t| ",
-                dsr->linkedReaderGroup->head.logIdString,
-                dsr->head.identifier);
+                dsr->linkedReaderGroup->head.logIdString, dsr->head.identifier);
     dsr->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    /* Connect to StandaloneSubscribedDataSet if a name is defined */
-    const UA_String sdsName = dsr->config.linkedStandaloneSubscribedDataSetName;
-    UA_SubscribedDataSet *sds = (UA_String_isEmpty(&sdsName)) ?
-        NULL : UA_SubscribedDataSet_findByName(psm, sdsName);
-    if(sds) {
-        if(sds->config.subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
-            UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
-                                "Not implemented! Currently only SubscribedDataSet as "
-                                "TargetVariables is implemented");
-        } else if(sds->connectedReader) {
-            UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
-                                "SubscribedDataSet is already connected");
-        } else {
-            UA_LOG_DEBUG_PUBSUB(psm->logging, dsr,
-                                "Found SubscribedDataSet");
-
-            /* Use the MetaData from the sds */
-            UA_DataSetMetaDataType_clear(&dsr->config.dataSetMetaData);
-            UA_DataSetMetaDataType_copy(&sds->config.dataSetMetaData,
-                                        &dsr->config.dataSetMetaData);
-
-            /* Prepare the input for _createTargetVariables and call it */
-            UA_TargetVariablesDataType *tvs =
-                &sds->config.subscribedDataSet.target;
-            DataSetReader_createTargetVariables(psm, dsr, tvs->targetVariablesSize,
-                                                tvs->targetVariables);
-
-            sds->connectedReader = dsr; /* Set the backpointer */
-
-            /* Make the connection visible in the information model */
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-            connectDataSetReaderToDataSet(psm->sc.server, dsr->head.identifier,
-                                          sds->head.identifier);
-#endif
-        }
+    /* Connect to StandaloneSubscribedDataSet if a name is defined. Needs to be
+     * added in the information model first, as this adds references to the
+     * StandaloneSubscribedDataSet. */
+    retVal = connectDSR2Standalone(psm, dsr);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_DataSetReader_remove(psm, dsr);
+        return retVal;
     }
 
-    /* Check if used dataSet metaData is valid in context of the rest of the config */
-    if(dsr->config.dataSetFieldContentMask & UA_DATASETFIELDCONTENTMASK_RAWDATA) {
-        for(size_t fieldIdx = 0;
-            fieldIdx < dsr->config.dataSetMetaData.fieldsSize; fieldIdx++) {
-            const UA_FieldMetaData *field =
-                &dsr->config.dataSetMetaData.fields[fieldIdx];
-            if((field->builtInType == UA_NS0ID_STRING ||
-                field->builtInType == UA_NS0ID_BYTESTRING) &&
-               field->maxStringLength == 0) {
-                /* Fields of type String or ByteString need to have defined
-                 * MaxStringLength*/
-                UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
-                                    "Add DataSetReader failed. MaxStringLength must be "
-                                    "set in MetaData when using RawData field encoding.");
-                UA_DataSetReader_remove(psm, dsr);
-                return UA_STATUSCODE_BADCONFIGURATIONERROR;
-            }
-        }
+    /* Validate the config */
+    retVal = validateDSRConfig(psm, dsr);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_DataSetReader_remove(psm, dsr);
+        return retVal;
     }
 
     /* Notify the application that a new Reader was created.
