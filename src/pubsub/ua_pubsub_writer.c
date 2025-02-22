@@ -874,7 +874,7 @@ UA_Server_updateDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
 
     if(UA_PubSubState_isEnabled(dsw->head.state)) {
         UA_LOG_ERROR_PUBSUB(psm->logging, dsw,
-                            "The DataSetWriter must be disabled to uodate the config");
+                            "The DataSetWriter must be disabled to update the config");
         unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }

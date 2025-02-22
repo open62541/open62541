@@ -990,7 +990,7 @@ UA_Server_updatePubSubConnectionConfig(UA_Server *server,
     /* Verify the connection is disabled */
     if(UA_PubSubState_isEnabled(c->head.state)) {
         UA_LOG_ERROR_PUBSUB(psm->logging, c,
-                            "The PubSubConnection must be disabled to uodate the config");
+                            "The PubSubConnection must be disabled to update the config");
         unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
