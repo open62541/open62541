@@ -467,6 +467,11 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
                                UA_WriterGroupConfig *config);
 
+/* The WriterGroup must be disabled to update the config */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
+                                  const UA_WriterGroupConfig *config);
+
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getWriterGroupState(UA_Server *server, const UA_NodeId wgId,
                               UA_PubSubState *state);
