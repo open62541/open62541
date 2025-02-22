@@ -139,6 +139,26 @@ validateDSRConfig(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
     return UA_STATUSCODE_GOOD;
 }
 
+static void
+disconnectDSR2Standalone(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
+    /* Check if a sds name is defined */
+    const UA_String sdsName = dsr->config.linkedStandaloneSubscribedDataSetName;
+    if(UA_String_isEmpty(&sdsName))
+        return;
+
+    UA_SubscribedDataSet *sds = UA_SubscribedDataSet_findByName(psm, sdsName);
+    if(!sds)
+        return;
+
+    /* Remove the backpointer from the sds */
+    sds->connectedReader = NULL;
+
+    /* Remove the references in the information model */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    disconnectDataSetReaderToDataSet(psm->sc.server, dsr->head.identifier);
+#endif
+}
+
 /* Connect to StandaloneSubscribedDataSet if a name is defined */
 static UA_StatusCode
 connectDSR2Standalone(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
@@ -846,6 +866,62 @@ UA_Server_setDataSetReaderTargetVariables(UA_Server *server, const UA_NodeId dsr
                                             targetVariables) : UA_STATUSCODE_BADNOTFOUND;
     unlockServer(server);
     return res;
+}
+
+UA_StatusCode
+UA_Server_updateDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
+                                    const UA_DataSetReaderConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
+    if(!dsr) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(UA_PubSubState_isEnabled(dsr->head.state)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
+                            "The DataSetReader must be disabled to update the config");
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Store the old config */
+    UA_DataSetReaderConfig oldConfig = dsr->config;
+
+    /* Copy the config into the new dataSetReader */
+    UA_StatusCode retVal = UA_DataSetReaderConfig_copy(config, &dsr->config);
+    if(retVal != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Change the connection to a StandaloneSubscribedDataSet */
+    if(!UA_String_equal(&dsr->config.linkedStandaloneSubscribedDataSetName,
+                        &oldConfig.linkedStandaloneSubscribedDataSetName)) {
+        disconnectDSR2Standalone(psm, dsr);
+        retVal = connectDSR2Standalone(psm, dsr);
+        if(retVal != UA_STATUSCODE_GOOD)
+            goto errout;
+    }
+
+    /* Validate the new config */
+    retVal = validateDSRConfig(psm, dsr);
+    if(retVal != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Clean up and return */
+    UA_DataSetReaderConfig_clear(&oldConfig);
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+
+    /* Fall back to the old config */
+ errout:
+    UA_DataSetReaderConfig_clear(&dsr->config);
+    dsr->config = oldConfig;
+    unlockServer(server);
+    return retVal;
 }
 
 #endif /* UA_ENABLE_PUBSUB */

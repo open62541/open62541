@@ -715,6 +715,9 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
 UA_StatusCode
 connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId sdsId);
 
+void
+disconnectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId);
+
 #ifdef UA_ENABLE_PUBSUB_SKS
 UA_StatusCode
 addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGroup);
