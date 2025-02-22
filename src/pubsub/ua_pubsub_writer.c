@@ -82,7 +82,14 @@ UA_DataSetWriter_unfreezeConfiguration(UA_DataSetWriter *dsw) {
 UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                                 UA_PubSubState targetState) {
+    /* Callback to modify the WriterGroup config and change the targetState
+     * before the state machine executes */
     UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.beforeStateChangeCallback) {
+        server->config.pubSubConfig.
+            beforeStateChangeCallback(server, dsw->head.identifier, &targetState);
+    }
+
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = dsw->head.state;
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
