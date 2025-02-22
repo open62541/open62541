@@ -114,11 +114,11 @@ validateWriterGroupConfig(UA_PubSubManager *psm, UA_PubSubComponentHead *logHead
 
 UA_StatusCode
 UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
-                      const UA_WriterGroupConfig *writerGroupConfig,
+                      const UA_WriterGroupConfig *config,
                       UA_NodeId *writerGroupIdentifier) {
     /* Delete the reserved IDs if the related session no longer exists. */
     UA_PubSubManager_freeIds(psm);
-    if(!writerGroupConfig)
+    if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Search the connection by the given connectionIdentifier */
@@ -127,88 +127,85 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
         return UA_STATUSCODE_BADNOTFOUND;
 
     /* Validate messageSettings type */
-    UA_StatusCode res = validateWriterGroupConfig(psm, &c->head, writerGroupConfig);
+    UA_StatusCode res = validateWriterGroupConfig(psm, &c->head, config);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
     /* Allocate new WriterGroup */
-    UA_WriterGroup *newWriterGroup = (UA_WriterGroup*)UA_calloc(1, sizeof(UA_WriterGroup));
-    if(!newWriterGroup)
+    UA_WriterGroup *wg = (UA_WriterGroup*)UA_calloc(1, sizeof(UA_WriterGroup));
+    if(!wg)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    newWriterGroup->head.componentType = UA_PUBSUBCOMPONENT_WRITERGROUP;
-    newWriterGroup->linkedConnection = c;
+    wg->head.componentType = UA_PUBSUBCOMPONENT_WRITERGROUP;
+    wg->linkedConnection = c;
 
     /* Deep copy of the config */
-    UA_WriterGroupConfig *newConfig = &newWriterGroup->config;
-    res = UA_WriterGroupConfig_copy(writerGroupConfig, newConfig);
+    res = UA_WriterGroupConfig_copy(config, &wg->config);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_free(newWriterGroup);
+        UA_free(wg);
         return res;
     }
 
     /* Attach to the connection */
-    LIST_INSERT_HEAD(&c->writerGroups, newWriterGroup, listEntry);
+    LIST_INSERT_HEAD(&c->writerGroups, wg, listEntry);
     c->writerGroupsSize++;
 
     /* Add representation / create unique identifier */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    res = addWriterGroupRepresentation(psm->sc.server, newWriterGroup);
+    res = addWriterGroupRepresentation(psm->sc.server, wg);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_WriterGroup_remove(psm, newWriterGroup);
+        UA_WriterGroup_remove(psm, wg);
         return res;
     }
 #else
-    UA_PubSubManager_generateUniqueNodeId(psm, &newWriterGroup->head.identifier);
+    UA_PubSubManager_generateUniqueNodeId(psm, &wg->head.identifier);
 #endif
 
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "%SWriterGroup %N\t| ",
-                c->head.logIdString, newWriterGroup->head.identifier);
-    newWriterGroup->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+                c->head.logIdString, wg->head.identifier);
+    wg->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(psm->logging, newWriterGroup,
-                       "WriterGroup created (State: %s)",
-                       UA_PubSubState_name(newWriterGroup->head.state));
+    UA_LOG_INFO_PUBSUB(psm->logging, wg, "WriterGroup created (State: %s)",
+                       UA_PubSubState_name(wg->head.state));
 
     /* Validate the connection settings */
-    res = UA_WriterGroup_connect(psm, newWriterGroup, true);
+    res = UA_WriterGroup_connect(psm, wg, true);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(psm->logging, newWriterGroup,
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
                             "Could not validate the connection parameters");
-        UA_WriterGroup_remove(psm, newWriterGroup);
+        UA_WriterGroup_remove(psm, wg);
         return res;
     }
 
 #ifdef UA_ENABLE_PUBSUB_SKS
-    if(writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        if(!UA_String_isEmpty(&writerGroupConfig->securityGroupId) &&
-           writerGroupConfig->securityPolicy) {
+    if(config->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       config->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        if(!UA_String_isEmpty(&config->securityGroupId) &&
+           config->securityPolicy) {
             /* Does the key storage already exist? */
-            newWriterGroup->keyStorage =
-                UA_PubSubKeyStorage_find(psm, writerGroupConfig->securityGroupId);
+            wg->keyStorage = UA_PubSubKeyStorage_find(psm, config->securityGroupId);
 
-            if(!newWriterGroup->keyStorage) {
+            if(!wg->keyStorage) {
                 /* Create a new key storage */
-                newWriterGroup->keyStorage = (UA_PubSubKeyStorage *)
+                wg->keyStorage = (UA_PubSubKeyStorage *)
                     UA_calloc(1, sizeof(UA_PubSubKeyStorage));
-                if(!newWriterGroup->keyStorage) {
-                    UA_WriterGroup_remove(psm, newWriterGroup);
+                if(!wg->keyStorage) {
+                    UA_WriterGroup_remove(psm, wg);
                     return UA_STATUSCODE_BADOUTOFMEMORY;
                 }
-                res = UA_PubSubKeyStorage_init(psm, newWriterGroup->keyStorage,
-                                               &writerGroupConfig->securityGroupId,
-                                               writerGroupConfig->securityPolicy, 0, 0);
+                res = UA_PubSubKeyStorage_init(psm, wg->keyStorage,
+                                               &config->securityGroupId,
+                                               config->securityPolicy, 0, 0);
                 if(res != UA_STATUSCODE_GOOD) {
-                    UA_WriterGroup_remove(psm, newWriterGroup);
+                    UA_WriterGroup_remove(psm, wg);
                     return res;
                 }
             }
 
             /* Increase the ref count */
-            newWriterGroup->keyStorage->referenceCount++;
+            wg->keyStorage->referenceCount++;
         }
     }
 
@@ -219,7 +216,7 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 
     /* Copying a numeric NodeId always succeeds */
     if(writerGroupIdentifier)
-        UA_NodeId_copy(&newWriterGroup->head.identifier, writerGroupIdentifier);
+        UA_NodeId_copy(&wg->head.identifier, writerGroupIdentifier);
 
     return UA_STATUSCODE_GOOD;
 }
