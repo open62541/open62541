@@ -1425,7 +1425,7 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
 
     if(UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg,
-                            "The WriterGroup must be disabled to uodate the config");
+                            "The WriterGroup must be disabled to update the config");
         unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
