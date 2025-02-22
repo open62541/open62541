@@ -939,4 +939,57 @@ UA_Server_processPubSubConnectionReceive(UA_Server *server,
     return res;
 }
 
+UA_StatusCode
+UA_Server_updatePubSubConnectionConfig(UA_Server *server,
+                                       const UA_NodeId connectionId,
+                                       const UA_PubSubConnectionConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    /* Find the connection */
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
+    if(!c) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    /* Verify the connection is disabled */
+    if(UA_PubSubState_isEnabled(c->head.state)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c,
+                            "The PubSubConnection must be disabled to uodate the config");
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Store the old config */
+    UA_PubSubConnectionConfig oldConfig = c->config;
+    memset(&c->config, 0, sizeof(UA_PubSubConnectionConfig));
+
+    /* Copy the connection config */
+    UA_StatusCode res = UA_PubSubConnectionConfig_copy(config, &c->config);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Validate-connect to check the parameters */
+    res = UA_PubSubConnection_connect(psm, c, true);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "The connection parameters did not validate");
+        goto errout;
+    }
+
+    UA_PubSubConnectionConfig_clear(&oldConfig);
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+
+ errout:
+    /* Restore the old config */
+    UA_PubSubConnectionConfig_clear(&c->config);
+    c->config = oldConfig;
+    unlockServer(server);
+    return res;
+}
+
 #endif /* UA_ENABLE_PUBSUB */
