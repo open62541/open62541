@@ -1455,18 +1455,22 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
     }
 
 #ifdef UA_ENABLE_PUBSUB_SKS
-    /* Attach keystorage if not added before */
-    if(wg->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       wg->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        res = writerGroupAttachSKSKeystorage(psm, wg);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Attaching the SKS KeyStorage failed");
-            goto errout;
+    if(!UA_String_equal(&wg->config.securityGroupId, &oldConfig.securityGroupId) ||
+       wg->config.securityMode != oldConfig.securityMode) {
+        /* Detach keystorage and reattach if needed */
+        if(wg->keyStorage) {
+            UA_PubSubKeyStorage_detachKeyStorage(psm, wg->keyStorage);
+            wg->keyStorage = NULL;
         }
-    } else if(wg->keyStorage) {
-        /* Detach keystorage if defined but not needed */
-        UA_PubSubKeyStorage_detachKeyStorage(psm, wg->keyStorage);
-        wg->keyStorage = NULL;
+        if(wg->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+           wg->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+            res = writerGroupAttachSKSKeystorage(psm, wg);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                                    "Attaching the SKS KeyStorage failed");
+                goto errout;
+            }
+        }
     }
 #endif
 
@@ -1474,9 +1478,8 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
      * _DISABLED. */
     UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
 
-    /* Clear the old config */
+    /* Clean up and return */
     UA_WriterGroupConfig_clear(&oldConfig);
-
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
 
