@@ -1371,6 +1371,84 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
 }
 
 UA_StatusCode
+UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
+                                  const UA_WriterGroupConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    if(!wg) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(UA_PubSubState_isEnabled(wg->head.state)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                            "The WriterGroup must be disabled to uodate the config");
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Validate the new configuration */
+    UA_StatusCode res = validateWriterGroupConfig(psm, &wg->head, config);
+    if(res != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return res;
+    }
+
+    /* Store the old configuration */
+    UA_WriterGroupConfig oldConfig = wg->config;
+    memset(&wg->config, 0, sizeof(UA_WriterGroupConfig));
+
+    /* Deep copy the new config */
+    res = UA_WriterGroupConfig_copy(config, &wg->config);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Validate the connection settings */
+    res = UA_WriterGroup_connect(psm, wg, true);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                            "Could not validate the connection parameters");
+        goto errout;
+    }
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    /* Attach keystorage if not added before */
+    if(wg->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       wg->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        res = writerGroupAttachSKSKeystorage(psm, wg);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Attaching the SKS KeyStorage failed");
+            goto errout;
+        }
+    } else if(wg->keyStorage) {
+        /* Detach keystorage if defined but not needed */
+        UA_PubSubKeyStorage_detachKeyStorage(psm, wg->keyStorage);
+        wg->keyStorage = NULL;
+    }
+#endif
+
+    /* Call the state-machine. This can move the wg state from _ERROR to
+     * _DISABLED. */
+    UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
+
+    /* Clear the old config */
+    UA_WriterGroupConfig_clear(&oldConfig);
+
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+
+ errout:
+    UA_WriterGroupConfig_clear(&wg->config);
+    wg->config = oldConfig; /* Restore the old config */
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
 UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
                                         const UA_NodeId writerGroupId,
                                         UA_PubSubOffsetTable *ot) {
