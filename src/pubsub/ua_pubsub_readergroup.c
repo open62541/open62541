@@ -57,6 +57,46 @@ UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
     UA_ExtensionObject_clear(&readerGroupConfig->transportSettings);
 }
 
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+static UA_StatusCode
+readerGroupAttachSKSKeystorage(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
+    /* No SecurityGroup defined */
+    if(UA_String_isEmpty(&rgc->securityGroupId) || !rgc->securityPolicy)
+        return UA_STATUSCODE_GOOD;
+
+    /* KeyStorage already connected */
+    if(rg->keyStorage)
+        return UA_STATUSCODE_GOOD;
+
+    /* Does the key storage already exist? */
+    rg->keyStorage = UA_PubSubKeyStorage_find(psm, rgc->securityGroupId);
+    if(rg->keyStorage) {
+        rg->keyStorage->referenceCount++; /* Increase the ref count */
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Create a new key storage */
+    rg->keyStorage = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+    if(!rg->keyStorage)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Initialize the KeyStorage */
+    UA_StatusCode res =
+        UA_PubSubKeyStorage_init(psm, newGroup->keyStorage, &rg->config.securityGroupId,
+                                 rg->config.securityPolicy, 0, 0);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_PubSubKeyStorage_delete(psm, rg->keyStorage);
+        rg->keyStorage = NULL;
+        return res;
+    }
+
+    /* Increase the ref count */
+    rg->keyStorage->referenceCount++;
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 UA_StatusCode
 UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
                       const UA_ReaderGroupConfig *rgc,
@@ -89,32 +129,15 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
     LIST_INSERT_HEAD(&c->readerGroups, newGroup, listEntry);
     c->readerGroupsSize++;
 
+    /* Attach SKS Keystorage */
 #ifdef UA_ENABLE_PUBSUB_SKS
     if(rgc->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        rgc->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        if(!UA_String_isEmpty(&rgc->securityGroupId) && rgc->securityPolicy) {
-            /* Does the key storage already exist? */
-            newGroup->keyStorage = UA_PubSubKeyStorage_find(psm, rgc->securityGroupId);
-
-            if(!newGroup->keyStorage) {
-                /* Create a new key storage */
-                newGroup->keyStorage = (UA_PubSubKeyStorage *)
-                    UA_calloc(1, sizeof(UA_PubSubKeyStorage));
-                if(!newGroup->keyStorage) {
-                    UA_ReaderGroup_remove(psm, newGroup);
-                    return UA_STATUSCODE_BADOUTOFMEMORY;
-                }
-                retval = UA_PubSubKeyStorage_init(psm, newGroup->keyStorage,
-                                                  &rgc->securityGroupId,
-                                                  rgc->securityPolicy, 0, 0);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_ReaderGroup_remove(psm, newGroup);
-                    return retval;
-                }
-            }
-
-            /* Increase the ref count */
-            newGroup->keyStorage->referenceCount++;
+        retval = readerGroupAttachSKSKeystorage(psm, rg);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, rg, "Attaching the SKS KeyStorage failed");
+            UA_ReaderGroup_remove(psm, rg);
+            return res;
         }
     }
 #endif
