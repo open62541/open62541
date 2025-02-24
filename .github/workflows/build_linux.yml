@@ -98,7 +98,7 @@ jobs:
             cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
             cmd_action: build_clang_analyzer
     name: ${{matrix.build_name}}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v2
       with:
