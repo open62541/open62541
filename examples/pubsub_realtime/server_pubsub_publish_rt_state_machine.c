@@ -133,6 +133,39 @@ testComponentLifecycleCallback(UA_Server *server, const UA_NodeId id,
     return UA_STATUSCODE_GOOD;
 }
 
+/* It is invoked when a state change occurs before the state machine begins processing.
+ * At this stage, a final decision can be made on whether to use the
+ * custom state machine for the component. */
+static void
+beforePubSubStateChangeCallback(UA_Server *server,
+                               const UA_NodeId pubsubComponentId,
+                               UA_PubSubState *state) {
+    printf("State of the PubSubComponent '%u' changed to '%i'\n",
+           pubsubComponentId.identifier.numeric, *state);
+
+    /* Example code that removes the custom state machine from the WriterGroup */
+    // if(UA_NodeId_equal(&pubsubComponentId, &writerGroupIdent)) {
+    //     UA_WriterGroupConfig c;
+    //     UA_Server_getWriterGroupConfig(server, writerGroupIdent, &c);
+    //     /* Already updated */
+    //     if(c.customStateMachine == NULL)
+    //         return;
+    //     c.customStateMachine = NULL;
+    //     UA_Server_updateWriterGroupConfig(server, writerGroupIdent, &c);
+    // }
+
+}
+
+static void
+afterPubSubStateChangeCallback(UA_Server *server,
+                               const UA_NodeId pubsubComponentId,
+                               UA_PubSubState state,
+                               UA_StatusCode code) {
+    printf("State of the PubSubComponent '%u' changed to '%i' with StatusCode %s\n",
+           pubsubComponentId.identifier.numeric, state, UA_StatusCode_name(code));
+}
+
+
 int main(void) {
     /* Prepare the values */
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
@@ -155,6 +188,8 @@ int main(void) {
     /* Set the PubSub-Component lifecycle callback */
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     sc->pubSubConfig.componentLifecycleCallback = testComponentLifecycleCallback;
+    sc->pubSubConfig.beforeStateChangeCallback = beforePubSubStateChangeCallback;
+    sc->pubSubConfig.stateChangeCallback = afterPubSubStateChangeCallback;
 
     /* Add a PubSubConnection */
     UA_PubSubConnectionConfig connectionConfig;
