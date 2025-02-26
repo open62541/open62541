@@ -40,6 +40,7 @@ static UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, con
 UA_UInt32 valueStore[PUBSUB_CONFIG_FIELD_COUNT];
 UA_DataValue dvStore[PUBSUB_CONFIG_FIELD_COUNT];
 UA_DataValue *dvPointers[PUBSUB_CONFIG_FIELD_COUNT];
+UA_NodeId publishVariables[PUBSUB_CONFIG_FIELD_COUNT];
 
 static void
 valueUpdateCallback(UA_Server *server, void *data) {
@@ -179,8 +180,27 @@ int main(void) {
     /* Add DataSetFields with static value source to PDS */
     UA_DataSetFieldConfig dsfConfig;
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
-        /* TODO: Point to a variable in the information model */
+        /* Create the variable */
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed UInt32");
+        vAttr.dataType    = UA_TYPES[UA_TYPES_UINT32].typeId;
+        UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
+                                  UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
+                                  vAttr, NULL, &publishVariables[i]);
+
+        /* Set the value backend of the above create node to 'external value source' */
+        UA_ValueBackend valueBackend;
+        memset(&valueBackend, 0, sizeof(UA_ValueBackend));
+        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+        valueBackend.backend.external.value = &dvPointers[i];
+        UA_Server_setVariableNode_valueBackend(server, publishVariables[i], valueBackend);
+
+        /* Add the DataSetField */
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
+        dsfConfig.field.variable.publishParameters.publishedVariable = publishVariables[i];
+        dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 
@@ -213,7 +233,8 @@ int main(void) {
     memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 62541;
-    dataSetWriterConfig.keyFrameCount = 10;
+    /* Currently, delta-frames are not supported together with raw data
+     * dataSetWriterConfig.keyFrameCount = 10; */
     dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
 
     UA_UadpDataSetWriterMessageDataType uadpDataSetWriterMessageDataType;
