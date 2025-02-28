@@ -951,16 +951,15 @@ if(UA_ENABLE_XML_ENCODING)
             unset(LIBXML2_LIBRARIES)
             set(LIBXML2_LIBRARIES ${LIBXML2_LIBRARIES_32BIT})
         endif()
-        set(ua_architecture_directories_to_include
-            ${ua_architecture_directories_to_include}
-            ${LIBXML2_INCLUDE_DIRS})
         list(APPEND open62541_LIBRARIES ${LIBXML2_LIBRARIES})
     endif()
     if(NOT UA_ENABLE_JSON_ENCODING)
         list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/parse_num.h)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
     endif()
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/yxml.h)
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/yxml.c)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
 endif()
 
@@ -1383,6 +1382,10 @@ function(include_directories_private)
 endfunction()
 
 include_directories_private("${PROJECT_SOURCE_DIR}/deps")
+
+if(UA_ENABLE_XML_ENCODING)
+    include_directories_private(${LIBXML2_INCLUDE_DIRS})
+endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     include_directories_private(${MBEDTLS_INCLUDE_DIRS})
