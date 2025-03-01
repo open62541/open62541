@@ -501,17 +501,11 @@ ENCODE_XML(String) {
 
 /* Guid */
 ENCODE_XML(Guid) {
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    UA_ByteString hexBuf;
-    UA_ByteString_allocBuffer(&hexBuf, 36);
+    UA_Byte buf[36];
+    UA_ByteString hexBuf = {36, buf};
     UA_Guid_to_hex(src, hexBuf.data, false);
-
-    ret |= writeXmlElement(ctx, UA_XML_GUID_STRING,
-                           &hexBuf, &UA_TYPES[UA_TYPES_STRING]);
-
-    UA_ByteString_clear(&hexBuf);
-
-    return ret;
+    return writeXmlElement(ctx, UA_XML_GUID_STRING, &hexBuf,
+                           &UA_TYPES[UA_TYPES_STRING]);
 }
 
 /* DateTime */
