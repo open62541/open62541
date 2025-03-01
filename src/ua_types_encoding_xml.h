@@ -50,14 +50,6 @@ xml_result
 xml_tokenize(const char *xml, unsigned int len,
              xml_token *tokens, unsigned int max_tokens);
 
-/* XML schema type definitions */
-typedef struct {
-    const char* xmlEncTypeDef;
-    size_t xmlEncTypeDefLen;
-} XmlEncTypeDef;
-
-extern XmlEncTypeDef xmlEncTypeDefs[UA_DATATYPEKINDS];
-
 typedef struct {
     uint8_t *pos;
     const uint8_t *end;
@@ -70,55 +62,13 @@ typedef struct {
     const UA_DataTypeArray *customTypes;
 } CtxXml;
 
-typedef struct XmlData XmlData;
-
-typedef enum {
-    XML_DATA_TYPE_PRIMITIVE,
-    XML_DATA_TYPE_COMPLEX
-} XmlDataType;
-
 typedef struct {
-    UA_Boolean prevSectEnd; /* Identifier of the previous XML parse segment. */
-    char *onCharacters;
-    size_t onCharLength;
-    XmlData *data;
-} XmlParsingCtx;
-
-typedef struct {
-    const char *value;
-    size_t length;
-} XmlDataTypePrimitive;
-
-typedef struct {
-    size_t membersSize;
-    XmlData **members;
-} XmlDataTypeComplex;
-
-struct XmlData {
-    const char* name;
-    XmlDataType type;
-    union {
-        XmlDataTypePrimitive primitive;
-        XmlDataTypeComplex complex;
-    } value;
-    XmlData *parent;
-};
-
-typedef struct {
-    UA_Boolean isArray;
-    UA_NodeId typeId;
-    XmlData *data;
-} XmlValue;
-
-typedef struct {
-    XmlParsingCtx *parseCtx;
-    XmlValue *value;
-    XmlData **dataMembers;      /* Ordered XML data elements (for better iterating). */
-    unsigned int membersSize;   /* Number of data members (>= 1 for complex types). */
-    unsigned int index;         /* Index of current value member being processed. */
-    UA_Byte depth;
-
+    size_t index;
+    size_t depth;
+    size_t tokensSize;
+    xml_token *tokens;
     const UA_DataTypeArray *customTypes;
+    const char *xml;
 } ParseCtxXml;
 
 typedef UA_StatusCode
