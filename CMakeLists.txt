@@ -904,63 +904,14 @@ if(UA_ENABLE_JSON_ENCODING)
 endif()
 
 if(UA_ENABLE_XML_ENCODING)
-    # libXML2 is already included by the NodesetLoader
-    if(NOT UA_ENABLE_NODESETLOADER)
-        find_package(LibXml2 REQUIRED QUIET)
-        if(${UA_FORCE_32BIT})
-            # Currently supported 32-bit architectures
-            set(supported_32bit_arch "armhf" "i386")
-            set(supported_32bit_prefix "arm-linux-gnueabihf" "i386-linux-gnu")
-            list(LENGTH supported_32bit_arch supported_32bit_count)
-            math(EXPR supported_32bit_len "${supported_32bit_count} - 1")
-            set(foreign_architecture TRUE)
-            set(libxml2_found FALSE)
-            execute_process(COMMAND dpkg --print-architecture
-                            OUTPUT_VARIABLE ARCH_PREFIX)
-            foreach(i RANGE ${supported_32bit_len})
-                list(GET supported_32bit_arch ${i} 32bit_arch)
-                if("${ARCH_PREFIX}" MATCHES "^${32bit_arch}.$")
-                    set(foreign_architecture FALSE)
-                    set(libxml2_found TRUE)
-                endif()
-            endforeach()
-            if(foreign_architecture)
-                execute_process(COMMAND dpkg --print-foreign-architectures
-                                OUTPUT_VARIABLE ARCH_PREFIX)
-                foreach(i RANGE ${supported_32bit_len})
-                    list(GET supported_32bit_arch ${i} 32bit_arch)
-                    if("${ARCH_PREFIX}" MATCHES "^${32bit_arch}.$")
-                        set(libxml2_found TRUE)
-                        list(GET supported_32bit_prefix ${i} libxml2_32bit_prefix)
-                    endif()
-                endforeach()
-            endif()
-            if(libxml2_found)
-                find_library(LIBXML2_LIBRARIES_32BIT
-                             NAMES xml2
-                             HINTS "/usr/lib/${libxml2_32bit_prefix}"
-                             NO_CACHE
-                             REQUIRED
-                             NO_DEFAULT_PATH
-                             NO_PACKAGE_ROOT_PATH
-                             NO_CMAKE_PATH
-                             NO_CMAKE_ENVIRONMENT_PATH)
-            else()
-                message(FATAL_ERROR "Not supported 32-bit compiler architecture")
-            endif()
-            unset(LIBXML2_LIBRARIES)
-            set(LIBXML2_LIBRARIES ${LIBXML2_LIBRARIES_32BIT})
-        endif()
-        list(APPEND open62541_LIBRARIES ${LIBXML2_LIBRARIES})
-    endif()
     if(NOT UA_ENABLE_JSON_ENCODING)
         list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/parse_num.h)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
     endif()
-    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/yxml.h)
-    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/yxml.c)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/yxml.h
+                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/yxml.c
+                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
@@ -1382,10 +1333,6 @@ function(include_directories_private)
 endfunction()
 
 include_directories_private("${PROJECT_SOURCE_DIR}/deps")
-
-if(UA_ENABLE_XML_ENCODING)
-    include_directories_private(${LIBXML2_INCLUDE_DIRS})
-endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     include_directories_private(${MBEDTLS_INCLUDE_DIRS})
