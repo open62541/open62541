@@ -81,9 +81,6 @@ typedef UA_StatusCode
 extern const encodeXmlSignature encodeXmlJumpTable[UA_DATATYPEKINDS];
 extern const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS];
 
-UA_StatusCode
-UA_printXml(const void *p, const UA_DataType *type, UA_String *output);
-
 _UA_END_DECLS
 
 #endif /* UA_TYPES_ENCODING_XML_H_ */

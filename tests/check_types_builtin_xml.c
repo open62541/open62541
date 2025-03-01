@@ -1499,16 +1499,15 @@ START_TEST(UA_UInt32_print_xml_encode) {
 
     UA_EncodeXmlOptions options;
     memset(&options, 0, sizeof(UA_EncodeXmlOptions));
-    options.prettyPrint = true;
     size_t size = UA_calcSizeXml((void*)src, type, &options);
 
     UA_ByteString buf;
     UA_ByteString_allocBuffer(&buf, size + 1);
 
-    status s = UA_printXml((void*)src, type, &buf);
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "\n<UInt32>12345678</UInt32>";
+    char *result = "<UInt32>12345678</UInt32>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
 
@@ -1527,16 +1526,15 @@ START_TEST(UA_ExpandedNodeId_print_xml_encode) {
 
     UA_EncodeXmlOptions options;
     memset(&options, 0, sizeof(UA_EncodeXmlOptions));
-    options.prettyPrint = true;
     size_t size = UA_calcSizeXml((void*)src, type, &options);
 
     UA_ByteString buf;
     UA_ByteString_allocBuffer(&buf, size + 1);
 
-    status s = UA_printXml((void*)src, type, &buf);
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "\n<ExpandedNodeId>\n\t<Identifier>svr=1345;nsu=asdf;s=testtestTest</Identifier>\n</ExpandedNodeId>";
+    char *result = "<ExpandedNodeId><Identifier>svr=1345;nsu=asdf;s=testtestTest</Identifier></ExpandedNodeId>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
 
@@ -1554,16 +1552,15 @@ START_TEST(UA_QualifiedName_print_xml_encode) {
 
     UA_EncodeXmlOptions options;
     memset(&options, 0, sizeof(UA_EncodeXmlOptions));
-    options.prettyPrint = true;
     size_t size = UA_calcSizeXml((void*)src, type, &options);
 
     UA_ByteString buf;
     UA_ByteString_allocBuffer(&buf, size + 1);
 
-    status s = UA_printXml((void*)src, type, &buf);
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "\n<QualifiedName>\n\t<NamespaceIndex>6789</NamespaceIndex>\n\t<Name>derName</Name>\n</QualifiedName>";
+    char *result = "<QualifiedName><NamespaceIndex>6789</NamespaceIndex><Name>derName</Name></QualifiedName>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
 
@@ -1668,24 +1665,23 @@ START_TEST(UA_ExtensionObject_print_xml_encode) {
 
     UA_EncodeXmlOptions options;
     memset(&options, 0, sizeof(UA_EncodeXmlOptions));
-    options.prettyPrint = true;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
     size_t size = UA_calcSizeXml((void*)src, type, &options);
 
     UA_ByteString buf;
     UA_ByteString_allocBuffer(&buf, size + 1);
 
-    status s = UA_printXml((void*)src, type, &buf);
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "\n<ExtensionObject>"
-                      "\n\t<TypeId>"
-                        "\n\t\t<Identifier>ns=2;i=1234</Identifier>"
-                      "\n\t</TypeId>"
-                      "\n\t<Body>"
-                        "\n\t\t<ByteString>123456789012345678901234567890</ByteString>"
-                      "\n\t</Body>"
-                    "\n</ExtensionObject>";
+    char *result = "<ExtensionObject>"
+                      "<TypeId>"
+                        "<Identifier>ns=2;i=1234</Identifier>"
+                      "</TypeId>"
+                      "<Body>"
+                        "<ByteString>123456789012345678901234567890</ByteString>"
+                      "</Body>"
+                    "</ExtensionObject>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
 
@@ -2058,38 +2054,37 @@ START_TEST(UA_Array_Variant_ExtensionObject_print_xml_encode) {
 
     UA_EncodeXmlOptions options;
     memset(&options, 0, sizeof(UA_EncodeXmlOptions));
-    options.prettyPrint = true;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
     size_t size = UA_calcSizeXml((void*)src, type, &options);
 
     UA_ByteString buf;
     UA_ByteString_allocBuffer(&buf, size + 1);
 
-    status s = UA_printXml((void*)src, type, &buf);
+    status s = UA_encodeXml((void*)src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "\n<Variant>"
-                      "\n\t<Value>"
-                        "\n\t\t<ListOfExtensionObject>"
-                          "\n\t\t\t<ExtensionObject>"
-                            "\n\t\t\t\t<TypeId>"
-                              "\n\t\t\t\t\t<Identifier>ns=2;i=1234</Identifier>"
-                            "\n\t\t\t\t</TypeId>"
-                            "\n\t\t\t\t<Body>"
-                              "\n\t\t\t\t\t<ByteString>123456789012345678901234567890</ByteString>"
-                            "\n\t\t\t\t</Body>"
-                          "\n\t\t\t</ExtensionObject>"
-                          "\n\t\t\t<ExtensionObject>"
-                            "\n\t\t\t\t<TypeId>"
-                              "\n\t\t\t\t\t<Identifier>ns=3;i=5678</Identifier>"
-                            "\n\t\t\t\t</TypeId>"
-                            "\n\t\t\t\t<Body>"
-                              "\n\t\t\t\t\t<ByteString>98765432109876543210987654321</ByteString>"
-                            "\n\t\t\t\t</Body>"
-                          "\n\t\t\t</ExtensionObject>"
-                        "\n\t\t</ListOfExtensionObject>"
-                      "\n\t</Value>"
-                    "\n</Variant>";
+    char *result = "<Variant>"
+                      "<Value>"
+                        "<ListOfExtensionObject>"
+                          "<ExtensionObject>"
+                            "<TypeId>"
+                              "<Identifier>ns=2;i=1234</Identifier>"
+                            "</TypeId>"
+                            "<Body>"
+                              "<ByteString>123456789012345678901234567890</ByteString>"
+                            "</Body>"
+                          "</ExtensionObject>"
+                          "<ExtensionObject>"
+                            "<TypeId>"
+                              "<Identifier>ns=3;i=5678</Identifier>"
+                            "</TypeId>"
+                            "<Body>"
+                              "<ByteString>98765432109876543210987654321</ByteString>"
+                            "</Body>"
+                          "</ExtensionObject>"
+                        "</ListOfExtensionObject>"
+                      "</Value>"
+                    "</Variant>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
 
