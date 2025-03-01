@@ -14,8 +14,6 @@
 #include "../deps/dtoa.h"
 #include "../deps/yxml.h"
 
-#include <libxml/parser.h>
-
 #ifndef UA_ENABLE_PARSING
 #error UA_ENABLE_PARSING required for XML encoding
 #endif
