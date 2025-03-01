@@ -635,18 +635,6 @@ UA_encodeXml(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
     return res;
 }
 
-UA_StatusCode
-UA_printXml(const void *p, const UA_DataType *type, UA_String *output) {
-    if(!p || !type || !output)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_EncodeXmlOptions options;
-    memset(&options, 0, sizeof(UA_EncodeXmlOptions));
-    options.prettyPrint = true;
-
-    return UA_encodeXml(p, type, output, &options);
-}
-
 /************/
 /* CalcSize */
 /************/
