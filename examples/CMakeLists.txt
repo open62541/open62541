@@ -190,7 +190,9 @@ if(UA_ENABLE_PUBSUB)
     add_example(server_pubsub_publish_rt_offsets pubsub_realtime/server_pubsub_publish_rt_offsets.c)
     add_example(server_pubsub_subscribe_rt_offsets pubsub_realtime/server_pubsub_subscribe_rt_offsets.c)
 
-    if(UA_ARCHITECTURE_POSIX)
+    ## Apple does not implement timer functions required by one of the examples
+    ## And apple does not implement librt posix extension
+    if(UA_ARCHITECTURE_POSIX AND NOT APPLE)
         add_example(server_pubsub_publish_rt_state_machine
                     pubsub_realtime/server_pubsub_publish_rt_state_machine.c)
         target_link_libraries(server_pubsub_publish_rt_state_machine "rt")
