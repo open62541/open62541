@@ -1565,8 +1565,6 @@ typedef struct {
     UA_NamespaceMapping *namespaceMapping;
     const UA_String *serverUris;
     size_t serverUrisSize;
-
-    UA_Boolean prettyPrint;   /* Add newlines and spaces for legibility */
 } UA_EncodeXmlOptions;
 
 /* Returns the number of bytes the value src takes in xml encoding. Returns
