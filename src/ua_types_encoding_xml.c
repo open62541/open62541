@@ -660,9 +660,10 @@ UA_calcSizeXml(const void *src, const UA_DataType *type,
 static void
 skipXmlObject(ParseCtxXml *ctx) {
     size_t end_parent = ctx->tokens[ctx->index].end;
-    do {
+    while(ctx->index < ctx->tokensSize &&
+          ctx->tokens[ctx->index].end <= end_parent) {
         ctx->index++;
-    } while(ctx->tokens[ctx->index].end <= end_parent);
+    }
 }
 
 DECODE_XML(Boolean) {
@@ -918,6 +919,32 @@ DECODE_XML(DateTime) {
     return decodeDateTime(str, dst);
 }
 
+/* Find the child with the given name and return its content.
+ * This does not allocate/copy the content again. */
+static status
+getChildContent(ParseCtxXml *ctx, UA_String name, UA_String *out) {
+    size_t oldIndex = ctx->index;
+    size_t children = ctx->tokens[ctx->index].children;
+
+    /* Skip the attributes and go to the first child */
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
+
+    /* Find the child of the name */
+    UA_StatusCode res = UA_STATUSCODE_BADDECODINGERROR;
+    for(size_t i = 0; i < children; i++) {
+        if(!UA_String_equal(&name, &ctx->tokens[ctx->index].name)) {
+            skipXmlObject(ctx);
+            continue;
+        }
+        *out = ctx->tokens[ctx->index].content;
+        res = UA_STATUSCODE_GOOD;
+        break;
+    }
+
+    ctx->index = oldIndex;
+    return res;
+}
+
 static status
 decodeXmlFields(ParseCtxXml *ctx, XmlDecodeEntry *entries, size_t entryCount) {
     CHECK_DATA_BOUNDS;
@@ -1019,35 +1046,38 @@ DECODE_XML(ByteString) {
 DECODE_XML(NodeId) {
     CHECK_DATA_BOUNDS;
     UA_String str;
-    UA_String_init(&str);
-    XmlDecodeEntry entry = {UA_STRING_STATIC(UA_XML_NODEID_IDENTIFIER), &str,
-                            NULL, false, &UA_TYPES[UA_TYPES_STRING]};
-    status ret = decodeXmlFields(ctx, &entry, 1);
-    ret |= UA_NodeId_parseEx(dst, str, ctx->namespaceMapping);
-    UA_String_clear(&str);
-    return ret;
+    static UA_String identifier = UA_STRING_STATIC(UA_XML_NODEID_IDENTIFIER);
+    status ret = getChildContent(ctx, identifier, &str);
+    if(ret != UA_STATUSCODE_GOOD) return ret;
+    skipXmlObject(ctx);
+    return UA_NodeId_parseEx(dst, str, ctx->namespaceMapping);
 }
 
 DECODE_XML(ExpandedNodeId) {
     CHECK_DATA_BOUNDS;
     UA_String str;
-    UA_String_init(&str);
-    XmlDecodeEntry entry = {UA_STRING_STATIC(UA_XML_EXPANDEDNODEID_IDENTIFIER), &str,
-                            NULL, false, &UA_TYPES[UA_TYPES_STRING]};
-    status ret = decodeXmlFields(ctx, &entry, 1);
-    ret |= UA_ExpandedNodeId_parseEx(dst, str, ctx->namespaceMapping,
+    static UA_String expidentifier = UA_STRING_STATIC(UA_XML_EXPANDEDNODEID_IDENTIFIER);
+    status ret = getChildContent(ctx, expidentifier, &str);
+    if(ret != UA_STATUSCODE_GOOD) return ret;
+    skipXmlObject(ctx);
+    return UA_ExpandedNodeId_parseEx(dst, str, ctx->namespaceMapping,
                                      ctx->serverUrisSize, ctx->serverUris);
-    UA_String_clear(&str);
-    return ret;
 }
 
 DECODE_XML(StatusCode) {
     CHECK_DATA_BOUNDS;
-
-    XmlDecodeEntry entry = {UA_STRING_STATIC(UA_XML_STATUSCODE_CODE), dst,
-                            NULL, false, &UA_TYPES[UA_TYPES_UINT32]};
-
-    return decodeXmlFields(ctx, &entry, 1);
+    UA_String str;
+    static UA_String statusidentifier = UA_STRING_STATIC(UA_XML_STATUSCODE_CODE);
+    status ret = getChildContent(ctx, statusidentifier, &str);
+    if(ret != UA_STATUSCODE_GOOD) return ret;
+    skipXmlObject(ctx);
+    UA_UInt64 out = 0;
+    ret = decodeUnsigned(str.data, str.length, &out);
+    if(ret != UA_STATUSCODE_GOOD || out > UA_UINT32_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    *dst = (UA_StatusCode)out;
+    ctx->index++;
+    return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(QualifiedName) {
