@@ -60,6 +60,10 @@ typedef struct {
     UA_Boolean printValOnly; /* Encode only data value. */
 
     const UA_DataTypeArray *customTypes;
+
+    UA_NamespaceMapping *namespaceMapping;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
 } CtxXml;
 
 typedef struct {
@@ -69,6 +73,10 @@ typedef struct {
     xml_token *tokens;
     const UA_DataTypeArray *customTypes;
     const char *xml;
+
+    UA_NamespaceMapping *namespaceMapping;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
 } ParseCtxXml;
 
 typedef UA_StatusCode
