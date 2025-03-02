@@ -1558,7 +1558,14 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
 
 #ifdef UA_ENABLE_XML_ENCODING
 
+/* The structure with the encoding options may be extended in the future.
+ * Zero-out the entire structure initially to ensure code-compatibility when
+ * more fields are added in a later release. */
 typedef struct {
+    UA_NamespaceMapping *namespaceMapping;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
+
     UA_Boolean prettyPrint;   /* Add newlines and spaces for legibility */
 } UA_EncodeXmlOptions;
 
@@ -1583,6 +1590,9 @@ UA_encodeXml(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
  * Zero-out the entire structure initially to ensure code-compatibility when
  * more fields are added in a later release. */
 typedef struct {
+    UA_NamespaceMapping *namespaceMapping;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
     const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
                                           * datatype definitions */
 } UA_DecodeXmlOptions;
