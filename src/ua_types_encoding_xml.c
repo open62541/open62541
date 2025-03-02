@@ -215,16 +215,9 @@ writeXmlElemNameBegin(CtxXml *ctx, const char* name) {
     if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION - 1)
         return UA_STATUSCODE_BADENCODINGERROR;
     status ret = UA_STATUSCODE_GOOD;
-    if(!ctx->printValOnly) {
-        if(ctx->prettyPrint) {
-            ret |= xmlEncodeWriteChars(ctx, "\n", 1);
-            for(size_t i = 0; i < ctx->depth; ++i)
-                ret |= xmlEncodeWriteChars(ctx, "\t", 1);
-        }
-        ret |= xmlEncodeWriteChars(ctx, "<", 1);
-        ret |= xmlEncodeWriteChars(ctx, name, strlen(name));
-        ret |= xmlEncodeWriteChars(ctx, ">", 1);
-    }
+    ret |= xmlEncodeWriteChars(ctx, "<", 1);
+    ret |= xmlEncodeWriteChars(ctx, name, strlen(name));
+    ret |= xmlEncodeWriteChars(ctx, ">", 1);
     ctx->depth++;
     return ret;
 }
@@ -236,16 +229,9 @@ writeXmlElemNameEnd(CtxXml *ctx, const char* name,
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth--;
     status ret = UA_STATUSCODE_GOOD;
-    if(!ctx->printValOnly) {
-        if(ctx->prettyPrint && !XML_TYPE_IS_PRIMITIVE) {
-            ret |= xmlEncodeWriteChars(ctx, "\n", 1);
-            for(size_t i = 0; i < ctx->depth; ++i)
-                ret |= xmlEncodeWriteChars(ctx, "\t", 1);
-        }
-        ret |= xmlEncodeWriteChars(ctx, "</", 2);
-        ret |= xmlEncodeWriteChars(ctx, name, strlen(name));
-        ret |= xmlEncodeWriteChars(ctx, ">", 1);
-    }
+    ret |= xmlEncodeWriteChars(ctx, "</", 2);
+    ret |= xmlEncodeWriteChars(ctx, name, strlen(name));
+    ret |= xmlEncodeWriteChars(ctx, ">", 1);
     return ret;
 }
 
@@ -253,14 +239,9 @@ static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
 writeXmlElement(CtxXml *ctx, const char *name,
                 const void *value, const UA_DataType *type) {
     status ret = UA_STATUSCODE_GOOD;
-    UA_Boolean prevPrintVal = ctx->printValOnly;
-    ctx->printValOnly = false;
     ret |= writeXmlElemNameBegin(ctx, name);
-    ctx->printValOnly = XML_TYPE_IS_PRIMITIVE;
     ret |= encodeXmlJumpTable[type->typeKind](ctx, value, type);
-    ctx->printValOnly = false;
     ret |= writeXmlElemNameEnd(ctx, name, type);
-    ctx->printValOnly = prevPrintVal;
     return ret;
 }
 
@@ -496,22 +477,17 @@ ENCODE_XML(ExtensionObject) {
                         &src->content.encoded.typeId, &UA_TYPES[UA_TYPES_NODEID]);
 
     /* Write the body */
-    UA_Boolean prevPrintVal = ctx->printValOnly;
-    ctx->printValOnly = false;
     ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BODY);
     if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING)
         ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BYTESTRING);
 
-    ctx->printValOnly = true;
     ret |= ENCODE_DIRECT_XML(&src->content.encoded.body, String);
-    ctx->printValOnly = false;
 
     if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING)
         ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BYTESTRING,
                                    &UA_TYPES[UA_TYPES_BYTESTRING]);
     ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY,
                                &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
-    ctx->printValOnly = prevPrintVal;
 
     return ret;
 }
@@ -630,9 +606,7 @@ UA_encodeXml(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
     ctx.end = &outBuf->data[outBuf->length];
     ctx.depth = 0;
     ctx.calcOnly = false;
-    ctx.printValOnly = false;
     if(options) {
-        ctx.prettyPrint = options->prettyPrint;
         ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUris = options->serverUris;
         ctx.serverUrisSize = options->serverUrisSize;
@@ -666,9 +640,7 @@ UA_calcSizeXml(const void *src, const UA_DataType *type,
     ctx.pos = NULL;
     ctx.end = (const UA_Byte*)(uintptr_t)SIZE_MAX;
     ctx.depth = 0;
-    ctx.printValOnly = false;
     if(options) {
-        ctx.prettyPrint = options->prettyPrint;
         ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUris = options->serverUris;
         ctx.serverUrisSize = options->serverUrisSize;
