@@ -30,7 +30,8 @@
 # define NAN ((UA_Double)(INFINITY-INFINITY))
 #endif
 
-/* Replicate yxml_isNameStart and yxml_isName from yxml */
+/* Replicate yxml_isNameStart and yxml_isName from yxml. But differently we
+ * already break at the first colon, so "uax:String" becomes "String". */
 static UA_String
 backtrackName(const char *xml, unsigned end) {
     unsigned pos = end;
@@ -39,7 +40,7 @@ backtrackName(const char *xml, unsigned end) {
         if(c >= 'a' && c <= 'z') continue; /* isAlpha */
         if(c >= 'A' && c <= 'Z') continue; /* isAlpha */
         if(c >= '0' && c <= '9') continue; /* isNum */
-        if(c == ':' || c == '_' || c >= 128 || c == '-'|| c == '.') continue;
+        if(c == '_' || c >= 128 || c == '-'|| c == '.') continue;
         break;
     }
     UA_String s = {end - pos, (UA_Byte*)(uintptr_t)xml + pos};
