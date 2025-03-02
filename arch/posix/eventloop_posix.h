@@ -175,12 +175,12 @@ _UA_END_DECLS
 /*---------------------*/
 
 #include <sys/socket.h>
+#include <sys/select.h>
+#include <sys/ioctl.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <netdb.h>
-#include <sys/ioctl.h>
-#include <sys/select.h>
 #include <net/if.h>
 #include <poll.h>
 #include <fcntl.h>
@@ -263,11 +263,15 @@ typedef int SOCKET;
 #include <libgen.h>
 #include <limits.h>
 #include <stdio.h>
-#include <sys/inotify.h>
+#ifndef __APPLE__
+# include <sys/inotify.h>
+#endif /* !__APPLE__ */
 #include <sys/stat.h>
 
 #ifndef __ANDROID__
+#ifndef __APPLE__
 #include <bits/stdio_lim.h>
+#endif /* !__APPLE__ */
 #endif /* !__ANDROID__ */
 
 #define UA_STAT stat
