@@ -188,19 +188,6 @@ typedef struct {
 #define ENCODE_DIRECT_XML(SRC, TYPE) \
     TYPE##_encodeXml(ctx, (const UA_##TYPE*)SRC, NULL)
 
-#define XML_TYPE_IS_PRIMITIVE \
-    (type->typeKind < UA_DATATYPEKIND_GUID || \
-    type->typeKind == UA_DATATYPEKIND_BYTESTRING)
-
-static bool
-isNullXml(const void *p, const UA_DataType *type) {
-    if(UA_DataType_isNumeric(type) || type->typeKind == UA_DATATYPEKIND_BOOLEAN)
-        return false;
-    UA_STACKARRAY(char, buf, type->memSize);
-    memset(buf, 0, type->memSize);
-    return (UA_order(buf, p, type) == UA_ORDER_EQ);
-}
-
 static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
 xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
     if(ctx->pos + len > ctx->end)
@@ -511,10 +498,7 @@ Array_encodeXml(CtxXml *ctx, const void *ptr, size_t length,
 
     uintptr_t uptr = (uintptr_t)ptr;
     for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; ++i) {
-        if(isNullXml((const void*)uptr, type))
-            ret |= xmlEncodeWriteChars(ctx, "null", 4);
-        else
-            ret |= writeXmlElement(ctx, type->typeName, (const void*)uptr, type);
+        ret |= writeXmlElement(ctx, type->typeName, (const void*)uptr, type);
         uptr += type->memSize;
     }
 
@@ -660,14 +644,17 @@ UA_calcSizeXml(const void *src, const UA_DataType *type,
 /* Decode */
 /**********/
 
+#define DECODE_XML(TYPE) static status                  \
+    TYPE##_decodeXml(ParseCtxXml *ctx, UA_##TYPE *dst, const UA_DataType *type)
+
 #define CHECK_DATA_BOUNDS                           \
     if(ctx->index >= ctx->tokensSize)               \
         return UA_STATUSCODE_BADDECODINGERROR;      \
     do { } while(0)
 
-#define GET_ELEM_CONTENT                                     \
+#define GET_ELEM_CONTENT                                           \
     const UA_Byte *data = ctx->tokens[ctx->index].content.data;    \
-    size_t length = ctx->tokens[ctx->index].content.length;  \
+    size_t length = ctx->tokens[ctx->index].content.length;        \
     do {} while(0)
 
 static void
@@ -677,11 +664,6 @@ skipXmlObject(ParseCtxXml *ctx) {
         ctx->index++;
     } while(ctx->tokens[ctx->index].end <= end_parent);
 }
-
-/* Forward declarations */
-#define DECODE_XML(TYPE) static status                  \
-    TYPE##_decodeXml(ParseCtxXml *ctx, UA_##TYPE *dst,  \
-                      const UA_DataType *type)
 
 DECODE_XML(Boolean) {
     CHECK_DATA_BOUNDS;
