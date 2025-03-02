@@ -418,12 +418,10 @@ ENCODE_XML(ByteString) {
 ENCODE_XML(NodeId) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_String out = UA_STRING_NULL;
-
-    ret |= UA_NodeId_print(src, &out);
+    ret |= UA_NodeId_printEx(src, &out, ctx->namespaceMapping);
     ret |= writeXmlElement(ctx, UA_XML_NODEID_IDENTIFIER,
                            &out, &UA_TYPES[UA_TYPES_STRING]);
     UA_String_clear(&out);
-
     return ret;
 }
 
@@ -431,12 +429,13 @@ ENCODE_XML(NodeId) {
 ENCODE_XML(ExpandedNodeId) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_String out = UA_STRING_NULL;
-
-    ret |= UA_ExpandedNodeId_print(src, &out);
+    ret |= UA_ExpandedNodeId_printEx(src, &out,
+                                     ctx->namespaceMapping,
+                                     ctx->serverUrisSize,
+                                     ctx->serverUris);
     ret |= writeXmlElement(ctx, UA_XML_EXPANDEDNODEID_IDENTIFIER,
                            &out, &UA_TYPES[UA_TYPES_STRING]);
     UA_String_clear(&out);
-
     return ret;
 }
 
@@ -623,8 +622,12 @@ UA_encodeXml(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
     ctx.depth = 0;
     ctx.calcOnly = false;
     ctx.printValOnly = false;
-    if(options)
+    if(options) {
         ctx.prettyPrint = options->prettyPrint;
+        ctx.namespaceMapping = options->namespaceMapping;
+        ctx.serverUris = options->serverUris;
+        ctx.serverUrisSize = options->serverUrisSize;
+    }
 
     /* Encode */
     res = writeXmlElement(&ctx, type->typeName, src, type);
@@ -657,6 +660,9 @@ UA_calcSizeXml(const void *src, const UA_DataType *type,
     ctx.printValOnly = false;
     if(options) {
         ctx.prettyPrint = options->prettyPrint;
+        ctx.namespaceMapping = options->namespaceMapping;
+        ctx.serverUris = options->serverUris;
+        ctx.serverUrisSize = options->serverUrisSize;
     }
 
     ctx.calcOnly = true;
@@ -1048,30 +1054,25 @@ DECODE_XML(ByteString) {
 
 DECODE_XML(NodeId) {
     CHECK_DATA_BOUNDS;
-
     UA_String str;
     UA_String_init(&str);
     XmlDecodeEntry entry = {UA_STRING_STATIC(UA_XML_NODEID_IDENTIFIER), &str,
                             NULL, false, &UA_TYPES[UA_TYPES_STRING]};
-
     status ret = decodeXmlFields(ctx, &entry, 1);
-    ret |= UA_NodeId_parse(dst, str);
-
+    ret |= UA_NodeId_parseEx(dst, str, ctx->namespaceMapping);
     UA_String_clear(&str);
     return ret;
 }
 
 DECODE_XML(ExpandedNodeId) {
     CHECK_DATA_BOUNDS;
-
     UA_String str;
     UA_String_init(&str);
     XmlDecodeEntry entry = {UA_STRING_STATIC(UA_XML_EXPANDEDNODEID_IDENTIFIER), &str,
                             NULL, false, &UA_TYPES[UA_TYPES_STRING]};
-
     status ret = decodeXmlFields(ctx, &entry, 1);
-    ret |= UA_ExpandedNodeId_parse(dst, str);
-
+    ret |= UA_ExpandedNodeId_parseEx(dst, str, ctx->namespaceMapping,
+                                     ctx->serverUrisSize, ctx->serverUris);
     UA_String_clear(&str);
     return ret;
 }
@@ -1250,8 +1251,12 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
     ctx.xml = (const char*)src->data;
     ctx.tokens = tokens;
     ctx.tokensSize = res.num_tokens;
-    if(options)
+    if(options) {
         ctx.customTypes = options->customTypes;
+        ctx.namespaceMapping = options->namespaceMapping;
+        ctx.serverUris = options->serverUris;
+        ctx.serverUrisSize = options->serverUrisSize;
+    }
 
     /* Decode */
     UA_StatusCode ret = decodeXmlJumpTable[type->typeKind](&ctx, dst, type);
