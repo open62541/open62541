@@ -5,11 +5,12 @@
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
+#include "../../arch/posix/eventloop_posix.h"
 #include "ua_filestore_common.h"
 
 #ifdef UA_ENABLE_ENCRYPTION
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
 
 #ifdef UA_ARCHITECTURE_WIN32
 /* TODO: Replace with a proper dirname implementation. This is a just minimal
