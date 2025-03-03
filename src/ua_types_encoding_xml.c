@@ -81,10 +81,12 @@ xml_tokenize(const char *xml, unsigned int len,
             continue;
         case YXML_ELEMSTART:
         case YXML_ATTRSTART:
-            if(status == YXML_ELEMSTART)
+            if(status == YXML_ELEMSTART) {
                 stack[top]->children++;
-            else
+                stack[top]->content = UA_STRING_NULL; /* Only the leaf elements have content */
+            } else {
                 stack[top]->attributes++;
+            }
             top++;
             if(top >= 32)
                 goto errout; /* nesting too deep */
@@ -99,6 +101,7 @@ xml_tokenize(const char *xml, unsigned int len,
             }
             stack[top]->start = (unsigned)(start - xml);
             tokenPos++;
+            val_begin = 0; /* if the previous non-leaf element started to collect content */
             break;
         case YXML_CONTENT:
         case YXML_ATTRVAL:
@@ -114,9 +117,12 @@ xml_tokenize(const char *xml, unsigned int len,
             }
             stack[top]->end = pos;
             if(status == YXML_ELEMEND) {
-                while(xml[stack[top]->end] != '>')
+                /* Saw "</", looking for the closing ">" */
+                while(stack[top]->end < len && xml[stack[top]->end] != '>')
                     stack[top]->end++;
                 stack[top]->end++;
+                if(stack[top]->end > len)
+                    goto errout;
             }
             val_begin = 0;
             top--;
@@ -128,16 +134,18 @@ xml_tokenize(const char *xml, unsigned int len,
         }
     }
 
+    /* Check that all elements were closed */
+    if(yxml_eof(&ctx) != YXML_OK)
+        goto errout;
+
     res.num_tokens = tokenPos;
-    if(tokenPos >= max_tokens) 
+    if(tokenPos > max_tokens)
         res.error = XML_ERROR_OVERFLOW;
     return res;
 
  errout:
     res.error_pos = pos;
-    if(yxml_eof(&ctx) != YXML_OK)
-        res.error = XML_ERROR_INVALID;
-
+    res.error = XML_ERROR_INVALID;
     return res;
 }
 
