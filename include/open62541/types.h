@@ -1191,7 +1191,7 @@ struct UA_DataType {
 #endif
     UA_NodeId typeId;           /* The nodeid of the type */
     UA_NodeId binaryEncodingId; /* NodeId of datatype when encoded as binary */
-    //UA_NodeId xmlEncodingId;  /* NodeId of datatype when encoded as XML */
+    UA_NodeId xmlEncodingId;    /* NodeId of datatype when encoded as XML */
     UA_UInt32 memSize     : 16; /* Size of the struct in memory */
     UA_UInt32 typeKind    : 6;  /* Dispatch index for the handling routines */
     UA_UInt32 pointerFree : 1;  /* The type (and its members) contains no
