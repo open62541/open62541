@@ -1426,7 +1426,7 @@ const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (decodeXmlSignature)Variant_decodeXml,          /* Variant */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* DiagnosticInfo */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Decimal */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* Enum */
+    (decodeXmlSignature)Int32_decodeXml,            /* Enum */
     (decodeXmlSignature)decodeXmlStructure,         /* Structure */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Structure with optional fields */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Union */
