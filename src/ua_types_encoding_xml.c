@@ -206,8 +206,7 @@ writeXmlElemNameBegin(CtxXml *ctx, const char* name) {
 }
 
 static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
-writeXmlElemNameEnd(CtxXml *ctx, const char* name,
-                    const UA_DataType *type) {
+writeXmlElemNameEnd(CtxXml *ctx, const char* name) {
     if(ctx->depth == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth--;
@@ -224,7 +223,7 @@ writeXmlElement(CtxXml *ctx, const char *name,
     status ret = UA_STATUSCODE_GOOD;
     ret |= writeXmlElemNameBegin(ctx, name);
     ret |= encodeXmlJumpTable[type->typeKind](ctx, value, type);
-    ret |= writeXmlElemNameEnd(ctx, name, type);
+    ret |= writeXmlElemNameEnd(ctx, name);
     return ret;
 }
 
@@ -428,14 +427,10 @@ ENCODE_XML(QualifiedName) {
 
 /* LocalizedText */
 ENCODE_XML(LocalizedText) {
-    UA_StatusCode ret =
-        writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_LOCALE,
-                        &src->locale, &UA_TYPES[UA_TYPES_STRING]);
-
-    if(ret == UA_STATUSCODE_GOOD)
-        ret = writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_TEXT,
-                              &src->text, &UA_TYPES[UA_TYPES_STRING]);
-    return ret;
+    return writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_LOCALE,
+                           &src->locale, &UA_TYPES[UA_TYPES_STRING]) |
+        writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_TEXT,
+                        &src->text, &UA_TYPES[UA_TYPES_STRING]);
 }
 
 /* ExtensionObject */
@@ -461,8 +456,7 @@ ENCODE_XML(ExtensionObject) {
                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
         else
             ret |= ENCODE_DIRECT_XML(&src->content.encoded.body, String);
-        ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY,
-                                   &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+        ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY);
     } else {
         /* Write the decoded value */
         const UA_DataType *type = src->content.decoded.type;
@@ -474,8 +468,7 @@ ENCODE_XML(ExtensionObject) {
         /* Write the body */
         ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BODY);
         ret |= writeXmlElement(ctx, type->typeName, src->content.decoded.data, type);
-        ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY,
-                                   &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+        ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY);
     }
 
     return ret;
@@ -504,7 +497,7 @@ Array_encodeXml(CtxXml *ctx, const void *ptr, size_t length,
     }
 
 finish:
-    ret |= writeXmlElemNameEnd(ctx, arrName, &UA_TYPES[UA_TYPES_VARIANT]);
+    ret |= writeXmlElemNameEnd(ctx, arrName);
     return ret;
 }
 
@@ -521,11 +514,9 @@ ENCODE_XML(Variant) {
     if((!isArray && !isBuiltin) || src->arrayDimensionsSize > 1)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
-    status ret = writeXmlElemNameBegin(ctx, UA_XML_VARIANT_VALUE);
-
-    ret |= Array_encodeXml(ctx, src->data, src->arrayLength, src->type);
-
-    return ret | writeXmlElemNameEnd(ctx, UA_XML_VARIANT_VALUE, &UA_TYPES[UA_TYPES_VARIANT]);
+    return writeXmlElemNameBegin(ctx, UA_XML_VARIANT_VALUE)
+        | Array_encodeXml(ctx, src->data, src->arrayLength, src->type)
+        | writeXmlElemNameEnd(ctx, UA_XML_VARIANT_VALUE);
 }
 
 static status
