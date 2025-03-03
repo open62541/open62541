@@ -337,8 +337,6 @@ ENCODE_XML(Double) {
 
 /* String */
 ENCODE_XML(String) {
-    if(!src->data)
-        return xmlEncodeWriteChars(ctx, "null", 4);
     return xmlEncodeWriteChars(ctx, (const char*)src->data, src->length);
 }
 
