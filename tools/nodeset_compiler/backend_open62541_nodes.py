@@ -237,110 +237,6 @@ def generateVariableTypeNodeCode(node, nodeset):
 
     return [code, codeCleanup, codeGlobal]
 
-def lowerFirstChar(inputString):
-    return inputString[0].lower() + inputString[1:]
-
-def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, instanceName=None, isArrayElement=False):
-    code = [""]
-    codeCleanup = [""]
-
-    logger.debug("Building extensionObject for " + str(parent.id))
-    logger.debug("Encoding " + str(node.encodingRule))
-
-    parentDataType = nodeset.getDataTypeNode(parent.dataType)
-    parentDataTypeName = nodeset.getDataTypeNode(parent.dataType).browseName.name
-    if parentDataType.symbolicName is not None and parentDataType.symbolicName.value is not None:
-        parentDataTypeName = parentDataType.symbolicName.value
-
-    typeBrowseNode = makeCIdentifier(parentDataTypeName)
-    #TODO: review this
-    if typeBrowseNode == "NumericRange":
-        # in the stack we define a separate structure for the numeric range, but
-        # the value itself is just a string
-        typeBrowseNode = "String"
-
-
-    typeString = "UA_" + typeBrowseNode
-    if instanceName is None:
-        instanceName = generateNodeValueInstanceName(node, parent, 0)
-        code.append("UA_STACKARRAY(" + typeString + ", " + instanceName + ", 1);")
-    typeArr = nodeset.getDataTypeNode(parent.dataType).typesArray
-    typeArrayString = typeArr + "[" + typeArr + "_" + parentDataTypeName.upper() + "]"
-    code.append("UA_init({ref}{instanceName}, &{typeArrayString});".format(ref="&" if isArrayElement else "",
-                                                                           instanceName=instanceName,
-                                                                           typeArrayString=typeArrayString))
-
-    # Assign data to the struct contents
-    # Track the encoding rule definition to detect arrays and/or ExtensionObjects
-    values = node.value
-    if values == None:
-        values = []
-    for idx,subv in enumerate(values):
-        if subv is None:
-            continue
-        encField = node.encodingRule[idx].name
-        encRule = node.encodingRule[idx]
-        memberName = makeCIdentifier(lowerFirstChar(encField))
-
-        # Check if this is an array
-        accessor = "." if isArrayElement else "->"
-
-        if isinstance(subv, list):
-            if len(subv) == 0:
-                continue
-            logger.info("ExtensionObject contains array")
-            memberName = makeCIdentifier(lowerFirstChar(encField))
-            encTypeString = "UA_" + subv[0].__class__.__name__
-            instanceNameSafe = makeCIdentifier(instanceName)
-            code.append("UA_STACKARRAY(" + encTypeString + ", " + instanceNameSafe + "_" + memberName+f", {len(subv)});")
-            encTypeArr = nodeset.getDataTypeNode(subv[0].__class__.__name__).typesArray
-            encTypeArrayString = encTypeArr + "[" + encTypeArr + "_" + subv[0].__class__.__name__.upper() + "]"
-            code.append("UA_init({instanceName}, &{typeArrayString});".format(instanceName=instanceNameSafe + "_" + memberName,
-                                                                              typeArrayString=encTypeArrayString))
-
-            for subArrayIdx,val in enumerate(subv):
-                code.append(generateNodeValueCode(instanceNameSafe + "_" + memberName + "[" + str(subArrayIdx) + "]",
-                                                  val, instanceName,instanceName + "_gehtNed_member", global_var_code, asIndirect=False))
-            code.append(instanceName + accessor + memberName + f"Size = {len(subv)};")
-            code.append(instanceName + accessor + memberName + " = " + instanceNameSafe+"_"+ memberName+";")
-            continue
-
-        logger.debug("Encoding of field " + memberName + " is " + str(subv.encodingRule) + "defined by " + str(encField))
-        if not subv.isNone():
-            # Some values can be optional
-            valueName = instanceName + accessor + memberName
-            code.append(generateNodeValueCode(valueName,
-                        subv, instanceName,valueName, global_var_code, asIndirect=False, nodeset=nodeset, encRule=encRule))
-
-    if not isArrayElement:
-        code.append("UA_Variant_setScalar(&attr.value, " + instanceName + ", &" + typeArrayString + ");")
-
-    return [code, codeCleanup]
-
-def getTypeBrowseName(dataTypeNode):
-    typeBrowseName = makeCIdentifier(dataTypeNode.browseName.name)
-    #TODO: review this
-    if typeBrowseName == "NumericRange":
-        # in the stack we define a separate structure for the numeric range, but
-        # the value itself is just a string
-        typeBrowseName = "String"
-    return typeBrowseName
-
-def getTypesArrayForValue(nodeset, value):
-    typeNode = nodeset.getNodeByBrowseName(value.__class__.__name__)
-    if typeNode is None or value.isInternal:
-        typesArray = "UA_TYPES"
-    else:
-        typesArray = typeNode.typesArray
-    typeName = makeCIdentifier(value.__class__.__name__.upper())
-    return "&" + typesArray + "[" + typesArray + "_" + typeName + "]"
-
-
-def isArrayVariableNode(node, parentNode):
-    return parentNode.valueRank is not None and (parentNode.valueRank != -1 and (parentNode.valueRank >= 0
-                                       or (len(node.value) > 1
-                                           and (parentNode.valueRank != -2 or parentNode.valueRank != -3))))
-
 def generateMethodNodeCode(node):
     code = []
     code.append("UA_MethodAttributes attr = UA_MethodAttributes_default;")
@@ -371,13 +267,6 @@ def generateViewNodeCode(node):
         code.append("attr.containsNoLoops = true;")
     code.append("attr.eventNotifier = (UA_Byte)%s;" % str(node.eventNotifier))
     return code
-
-def generateSubtypeOfDefinitionCode(node):
-    for ref in node.inverseReferences:
-        # 45 = HasSubtype
-        if ref.referenceType.i == 45:
-            return generateNodeIdCode(ref.target)
-    return "UA_NODEID_NULL"
 
 def generateNodeCode_begin(node, nodeset, code_global):
     code = []
