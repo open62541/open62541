@@ -5,20 +5,87 @@
 ### file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 ###    Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
-###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+###    Copyright 2014-2017, 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 ###    Copyright 2019 (c) Andrea Minosu
 ###    Copyright 2018 (c) Jannis Volker
 ###    Copyright 2018 (c) Ralph Lange
 
-from datatypes import  ExtensionObject, NodeId, StatusCode, DiagnosticInfo, Value
+from datatypes import NodeId
 from nodes import ReferenceTypeNode, ObjectNode, VariableNode, VariableTypeNode, MethodNode, ObjectTypeNode, DataTypeNode, ViewNode
-from backend_open62541_datatypes import makeCLiteral, makeCIdentifier, generateLocalizedTextCode, generateQualifiedNameCode, generateNodeIdCode, \
-    generateExpandedNodeIdCode, generateNodeValueCode
 import re
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Strip invalid characters to create valid C identifiers (variable names etc):
+def makeCIdentifier(value):
+    keywords = frozenset(["double", "int", "float", "char"])
+    sanitized = re.sub(r'[^\w]', '', value)
+    if sanitized in keywords:
+        return "_" + sanitized
+    else:
+        return sanitized
+
+# Escape C strings:
+def makeCLiteral(value):
+    return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\').replace('"', r'\"').replace('\n', r'\n').replace('\r', r''))
+
+def splitStringLiterals(value, splitLength=500):
+    """
+    Split a string literal longer than splitLength into smaller literals.
+    E.g. "Some very long text" will be split into "Some ver" "y long te" "xt"
+    On VS2008 there is a maximum allowed length of a single string literal.
+    """
+    value = value.strip()
+    if len(value) < splitLength or splitLength == 0:
+        return "\"" + re.sub(r'(?<!\\)"', r'\\"', value) + "\""
+    ret = ""
+    tmp = value
+    while len(tmp) > splitLength:
+        ret += "\"" + tmp[:splitLength].replace('"', r'\"') + "\" "
+        tmp = tmp[splitLength:]
+    ret += "\"" + re.sub(r'(?<!\\)"', r'\\"', tmp) + "\" "
+    return ret
+
+def generateLocalizedTextCode(value, alloc=False):
+    if value.text is None:
+        value.text = ""
+    vt = makeCLiteral(value.text)
+    return "UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", '' if value.locale is None else value.locale, splitStringLiterals(vt))
+
+def generateQualifiedNameCode(value, alloc=False,):
+    vn = makeCLiteral(value.name)
+    return "UA_QUALIFIEDNAME{}(ns[{}], {})".format("_ALLOC" if alloc else "",
+                                                     str(value.ns), splitStringLiterals(vn))
+
+def generateGuidCode(value):
+    if isinstance(value, str):
+        return f"UA_GUID(\"{value}\")"
+    if not value or len(value) != 5:
+        return "UA_GUID_NULL"
+    else:
+        return "UA_GUID(\"{}\")".format('-'.join(value))
+
+def generateNodeIdCode(value):
+    if not value:
+        return "UA_NODEID_NUMERIC(0, 0)"
+    if value.i != None:
+        return "UA_NODEID_NUMERIC(ns[{}], {}LU)".format(value.ns, value.i)
+    elif value.s != None:
+        v = makeCLiteral(value.s)
+        return "UA_NODEID_STRING(ns[{}], \"{}\")".format(value.ns, v)
+    elif value.g != None:
+        return "UA_NODEID_GUID(ns[{}], {})".format(value.ns, generateGuidCode(value.gAsString()))
+    raise Exception(str(value) + " NodeID generation for bytestring NodeIDs not supported")
+
+def generateExpandedNodeIdCode(value):
+    if value.i != None:
+        return "UA_EXPANDEDNODEID_NUMERIC(ns[{}], {}LU)".format(str(value.ns), str(value.i))
+    elif value.s != None:
+        vs = makeCLiteral(value.s)
+        return "UA_EXPANDEDNODEID_STRING(ns[{}], \"{}\")".format(str(value.ns), vs)
+    raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
 
 #################
 # Generate Code #
@@ -31,9 +98,6 @@ def generateNodeIdPrintable(node):
         CodePrintable = node.__class__.__name__ + "_unknown_nid"
 
     return re.sub('[^0-9a-z_]+', '_', CodePrintable.lower())
-
-def generateNodeValueInstanceName(node, parent, arrayIndex):
-    return generateNodeIdPrintable(parent) + "_" + str(node.alias) + "_" + str(arrayIndex)
 
 def generateReferenceCode(reference):
     forwardFlag = "true" if reference.isForward else "false"
