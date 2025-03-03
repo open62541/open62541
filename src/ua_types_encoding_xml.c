@@ -1173,39 +1173,112 @@ DECODE_XML(ExtensionObject) {
     return decodeXmlFields(ctx, entries, 2);
 }
 
-/* static status */
-/* Array_decodeXml(ParseCtxXml *ctx, void **dst, const UA_DataType *type) { */
-/*     if(strncmp(ctx->tokens[ctx->index]->name, "ListOf", strlen("ListOf"))) */
-/*         return UA_STATUSCODE_BADDECODINGERROR; */
+static status
+Array_decodeXml(ParseCtxXml *ctx, size_t *dstSize, const UA_DataType *type) {
+    /* Allocate memory */
+    size_t length = ctx->tokens[ctx->index].children;
+    void **dst = (void**)((uintptr_t)dstSize + sizeof(void*));
+    *dst = UA_Array_new(length, type);
+    if(!*dst)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    *dstSize = length;
 
-/*     if(ctx->dataMembers[ctx->index]->type == XML_DATA_TYPE_PRIMITIVE) { */
-/*         /\* Return early for empty arrays *\/ */
-/*         *dst = UA_EMPTY_ARRAY_SENTINEL; */
-/*         return UA_STATUSCODE_GOOD; */
-/*     } */
+    /* Go to first array member. */
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
 
-/*     size_t length = ctx->dataMembers[ctx->index]->value.complex.membersSize; */
-/*     ctx->index++; /\* Go to first array member. *\/ */
+    /* Decode array members */
+    uintptr_t ptr = (uintptr_t)*dst;
+    for(size_t i = 0; i < length; ++i) {
+        status ret = decodeXmlJumpTable[type->typeKind](ctx, (void*)ptr, type);
+        if(ret != UA_STATUSCODE_GOOD)
+            return ret;
+        ptr += type->memSize;
+    }
 
-/*     /\* Allocate memory *\/ */
-/*     *dst = UA_calloc(length, type->memSize); */
-/*     if(*dst == NULL) */
-/*         return UA_STATUSCODE_BADOUTOFMEMORY; */
+    return UA_STATUSCODE_GOOD;
+}
 
-/*     /\* Decode array members *\/ */
-/*     uintptr_t ptr = (uintptr_t)*dst; */
-/*     for(size_t i = 0; i < length; ++i) { */
-/*         status ret = decodeXmlJumpTable[type->typeKind](ctx, (void*)ptr, type); */
-/*         if(ret != UA_STATUSCODE_GOOD) { */
-/*             UA_Array_delete(*dst, i + 1, type); */
-/*             *dst = NULL; */
-/*             return ret; */
-/*         } */
-/*         ptr += type->memSize; */
-/*     } */
+static const UA_DataType *
+lookupTypeByName(ParseCtxXml *ctx, UA_String typeName) {
+    /* Search in the builtin types */
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        if(strncmp((char*)typeName.data, UA_TYPES[i].typeName, typeName.length) == 0)
+            return &UA_TYPES[i];
+    }
 
-/*     return UA_STATUSCODE_GOOD; */
-/* } */
+    /* Search in the customTypes */
+    const UA_DataTypeArray *customTypes = ctx->customTypes;
+    while(customTypes) {
+        for(size_t i = 0; i < customTypes->typesSize; ++i) {
+            const UA_DataType *type = &customTypes->types[i];
+            if(strncmp((char*)typeName.data, type->typeName, typeName.length) == 0)
+                return type;
+        }
+        customTypes = customTypes->next;
+    }
+    return NULL;
+}
+
+DECODE_XML(Variant) {
+    CHECK_DATA_BOUNDS;
+
+    if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+
+    xml_token *tok = &ctx->tokens[ctx->index];
+    if(tok->children == 0)
+        return UA_STATUSCODE_GOOD;
+    if(tok->children != 1)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Move forward to the content */
+    if(ctx->index + 2 >= ctx->tokensSize)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
+    tok = &ctx->tokens[ctx->index];
+    static UA_String valName = UA_STRING_STATIC("Value");
+    if(!UA_String_equal(&tok->name, &valName))
+        return UA_STATUSCODE_BADDECODINGERROR;
+    if(tok->children != 1)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
+    tok = &ctx->tokens[ctx->index];
+
+    /* Get the Data type / array type */
+    UA_Boolean isArray = false;
+    UA_String typeName = tok->name;
+    static char *lo = "ListOf";
+    if(tok->name.length > strlen(lo) &&
+       strncmp((char*)tok->name.data, lo, strlen(lo)) == 0) {
+        isArray = true;
+        typeName.data += strlen(lo);
+        typeName.length -= strlen(lo);
+    }
+
+    /* Look up the DataType from the name */
+    dst->type = lookupTypeByName(ctx, typeName);
+    if(!dst->type)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    ctx->depth++;
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+
+    if(!isArray) {
+        dst->data = UA_new(dst->type);
+        if(!dst->data) {
+            ctx->depth--;
+            return UA_STATUSCODE_BADDECODINGERROR;
+        }
+        ret = decodeXmlJumpTable[dst->type->typeKind](ctx, dst->data, dst->type);
+    } else {
+        ret = Array_decodeXml(ctx, &dst->arrayLength, dst->type);
+    }
+
+    ctx->depth--;
+    return ret;
+}
 
 static status
 decodeXmlNotImplemented(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
@@ -1237,7 +1310,7 @@ const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (decodeXmlSignature)LocalizedText_decodeXml,    /* LocalizedText */
     (decodeXmlSignature)ExtensionObject_decodeXml,  /* ExtensionObject */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* DataValue */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* Variant */
+    (decodeXmlSignature)Variant_decodeXml,          /* Variant */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* DiagnosticInfo */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Decimal */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Enum */

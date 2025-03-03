@@ -3956,6 +3956,53 @@ START_TEST(UA_ExtensionObject_InvalidBody_xml_decode) {
 }
 END_TEST
 
+START_TEST(UA_Variant_String_xml_decode) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+
+    UA_ByteString buf  = UA_STRING("<Variant>"
+                      "<Value>"
+                       "<String>eins</String>"
+                      "</Value>"
+                     "</Variant>");
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(out.arrayLength, 0);
+    ck_assert_ptr_eq(out.type, &UA_TYPES[UA_TYPES_STRING]);
+
+    UA_String str = UA_STRING("eins");
+    ck_assert(UA_String_equal(&str, (UA_String*)out.data));
+
+    UA_Variant_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_Array_Variant_String_xml_decode) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+
+    UA_ByteString buf  = UA_STRING("<Variant>"
+                      "<Value>"
+                        "<ListOfString>"
+                          "<String>eins</String>"
+                          "<String>zwei</String>"
+                        "</ListOfString>"
+                      "</Value>"
+                     "</Variant>");
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(out.arrayLength, 2);
+    ck_assert_ptr_eq(out.type, &UA_TYPES[UA_TYPES_STRING]);
+
+    UA_String str = UA_STRING("eins");
+    ck_assert(UA_String_equal(&str, (UA_String*)out.data));
+
+    UA_Variant_clear(&out);
+}
+END_TEST
+
 /* Array */
 /* START_TEST(UA_Array_Boolean_xml_decode) { */
 /*     UA_Boolean *out; */
@@ -4420,6 +4467,9 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_decode, UA_ExtensionObject_EncodedXml_3_xml_decode);
     tcase_add_test(tc_xml_decode, UA_ExtensionObject_EncodedXml_4_xml_decode);
     tcase_add_test(tc_xml_decode, UA_ExtensionObject_InvalidBody_xml_decode);
+
+    tcase_add_test(tc_xml_decode, UA_Array_Variant_String_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_Variant_String_xml_decode);
 
     /* tcase_add_test(tc_xml_decode, UA_Array_Boolean_xml_decode); */
     /* tcase_add_test(tc_xml_decode, UA_Array_Number_xml_decode); */
