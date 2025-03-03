@@ -1719,7 +1719,34 @@ START_TEST(UA_ExtensionObject_print_xml_encode) {
 }
 END_TEST
 
-/* Array */
+/* Variant */
+START_TEST(UA_Variant_Byte_xml_encode) {
+    UA_Variant src;
+    UA_Variant_init(&src);
+    UA_Byte fortytwo = 42;
+    UA_Variant_setScalar(&src, &fortytwo, &UA_TYPES[UA_TYPES_BYTE]);
+
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
+    size_t size = UA_calcSizeXml((void*)&src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)&src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char *result = "<Variant>"
+                      "<Value>"
+                        "<Byte>42</Byte>"
+                      "</Value>"
+                    "</Variant>";
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+}
+END_TEST
+
 START_TEST(UA_Array_Variant_Byte_xml_encode) {
     UA_Variant *src = UA_Variant_new();
     UA_Variant_init(src);
@@ -4277,6 +4304,7 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_encode, UA_ExtensionObject_null_xml_encode);
     tcase_add_test(tc_xml_encode, UA_ExtensionObject_print_xml_encode);
 
+    tcase_add_test(tc_xml_encode, UA_Variant_Byte_xml_encode);
     tcase_add_test(tc_xml_encode, UA_Array_Variant_Byte_xml_encode);
     tcase_add_test(tc_xml_encode, UA_Array_Variant_UInt16_xml_encode);
     tcase_add_test(tc_xml_encode, UA_Array_Variant_Null_xml_encode);
