@@ -3956,6 +3956,31 @@ START_TEST(UA_ExtensionObject_InvalidBody_xml_decode) {
 }
 END_TEST
 
+START_TEST(UA_Variant_unwrapped_byte_xml_decode) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+
+    UA_DecodeXmlOptions opts;
+    memset(&opts, 0, sizeof(UA_DecodeXmlOptions));
+    opts.unwrapped = false;
+
+    UA_ByteString buf  = UA_STRING("<Value>"
+                       "<String>eins</String>"
+                      "</Value>");
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], &opts);
+    ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
+
+    opts.unwrapped = true;
+    retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], &opts);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(out.arrayLength, 0);
+    ck_assert_ptr_eq(out.type, &UA_TYPES[UA_TYPES_STRING]);
+
+    UA_Variant_clear(&out);
+}
+END_TEST
+
 START_TEST(UA_Variant_String_xml_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
@@ -4470,6 +4495,7 @@ static Suite *testSuite_builtin_xml(void) {
 
     tcase_add_test(tc_xml_decode, UA_Array_Variant_String_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Variant_String_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_Variant_unwrapped_byte_xml_decode);
 
     /* tcase_add_test(tc_xml_decode, UA_Array_Boolean_xml_decode); */
     /* tcase_add_test(tc_xml_decode, UA_Array_Number_xml_decode); */
