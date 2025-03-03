@@ -1334,6 +1334,42 @@ DECODE_XML(Variant) {
 }
 
 static status
+decodeXmlStructure(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
+    /* Check the recursion limit */
+    if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION - 1)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
+    uintptr_t ptr = (uintptr_t)dst;
+    status ret = UA_STATUSCODE_GOOD;
+    u8 membersSize = type->membersSize;
+    UA_STACKARRAY(XmlDecodeEntry, entries, membersSize);
+    for(size_t i = 0; i < membersSize; ++i) {
+        const UA_DataTypeMember *m = &type->members[i];
+        const UA_DataType *mt = m->memberType;
+        entries[i].type = mt;
+        entries[i].name = UA_STRING((char*)(uintptr_t)m->memberName);
+        entries[i].found = false;
+        ptr += m->padding;
+        entries[i].fieldPointer = (void*)ptr;
+        if(!m->isArray) {
+            entries[i].function = NULL;
+            ptr += mt->memSize;
+        } else {
+            entries[i].function = (decodeXmlSignature)Array_decodeXml;
+            ptr += sizeof(size_t) + sizeof(void*);
+        }
+    }
+
+    ret = decodeXmlFields(ctx, entries, membersSize);
+
+    if(ctx->depth == 0)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth--;
+    return ret;
+}
+
+static status
 decodeXmlNotImplemented(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
     (void)dst, (void)type, (void)ctx;
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -1367,7 +1403,7 @@ const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (decodeXmlSignature)decodeXmlNotImplemented,    /* DiagnosticInfo */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Decimal */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Enum */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* Structure */
+    (decodeXmlSignature)decodeXmlStructure,         /* Structure */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Structure with optional fields */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Union */
     (decodeXmlSignature)decodeXmlNotImplemented     /* BitfieldCluster */
