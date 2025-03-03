@@ -12,7 +12,7 @@ import xml.dom.minidom as dom
 import logging
 import codecs
 import re
-from datatypes import NodeId, valueIsInternalType
+from datatypes import NodeId
 from nodes import *
 from opaque_type_mapping import opaque_type_mapping
 
@@ -110,10 +110,6 @@ class NodeSet:
         self.namespaceMapping = {}
 
     def sanitize(self):
-        for n in self.nodes.values():
-            if n.sanitize() is False:
-                raise Exception("Failed to sanitize node " + str(n))
-
         # Sanitize reference consistency
         for n in self.nodes.values():
             for ref in n.references:
@@ -247,7 +243,6 @@ class NodeSet:
             raise Exception(self, self.originXML + " contains no or more then 1 nodeset")
         nodeset = nodesets[0]
 
-
         # Extract the modelUri
         try:
             modelTag = nodeset.getElementsByTagName("Models")[0].getElementsByTagName("Model")[0]
@@ -255,7 +250,6 @@ class NodeSet:
         except Exception:
             # Ignore exception and try to use namespace array
             modelUri = None
-
 
         # Create the namespace mapping
         orig_namespaces = extractNamespaces(xmlfile)  # List of namespaces used in the xml file
@@ -294,34 +288,6 @@ class NodeSet:
                 raise Exception("XMLElement with duplicate ID " + str(node.id))
             self.nodes[node.id] = node
             newnodes[node.id] = node
-
-        # Parse Datatypes in order to find out what the XML keyed values actually
-        # represent.
-        # Ex. <rpm>123</rpm> is not encodable
-        #     only after parsing the datatypes, it is known that
-        #     rpm is encoded as a double
-        for n in newnodes.values():
-            if isinstance(n, DataTypeNode):
-                n.buildEncoding(self, namespaceMapping=self.namespaceMapping)
-
-    def getBinaryEncodingIdForNode(self, nodeId):
-        """
-        The node should have a 'HasEncoding' forward reference which points to the encoding ids.
-        These can be XML Encoding or Binary Encoding. Therefore we also need to check if the SymbolicName
-        of the target node is "DefaultBinary"
-        """
-        node = self.nodes[nodeId]
-        for ref in node.references:
-            if ref.referenceType.ns == 0 and ref.referenceType.i == 38:
-                refNode = self.nodes[ref.target]
-                if refNode.symbolicName.value == "DefaultBinary":
-                    return ref.target
-        raise Exception("No DefaultBinary encoding defined for node " + str(nodeId))
-
-    def allocateVariables(self):
-        for n in self.nodes.values():
-            if isinstance(n, VariableNode):
-                n.allocateValue(self)
 
     def getBaseDataType(self, node):
         if node is None:
