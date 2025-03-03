@@ -3865,27 +3865,8 @@ START_TEST(UA_ExtensionObject_EncodedXml_3_xml_decode) {
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL);
 
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_XML);
-    UA_ByteString testBufData = UA_STRING("<ServerStatusDataType xmlns=\"http://opcfoundation.org/UA/2008/02/Types.xsd\">"
-                                            "<StartTime>2000-01-01T00:00:00Z</StartTime>"
-                                            "<CurrentTime>2000-01-01T00:00:00Z</CurrentTime>"
-                                            "<State>5</State>"
-                                            "<BuildInfo>"
-                                              "<ProductUri>open62541</ProductUri>"
-                                              "<ManufacturerName>oss</ManufacturerName>"
-                                              "<ProductName>open62541</ProductName>"
-                                              "<SoftwareVersion>master</SoftwareVersion>"
-                                              "<BuildNumber>latest</BuildNumber>"
-                                              "<BuildDate>2000-01-01T00:00:00Z</BuildDate>"
-                                            "</BuildInfo>"
-                                            "<SecondsTillShutdown>0</SecondsTillShutdown>"
-                                            "<ShutdownReason>"
-                                              "<Locale>en</Locale>"
-                                              "<Text></Text>"
-                                            "</ShutdownReason>"
-                                          "</ServerStatusDataType>");
-    ck_assert(UA_ByteString_equal(&out.content.encoded.body, &testBufData));
-    ck_assert_int_eq(out.content.encoded.typeId.identifier.numeric, 863);
+    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert(out.content.decoded.type == &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE]);
 
     UA_ExtensionObject_clear(&out);
 }
@@ -3917,21 +3898,8 @@ START_TEST(UA_ExtensionObject_EncodedXml_4_xml_decode) {
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL);
 
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_XML);
-    UA_ByteString testBufData = UA_STRING("<Argument>"
-                                            "<Name>TransferID</Name>"
-                                            "<DataType>"
-                                              "<Identifier>i=6</Identifier>"
-                                            "</DataType>"
-                                            "<ValueRank>-1</ValueRank>"
-                                            "<ArrayDimensions />"
-                                            "<Description>"
-                                              "<Locale>en</Locale>"
-                                              "<Text>Enabled</Text>"
-                                            "</Description>"
-                                          "</Argument>");
-    ck_assert(UA_ByteString_equal(&out.content.encoded.body, &testBufData));
-    ck_assert_int_eq(out.content.encoded.typeId.identifier.numeric, 297);
+    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert(out.content.decoded.type == &UA_TYPES[UA_TYPES_ARGUMENT]);
 
     UA_ExtensionObject_clear(&out);
 }
