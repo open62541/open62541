@@ -1621,7 +1621,7 @@ START_TEST(UA_ExtensionObject_byteString_xml_encode) {
                         "<Identifier>ns=2;i=1234</Identifier>"
                       "</TypeId>"
                       "<Body>"
-                        "<ByteString>123456789012345678901234567890</ByteString>"
+                        "<ByteString>MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkw</ByteString>"
                       "</Body>"
                     "</ExtensionObject>";
     buf.data[size] = 0; /* zero terminate */
@@ -1629,6 +1629,35 @@ START_TEST(UA_ExtensionObject_byteString_xml_encode) {
 
     UA_ByteString_clear(&buf);
     UA_ExtensionObject_delete(src);
+}
+END_TEST
+
+START_TEST(UA_ExtensionObject_xml_body_encode) {
+    UA_ExtensionObject src;
+    UA_NodeId content = UA_NODEID_NUMERIC(0, 5555);
+    UA_ExtensionObject_setValue(&src, &content, &UA_TYPES[UA_TYPES_NODEID]);
+
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+    size_t size = UA_calcSizeXml((void*)&src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)&src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+    buf.data[size] = 0; /* zero terminate */
+
+    char *result = "<ExtensionObject>"
+                      "<TypeId>"
+                        "<Identifier>i=17</Identifier>"
+                      "</TypeId>"
+                      "<Body>"
+                        "<NodeId><Identifier>i=5555</Identifier></NodeId>"
+                      "</Body>"
+                    "</ExtensionObject>";
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
 }
 END_TEST
 
@@ -1645,7 +1674,7 @@ START_TEST(UA_ExtensionObject_null_xml_encode) {
     status s = UA_encodeXml((void*)src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "<ExtensionObject>null</ExtensionObject>";
+    char *result = "<ExtensionObject></ExtensionObject>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
 
@@ -1679,7 +1708,7 @@ START_TEST(UA_ExtensionObject_print_xml_encode) {
                         "<Identifier>ns=2;i=1234</Identifier>"
                       "</TypeId>"
                       "<Body>"
-                        "<ByteString>123456789012345678901234567890</ByteString>"
+                        "<ByteString>MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkw</ByteString>"
                       "</Body>"
                     "</ExtensionObject>";
     buf.data[size] = 0; /* zero terminate */
@@ -1856,7 +1885,7 @@ START_TEST(UA_Array_Variant_ExtensionObject_ByteString_xml_encode) {
                               "<Identifier>ns=2;i=1234</Identifier>"
                             "</TypeId>"
                             "<Body>"
-                              "<ByteString>123456789012345678901234567890</ByteString>"
+                              "<ByteString>MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkw</ByteString>"
                             "</Body>"
                           "</ExtensionObject>"
                           "<ExtensionObject>"
@@ -1864,7 +1893,7 @@ START_TEST(UA_Array_Variant_ExtensionObject_ByteString_xml_encode) {
                               "<Identifier>ns=3;i=5678</Identifier>"
                             "</TypeId>"
                             "<Body>"
-                              "<ByteString>98765432109876543210987654321</ByteString>"
+                              "<ByteString>OTg3NjU0MzIxMDk4NzY1NDMyMTA5ODc2NTQzMjE=</ByteString>"
                             "</Body>"
                           "</ExtensionObject>"
                           "<ExtensionObject>"
@@ -1872,7 +1901,7 @@ START_TEST(UA_Array_Variant_ExtensionObject_ByteString_xml_encode) {
                               "<Identifier>ns=4;i=9999</Identifier>"
                             "</TypeId>"
                             "<Body>"
-                              "<ByteString>1357911131517192123252729</ByteString>"
+                              "<ByteString>MTM1NzkxMTEzMTUxNzE5MjEyMzI1MjcyOQ==</ByteString>"
                             "</Body>"
                           "</ExtensionObject>"
                         "</ListOfExtensionObject>"
@@ -2071,7 +2100,7 @@ START_TEST(UA_Array_Variant_ExtensionObject_print_xml_encode) {
                               "<Identifier>ns=2;i=1234</Identifier>"
                             "</TypeId>"
                             "<Body>"
-                              "<ByteString>123456789012345678901234567890</ByteString>"
+                              "<ByteString>MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkw</ByteString>"
                             "</Body>"
                           "</ExtensionObject>"
                           "<ExtensionObject>"
@@ -2079,7 +2108,7 @@ START_TEST(UA_Array_Variant_ExtensionObject_print_xml_encode) {
                               "<Identifier>ns=3;i=5678</Identifier>"
                             "</TypeId>"
                             "<Body>"
-                              "<ByteString>98765432109876543210987654321</ByteString>"
+                              "<ByteString>OTg3NjU0MzIxMDk4NzY1NDMyMTA5ODc2NTQzMjE=</ByteString>"
                             "</Body>"
                           "</ExtensionObject>"
                         "</ListOfExtensionObject>"
@@ -4244,6 +4273,7 @@ static Suite *testSuite_builtin_xml(void) {
 
     tcase_add_test(tc_xml_encode, UA_ExtensionObject_xml_xml_encode);
     tcase_add_test(tc_xml_encode, UA_ExtensionObject_byteString_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_ExtensionObject_xml_body_encode);
     tcase_add_test(tc_xml_encode, UA_ExtensionObject_null_xml_encode);
     tcase_add_test(tc_xml_encode, UA_ExtensionObject_print_xml_encode);
 
