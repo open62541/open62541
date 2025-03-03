@@ -9,7 +9,7 @@ OPC UA Stack
 | **Encoding**                      |                    |
 | OPC UA Binary                     | :heavy_check_mark: |
 | OPC UA JSON                       | :heavy_check_mark: |
-| OPC UA XML                        |     :new_moon:     |
+| OPC UA XML                        |      :moon:        |
 | **Transport**                     |                    |
 | UA-TCP UA-SC UA Binary            | :heavy_check_mark: |
 | OPC UA HTTPS                      |     :new_moon:     |
