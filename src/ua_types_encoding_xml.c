@@ -669,7 +669,7 @@ DECODE_XML(Boolean) {
         return UA_STATUSCODE_BADDECODINGERROR;
     }
 
-    ctx->index++;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -716,7 +716,7 @@ DECODE_XML(SByte) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_SByte)out;
-    ctx->index++;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -731,7 +731,7 @@ DECODE_XML(Byte) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Byte)out;
-    ctx->index++;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -746,7 +746,7 @@ DECODE_XML(Int16) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Int16)out;
-    ctx->index++;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -761,7 +761,7 @@ DECODE_XML(UInt16) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_UInt16)out;
-    ctx->index++;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -776,7 +776,7 @@ DECODE_XML(Int32) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Int32)out;
-    ctx->index++;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -791,7 +791,7 @@ DECODE_XML(UInt32) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_UInt32)out;
-    ctx->index++;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -806,7 +806,7 @@ DECODE_XML(Int64) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Int64)out;
-    ctx->index++;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -821,7 +821,7 @@ DECODE_XML(UInt64) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_UInt64)out;
-    ctx->index++;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -834,8 +834,6 @@ DECODE_XML(Double) {
      * Sanity check. */
     if(length > 1075)
         return UA_STATUSCODE_BADDECODINGERROR;
-
-    ctx->index++;
 
     if(length == 3 && memcmp(data, "INF", 3) == 0) {
         *dst = INFINITY;
@@ -863,6 +861,8 @@ DECODE_XML(Double) {
             return UA_STATUSCODE_BADDECODINGERROR;
     }
 
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -877,11 +877,12 @@ DECODE_XML(String) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
 
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
+
     /* Empty string? */
     if(length == 0) {
         dst->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
         dst->length = 0;
-        ctx->index++;
         return UA_STATUSCODE_GOOD;
     }
 
@@ -894,7 +895,6 @@ DECODE_XML(String) {
         dst->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
     }
 
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -940,14 +940,15 @@ decodeXmlFields(ParseCtxXml *ctx, XmlDecodeEntry *entries, size_t entryCount) {
 
     size_t childCount = ctx->tokens[ctx->index].children;
 
-    /* Empty object, nothing to decode */
+    /* Empty object */
     if(childCount == 0) {
-        ctx->index++; /* Jump to the element after the empty object */
+        ctx->index += 1 + ctx->tokens[ctx->index].attributes;
         return UA_STATUSCODE_GOOD;
     }
 
+    /* Go to first entry element */
     ctx->depth++;
-    ctx->index++; /* Go to first entry element */
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
 
     status ret = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < childCount; i++) {
@@ -1025,7 +1026,7 @@ DECODE_XML(ByteString) {
         dst->length = flen;
     }
 
-    ctx->index++;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1062,7 +1063,7 @@ DECODE_XML(StatusCode) {
     if(ret != UA_STATUSCODE_GOOD || out > UA_UINT32_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (UA_StatusCode)out;
-    ctx->index++;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
     return UA_STATUSCODE_GOOD;
 }
 
