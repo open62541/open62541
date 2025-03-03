@@ -494,18 +494,12 @@ Array_encodeXml(CtxXml *ctx, const void *ptr, size_t length,
     memcpy(arrName + strlen("ListOf"), type->typeName, strlen(type->typeName));
     arrName[arrNameLen] = '\0';
 
-    status ret = writeXmlElemNameBegin(ctx, arrName);
-
-    if(!ptr)
-        goto finish;
-
     uintptr_t uptr = (uintptr_t)ptr;
+    status ret = writeXmlElemNameBegin(ctx, arrName);
     for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; ++i) {
         ret |= writeXmlElement(ctx, type->typeName, (const void*)uptr, type);
         uptr += type->memSize;
     }
-
-finish:
     ret |= writeXmlElemNameEnd(ctx, arrName);
     return ret;
 }
