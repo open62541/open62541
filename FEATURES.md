@@ -83,7 +83,7 @@ OPC UA Server
 | --------------------------------------- |:------------------:|
 | Local Discovery Server                  | :heavy_check_mark: |
 | Local Discovery Server Multicast Ext.   | :heavy_check_mark: |
-| Global Discovery Server                 |     :new_moon:     |
+| Global Discovery Server                 |      :moon:        |
 
 OPC UA Client
 -------------
