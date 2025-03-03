@@ -664,6 +664,7 @@ skipXmlObject(ParseCtxXml *ctx) {
 DECODE_XML(Boolean) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     if(length == 4 &&
        data[0] == 't' && data[1] == 'r' &&
@@ -678,7 +679,6 @@ DECODE_XML(Boolean) {
         return UA_STATUSCODE_BADDECODINGERROR;
     }
 
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -717,134 +717,125 @@ decodeUnsigned(const UA_Byte *data, size_t dataSize, UA_UInt64 *dst) {
 DECODE_XML(SByte) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_Int64 out = 0;
     UA_StatusCode s = decodeSigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD || out < UA_SBYTE_MIN || out > UA_SBYTE_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_SByte)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(Byte) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_UInt64 out = 0;
     UA_StatusCode s = decodeUnsigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD || out > UA_BYTE_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Byte)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(Int16) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_Int64 out = 0;
     UA_StatusCode s = decodeSigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD || out < UA_INT16_MIN || out > UA_INT16_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Int16)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(UInt16) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_UInt64 out = 0;
     UA_StatusCode s = decodeUnsigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD || out > UA_UINT16_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_UInt16)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(Int32) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_Int64 out = 0;
     UA_StatusCode s = decodeSigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD || out < UA_INT32_MIN || out > UA_INT32_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Int32)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(UInt32) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_UInt64 out = 0;
     UA_StatusCode s = decodeUnsigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD || out > UA_UINT32_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_UInt32)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(Int64) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_Int64 out = 0;
     UA_StatusCode s = decodeSigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Int64)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(UInt64) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_UInt64 out = 0;
     UA_StatusCode s = decodeUnsigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_UInt64)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(Double) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
      * Maximum digit counts for select IEEE floating-point formats: 1074
      * Sanity check. */
     if(length > 1075)
         return UA_STATUSCODE_BADDECODINGERROR;
-
-    ctx->index++;
 
     if(length == 3 && memcmp(data, "INF", 3) == 0) {
         *dst = INFINITY;
@@ -885,31 +876,23 @@ DECODE_XML(Float) {
 DECODE_XML(String) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     /* Empty string? */
     if(length == 0) {
         dst->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
         dst->length = 0;
-        ctx->index++;
         return UA_STATUSCODE_GOOD;
     }
 
-    /* Set the output */
-    dst->length = length;
-    if(dst->length > 0) {
-        UA_String str = {length, (UA_Byte*)(uintptr_t)data};
-        UA_String_copy(&str, dst);
-    } else {
-        dst->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
-    }
-
-    ctx->index++;
-    return UA_STATUSCODE_GOOD;
+    UA_String str = {length, (UA_Byte*)(uintptr_t)data};
+    return UA_String_copy(&str, dst);
 }
 
 DECODE_XML(DateTime) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
     UA_String str = {length, (UA_Byte*)(uintptr_t)data};
     return decodeDateTime(str, dst);
 }
@@ -949,14 +932,15 @@ decodeXmlFields(ParseCtxXml *ctx, XmlDecodeEntry *entries, size_t entryCount) {
 
     size_t childCount = ctx->tokens[ctx->index].children;
 
-    /* Empty object, nothing to decode */
+    /* Empty object */
     if(childCount == 0) {
-        ctx->index++; /* Jump to the element after the empty object */
+        skipXmlObject(ctx);
         return UA_STATUSCODE_GOOD;
     }
 
+    /* Go to first entry element */
     ctx->depth++;
-    ctx->index++; /* Go to first entry element */
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
 
     status ret = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < childCount; i++) {
@@ -1020,6 +1004,7 @@ DECODE_XML(Guid) {
 DECODE_XML(ByteString) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     /* Empty bytestring? */
     if(length == 0) {
@@ -1028,13 +1013,12 @@ DECODE_XML(ByteString) {
     } else {
         size_t flen = 0;
         unsigned char* unB64 = UA_unbase64((const unsigned char*)data, length, &flen);
-        if(unB64 == 0)
+        if(!unB64)
             return UA_STATUSCODE_BADDECODINGERROR;
         dst->data = (UA_Byte*)unB64;
         dst->length = flen;
     }
 
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1064,14 +1048,14 @@ DECODE_XML(StatusCode) {
     UA_String str;
     static UA_String statusidentifier = UA_STRING_STATIC(UA_XML_STATUSCODE_CODE);
     status ret = getChildContent(ctx, statusidentifier, &str);
-    if(ret != UA_STATUSCODE_GOOD) return ret;
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
     skipXmlObject(ctx);
     UA_UInt64 out = 0;
     ret = decodeUnsigned(str.data, str.length, &out);
     if(ret != UA_STATUSCODE_GOOD || out > UA_UINT32_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
     *dst = (UA_StatusCode)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
