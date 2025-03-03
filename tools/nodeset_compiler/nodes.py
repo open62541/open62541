@@ -229,7 +229,6 @@ class VariableNode(Node):
         self.minimumSamplingInterval = 0.0
         self.historizing = False
         self.value = None
-        self.xmlValueDef = None
         if xmlelement:
             VariableNode.parseXML(self, xmlelement)
 
@@ -255,7 +254,7 @@ class VariableNode(Node):
             if x.nodeType != x.ELEMENT_NODE:
                 continue
             if x.localName == "Value":
-                self.xmlValueDef = x
+                self.value = x
             elif x.localName == "DataType":
                 self.dataType = RefOrAlias(av)
             elif x.localName == "ValueRank":
@@ -273,20 +272,6 @@ class VariableNode(Node):
                 self.minimumSamplingInterval = float(x.firstChild.data)
             elif x.localName == "Historizing":
                 self.historizing = "false" not in x.lower()
-
-    def allocateValue(self, nodeset):
-        dataTypeNode = nodeset.getDataTypeNode(self.dataType)
-        if dataTypeNode is None:
-            return False
-
-        if self.xmlValueDef is None:
-            #logger.warn("Variable " + self.browseName() + "/" + str(self.id()) + " is not initialized. No memory will be allocated.")
-            return False
-
-        self.value = Value()
-        self.value.parseXMLEncoding(self.xmlValueDef, dataTypeNode, self, nodeset.parser)
-        return True
-
 
 class VariableTypeNode(VariableNode):
     def __init__(self, xmlelement=None):

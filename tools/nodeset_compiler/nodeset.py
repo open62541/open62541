@@ -318,11 +318,6 @@ class NodeSet:
                     return ref.target
         raise Exception("No DefaultBinary encoding defined for node " + str(nodeId))
 
-    def allocateVariables(self):
-        for n in self.nodes.values():
-            if isinstance(n, VariableNode):
-                n.allocateValue(self)
-
     def getBaseDataType(self, node):
         if node is None:
             return None
