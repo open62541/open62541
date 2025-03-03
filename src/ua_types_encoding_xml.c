@@ -508,18 +508,21 @@ ENCODE_XML(Variant) {
     if(!src->type)
         return UA_STATUSCODE_BADENCODINGERROR;
 
-    /* Set the content type in the encoding mask */
-    const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
-
     /* Set the array type in the encoding mask */
     const bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
 
-    if((!isArray && !isBuiltin) || src->arrayDimensionsSize > 1)
+    if(src->arrayDimensionsSize > 1)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
-    return writeXmlElemNameBegin(ctx, UA_XML_VARIANT_VALUE)
-        | Array_encodeXml(ctx, src->data, src->arrayLength, src->type)
-        | writeXmlElemNameEnd(ctx, UA_XML_VARIANT_VALUE);
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    ret |= writeXmlElemNameBegin(ctx, UA_XML_VARIANT_VALUE);
+    if(!isArray) {
+        ret |= writeXmlElement(ctx, src->type->typeName, src->data, src->type);
+    } else {
+        ret |= Array_encodeXml(ctx, src->data, src->arrayLength, src->type);
+    }
+    ret |= writeXmlElemNameEnd(ctx, UA_XML_VARIANT_VALUE);
+    return ret;
 }
 
 static status
