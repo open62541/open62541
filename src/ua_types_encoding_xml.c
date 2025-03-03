@@ -1095,6 +1095,30 @@ DECODE_XML(LocalizedText) {
     return decodeXmlFields(ctx, entries, 2);
 }
 
+/* Compare both typeId and xmlEncodingId */
+static const UA_DataType *
+lookupXmlType(ParseCtxXml *ctx, UA_NodeId *typeId) {
+    /* Search in the builtin types */
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        if(UA_NodeId_equal(typeId, &UA_TYPES[i].typeId) ||
+           UA_NodeId_equal(typeId, &UA_TYPES[i].xmlEncodingId))
+            return &UA_TYPES[i];
+    }
+
+    /* Search in the customTypes */
+    const UA_DataTypeArray *customTypes = ctx->customTypes;
+    while(customTypes) {
+        for(size_t i = 0; i < customTypes->typesSize; ++i) {
+            const UA_DataType *type = &customTypes->types[i];
+            if(UA_NodeId_equal(typeId, &type->typeId) ||
+               UA_NodeId_equal(typeId, &type->xmlEncodingId))
+                return type;
+        }
+        customTypes = customTypes->next;
+    }
+    return NULL;
+}
+
 static UA_StatusCode
 decodeExtensionObjectBody(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
     UA_ExtensionObject *eo = (UA_ExtensionObject*)dst;
@@ -1107,7 +1131,7 @@ decodeExtensionObjectBody(ParseCtxXml *ctx, void *dst, const UA_DataType *type) 
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Find the datatype of the body */
-    type = UA_findDataTypeWithCustom(&eo->content.encoded.typeId, ctx->customTypes);
+    type = lookupXmlType(ctx, &eo->content.encoded.typeId);
 
     /* Allocate decoded content */
     void *decoded = NULL;
