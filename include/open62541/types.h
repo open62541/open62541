@@ -1588,6 +1588,9 @@ UA_encodeXml(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
  * Zero-out the entire structure initially to ensure code-compatibility when
  * more fields are added in a later release. */
 typedef struct {
+    UA_Boolean unwrapped; /* The value xxx is not wrapped in an XML element - as
+                           * in <Type>xxx</Type> */
+
     UA_NamespaceMapping *namespaceMapping;
     const UA_String *serverUris;
     size_t serverUrisSize;
