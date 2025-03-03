@@ -832,7 +832,7 @@ START_TEST(UA_String_Null_xml_encode) {
     status s = UA_encodeXml(&src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "<String>null</String>";
+    char *result = "<String></String>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -1461,7 +1461,7 @@ START_TEST(UA_LocalizedText_null_locale_xml_encode) {
     status s = UA_encodeXml((void*)&src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "<LocalizedText><Locale>en</Locale><Text>null</Text></LocalizedText>";
+    char *result = "<LocalizedText><Locale>en</Locale><Text></Text></LocalizedText>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
 
@@ -1482,7 +1482,7 @@ START_TEST(UA_LocalizedText_null_xml_encode) {
     status s = UA_encodeXml((void*)&src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "<LocalizedText><Locale>null</Locale><Text>null</Text></LocalizedText>";
+    char *result = "<LocalizedText><Locale></Locale><Text></Text></LocalizedText>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
 
