@@ -98,7 +98,7 @@ UA_Timer_addTimedCallback(UA_Timer *t, UA_ApplicationCallback callback,
 UA_StatusCode
 UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
                              void *application, void *data, UA_Double interval_ms,
-                             UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
+                             const UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
                              UA_UInt64 *callbackId) {
     /* The interval needs to be positive */
     if(interval_ms <= 0.0)
@@ -126,7 +126,7 @@ UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
 
 UA_StatusCode
 UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
-                                UA_Double interval_ms, UA_DateTime *baseTime,
+                                UA_Double interval_ms, const UA_DateTime *baseTime,
                                 UA_TimerPolicy timerPolicy) {
     /* The interval needs to be positive */
     if(interval_ms <= 0.0)
