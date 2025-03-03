@@ -1326,18 +1326,22 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
     if(!dst || !src || !type)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
-    /* Tokenize */
+    /* Tokenize. Add a fake wrapper element if options->unwrapped is enabled. */
+    unsigned tokensSize = 63;
     xml_token tokenbuf[64];
     xml_token *tokens = tokenbuf;
-    xml_result res = xml_tokenize((char*)src->data, src->length, tokens, 64);
+
+    xml_result res = xml_tokenize((char*)src->data, (unsigned)src->length,
+                                  tokens + 1, tokensSize);
     if(res.error == XML_ERROR_OVERFLOW) {
-        tokens = (xml_token*)UA_malloc(sizeof(xml_token) * res.num_tokens);
+        tokens = (xml_token*)UA_malloc(sizeof(xml_token) * (res.num_tokens + 1));
         if(!tokens)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        res = xml_tokenize((char*)src->data, src->length, tokens, res.num_tokens);
+        res = xml_tokenize((char*)src->data, (unsigned)src->length,
+                           tokens + 1, res.num_tokens);
     }
 
-    if(res.error != XML_ERROR_NONE) {
+    if(res.error != XML_ERROR_NONE || res.num_tokens == 0) {
         if(tokens != tokenbuf)
             UA_free(tokens);
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -1354,6 +1358,20 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
         ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUris = options->serverUris;
         ctx.serverUrisSize = options->serverUrisSize;
+    }
+
+    if(options && options->unwrapped) {
+        /* Set up the fake wrapper element */
+        xml_token *tok = tokens;
+        memset(tok, 0, sizeof(xml_token));
+        tok->type = XML_TOKEN_ELEMENT;
+        tok->name = UA_STRING((char*)(uintptr_t)type->typeName);
+        tok->children = 1;
+        tok->start = 0;
+        tok->end = (unsigned)src->length;
+        ctx.tokensSize++;
+    } else {
+        ctx.tokens++; /* Skip the first token */
     }
 
     /* Decode */
