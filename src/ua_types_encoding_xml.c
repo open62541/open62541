@@ -450,32 +450,42 @@ ENCODE_XML(LocalizedText) {
 /* ExtensionObject */
 ENCODE_XML(ExtensionObject) {
     if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
-        return xmlEncodeWriteChars(ctx, "null", 4);
+        return UA_STATUSCODE_GOOD;
 
     /* The body of the ExtensionObject contains a single element
      * which is either a ByteString or XML encoded Structure:
      * https://reference.opcfoundation.org/Core/Part6/v104/docs/5.3.1.16. */
-    if(src->encoding != UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
-       src->encoding != UA_EXTENSIONOBJECT_ENCODED_XML)
-        return UA_STATUSCODE_BADENCODINGERROR;
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING ||
+       src->encoding == UA_EXTENSIONOBJECT_ENCODED_XML) {
+        /* Write the type NodeId */
+        ret = writeXmlElement(ctx, UA_XML_EXTENSIONOBJECT_TYPEID,
+                              &src->content.encoded.typeId,
+                              &UA_TYPES[UA_TYPES_NODEID]);
 
-    /* Write the type NodeId */
-    UA_StatusCode ret =
-        writeXmlElement(ctx, UA_XML_EXTENSIONOBJECT_TYPEID,
-                        &src->content.encoded.typeId, &UA_TYPES[UA_TYPES_NODEID]);
+        /* Write the body */
+        ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BODY);
+        if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING)
+           ret |= writeXmlElement(ctx, "ByteString", &src->content.encoded.body,
+                                  &UA_TYPES[UA_TYPES_BYTESTRING]);
+        else
+            ret |= ENCODE_DIRECT_XML(&src->content.encoded.body, String);
+        ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY,
+                                   &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    } else {
+        /* Write the decoded value */
+        const UA_DataType *type = src->content.decoded.type;
 
-    /* Write the body */
-    ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BODY);
-    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING)
-        ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BYTESTRING);
+        /* Write the type NodeId */
+        ret = writeXmlElement(ctx, UA_XML_EXTENSIONOBJECT_TYPEID,
+                              &type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
 
-    ret |= ENCODE_DIRECT_XML(&src->content.encoded.body, String);
-
-    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING)
-        ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BYTESTRING,
-                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
-    ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY,
-                               &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+        /* Write the body */
+        ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BODY);
+        ret |= writeXmlElement(ctx, type->typeName, src->content.decoded.data, type);
+        ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY,
+                                   &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    }
 
     return ret;
 }
@@ -1117,29 +1127,71 @@ static UA_StatusCode
 decodeExtensionObjectBody(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
     UA_ExtensionObject *eo = (UA_ExtensionObject*)dst;
 
-    /* Does the body have a single "bytestring" member? */
     xml_token *tok = &ctx->tokens[ctx->index];
+    if(tok->children != 1)
+        return UA_STATUSCODE_BADDECODINGERROR; /* Only one child allowed */
 
-    if(tok->attributes > 0 || tok->children != 1)
+    if(UA_NodeId_isNull(&eo->content.encoded.typeId))
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    ctx->index++;
-    tok = &ctx->tokens[ctx->index];
+    /* Find the datatype of the body */
+    type = UA_findDataTypeWithCustom(&eo->content.encoded.typeId, ctx->customTypes);
 
-    UA_String bs = UA_STRING_STATIC(UA_XML_EXTENSIONOBJECT_BYTESTRING);
-    if(UA_String_equal(&tok->name, &bs)) {
-        eo->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
-        return decodeXmlJumpTable[UA_DATATYPEKIND_BYTESTRING]
-            (ctx, &eo->content.encoded.body, NULL);
+    /* Allocate decoded content */
+    void *decoded = NULL;
+    if(type) {
+        decoded = UA_new(type);
+        if(!decoded)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    eo->encoding = UA_EXTENSIONOBJECT_ENCODED_XML;
-    UA_String body = {tok->end - tok->start, (UA_Byte*)(uintptr_t)ctx->xml + tok->start};
-    return UA_String_copy(&body, &eo->content.encoded.body);
+    /* Jump to the first child element */
+    ctx->index += 1 + tok->attributes;
+    tok = &ctx->tokens[ctx->index];
+
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    UA_String bs = UA_STRING_STATIC(UA_XML_EXTENSIONOBJECT_BYTESTRING);
+    if(UA_String_equal(&tok->name, &bs)) {
+        /* Decode binary ByteString Body */
+        eo->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
+        ret = decodeXmlJumpTable[UA_DATATYPEKIND_BYTESTRING](ctx, &eo->content.encoded.body, NULL);
+        if(!type)
+            return ret;
+        UA_DecodeBinaryOptions opts;
+        memset(&opts, 0, sizeof(UA_DecodeBinaryOptions));
+        ret = UA_decodeBinary(&eo->content.encoded.body, decoded, type, &opts);
+    } else {
+        /* Decode XML Body */
+        eo->encoding = UA_EXTENSIONOBJECT_ENCODED_XML;
+        UA_String body = {tok->end - tok->start, (UA_Byte*)(uintptr_t)ctx->xml + tok->start};
+        skipXmlObject(ctx); /* Skip over the body */
+        if(!type)
+            return UA_String_copy(&body, &eo->content.encoded.body);
+        UA_DecodeXmlOptions opts;
+        memset(&opts, 0, sizeof(UA_DecodeXmlOptions));
+        opts.namespaceMapping = ctx->namespaceMapping;
+        opts.serverUris = ctx->serverUris;
+        opts.serverUrisSize = ctx->serverUrisSize;
+        opts.customTypes = ctx->customTypes;
+        ret = UA_decodeXml(&body, decoded, type, &opts);
+    }
+
+    if(ret != UA_STATUSCODE_GOOD) {
+        UA_free(decoded); /* Return the un-decoded content if decoding fails */
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_ExtensionObject_clear(eo); /* Also clears the already decoded TypeId */
+    UA_ExtensionObject_setValue(eo, decoded, type);
+    return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(ExtensionObject) {
     CHECK_DATA_BOUNDS;
+    xml_token *tok = &ctx->tokens[ctx->index];
+    if(tok->children == 0)
+        return UA_STATUSCODE_GOOD; /* _NO_BODY */
+    dst->encoding = UA_EXTENSIONOBJECT_ENCODED_XML; /* default so the typeId gets cleaned up */
     XmlDecodeEntry entries[2] = {
         {UA_STRING_STATIC(UA_XML_EXTENSIONOBJECT_TYPEID), &dst->content.encoded.typeId,
          NULL, false, &UA_TYPES[UA_TYPES_NODEID]},
