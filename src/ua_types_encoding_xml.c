@@ -904,6 +904,7 @@ DECODE_XML(String) {
 DECODE_XML(DateTime) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
     UA_String str = {length, (UA_Byte*)(uintptr_t)data};
     return decodeDateTime(str, dst);
 }
