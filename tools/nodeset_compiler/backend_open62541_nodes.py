@@ -260,8 +260,10 @@ def generateCommonVariableCode(node, nodeset):
     code.append("attr.dataType = %s;" % generateNodeIdCode(node.dataType))
 
     if node.value:
-        xmlenc = [ "\"" + makeCLiteral(line) + "\"" for line in node.value.toxml().splitlines()]
-        code.append(f"UA_String xmlValue = UA_STRING({"\n".join(xmlenc)});")
+        xmlenc = [makeCLiteral(line) for line in node.value.toxml().splitlines()]
+        xmlenc = [(" " * (len(line) - len(line.lstrip()))) + "\"" + line.lstrip() + "\"" for line in xmlenc]
+        outxml = "\n".join(xmlenc)
+        code.append(f"UA_String xmlValue = UA_STRING({outxml});")
         code.append("""UA_DecodeXmlOptions opts;
 memset(&opts, 0, sizeof(UA_DecodeXmlOptions));
 opts.unwrapped = true;
