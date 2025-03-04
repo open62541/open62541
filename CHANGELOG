@@ -1,6 +1,19 @@
 This changelog reports changes visible through the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2025-02-18 Andreas Eckerstorfer <estr at keba.com>
+
+ * PubSub beforeWrite callback
+
+   A misleading comment about the content of the variable
+   externalDataValue in the PubSub beforeWrite callback has been
+   removed. Please review your beforeWrite callback implementation.
+   The beforeWrite callback is called with the data pointer
+   containing the data before the update. It may be used for a
+   double buffer implementation.
+   The original code change was done with commit
+   06da5d07bd9a653d32e7a6ed06deae994d29953c.
+
 2023-07-02 Jonas Green <jgr at hms.se>
 
  * Decoding variant with array of structure
