@@ -1243,6 +1243,49 @@ lookupTypeByName(ParseCtxXml *ctx, UA_String typeName) {
     return NULL;
 }
 
+static void
+unwrapVariantExtensionObject(UA_Variant *dst, UA_Boolean isArray) {
+    if(isArray && dst->arrayLength == 0)
+        return;
+
+    UA_ExtensionObject *eo = (UA_ExtensionObject*)dst->data;
+    if(eo->encoding != UA_EXTENSIONOBJECT_DECODED)
+        return;
+
+    const UA_DataType *type = eo->content.decoded.type;
+
+    /* Scalar */
+    if(!isArray) {
+        dst->data = eo->content.decoded.data;
+        dst->type = type;
+        UA_free(eo);
+        return;
+    }
+
+    /* Array. Check that all members can be unpacked */
+    for(size_t i = 0; i < dst->arrayLength; i++, eo++) {
+        if(eo->encoding != UA_EXTENSIONOBJECT_DECODED)
+            return;
+        if(eo->content.decoded.type != type)
+            return;
+    }
+
+    /* Allocate the array */
+    void *unpacked = UA_calloc(dst->arrayLength, type->memSize);
+    if(!unpacked)
+        return;
+
+    /* Unpack the content and set the new array */
+    uintptr_t uptr = (uintptr_t)unpacked;
+    eo = (UA_ExtensionObject*)dst->data;
+    for(size_t i = 0; i < dst->arrayLength; i++, eo++) {
+        memcpy((void*)uptr, eo->content.decoded.data, type->memSize);
+        uptr += type->memSize;
+    }
+    dst->data = unpacked;
+    dst->type = type;
+}
+
 DECODE_XML(Variant) {
     CHECK_DATA_BOUNDS;
 
@@ -1301,6 +1344,13 @@ DECODE_XML(Variant) {
     }
 
     ctx->depth--;
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    /* Unwrap ExtensionObject in the variant */
+    if(dst->type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
+        unwrapVariantExtensionObject(dst, isArray);
+
     return ret;
 }
 
