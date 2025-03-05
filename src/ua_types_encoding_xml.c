@@ -953,7 +953,7 @@ decodeXmlFields(ParseCtxXml *ctx, XmlDecodeEntry *entries, size_t entryCount) {
             /* Search for key, if found outer loop will be one less. Best case
              * if objectCount is in order! */
             size_t index = j % entryCount;
-            if(!UA_String_equal(&elem->name, &entries[index].name))
+            if(!UA_String_equal_ignorecase(&elem->name, &entries[index].name))
                 continue;
             entry = &entries[index];
             break;
@@ -1219,6 +1219,52 @@ lookupTypeByName(ParseCtxXml *ctx, UA_String typeName) {
     return NULL;
 }
 
+static void
+unwrapVariantExtensionObject(UA_Variant *dst, UA_Boolean isArray) {
+    if(isArray && dst->arrayLength == 0)
+        return;
+
+    UA_ExtensionObject *eo = (UA_ExtensionObject*)dst->data;
+    if(eo->encoding != UA_EXTENSIONOBJECT_DECODED)
+        return;
+
+    const UA_DataType *type = eo->content.decoded.type;
+
+    /* Scalar */
+    if(!isArray) {
+        dst->data = eo->content.decoded.data;
+        dst->type = type;
+        UA_free(eo);
+        return;
+    }
+
+    /* Array. Check that all members can be unpacked */
+    for(size_t i = 0; i < dst->arrayLength; i++, eo++) {
+        if(eo->encoding != UA_EXTENSIONOBJECT_DECODED)
+            return;
+        if(eo->content.decoded.type != type)
+            return;
+    }
+
+    /* Allocate the array */
+    void *unpacked = UA_calloc(dst->arrayLength, type->memSize);
+    if(!unpacked)
+        return;
+
+    /* Unpack the content and set the new array */
+    uintptr_t uptr = (uintptr_t)unpacked;
+    eo = (UA_ExtensionObject*)dst->data;
+    for(size_t i = 0; i < dst->arrayLength; i++, eo++) {
+        /* Move the value content */
+        memcpy((void*)uptr, eo->content.decoded.data, type->memSize);
+        UA_free(eo->content.decoded.data); /* Free the old value location */
+        uptr += type->memSize;
+    }
+    UA_free(dst->data); /* Remove the old array of ExtensionObjects */
+    dst->data = unpacked;
+    dst->type = type;
+}
+
 DECODE_XML(Variant) {
     CHECK_DATA_BOUNDS;
 
@@ -1277,6 +1323,13 @@ DECODE_XML(Variant) {
     }
 
     ctx->depth--;
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    /* Unwrap ExtensionObject in the variant */
+    if(dst->type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
+        unwrapVariantExtensionObject(dst, isArray);
+
     return ret;
 }
 
