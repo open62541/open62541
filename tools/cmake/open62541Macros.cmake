@@ -411,7 +411,6 @@ function(ua_generate_nodeset)
                        ${open62541_TOOLS_DIR}/nodeset_compiler/datatypes.py
                        ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541.py
                        ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_nodes.py
-                       ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_datatypes.py
                        ${UA_GEN_NS_FILE}
                        ${UA_GEN_NS_DEPENDS_NS}
                        ${GEN_BLACKLIST_DEPENDS}
