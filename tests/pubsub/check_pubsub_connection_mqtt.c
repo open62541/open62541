@@ -17,7 +17,7 @@
 #include <check.h>
 
 //#define TEST_MQTT_SERVER "opc.mqtt://test.mosquitto.org:1883"
-#define TEST_MQTT_SERVER "opc.mqtt://localhost:1883"
+#define TEST_MQTT_SERVER "opc.mqtt://mosquitto:1883"
 
 UA_Server *server = NULL;
 UA_ServerConfig *config = NULL;
@@ -86,7 +86,7 @@ START_TEST(AddConnectionWithInvalidAddress){
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("MQTT Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl =
-        {UA_STRING_NULL, UA_STRING("opc.mqtt://127.0..1:1883/")};
+        {UA_STRING_NULL, UA_STRING(TEST_MQTT_SERVER "/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
