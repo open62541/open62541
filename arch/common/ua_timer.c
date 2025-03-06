@@ -49,6 +49,29 @@ UA_Timer_init(UA_Timer *t) {
     UA_LOCK_INIT(&t->timerMutex);
 }
 
+/* Global variables, only used behind the mutex */
+static UA_DateTime earliest, latest, adjustedNextTime;
+
+static void *
+findTimer2Batch(void *context, UA_TimerEntry *compare) {
+    UA_TimerEntry *te = (UA_TimerEntry*)context;
+
+    /* NextTime deviation within interval? */
+    if(compare->nextTime < earliest || compare->nextTime > latest)
+        return NULL;
+
+    /* Check if one interval is a multiple of the other */
+    if(te->interval < compare->interval && compare->interval % te->interval != 0)
+        return NULL;
+    if(te->interval > compare->interval && te->interval % compare->interval != 0)
+        return NULL;
+
+    adjustedNextTime = compare->nextTime; /* Candidate found */
+
+    /* Abort when a perfect match is found */
+    return (te->interval == compare->interval) ? te : NULL;
+}
+
 static UA_StatusCode
 addCallback(UA_Timer *t, UA_ApplicationCallback callback, void *application,
             void *data, UA_DateTime nextTime, UA_UInt64 interval,
@@ -63,13 +86,27 @@ addCallback(UA_Timer *t, UA_ApplicationCallback callback, void *application,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Set the repeated callback */
-    te->interval = (UA_UInt64)interval;
+    te->interval = interval;
     te->id = ++t->idCounter;
     te->callback = callback;
     te->application = application;
     te->data = data;
     te->nextTime = nextTime;
     te->timerPolicy = timerPolicy;
+
+    /* Adjust the nextTime to batch cyclic callbacks. Look in an interval around
+     * the original nextTime. Deviate from the original nextTime by at most 1/4
+     * of the interval and at most by 1s. */
+    if(timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME && interval != 0) {
+        UA_UInt64 deviate = te->interval / 4;
+        if(deviate > UA_DATETIME_SEC)
+            deviate = UA_DATETIME_SEC;
+        earliest = te->nextTime - deviate;
+        latest = te->nextTime + deviate;
+        adjustedNextTime = te->nextTime;
+        ZIP_ITER(UA_TimerIdTree, &t->idTree, findTimer2Batch, te);
+        te->nextTime = adjustedNextTime;
+    }
 
     /* Set the output identifier */
     if(callbackId)
