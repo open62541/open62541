@@ -647,7 +647,7 @@ UA_Server_getStatistics(UA_Server *server) {
 /* Main Server Loop */
 /********************/
 
-#define UA_MAXTIMEOUT 200 /* Max timeout in ms between main-loop iterations */
+#define UA_MAXTIMEOUT 500 /* Max timeout in ms between main-loop iterations */
 
 void
 setServerLifecycleState(UA_Server *server, UA_LifecycleState state) {
