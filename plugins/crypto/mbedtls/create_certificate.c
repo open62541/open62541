@@ -11,7 +11,7 @@
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
 #include "securitypolicy_common.h"
-#include "../../arch/posix/eventloop_posix.h"
+#include "../deps/musl_inet_pton.h"
 
 #include <time.h>
 
@@ -25,6 +25,8 @@
 
 #define SET_OID(x, oid) \
     do { x.len = MBEDTLS_OID_SIZE(oid); x.p = (unsigned char *) oid; } while (0)
+
+#define AF_INET         2
 
 typedef struct mbedtls_write_san_node{
     int type;
@@ -188,7 +190,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
                 cur_tmp->node.type = MBEDTLS_X509_SAN_UNIFORM_RESOURCE_IDENTIFIER;
             } else if(strcmp(sanType, "IP") == 0) {
                 uint8_t ip[4] = {0};
-                if(UA_inet_pton(AF_INET, sanValue, ip) <= 0) {
+                if(musl_inet_pton(AF_INET, sanValue, ip) <= 0) {
                     UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "IP SAN preparation failed");
                     mbedtls_free(cur_tmp);
                     UA_free(subAlt);
