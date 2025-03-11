@@ -126,7 +126,7 @@ static int
 getSockError(TCP_FD *conn) {
     int error = 0;
     socklen_t errlen = sizeof(int);
-    int err = getsockopt(conn->rfd.fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
+    int err = UA_getsockopt(conn->rfd.fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
     return (err == 0) ? error : err;
 }
 
@@ -552,7 +552,7 @@ TCP_registerListenSockets(UA_LWIPConnectionManager *pcm, const char *hostname,
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_flags = AI_PASSIVE;
 
-    int retcode = lwip_getaddrinfo(hostname, portstr, &hints, &res);
+    int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
         UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                        "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
@@ -569,7 +569,7 @@ TCP_registerListenSockets(UA_LWIPConnectionManager *pcm, const char *hostname,
                                                  connectionCallback, validate, reuseaddr);
         ai = ai->ai_next;
     }
-    lwip_freeaddrinfo(res);
+    UA_freeaddrinfo(res);
 
     return total_result;
 #else
@@ -616,7 +616,7 @@ TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
     }
 
     /* Shutdown the socket to cancel the current select/epoll */
-    shutdown(conn->rfd.fd, UA_SHUT_RDWR);
+    UA_shutdown(conn->rfd.fd, UA_SHUT_RDWR);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Shutdown triggered",
@@ -822,7 +822,7 @@ TCP_openActiveConnection(UA_LWIPConnectionManager *pcm, const UA_KeyValueMap *pa
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    int error = lwip_getaddrinfo(hostname, portStr, &hints, &info);
+    int error = UA_getaddrinfo(hostname, portStr, &hints, &info);
     if(error != 0) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP\t| Lookup of %s failed (%s)",
@@ -833,7 +833,7 @@ TCP_openActiveConnection(UA_LWIPConnectionManager *pcm, const UA_KeyValueMap *pa
     /* Create a socket */
     UA_FD newSock = UA_socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     if(newSock == UA_INVALID_FD) {
-        lwip_freeaddrinfo(info);
+        UA_freeaddrinfo(info);
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                            "TCP\t| Could not create socket to connect to %s (%s)",
@@ -862,7 +862,7 @@ TCP_openActiveConnection(UA_LWIPConnectionManager *pcm, const UA_KeyValueMap *pa
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                            "TCP\t| Could not set socket options: %s", errno_str));
 #if LWIP_DNS
-        lwip_freeaddrinfo(info);
+        UA_freeaddrinfo(info);
 #endif
         UA_close(newSock);
         return res;
@@ -871,7 +871,7 @@ TCP_openActiveConnection(UA_LWIPConnectionManager *pcm, const UA_KeyValueMap *pa
     /* Only validate, don't actually open the connection */
     if(validate) {
 #if LWIP_DNS
-        lwip_freeaddrinfo(info);
+        UA_freeaddrinfo(info);
 #endif
         UA_close(newSock);
         return UA_STATUSCODE_GOOD;
@@ -880,7 +880,7 @@ TCP_openActiveConnection(UA_LWIPConnectionManager *pcm, const UA_KeyValueMap *pa
     /* Non-blocking connect */
 #if LWIP_DNS
     error = UA_connect(newSock, info->ai_addr, info->ai_addrlen);
-    lwip_freeaddrinfo(info);
+    UA_freeaddrinfo(info);
     if(error != 0 &&
        UA_ERRNO != UA_INPROGRESS &&
        UA_ERRNO != UA_WOULDBLOCK) {

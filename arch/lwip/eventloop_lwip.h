@@ -120,6 +120,7 @@ lwip_gethostname(char *name, size_t len) {
 #define UA_poll lwip_poll
 #define UA_socket lwip_socket
 #define UA_bind lwip_bind
+#define UA_recvfrom lwip_recvfrom
 #define UA_listen lwip_listen
 #define UA_accept lwip_accept
 #define UA_send lwip_send
@@ -128,13 +129,18 @@ lwip_gethostname(char *name, size_t len) {
 #define UA_close lwip_close
 #define UA_select lwip_select
 #define UA_connect lwip_connect
+#define UA_shutdown lwip_shutdown
 #define UA_getsockopt lwip_getsockopt
 #define UA_setsockopt lwip_setsockopt
 #define UA_inet_pton lwip_inet_pton
 #define UA_if_nametoindex lwip_if_nametoindex
 #define UA_getsockname lwip_getsockname
-// #define UA_getaddrinfo lwip_getaddrinfo
-// #define UA_freeaddrinfo lwip_freeaddrinfo
+#define UA_inet_ntop lwip_inet_ntop
+
+#if LWIP_DNS
+#define UA_getaddrinfo lwip_getaddrinfo
+#define UA_freeaddrinfo lwip_freeaddrinfo
+#endif
 
 #define UA_clean_errno(STR_FUN) (errno == 0 ? (char*) "None" : (STR_FUN)(errno))
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG) {                                                  \

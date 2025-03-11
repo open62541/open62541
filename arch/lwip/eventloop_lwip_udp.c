@@ -620,11 +620,11 @@ UDP_connectionSocketCallback(UA_LWIPConnectionManager *pcm, UDP_FD *conn,
     struct sockaddr_storage source;
 #ifndef _WIN32
     socklen_t sourceSize = (socklen_t)sizeof(struct sockaddr_storage);
-    ssize_t ret = recvfrom(conn->rfd.fd, (char*)response.data, response.length,
+    ssize_t ret = UA_recvfrom(conn->rfd.fd, (char*)response.data, response.length,
                            MSG_DONTWAIT, (struct sockaddr*)&source, &sourceSize);
 #else
     int sourceSize = (int)sizeof(struct sockaddr_storage);
-    int ret = recvfrom(conn->rfd.fd, (char*)response.data, (int)response.length,
+    int ret = UA_recvfrom(conn->rfd.fd, (char*)response.data, (int)response.length,
                        MSG_DONTWAIT, (struct sockaddr*)&source, &sourceSize);
 #endif
 
@@ -651,13 +651,13 @@ UDP_connectionSocketCallback(UA_LWIPConnectionManager *pcm, UDP_FD *conn,
     UA_UInt16 sourcePort;
     switch(source.ss_family) {
         case AF_INET:
-            inet_ntop(AF_INET, &((struct sockaddr_in *)&source)->sin_addr,
+            UA_inet_ntop(AF_INET, &((struct sockaddr_in *)&source)->sin_addr,
                     sourceAddr, 64);
             sourcePort = htons(((struct sockaddr_in *)&source)->sin_port);
             break;
 #if UA_IPV6
         case AF_INET6:
-            inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)&source)->sin6_addr),
+            UA_inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)&source)->sin6_addr),
                     sourceAddr, 64);
             sourcePort = htons(((struct sockaddr_in6 *)&source)->sin6_port);
             break;
@@ -745,7 +745,7 @@ UDP_registerListenSocket(UA_LWIPConnectionManager *pcm, UA_UInt16 port,
         struct sockaddr_in sin;
         memset(&sin, 0, sizeof(sin));
         socklen_t len = sizeof(sin);
-        getsockname(listenSocket, (struct sockaddr *)&sin, &len);
+        UA_getsockname(listenSocket, (struct sockaddr *)&sin, &len);
         port = ntohs(sin.sin_port);
     }
 
@@ -846,7 +846,7 @@ UDP_registerListenSockets(UA_LWIPConnectionManager *pcm, const char *hostname,
     char portstr[6];
     mp_snprintf(portstr, 6, "%d", port);
 
-    int retcode = getaddrinfo(hostname, portstr, &hints, &res);
+    int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
            UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger,
@@ -866,7 +866,7 @@ UDP_registerListenSockets(UA_LWIPConnectionManager *pcm, const char *hostname,
             break;
         ai = ai->ai_next;
     }
-    lwip_freeaddrinfo(res);
+    UA_freeaddrinfo(res);
     return rv;
 #else
     struct addrinfo hints;
@@ -913,7 +913,7 @@ UDP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd) {
     }
 
     /* Shutdown the socket to cancel the current select/epoll */
-    shutdown(rfd->fd, UA_SHUT_RDWR);
+    UA_shutdown(rfd->fd, UA_SHUT_RDWR);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "UDP %u\t| Shutdown called", (unsigned)rfd->fd);
