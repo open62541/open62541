@@ -91,14 +91,14 @@ lwip_gethostname(char *name, size_t len) {
     if(!name || len <= 0)
         return -1;
 
-    size_t hostnameLen = strlen(HOSTNAME);
-
-    if(hostnameLen >= len)
+    if(!netif_default || !netif_default->hostname)
         return -1;
 
-    strncpy(name, HOSTNAME, len);
-    name[len - 1] = '\0';
+    size_t hostnameLen = strlen(netif_default->hostname);
+    if(hostnameLen > len)
+        return -1;
 
+    strncpy(name, netif_default->hostname, len);
     return 0;
 }
 
