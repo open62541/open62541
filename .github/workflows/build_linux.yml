@@ -24,8 +24,8 @@ jobs:
             cmd_deps: ""
             cmd_action: unit_tests_alarms
           - build_name: "Debug Build & Unit Tests (clang)"
-            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 mosquitto
-            cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
+            cmd_deps: sudo apt-get install -y -qq clang-14 clang-tools-14 mosquitto
+            cmd_action: CC=clang-14 CXX=clang++-14 unit_tests
           - build_name: "Debug Build & Unit Tests (tcc)"
             cmd_deps: sudo apt-get install -y -qq tcc mosquitto
             cmd_action: CC=tcc unit_tests
@@ -53,7 +53,7 @@ jobs:
                 cd ${HOME}
                 git clone https://github.com/tpm2-software/tpm2-tss.git
                 cd ${HOME}/tpm2-tss
-                git checkout 2.4.6
+                git checkout 3.2.3
                 ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
                 make -j$(nproc)
                 sudo make install
@@ -63,7 +63,7 @@ jobs:
                 cd ${HOME}
                 git clone https://github.com/tpm2-software/tpm2-pkcs11.git
                 cd ${HOME}/tpm2-pkcs11
-                git checkout 1.6.0
+                git checkout 1.7.0
                 ./bootstrap && ./configure
                 make -j$(nproc)
                 sudo make install
@@ -98,7 +98,7 @@ jobs:
             cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
             cmd_action: build_clang_analyzer
     name: ${{matrix.build_name}}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v2
       with:
