@@ -1265,6 +1265,8 @@ lookupTypeByName(ParseCtxXml *ctx, UA_String typeName) {
 
 static void
 unwrapVariantExtensionObject(UA_Variant *dst, UA_Boolean isArray) {
+    if(dst->type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
+        return;
     if(isArray && dst->arrayLength == 0)
         return;
 
@@ -1309,6 +1311,56 @@ unwrapVariantExtensionObject(UA_Variant *dst, UA_Boolean isArray) {
     dst->type = type;
 }
 
+static UA_StatusCode
+decodeMatrixVariant(ParseCtxXml *ctx, UA_Variant *dst) {
+    /* The <Matrix> token needs two children: <Dimensions> and <Elements> */
+    xml_token *tok = &ctx->tokens[ctx->index];
+    if(tok->children != 2)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Jump to the child of the <Matrix> token */
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
+    tok = &ctx->tokens[ctx->index];
+
+    UA_assert(tok->type == XML_TOKEN_ELEMENT);
+    static UA_String dimName = UA_STRING_STATIC("Dimensions");
+    if(!UA_String_equal(&tok->name, &dimName))
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    UA_StatusCode ret =
+        Array_decodeXml(ctx, &dst->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    UA_assert(tok->type == XML_TOKEN_ELEMENT);
+    static UA_String elemName = UA_STRING_STATIC("Elements");
+    tok = &ctx->tokens[ctx->index];
+    if(!UA_String_equal(&tok->name, &elemName))
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Get the type of the first element */
+    size_t oldIndex = ctx->index;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
+    tok = &ctx->tokens[ctx->index];
+    UA_assert(tok->type == XML_TOKEN_ELEMENT);
+
+    UA_String typeName = tok->name;
+    dst->type = lookupTypeByName(ctx, typeName);
+    if(!dst->type)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Decode the array */
+    ctx->index = oldIndex;
+    ret = Array_decodeXml(ctx, &dst->arrayLength, dst->type);
+
+    /* Check that the ArrayDimensions match */
+    size_t dimLen = 1;
+    for(size_t i = 0; i < dst->arrayDimensionsSize; i++)
+        dimLen *= dst->arrayDimensions[i];
+
+    return (dimLen == dst->arrayLength) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADDECODINGERROR;
+}
+
 DECODE_XML(Variant) {
     CHECK_DATA_BOUNDS;
 
@@ -1333,13 +1385,25 @@ DECODE_XML(Variant) {
     if(tok->children != 1)
         return UA_STATUSCODE_BADDECODINGERROR;
 
+    /* Jump to the child of the <Value> token */
+    ctx->depth++;
     ctx->index += 1 + ctx->tokens[ctx->index].attributes;
     tok = &ctx->tokens[ctx->index];
 
+    /* Special case for multi-dimensional arrays */
+    static UA_String matrName = UA_STRING_STATIC("Matrix");
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(UA_String_equal(&tok->name, &matrName)) {
+        ret = decodeMatrixVariant(ctx, dst);
+        unwrapVariantExtensionObject(dst, true);
+        ctx->depth--;
+        return ret;
+    }
+
     /* Get the Data type / array type */
     UA_Boolean isArray = false;
-    UA_String typeName = tok->name;
     static char *lo = "ListOf";
+    UA_String typeName = tok->name;
     if(tok->name.length > strlen(lo) &&
        strncmp((char*)tok->name.data, lo, strlen(lo)) == 0) {
         isArray = true;
@@ -1349,12 +1413,12 @@ DECODE_XML(Variant) {
 
     /* Look up the DataType from the name */
     dst->type = lookupTypeByName(ctx, typeName);
-    if(!dst->type)
+    if(!dst->type) {
+        ctx->depth--;
         return UA_STATUSCODE_BADDECODINGERROR;
+    }
 
-    ctx->depth++;
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-
+    /* Decode */
     if(!isArray) {
         dst->data = UA_new(dst->type);
         if(!dst->data) {
@@ -1366,14 +1430,10 @@ DECODE_XML(Variant) {
         ret = Array_decodeXml(ctx, &dst->arrayLength, dst->type);
     }
 
+    /* Unwrap ExtensionObject values in the variant */
+    unwrapVariantExtensionObject(dst, isArray);
+
     ctx->depth--;
-    if(ret != UA_STATUSCODE_GOOD)
-        return ret;
-
-    /* Unwrap ExtensionObject in the variant */
-    if(dst->type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
-        unwrapVariantExtensionObject(dst, isArray);
-
     return ret;
 }
 

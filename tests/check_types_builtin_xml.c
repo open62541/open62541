@@ -3971,6 +3971,41 @@ START_TEST(UA_Variant_String_xml_decode) {
 }
 END_TEST
 
+START_TEST(UA_Variant_Matrix_xml_decode) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+
+    UA_ByteString buf  = UA_STRING("<Variant>"
+                      "<Value>"
+            "<Matrix>"
+              "<Dimensions>"
+                "<Int32>3</Int32>"
+                "<Int32>2</Int32>"
+              "</Dimensions>"
+              "<Elements>"
+                "<Int32>11</Int32>"
+                "<Int32>21</Int32>"
+                "<Int32>31</Int32>"
+                "<Int32>12</Int32>"
+                "<Int32>22</Int32>"
+                "<Int32>32</Int32>"
+              "</Elements>"
+            "</Matrix>"
+                      "</Value>"
+                     "</Variant>");
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(out.arrayLength, 6);
+    ck_assert_uint_eq(out.arrayDimensionsSize, 2);
+    ck_assert_uint_eq(out.arrayDimensions[0], 3);
+    ck_assert_uint_eq(out.arrayDimensions[1], 2);
+    ck_assert_ptr_eq(out.type, &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_Variant_clear(&out);
+}
+END_TEST
+
 START_TEST(UA_Array_Variant_String_xml_decode) {
     UA_Variant out;
     UA_Variant_init(&out);
@@ -4463,6 +4498,7 @@ static Suite *testSuite_builtin_xml(void) {
 
     tcase_add_test(tc_xml_decode, UA_Array_Variant_String_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Variant_String_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_Variant_Matrix_xml_decode);
     tcase_add_test(tc_xml_decode, UA_Variant_unwrapped_byte_xml_decode);
 
     /* tcase_add_test(tc_xml_decode, UA_Array_Boolean_xml_decode); */
