@@ -476,6 +476,14 @@ static status
 Array_encodeXml(CtxXml *ctx, const void *ptr, size_t length,
                 const UA_DataType *type) {
     char arrName[128];
+    UA_ExtensionObject eo;
+
+    UA_Boolean wrapEO = (type->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO);
+    if(wrapEO) {
+        UA_ExtensionObject_setValue(&eo, (void*)(uintptr_t)ptr, type);
+        type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+    }
+
     size_t arrNameLen = strlen("ListOf") + strlen(type->typeName);
     if(arrNameLen >= 128)
         return UA_STATUSCODE_BADENCODINGERROR;
@@ -486,7 +494,12 @@ Array_encodeXml(CtxXml *ctx, const void *ptr, size_t length,
     uintptr_t uptr = (uintptr_t)ptr;
     status ret = writeXmlElemNameBegin(ctx, arrName);
     for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; ++i) {
-        ret |= writeXmlElement(ctx, type->typeName, (const void*)uptr, type);
+        if(!wrapEO) {
+            ret |= writeXmlElement(ctx, type->typeName, (const void*)uptr, type);
+        } else {
+            eo.content.decoded.data = (void*)uptr;
+            ret |= writeXmlElement(ctx, type->typeName, &eo, type);
+        }
         uptr += type->memSize;
     }
     ret |= writeXmlElemNameEnd(ctx, arrName);
@@ -506,7 +519,16 @@ ENCODE_XML(Variant) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     ret |= writeXmlElemNameBegin(ctx, UA_XML_VARIANT_VALUE);
     if(!isArray) {
-        ret |= writeXmlElement(ctx, src->type->typeName, src->data, src->type);
+        const UA_DataType *type = src->type;
+        void *ptr = src->data;
+        UA_ExtensionObject eo;
+        if(type->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO) {
+            /* Wrap value in an ExtensionObject */
+            UA_ExtensionObject_setValue(&eo, (void*)(uintptr_t)ptr, type);
+            ptr = &eo;
+            type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+        }
+        ret |= writeXmlElement(ctx, type->typeName, ptr, type);
     } else {
         ret |= Array_encodeXml(ctx, src->data, src->arrayLength, src->type);
     }
