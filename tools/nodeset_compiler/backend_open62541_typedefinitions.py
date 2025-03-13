@@ -124,8 +124,12 @@ class CGenerator:
             return self.get_struct_overlayable(datatype)
         raise RuntimeError("Unknown datatype")
 
-    def print_datatype(self, datatype, namespaceMap):
-        typeid = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.nodeId))
+    def print_datatype(self, datatype):
+        namespaceindex = "0"
+        nodeId = datatype.nodeId
+        if str(datatype.nodeId).startswith("ns="):
+            namespaceindex, nodeId = datatype.nodeId[3:].split(";")
+        typeid = "{{{}, {}}}".format(namespaceindex, getNodeidTypeAndId(nodeId))
         binaryEncodingId = "{{{}, {}}}".format("0",
                                          getNodeidTypeAndId(datatype.binaryEncodingId))
         idName = makeCIdentifier(datatype.name)
@@ -467,5 +471,5 @@ _UA_END_DECLS
                 for i, t_name in enumerate(self.filtered_types[ns]):
                     t = self.filtered_types[ns][t_name]
                     self.printc("/* " + t.name + " */")
-                    self.printc(self.print_datatype(t, self.namespaceMap) + ",")
+                    self.printc(self.print_datatype(t) + ",")
             self.printc("};\n")
