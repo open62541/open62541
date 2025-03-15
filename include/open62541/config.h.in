@@ -539,7 +539,7 @@ UA_LOCK_ASSERT(UA_Lock *lock) {
 # define UA_UNLIKELY(x) __builtin_expect((x), 0)
 #else
 # define UA_LIKELY(x) (x)
-# define UA_UNLIKELY(x) (x)
+# define UA_UNLIKELY(x) (!x)
 #endif
 
 /**
