@@ -75,6 +75,7 @@ class Type:
         self.description = ""
         self.nodeId = None
         self.binaryEncodingId = None
+        self.xmlEncodingId = None
         if xml is not None:
             for child in xml:
                 if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
@@ -457,6 +458,16 @@ class CSVBSDTypeParser(TypeParser):
                     for ns in self.types:
                         if baseType in self.types[ns]:
                             self.types[ns][baseType].binaryEncodingId = row[1]
+                            break
+
+                # Check if node name ends with _Encoding_DefaultXml and store
+                # the node id in the corresponding DataType
+                m = re.match('(.*?)_Encoding_DefaultXml$', row[0])
+                if m:
+                    baseType = m.group(1)
+                    for ns in self.types:
+                        if baseType in self.types[ns]:
+                            self.types[ns][baseType].xmlEncodingId = row[1]
                             break
                 continue
 

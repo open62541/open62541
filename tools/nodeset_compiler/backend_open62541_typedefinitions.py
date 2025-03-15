@@ -126,14 +126,15 @@ class CGenerator:
 
     def print_datatype(self, datatype, namespaceMap):
         typeid = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.nodeId))
-        binaryEncodingId = "{{{}, {}}}".format("0",
-                                         getNodeidTypeAndId(datatype.binaryEncodingId))
+        binaryEncodingId = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.binaryEncodingId))
+        xmlEncodingId = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.xmlEncodingId))
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
         return "{\n" + \
                "    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
                "    " + typeid + ", /* .typeId */\n" + \
                "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
+               "    " + xmlEncodingId + ", /* .xmlEncodingId */\n" + \
                "    sizeof(UA_" + idName + "), /* .memSize */\n" + \
                "    " + self.get_type_kind(datatype) + ", /* .typeKind */\n" + \
                "    " + pointerfree + ", /* .pointerFree */\n" + \

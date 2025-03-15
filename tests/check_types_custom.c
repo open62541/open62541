@@ -68,6 +68,7 @@ static const UA_DataType PointType = {
     {1, UA_NODEIDTYPE_NUMERIC, {17}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
+    {1, UA_NODEIDTYPE_NUMERIC, {18}}, /* .xmlEncodingId */
     sizeof(Point),                   /* .memSize */
     UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
     true,                            /* .pointerFree */
@@ -127,6 +128,7 @@ static const UA_DataType OptType = {
         {1, UA_NODEIDTYPE_NUMERIC, {5}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
+        {1, UA_NODEIDTYPE_NUMERIC, {6}}, /* .xmlEncodingId */
         sizeof(Opt),                     /* .memSize */
         UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
         false,                            /* .pointerFree */
@@ -185,6 +187,7 @@ static const UA_DataType ArrayOptType = {
     {1, UA_NODEIDTYPE_NUMERIC, {1337}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
+    {1, UA_NODEIDTYPE_NUMERIC, {1338}}, /* .xmlEncodingId */
     sizeof(OptArray),                   /* .memSize */
     UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
     false,                            /* .pointerFree */
@@ -227,6 +230,7 @@ static const UA_DataType UniType = {
         UA_TYPENAME("Uni")
         {1, UA_NODEIDTYPE_NUMERIC, {4245}},
         {1, UA_NODEIDTYPE_NUMERIC, {13338}},
+        {1, UA_NODEIDTYPE_NUMERIC, {13339}},
         sizeof(Uni),
         UA_DATATYPEKIND_UNION,
         false,
@@ -278,6 +282,7 @@ const UA_DataType selfContainingUnionType = {
     UA_TYPENAME("SelfContainingStruct") /* .typeName */
     {2, UA_NODEIDTYPE_NUMERIC, {4002LU}}, /* .typeId */
     {2, UA_NODEIDTYPE_NUMERIC, {0}}, /* .binaryEncodingId */
+    {2, UA_NODEIDTYPE_NUMERIC, {0}}, /* .xmlEncodingId */
     sizeof(UA_SelfContainingUnion), /* .memSize */
     UA_DATATYPEKIND_UNION, /* .typeKind */
     false, /* .pointerFree */

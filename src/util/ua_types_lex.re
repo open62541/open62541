@@ -177,6 +177,9 @@ parse_nodeid(UA_NodeId *id, const u8 *pos, const u8 *end,
         if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
             return UA_STATUSCODE_BADDECODINGERROR;
         id->namespaceIndex = (UA_UInt16)tmp;
+        if(nsMapping)
+            id->namespaceIndex =
+                UA_NamespaceMapping_remote2Local(nsMapping, id->namespaceIndex);
     }
 
     /* From the current position until the end */
@@ -257,6 +260,9 @@ parse_expandednodeid(UA_ExpandedNodeId *id, const u8 *pos, const u8 *end,
         if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
             return UA_STATUSCODE_BADDECODINGERROR;
         id->nodeId.namespaceIndex = (UA_UInt16)tmp;
+        if(nsMapping)
+            id->nodeId.namespaceIndex =
+                UA_NamespaceMapping_remote2Local(nsMapping, id->nodeId.namespaceIndex);
     }
 
     /* From the current position until the end */
