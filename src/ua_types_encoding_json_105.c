@@ -51,9 +51,6 @@
 # pragma warning(disable: 4056)
 #endif
 
-/* Have some slack at the end. E.g. for negative and very long years. */
-#define UA_JSON_DATETIME_LENGTH 40
-
 /************/
 /* Encoding */
 /************/
@@ -567,63 +564,11 @@ ENCODE_JSON(Guid) {
     return ret | writeJsonQuote(ctx);
 }
 
-static u8
-printNumber(i32 n, char *pos, u8 min_digits) {
-    char digits[10];
-    u8 len = 0;
-    /* Handle negative values */
-    if(n < 0) {
-        pos[len++] = '-';
-        n = -n;
-    }
-
-    /* Extract the digits */
-    u8 i = 0;
-    for(; i < min_digits || n > 0; i++) {
-        digits[i] = (char)((n % 10) + '0');
-        n /= 10;
-    }
-
-    /* Print in reverse order and return */
-    for(; i > 0; i--)
-        pos[len++] = digits[i-1];
-    return len;
-}
-
+/* DateTime */
 ENCODE_JSON(DateTime) {
-    UA_DateTimeStruct tSt = UA_DateTime_toStruct(*src);
-
-    /* Format: -yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS'Z' is used. max 31 bytes.
-     * Note the optional minus for negative years. */
-    char buffer[UA_JSON_DATETIME_LENGTH];
-    char *pos = buffer;
-    pos += printNumber(tSt.year, pos, 4);
-    *(pos++) = '-';
-    pos += printNumber(tSt.month, pos, 2);
-    *(pos++) = '-';
-    pos += printNumber(tSt.day, pos, 2);
-    *(pos++) = 'T';
-    pos += printNumber(tSt.hour, pos, 2);
-    *(pos++) = ':';
-    pos += printNumber(tSt.min, pos, 2);
-    *(pos++) = ':';
-    pos += printNumber(tSt.sec, pos, 2);
-    *(pos++) = '.';
-    pos += printNumber(tSt.milliSec, pos, 3);
-    pos += printNumber(tSt.microSec, pos, 3);
-    pos += printNumber(tSt.nanoSec, pos, 3);
-
-    UA_assert(pos <= &buffer[UA_JSON_DATETIME_LENGTH]);
-
-    /* Remove trailing zeros */
-    pos--;
-    while(*pos == '0')
-        pos--;
-    if(*pos == '.')
-        pos--;
-
-    *(++pos) = 'Z';
-    UA_String str = {((uintptr_t)pos - (uintptr_t)buffer)+1, (UA_Byte*)buffer};
+    UA_Byte buffer[40];
+    UA_String str = {40, buffer};
+    encodeDateTime(*src, &str);
     return ENCODE_DIRECT_JSON(&str, String);
 }
 
