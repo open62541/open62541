@@ -12,7 +12,7 @@
 
 #ifdef UA_ENABLE_ENCRYPTION
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
 
 #include "../../arch/posix/eventloop_posix.h"
 

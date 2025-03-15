@@ -15,6 +15,9 @@
 #include <open62541/server.h>
 #include <open62541/util.h>
 #include <open62541/common.h>
+// Not used in this translation unit, but exposes symbols that are used in other translation units
+#include <open62541/server_config_default.h>
+#include <open62541/transport_generated.h>
 
 #include "ua_util_internal.h"
 #include "pcg_basic.h"

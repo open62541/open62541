@@ -39,6 +39,9 @@ macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
     add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS}
                    ${EXAMPLE_SOURCE} ${ARGN} ${PROJECT_SOURCE_DIR}/common.h)
     target_link_libraries(${EXAMPLE_NAME} open62541::open62541)
+    if (UA_ENABLE_COVERAGE AND APPLE) 
+        target_link_libraries(${EXAMPLE_NAME} --coverage)
+    endif()
     assign_source_group(${EXAMPLE_SOURCE})
     set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
     set_target_properties(${EXAMPLE_NAME} PROPERTIES
@@ -190,7 +193,9 @@ if(UA_ENABLE_PUBSUB)
     add_example(server_pubsub_publish_rt_offsets pubsub_realtime/server_pubsub_publish_rt_offsets.c)
     add_example(server_pubsub_subscribe_rt_offsets pubsub_realtime/server_pubsub_subscribe_rt_offsets.c)
 
-    if(UA_ARCHITECTURE_POSIX)
+    ## Apple does not implement timer functions required by one of the examples
+    ## And apple does not implement librt posix extension
+    if(UA_ARCHITECTURE_POSIX AND NOT APPLE)
         add_example(server_pubsub_publish_rt_state_machine
                     pubsub_realtime/server_pubsub_publish_rt_state_machine.c)
         target_link_libraries(server_pubsub_publish_rt_state_machine "rt")

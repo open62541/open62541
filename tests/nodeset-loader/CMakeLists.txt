@@ -24,6 +24,9 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                    $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(check_nodeset_loader_compare_di open62541-generator-ns-nodesetloader-di)
     target_link_libraries(check_nodeset_loader_compare_di ${LIBS})
+    if (UA_ENABLE_COVERAGE AND APPLE)
+        target_link_libraries(check_nodeset_loader_compare_di --coverage)
+    endif()
     add_test_valgrind(check_nodeset_loader_compare_di ${TESTS_BINARY_DIR}/check_nodeset_loader_compare_di)
 
     add_compile_definitions(OPEN62541_TESTNODESET_DIR="${CMAKE_BINARY_DIR}/../deps/nodesetLoader/nodesets/open62541/")
@@ -42,11 +45,17 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                        $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins> $<TARGET_OBJECTS:open62541-testplugins>)
         set_target_properties(add_node_integration_test_client PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
         target_link_libraries(add_node_integration_test_client ${LIBS})
+        if (UA_ENABLE_COVERAGE AND APPLE)
+            target_link_libraries(add_node_integration_test_client --coverage)
+        endif()
 
         add_executable(add_node_integration_test_server server.c
                        $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins> $<TARGET_OBJECTS:open62541-testplugins>)
         set_target_properties(add_node_integration_test_server PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
         target_link_libraries(add_node_integration_test_server ${LIBS})
+        if (UA_ENABLE_COVERAGE AND APPLE)
+            target_link_libraries(add_node_integration_test_server --coverage)
+        endif()
 
         find_program(BASH_PROGRAM bash)
 
