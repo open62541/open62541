@@ -1064,6 +1064,8 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AM
     list(INSERT plugin_sources 0
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_common.h)
     list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/certificategroup.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/create_certificate.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_common.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_basic128rsa15.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_basic256.c
