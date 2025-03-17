@@ -1,0 +1,46 @@
+name: macOS Build & Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest]
+        build:
+          - name: "Build default options"
+            cmake_options:
+
+          - name: "Build shared library"
+            cmake_options: -DBUILD_SHARED_LIBS=ON
+
+          - name: "Build amalgamation"
+            cmake_options: -DUA_ENABLE_AMALGAMATION=ON
+
+          - name: "Build with encryption"
+            cmd_deps: brew install mbedtls
+            cmake_options: -DUA_ENABLE_ENCRYPTION=MBEDTLS
+
+          - name: "Build shared lib with INLINABLE_EXPORT=ON"
+            cmd_deps: brew install mbedtls
+            cmake_options: -DBUILD_SHARED_LIBS=ON -DUA_ENABLE_INLINABLE_EXPORT=ON
+
+          - name: "Build shared lib with encryption, amalgamation, and INLINEABLE_EXPORT"
+            cmd_deps: brew install mbedtls
+            cmake_options: -DBUILD_SHARED_LIBS=ON -DUA_ENABLE_ENCRYPTION=MBEDTLS -DUA_ENABLE_AMALGAMATION=ON -DUA_ENABLE_INLINABLE_EXPORT=ON
+
+    name: ${{ matrix.os }}-${{ matrix.build.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Install Dependencies
+        run: |
+          ${{ matrix.build.cmd_deps }}
+      - name: ${{ matrix.build.name }}
+        run: |
+          rm -rf build
+          cmake -B build ${{matrix.build.cmake_options}}
+          cmake --build build -j $(sysctl -n hw.activecpu)
