@@ -130,6 +130,12 @@ function set_capabilities {
 } 
 
 function unit_tests {
+    if [ "${CC:-x}" = "tcc" ]; then
+        PUBSUB_ETHERNET=OFF
+    else
+        PUBSUB_ETHERNET=ON
+    fi
+
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
@@ -140,7 +146,7 @@ function unit_tests {
           -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
+          -DUA_ENABLE_PUBSUB_ETH_UADP=${PUBSUB_ETHERNET} \
           -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
