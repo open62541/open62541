@@ -82,7 +82,14 @@ UA_DataSetWriter_unfreezeConfiguration(UA_DataSetWriter *dsw) {
 UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                                 UA_PubSubState targetState) {
+    /* Callback to modify the WriterGroup config and change the targetState
+     * before the state machine executes */
     UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.beforeStateChangeCallback) {
+        server->config.pubSubConfig.
+            beforeStateChangeCallback(server, dsw->head.identifier, &targetState);
+    }
+
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = dsw->head.state;
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
@@ -228,16 +235,18 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         dsw->connectedDataSet = NULL;
     }
 
-    /* Add the new writer to the group. Add to the end of the linked list to
-     * ensure the order in the generated NetworkMessage is as expected. */
-    UA_DataSetWriter *after = LIST_FIRST(&wg->writers);
-    if(!after) {
-        LIST_INSERT_HEAD(&wg->writers, dsw, listEntry);
-    } else {
-        while(LIST_NEXT(after, listEntry))
-            after = LIST_NEXT(after, listEntry);
-        LIST_INSERT_AFTER(after, dsw, listEntry);
+    /* Add the new writer to the group in order of the DataSetWriterId. */
+    UA_DataSetWriter *elm, *prev = NULL;
+    LIST_FOREACH(elm, &wg->writers, listEntry) {
+        /* TODO: Issue an error if the DataSetWriterId is not unique */
+        if(dsw->config.dataSetWriterId < elm->config.dataSetWriterId)
+            break;
+        prev = elm;
     }
+    if(prev)
+        LIST_INSERT_AFTER(prev, dsw, listEntry);
+    else
+        LIST_INSERT_HEAD(&wg->writers, dsw, listEntry);
     wg->writersCount++;
 
     /* Add to the information model */
@@ -253,6 +262,19 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
                 dsw->linkedWriterGroup->head.logIdString,
                 dsw->head.identifier);
     dsw->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+
+    /* Notify the application that a new Writer was created.
+     * This may internally adjust the config */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, dsw->head.identifier,
+                                       UA_PUBSUBCOMPONENT_DATASETWRITER, false);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_DataSetWriter_remove(psm, dsw);
+            return res;
+        }
+    }
 
     UA_LOG_INFO_PUBSUB(psm->logging, dsw,
                        "DataSetWriter created (State: %s)",
@@ -273,9 +295,19 @@ UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
     /* Check if the WriterGroup is enabled. Disallow removal in that case. */
     if(UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                              "Removal of DataSetWriter not possible while "
-                              "the WriterGroup with realtime options is enabled");
+                              "Removal of the DataSetWriter not possible while "
+                              "the WriterGroup is enabled");
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Check with the application if we can remove */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, dsw->head.identifier,
+                                       UA_PUBSUBCOMPONENT_DATASETWRITER, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
     /* Disable and signal to the application */
@@ -821,6 +853,53 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
     UA_StatusCode res = (dsw) ?
         UA_DataSetWriter_remove(psm, dsw) : UA_STATUSCODE_BADNOTFOUND;
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_updateDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
+                                    const UA_DataSetWriterConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
+    if(!dsw) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(UA_PubSubState_isEnabled(dsw->head.state)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, dsw,
+                            "The DataSetWriter must be disabled to update the config");
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Make checks for a heartbeat */
+    if(!dsw->connectedDataSet && config->keyFrameCount != 1) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, dsw,
+                            "Adding DataSetWriter failed: DataSet can be null only for "
+                            "a heartbeat in which case KeyFrameCount shall be 1");
+        unlockServer(server);
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    /* Copy the config into the dsw */
+    UA_DataSetWriterConfig newConfig;
+    UA_StatusCode res = UA_DataSetWriterConfig_copy(config, &newConfig);
+    if(res == UA_STATUSCODE_GOOD) {
+        UA_DataSetWriterConfig_clear(&dsw->config);
+        dsw->config = newConfig;
+    }
+
+    /* Call the state-machine. This can move the connection state from _ERROR to
+     * _DISABLED. */
+    UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
+
     unlockServer(server);
     return res;
 }

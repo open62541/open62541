@@ -82,13 +82,83 @@ UA_WriterGroup_removePublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) 
     wg->publishCallbackId = 0;
 }
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+static UA_StatusCode
+writerGroupAttachSKSKeystorage(UA_PubSubManager *psm, UA_WriterGroup *wg) {
+    /* No SecurityGroup defined */
+    if(UA_String_isEmpty(&wg->config.securityGroupId) || !wg->config.securityPolicy)
+        return UA_STATUSCODE_GOOD;
+
+    /* KeyStorage already connected */
+    if(wg->keyStorage)
+        return UA_STATUSCODE_GOOD;
+
+    /* Does the key storage already exist? */
+    wg->keyStorage = UA_PubSubKeyStorage_find(psm, wg->config.securityGroupId);
+    if(wg->keyStorage) {
+        wg->keyStorage->referenceCount++; /* Increase the ref count */
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Create a new key storage */
+    wg->keyStorage = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+    if(!wg->keyStorage)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Initialize the KeyStorage */
+    UA_StatusCode res =
+        UA_PubSubKeyStorage_init(psm, wg->keyStorage, &wg->config.securityGroupId,
+                                 wg->config.securityPolicy, 0, 0);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_PubSubKeyStorage_delete(psm, wg->keyStorage);
+        wg->keyStorage = NULL;
+        return res;
+    }
+
+    wg->keyStorage->referenceCount++; /* Increase the ref count */
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
+static UA_StatusCode
+validateWriterGroupConfig(UA_PubSubManager *psm, UA_PubSubComponentHead *logHead,
+                          const UA_WriterGroupConfig *config) {
+    const UA_ExtensionObject *ms = &config->messageSettings;
+    if(ms->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
+        return UA_STATUSCODE_GOOD;
+
+    if(config->encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
+        if(!UA_ExtensionObject_hasDecodedType(ms,
+                &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE])) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
+                                  "WriTerGroupConfig MessageSettings need to be "
+                                  "of type JSONWriterGroupMessageDataType");
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
+    } else if(config->encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+        if(!UA_ExtensionObject_hasDecodedType(ms,
+                &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
+                                  "WriTerGroupConfig MessageSettings need to be "
+                                  "of type UADPWriterGroupMessageDataType");
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
+    } else {
+        UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
+                              "Wrong encoding MIME-type");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
-                      const UA_WriterGroupConfig *writerGroupConfig,
+                      const UA_WriterGroupConfig *config,
                       UA_NodeId *writerGroupIdentifier) {
     /* Delete the reserved IDs if the related session no longer exists. */
     UA_PubSubManager_freeIds(psm);
-    if(!writerGroupConfig)
+    if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Search the connection by the given connectionIdentifier */
@@ -97,126 +167,106 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
         return UA_STATUSCODE_BADNOTFOUND;
 
     /* Validate messageSettings type */
-    const UA_ExtensionObject *ms = &writerGroupConfig->messageSettings;
-    if(ms->content.decoded.type) {
-        if(writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_JSON &&
-           (ms->encoding != UA_EXTENSIONOBJECT_DECODED ||
-            ms->content.decoded.type != &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE])) {
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        }
-
-        if(writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_UADP &&
-           (ms->encoding != UA_EXTENSIONOBJECT_DECODED ||
-            ms->content.decoded.type != &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        }
-    }
+    UA_StatusCode res = validateWriterGroupConfig(psm, &c->head, config);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Allocate new WriterGroup */
-    UA_WriterGroup *newWriterGroup = (UA_WriterGroup*)UA_calloc(1, sizeof(UA_WriterGroup));
-    if(!newWriterGroup)
+    UA_WriterGroup *wg = (UA_WriterGroup*)UA_calloc(1, sizeof(UA_WriterGroup));
+    if(!wg)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    newWriterGroup->head.componentType = UA_PUBSUBCOMPONENT_WRITERGROUP;
-    newWriterGroup->linkedConnection = c;
+    wg->head.componentType = UA_PUBSUBCOMPONENT_WRITERGROUP;
+    wg->linkedConnection = c;
 
     /* Deep copy of the config */
-    UA_WriterGroupConfig *newConfig = &newWriterGroup->config;
-    UA_StatusCode res = UA_WriterGroupConfig_copy(writerGroupConfig, newConfig);
+    res = UA_WriterGroupConfig_copy(config, &wg->config);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_free(newWriterGroup);
+        UA_free(wg);
         return res;
     }
 
-    /* Create the datatype value if not present */
-    if(!newConfig->messageSettings.content.decoded.type) {
-        UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
-        newConfig->messageSettings.content.decoded.data = wgm;
-        newConfig->messageSettings.content.decoded.type =
-            &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-        newConfig->messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-    }
-
     /* Attach to the connection */
-    LIST_INSERT_HEAD(&c->writerGroups, newWriterGroup, listEntry);
+    LIST_INSERT_HEAD(&c->writerGroups, wg, listEntry);
     c->writerGroupsSize++;
 
     /* Add representation / create unique identifier */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    res = addWriterGroupRepresentation(psm->sc.server, newWriterGroup);
+    res = addWriterGroupRepresentation(psm->sc.server, wg);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_WriterGroup_remove(psm, newWriterGroup);
+        UA_WriterGroup_remove(psm, wg);
         return res;
     }
 #else
-    UA_PubSubManager_generateUniqueNodeId(psm, &newWriterGroup->head.identifier);
+    UA_PubSubManager_generateUniqueNodeId(psm, &wg->head.identifier);
 #endif
 
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "%SWriterGroup %N\t| ",
-                c->head.logIdString, newWriterGroup->head.identifier);
-    newWriterGroup->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
-
-    UA_LOG_INFO_PUBSUB(psm->logging, newWriterGroup,
-                       "WriterGroup created (State: %s)",
-                       UA_PubSubState_name(newWriterGroup->head.state));
+                c->head.logIdString, wg->head.identifier);
+    wg->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
     /* Validate the connection settings */
-    res = UA_WriterGroup_connect(psm, newWriterGroup, true);
+    res = UA_WriterGroup_connect(psm, wg, true);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(psm->logging, newWriterGroup,
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
                             "Could not validate the connection parameters");
-        UA_WriterGroup_remove(psm, newWriterGroup);
+        UA_WriterGroup_remove(psm, wg);
         return res;
     }
 
 #ifdef UA_ENABLE_PUBSUB_SKS
-    if(writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        if(!UA_String_isEmpty(&writerGroupConfig->securityGroupId) &&
-           writerGroupConfig->securityPolicy) {
-            /* Does the key storage already exist? */
-            newWriterGroup->keyStorage =
-                UA_PubSubKeyStorage_find(psm, writerGroupConfig->securityGroupId);
+    if(config->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       config->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        res = writerGroupAttachSKSKeystorage(psm, wg);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Attaching the SKS KeyStorage failed");
+            UA_WriterGroup_remove(psm, wg);
+            return res;
+        }
+    }
+#endif
 
-            if(!newWriterGroup->keyStorage) {
-                /* Create a new key storage */
-                newWriterGroup->keyStorage = (UA_PubSubKeyStorage *)
-                    UA_calloc(1, sizeof(UA_PubSubKeyStorage));
-                if(!newWriterGroup->keyStorage) {
-                    UA_WriterGroup_remove(psm, newWriterGroup);
-                    return UA_STATUSCODE_BADOUTOFMEMORY;
-                }
-                res = UA_PubSubKeyStorage_init(psm, newWriterGroup->keyStorage,
-                                               &writerGroupConfig->securityGroupId,
-                                               writerGroupConfig->securityPolicy, 0, 0);
-                if(res != UA_STATUSCODE_GOOD) {
-                    UA_WriterGroup_remove(psm, newWriterGroup);
-                    return res;
-                }
-            }
-
-            /* Increase the ref count */
-            newWriterGroup->keyStorage->referenceCount++;
+    /* Notify the application that a new WriterGroup was created.
+     * This may internally adjust the config */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, wg->head.identifier,
+                                       UA_PUBSUBCOMPONENT_WRITERGROUP, false);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_WriterGroup_remove(psm, wg);
+            return res;
         }
     }
 
-#endif
+    UA_LOG_INFO_PUBSUB(psm->logging, wg, "WriterGroup created (State: %s)",
+                       UA_PubSubState_name(wg->head.state));
 
-    /* Trigger the connection */
+    /* Trigger the connection as it might open a connection for the WG */
     UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(writerGroupIdentifier)
-        UA_NodeId_copy(&newWriterGroup->head.identifier, writerGroupIdentifier);
+        UA_NodeId_copy(&wg->head.identifier, writerGroupIdentifier);
 
     return UA_STATUSCODE_GOOD;
 }
 
-void
+UA_StatusCode
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+
+    /* Check with the application if we can remove */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, wg->head.identifier,
+                                       UA_PUBSUBCOMPONENT_WRITERGROUP, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
     UA_PubSubConnection *connection = wg->linkedConnection;
     UA_assert(connection);
@@ -264,6 +314,8 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 
     /* Update the connection state */
     UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -359,11 +411,18 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Callback to modify the WriterGroup config and change the targetState
+     * before the state machine executes */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.beforeStateChangeCallback) {
+        server->config.pubSubConfig.
+            beforeStateChangeCallback(server, wg->head.identifier, &targetState);
+    }
+
     /* Are we doing a top-level state update or recursively? */
     UA_Boolean isTransient = wg->head.transientState;
     wg->head.transientState = true;
 
-    UA_Server *server = psm->sc.server;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = wg->head.state;
     UA_PubSubConnection *connection = wg->linkedConnection;
@@ -617,11 +676,16 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                        UA_ExtensionObject *messageSettings,
                        UA_ExtensionObject *transportSettings,
                        UA_NetworkMessage *nm) {
-    if(messageSettings->content.decoded.type !=
-       &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType*)
-            messageSettings->content.decoded.data;
+    UA_UadpWriterGroupMessageDataType tmpWgm;
+    UA_UadpWriterGroupMessageDataType *wgm;
+    if(UA_ExtensionObject_hasDecodedType(messageSettings,
+           &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
+        wgm = (UA_UadpWriterGroupMessageDataType*)messageSettings->content.decoded.data;
+    } else {
+        /* Use default settings */
+        UA_UadpWriterGroupMessageDataType_init(&tmpWgm);
+        wgm = &tmpWgm;
+    }
 
     nm->publisherIdEnabled =
         ((u64)wgm->networkMessageContentMask &
@@ -1341,6 +1405,87 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
         (wg) ? UA_WriterGroup_setEncryptionKeys(psm, wg, securityTokenId,
                                                  signingKey, encryptingKey, keyNonce)
               : UA_STATUSCODE_BADNOTFOUND;
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
+                                  const UA_WriterGroupConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    if(!wg) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(UA_PubSubState_isEnabled(wg->head.state)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                            "The WriterGroup must be disabled to update the config");
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Validate the new configuration */
+    UA_StatusCode res = validateWriterGroupConfig(psm, &wg->head, config);
+    if(res != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return res;
+    }
+
+    /* Store the old configuration */
+    UA_WriterGroupConfig oldConfig = wg->config;
+    memset(&wg->config, 0, sizeof(UA_WriterGroupConfig));
+
+    /* Deep copy the new config */
+    res = UA_WriterGroupConfig_copy(config, &wg->config);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Validate the connection settings */
+    res = UA_WriterGroup_connect(psm, wg, true);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                            "Could not validate the connection parameters");
+        goto errout;
+    }
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(!UA_String_equal(&wg->config.securityGroupId, &oldConfig.securityGroupId) ||
+       wg->config.securityMode != oldConfig.securityMode) {
+        /* Detach keystorage and reattach if needed */
+        if(wg->keyStorage) {
+            UA_PubSubKeyStorage_detachKeyStorage(psm, wg->keyStorage);
+            wg->keyStorage = NULL;
+        }
+        if(wg->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+           wg->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+            res = writerGroupAttachSKSKeystorage(psm, wg);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                                    "Attaching the SKS KeyStorage failed");
+                goto errout;
+            }
+        }
+    }
+#endif
+
+    /* Call the state-machine. This can move the wg state from _ERROR to
+     * _DISABLED. */
+    UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
+
+    /* Clean up and return */
+    UA_WriterGroupConfig_clear(&oldConfig);
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+
+ errout:
+    UA_WriterGroupConfig_clear(&wg->config);
+    wg->config = oldConfig; /* Restore the old config */
     unlockServer(server);
     return res;
 }

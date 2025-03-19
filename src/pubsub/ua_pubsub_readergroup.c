@@ -57,6 +57,46 @@ UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
     UA_ExtensionObject_clear(&readerGroupConfig->transportSettings);
 }
 
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+static UA_StatusCode
+readerGroupAttachSKSKeystorage(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
+    /* No SecurityGroup defined */
+    if(UA_String_isEmpty(&rg->config.securityGroupId) || !rg->config.securityPolicy)
+        return UA_STATUSCODE_GOOD;
+
+    /* KeyStorage already connected */
+    if(rg->keyStorage)
+        return UA_STATUSCODE_GOOD;
+
+    /* Does the key storage already exist? */
+    rg->keyStorage = UA_PubSubKeyStorage_find(psm, rg->config.securityGroupId);
+    if(rg->keyStorage) {
+        rg->keyStorage->referenceCount++; /* Increase the ref count */
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Create a new key storage */
+    rg->keyStorage = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+    if(!rg->keyStorage)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Initialize the KeyStorage */
+    UA_StatusCode res =
+        UA_PubSubKeyStorage_init(psm, rg->keyStorage, &rg->config.securityGroupId,
+                                 rg->config.securityPolicy, 0, 0);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_PubSubKeyStorage_delete(psm, rg->keyStorage);
+        rg->keyStorage = NULL;
+        return res;
+    }
+
+    /* Increase the ref count */
+    rg->keyStorage->referenceCount++;
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
 UA_StatusCode
 UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
                       const UA_ReaderGroupConfig *rgc,
@@ -89,46 +129,6 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
     LIST_INSERT_HEAD(&c->readerGroups, newGroup, listEntry);
     c->readerGroupsSize++;
 
-#ifdef UA_ENABLE_PUBSUB_SKS
-    if(rgc->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       rgc->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        if(!UA_String_isEmpty(&rgc->securityGroupId) && rgc->securityPolicy) {
-            /* Does the key storage already exist? */
-            newGroup->keyStorage = UA_PubSubKeyStorage_find(psm, rgc->securityGroupId);
-
-            if(!newGroup->keyStorage) {
-                /* Create a new key storage */
-                newGroup->keyStorage = (UA_PubSubKeyStorage *)
-                    UA_calloc(1, sizeof(UA_PubSubKeyStorage));
-                if(!newGroup->keyStorage) {
-                    UA_ReaderGroup_remove(psm, newGroup);
-                    return UA_STATUSCODE_BADOUTOFMEMORY;
-                }
-                retval = UA_PubSubKeyStorage_init(psm, newGroup->keyStorage,
-                                                  &rgc->securityGroupId,
-                                                  rgc->securityPolicy, 0, 0);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_ReaderGroup_remove(psm, newGroup);
-                    return retval;
-                }
-            }
-
-            /* Increase the ref count */
-            newGroup->keyStorage->referenceCount++;
-        }
-    }
-#endif
-
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    retval |= addReaderGroupRepresentation(psm->sc.server, newGroup);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ReaderGroup_remove(psm, newGroup);
-        return retval;
-    }
-#else
-    UA_PubSubManager_generateUniqueNodeId(psm, &newGroup->head.identifier);
-#endif
-
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "%SReaderGroup %N\t| ",
@@ -147,6 +147,44 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
         return retval;
     }
 
+    /* Attach SKS Keystorage */
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(rgc->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       rgc->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        retval = readerGroupAttachSKSKeystorage(psm, newGroup);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, newGroup,
+                                "Attaching the SKS KeyStorage failed");
+            UA_ReaderGroup_remove(psm, newGroup);
+            return retval;
+        }
+    }
+#endif
+
+    /* Create information model representation */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    retval |= addReaderGroupRepresentation(psm->sc.server, newGroup);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ReaderGroup_remove(psm, newGroup);
+        return retval;
+    }
+#else
+    UA_PubSubManager_generateUniqueNodeId(psm, &newGroup->head.identifier);
+#endif
+
+    /* Notify the application that a new ReaderGroup was created.
+     * This may internally adjust the config */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        retval = server->config.pubSubConfig.
+            componentLifecycleCallback(server, newGroup->head.identifier,
+                                       UA_PUBSUBCOMPONENT_READERGROUP, false);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_ReaderGroup_remove(psm, newGroup);
+            return retval;
+        }
+    }
+
     /* Trigger the connection */
     UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
@@ -157,12 +195,22 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
     return UA_STATUSCODE_GOOD;
 }
 
-void
+UA_StatusCode
 UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PubSubConnection *connection = rg->linkedConnection;
     UA_assert(connection);
+
+    /* Check with the application if we can remove */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, rg->head.identifier,
+                                       UA_PUBSUBCOMPONENT_READERGROUP, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
     /* Disable (and disconnect) and set the deleteFlag. This prevents a
      * reconnect and triggers the deletion when the last open socket is
@@ -207,6 +255,8 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
 
     /* Update the connection state */
     UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -220,14 +270,21 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Are we doing a top-level state update or recursively? */
-    UA_Boolean isTransient = rg->head.transientState;
-    rg->head.transientState = true;
-
+    /* Callback to modify the WriterGroup config and change the targetState
+     * before the state machine executes */
     UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.beforeStateChangeCallback) {
+        server->config.pubSubConfig.
+            beforeStateChangeCallback(server, rg->head.identifier, &targetState);
+    }
+
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = rg->head.state;
     UA_PubSubConnection *connection = rg->linkedConnection;
+
+    /* Are we doing a top-level state update or recursively? */
+    UA_Boolean isTransient = rg->head.transientState;
+    rg->head.transientState = true;
 
     /* Custom state machine */
     if(rg->config.customStateMachine) {
@@ -953,6 +1010,82 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
                                          encryptingKey, keyNonce) : UA_STATUSCODE_BADNOTFOUND;
     unlockServer(server);
     return res;
+}
+
+UA_StatusCode
+UA_Server_updateReaderGroupConfig(UA_Server *server, const UA_NodeId rgId,
+                                  const UA_ReaderGroupConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(getPSM(server), rgId);
+    if(!rg) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(UA_PubSubState_isEnabled(rg->head.state)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, rg,
+                            "The ReaderGroup must be disabled to update the config");
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Store the old config */
+    UA_ReaderGroupConfig oldConfig = rg->config;
+
+    /* Deep copy of the config */
+    UA_StatusCode retval = UA_ReaderGroupConfig_copy(config, &rg->config);
+    if(retval != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return retval;
+    }
+
+    /* Validate the connection settings */
+    retval = UA_ReaderGroup_connect(psm, rg, true);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, rg,
+                            "Could not validate the connection parameters");
+        goto errout;
+    }
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(!UA_String_equal(&rg->config.securityGroupId, &oldConfig.securityGroupId) ||
+       rg->config.securityMode != oldConfig.securityMode) {
+        /* Detach keystorage and reattach if needed */
+        if(rg->keyStorage) {
+            UA_PubSubKeyStorage_detachKeyStorage(psm, rg->keyStorage);
+            rg->keyStorage = NULL;
+        }
+        if(rg->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+           rg->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+            retval = readerGroupAttachSKSKeystorage(psm, rg);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR_PUBSUB(psm->logging, rg,
+                                    "Attaching the SKS KeyStorage failed");
+                goto errout;
+            }
+        }
+    }
+#endif
+
+    /* Call the state-machine. This can move the rg state from _ERROR to
+     * _DISABLED. */
+    UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
+
+    /* Clean up and return */
+    UA_ReaderGroupConfig_clear(&oldConfig);
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+
+ errout:
+    UA_ReaderGroupConfig_clear(&rg->config);
+    rg->config = oldConfig;
+    unlockServer(server);
+    return retval;
 }
 
 static UA_StatusCode

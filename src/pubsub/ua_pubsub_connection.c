@@ -123,8 +123,7 @@ UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
 }
 
 UA_PubSubConnection *
-UA_PubSubConnection_find(UA_PubSubManager *psm,
-                         const UA_NodeId id) {
+UA_PubSubConnection_find(UA_PubSubManager *psm, const UA_NodeId id) {
     if(!psm)
         return NULL;
     UA_PubSubConnection *c;
@@ -188,6 +187,19 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
     mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %N\t| ", c->head.identifier);
     c->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
+    /* Notify the application that a new Connection was created.
+     * This may internally adjust the config */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, c->head.identifier,
+                                       UA_PUBSUBCOMPONENT_CONNECTION, false);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_PubSubConnection_delete(psm, c);
+            return res;
+        }
+    }
+
     UA_LOG_INFO_PUBSUB(psm->logging, c, "Connection created (State: %s)",
                        UA_PubSubState_name(c->head.state));
 
@@ -212,9 +224,19 @@ delayedPubSubConnection_delete(void *application, void *context) {
 /* Clean up the PubSubConnection. If no EventLoop connection is attached we can
  * immediately free. Otherwise we close the EventLoop connections and free in
  * the connection callback. */
-void
+UA_StatusCode
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+
+    /* Check with the application if we can remove */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, c->head.identifier,
+                                       UA_PUBSUBCOMPONENT_CONNECTION, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
     /* Disable (and disconnect) and set the deleteFlag. This prevents a
      * reconnect and triggers the deletion when the last open socket is
@@ -245,7 +267,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
 
     /* Not all sockets are closed. This method will be called again */
     if(c->sendChannel != 0 || c->recvChannelsSize > 0)
-        return;
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* The WriterGroups / ReaderGroups are not deleted. Try again in the next
      * iteration of the event loop.*/
@@ -255,7 +277,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
         c->dc.application = psm;
         c->dc.context = c;
         el->addDelayedCallback(el, &c->dc);
-        return;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Remove from the information model */
@@ -272,6 +294,8 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     UA_PubSubConnectionConfig_clear(&c->config);
     UA_PubSubComponentHead_clear(&c->head);
     UA_free(c);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -339,13 +363,19 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Are we doing a top-level state update or recursively? */
-    UA_Boolean isTransient = c->head.transientState;
-    c->head.transientState = true;
-
+    /* Callback to modify the WriterGroup config and change the targetState
+     * before the state machine executes */
     UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.beforeStateChangeCallback) {
+        server->config.pubSubConfig.
+            beforeStateChangeCallback(server, c->head.identifier, &targetState);
+    }
+
+    /* Are we doing a top-level state update or recursively? */
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = c->head.state;
+    UA_Boolean isTransient = c->head.transientState;
+    c->head.transientState = true;
 
     /* Custom state machine */
     if(c->config.customStateMachine) {
@@ -935,6 +965,63 @@ UA_Server_processPubSubConnectionReceive(UA_Server *server,
                                   "PubSubConnection is not operational");
         }
     }
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_updatePubSubConnectionConfig(UA_Server *server,
+                                       const UA_NodeId connectionId,
+                                       const UA_PubSubConnectionConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    /* Find the connection */
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
+    if(!c) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    /* Verify the connection is disabled */
+    if(UA_PubSubState_isEnabled(c->head.state)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c,
+                            "The PubSubConnection must be disabled to update the config");
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Store the old config */
+    UA_PubSubConnectionConfig oldConfig = c->config;
+    memset(&c->config, 0, sizeof(UA_PubSubConnectionConfig));
+
+    /* Copy the connection config */
+    UA_StatusCode res = UA_PubSubConnectionConfig_copy(config, &c->config);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Validate-connect to check the parameters */
+    res = UA_PubSubConnection_connect(psm, c, true);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "The connection parameters did not validate");
+        goto errout;
+    }
+
+    /* Call the state-machine. This can move the connection state from _ERROR to
+     * _DISABLED. */
+    UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
+
+    UA_PubSubConnectionConfig_clear(&oldConfig);
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+
+ errout:
+    /* Restore the old config */
+    UA_PubSubConnectionConfig_clear(&c->config);
+    c->config = oldConfig;
     unlockServer(server);
     return res;
 }

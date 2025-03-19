@@ -128,6 +128,44 @@ checkMethodReference(const UA_NodeHead *h, UA_ReferenceTypeSet refs,
     return false;
 }
 
+static UA_Boolean
+checkMethodReferenceRecursive(UA_Server *server, const UA_NodeHead *h,
+                              UA_ReferenceTypeSet refs, const UA_ExpandedNodeId *methodId) {
+    if(checkMethodReference(h, refs, methodId))
+        return true;
+
+    for(size_t i = 0; i < h->referencesSize; i++) {
+        const UA_NodeReferenceKind *rk = &h->references[i];
+
+        if(!rk->isInverse)
+            continue;
+        if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASSUBTYPE)
+            continue;
+
+        UA_NodeId targetId;
+        if(!rk->hasRefTree) {
+            if(rk->targetsSize == 0)
+                continue;
+            targetId = UA_NodePointer_toNodeId(rk->targets.array[0].targetId);
+        } else {
+            if(!rk->targets.tree.idRoot)
+                continue;
+            targetId = UA_NodePointer_toNodeId(rk->targets.tree.idRoot->target.targetId);
+        }
+
+        const UA_Node *superType = UA_NODESTORE_GET(server, &targetId);
+        if(!superType)
+            continue;
+
+        UA_Boolean found = checkMethodReferenceRecursive(server, &superType->head, refs, methodId);
+        UA_NODESTORE_RELEASE(server, superType);
+
+        if(found)
+            return true;
+    }
+    return false;
+}
+
 static void *
 iterateFunctionGroupSearch(void *context, UA_ReferenceTarget *t) {
     UA_Server *server = (UA_Server*)context;
@@ -240,7 +278,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
          * of one of its subtypes). */
         const UA_Node *objectType = getNodeType(server, &object->head);
         if(objectType) {
-            found = checkMethodReference(&objectType->head, hasComponentRefs, &methodId);
+            found = checkMethodReferenceRecursive(server, &objectType->head, hasComponentRefs, &methodId);
             UA_NODESTORE_RELEASE(server, objectType);
         }
     }

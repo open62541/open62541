@@ -642,6 +642,8 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
         if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
             check_add_cc_flag("-fprofile-instr-generate")
             check_add_cc_flag("-fcoverage-mapping")
+            check_add_cc_flag("-fprofile-arcs")
+            check_add_cc_flag("-ftest-coverage")
         endif()
     endif()
 
@@ -791,6 +793,7 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.h
                 ${PROJECT_SOURCE_DIR}/deps/base64.h
                 ${PROJECT_SOURCE_DIR}/deps/dtoa.h
+                ${PROJECT_SOURCE_DIR}/deps/musl_inet_pton.h
                 ${PROJECT_SOURCE_DIR}/deps/mp_printf.h
                 ${PROJECT_SOURCE_DIR}/deps/utf8.h
                 ${PROJECT_SOURCE_DIR}/deps/itoa.h
@@ -866,6 +869,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
                 ${PROJECT_SOURCE_DIR}/deps/base64.c
                 ${PROJECT_SOURCE_DIR}/deps/dtoa.c
+                ${PROJECT_SOURCE_DIR}/deps/musl_inet_pton.c
                 ${PROJECT_SOURCE_DIR}/deps/mp_printf.c
                 ${PROJECT_SOURCE_DIR}/deps/utf8.c
                 ${PROJECT_SOURCE_DIR}/deps/itoa.c
@@ -905,8 +909,10 @@ if(UA_ENABLE_XML_ENCODING)
         list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/parse_num.h)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
     endif()
-    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/yxml.h
+                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/yxml.c
+                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)

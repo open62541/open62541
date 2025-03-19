@@ -863,6 +863,16 @@ UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_Boolean
+UA_ExtensionObject_hasDecodedType(const UA_ExtensionObject *eo,
+                                  const UA_DataType *type) {
+    if(eo->encoding != UA_EXTENSIONOBJECT_DECODED &&
+       eo->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
+        return false;
+    return (eo->content.decoded.data != NULL &&
+            eo->content.decoded.type == type);
+}
+
 /* Variant */
 static void
 Variant_clear(UA_Variant *p, const UA_DataType *_) {

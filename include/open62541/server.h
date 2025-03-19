@@ -2016,7 +2016,9 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 /**
  * Update the Server Certificate at Runtime
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * If certificateGroupId is null the DefaultApplicationGroup is used.
+ */
 
 UA_StatusCode UA_EXPORT
 UA_Server_updateCertificate(UA_Server *server,
@@ -2026,7 +2028,9 @@ UA_Server_updateCertificate(UA_Server *server,
                             const UA_ByteString *privateKey);
 
 /* Creates a PKCS #10 DER encoded certificate request signed with the server's
- * private key */
+ * private key.
+ * If certificateGroupId is null the DefaultApplicationGroup is used.
+ */
 UA_StatusCode UA_EXPORT
 UA_Server_createSigningRequest(UA_Server *server,
                                const UA_NodeId certificateGroupId,
