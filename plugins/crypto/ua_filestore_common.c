@@ -5,12 +5,11 @@
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
-#include "../../arch/posix/eventloop_posix.h"
 #include "ua_filestore_common.h"
 
 #ifdef UA_ENABLE_ENCRYPTION
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
 
 #ifdef UA_ARCHITECTURE_WIN32
 /* TODO: Replace with a proper dirname implementation. This is a just minimal
@@ -70,6 +69,6 @@ writeByteStringToFile(const char *const path, const UA_ByteString *data) {
     return retval;
 }
 
-#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+#endif /* defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__) */
 
 #endif /* UA_ENABLE_ENCRYPTION */
