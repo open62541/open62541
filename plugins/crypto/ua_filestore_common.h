@@ -12,7 +12,7 @@
 
 #ifdef UA_ENABLE_ENCRYPTION
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
 
 #include "../../arch/posix/eventloop_posix.h"
 
@@ -24,7 +24,7 @@ UA_StatusCode
 writeByteStringToFile(const char *const path,
                       const UA_ByteString *data);
 
-#endif /* __linux__ || UA_ARCHITECTURE_WIN32 */
+#endif /* defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__) */
 
 #endif /* UA_ENABLE_ENCRYPTION */
 
