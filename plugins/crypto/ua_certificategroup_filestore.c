@@ -8,8 +8,6 @@
  */
 
 #include <open62541/util.h>
-#include "../../arch/posix/eventloop_posix.h"
-#include "ua_filestore_common.h"
 #include <open62541/plugin/certificategroup_default.h>
 
 #include "ua_filestore_common.h"
