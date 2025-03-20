@@ -13,6 +13,11 @@
 #include <check.h>
 
 static UA_EventLoop *el;
+static UA_ConnectionManager *cm;
+static UA_EventLoop *elListener;
+static UA_ConnectionManager *cmListener;
+static UA_EventLoop *elTalker;
+static UA_ConnectionManager *cmTalker;
 static char *testMsg = "open62541";
 static uintptr_t clientId;
 static UA_Boolean received;
@@ -20,6 +25,42 @@ static UA_Boolean received;
 typedef struct TestContext {
     unsigned connCount;
 } TestContext;
+
+static void setupEL(void) {
+#if defined(UA_ARCHITECTURE_LWIP)
+    el = UA_EventLoop_new_LWIP(UA_Log_Stdout, NULL);
+    cm = UA_ConnectionManager_new_LWIP_UDP(UA_STRING("udpCM"));
+    el->registerEventSource(el, &cm->eventSource);
+#elif defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
+    el->registerEventSource(el, &cm->eventSource);
+#else
+#error Add other EventLoop implementations here
+#endif
+}
+
+static void setupELTalkerAndListener(void) {
+#if defined(UA_ARCHITECTURE_LWIP)
+    elListener = UA_EventLoop_new_LWIP(UA_Log_Stdout, NULL);
+    cmListener = UA_ConnectionManager_new_LWIP_UDP(UA_STRING("udpCM"));
+    elListener->registerEventSource(elListener, &cmListener->eventSource);
+
+    elTalker = UA_EventLoop_new_LWIP(UA_Log_Stdout, NULL);
+    cmTalker = UA_ConnectionManager_new_LWIP_UDP(UA_STRING("udpCM"));
+    elTalker->registerEventSource(elTalker, &cmTalker->eventSource);
+#elif defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+    elListener = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    cmListener = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
+    elListener->registerEventSource(elListener, &cmListener->eventSource);
+
+    elTalker = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    cmTalker = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
+    elTalker->registerEventSource(elTalker, &cmTalker->eventSource);
+#else
+#error Add other EventLoop implementations here
+#endif
+}
 
 static void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
@@ -66,9 +107,7 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 START_TEST(listenUDP) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    el->registerEventSource(el, &cm->eventSource);
+    setupEL();
     el->start(el);
 
     TestContext testContext = {0};
@@ -109,9 +148,7 @@ START_TEST(listenUDP) {
 } END_TEST
 
 START_TEST(connectUDPValidationSucceeds) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    el->registerEventSource(el, &cm->eventSource);
+    setupEL();
     el->start(el);
 
     UA_UInt16 port = 30000;
@@ -160,9 +197,7 @@ START_TEST(connectUDPValidationSucceeds) {
 END_TEST
 
 START_TEST(connectUDPValidationFails) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    el->registerEventSource(el, &cm->eventSource);
+    setupEL();
     el->start(el);
 
     UA_UInt16 port = 30000;
@@ -206,9 +241,7 @@ START_TEST(connectUDPValidationFails) {
 END_TEST
 
 START_TEST(connectUDP) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    el->registerEventSource(el, &cm->eventSource);
+    setupEL();
     el->start(el);
 
     UA_UInt16 port = 30000;
@@ -286,14 +319,8 @@ START_TEST(connectUDP) {
 
 START_TEST(udpTalkerAndListener) {
     /* create listener eventloop */
-    UA_EventLoop *elListener = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    UA_ConnectionManager *cmListener = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-    elListener->registerEventSource(elListener, &cmListener->eventSource);
+    setupELTalkerAndListener();
     elListener->start(elListener);
-
-    UA_EventLoop *elTalker = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    UA_ConnectionManager *cmTalker = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-    elTalker->registerEventSource(elTalker, &cmTalker->eventSource);
     elTalker->start(elTalker);
 
     /* Open a listener connection */
@@ -396,14 +423,8 @@ START_TEST(udpTalkerAndListener) {
 
 START_TEST(udpTalkerAndListenerDifferentDestination) {
     /* create listener eventloop */
-    UA_EventLoop *elListener = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    UA_ConnectionManager *cmListener = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-    elListener->registerEventSource(elListener, &cmListener->eventSource);
+    setupELTalkerAndListener();
     elListener->start(elListener);
-
-    UA_EventLoop *elTalker = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    UA_ConnectionManager *cmTalker = UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udpCM"));
-    elTalker->registerEventSource(elTalker, &cmTalker->eventSource);
     elTalker->start(elTalker);
 
     /* Open a listener connection */
