@@ -459,7 +459,10 @@ endif()
 ##########################
 
 # Building shared libs (dll, so). This option is written into ua_config.h.
-set(UA_DYNAMIC_LINKING OFF)
+# Default is to use inlinable export, so if you choose to export inlinable methods,
+# it will dllexport them. This means that if you build a static lib you will be able to
+# link and include all symbols, like using /WHOLEARCHIVE.
+set(UA_DYNAMIC_LINKING ${UA_ENABLE_INLINABLE_EXPORT})
 if(BUILD_SHARED_LIBS)
   set(UA_DYNAMIC_LINKING ON)
   if(UA_ENABLE_DISCOVERY_MULTICAST)
