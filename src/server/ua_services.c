@@ -272,6 +272,22 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     }
 #endif
 
+#if UA_MULTITHREADING >= 100
+    if(sd->requestType == &UA_TYPES[UA_TYPES_READREQUEST]) {
+        UA_Boolean finished = true;
+        Service_ReadAsync(server, session, requestId, &request->readRequest,
+                          &response->readResponse, &finished);
+        return !finished;
+
+    }
+    if(sd->requestType == &UA_TYPES[UA_TYPES_WRITEREQUEST]) {
+        UA_Boolean finished = true;
+        Service_WriteAsync(server, session, requestId, &request->writeRequest,
+                           &response->writeResponse, &finished);
+        return !finished;
+    }
+#endif
+
     /* Execute the synchronous service call */
     sd->serviceCallback(server, session, request, response);
     return false;
