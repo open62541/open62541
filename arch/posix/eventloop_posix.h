@@ -22,7 +22,7 @@
 # include "../deps/open62541_queue.h"
 #endif
 
-#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
 
 _UA_BEGIN_DECLS
 
