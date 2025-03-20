@@ -9,7 +9,7 @@
 #include "open62541/types.h"
 #include "eventloop_posix.h"
 
-#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
 
 /* Configuration parameters */
 #define TCP_MANAGERPARAMS 2
