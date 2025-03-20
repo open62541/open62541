@@ -10,7 +10,7 @@
 
 #include "eventloop_posix.h"
 
-#if defined(UA_ARCHITECTURE_POSIX) && defined(__linux__)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) && defined(__linux__)
 
 #include <arpa/inet.h> /* htons */
 #include <net/ethernet.h> /* ETH_P_*/
