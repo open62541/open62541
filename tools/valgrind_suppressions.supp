@@ -10,6 +10,24 @@
 }
 
 
+{
+   <ubuntu2204_pthread_create>
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:calloc
+   fun:calloc
+   fun:allocate_dtv
+   fun:_dl_allocate_tls
+   fun:allocate_stack
+   fun:pthread_create@@GLIBC_2.34
+   ...
+   fun:setup*
+   fun:srunner_run_setup
+   ...
+   fun:srunner_run_tagged
+   fun:main
+}
+
 
 # Custom suppressions added by @Pro
 
