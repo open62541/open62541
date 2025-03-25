@@ -350,6 +350,9 @@ UA_StatusCode
 signAndEncryptSym(UA_MessageContext *messageContext,
                   size_t preSigLength, size_t totalLength);
 
+
+UA_Boolean isEccPolicy(const UA_SecurityPolicy* const p);
+
 /**
  * Log Helper
  * ----------
