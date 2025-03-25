@@ -216,9 +216,9 @@ UA_DateTime_toStruct(UA_DateTime t) {
         frac += UA_DATETIME_SEC;
     }
 
-    struct mytm ts;
-    memset(&ts, 0, sizeof(struct mytm));
-    __secs_to_tm(secSinceUnixEpoch, &ts);
+    struct musl_tm ts;
+    memset(&ts, 0, sizeof(struct musl_tm));
+    musl_secs_to_tm(secSinceUnixEpoch, &ts);
 
     UA_DateTimeStruct dateTimeStruct;
     dateTimeStruct.year   = (i16)(ts.tm_year + 1900);
@@ -236,15 +236,15 @@ UA_DateTime_toStruct(UA_DateTime t) {
 UA_DateTime
 UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
     /* Seconds since the Unix epoch */
-    struct mytm tm;
-    memset(&tm, 0, sizeof(struct mytm));
+    struct musl_tm tm;
+    memset(&tm, 0, sizeof(struct musl_tm));
     tm.tm_year = ts.year - 1900;
     tm.tm_mon = ts.month - 1;
     tm.tm_mday = ts.day;
     tm.tm_hour = ts.hour;
     tm.tm_min = ts.min;
     tm.tm_sec = ts.sec;
-    long long sec_epoch = __tm_to_secs(&tm);
+    long long sec_epoch = musl_tm_to_secs(&tm);
 
     UA_DateTime t = UA_DATETIME_UNIX_EPOCH;
     t += sec_epoch * UA_DATETIME_SEC;
