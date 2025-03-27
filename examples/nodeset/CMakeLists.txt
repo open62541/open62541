@@ -56,6 +56,11 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_NODESET_TESTNODESET_SOURCES}
                 ${UA_TYPES_TESTNODESET_SOURCES})
     add_dependencies(server_testnodeset open62541-generator-ns-testnodeset)
+
+    add_example(client_testnodeset client_testnodeset.c
+            ${UA_NODESET_TESTNODESET_SOURCES}
+            ${UA_TYPES_TESTNODESET_SOURCES})
+    add_dependencies(client_testnodeset open62541-generator-ns-testnodeset)
 endif()
 
 
