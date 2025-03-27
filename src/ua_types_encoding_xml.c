@@ -445,13 +445,17 @@ ENCODE_XML(StatusCode) {
 
 /* QualifiedName */
 ENCODE_XML(QualifiedName) {
-    UA_StatusCode ret =
-        writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAMESPACEINDEX,
-                        &src->namespaceIndex, &UA_TYPES[UA_TYPES_INT32]);
+    /* Map the NamespaceIndex */
+    UA_UInt16 index = src->namespaceIndex;
+    if(ctx->namespaceMapping)
+        index = UA_NamespaceMapping_local2Remote(ctx->namespaceMapping, index);
 
-    if(ret == UA_STATUSCODE_GOOD)
-        ret = writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAME,
-                              &src->name, &UA_TYPES[UA_TYPES_STRING]);
+    /* Write out the elements */
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    ret |= writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAMESPACEINDEX,
+                           &index, &UA_TYPES[UA_TYPES_UINT16]);
+    ret |= writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAME,
+                           &src->name, &UA_TYPES[UA_TYPES_STRING]);
     return ret;
 }
 
@@ -1085,14 +1089,21 @@ DECODE_XML(StatusCode) {
 DECODE_XML(QualifiedName) {
     CHECK_DATA_BOUNDS;
 
+    /* Decode the elements */
     XmlDecodeEntry entries[2] = {
         {UA_STRING_STATIC(UA_XML_QUALIFIEDNAME_NAMESPACEINDEX), &dst->namespaceIndex,
          NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
         {UA_STRING_STATIC(UA_XML_QUALIFIEDNAME_NAME), &dst->name,
          NULL, false, &UA_TYPES[UA_TYPES_STRING]}
     };
+    UA_StatusCode res = decodeXmlFields(ctx, entries, 2);
 
-    return decodeXmlFields(ctx, entries, 2);
+    /* Map the NamespaceIndex */
+    if(ctx->namespaceMapping)
+        dst->namespaceIndex =
+            UA_NamespaceMapping_remote2Local(ctx->namespaceMapping, dst->namespaceIndex);
+
+    return res;
 }
 
 DECODE_XML(LocalizedText) {
