@@ -142,6 +142,8 @@ setBinaryProtocolManagerState(UA_Server *server,
 static void
 deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
                           UA_SecureChannel *channel) {
+    UA_LOCK_ASSERT(&bpm->server->serviceMutex, 1);
+
     /* Detach the channel from the server list */
     TAILQ_REMOVE(&bpm->channels, (channel_entry*)channel, pointers);
 
@@ -670,6 +672,8 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
 UA_StatusCode
 getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
                 const UA_NodeId *token, UA_Session **session) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_DateTime now = UA_DateTime_nowMonotonic();
     UA_SessionHeader *sh;
     SLIST_FOREACH(sh, &channel->sessions, next) {
@@ -1072,6 +1076,8 @@ configServerSecureChannel(void *application, UA_SecureChannel *channel,
 static UA_StatusCode
 createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *cm,
                           uintptr_t connectionId, UA_SecureChannel **outChannel) {
+    UA_LOCK_ASSERT(&bpm->server->serviceMutex, 1);
+
     UA_Server *server = bpm->server;
     UA_ServerConfig *config = &server->config;
 
