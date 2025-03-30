@@ -193,6 +193,7 @@ START_TEST(check_interface_instantiation) {
     }
     ck_assert(found == true);
 
+    UA_BrowseResult_clear(&br);
 } END_TEST
 
 int main(void) {
