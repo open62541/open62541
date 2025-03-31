@@ -7,6 +7,9 @@
 
 #include "ua_types_encoding_xml.h"
 
+#include <float.h>
+#include <math.h>
+
 #include "../deps/itoa.h"
 #include "../deps/parse_num.h"
 #include "../deps/base64.h"
@@ -20,14 +23,6 @@
 
 #ifndef UA_ENABLE_TYPEDESCRIPTION
 #error UA_ENABLE_TYPEDESCRIPTION required for XML encoding
-#endif
-
-/* vs2008 does not have INFINITY and NAN defined */
-#ifndef INFINITY
-# define INFINITY ((UA_Double)(DBL_MAX+DBL_MAX))
-#endif
-#ifndef NAN
-# define NAN ((UA_Double)(INFINITY-INFINITY))
 #endif
 
 /* Replicate yxml_isNameStart and yxml_isName from yxml. But differently we
@@ -871,6 +866,11 @@ DECODE_XML(Double) {
     }
 
     if(length == 3 && memcmp(data, "NaN", 3) == 0) {
+        *dst = NAN;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    if(length == 3 && memcmp(data, "-NaN", 3) == 0) {
         *dst = NAN;
         return UA_STATUSCODE_GOOD;
     }

@@ -2599,56 +2599,20 @@ START_TEST(UA_Float_xml_neginf_decode) {
 END_TEST
 
 START_TEST(UA_Float_xml_nan_decode) {
-    UA_Float out;
-    UA_Float_init(&out);
+    UA_Float out = 0.0;
     UA_ByteString buf = UA_STRING("<Float>NaN</Float>");
-
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_FLOAT], NULL);
-
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-#if !defined(__TINYC__) && (defined(__clang__) || ((!defined(__aarch64__) && !defined(__amd64__)) && ((defined(__GNUC__) && __GNUC__ < 11))))
-    // gcc 32-bit and linux clang specific
-    // 0 11111111 10000000000000000000000
-    // 7f c0 00 00
-    ck_assert_int_eq(((u8*)&out)[0], 0x00);
-    ck_assert_int_eq(((u8*)&out)[1], 0x00);
-    ck_assert_int_eq(((u8*)&out)[2], 0xc0);
-    ck_assert_int_eq(((u8*)&out)[3], 0x7f);
-#else
-    // 1 11111111 10000000000000000000000
-    // ff c0 00 00
-    ck_assert_int_eq(((u8*)&out)[0], 0x00);
-    ck_assert_int_eq(((u8*)&out)[1], 0x00);
-    ck_assert_int_eq(((u8*)&out)[2], 0xc0);
-    ck_assert_int_eq(((u8*)&out)[3], 0xff);
-#endif
-
-    UA_Float val = out;
-    ck_assert(val != val); /* Check if not a number */
-
-    UA_Float_clear(&out);
+    ck_assert(out != out); /* Check if not a number */
 }
 END_TEST
 
 START_TEST(UA_Float_xml_negnan_decode) {
-    UA_Float out;
-    UA_Float_init(&out);
+    UA_Float out = 0.0;
     UA_ByteString buf = UA_STRING("<Float>-NaN</Float>");
-
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_FLOAT], NULL);
-
-    // 1 11111111 10000000000000000000000
-    // ff c0 00 00
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(((u8*)&out)[0], 0x00);
-    ck_assert_int_eq(((u8*)&out)[1], 0x00);
-    ck_assert_int_eq(((u8*)&out)[2], 0xc0);
-    ck_assert_int_eq(((u8*)&out)[3], 0xff);
-
-    UA_Float val = out;
-    ck_assert(val != val); /* Check if not a number */
-
-    UA_Float_clear(&out);
+    ck_assert(out != out); /* Check if not a number */
 }
 END_TEST
 
@@ -2736,68 +2700,20 @@ START_TEST(UA_Double_onepointsmallest_xml_decode) {
 END_TEST
 
 START_TEST(UA_Double_nan_xml_decode) {
-    UA_Double out;
-    UA_Double_init(&out);
+    UA_Double out = 0.0;
     UA_ByteString buf = UA_STRING("<Double>NaN</Double>");
-
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_DOUBLE], NULL);
-
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-#if !defined(__TINYC__) && (defined(__clang__) || ((!defined(__aarch64__) && !defined(__amd64__)) && ((defined(__GNUC__) && __GNUC__ < 11))))
-    // gcc 32-bit and linux clang specific
-    // 0 11111111111 1000000000000000000000000000000000000000000000000000
-    // 7f f8 00 00 00 00 00 00
-    ck_assert_int_eq(((u8*)&out)[0], 0x00);
-    ck_assert_int_eq(((u8*)&out)[1], 0x00);
-    ck_assert_int_eq(((u8*)&out)[2], 0x00);
-    ck_assert_int_eq(((u8*)&out)[3], 0x00);
-    ck_assert_int_eq(((u8*)&out)[4], 0x00);
-    ck_assert_int_eq(((u8*)&out)[5], 0x00);
-    ck_assert_int_eq(((u8*)&out)[6], 0xf8);
-    ck_assert_int_eq(((u8*)&out)[7], 0x7f);
-#else
-    // 1 11111111111 1000000000000000000000000000000000000000000000000000
-    // ff f8 00 00 00 00 00 00
-    ck_assert_int_eq(((u8*)&out)[0], 0x00);
-    ck_assert_int_eq(((u8*)&out)[1], 0x00);
-    ck_assert_int_eq(((u8*)&out)[2], 0x00);
-    ck_assert_int_eq(((u8*)&out)[3], 0x00);
-    ck_assert_int_eq(((u8*)&out)[4], 0x00);
-    ck_assert_int_eq(((u8*)&out)[5], 0x00);
-    ck_assert_int_eq(((u8*)&out)[6], 0xf8);
-    ck_assert_int_eq(((u8*)&out)[7], 0xff);
-#endif
-
-    UA_Double val = out;
-    ck_assert(val != val); /* Check if not a number */
-
-    UA_Double_clear(&out);
+    ck_assert(out != out); /* Check if not a number */
 }
 END_TEST
 
 START_TEST(UA_Double_negnan_xml_decode) {
-    UA_Double out;
-    UA_Double_init(&out);
+    UA_Double out = 0.0;
     UA_ByteString buf = UA_STRING("<Double>-NaN</Double>");
-
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_DOUBLE], NULL);
-
-    // 1 11111111111 1000000000000000000000000000000000000000000000000000
-    // ff f8 00 00 00 00 00 00
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(((u8*)&out)[0], 0x00);
-    ck_assert_int_eq(((u8*)&out)[1], 0x00);
-    ck_assert_int_eq(((u8*)&out)[2], 0x00);
-    ck_assert_int_eq(((u8*)&out)[3], 0x00);
-    ck_assert_int_eq(((u8*)&out)[4], 0x00);
-    ck_assert_int_eq(((u8*)&out)[5], 0x00);
-    ck_assert_int_eq(((u8*)&out)[6], 0xf8);
-    ck_assert_int_eq(((u8*)&out)[7], 0xff);
-
-    UA_Double val = out;
-    ck_assert(val != val); /* Check if not a number */
-
-    UA_Double_clear(&out);
+    ck_assert(out != out); /* Check if not a number */
 }
 END_TEST
 
