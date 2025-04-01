@@ -60,8 +60,24 @@ int main(int argc, char *argv[]) {
             /* Exclude added new line. */
             nodeid[--nodeIdSize] = '\0';
 
+            UA_ByteString outBufBegin = UA_STRING("<NodeId>"
+                                                    "<Identifier>");
             UA_ByteString buf = UA_STRING(nodeid);
-            retval |= UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_NODEID], NULL);
+            UA_ByteString outBufEnd = UA_STRING("</Identifier>"
+                                                  "</NodeId>");
+            UA_Byte outData[128] = {0};
+            UA_ByteString outBuf;
+            outBuf.data = outData;
+            size_t currentPos = 0;
+            memcpy(outBuf.data + currentPos, outBufBegin.data, outBufBegin.length);
+            currentPos += outBufBegin.length;
+            memcpy(outBuf.data + currentPos, buf.data, buf.length);
+            currentPos += buf.length;
+            memcpy(outBuf.data + currentPos, outBufEnd.data, outBufEnd.length);
+            currentPos += outBufEnd.length;
+            outBuf.length = currentPos;
+
+            retval |= UA_decodeXml(&outBuf, &out, &UA_TYPES[UA_TYPES_NODEID], NULL);
 
             if(retval != UA_STATUSCODE_GOOD) {
                 printf("Invalid nodeid format.\n");

@@ -9,4 +9,3 @@ trigger:
 
 jobs:
     - template: ./tools/ci/azure-devops/azure-pipelines-win.yml
-    # - template: ./tools/azure-devops/azure-pipelines-dist.yml

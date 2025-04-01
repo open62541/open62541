@@ -11,7 +11,7 @@
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
 #include "securitypolicy_common.h"
-#include "../../arch/posix/eventloop_posix.h"
+#include "../deps/musl_inet_pton.h"
 
 #include <time.h>
 
@@ -25,6 +25,8 @@
 
 #define SET_OID(x, oid) \
     do { x.len = MBEDTLS_OID_SIZE(oid); x.p = (unsigned char *) oid; } while (0)
+
+#define AF_INET         2
 
 typedef struct mbedtls_write_san_node{
     int type;
@@ -188,7 +190,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
                 cur_tmp->node.type = MBEDTLS_X509_SAN_UNIFORM_RESOURCE_IDENTIFIER;
             } else if(strcmp(sanType, "IP") == 0) {
                 uint8_t ip[4] = {0};
-                if(UA_inet_pton(AF_INET, sanValue, ip) <= 0) {
+                if(musl_inet_pton(AF_INET, sanValue, ip) <= 0) {
                     UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "IP SAN preparation failed");
                     mbedtls_free(cur_tmp);
                     UA_free(subAlt);
@@ -353,23 +355,23 @@ static int write_private_key(mbedtls_pk_context *key, UA_CertificateFormat keyFo
     unsigned char *c = output_buf;
     size_t len = 0;
 
-    memset(output_buf, 0, 16000);
+    memset(output_buf, 0, sizeof(output_buf));
     switch(keyFormat) {
     case UA_CERTIFICATEFORMAT_DER: {
-        if((ret = mbedtls_pk_write_key_pem(key, output_buf, 16000)) != 0) {
-            return ret;
-        }
-
-        len = strlen((char *) output_buf);
-        break;
-    }
-    case UA_CERTIFICATEFORMAT_PEM: {
-        if((ret = mbedtls_pk_write_key_der(key, output_buf, 16000)) < 0) {
+        if((ret = mbedtls_pk_write_key_der(key, output_buf, sizeof(output_buf))) < 0) {
             return ret;
         }
 
         len = ret;
         c = output_buf + sizeof(output_buf) - len;
+        break;
+    }
+    case UA_CERTIFICATEFORMAT_PEM: {
+        if((ret = mbedtls_pk_write_key_pem(key, output_buf, sizeof(output_buf))) != 0) {
+            return ret;
+        }
+
+        len = strlen((char *)output_buf);
         break;
     }
     }
@@ -389,19 +391,19 @@ static int write_certificate(mbedtls_x509write_cert *crt, UA_CertificateFormat c
     unsigned char *c = output_buf;
     size_t len = 0;
 
-    memset(output_buf, 0, 4096);
+    memset(output_buf, 0, sizeof(output_buf));
     switch(certFormat) {
     case UA_CERTIFICATEFORMAT_DER: {
-        if((ret = mbedtls_x509write_crt_der(crt, output_buf, 4096, f_rng, p_rng)) < 0) {
+        if((ret = mbedtls_x509write_crt_der(crt, output_buf, sizeof(output_buf), f_rng, p_rng)) < 0) {
             return ret;
         }
 
         len = ret;
-        c = output_buf + 4096 - len;
+        c = output_buf + sizeof(output_buf) - len;
         break;
     }
     case UA_CERTIFICATEFORMAT_PEM: {
-        if((ret = mbedtls_x509write_crt_pem(crt, output_buf, 4096, f_rng, p_rng)) < 0) {
+        if((ret = mbedtls_x509write_crt_pem(crt, output_buf, sizeof(output_buf), f_rng, p_rng)) < 0) {
             return ret;
         }
 

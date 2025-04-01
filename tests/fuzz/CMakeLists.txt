@@ -93,6 +93,10 @@ if(UA_ENABLE_JSON_ENCODING)
     add_fuzzer(fuzz_json_decode_encode fuzz_json_decode_encode.cc)
 endif()
 
+if(UA_ENABLE_XML_ENCODING)
+    add_fuzzer(fuzz_xml_decode_encode fuzz_xml_decode_encode.cc)
+endif()
+
 # Run fuzzer on existing corpus to avoid regression
 file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_binary_message_corpus/generated/*)
 SET(CORPUS_CMDS "")

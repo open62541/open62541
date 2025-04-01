@@ -15,7 +15,7 @@
 
 #ifdef UA_ENABLE_ENCRYPTION
 
-#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
 
 #ifdef __linux__
 #define EVENT_SIZE (sizeof(struct inotify_event))
