@@ -42,8 +42,6 @@ UA_EXPORT UA_StatusCode
 UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
                                           UA_Boolean allowAnonymous,
                                           const UA_String *userTokenPolicyUri,
-                                          size_t usernamePasswordLoginSize,
-                                          const UA_UsernamePasswordLogin *usernamePasswordLogin,
                                           UA_UsernamePasswordLoginCallback loginCallback,
                                           void *loginContext);
 

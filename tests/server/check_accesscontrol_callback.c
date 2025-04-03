@@ -19,10 +19,29 @@ UA_Server *server;
 UA_Boolean running;
 THREAD_HANDLE server_thread;
 
-static const size_t usernamePasswordsSize = 2;
-static UA_UsernamePasswordLogin usernamePasswords[2] = {
+static UA_UsernamePasswordLogin usernamePasswords[] = {
     {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
     {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}};
+
+static const size_t userNamePasswordSize =
+    sizeof(usernamePasswords) / sizeof(UA_UsernamePasswordLogin);
+
+static UA_StatusCode
+usernamePasswordLoginCallback(const UA_String* userName, const UA_ByteString* password,
+    size_t usernamePasswordLoginSize,
+    const UA_UsernamePasswordLogin* usernamePasswordLogin,
+    void** sessionContext, void* loginContext)
+{
+    // Check against hard coded values
+    for(size_t i = 0; i < userNamePasswordSize; i++) {
+        if(UA_String_equal(userName, &usernamePasswords[i].username) &&
+           UA_ByteString_equal(password, &usernamePasswords[i].password)) {
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    return UA_STATUSCODE_BADUSERACCESSDENIED;
+}
 
 THREAD_CALLBACK(serverloop) {
     while(running)
@@ -38,11 +57,12 @@ static void setup(void) {
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     sc->allowNonePolicyPassword = true;
 
-    /* Instantiate a new AccessControl plugin that knows username/pw */
+    /* Instantiate a new AccessControl plugin with a callback to validate the username and
+     * password */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize-1];
-    UA_AccessControl_default(config, true, &sp->policyUri,
-                             usernamePasswordsSize, usernamePasswords);
+    UA_AccessControl_defaultWithLoginCallback(config, true, &sp->policyUri,
+                                              usernamePasswordLoginCallback, NULL);
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
