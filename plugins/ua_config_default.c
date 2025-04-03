@@ -439,12 +439,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
-    if(conf->secureChannelPKI.clear)
-        conf->secureChannelPKI.clear(&conf->secureChannelPKI);
     UA_CertificateVerification_AcceptAll(&conf->secureChannelPKI);
 
-    if(conf->sessionPKI.clear)
-        conf->sessionPKI.clear(&conf->sessionPKI);
     UA_CertificateVerification_AcceptAll(&conf->sessionPKI);
 
     /* * Global Node Lifecycle * */
@@ -992,8 +988,6 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         return retval;
     }
 
-    if(conf->sessionPKI.clear)
-        conf->sessionPKI.clear(&conf->sessionPKI);
     retval = UA_CertificateVerification_Trustlist(&conf->sessionPKI,
                                                   trustList, trustListSize,
                                                   issuerList, issuerListSize,
@@ -1269,14 +1263,14 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if(config->certificateVerification.clear)
-        config->certificateVerification.clear(&config->certificateVerification);
-    retval = UA_CertificateVerification_Trustlist(&config->certificateVerification,
-                                                  trustList, trustListSize,
-                                                  NULL, 0,
-                                                  revocationList, revocationListSize);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    if(trustListSize || revocationListSize) {
+        retval = UA_CertificateVerification_Trustlist(&config->certificateVerification,
+                                                      trustList, trustListSize,
+                                                      NULL, 0,
+                                                      revocationList, revocationListSize);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
 
     /* Populate SecurityPolicies */
     UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
