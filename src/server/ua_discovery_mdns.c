@@ -1422,20 +1422,20 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
         mdnsd_set_host(mdnsPrivateData.mdnsDaemon, r, fullServiceDomain);
     }
 
-    /* The first 63 characters of the hostname (or less) */
+    /* The first 63 characters of the hostname (or less) and ".local." */
     size_t maxHostnameLen = UA_MIN(hostname.length, 63);
     char localDomain[71];
     memcpy(localDomain, hostname.data, maxHostnameLen);
     strcpy(localDomain + maxHostnameLen, ".local.");
 
-    /* [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname]. */
+    /* [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].local. */
     r = mdnsd_unique(mdnsPrivateData.mdnsDaemon, fullServiceDomain,
                      QTYPE_SRV, 600, UA_Discovery_multicastConflict, dm);
     mdnsd_set_srv(mdnsPrivateData.mdnsDaemon, r, 0, 0, port, localDomain);
 
     /* A/AAAA record for all ip addresses.
      * [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
-     * [hostname]. A [ip]. */
+     * [hostname].local. A [ip]. */
     mdns_set_address_record(dm, fullServiceDomain, localDomain);
 
     /* TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,... */
