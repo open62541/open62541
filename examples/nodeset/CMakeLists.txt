@@ -64,9 +64,9 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 endif()
 
 
-####################
+###################
 # PLCopen Nodeset #
-####################
+###################
 
 if(NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     set(FILE_CSV_DIRPREFIX ${UA_NODESET_DIR})
