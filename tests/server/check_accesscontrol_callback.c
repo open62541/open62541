@@ -1,0 +1,136 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+#include <open62541/plugin/accesscontrol_default.h>
+#include <open62541/types.h>
+
+#include <stdlib.h>
+#include <check.h>
+
+#include "test_helpers.h"
+#include "thread_wrapper.h"
+
+UA_Server *server;
+UA_Boolean running;
+THREAD_HANDLE server_thread;
+
+static UA_UsernamePasswordLogin usernamePasswords[] = {
+    {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
+    {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}};
+
+static const size_t userNamePasswordSize =
+    sizeof(usernamePasswords) / sizeof(UA_UsernamePasswordLogin);
+
+static UA_StatusCode
+usernamePasswordLoginCallback(const UA_String* userName, const UA_ByteString* password,
+    size_t usernamePasswordLoginSize,
+    const UA_UsernamePasswordLogin* usernamePasswordLogin,
+    void** sessionContext, void* loginContext)
+{
+    // Check against hard coded values
+    for(size_t i = 0; i < userNamePasswordSize; i++) {
+        if(UA_String_equal(userName, &usernamePasswords[i].username) &&
+           UA_ByteString_equal(password, &usernamePasswords[i].password)) {
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    return UA_STATUSCODE_BADUSERACCESSDENIED;
+}
+
+THREAD_CALLBACK(serverloop) {
+    while(running)
+        UA_Server_run_iterate(server, true);
+    return 0;
+}
+
+static void setup(void) {
+    running = true;
+    server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->allowNonePolicyPassword = true;
+
+    /* Instantiate a new AccessControl plugin with a callback to validate the username and
+     * password */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize-1];
+    UA_AccessControl_defaultWithLoginCallback(config, true, &sp->policyUri,
+                                              usernamePasswordLoginCallback, NULL);
+
+    UA_Server_run_startup(server);
+    THREAD_CREATE(server_thread, serverloop);
+}
+
+static void teardown(void) {
+    running = false;
+    THREAD_JOIN(server_thread);
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+}
+
+START_TEST(Client_anonymous) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Client_user_pass_ok) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Client_user_fail) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user0", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Client_pass_fail) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "secret");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+
+static Suite* testSuite_Client(void) {
+    Suite *s = suite_create("Client");
+    TCase *tc_client_user = tcase_create("Client User/Password");
+    tcase_add_checked_fixture(tc_client_user, setup, teardown);
+    tcase_add_test(tc_client_user, Client_anonymous);
+    tcase_add_test(tc_client_user, Client_user_pass_ok);
+    tcase_add_test(tc_client_user, Client_user_fail);
+    tcase_add_test(tc_client_user, Client_pass_fail);
+    suite_add_tcase(s,tc_client_user);
+    return s;
+}
+
+int main(void) {
+    Suite *s = testSuite_Client();
+    SRunner *sr = srunner_create(s);
+    srunner_set_fork_status(sr, CK_NOFORK);
+    srunner_run_all(sr,CK_NORMAL);
+    int number_failed = srunner_ntests_failed(sr);
+    srunner_free(sr);
+    return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
+}

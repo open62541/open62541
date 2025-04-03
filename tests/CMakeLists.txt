@@ -276,6 +276,7 @@ endif()
 # Test Server
 
 ua_add_test(server/check_accesscontrol.c)
+ua_add_test(server/check_accesscontrol_callback.c)
 ua_add_test(server/check_services_view.c)
 ua_add_test(server/check_services_attributes.c)
 ua_add_test(server/check_services_nodemanagement.c)
