@@ -260,9 +260,38 @@ def generateCommonVariableCode(node, nodeset):
 
     if node.value:
         xmlenc = [makeCLiteral(line) for line in node.value.toxml().splitlines()]
+        line_lengths = [len(line.lstrip()) for line in node.value.toxml().splitlines()] # length without the C escaping
+        xmlLength = sum(line_lengths)
         xmlenc = [(" " * (len(line) - len(line.lstrip()))) + "\"" + line.lstrip() + "\"" for line in xmlenc]
-        outxml = "\n".join(xmlenc)
-        code.append(f"UA_String xmlValue = UA_STRING({outxml});")
+        if xmlLength < 30000:
+            outxml = "\n".join(xmlenc)
+            code.append(f"UA_String xmlValue = UA_STRING({outxml});")
+        else:
+            # For MSVC, split large strings into smaller pieces and reassemble
+            code.append(f"UA_String xmlValue = UA_BYTESTRING_NULL;")
+            code.append(f"UA_ByteString_allocBuffer(&xmlValue, {xmlLength});")
+            pieces = []
+            piece_lengths = []
+            curlen = 0
+            last = 0
+            for i,line in enumerate(xmlenc):
+                if i == len(xmlenc) - 1:
+                    pieces.append(xmlenc[last:])
+                    piece_lengths.append(sum(line_lengths[last:]))
+                elif curlen + len(line) > 5000:
+                    pieces.append(xmlenc[last:i])
+                    piece_lengths.append(sum(line_lengths[last:i]))
+                    curlen = 0
+                    last = i
+                curlen += len(line)
+            pos = 0
+            for i,p in enumerate(pieces):
+                outxml = "\n".join(p)
+                code.append(f"char *buf_{i} = {outxml};")
+                code.append(f"memcpy(xmlValue.data + {pos}, buf_{i}, {piece_lengths[i]});")
+                pos += piece_lengths[i]
+            codeCleanup.append("UA_String_clear(&xmlValue);")
+
         code.append("""UA_DecodeXmlOptions opts;
 memset(&opts, 0, sizeof(UA_DecodeXmlOptions));
 opts.unwrapped = true;
