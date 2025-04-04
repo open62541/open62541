@@ -29,7 +29,7 @@ def makeCIdentifier(value):
 
 # Escape C strings:
 def makeCLiteral(value):
-    return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\').replace('"', r'\"').replace('\n', r'\n').replace('\r', r''))
+    return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\').replace('"', r'\"').replace('\n', r'\n').replace('\r', r'\r'))
 
 def splitStringLiterals(value, splitLength=500):
     """
