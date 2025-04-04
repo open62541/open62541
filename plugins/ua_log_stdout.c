@@ -11,7 +11,6 @@
 #include <stdio.h>
 
 #include "mp_printf.h"
-#include "fsl_debug_console.h"
 
 /* ANSI escape sequences for color output taken from here:
  * https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c*/
@@ -84,12 +83,12 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
     char logbuf[STDOUT_LOGBUFSIZE];
 
     /* Log */
-    PRINTF("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s/%s" ANSI_COLOR_RESET "\t",
+    printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s/%s" ANSI_COLOR_RESET "\t",
            dts.year, dts.month, dts.day, dts.hour, dts.min, dts.sec, dts.milliSec,
            (int)(tOffset / UA_DATETIME_SEC / 36), logLevelNames[logLevelSlot],
            logCategoryNames[category]);
     mp_vsnprintf(logbuf, STDOUT_LOGBUFSIZE, msg, args);
-    PRINTF("%s\n", logbuf);
+    printf("%s\n", logbuf);
     fflush(stdout);
 
     /* Unlock */

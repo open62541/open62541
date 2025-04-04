@@ -9,7 +9,9 @@
 #define PUBSUB_CONFIG_PUBLISH_CYCLE_MS 100
 #define PUBSUB_CONFIG_FIELD_COUNT 10
 
-static UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, connectionIdentifier;
+static UA_NodeId publishedDataSetIdent, dataSetFieldIdent, dataSetFieldIdent2, writerGroupIdent, connectionIdentifier;
+static UA_UInt32 ds2UInt32ArrValue[10] = { 0, 10, 20, 30, 40, 50, 60, 70, 80, 90 };
+static UA_NodeId ds2UInt32ArrId;
 
 /* Values in static locations. We cycle the dvPointers double-pointer to the
  * next with atomic operations. */
@@ -29,6 +31,23 @@ int main(void) {
 
     /* Initialize the server */
     UA_Server *server = UA_Server_new();
+
+    // UInt32Array
+    UA_NodeId_init(&ds2UInt32ArrId);
+    UA_VariableAttributes uint32ArrAttr = UA_VariableAttributes_default;
+    uint32ArrAttr.valueRank = 1;    // 1-dimensional array
+    uint32ArrAttr.arrayDimensionsSize = 1;
+    UA_UInt32 arrayDims[1] = { 10 };
+    uint32ArrAttr.arrayDimensions = arrayDims;
+
+    UA_NodeId_copy(&UA_TYPES[UA_TYPES_UINT32].typeId, &uint32ArrAttr.dataType);
+    uint32ArrAttr.accessLevel = UA_ACCESSLEVELMASK_READ ^ UA_ACCESSLEVELMASK_WRITE;
+
+    UA_Variant_setArray(&uint32ArrAttr.value, ds2UInt32ArrValue, 10, &UA_TYPES[UA_TYPES_UINT32]);
+    uint32ArrAttr.displayName = UA_LOCALIZEDTEXT("en-US", "UInt32Array");
+    UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.UInt32Array"), UA_NS0ID(OBJECTSFOLDER),
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "UInt32Array"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), uint32ArrAttr, NULL, &ds2UInt32ArrId);
 
     /* Add a PubSubConnection */
     UA_PubSubConnectionConfig connectionConfig;
@@ -78,6 +97,14 @@ int main(void) {
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 
+    UA_DataSetFieldConfig uint32ArrConfig;
+    memset(&uint32ArrConfig, 0, sizeof(UA_DataSetFieldConfig));
+    uint32ArrConfig.field.variable.fieldNameAlias = UA_STRING("UInt32Array");
+    uint32ArrConfig.field.variable.promotedField = false;
+    uint32ArrConfig.field.variable.publishParameters.publishedVariable = ds2UInt32ArrId;
+    uint32ArrConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_Server_addDataSetField(server, publishedDataSetIdent, &uint32ArrConfig, &dataSetFieldIdent2);
+
     /* Add a WriterGroup */
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
@@ -124,6 +151,7 @@ int main(void) {
 
     /* Print the Offset Table */
     UA_PubSubOffsetTable ot;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server_computeWriterGroupOffsetTable(server, writerGroupIdent, &ot);
     for(size_t i = 0; i < ot.offsetsSize; i++) {
         UA_String out = UA_STRING_NULL;
@@ -131,7 +159,9 @@ int main(void) {
             /* For writers the component is the NodeId is the DataSetField.
              * Instead print the source node that contains the data */
             UA_DataSetFieldConfig dsfc;
-            UA_Server_getDataSetFieldConfig(server, ot.offsets[i].component, &dsfc);
+            retval = UA_Server_getDataSetFieldConfig(server, ot.offsets[i].component, &dsfc);
+            if(retval != UA_STATUSCODE_GOOD)
+                continue;
             UA_NodeId_print(&dsfc.field.variable.publishParameters.publishedVariable, &out);
             UA_DataSetFieldConfig_clear(&dsfc);
         } else {
@@ -143,6 +173,8 @@ int main(void) {
                (int)out.length, out.data);
         UA_String_clear(&out);
     }
+
+    UA_Server_runUntilInterrupt(server);
 
     /* Cleanup */
     UA_PubSubOffsetTable_clear(&ot);
