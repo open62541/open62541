@@ -619,11 +619,8 @@ function(ua_generate_nodeset_and_datatypes)
     if(NOT "${UA_GEN_FILE_BSD}" STREQUAL "")
         string(REPLACE "-" "_" GEN_NAME_UPPER ${GEN_NAME_UPPER})
         string(TOUPPER "${GEN_NAME_UPPER}" GEN_NAME_UPPER)
-
-        set(NODESET_DEPENDS_TARGET "${UA_GEN_TARGET_PREFIX}-types-${UA_GEN_NAME}")
         set(NODESET_TYPES_ARRAY "UA_TYPES_${GEN_NAME_UPPER}")
-        set(NODESET_DEPENDS_TARGET ${NODESET_DEPENDS_TARGET}
-            "${UA_GEN_TARGET_PREFIX}-ids-${UA_GEN_NAME}")
+        set(NODESET_DEPENDS_TARGET ${NODESET_DEPENDS_TARGET} "${UA_GEN_TARGET_PREFIX}-ids-${UA_GEN_NAME}")
 
         # Generate datatypes for nodeset
         ua_generate_datatypes(NAME "types_${UA_GEN_NAME}"
