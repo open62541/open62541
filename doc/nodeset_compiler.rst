@@ -403,12 +403,8 @@ This DI nodeset makes use of some additional data types in ``deps/ua-nodeset/DI/
         FILES_BSD "${UA_NODESET_DIR}/DI/Opc.Ua.Di.Types.bsd"
     )
 
-The ``NAMESPACE_MAP`` parameter is an array of strings which indicates the mapping of specific namespace uris to the resulting namespace index.
-This mapping is required for correct mapping of DataType nodes and their node ids. Currently we need to rely that the namespace is also added at this position in the final server. There is no automatic inferring yet (pull requests are warmly welcome).
-If you are using the `DEPENDS` option on the ``ua_generate_nodeset_and_datatypes``, the ``NAMESPACE_MAP`` is also inherited and you do not need to pass all mappings for dependent types.
-The CSV and BSD files contain the metadata and definition for the types. ``TARGET_SUFFIX`` is used to create a new target with the name ``open62541-generator-TARGET_SUFFIX``.
-
-**The ``NAMESPACE_MAP`` parameter is deprecated and no longer has any effect. The index of the nodeset is set automatically when it is loaded.**
+``TARGET_SUFFIX`` is used to create a new target with the name
+``open62541-generator-TARGET_SUFFIX``.
 
 Now you can compile the DI nodeset XML using the following command::
 

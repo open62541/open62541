@@ -130,12 +130,6 @@ endfunction()
 #                   of types which should be included in the generation. The
 #                   file should contain one type per line. Multiple files can be
 #                   passed to this argument.
-#   NAMESPACE_MAP [Deprecated] Array of Namespace index mappings to indicate the
-#                   final namespace index of a namespace uri when the server is
-#                   started. This is required to correctly map datatype node ids
-#                   to the resulting server namespace index.
-#                   "0:http://opcfoundation.org/UA/" is added by default.
-#                   Example: ["2:http://example.org/UA/"]
 
 function(ua_generate_datatypes)
     find_package(Python3 REQUIRED)
@@ -146,9 +140,6 @@ function(ua_generate_datatypes)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     # Argument checking
-    if(DEFINED UA_GEN_DT_NAMESPACE_MAP)
-        message(WARNING "NAMESPACE_MAP argument is deprecated and no longer has any effect. The index of the nodeset is set automatically.")
-    endif()
     if(NOT UA_GEN_DT_NAME OR "${UA_GEN_DT_NAME}" STREQUAL "")
         message(FATAL_ERROR "ua_generate_datatype function requires the NAME argument")
     endif()
@@ -173,11 +164,6 @@ function(ua_generate_datatypes)
     endif()
 
     # ------ Add custom command and target -----
-
-    set(NAMESPACE_MAP_TMP "")
-    foreach(f ${UA_GEN_DT_NAMESPACE_MAP})
-        set(NAMESPACE_MAP_TMP ${NAMESPACE_MAP_TMP} "--namespaceMap=${f}")
-    endforeach()
 
     set(UA_GEN_DT_NO_BUILTIN "--no-builtin")
     if(UA_GEN_DT_BUILTIN)
@@ -233,7 +219,6 @@ function(ua_generate_datatypes)
                               ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
                        COMMAND ${ARG_CONV_EXCL_ENV} ${Python3_EXECUTABLE}
                                ${open62541_TOOLS_DIR}/generate_datatypes.py
-                               ${NAMESPACE_MAP_TMP}
                                ${SELECTED_TYPES_TMP}
                                ${BSD_FILES_TMP}
                                ${IMPORT_BSD_TMP}
@@ -578,10 +563,6 @@ endfunction()
 #
 #   Arguments taking multiple values:
 #
-#   [NAMESPACE_MAP] [Deprecated]Array of Namespace index mappings to indicate
-#                   the final namespace index of a namespace uri when the server
-#                   is started. This parameter is mandatory if FILE_CSV or
-#                   FILE_BSD is set.
 #   [IMPORT_BSD]    Optional combination of types array and path to the .bsd file
 #                   containing additional type definitions referenced by the
 #                   FILES_BSD files. The value is separated with a hash sign,
@@ -606,10 +587,6 @@ function(ua_generate_nodeset_and_datatypes)
     endif()
 
     # Argument checking
-    if(DEFINED UA_GEN_NAMESPACE_MAP)
-        message(WARNING "NAMESPACE_MAP argument is deprecated and no longer has any effect. The index of the nodeset is set automatically.")
-    endif()
-
     if(NOT UA_GEN_NAME OR "${UA_GEN_NAME}" STREQUAL "")
         message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires the NAME argument")
     endif()
@@ -655,22 +632,8 @@ function(ua_generate_nodeset_and_datatypes)
     endif()
 
     if(NOT "${UA_GEN_FILE_BSD}" STREQUAL "")
-        set(NAMESPACE_MAP_DEPENDS "${UA_GEN_NAMESPACE_MAP}")
         string(REPLACE "-" "_" GEN_NAME_UPPER ${GEN_NAME_UPPER})
         string(TOUPPER "${GEN_NAME_UPPER}" GEN_NAME_UPPER)
-        # Create a list of namespace maps for dependent calls
-        if(UA_GEN_DEPENDS AND NOT "${UA_GEN_DEPENDS}" STREQUAL "" )
-            foreach(f ${UA_GEN_DEPENDS})
-                string(REPLACE "-" "_" DEPENDS_NAME "${f}")
-                string(TOUPPER "${DEPENDS_NAME}" DEPENDS_NAME)
-                get_property(DEPENDS_NAMESPACE_MAP GLOBAL PROPERTY
-                             "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${DEPENDS_NAME}")
-                set(NAMESPACE_MAP_DEPENDS ${NAMESPACE_MAP_DEPENDS} "${DEPENDS_NAMESPACE_MAP}")
-            endforeach()
-        endif()
-
-        set_property(GLOBAL PROPERTY "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${GEN_NAME_UPPER}"
-                     ${NAMESPACE_MAP_DEPENDS})
 
         # Generate Datatypes for nodeset
         ua_generate_datatypes(NAME "types_${UA_GEN_NAME}"
@@ -695,26 +658,6 @@ function(ua_generate_nodeset_and_datatypes)
                                                 ${NODESET_AUTOLOAD})
         set(NODESET_DEPENDS_TARGET ${NODESET_DEPENDS_TARGET}
             "${UA_GEN_TARGET_PREFIX}-ids-${UA_GEN_NAME}")
-    else() # Handle nodesets without types in the dependency chain
-        if(UA_GEN_DEPENDS AND NOT "${UA_GEN_DEPENDS}" STREQUAL "")
-            foreach(f ${UA_GEN_DEPENDS})
-                string(REPLACE "-" "_" DEPENDS_NAME "${f}")
-                string(TOUPPER "${DEPENDS_NAME}" DEPENDS_NAME)
-                get_property(DEPENDS_NAMESPACE_MAP GLOBAL PROPERTY
-                             "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${DEPENDS_NAME}")
-                set(NAMESPACE_MAP_DEPENDS ${NAMESPACE_MAP_DEPENDS}
-                                          "${DEPENDS_NAMESPACE_MAP}")
-            endforeach()
-        endif()
-
-        # Use namespace 0 as default value
-        if(NOT NAMESPACE_MAP_DEPENDS OR "${NAMESPACE_MAP_DEPENDS}" STREQUAL "")
-            set(NAMESPACE_MAP_DEPENDS "0:http://opcfoundation.org/UA/")
-        endif()
-
-        set_property(GLOBAL PROPERTY
-                     "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${GEN_NAME_UPPER}"
-                     ${NAMESPACE_MAP_DEPENDS})
     endif()
 
     # Create a list of nodesets on which this nodeset depends on
