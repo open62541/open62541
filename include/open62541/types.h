@@ -1374,28 +1374,31 @@ struct UA_NamespaceMapping {
 };
 
 /* If the index is unknown, returns (UINT16_MAX - index) */
-UA_UInt16
+UA_EXPORT UA_UInt16
 UA_NamespaceMapping_local2Remote(const UA_NamespaceMapping *nm,
                                  UA_UInt16 localIndex);
 
-UA_UInt16
+UA_EXPORT UA_UInt16
 UA_NamespaceMapping_remote2Local(const UA_NamespaceMapping *nm,
                                  UA_UInt16 remoteIndex);
 
 /* Returns an error if the namespace uri was not found.
  * The pointer to the index argument needs to be non-NULL. */
-UA_StatusCode
+UA_EXPORT UA_StatusCode
 UA_NamespaceMapping_uri2Index(const UA_NamespaceMapping *nm,
                               UA_String uri, UA_UInt16 *index);
 
 /* Upon success, the uri string gets set. The string is not copied and must not
  * outlive the namespace mapping structure. */
-UA_StatusCode
+UA_EXPORT UA_StatusCode
 UA_NamespaceMapping_index2Uri(const UA_NamespaceMapping *nm,
                               UA_UInt16 index, UA_String *uri);
 
-void UA_NamespaceMapping_clear(UA_NamespaceMapping *nm);
-void UA_NamespaceMapping_delete(UA_NamespaceMapping *nm);
+UA_EXPORT void
+UA_NamespaceMapping_clear(UA_NamespaceMapping *nm);
+
+UA_EXPORT void
+UA_NamespaceMapping_delete(UA_NamespaceMapping *nm);
 
 /**
  * Binary Encoding/Decoding
