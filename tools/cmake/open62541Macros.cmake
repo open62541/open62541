@@ -1,6 +1,10 @@
-if(NOT open62541_TOOLS_DIR OR "${open62541_TOOLS_DIR}" STREQUAL "")
-    set(open62541_TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
-endif()
+macro(set_default VAR DEFAULT)
+    if(NOT DEFINED ${VAR} OR "${${VAR}}" STREQUAL "")
+        set(${VAR} "${DEFAULT}")
+    endif()
+endmacro()
+
+set_default(open62541_TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
 
 # --------------- Generate NodeIds header ---------------------
 #
@@ -40,14 +44,10 @@ function(ua_generate_nodeid_header)
     endif()
 
     # Set default value for output dir
-    if(NOT UA_GEN_ID_OUTPUT_DIR OR "${UA_GEN_ID_OUTPUT_DIR}" STREQUAL "")
-        set(UA_GEN_ID_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
-    endif()
+    set_default(UA_GEN_ID_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
 
     # Set default target prefix
-    if(NOT UA_GEN_ID_TARGET_PREFIX OR "${UA_GEN_ID_TARGET_PREFIX}" STREQUAL "")
-        set(UA_GEN_ID_TARGET_PREFIX "open62541-generator")
-    endif()
+    set_default(UA_GEN_ID_TARGET_PREFIX "open62541-generator")
 
     # Replace dash with underscore to make valid c literal
     string(REPLACE "-" "_" UA_GEN_ID_NAME ${UA_GEN_ID_NAME})
@@ -154,14 +154,10 @@ function(ua_generate_datatypes)
     endif()
 
     # Set default value for output dir
-    if(NOT UA_GEN_DT_OUTPUT_DIR OR "${UA_GEN_DT_OUTPUT_DIR}" STREQUAL "")
-        set(UA_GEN_DT_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
-    endif()
+    set_default(UA_GEN_DT_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
 
     # Set default target prefix
-    if(NOT UA_GEN_DT_TARGET_PREFIX OR "${UA_GEN_DT_TARGET_PREFIX}" STREQUAL "")
-        set(UA_GEN_DT_TARGET_PREFIX "open62541-generator")
-    endif()
+    set_default(UA_GEN_DT_TARGET_PREFIX "open62541-generator")
 
     # ------ Add custom command and target -----
 
@@ -323,20 +319,15 @@ function(ua_generate_nodeset)
     if(NOT UA_GEN_NS_NAME OR "${UA_GEN_NS_NAME}" STREQUAL "")
         message(FATAL_ERROR "ua_generate_nodeset function requires the NAME argument")
     endif()
-
     if(NOT UA_GEN_NS_FILE OR "${UA_GEN_NS_FILE}" STREQUAL "")
         message(FATAL_ERROR "ua_generate_nodeset function requires the FILE argument")
     endif()
 
     # Set default value for output dir
-    if(NOT UA_GEN_NS_OUTPUT_DIR OR "${UA_GEN_NS_OUTPUT_DIR}" STREQUAL "")
-        set(UA_GEN_NS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
-    endif()
+    set_default(UA_GEN_NS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
 
     # Set default target prefix
-    if(NOT UA_GEN_NS_TARGET_PREFIX OR "${UA_GEN_NS_TARGET_PREFIX}" STREQUAL "")
-        set(UA_GEN_NS_TARGET_PREFIX "open62541-generator")
-    endif()
+    set_default(UA_GEN_NS_TARGET_PREFIX "open62541-generator")
 
     # Set blacklist file
     set(GEN_BLACKLIST "")
@@ -590,28 +581,23 @@ function(ua_generate_nodeset_and_datatypes)
     if(NOT UA_GEN_NAME OR "${UA_GEN_NAME}" STREQUAL "")
         message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires the NAME argument")
     endif()
-    string(TOUPPER "${UA_GEN_NAME}" GEN_NAME_UPPER)
-
     if(NOT UA_GEN_FILE_NS OR "${UA_GEN_FILE_NS}" STREQUAL "")
         message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires the FILE_NS argument")
     endif()
-
     if((NOT UA_GEN_FILE_CSV OR "${UA_GEN_FILE_CSV}" STREQUAL "") AND (NOT "${UA_GEN_FILE_BSD}" STREQUAL ""))
         message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_CSV argument if FILE_BSD is set")
     endif()
 
+    string(TOUPPER "${UA_GEN_NAME}" GEN_NAME_UPPER)
+
     # Set default value for output dir
-    if(NOT UA_GEN_OUTPUT_DIR OR "${UA_GEN_OUTPUT_DIR}" STREQUAL "")
-        set(UA_GEN_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
-    endif()
+    set_default(UA_GEN_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
+
     # Set default target prefix
-    if(NOT UA_GEN_TARGET_PREFIX OR "${UA_GEN_TARGET_PREFIX}" STREQUAL "")
-        set(UA_GEN_TARGET_PREFIX "open62541-generator")
-    endif()
+    set_default(UA_GEN_TARGET_PREFIX "open62541-generator")
 
     set(NODESET_DEPENDS_TARGET "")
     set(NODESET_TYPES_ARRAY "UA_TYPES")
-
     set(NODESET_AUTOLOAD "")
     if(${UA_GEN_AUTOLOAD})
         set(NODESET_AUTOLOAD "AUTOLOAD")
@@ -635,7 +621,12 @@ function(ua_generate_nodeset_and_datatypes)
         string(REPLACE "-" "_" GEN_NAME_UPPER ${GEN_NAME_UPPER})
         string(TOUPPER "${GEN_NAME_UPPER}" GEN_NAME_UPPER)
 
-        # Generate Datatypes for nodeset
+        set(NODESET_DEPENDS_TARGET "${UA_GEN_TARGET_PREFIX}-types-${UA_GEN_NAME}")
+        set(NODESET_TYPES_ARRAY "UA_TYPES_${GEN_NAME_UPPER}")
+        set(NODESET_DEPENDS_TARGET ${NODESET_DEPENDS_TARGET}
+            "${UA_GEN_TARGET_PREFIX}-ids-${UA_GEN_NAME}")
+
+        # Generate datatypes for nodeset
         ua_generate_datatypes(NAME "types_${UA_GEN_NAME}"
                               TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}"
                               TARGET_SUFFIX "types-${UA_GEN_NAME}"
@@ -646,9 +637,6 @@ function(ua_generate_nodeset_and_datatypes)
                               IMPORT_BSD "${UA_GEN_IMPORT_BSD}"
                               OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}")
 
-        set(NODESET_DEPENDS_TARGET "${UA_GEN_TARGET_PREFIX}-types-${UA_GEN_NAME}")
-        set(NODESET_TYPES_ARRAY "UA_TYPES_${GEN_NAME_UPPER}")
-
         ua_generate_nodeid_header(NAME "${UA_GEN_NAME}_nodeids"
                                   ID_PREFIX "${GEN_NAME_UPPER}"
                                   FILE_CSV "${UA_GEN_FILE_CSV}"
@@ -656,8 +644,6 @@ function(ua_generate_nodeset_and_datatypes)
                                   TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}"
                                   TARGET_SUFFIX "ids-${UA_GEN_NAME}"
                                                 ${NODESET_AUTOLOAD})
-        set(NODESET_DEPENDS_TARGET ${NODESET_DEPENDS_TARGET}
-            "${UA_GEN_TARGET_PREFIX}-ids-${UA_GEN_NAME}")
     endif()
 
     # Create a list of nodesets on which this nodeset depends on
