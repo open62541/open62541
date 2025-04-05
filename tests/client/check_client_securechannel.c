@@ -125,7 +125,8 @@ START_TEST(SecureChannel_timeout_fail) {
 
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_fakeSleep(cconfig->secureChannelLifeTime + 1);
-    UA_realSleep(200 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed
+    /* TODO: Manually trigger an eventloop iteration (stop sleeping in select) for the server thread */
+    UA_realSleep(500 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed
 
     UA_Variant val;
     UA_Variant_init(&val);

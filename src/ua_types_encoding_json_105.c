@@ -38,14 +38,6 @@
 #error UA_ENABLE_TYPEDESCRIPTION required for JSON encoding
 #endif
 
-/* vs2008 does not have INFINITY and NAN defined */
-#ifndef INFINITY
-# define INFINITY ((UA_Double)(DBL_MAX+DBL_MAX))
-#endif
-#ifndef NAN
-# define NAN ((UA_Double)(INFINITY-INFINITY))
-#endif
-
 #if defined(_MSC_VER)
 # pragma warning(disable: 4756)
 # pragma warning(disable: 4056)
@@ -1508,7 +1500,7 @@ DECODE_JSON(DateTime) {
     if(tokenSize == 0 || tokenData[tokenSize-1] != 'Z')
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    struct mytm dts;
+    struct musl_tm dts;
     memset(&dts, 0, sizeof(dts));
 
     size_t pos = 0;
@@ -1576,7 +1568,7 @@ DECODE_JSON(DateTime) {
     dts.tm_sec = (UA_UInt16)sec;
 
     /* Compute the seconds since the Unix epoch */
-    long long sinceunix = __tm_to_secs(&dts);
+    long long sinceunix = musl_tm_to_secs(&dts);
 
     /* Are we within the range that can be represented? */
     long long sinceunix_min =
