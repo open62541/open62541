@@ -269,7 +269,8 @@ def generateCommonVariableCode(node, nodeset):
         else:
             # For MSVC, split large strings into smaller pieces and reassemble
             code.append(f"UA_String xmlValue = UA_BYTESTRING_NULL;")
-            code.append(f"UA_ByteString_allocBuffer(&xmlValue, {xmlLength});")
+            code.append(f"retVal |= UA_ByteString_allocBuffer(&xmlValue, {xmlLength});")
+            code.append(f"if(retVal == UA_STATUSCODE_GOOD) {{")
             pieces = []
             piece_lengths = []
             curlen = 0
@@ -287,9 +288,10 @@ def generateCommonVariableCode(node, nodeset):
             pos = 0
             for i,p in enumerate(pieces):
                 outxml = "\n".join(p)
-                code.append(f"char *buf_{i} = {outxml};")
-                code.append(f"memcpy(xmlValue.data + {pos}, buf_{i}, {piece_lengths[i]});")
+                code.append(f"    char *buf_{i} = {outxml};")
+                code.append(f"    memcpy(xmlValue.data + {pos}, buf_{i}, {piece_lengths[i]});")
                 pos += piece_lengths[i]
+            code.append(f"}}")
             codeCleanup.append("UA_String_clear(&xmlValue);")
 
         code.append("""UA_DecodeXmlOptions opts;
