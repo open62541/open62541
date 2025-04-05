@@ -145,10 +145,6 @@ function(ua_generate_datatypes)
     set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
-    if(NOT DEFINED open62541_TOOLS_DIR)
-        message(FATAL_ERROR "open62541_TOOLS_DIR must point to the open62541 tools directory")
-    endif()
-
     # Argument checking
     if(DEFINED UA_GEN_DT_NAMESPACE_MAP)
         message(WARNING "NAMESPACE_MAP argument is deprecated and no longer has any effect. The index of the nodeset is set automatically.")
@@ -337,10 +333,6 @@ function(ua_generate_nodeset)
     set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST FILES_BSD)
     set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
     cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
-
-    if(NOT DEFINED open62541_TOOLS_DIR)
-        message(FATAL_ERROR "open62541_TOOLS_DIR must point to the open62541 tools directory")
-    endif()
 
     # Argument checking
     if(NOT UA_GEN_NS_NAME OR "${UA_GEN_NS_NAME}" STREQUAL "")
@@ -608,10 +600,6 @@ function(ua_generate_nodeset_and_datatypes)
     set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD OUTPUT_DIR TARGET_PREFIX BLACKLIST)
     set(multiValueArgs DEPENDS IMPORT_BSD)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
-
-    if(NOT DEFINED open62541_TOOLS_DIR)
-        message(FATAL_ERROR "open62541_TOOLS_DIR must point to the open62541 tools directory")
-    endif()
 
     if(NOT DEFINED UA_SCHEMA_DIR)
         message(FATAL_ERROR "UA_SCHEMA_DIR must point to the directory that contains the schema files")
