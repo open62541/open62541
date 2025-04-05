@@ -225,7 +225,7 @@ function(ua_generate_datatypes)
                                ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}
                                ${UA_GEN_DOC_ARG}
                        DEPENDS ${open62541_TOOLS_DIR}/generate_datatypes.py
-                               ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_typedefinitions.py
+                               ${open62541_TOOLS_DIR}/nodeset_compiler/type_parser.py
                                ${UA_GEN_DT_FILES_BSD}
                                ${UA_GEN_DT_FILE_XML}
                                ${UA_GEN_DT_FILE_CSV}
