@@ -413,14 +413,12 @@ function build_clang_analyzer {
           -DUA_NAMESPACE_ZERO=FULL \
           ..
     scan-build-$version --status-bugs \
-          -disable-checker unix.BlockInCriticalSection \
-          -disable-checker unix.Errno \
           --exclude ../src/util make ${MAKEOPTS}
 }
 
-###################################################
-# Compile alle ua-schema companion specifications #
-###################################################
+########################################
+# Compile all Companion Specifications #
+########################################
 
 function build_all_companion_specs {
     mkdir -p build; cd build; rm -rf *
@@ -428,7 +426,9 @@ function build_all_companion_specs {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_FORCE_WERROR=ON \
-          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;ISA95-JOBCONTROL\;OpenSCS\;CNC\;AMB\;AutoID\;POWERLINK\;Machinery\;LADS\;PackML\;PNEM\;PLCopen\;MachineTool\;PROFINET\;MachineVision\;FDT\;CommercialKitchenEquipment\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
+          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;ISA95-JOBCONTROL\;OpenSCS\;CNC\;\
+AMB\;AutoID\;POWERLINK\;Machinery\;LADS\;PackML\;PNEM\;PLCopen\;MachineTool\;\
+PROFINET\;MachineVision\;FDT\;CommercialKitchenEquipment\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS} check_nodeset_compiler_testnodeset
