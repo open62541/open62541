@@ -518,3 +518,23 @@ The following nodesets are currently supported:
 DI, CNC, ISA95-JOBCONTROL, OpenSCS, AMB, AutoID, POWERLINK, IA, Machinery,
 PackML, PNEM, PLCopen, MachineTool, PROFINET, MachineVision, FDT,
 CommercialKitchenEquipment, PNRIO, Scales, Weihenstephan, Pumps, CAS, TMC, IJT
+
+When the open62541 library is installed on the system, the automatically generated autoinject library is installed alongside it.
+Additionally, the header files for the specified nodesets will be accessible on the system.
+
+Integrating the autoinject library into an existing CMake project is straightforward.
+To achieve this, the CMake configuration should include the following:
+
+.. code-block:: cmake
+
+    set(open62541_LIBRARIES "")
+    find_package(open62541 REQUIRED)
+    list(APPEND open62541_LIBRARIES open62541::open62541 open62541::autoinject)
+
+The generated namespace header files can also be included and used with the following code:
+
+.. code-block:: c
+
+    #include <autoinject/namespace_di_generated.h>
+    #include <autoinject/namespace_amb_generated.h>
+    #include <autoinject/namespace_machinery_generated.h>

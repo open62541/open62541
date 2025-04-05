@@ -44,7 +44,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 10)
+set(OPEN62541_VER_PATCH 11)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -650,19 +650,18 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
         endif()
     endif()
 
-    if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
-        # IPO requires too much memory for unit tests
-        # GCC docu recommends to compile all files with the same options, therefore ignore it completely
-        if(NOT UA_BUILD_UNIT_TESTS AND NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
-            # needed to check if IPO is supported (check needs cmake > 3.9)
-            if("${CMAKE_VERSION}" VERSION_GREATER 3.9)
-                cmake_policy(SET CMP0069 NEW) # needed as long as required cmake < 3.9
-                include(CheckIPOSupported)
-                check_ipo_supported(RESULT CC_HAS_IPO) # Inter Procedural Optimization / Link Time Optimization (should be same as -flto)
-                if(CC_HAS_IPO AND NOT UA_DEBUG)
-                    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
-                endif()
-            endif()
+    if(UA_ENABLE_HARDENING)
+        check_add_cc_flag("-fhardened") # See the GCC docs on which precise flags this enables
+    endif()
+
+    # Inter Procedural Optimization / Link Time Optimization (should be same as -flto)
+    # IPO requires too much memory for unit tests
+    # GCC docu recommends to compile all files with the same options, therefore ignore it completely
+    if(NOT UA_BUILD_UNIT_TESTS AND NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+        include(CheckIPOSupported)
+        check_ipo_supported(RESULT CC_HAS_IPO)
+        if(CC_HAS_IPO)
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
         endif()
     endif()
 
@@ -1285,6 +1284,7 @@ if(UA_ENABLE_NODESET_INJECTOR)
                       ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h)
     set(UA_NODESETINJECTOR_GENERATORS "")
     set(UA_NODESETINJECTOR_SOURCE_FILES "")
+    set(UA_NODESETINJECTOR_HEADER_FILES "")
     set(UA_NODESETINJECTOR_EXAMPLE_NAMES "")
     set(UA_NODESETINJECTOR_TEST_NAMES "")
 endif()

@@ -17,7 +17,10 @@
 #include "../common/timer.h"
 #include "../common/eventloop_common.h"
 #include "../../deps/mp_printf.h"
-#include "../../deps/open62541_queue.h"
+
+#if !defined(__QNX__)
+# include "../deps/open62541_queue.h"
+#endif
 
 #if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
 

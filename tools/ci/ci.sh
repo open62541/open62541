@@ -30,19 +30,6 @@ function cpplint {
     make ${MAKEOPTS} cpplint
 }
 
-#######################
-# Build Documentation #
-#######################
-
-function build_docs {
-    mkdir -p build; cd build; rm -rf *
-    cmake -DCMAKE_BUILD_TYPE=Release \
-          -DUA_BUILD_EXAMPLES=ON \
-          -DUA_FORCE_WERROR=ON \
-          ..
-    make doc
-}
-
 #####################################
 # Build Documentation including PDF #
 #####################################
@@ -370,7 +357,7 @@ function examples_valgrind {
     python3 ../tools/certs/create_self-signed.py -c client
 
     # copy json server config
-    cp ../plugins/server_config.json5 server_config.json5
+    cp ../examples/json_config/server_json_config.json5 server_json_config.json5
 
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
