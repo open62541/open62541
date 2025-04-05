@@ -1,14 +1,15 @@
 XML Nodeset Compiler
 --------------------
 
-When writing an application, it is more comfortable to create information models using some GUI tools. Most tools can export data according the OPC UA Nodeset XML schema. open62541 contains a Python based nodeset compiler that can transform these information model definitions into a working server.
+When writing an application, it is more comfortable to create information models
+using GUI tools. Most tools can export data according the OPC UA Nodeset XML
+schema. open62541 contains a Python based nodeset compiler that transforms
+Nodeset XML files into code for the open62541 SDK.
 
-Note that the nodeset compiler you can find in the *tools/nodeset_compiler* subfolder is *not* an XML transformation tool but a compiler. That means that it will create an internal representation when parsing the XML files and attempt to understand and verify the correctness of this representation in order to generate C Code.
-
-Getting started
-...............
-
-We take the following information model snippet as the starting point of the following tutorial. A more detailed tutorial on how to create your own information model and NodeSet2.xml can be found in this blog post: https://profanter.medium.com/how-to-create-custom-opc-ua-information-models-1e9a461f5b58
+We take the following information model snippet as the starting point of the
+following tutorial. A more detailed tutorial on how to create your own
+information model and NodeSet2.xml can be found in this blog post:
+https://profanter.medium.com/how-to-create-custom-opc-ua-information-models-1e9a461f5b58
 
 .. code-block:: xml
 
@@ -203,91 +204,33 @@ We take the following information model snippet as the starting point of the fol
         </UAVariable>
     </UANodeSet>
 
-Take the previous snippet and save it to a file ``myNS.xml``. To compile this nodeset into the corresponding C code, which can then be used by the open62541 stack, the nodeset compiler needs some arguments when you call it. The output of the help command gives you the following info:
-
-.. code-block:: bash
-
-    $ python ./nodeset_compiler.py -h
-    usage: nodeset_compiler.py [-h] [-e <existingNodeSetXML>] [-x <nodeSetXML>]
-                               [--internal-headers]
-                               [-b <blacklistFile>] [-i <ignoreFile>]
-                               [-t <typesArray>]
-                               [-v]
-                               <outputFile>
-
-    positional arguments:
-      <outputFile>          The path/basename for the <output file>.c and <output
-                            file>.h files to be generated. This will also be the
-                            function name used in the header and c-file.
-
-    optional arguments:
-      -h, --help            show this help message and exit
-      -e <existingNodeSetXML>, --existing <existingNodeSetXML>
-                            NodeSet XML files with nodes that are already present
-                            on the server.
-      -x <nodeSetXML>, --xml <nodeSetXML>
-                            NodeSet XML files with nodes that shall be generated.
-      --internal-headers    Include internal headers instead of amalgamated header
-      -b <blacklistFile>, --blacklist <blacklistFile>
-                            Loads a list of NodeIDs stored in blacklistFile (one
-                            NodeID per line). Any of the nodeIds encountered in
-                            this file will be removed from the nodeset prior to
-                            compilation. Any references to these nodes will also
-                            be removed
-      -i <ignoreFile>, --ignore <ignoreFile>
-                            Loads a list of NodeIDs stored in ignoreFile (one
-                            NodeID per line). Any of the nodeIds encountered in
-                            this file will be kept in the nodestore but not
-                            printed in the generated code
-      -t <typesArray>, --types-array <typesArray>
-                            Types array for the given namespace. Can be used
-                            mutliple times to define (in the same order as the
-                            .xml files, first for --existing, then --xml) the type
-                            arrays
-      --max-string-length MAX_STRING_LENGTH
-                            Maximum allowed length of a string literal. If longer,
-                            it will be set to an empty string
-      -v, --verbose         Make the script more verbose. Can be applied up to 4
-                            times
-
-So the resulting call looks like this:
-
-.. code-block:: bash
-
-    $ python ./nodeset_compiler.py --types-array=UA_TYPES --existing ../../deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml --xml myNS.xml myNS
-
-And the output of the command:
-
-.. code-block:: bash
-
-    INFO:__main__:Preprocessing (existing) ../../deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml
-    INFO:__main__:Preprocessing myNS.xml
-    INFO:__main__:Generating Code
-    INFO:__main__:NodeSet generation code successfully printed
-
-The first argument ``--types-array=UA_TYPES`` defines the name of the global array in open62541 which contains the corresponding types used within the nodeset in ``NodeSet2.xml``. If you do not define your own datatypes, you can always use the ``UA_TYPES`` value. More on that later in this tutorial.
-The next argument ``--existing ../../deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml`` points to the XML definition of the standard-defined namespace 0 (NS0). Namespace 0 is assumed to be loaded beforehand and provides definitions for data type, reference types, and so. Since we reference nodes from NS0 in our myNS.xml we need to tell the nodeset compiler that it should also load that nodeset, but not compile it into the output.
-Note that you may need to initialize the git submodule to get the ``deps/ua-nodeset`` folder (``git submodule update --init``) or download the full ``NodeSet2.xml`` manually.
-The argument ``--xml myNS.xml`` points to the user-defined information model, whose nodes will be added to the abstract syntax tree. The script will then create the files ``myNS.c`` and ``myNS.h`` (indicated by the last argument ``myNS``) containing the C code necessary to instantiate those namespaces.
-
-Although it is possible to run the compiler this way, it is highly discouraged. If you care to examine the CMakeLists.txt (examples/nodeset/CMakeLists.txt), you will find out that the file ``server_nodeset.xml`` is compiled using the following function::
+Take the previous snippet and save it to a file ``myNS.xml``. The file is
+compiled using the following function call in the CMake build system::
 
     ua_generate_nodeset(
-        NAME "example"
-        FILE "${PROJECT_SOURCE_DIR}/examples/nodeset/server_nodeset.xml"
+        NAME "myNs"
+        FILE "${PROJECT_SOURCE_DIR}/examples/nodeset/myNS.xml"
         DEPENDS_TYPES "UA_TYPES"
-        DEPENDS_NS    "${UA_FILE_NS0}"
+        DEPENDS_NS "${PROJECT_SOURCE_DIR}/deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml
     )
 
-If you look into the files generated by the nodeset compiler, you will see that it generated a method called ``extern UA_StatusCode myNS(UA_Server *server);``. You need to include the header and source file and then call the ``myNS(server)`` method right after creating the server instance with ``UA_Server_new``. This will automatically add all the nodes to the server and return ``UA_STATUSCODE_GOOD`` if there weren't any errors. Additionally you need to compile the open62541 stack with the full NS0 by setting ``UA_NAMESPACE_ZERO=FULL`` in CMake. Otherwise the stack uses a subset where many nodes are not included and thus adding a custom nodeset may fail.
+If you look into the files generated by the nodeset compiler, you will see that
+it generated a method called ``extern UA_StatusCode myNS(UA_Server *server);``.
+You need to include the header and source file and then call ``myNS(server)``
+right after creating the server instance with ``UA_Server_new``. This will
+automatically add all the nodes to the server and return ``UA_STATUSCODE_GOOD``
+if there weren't any errors. Additionally you need to compile the open62541
+stack with the full NS0 by setting ``UA_NAMESPACE_ZERO=FULL`` in CMake.
+Otherwise the stack uses a subset where many nodes are not included and thus
+adding a custom nodeset may fail.
 
-This is how you can use the nodeset compiler to compile simple NodeSet XMLs to be used by the open62541 stack.
-
-For your convenience and for simpler use we also provide a CMake function which simplifies the use of the ``ua_generate_datatypes`` and ``ua_generate_nodeset`` function even more.
-It is highly recommended to use this function: ``ua_generate_nodeset_and_datatypes``. It uses some best practice settings and you only need to pass a name and the nodeset files.
-Passing the .csv and .bsd files is optional and if not given, generating datatypes for that noteset will be skipped. You can also define dependencies between nodesets using the ``DEPENDS`` argument.
-
-Here are some examples for the ``DI`` and ``PLCOpen`` nodesets::
+If you also want to generate custom DataTypes for the nodeset, use the CMake
+function ``ua_generate_nodeset_and_datatypes``. It uses some best practice
+settings and you only need to pass a name and the nodeset files. Passing the
+.csv and .bsd files with the datatype information is optional. If not given,
+generating datatypes for that nodeset will be skipped. You can also define
+dependencies between nodesets using the ``DEPENDS`` argument. Here are some
+examples for the ``DI`` and ``PLCOpen`` nodesets::
 
     # Generate types and namespace for DI
     ua_generate_nodeset_and_datatypes(
@@ -306,14 +249,59 @@ Here are some examples for the ``DI`` and ``PLCOpen`` nodesets::
         DEPENDS "di"
     )
 
+Manually calling the Nodeset Compiler
+.....................................
+
+Besides the CMake macros, the underlying Python code of the Nodeset compiler can
+be called directly. The call looks like this:
+
+.. code-block:: bash
+
+    $ python ./nodeset_compiler.py --types-array=UA_TYPES --existing ../../deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml --xml myNS.xml myNS
+
+The output of the command is:
+
+.. code-block:: bash
+
+    INFO:__main__:Preprocessing (existing) ../../deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml
+    INFO:__main__:Preprocessing myNS.xml
+    INFO:__main__:Generating Code
+    INFO:__main__:NodeSet generation code successfully printed
+
+The first argument ``--types-array=UA_TYPES`` defines the name of the global
+array in open62541 which contains the corresponding types used within the
+nodeset in ``NodeSet2.xml``. If you do not define your own datatypes, you can
+always use the ``UA_TYPES`` value. More on that later in this tutorial. The next
+argument ``--existing ../../deps/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml`` points
+to the XML definition of the standard-defined namespace 0 (NS0). Namespace 0 is
+assumed to be loaded beforehand and provides definitions for data type,
+reference types, and so. Since we reference nodes from NS0 in our myNS.xml we
+need to tell the nodeset compiler that it should also load that nodeset, but not
+compile it into the output. Note that you may need to initialize the git
+submodule to get the ``deps/ua-nodeset`` folder (``git submodule update
+--init``) or download the full ``NodeSet2.xml`` manually. The argument ``--xml
+myNS.xml`` points to the user-defined information model, whose nodes will be
+added to the abstract syntax tree. The script will then create the files
+``myNS.c`` and ``myNS.h`` (indicated by the last argument ``myNS``) containing
+the C code necessary to instantiate those namespaces.
+
+The help command show which additional options are available:
+
+.. code-block:: bash
+
+    $ python ./nodeset_compiler.py -h
+
 Creating object instances
 .........................
 
-One of the key benefits of defining object types is being able to create object instances fairly easily. Object instantiation is handled automatically when the typedefinition NodeId points to a valid ObjectType node. All Attributes and Methods contained in the objectType definition will be instantiated along with the object node.
+One of the key benefits of defining object types is being able to create object
+instances fairly easily. Object instantiation is handled automatically when the
+TypeDefinition NodeId points to a valid ObjectType node. All Attributes and
+Methods contained in the objectType definition will be instantiated along with
+the object node.
 
-While variables are copied from the objectType definition (allowing the user for example to attach new dataSources to them), methods are always only linked. This paradigm is identical to languages like C++: The method called is always the same piece of code, but the first argument is a pointer to an object. Likewise, in OPC UA, only one methodCallback can be attached to a specific methodNode. If that methodNode is called, the parent objectId will be passed to the method - it is the methods job to derefence which object instance it belongs to in that moment.
-
-Let's look at an example that will create a pump instance given the newly defined objectType from myNS.xml:
+Let's look at an example that will create a pump instance given the newly
+defined objectType from myNS.xml:
 
 .. code-block:: c
 
@@ -373,11 +361,8 @@ Let's look at an example that will create a pump instance given the newly define
         return (int) retval;
     }
 
-Make sure you have updated the headers and libs in your project, then recompile and run the server. Make especially sure you have added ``myNS.h`` to your include folder.
-
-As you can see instantiating an object is not much different from creating an object node. The main difference is that you *must* use an objectType node as typeDefinition.
-
-If you start the server and inspect the nodes with UA Expert, you will find the pump in the objects folder, which look like this :numref:`nodeset-compiler-pump`.
+If you start the server and inspect the nodes, you will find the pump in the
+objects folder, which look like this :numref:`nodeset-compiler-pump`.
 
 .. _nodeset-compiler-pump:
 
@@ -386,15 +371,36 @@ If you start the server and inspect the nodes with UA Expert, you will find the 
 
    Instantiated Pump Object with inherited children
 
-As you can see the pump has inherited its parents attributes (ManufacturerName and ModelName). Methods, in contrast to objects and variables, are never cloned but instead only linked. The reason is that you will quite propably attach a method callback to a central method, not each object. Objects are instantiated if they are *below* the object you are creating, so any object (like an object called associatedServer of ServerType) that is part of pump will be instantiated as well. Objects *above* you object are never instantiated, so the same ServerType object in Fielddevices would have been omitted (the reason is that the recursive instantiation function protects itself from infinite recursions, which are hard to track when first ascending, then redescending into a tree).
+As you can see the pump has inherited its parents attributes (ManufacturerName
+and ModelName). Methods, in contrast to objects and variables, are never cloned
+but instead only linked. The reason is that you will quite propably attach a
+method callback to a central method, not each object. Objects are instantiated
+if they are *below* the object you are creating, so any object (like an object
+called associatedServer of ServerType) that is part of pump will be instantiated
+as well. Objects *above* you object are never instantiated, so the same
+ServerType object in Fielddevices would have been omitted (the reason is that
+the recursive instantiation function protects itself from infinite recursions,
+which are hard to track when first ascending, then redescending into a tree).
 
 
 Combination of multiple nodesets
 ................................
 
-In the previous section you have seen how you can use the nodeset compiler with one single nodeset which depends on the default nodeset (NS0) ``Opc.Ua.NodeSet2.xml``. The nodeset compiler also supports nodesets which depend on more than one nodeset. We will show this use-case with the PLCopen nodeset. The PLCopen nodeset ``Opc.Ua.PLCopen.NodeSet2_V1.02.xml`` depends on the DI nodeset ``Opc.Ua.Di.NodeSet2.xml`` which then depends on NS0. This example is also shown in ``examples/nodeset/CMakeLists.txt``.
+In the previous section you have seen how you can use the nodeset compiler with
+one single nodeset which depends on the default nodeset (NS0)
+``Opc.Ua.NodeSet2.xml``. The nodeset compiler also supports nodesets which
+depend on more than one nodeset. We will show this use-case with the PLCopen
+nodeset. The PLCopen nodeset ``Opc.Ua.PLCopen.NodeSet2_V1.02.xml`` depends on
+the DI nodeset ``Opc.Ua.Di.NodeSet2.xml`` which then depends on NS0. This
+example is also shown in ``examples/nodeset/CMakeLists.txt``.
 
-This DI nodeset makes use of some additional data types in ``deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd``. Since we also need these types within the generated code, we first need to compile the types into C code. The generated code is mainly a definition of the binary representation of the types required for encoding and decoding. The generation can be done using the ``ua_generate_datatypes`` CMake function, which uses the ``tools/generate_datatypes.py`` script::
+This DI nodeset makes use of some additional data types in
+``deps/ua-nodeset/DI/Opc.Ua.Di.Types.bsd``. Since we also need these types
+within the generated code, we first need to compile the types into C code. The
+generated code is mainly a definition of the binary representation of the types
+required for encoding and decoding. The generation can be done using the
+``ua_generate_datatypes`` CMake function, which uses the
+``tools/generate_datatypes.py`` script::
 
     ua_generate_datatypes(
         NAME "ua_types_di"
@@ -418,10 +424,22 @@ Now you can compile the DI nodeset XML using the following command::
         DEPENDS_TARGET "open62541-generator-types-di"
     )
 
-There are now two new arguments: ``INTERNAL`` indicates that internal headers (and non public API) should be included within the generated source code. This is currently required for nodesets which use structures as data values, and will probably be fixed in the future.
-The ``DEPENDS_TYPES`` types array argument is matched with the nodesets in the same order as they appear on the ``DEPENDS_TARGET`` parameter. It tells the nodeset compiler which types array it should use: ``UA_TYPES`` for ``Opc.Ua.NodeSet2.xml`` and ``UA_TYPES_DI`` for ``Opc.Ua.Di.NodeSet2.xml``. This is the type array generated by the ``generate_datatypes.py`` script. The rest is similar to the example in previous section: ``Opc.Ua.NodeSet2.xml`` is assumed to exist already and only needs to be loaded for consistency checks, ``Opc.Ua.Di.NodeSet2.xml`` will be generated in the output file ``ua_namespace_di.c/.h``
+There are now two new arguments: ``INTERNAL`` indicates that internal headers
+(and non public API) should be included within the generated source code. This
+is currently required for nodesets which use structures as data values, and will
+probably be fixed in the future. The ``DEPENDS_TYPES`` types array argument is
+matched with the nodesets in the same order as they appear on the
+``DEPENDS_TARGET`` parameter. It tells the nodeset compiler which types array it
+should use: ``UA_TYPES`` for ``Opc.Ua.NodeSet2.xml`` and ``UA_TYPES_DI`` for
+``Opc.Ua.Di.NodeSet2.xml``. This is the type array generated by the
+``generate_datatypes.py`` script. The rest is similar to the example in previous
+section: ``Opc.Ua.NodeSet2.xml`` is assumed to exist already and only needs to
+be loaded for consistency checks, ``Opc.Ua.Di.NodeSet2.xml`` will be generated
+in the output file ``ua_namespace_di.c/.h``
 
-Next we can generate the PLCopen nodeset. Since it doesn't require any additional datatype definitions, we can immediately start with the nodeset compiler command::
+Next we can generate the PLCopen nodeset. Since it doesn't require any
+additional datatype definitions, we can immediately start with the nodeset
+compiler command::
 
     ua_generate_nodeset(
         NAME "plc"
@@ -435,7 +453,13 @@ Next we can generate the PLCopen nodeset. Since it doesn't require any additiona
         DEPENDS_TARGET "open62541-generator-ns-di"
     )
 
-This call is quite similar to the compilation of the DI nodeset. As you can see, we do not define any specific types array for the PLCopen nodeset. Since the PLCopen nodeset depends on the NS0 and DI nodeset, we need to tell the nodeset compiler that these two nodesets should be seen as already existing. Make sure that the order is the same as in your XML file, e.g., in this case the order indicated in ``Opc.Ua.PLCopen.NodeSet2_V1.02.xml -> UANodeSet -> Models -> Model``.
+This call is quite similar to the compilation of the DI nodeset. As you can see,
+we do not define any specific types array for the PLCopen nodeset. Since the
+PLCopen nodeset depends on the NS0 and DI nodeset, we need to tell the nodeset
+compiler that these two nodesets should be seen as already existing. Make sure
+that the order is the same as in your XML file, e.g., in this case the order
+indicated in ``Opc.Ua.PLCopen.NodeSet2_V1.02.xml -> UANodeSet -> Models ->
+Model``.
 
 As a result of the previous scripts you will have multiple source files:
 
@@ -448,7 +472,9 @@ As a result of the previous scripts you will have multiple source files:
 * ua_namespace_plc.c
 * ua_namespace_plc.h
 
-Finally you need to include all these files in your build process and call the corresponding initialization methods for the nodesets. An example application could look like this:
+Finally you need to include all these files in your build process and call the
+corresponding initialization methods for the nodesets. An example application
+could look like this:
 
 .. code-block:: c
 
@@ -477,27 +503,37 @@ Finally you need to include all these files in your build process and call the c
 Outstanding Companion Spec Issues
 .................................
 
-There are some Companion Specifications that currently cannot be compiled with the Nodeset compiler.
-Which Companion Specifications are affected and what causes this is described below.
+There are some Companion Specifications that currently cannot be compiled with
+the Nodeset compiler. Which Companion Specifications are affected and what
+causes this is described below.
 
 Safety, Glass, DEXPI
-   Do not specify a BSD file or BSD blob in the XML file. The BSD file is considered deprecated. However, it is currently still required by the Nodeser compiler.
+   Do not specify a BSD file or BSD blob in the XML file.
+   The BSD file is considered deprecated.
+   However, it is currently still required by the Nodeser compiler.
 
 I4AAS, RSL, FDI
-   Attempting to load will result in a runtime error ("Type-checking failed with error code BadTypeMismatch" or "Parent node not found").
+   Attempting to load will result in a runtime error
+   ("Type-checking failed with error code BadTypeMismatch" or "Parent node not found").
 
 BACnet
-   Defines data types whose fields have the names signed or unsigned. This leads to errors when creating C structures, because signed and unsigned are keywords in C.
+   Defines data types whose fields have the names signed or unsigned.
+   This leads to errors when creating C structures, because signed and unsigned are keywords in C.
 
 Automatic Nodesetinjection
 ..........................
 
-The nodesetinjector is a mechanism for automatically loading nodeset/companion specifications during server initialization.
-It provides a fast and easy way to load nodesets in all applications, focusing on the official OPCFoundation/UANodeset Repository ( https://github.com/OPCFoundation/UA-Nodeset ).
-Specify the required information models using CMake.
+The nodesetinjector is a mechanism for automatically loading nodeset/companion
+specifications during server initialization. It provides a fast and easy way to
+load nodesets in all applications, focusing on the official
+OPCFoundation/UANodeset Repository
+(https://github.com/OPCFoundation/UA-Nodeset). Specify the required information
+models using CMake.
 
-Which nodesets are to be loaded is determined by the Cmake flag ``DUA_INFORMATION_MODEL_AUTOLOAD``. All nodesets that are to be loaded automatically are listed here.
-The naming is based on the folder name of the Companion Specification in the ua-nodeset folder.
+Which nodesets are to be loaded is determined by the Cmake flag
+``DUA_INFORMATION_MODEL_AUTOLOAD``. All nodesets that are to be loaded
+automatically are listed here. The naming is based on the folder name of the
+Companion Specification in the ua-nodeset folder.
 
 A CMake call could look like this.
 
@@ -508,18 +544,21 @@ A CMake call could look like this.
     -DUA_INFORMATION_MODEL_AUTOLOAD=DI;POWERLINK;PROFINET;MachineVision
     -DUA_NAMESPACE_ZERO=FULL
 
-The order of nodesets is important! Nodesets that build on other nodesets must be placed after them in the list.
-The following nodesets are currently supported:
+The order of nodesets is important! Nodesets that build on other nodesets must
+be placed after them in the list. The following nodesets are currently
+supported:
 
 DI, CNC, ISA95-JOBCONTROL, OpenSCS, AMB, AutoID, POWERLINK, IA, Machinery,
 PackML, PNEM, PLCopen, MachineTool, PROFINET, MachineVision, FDT,
 CommercialKitchenEquipment, PNRIO, Scales, Weihenstephan, Pumps, CAS, TMC, IJT
 
-When the open62541 library is installed on the system, the automatically generated autoinject library is installed alongside it.
-Additionally, the header files for the specified nodesets will be accessible on the system.
+When the open62541 library is installed on the system, the automatically
+generated autoinject library is installed alongside it. Additionally, the header
+files for the specified nodesets will be accessible on the system.
 
-Integrating the autoinject library into an existing CMake project is straightforward.
-To achieve this, the CMake configuration should include the following:
+Integrating the autoinject library into an existing CMake project is
+straightforward. To achieve this, the CMake configuration should include the
+following:
 
 .. code-block:: cmake
 
