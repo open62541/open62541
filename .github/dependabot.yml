@@ -12,5 +12,7 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     target-branch: "master"
+  - package-ecosystem: pip
+    directory: /doc
     schedule:
       interval: "weekly"
