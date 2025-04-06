@@ -146,13 +146,14 @@ generateFieldMetaData(UA_PubSubManager *psm, UA_PublishedDataSet *pds,
         return res;
     }
 
-    if(value.arrayDimensionsSize > 0) {
+    if(value.arrayLength > 0) {
         fieldMetaData->arrayDimensions = (UA_UInt32 *)
-            UA_calloc(value.arrayDimensionsSize, sizeof(UA_UInt32));
+            UA_calloc(value.arrayLength, sizeof(UA_UInt32));
         if(!fieldMetaData->arrayDimensions)
             return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_Array_copy(value.data, value.arrayLength, (void **) &fieldMetaData->arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
     }
-    fieldMetaData->arrayDimensionsSize = value.arrayDimensionsSize;
+    fieldMetaData->arrayDimensionsSize = value.arrayLength;
 
     UA_Variant_clear(&value);
 
