@@ -3,6 +3,8 @@
 
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
+#include <open62541/plugin/log_stdout.h>
+
 
 #include <stdio.h>
 
@@ -20,6 +22,212 @@ UA_DataValue dvStore[PUBSUB_CONFIG_FIELD_COUNT];
 UA_DataValue *dvPointers[PUBSUB_CONFIG_FIELD_COUNT];
 UA_NodeId publishVariables[PUBSUB_CONFIG_FIELD_COUNT];
 
+static UA_NodeId writerGroupIdent;
+
+#define CONTENTMASK_UAPERIODIC_FIXED   (                                                             \
+UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |            \
+UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |            \
+UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |          \
+UA_UADPNETWORKMESSAGECONTENTMASK_GROUPVERSION |           \
+UA_UADPNETWORKMESSAGECONTENTMASK_NETWORKMESSAGENUMBER |   \
+UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER           \
+)
+
+
+static bool checkNetworkMessageContentMask(UA_WriterGroupConfig * pWgConfig, UA_UadpNetworkMessageContentMask contentMask)
+{
+    bool isSet = false;
+
+    if(pWgConfig->messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED)
+    {
+        if(pWgConfig->messageSettings.content.decoded.type == &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])
+        {
+            UA_UadpWriterGroupMessageDataType *msgSettings = (UA_UadpWriterGroupMessageDataType*)pWgConfig->messageSettings.content.decoded.data;
+            if(msgSettings->networkMessageContentMask == CONTENTMASK_UAPERIODIC_FIXED)
+            {
+                isSet = true;
+            }
+        }
+    }
+
+    return isSet;
+}
+
+static UA_StatusCode connectionStateMachine(UA_Server *server, const UA_NodeId componentId, void *componentContext, UA_PubSubState *state, UA_PubSubState targetState) {
+    UA_PubSubConnectionConfig confConn;
+
+    if(*state == targetState)
+        return UA_STATUSCODE_GOOD;
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_PUBSUBCOMPONENT_CONNECTION: custom state machine called '%lu'", componentId.identifier.numeric);
+
+    *state = targetState;
+
+    if(UA_Server_getPubSubConnectionConfig(server, componentId, &confConn) == UA_STATUSCODE_GOOD) {
+        UA_PubSubConnectionConfig_clear(&confConn);
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode writerGroupStateMachine(UA_Server *server, const UA_NodeId componentId, void *componentContext, UA_PubSubState *state, UA_PubSubState targetState) {
+    if(*state == targetState)
+        return UA_STATUSCODE_GOOD;
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_PUBSUBCOMPONENT_WRITERGROUP: custom state machine called '%lu'", componentId.identifier.numeric);
+
+    switch(targetState) {
+        case UA_PUBSUBSTATE_ERROR:
+        case UA_PUBSUBSTATE_DISABLED:
+        case UA_PUBSUBSTATE_PAUSED:
+            *state = targetState;
+            break;
+
+        case UA_PUBSUBSTATE_PREOPERATIONAL:
+        case UA_PUBSUBSTATE_OPERATIONAL:
+            if(*state == UA_PUBSUBSTATE_OPERATIONAL)
+                break;
+
+            UA_WriterGroupConfig wgConn;
+            if(UA_Server_getWriterGroupConfig(server, componentId, &wgConn) == UA_STATUSCODE_GOOD) {
+                if(checkNetworkMessageContentMask(&wgConn, CONTENTMASK_UAPERIODIC_FIXED)) {
+                    *state = targetState;
+                }
+                UA_WriterGroupConfig_clear(&wgConn);
+            }
+            break;
+
+        default:
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode dataSetWriterStateMachine(UA_Server *server, const UA_NodeId componentId, void *componentContext, UA_PubSubState *state, UA_PubSubState targetState) {
+    if(*state == targetState)
+        return UA_STATUSCODE_GOOD;
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_PUBSUBCOMPONENT_DATASETWRITER: custom state machine called '%lu'", componentId.identifier.numeric);
+
+    *state = targetState;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode readerGroupStateMachine(UA_Server *server, const UA_NodeId componentId, void *componentContext, UA_PubSubState *state, UA_PubSubState targetState) {
+    if(*state == targetState)
+        return UA_STATUSCODE_GOOD;
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_PUBSUBCOMPONENT_READERGROUP: custom state machine called '%lu'", componentId.identifier.numeric);
+
+    switch(targetState) {
+        case UA_PUBSUBSTATE_ERROR:
+        case UA_PUBSUBSTATE_DISABLED:
+        case UA_PUBSUBSTATE_PAUSED:
+            *state = targetState;
+            break;
+
+        case UA_PUBSUBSTATE_PREOPERATIONAL:
+        case UA_PUBSUBSTATE_OPERATIONAL:
+            if(*state == UA_PUBSUBSTATE_OPERATIONAL)
+                break;
+
+            *state = targetState;
+            break;
+
+        default:
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode dataSetReaderStateMachine(UA_Server *server, const UA_NodeId componentId, void *componentContext, UA_PubSubState *state, UA_PubSubState targetState) {
+    if(*state == targetState)
+        return UA_STATUSCODE_GOOD;
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_PUBSUBCOMPONENT_DATASETREADER: custom state machine called '%lu'", componentId.identifier.numeric);
+
+    *state = targetState;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode componentLifecycleCallback(UA_Server *server, const UA_NodeId id, const UA_PubSubComponentType componentType, UA_Boolean remove) {
+    if(remove) {
+        return UA_STATUSCODE_GOOD;
+    }
+
+    switch(componentType) {
+        case UA_PUBSUBCOMPONENT_CONNECTION:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGLEVEL_INFO, "componentLifecycleCallback: UA_PUBSUBCOMPONENT_CONNECTION");
+            UA_PubSubConnectionConfig confConn;
+            if(UA_Server_getPubSubConnectionConfig(server, id, &confConn) == UA_STATUSCODE_GOOD) {
+                confConn.customStateMachine = connectionStateMachine;
+                UA_Server_updatePubSubConnectionConfig(server, id, &confConn);
+                UA_PubSubConnectionConfig_clear(&confConn);
+            }
+            break;
+        case UA_PUBSUBCOMPONENT_WRITERGROUP:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGLEVEL_INFO, "componentLifecycleCallback: UA_PUBSUBCOMPONENT_WRITERGROUP");
+            UA_WriterGroupConfig confWrGrp;
+            if(UA_Server_getWriterGroupConfig(server, id, &confWrGrp) == UA_STATUSCODE_GOOD) {
+                writerGroupIdent = id;
+                confWrGrp.customStateMachine = writerGroupStateMachine;
+                UA_Server_updateWriterGroupConfig(server, id, &confWrGrp);
+                UA_WriterGroupConfig_clear(&confWrGrp);
+            }
+            break;
+        case UA_PUBSUBCOMPONENT_DATASETWRITER:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGLEVEL_INFO, "componentLifecycleCallback: UA_PUBSUBCOMPONENT_DATASETWRITER");
+            UA_DataSetWriterConfig confDsWr;
+            if(UA_Server_getDataSetWriterConfig(server, id, &confDsWr) == UA_STATUSCODE_GOOD) {
+                confDsWr.customStateMachine = dataSetWriterStateMachine;
+                UA_Server_updateDataSetWriterConfig(server, id, &confDsWr);
+                UA_DataSetWriterConfig_clear(&confDsWr);
+            }
+            break;
+        case UA_PUBSUBCOMPONENT_READERGROUP:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGLEVEL_INFO, "componentLifecycleCallback: UA_PUBSUBCOMPONENT_READERGROUP");
+            UA_ReaderGroupConfig confRdGrp;
+            if(UA_Server_getReaderGroupConfig(server, id, &confRdGrp) == UA_STATUSCODE_GOOD) {
+                confRdGrp.customStateMachine = readerGroupStateMachine;
+                UA_Server_updateReaderGroupConfig(server, id, &confRdGrp);
+                UA_ReaderGroupConfig_clear(&confRdGrp);
+            }
+            break;
+        case UA_PUBSUBCOMPONENT_DATASETREADER:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGLEVEL_INFO, "componentLifecycleCallback: UA_PUBSUBCOMPONENT_DATASETREADER");
+            UA_DataSetReaderConfig confDsRd;
+            if(UA_Server_getDataSetReaderConfig(server, id, &confDsRd) == UA_STATUSCODE_GOOD) {
+                confDsRd.customStateMachine = dataSetReaderStateMachine;
+                UA_Server_updateDataSetReaderConfig(server, id, &confDsRd);
+                UA_DataSetReaderConfig_clear(&confDsRd);
+            }
+            break;
+        case UA_PUBSUBCOMPONENT_PUBLISHEDDATASET:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGLEVEL_INFO, "componentLifecycleCallback: UA_PUBSUBCOMPONENT_PUBLISHEDDATASET");
+            break;
+        case UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGLEVEL_INFO, "componentLifecycleCallback: UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET");
+            break;
+        default:
+            break;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static void beforeStateChangeCallback(UA_Server *server, const UA_NodeId id, UA_PubSubState *targetState) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGLEVEL_INFO, "State of the PubSubComponent '%lu' will change to '%i'", id.identifier.numeric, *targetState);
+}
+
+static void stateChangeCallback(UA_Server *server, const UA_NodeId id, UA_PubSubState state, UA_StatusCode status) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGLEVEL_INFO, "State of the PubSubComponent '%lu' changed to '%i' with status '%s'", id.identifier.numeric, state, UA_StatusCode_name(status));
+}
+
+
 int main(void) {
     /* Prepare the values */
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
@@ -31,6 +239,10 @@ int main(void) {
 
     /* Initialize the server */
     UA_Server *server = UA_Server_new();
+    UA_ServerConfig *pConfig = UA_Server_getConfig(server);
+    pConfig->pubSubConfig.componentLifecycleCallback = componentLifecycleCallback;
+    pConfig->pubSubConfig.beforeStateChangeCallback = beforeStateChangeCallback;
+    pConfig->pubSubConfig.stateChangeCallback = stateChangeCallback;
 
     // UInt32Array
     UA_NodeId_init(&ds2UInt32ArrId);
@@ -153,26 +365,75 @@ int main(void) {
     UA_PubSubOffsetTable ot;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server_computeWriterGroupOffsetTable(server, writerGroupIdent, &ot);
-    for(size_t i = 0; i < ot.offsetsSize; i++) {
-        UA_String out = UA_STRING_NULL;
-        if(ot.offsets[i].offsetType >= UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE) {
-            /* For writers the component is the NodeId is the DataSetField.
-             * Instead print the source node that contains the data */
-            UA_DataSetFieldConfig dsfc;
-            retval = UA_Server_getDataSetFieldConfig(server, ot.offsets[i].component, &dsfc);
-            if(retval != UA_STATUSCODE_GOOD)
-                continue;
-            UA_NodeId_print(&dsfc.field.variable.publishParameters.publishedVariable, &out);
-            UA_DataSetFieldConfig_clear(&dsfc);
-        } else {
-            UA_NodeId_print(&ot.offsets[i].component, &out);
-        }
-        printf("%u:\tOffset %u\tOffsetType %u\tComponent %.*s\n",
-               (unsigned)i, (unsigned)ot.offsets[i].offset,
-               (unsigned)ot.offsets[i].offsetType,
-               (int)out.length, out.data);
-        UA_String_clear(&out);
+for(size_t i = 0; i < ot.offsetsSize; i++) {
+    UA_String out = UA_STRING_NULL;
+    if(ot.offsets[i].offsetType >= UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE) {
+        /* For writers the component is the NodeId is the DataSetField.
+         * Instead print the source node that contains the data */
+        UA_DataSetFieldConfig dsfc;
+        retval = UA_Server_getDataSetFieldConfig(server, ot.offsets[i].component, &dsfc);
+        if(retval != UA_STATUSCODE_GOOD)
+            continue;
+        UA_NodeId_print(&dsfc.field.variable.publishParameters.publishedVariable, &out);
+        UA_DataSetFieldConfig_clear(&dsfc);
+    } else {
+        UA_NodeId_print(&ot.offsets[i].component, &out);
     }
+
+    // Map OffsetType to its string representation
+    const char *offsetTypeString = NULL;
+    switch(ot.offsets[i].offsetType) {
+        case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_GROUPVERSION:
+            offsetTypeString = "NETWORKMESSAGE_GROUPVERSION";
+            break;
+        case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER:
+            offsetTypeString = "NETWORKMESSAGE_SEQUENCENUMBER";
+            break;
+        case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_TIMESTAMP:
+            offsetTypeString = "NETWORKMESSAGE_TIMESTAMP";
+            break;
+        case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_PICOSECONDS:
+            offsetTypeString = "NETWORKMESSAGE_PICOSECONDS";
+            break;
+        case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE:
+            offsetTypeString = "DATASETMESSAGE";
+            break;
+        case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER:
+            offsetTypeString = "DATASETMESSAGE_SEQUENCENUMBER";
+            break;
+        case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_STATUS:
+            offsetTypeString = "DATASETMESSAGE_STATUS";
+            break;
+        case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_TIMESTAMP:
+            offsetTypeString = "DATASETMESSAGE_TIMESTAMP";
+            break;
+        case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_PICOSECONDS:
+            offsetTypeString = "DATASETMESSAGE_PICOSECONDS";
+            break;
+        case UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE:
+            offsetTypeString = "DATASETFIELD_DATAVALUE";
+            break;
+        case UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT:
+            offsetTypeString = "DATASETFIELD_VARIANT";
+            break;
+        case UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW:
+            offsetTypeString = "DATASETFIELD_RAW";
+            break;
+        default:
+            offsetTypeString = "UNKNOWN_OFFSET_TYPE";
+            break;
+    }
+
+    // Print the details including the string representation of OffsetType
+    printf("%u:\tOffset %u\tOffsetType %u (%s)\tComponent %.*s\n",
+           (unsigned)i, (unsigned)ot.offsets[i].offset,
+           (unsigned)ot.offsets[i].offsetType, offsetTypeString,
+           (int)out.length, out.data);
+
+    UA_String_clear(&out);
+    }
+
+
 
     UA_Server_runUntilInterrupt(server);
 
