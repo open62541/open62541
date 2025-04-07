@@ -421,6 +421,65 @@ UA_Server_disableAllPubSubComponents(UA_Server *server) {
     unlockServer(server);
 }
 
+static UA_StatusCode
+getPubSubComponentType(UA_PubSubManager *psm, UA_NodeId componentId,
+                       UA_PubSubComponentType *outType) {
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        if(UA_NodeId_equal(&componentId, &c->head.identifier)) {
+            *outType = c->head.componentType;
+            return UA_STATUSCODE_GOOD;
+        }
+
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            if(UA_NodeId_equal(&componentId, &wg->head.identifier)) {
+                *outType = wg->head.componentType;
+                return UA_STATUSCODE_GOOD;
+            }
+
+            UA_DataSetWriter *dsw;
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                if(UA_NodeId_equal(&componentId, &dsw->head.identifier)) {
+                    *outType = dsw->head.componentType;
+                    return UA_STATUSCODE_GOOD;
+                }
+            }
+        }
+
+        UA_ReaderGroup *rg;
+        LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+            if(UA_NodeId_equal(&componentId, &rg->head.identifier)) {
+                *outType = rg->head.componentType;
+                return UA_STATUSCODE_GOOD;
+            }
+
+            UA_DataSetReader *dsr;
+            LIST_FOREACH(dsr, &rg->readers, listEntry) {
+                if(UA_NodeId_equal(&componentId, &dsr->head.identifier)) {
+                    *outType = dsr->head.componentType;
+                    return UA_STATUSCODE_GOOD;
+                }
+            }
+        }
+    }
+
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_StatusCode
+UA_Server_getPubSubComponentType(UA_Server *server, UA_NodeId componentId,
+                                 UA_PubSubComponentType *outType) {
+    if(!outType)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode res = (psm) ?
+        getPubSubComponentType(psm, componentId, outType) : UA_STATUSCODE_BADINTERNALERROR;
+    unlockServer(server);
+    return res;
+}
+
 void
 UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     if(state == UA_LIFECYCLESTATE_STOPPED)
