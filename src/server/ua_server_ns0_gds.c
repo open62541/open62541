@@ -298,6 +298,10 @@ updateCertificate(UA_Server *server,
     /* Verify that the privateKey is in a supported format and
      * that it matches the specified certificate */
     if(privateKey && privateKey->length > 0) {
+        if(!server->config.allowPrivateKeyUpdate) {
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
+
         const UA_String pemFormat = UA_STRING("PEM");
         const UA_String derFormat = UA_STRING("DER");
         if(!UA_String_equal(&pemFormat, privateKeyFormat) && !UA_String_equal(&derFormat, privateKeyFormat))
@@ -1246,20 +1250,24 @@ writeGroupVariables(UA_Server *server) {
                                      UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE)};
     size_t certificateTypesSize = 2;
 
-    UA_String supportedPrivateKeyFormats[2] = {UA_STRING("PEM"),
-                                               UA_STRING("DER")};
-    size_t supportedPrivateKeyFormatsSize = 2;
-
-    UA_UInt32  maxTrustListSize = 0;
-
     /* Set variables */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    retval |= writeGDSNs0VariableArray(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_SUPPORTEDPRIVATEKEYFORMATS),
-                                       supportedPrivateKeyFormats, supportedPrivateKeyFormatsSize,
-                                       &UA_TYPES[UA_TYPES_STRING]);
+
+    if(server->config.allowPrivateKeyUpdate) {
+        UA_String supportedPrivateKeyFormats[] = {UA_STRING("PEM"), 
+                                                  UA_STRING("DER")};
+        const size_t supportedPrivateKeyFormatsSize =
+            sizeof(supportedPrivateKeyFormats) / sizeof(UA_String);
+
+        retval |= writeGDSNs0VariableArray(
+            server,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_SUPPORTEDPRIVATEKEYFORMATS),
+            supportedPrivateKeyFormats, supportedPrivateKeyFormatsSize,
+            &UA_TYPES[UA_TYPES_STRING]);
+    }
 
     retval |= writeGDSNs0Variable(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_MAXTRUSTLISTSIZE),
-                                  &maxTrustListSize, &UA_TYPES[UA_TYPES_UINT32]);
+                                  &server->config.maxTrustListSize, &UA_TYPES[UA_TYPES_UINT32]);
 
     retval |= writeGDSNs0VariableArray(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_CERTIFICATETYPES),
                                        certificateTypes, certificateTypesSize,

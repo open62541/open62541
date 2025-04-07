@@ -193,6 +193,12 @@ struct UA_ServerConfig {
      * Make sure you really need this before enabling plain text passwords. */
     UA_Boolean allowNonePolicyPassword;
 
+    /* Allow clients to update the Private Key of the server.
+     * Updating of private keys should only be allowed for servers that do not have
+     * access to the entropy necessary for creating private keys.
+     */
+    UA_Boolean allowPrivateKeyUpdate;
+
     /* Different sets of certificates are trusted for SecureChannel / Session */
     UA_CertificateGroup secureChannelPKI;
     UA_CertificateGroup sessionPKI;
