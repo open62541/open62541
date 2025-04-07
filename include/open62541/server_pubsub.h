@@ -258,6 +258,12 @@ UA_EXPORT UA_StatusCode
 UA_Server_getPubSubComponentType(UA_Server *server, UA_NodeId componentId,
                                  UA_PubSubComponentType *outType);
 
+/* Get the parent of a PubSubComponent (PubSubConnections have no parent).
+ * Returns a deep copy of the parent's NodeId. */
+UA_EXPORT UA_StatusCode
+UA_Server_getPubSubComponentParent(UA_Server *server, UA_NodeId componentId,
+                                   UA_NodeId *outParent);
+
 /**
  * PubSubConnection
  * ----------------

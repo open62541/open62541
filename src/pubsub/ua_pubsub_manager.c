@@ -472,6 +472,55 @@ UA_Server_getPubSubComponentType(UA_Server *server, UA_NodeId componentId,
     return res;
 }
 
+static UA_StatusCode
+getPubSubComponentParent(UA_PubSubManager *psm, UA_NodeId componentId,
+                         UA_NodeId *outParent) {
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        if(UA_NodeId_equal(&componentId, &c->head.identifier))
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            if(UA_NodeId_equal(&componentId, &wg->head.identifier))
+                return UA_NodeId_copy(&c->head.identifier, outParent);
+
+            UA_DataSetWriter *dsw;
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                if(UA_NodeId_equal(&componentId, &dsw->head.identifier))
+                    return UA_NodeId_copy(&wg->head.identifier, outParent);
+            }
+        }
+
+        UA_ReaderGroup *rg;
+        LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+            if(UA_NodeId_equal(&componentId, &rg->head.identifier))
+                return UA_NodeId_copy(&c->head.identifier, outParent);
+
+            UA_DataSetReader *dsr;
+            LIST_FOREACH(dsr, &rg->readers, listEntry) {
+                if(UA_NodeId_equal(&componentId, &dsr->head.identifier))
+                    return UA_NodeId_copy(&rg->head.identifier, outParent);
+            }
+        }
+    }
+
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_StatusCode
+UA_Server_getPubSubComponentParent(UA_Server *server, UA_NodeId componentId,
+                                   UA_NodeId *outParent) {
+    if(!outParent)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode res = (psm) ?
+        getPubSubComponentParent(psm, componentId, outParent) : UA_STATUSCODE_BADINTERNALERROR;
+    unlockServer(server);
+    return res;
+}
+
 void
 UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     if(state == UA_LIFECYCLESTATE_STOPPED)
