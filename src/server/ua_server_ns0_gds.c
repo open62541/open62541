@@ -1254,7 +1254,7 @@ writeGroupVariables(UA_Server *server) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     if(server->config.allowPrivateKeyUpdate) {
-        UA_String supportedPrivateKeyFormats[] = {UA_STRING("PEM"), 
+        UA_String supportedPrivateKeyFormats[] = {UA_STRING("PEM"),
                                                   UA_STRING("DER")};
         const size_t supportedPrivateKeyFormatsSize =
             sizeof(supportedPrivateKeyFormats) / sizeof(UA_String);
