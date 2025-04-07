@@ -38,7 +38,7 @@ static void setup(void) {
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     sc->allowNonePolicyPassword = true;
 
-    /* Instatiate a new AccessControl plugin that knows username/pw */
+    /* Instantiate a new AccessControl plugin that knows username/pw */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize-1];
     UA_AccessControl_default(config, true, &sp->policyUri,
