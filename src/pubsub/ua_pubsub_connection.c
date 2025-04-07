@@ -172,21 +172,6 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
     TAILQ_INSERT_HEAD(&psm->connections, c, listEntry);
     psm->connectionsSize++;
 
-    /* Validate-connect to check the parameters */
-    ret = UA_PubSubConnection_connect(psm, c, true);
-    if(ret != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                     "Could not create the PubSubConnection. "
-                     "The connection parameters did not validate.");
-        UA_PubSubConnection_delete(psm, c);
-        return ret;
-    }
-
-    /* Cache the log string */
-    char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %N\t| ", c->head.identifier);
-    c->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
-
     /* Notify the application that a new Connection was created.
      * This may internally adjust the config */
     UA_Server *server = psm->sc.server;
@@ -199,6 +184,23 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
             return res;
         }
     }
+
+    if(!c->config.customStateMachine) {
+        /* Validate-connect to check the parameters */
+        ret = UA_PubSubConnection_connect(psm, c, true);
+        if(ret != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                         "Could not create the PubSubConnection. "
+                         "The connection parameters did not validate.");
+            UA_PubSubConnection_delete(psm, c);
+            return ret;
+        }
+    }
+
+    /* Cache the log string */
+    char tmpLogIdStr[128];
+    mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %N\t| ", c->head.identifier);
+    c->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
     UA_LOG_INFO_PUBSUB(psm->logging, c, "Connection created (State: %s)",
                        UA_PubSubState_name(c->head.state));
