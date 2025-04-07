@@ -582,6 +582,11 @@ START_TEST(SinglePublishSubscribeDateTime) {
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert(ct == UA_PUBSUBCOMPONENTTYPE_WRITERGROUP);
 
+        UA_NodeId parentId;
+        retVal |= UA_Server_getPubSubComponentParent(server, writerGroup, &parentId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert(UA_NodeId_equal(&parentId, &connectionId));
+
         /* DataSetWriter */
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -596,6 +601,10 @@ START_TEST(SinglePublishSubscribeDateTime) {
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert(ct == UA_PUBSUBCOMPONENTTYPE_DATASETWRITER);
 
+        retVal |= UA_Server_getPubSubComponentParent(server, dataSetWriter, &parentId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert(UA_NodeId_equal(&parentId, &writerGroup));
+
         /* Reader Group */
         UA_ReaderGroupConfig readerGroupConfig;
         memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
@@ -606,6 +615,10 @@ START_TEST(SinglePublishSubscribeDateTime) {
         retVal |= UA_Server_getPubSubComponentType(server, readerGroupId, &ct);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert(ct == UA_PUBSUBCOMPONENTTYPE_READERGROUP);
+
+        retVal |= UA_Server_getPubSubComponentParent(server, readerGroupId, &parentId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert(UA_NodeId_equal(&parentId, &connectionId));
 
         /* Data Set Reader */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
@@ -642,6 +655,10 @@ START_TEST(SinglePublishSubscribeDateTime) {
         retVal |= UA_Server_getPubSubComponentType(server, readerIdentifier, &ct);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert(ct == UA_PUBSUBCOMPONENTTYPE_DATASETREADER);
+
+        retVal |= UA_Server_getPubSubComponentParent(server, readerIdentifier, &parentId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert(UA_NodeId_equal(&parentId, &readerGroupId));
 
         /* run server - publisher and subscriber */
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
