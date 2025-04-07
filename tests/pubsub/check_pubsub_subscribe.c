@@ -118,6 +118,11 @@ static void setup(void) {
     connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionId);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_PubSubComponentType ct;
+    retval = UA_Server_getPubSubComponentType(server, connectionId, &ct);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(ct == UA_PUBSUBCOMPONENT_CONNECTION);
 }
 
 /* teardown() is to delete the environment set for test cases */
@@ -570,6 +575,13 @@ START_TEST(SinglePublishSubscribeDateTime) {
         writerGroupConfig.writerGroupId = WRITER_GROUP_ID;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_PubSubComponentType ct;
+        retVal |= UA_Server_getPubSubComponentType(server, writerGroup, &ct);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert(ct == UA_PUBSUBCOMPONENTTYPE_WRITERGROUP);
+
         /* DataSetWriter */
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -579,12 +591,22 @@ START_TEST(SinglePublishSubscribeDateTime) {
         retVal |= UA_Server_addDataSetWriter(server, writerGroup, publishedDataSetId,
                                              &dataSetWriterConfig, &dataSetWriter);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        retVal |= UA_Server_getPubSubComponentType(server, dataSetWriter, &ct);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert(ct == UA_PUBSUBCOMPONENTTYPE_DATASETWRITER);
+
         /* Reader Group */
         UA_ReaderGroupConfig readerGroupConfig;
         memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup (server, connectionId, &readerGroupConfig, &readerGroupId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        retVal |= UA_Server_getPubSubComponentType(server, readerGroupId, &ct);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert(ct == UA_PUBSUBCOMPONENTTYPE_READERGROUP);
+
         /* Data Set Reader */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name = UA_STRING ("DataSetReader Test");
@@ -616,6 +638,10 @@ START_TEST(SinglePublishSubscribeDateTime) {
         retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig, &readerIdentifier);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_free(readerConfig.subscribedDataSet.target.targetVariables);
+
+        retVal |= UA_Server_getPubSubComponentType(server, readerIdentifier, &ct);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        ck_assert(ct == UA_PUBSUBCOMPONENTTYPE_DATASETREADER);
 
         /* run server - publisher and subscriber */
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
