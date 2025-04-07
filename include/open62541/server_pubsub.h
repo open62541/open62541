@@ -249,6 +249,16 @@ UA_EXPORT void
 UA_Server_disableAllPubSubComponents(UA_Server *server);
 
 /**
+ * The following methods are used to retrieve the metadata of PubSubComponents.
+ * So gar they are implemented to operate only on the components with a state
+ * machine (connection, ReaderGroup, Reder, WriterGroup, Writer). */
+
+/* Get the component-type enum from the identifier */
+UA_EXPORT UA_StatusCode
+UA_Server_getPubSubComponentType(UA_Server *server, UA_NodeId componentId,
+                                 UA_PubSubComponentType *outType);
+
+/**
  * PubSubConnection
  * ----------------
  * PubSubConnections are the abstraction between the concrete transport protocol
