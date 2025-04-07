@@ -264,6 +264,14 @@ UA_EXPORT UA_StatusCode
 UA_Server_getPubSubComponentParent(UA_Server *server, UA_NodeId componentId,
                                    UA_NodeId *outParent);
 
+/* Get the list of child-components. Allocates the output array. For
+ * PubSubConnections, both the ReaderGroups and WriterGroups attached to it are
+ * returned. */
+UA_EXPORT UA_StatusCode
+UA_Server_getPubSubComponentChildren(UA_Server *server, UA_NodeId componentId,
+                                     size_t *outChildrenSize,
+                                     UA_NodeId **outChildren);
+
 /**
  * PubSubConnection
  * ----------------
