@@ -580,7 +580,7 @@ START_TEST(SinglePublishSubscribeDateTime) {
         UA_PubSubComponentType ct;
         retVal |= UA_Server_getPubSubComponentType(server, writerGroup, &ct);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert(ct == UA_PUBSUBCOMPONENTTYPE_WRITERGROUP);
+        ck_assert(ct == UA_PUBSUBCOMPONENT_WRITERGROUP);
 
         UA_NodeId parentId;
         retVal |= UA_Server_getPubSubComponentParent(server, writerGroup, &parentId);
@@ -599,7 +599,7 @@ START_TEST(SinglePublishSubscribeDateTime) {
 
         retVal |= UA_Server_getPubSubComponentType(server, dataSetWriter, &ct);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert(ct == UA_PUBSUBCOMPONENTTYPE_DATASETWRITER);
+        ck_assert(ct == UA_PUBSUBCOMPONENT_DATASETWRITER);
 
         retVal |= UA_Server_getPubSubComponentParent(server, dataSetWriter, &parentId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -614,7 +614,7 @@ START_TEST(SinglePublishSubscribeDateTime) {
 
         retVal |= UA_Server_getPubSubComponentType(server, readerGroupId, &ct);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert(ct == UA_PUBSUBCOMPONENTTYPE_READERGROUP);
+        ck_assert(ct == UA_PUBSUBCOMPONENT_READERGROUP);
 
         retVal |= UA_Server_getPubSubComponentParent(server, readerGroupId, &parentId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -654,11 +654,30 @@ START_TEST(SinglePublishSubscribeDateTime) {
 
         retVal |= UA_Server_getPubSubComponentType(server, readerIdentifier, &ct);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert(ct == UA_PUBSUBCOMPONENTTYPE_DATASETREADER);
+        ck_assert(ct == UA_PUBSUBCOMPONENT_DATASETREADER);
 
         retVal |= UA_Server_getPubSubComponentParent(server, readerIdentifier, &parentId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert(UA_NodeId_equal(&parentId, &readerGroupId));
+
+        /* Check that the correct children of the PubSubComponents are returned */
+        UA_NodeId *children;
+        size_t childrenSize;
+        UA_Server_getPubSubComponentChildren(server, connectionId, &childrenSize, &children);
+        ck_assert_uint_eq(childrenSize, 2);
+        ck_assert(UA_NodeId_equal(children + 0, &writerGroup));
+        ck_assert(UA_NodeId_equal(children + 1, &readerGroupId));
+        UA_Array_delete(children, childrenSize, &UA_TYPES[UA_TYPES_NODEID]);
+
+        UA_Server_getPubSubComponentChildren(server, writerGroup, &childrenSize, &children);
+        ck_assert_uint_eq(childrenSize, 1);
+        ck_assert(UA_NodeId_equal(children + 0, &dataSetWriter));
+        UA_Array_delete(children, childrenSize, &UA_TYPES[UA_TYPES_NODEID]);
+
+        UA_Server_getPubSubComponentChildren(server, readerGroupId, &childrenSize, &children);
+        ck_assert_uint_eq(childrenSize, 1);
+        ck_assert(UA_NodeId_equal(children + 0, &readerIdentifier));
+        UA_Array_delete(children, childrenSize, &UA_TYPES[UA_TYPES_NODEID]);
 
         /* run server - publisher and subscriber */
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
