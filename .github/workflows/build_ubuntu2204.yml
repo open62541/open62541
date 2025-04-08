@@ -1,0 +1,29 @@
+name: Linux Build & Test with OpenSSL3.0
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include: 
+          - build_name: "Encryption (OpenSSL3.0) Build & Unit Tests (gcc)"
+            cmd_deps: sudo apt-get install -y -qq openssl
+            cmd_action: unit_tests_encryption OPENSSL
+    name: ${{matrix.build_name}}
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y -qq python3-sphinx graphviz check
+        ${{ matrix.cmd_deps }}
+    - name: ${{matrix.build_name}}
+      run: source tools/ci.sh && ${{matrix.cmd_action}}
+      env:
+        ETHERNET_INTERFACE: eth0
+
