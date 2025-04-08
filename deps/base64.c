@@ -61,9 +61,9 @@ UA_base64_buf(const unsigned char *src, size_t len, unsigned char *out) {
 }
 
 static unsigned char dtable[128] = {
+	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x7f, 0x7f, 0x80, 0x80, 0x7f, 0x80, 0x80,
 	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 62  , 0x80, 62  , 0x80, 63  ,
+	0x7f, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 62  , 0x80, 62  , 0x80, 63  ,
 	52  , 53  , 54  , 55  , 56  , 57  , 58  , 59  , 60  , 61  , 0x80, 0x80, 0x80, 0   , 0x80, 0x80,
 	0x80, 0   , 1   , 2   , 3   , 4   , 5   , 6   , 7   , 8   , 9   , 10  , 11  , 12  , 13  , 14  ,
 	15  , 16  , 17  , 18  , 19  , 20  , 21  , 22  , 23  , 24  , 25  , 0x80, 0x80, 0x80, 0x80, 63  ,
@@ -92,9 +92,12 @@ UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
     unsigned char *pos = out;
 	for(size_t i = 0; i < len; i++) {
         /* Process character */
-		unsigned char tmp = dtable[src[i] & 0x07f];
+		unsigned char tmp = dtable[src[i] & 0x7f];
         if(tmp == 0x80)
-            goto error; /* Invalid input */
+            goto error;
+        if(tmp == 0x7f)
+            continue; /* Whitespace is ignored to accomodate RFC 2045, used in
+                       * XML for xs:base64Binary. */
 		block[count++] = tmp;
 
         /* Allow padding in the middle.
@@ -105,10 +108,10 @@ UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
         /* Premature end of input. Fill up the block with padding. */
         if(i + 1 == len) {
             len = (len + 3) & ~0x03; /* Next multiple of four */
-            for(i++; i < len; i++) {
-                block[count++] = 0;
+            for(i++; i < len; i++)
                 pad++;
-            }
+            for(; count < 4; count++)
+                block[count] = 0;
         }
 
         /* Write three output characters for four characters of input */
@@ -125,7 +128,11 @@ UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
 	}
 
 	*out_len = (size_t)(pos - out);
-	return out;
+    if(*out_len == 0) {
+        UA_free(out);
+        return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
+    }
+    return out;
 
  error:
     UA_free(out);

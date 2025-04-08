@@ -24,7 +24,6 @@ try {
     # Collect files for .zip packing
     New-Item -ItemType directory -Path pack
     Copy-Item LICENSE pack
-    Copy-Item AUTHORS pack
     Copy-Item README.md pack
 
     Write-Host -ForegroundColor Green "`n###################################################################"

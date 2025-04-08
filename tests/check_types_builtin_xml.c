@@ -832,7 +832,7 @@ START_TEST(UA_String_Null_xml_encode) {
     status s = UA_encodeXml(&src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "<String>null</String>";
+    char *result = "<String></String>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -1461,7 +1461,7 @@ START_TEST(UA_LocalizedText_null_locale_xml_encode) {
     status s = UA_encodeXml((void*)&src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "<LocalizedText><Locale>en</Locale><Text>null</Text></LocalizedText>";
+    char *result = "<LocalizedText><Locale>en</Locale><Text></Text></LocalizedText>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
 
@@ -1482,7 +1482,7 @@ START_TEST(UA_LocalizedText_null_xml_encode) {
     status s = UA_encodeXml((void*)&src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "<LocalizedText><Locale>null</Locale><Text>null</Text></LocalizedText>";
+    char *result = "<LocalizedText><Locale></Locale><Text></Text></LocalizedText>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
 
@@ -1621,7 +1621,7 @@ START_TEST(UA_ExtensionObject_byteString_xml_encode) {
                         "<Identifier>ns=2;i=1234</Identifier>"
                       "</TypeId>"
                       "<Body>"
-                        "<ByteString>123456789012345678901234567890</ByteString>"
+                        "<ByteString>MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkw</ByteString>"
                       "</Body>"
                     "</ExtensionObject>";
     buf.data[size] = 0; /* zero terminate */
@@ -1629,6 +1629,35 @@ START_TEST(UA_ExtensionObject_byteString_xml_encode) {
 
     UA_ByteString_clear(&buf);
     UA_ExtensionObject_delete(src);
+}
+END_TEST
+
+START_TEST(UA_ExtensionObject_xml_body_encode) {
+    UA_ExtensionObject src;
+    UA_NodeId content = UA_NODEID_NUMERIC(0, 5555);
+    UA_ExtensionObject_setValue(&src, &content, &UA_TYPES[UA_TYPES_NODEID]);
+
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+    size_t size = UA_calcSizeXml((void*)&src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)&src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+    buf.data[size] = 0; /* zero terminate */
+
+    char *result = "<ExtensionObject>"
+                      "<TypeId>"
+                        "<Identifier>i=17</Identifier>"
+                      "</TypeId>"
+                      "<Body>"
+                        "<NodeId><Identifier>i=5555</Identifier></NodeId>"
+                      "</Body>"
+                    "</ExtensionObject>";
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
 }
 END_TEST
 
@@ -1645,7 +1674,7 @@ START_TEST(UA_ExtensionObject_null_xml_encode) {
     status s = UA_encodeXml((void*)src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
-    char *result = "<ExtensionObject>null</ExtensionObject>";
+    char *result = "<ExtensionObject></ExtensionObject>";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
 
@@ -1679,7 +1708,7 @@ START_TEST(UA_ExtensionObject_print_xml_encode) {
                         "<Identifier>ns=2;i=1234</Identifier>"
                       "</TypeId>"
                       "<Body>"
-                        "<ByteString>123456789012345678901234567890</ByteString>"
+                        "<ByteString>MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkw</ByteString>"
                       "</Body>"
                     "</ExtensionObject>";
     buf.data[size] = 0; /* zero terminate */
@@ -1690,7 +1719,34 @@ START_TEST(UA_ExtensionObject_print_xml_encode) {
 }
 END_TEST
 
-/* Array */
+/* Variant */
+START_TEST(UA_Variant_Byte_xml_encode) {
+    UA_Variant src;
+    UA_Variant_init(&src);
+    UA_Byte fortytwo = 42;
+    UA_Variant_setScalar(&src, &fortytwo, &UA_TYPES[UA_TYPES_BYTE]);
+
+    const UA_DataType *type = &UA_TYPES[UA_TYPES_VARIANT];
+    size_t size = UA_calcSizeXml((void*)&src, type, NULL);
+
+    UA_ByteString buf;
+    UA_ByteString_allocBuffer(&buf, size + 1);
+
+    status s = UA_encodeXml((void*)&src, type, &buf, NULL);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    char *result = "<Variant>"
+                      "<Value>"
+                        "<Byte>42</Byte>"
+                      "</Value>"
+                    "</Variant>";
+    buf.data[size] = 0; /* zero terminate */
+    ck_assert_str_eq(result, (char*)buf.data);
+
+    UA_ByteString_clear(&buf);
+}
+END_TEST
+
 START_TEST(UA_Array_Variant_Byte_xml_encode) {
     UA_Variant *src = UA_Variant_new();
     UA_Variant_init(src);
@@ -1856,7 +1912,7 @@ START_TEST(UA_Array_Variant_ExtensionObject_ByteString_xml_encode) {
                               "<Identifier>ns=2;i=1234</Identifier>"
                             "</TypeId>"
                             "<Body>"
-                              "<ByteString>123456789012345678901234567890</ByteString>"
+                              "<ByteString>MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkw</ByteString>"
                             "</Body>"
                           "</ExtensionObject>"
                           "<ExtensionObject>"
@@ -1864,7 +1920,7 @@ START_TEST(UA_Array_Variant_ExtensionObject_ByteString_xml_encode) {
                               "<Identifier>ns=3;i=5678</Identifier>"
                             "</TypeId>"
                             "<Body>"
-                              "<ByteString>98765432109876543210987654321</ByteString>"
+                              "<ByteString>OTg3NjU0MzIxMDk4NzY1NDMyMTA5ODc2NTQzMjE=</ByteString>"
                             "</Body>"
                           "</ExtensionObject>"
                           "<ExtensionObject>"
@@ -1872,7 +1928,7 @@ START_TEST(UA_Array_Variant_ExtensionObject_ByteString_xml_encode) {
                               "<Identifier>ns=4;i=9999</Identifier>"
                             "</TypeId>"
                             "<Body>"
-                              "<ByteString>1357911131517192123252729</ByteString>"
+                              "<ByteString>MTM1NzkxMTEzMTUxNzE5MjEyMzI1MjcyOQ==</ByteString>"
                             "</Body>"
                           "</ExtensionObject>"
                         "</ListOfExtensionObject>"
@@ -2071,7 +2127,7 @@ START_TEST(UA_Array_Variant_ExtensionObject_print_xml_encode) {
                               "<Identifier>ns=2;i=1234</Identifier>"
                             "</TypeId>"
                             "<Body>"
-                              "<ByteString>123456789012345678901234567890</ByteString>"
+                              "<ByteString>MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkw</ByteString>"
                             "</Body>"
                           "</ExtensionObject>"
                           "<ExtensionObject>"
@@ -2079,7 +2135,7 @@ START_TEST(UA_Array_Variant_ExtensionObject_print_xml_encode) {
                               "<Identifier>ns=3;i=5678</Identifier>"
                             "</TypeId>"
                             "<Body>"
-                              "<ByteString>98765432109876543210987654321</ByteString>"
+                              "<ByteString>OTg3NjU0MzIxMDk4NzY1NDMyMTA5ODc2NTQzMjE=</ByteString>"
                             "</Body>"
                           "</ExtensionObject>"
                         "</ListOfExtensionObject>"
@@ -2543,56 +2599,20 @@ START_TEST(UA_Float_xml_neginf_decode) {
 END_TEST
 
 START_TEST(UA_Float_xml_nan_decode) {
-    UA_Float out;
-    UA_Float_init(&out);
+    UA_Float out = 0.0;
     UA_ByteString buf = UA_STRING("<Float>NaN</Float>");
-
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_FLOAT], NULL);
-
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-#if !defined(__TINYC__) && (defined(__clang__) || ((!defined(__aarch64__) && !defined(__amd64__)) && ((defined(__GNUC__) && __GNUC__ < 11))))
-    // gcc 32-bit and linux clang specific
-    // 0 11111111 10000000000000000000000
-    // 7f c0 00 00
-    ck_assert_int_eq(((u8*)&out)[0], 0x00);
-    ck_assert_int_eq(((u8*)&out)[1], 0x00);
-    ck_assert_int_eq(((u8*)&out)[2], 0xc0);
-    ck_assert_int_eq(((u8*)&out)[3], 0x7f);
-#else
-    // 1 11111111 10000000000000000000000
-    // ff c0 00 00
-    ck_assert_int_eq(((u8*)&out)[0], 0x00);
-    ck_assert_int_eq(((u8*)&out)[1], 0x00);
-    ck_assert_int_eq(((u8*)&out)[2], 0xc0);
-    ck_assert_int_eq(((u8*)&out)[3], 0xff);
-#endif
-
-    UA_Float val = out;
-    ck_assert(val != val); /* Check if not a number */
-
-    UA_Float_clear(&out);
+    ck_assert(out != out); /* Check if not a number */
 }
 END_TEST
 
 START_TEST(UA_Float_xml_negnan_decode) {
-    UA_Float out;
-    UA_Float_init(&out);
+    UA_Float out = 0.0;
     UA_ByteString buf = UA_STRING("<Float>-NaN</Float>");
-
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_FLOAT], NULL);
-
-    // 1 11111111 10000000000000000000000
-    // ff c0 00 00
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(((u8*)&out)[0], 0x00);
-    ck_assert_int_eq(((u8*)&out)[1], 0x00);
-    ck_assert_int_eq(((u8*)&out)[2], 0xc0);
-    ck_assert_int_eq(((u8*)&out)[3], 0xff);
-
-    UA_Float val = out;
-    ck_assert(val != val); /* Check if not a number */
-
-    UA_Float_clear(&out);
+    ck_assert(out != out); /* Check if not a number */
 }
 END_TEST
 
@@ -2680,68 +2700,20 @@ START_TEST(UA_Double_onepointsmallest_xml_decode) {
 END_TEST
 
 START_TEST(UA_Double_nan_xml_decode) {
-    UA_Double out;
-    UA_Double_init(&out);
+    UA_Double out = 0.0;
     UA_ByteString buf = UA_STRING("<Double>NaN</Double>");
-
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_DOUBLE], NULL);
-
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-#if !defined(__TINYC__) && (defined(__clang__) || ((!defined(__aarch64__) && !defined(__amd64__)) && ((defined(__GNUC__) && __GNUC__ < 11))))
-    // gcc 32-bit and linux clang specific
-    // 0 11111111111 1000000000000000000000000000000000000000000000000000
-    // 7f f8 00 00 00 00 00 00
-    ck_assert_int_eq(((u8*)&out)[0], 0x00);
-    ck_assert_int_eq(((u8*)&out)[1], 0x00);
-    ck_assert_int_eq(((u8*)&out)[2], 0x00);
-    ck_assert_int_eq(((u8*)&out)[3], 0x00);
-    ck_assert_int_eq(((u8*)&out)[4], 0x00);
-    ck_assert_int_eq(((u8*)&out)[5], 0x00);
-    ck_assert_int_eq(((u8*)&out)[6], 0xf8);
-    ck_assert_int_eq(((u8*)&out)[7], 0x7f);
-#else
-    // 1 11111111111 1000000000000000000000000000000000000000000000000000
-    // ff f8 00 00 00 00 00 00
-    ck_assert_int_eq(((u8*)&out)[0], 0x00);
-    ck_assert_int_eq(((u8*)&out)[1], 0x00);
-    ck_assert_int_eq(((u8*)&out)[2], 0x00);
-    ck_assert_int_eq(((u8*)&out)[3], 0x00);
-    ck_assert_int_eq(((u8*)&out)[4], 0x00);
-    ck_assert_int_eq(((u8*)&out)[5], 0x00);
-    ck_assert_int_eq(((u8*)&out)[6], 0xf8);
-    ck_assert_int_eq(((u8*)&out)[7], 0xff);
-#endif
-
-    UA_Double val = out;
-    ck_assert(val != val); /* Check if not a number */
-
-    UA_Double_clear(&out);
+    ck_assert(out != out); /* Check if not a number */
 }
 END_TEST
 
 START_TEST(UA_Double_negnan_xml_decode) {
-    UA_Double out;
-    UA_Double_init(&out);
+    UA_Double out = 0.0;
     UA_ByteString buf = UA_STRING("<Double>-NaN</Double>");
-
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_DOUBLE], NULL);
-
-    // 1 11111111111 1000000000000000000000000000000000000000000000000000
-    // ff f8 00 00 00 00 00 00
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(((u8*)&out)[0], 0x00);
-    ck_assert_int_eq(((u8*)&out)[1], 0x00);
-    ck_assert_int_eq(((u8*)&out)[2], 0x00);
-    ck_assert_int_eq(((u8*)&out)[3], 0x00);
-    ck_assert_int_eq(((u8*)&out)[4], 0x00);
-    ck_assert_int_eq(((u8*)&out)[5], 0x00);
-    ck_assert_int_eq(((u8*)&out)[6], 0xf8);
-    ck_assert_int_eq(((u8*)&out)[7], 0xff);
-
-    UA_Double val = out;
-    ck_assert(val != val); /* Check if not a number */
-
-    UA_Double_clear(&out);
+    ck_assert(out != out); /* Check if not a number */
 }
 END_TEST
 
@@ -3809,27 +3781,8 @@ START_TEST(UA_ExtensionObject_EncodedXml_3_xml_decode) {
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL);
 
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_XML);
-    UA_ByteString testBufData = UA_STRING("<ServerStatusDataType xmlns=\"http://opcfoundation.org/UA/2008/02/Types.xsd\">"
-                                            "<StartTime>2000-01-01T00:00:00Z</StartTime>"
-                                            "<CurrentTime>2000-01-01T00:00:00Z</CurrentTime>"
-                                            "<State>5</State>"
-                                            "<BuildInfo>"
-                                              "<ProductUri>open62541</ProductUri>"
-                                              "<ManufacturerName>oss</ManufacturerName>"
-                                              "<ProductName>open62541</ProductName>"
-                                              "<SoftwareVersion>master</SoftwareVersion>"
-                                              "<BuildNumber>latest</BuildNumber>"
-                                              "<BuildDate>2000-01-01T00:00:00Z</BuildDate>"
-                                            "</BuildInfo>"
-                                            "<SecondsTillShutdown>0</SecondsTillShutdown>"
-                                            "<ShutdownReason>"
-                                              "<Locale>en</Locale>"
-                                              "<Text></Text>"
-                                            "</ShutdownReason>"
-                                          "</ServerStatusDataType>");
-    ck_assert(UA_ByteString_equal(&out.content.encoded.body, &testBufData));
-    ck_assert_int_eq(out.content.encoded.typeId.identifier.numeric, 863);
+    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert(out.content.decoded.type == &UA_TYPES[UA_TYPES_SERVERSTATUSDATATYPE]);
 
     UA_ExtensionObject_clear(&out);
 }
@@ -3861,21 +3814,8 @@ START_TEST(UA_ExtensionObject_EncodedXml_4_xml_decode) {
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL);
 
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_XML);
-    UA_ByteString testBufData = UA_STRING("<Argument>"
-                                            "<Name>TransferID</Name>"
-                                            "<DataType>"
-                                              "<Identifier>i=6</Identifier>"
-                                            "</DataType>"
-                                            "<ValueRank>-1</ValueRank>"
-                                            "<ArrayDimensions />"
-                                            "<Description>"
-                                              "<Locale>en</Locale>"
-                                              "<Text>Enabled</Text>"
-                                            "</Description>"
-                                          "</Argument>");
-    ck_assert(UA_ByteString_equal(&out.content.encoded.body, &testBufData));
-    ck_assert_int_eq(out.content.encoded.typeId.identifier.numeric, 297);
+    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert(out.content.decoded.type == &UA_TYPES[UA_TYPES_ARGUMENT]);
 
     UA_ExtensionObject_clear(&out);
 }
@@ -3897,6 +3837,113 @@ START_TEST(UA_ExtensionObject_InvalidBody_xml_decode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_BADDECODINGERROR);
 
     UA_ExtensionObject_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_Variant_unwrapped_byte_xml_decode) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+
+    UA_DecodeXmlOptions opts;
+    memset(&opts, 0, sizeof(UA_DecodeXmlOptions));
+    opts.unwrapped = false;
+
+    UA_ByteString buf  = UA_STRING("<Value>"
+                       "<String>eins</String>"
+                      "</Value>");
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], &opts);
+    ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
+
+    opts.unwrapped = true;
+    retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], &opts);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(out.arrayLength, 0);
+    ck_assert_ptr_eq(out.type, &UA_TYPES[UA_TYPES_STRING]);
+
+    UA_Variant_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_Variant_String_xml_decode) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+
+    UA_ByteString buf  = UA_STRING("<Variant>"
+                      "<Value>"
+                       "<String>eins</String>"
+                      "</Value>"
+                     "</Variant>");
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(out.arrayLength, 0);
+    ck_assert_ptr_eq(out.type, &UA_TYPES[UA_TYPES_STRING]);
+
+    UA_String str = UA_STRING("eins");
+    ck_assert(UA_String_equal(&str, (UA_String*)out.data));
+
+    UA_Variant_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_Variant_Matrix_xml_decode) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+
+    UA_ByteString buf  = UA_STRING("<Variant>"
+                      "<Value>"
+            "<Matrix>"
+              "<Dimensions>"
+                "<Int32>3</Int32>"
+                "<Int32>2</Int32>"
+              "</Dimensions>"
+              "<Elements>"
+                "<Int32>11</Int32>"
+                "<Int32>21</Int32>"
+                "<Int32>31</Int32>"
+                "<Int32>12</Int32>"
+                "<Int32>22</Int32>"
+                "<Int32>32</Int32>"
+              "</Elements>"
+            "</Matrix>"
+                      "</Value>"
+                     "</Variant>");
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(out.arrayLength, 6);
+    ck_assert_uint_eq(out.arrayDimensionsSize, 2);
+    ck_assert_uint_eq(out.arrayDimensions[0], 3);
+    ck_assert_uint_eq(out.arrayDimensions[1], 2);
+    ck_assert_ptr_eq(out.type, &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_Variant_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_Array_Variant_String_xml_decode) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+
+    UA_ByteString buf  = UA_STRING("<Variant>"
+                      "<Value>"
+                        "<ListOfString>"
+                          "<String>eins</String>"
+                          "<String>zwei</String>"
+                        "</ListOfString>"
+                      "</Value>"
+                     "</Variant>");
+    UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert_uint_eq(out.arrayLength, 2);
+    ck_assert_ptr_eq(out.type, &UA_TYPES[UA_TYPES_STRING]);
+
+    UA_String str = UA_STRING("eins");
+    ck_assert(UA_String_equal(&str, (UA_String*)out.data));
+
+    UA_Variant_clear(&out);
 }
 END_TEST
 
@@ -4244,9 +4291,11 @@ static Suite *testSuite_builtin_xml(void) {
 
     tcase_add_test(tc_xml_encode, UA_ExtensionObject_xml_xml_encode);
     tcase_add_test(tc_xml_encode, UA_ExtensionObject_byteString_xml_encode);
+    tcase_add_test(tc_xml_encode, UA_ExtensionObject_xml_body_encode);
     tcase_add_test(tc_xml_encode, UA_ExtensionObject_null_xml_encode);
     tcase_add_test(tc_xml_encode, UA_ExtensionObject_print_xml_encode);
 
+    tcase_add_test(tc_xml_encode, UA_Variant_Byte_xml_encode);
     tcase_add_test(tc_xml_encode, UA_Array_Variant_Byte_xml_encode);
     tcase_add_test(tc_xml_encode, UA_Array_Variant_UInt16_xml_encode);
     tcase_add_test(tc_xml_encode, UA_Array_Variant_Null_xml_encode);
@@ -4362,6 +4411,11 @@ static Suite *testSuite_builtin_xml(void) {
     tcase_add_test(tc_xml_decode, UA_ExtensionObject_EncodedXml_3_xml_decode);
     tcase_add_test(tc_xml_decode, UA_ExtensionObject_EncodedXml_4_xml_decode);
     tcase_add_test(tc_xml_decode, UA_ExtensionObject_InvalidBody_xml_decode);
+
+    tcase_add_test(tc_xml_decode, UA_Array_Variant_String_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_Variant_String_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_Variant_Matrix_xml_decode);
+    tcase_add_test(tc_xml_decode, UA_Variant_unwrapped_byte_xml_decode);
 
     /* tcase_add_test(tc_xml_decode, UA_Array_Boolean_xml_decode); */
     /* tcase_add_test(tc_xml_decode, UA_Array_Number_xml_decode); */

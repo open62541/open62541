@@ -96,9 +96,8 @@ def generate_code():
 /* {namespace} */
 retval |= {namespace}(server);
 if(retval != UA_STATUSCODE_GOOD) {{
-UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the {namespace} failed. Please check previous error output.");
-UA_Server_delete(server);
-return EXIT_FAILURE;
+    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the {namespace} failed. Please check previous error output.");
+    return retval;
 }}
 UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "The {namespace} successfully added.");
 //>

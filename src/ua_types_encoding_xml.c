@@ -7,6 +7,9 @@
 
 #include "ua_types_encoding_xml.h"
 
+#include <float.h>
+#include <math.h>
+
 #include "../deps/itoa.h"
 #include "../deps/parse_num.h"
 #include "../deps/base64.h"
@@ -22,15 +25,8 @@
 #error UA_ENABLE_TYPEDESCRIPTION required for XML encoding
 #endif
 
-/* vs2008 does not have INFINITY and NAN defined */
-#ifndef INFINITY
-# define INFINITY ((UA_Double)(DBL_MAX+DBL_MAX))
-#endif
-#ifndef NAN
-# define NAN ((UA_Double)(INFINITY-INFINITY))
-#endif
-
-/* Replicate yxml_isNameStart and yxml_isName from yxml */
+/* Replicate yxml_isNameStart and yxml_isName from yxml. But differently we
+ * already break at the first colon, so "uax:String" becomes "String". */
 static UA_String
 backtrackName(const char *xml, unsigned end) {
     unsigned pos = end;
@@ -39,7 +35,7 @@ backtrackName(const char *xml, unsigned end) {
         if(c >= 'a' && c <= 'z') continue; /* isAlpha */
         if(c >= 'A' && c <= 'Z') continue; /* isAlpha */
         if(c >= '0' && c <= '9') continue; /* isNum */
-        if(c == ':' || c == '_' || c >= 128 || c == '-'|| c == '.') continue;
+        if(c == '_' || c >= 128 || c == '-'|| c == '.') continue;
         break;
     }
     UA_String s = {end - pos, (UA_Byte*)(uintptr_t)xml + pos};
@@ -81,10 +77,12 @@ xml_tokenize(const char *xml, unsigned int len,
             continue;
         case YXML_ELEMSTART:
         case YXML_ATTRSTART:
-            if(status == YXML_ELEMSTART)
+            if(status == YXML_ELEMSTART) {
                 stack[top]->children++;
-            else
+                stack[top]->content = UA_STRING_NULL; /* Only the leaf elements have content */
+            } else {
                 stack[top]->attributes++;
+            }
             top++;
             if(top >= 32)
                 goto errout; /* nesting too deep */
@@ -99,6 +97,7 @@ xml_tokenize(const char *xml, unsigned int len,
             }
             stack[top]->start = (unsigned)(start - xml);
             tokenPos++;
+            val_begin = 0; /* if the previous non-leaf element started to collect content */
             break;
         case YXML_CONTENT:
         case YXML_ATTRVAL:
@@ -114,9 +113,12 @@ xml_tokenize(const char *xml, unsigned int len,
             }
             stack[top]->end = pos;
             if(status == YXML_ELEMEND) {
-                while(xml[stack[top]->end] != '>')
+                /* Saw "</", looking for the closing ">" */
+                while(stack[top]->end < len && xml[stack[top]->end] != '>')
                     stack[top]->end++;
                 stack[top]->end++;
+                if(stack[top]->end > len)
+                    goto errout;
             }
             val_begin = 0;
             top--;
@@ -128,16 +130,18 @@ xml_tokenize(const char *xml, unsigned int len,
         }
     }
 
+    /* Check that all elements were closed */
+    if(yxml_eof(&ctx) != YXML_OK)
+        goto errout;
+
     res.num_tokens = tokenPos;
-    if(tokenPos >= max_tokens) 
+    if(tokenPos > max_tokens)
         res.error = XML_ERROR_OVERFLOW;
     return res;
 
  errout:
     res.error_pos = pos;
-    if(yxml_eof(&ctx) != YXML_OK)
-        res.error = XML_ERROR_INVALID;
-
+    res.error = XML_ERROR_INVALID;
     return res;
 }
 
@@ -179,19 +183,6 @@ typedef struct {
 #define ENCODE_DIRECT_XML(SRC, TYPE) \
     TYPE##_encodeXml(ctx, (const UA_##TYPE*)SRC, NULL)
 
-#define XML_TYPE_IS_PRIMITIVE \
-    (type->typeKind < UA_DATATYPEKIND_GUID || \
-    type->typeKind == UA_DATATYPEKIND_BYTESTRING)
-
-static bool
-isNullXml(const void *p, const UA_DataType *type) {
-    if(UA_DataType_isNumeric(type) || type->typeKind == UA_DATATYPEKIND_BOOLEAN)
-        return false;
-    UA_STACKARRAY(char, buf, type->memSize);
-    memset(buf, 0, type->memSize);
-    return (UA_order(buf, p, type) == UA_ORDER_EQ);
-}
-
 static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
 xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
     if(ctx->pos + len > ctx->end)
@@ -207,37 +198,22 @@ writeXmlElemNameBegin(CtxXml *ctx, const char* name) {
     if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION - 1)
         return UA_STATUSCODE_BADENCODINGERROR;
     status ret = UA_STATUSCODE_GOOD;
-    if(!ctx->printValOnly) {
-        if(ctx->prettyPrint) {
-            ret |= xmlEncodeWriteChars(ctx, "\n", 1);
-            for(size_t i = 0; i < ctx->depth; ++i)
-                ret |= xmlEncodeWriteChars(ctx, "\t", 1);
-        }
-        ret |= xmlEncodeWriteChars(ctx, "<", 1);
-        ret |= xmlEncodeWriteChars(ctx, name, strlen(name));
-        ret |= xmlEncodeWriteChars(ctx, ">", 1);
-    }
+    ret |= xmlEncodeWriteChars(ctx, "<", 1);
+    ret |= xmlEncodeWriteChars(ctx, name, strlen(name));
+    ret |= xmlEncodeWriteChars(ctx, ">", 1);
     ctx->depth++;
     return ret;
 }
 
 static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
-writeXmlElemNameEnd(CtxXml *ctx, const char* name,
-                    const UA_DataType *type) {
+writeXmlElemNameEnd(CtxXml *ctx, const char* name) {
     if(ctx->depth == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
     ctx->depth--;
     status ret = UA_STATUSCODE_GOOD;
-    if(!ctx->printValOnly) {
-        if(ctx->prettyPrint && !XML_TYPE_IS_PRIMITIVE) {
-            ret |= xmlEncodeWriteChars(ctx, "\n", 1);
-            for(size_t i = 0; i < ctx->depth; ++i)
-                ret |= xmlEncodeWriteChars(ctx, "\t", 1);
-        }
-        ret |= xmlEncodeWriteChars(ctx, "</", 2);
-        ret |= xmlEncodeWriteChars(ctx, name, strlen(name));
-        ret |= xmlEncodeWriteChars(ctx, ">", 1);
-    }
+    ret |= xmlEncodeWriteChars(ctx, "</", 2);
+    ret |= xmlEncodeWriteChars(ctx, name, strlen(name));
+    ret |= xmlEncodeWriteChars(ctx, ">", 1);
     return ret;
 }
 
@@ -245,14 +221,9 @@ static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
 writeXmlElement(CtxXml *ctx, const char *name,
                 const void *value, const UA_DataType *type) {
     status ret = UA_STATUSCODE_GOOD;
-    UA_Boolean prevPrintVal = ctx->printValOnly;
-    ctx->printValOnly = false;
     ret |= writeXmlElemNameBegin(ctx, name);
-    ctx->printValOnly = XML_TYPE_IS_PRIMITIVE;
     ret |= encodeXmlJumpTable[type->typeKind](ctx, value, type);
-    ctx->printValOnly = false;
-    ret |= writeXmlElemNameEnd(ctx, name, type);
-    ctx->printValOnly = prevPrintVal;
+    ret |= writeXmlElemNameEnd(ctx, name);
     return ret;
 }
 
@@ -361,8 +332,6 @@ ENCODE_XML(Double) {
 
 /* String */
 ENCODE_XML(String) {
-    if(!src->data)
-        return xmlEncodeWriteChars(ctx, "null", 4);
     return xmlEncodeWriteChars(ctx, (const char*)src->data, src->length);
 }
 
@@ -415,12 +384,10 @@ ENCODE_XML(ByteString) {
 ENCODE_XML(NodeId) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_String out = UA_STRING_NULL;
-
-    ret |= UA_NodeId_print(src, &out);
+    ret |= UA_NodeId_printEx(src, &out, ctx->namespaceMapping);
     ret |= writeXmlElement(ctx, UA_XML_NODEID_IDENTIFIER,
                            &out, &UA_TYPES[UA_TYPES_STRING]);
     UA_String_clear(&out);
-
     return ret;
 }
 
@@ -428,12 +395,13 @@ ENCODE_XML(NodeId) {
 ENCODE_XML(ExpandedNodeId) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_String out = UA_STRING_NULL;
-
-    ret |= UA_ExpandedNodeId_print(src, &out);
+    ret |= UA_ExpandedNodeId_printEx(src, &out,
+                                     ctx->namespaceMapping,
+                                     ctx->serverUrisSize,
+                                     ctx->serverUris);
     ret |= writeXmlElement(ctx, UA_XML_EXPANDEDNODEID_IDENTIFIER,
                            &out, &UA_TYPES[UA_TYPES_STRING]);
     UA_String_clear(&out);
-
     return ret;
 }
 
@@ -445,62 +413,65 @@ ENCODE_XML(StatusCode) {
 
 /* QualifiedName */
 ENCODE_XML(QualifiedName) {
-    UA_StatusCode ret =
-        writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAMESPACEINDEX,
-                        &src->namespaceIndex, &UA_TYPES[UA_TYPES_INT32]);
+    /* Map the NamespaceIndex */
+    UA_UInt16 index = src->namespaceIndex;
+    if(ctx->namespaceMapping)
+        index = UA_NamespaceMapping_local2Remote(ctx->namespaceMapping, index);
 
-    if(ret == UA_STATUSCODE_GOOD)
-        ret = writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAME,
-                              &src->name, &UA_TYPES[UA_TYPES_STRING]);
+    /* Write out the elements */
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    ret |= writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAMESPACEINDEX,
+                           &index, &UA_TYPES[UA_TYPES_UINT16]);
+    ret |= writeXmlElement(ctx, UA_XML_QUALIFIEDNAME_NAME,
+                           &src->name, &UA_TYPES[UA_TYPES_STRING]);
     return ret;
 }
 
 /* LocalizedText */
 ENCODE_XML(LocalizedText) {
-    UA_StatusCode ret =
-        writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_LOCALE,
-                        &src->locale, &UA_TYPES[UA_TYPES_STRING]);
-
-    if(ret == UA_STATUSCODE_GOOD)
-        ret = writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_TEXT,
-                              &src->text, &UA_TYPES[UA_TYPES_STRING]);
-    return ret;
+    return writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_LOCALE,
+                           &src->locale, &UA_TYPES[UA_TYPES_STRING]) |
+        writeXmlElement(ctx, UA_XML_LOCALIZEDTEXT_TEXT,
+                        &src->text, &UA_TYPES[UA_TYPES_STRING]);
 }
 
 /* ExtensionObject */
 ENCODE_XML(ExtensionObject) {
     if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
-        return xmlEncodeWriteChars(ctx, "null", 4);
+        return UA_STATUSCODE_GOOD;
 
     /* The body of the ExtensionObject contains a single element
      * which is either a ByteString or XML encoded Structure:
      * https://reference.opcfoundation.org/Core/Part6/v104/docs/5.3.1.16. */
-    if(src->encoding != UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
-       src->encoding != UA_EXTENSIONOBJECT_ENCODED_XML)
-        return UA_STATUSCODE_BADENCODINGERROR;
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING ||
+       src->encoding == UA_EXTENSIONOBJECT_ENCODED_XML) {
+        /* Write the type NodeId */
+        ret = writeXmlElement(ctx, UA_XML_EXTENSIONOBJECT_TYPEID,
+                              &src->content.encoded.typeId,
+                              &UA_TYPES[UA_TYPES_NODEID]);
 
-    /* Write the type NodeId */
-    UA_StatusCode ret =
-        writeXmlElement(ctx, UA_XML_EXTENSIONOBJECT_TYPEID,
-                        &src->content.encoded.typeId, &UA_TYPES[UA_TYPES_NODEID]);
+        /* Write the body */
+        ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BODY);
+        if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING)
+           ret |= writeXmlElement(ctx, "ByteString", &src->content.encoded.body,
+                                  &UA_TYPES[UA_TYPES_BYTESTRING]);
+        else
+            ret |= ENCODE_DIRECT_XML(&src->content.encoded.body, String);
+        ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY);
+    } else {
+        /* Write the decoded value */
+        const UA_DataType *type = src->content.decoded.type;
 
-    /* Write the body */
-    UA_Boolean prevPrintVal = ctx->printValOnly;
-    ctx->printValOnly = false;
-    ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BODY);
-    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING)
-        ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BYTESTRING);
+        /* Write the type NodeId */
+        ret = writeXmlElement(ctx, UA_XML_EXTENSIONOBJECT_TYPEID,
+                              &type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
 
-    ctx->printValOnly = true;
-    ret |= ENCODE_DIRECT_XML(&src->content.encoded.body, String);
-    ctx->printValOnly = false;
-
-    if(src->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING)
-        ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BYTESTRING,
-                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
-    ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY,
-                               &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
-    ctx->printValOnly = prevPrintVal;
+        /* Write the body */
+        ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BODY);
+        ret |= writeXmlElement(ctx, type->typeName, src->content.decoded.data, type);
+        ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY);
+    }
 
     return ret;
 }
@@ -509,6 +480,14 @@ static status
 Array_encodeXml(CtxXml *ctx, const void *ptr, size_t length,
                 const UA_DataType *type) {
     char arrName[128];
+    UA_ExtensionObject eo;
+
+    UA_Boolean wrapEO = (type->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO);
+    if(wrapEO) {
+        UA_ExtensionObject_setValue(&eo, (void*)(uintptr_t)ptr, type);
+        type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+    }
+
     size_t arrNameLen = strlen("ListOf") + strlen(type->typeName);
     if(arrNameLen >= 128)
         return UA_STATUSCODE_BADENCODINGERROR;
@@ -516,22 +495,18 @@ Array_encodeXml(CtxXml *ctx, const void *ptr, size_t length,
     memcpy(arrName + strlen("ListOf"), type->typeName, strlen(type->typeName));
     arrName[arrNameLen] = '\0';
 
-    status ret = writeXmlElemNameBegin(ctx, arrName);
-
-    if(!ptr)
-        goto finish;
-
     uintptr_t uptr = (uintptr_t)ptr;
+    status ret = writeXmlElemNameBegin(ctx, arrName);
     for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; ++i) {
-        if(isNullXml((const void*)uptr, type))
-            ret |= xmlEncodeWriteChars(ctx, "null", 4);
-        else
+        if(!wrapEO) {
             ret |= writeXmlElement(ctx, type->typeName, (const void*)uptr, type);
+        } else {
+            eo.content.decoded.data = (void*)uptr;
+            ret |= writeXmlElement(ctx, type->typeName, &eo, type);
+        }
         uptr += type->memSize;
     }
-
-finish:
-    ret |= writeXmlElemNameEnd(ctx, arrName, &UA_TYPES[UA_TYPES_VARIANT]);
+    ret |= writeXmlElemNameEnd(ctx, arrName);
     return ret;
 }
 
@@ -539,20 +514,30 @@ ENCODE_XML(Variant) {
     if(!src->type)
         return UA_STATUSCODE_BADENCODINGERROR;
 
-    /* Set the content type in the encoding mask */
-    const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
-
     /* Set the array type in the encoding mask */
     const bool isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
 
-    if((!isArray && !isBuiltin) || src->arrayDimensionsSize > 1)
+    if(src->arrayDimensionsSize > 1)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
-    status ret = writeXmlElemNameBegin(ctx, UA_XML_VARIANT_VALUE);
-
-    ret |= Array_encodeXml(ctx, src->data, src->arrayLength, src->type);
-
-    return ret | writeXmlElemNameEnd(ctx, UA_XML_VARIANT_VALUE, &UA_TYPES[UA_TYPES_VARIANT]);
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    ret |= writeXmlElemNameBegin(ctx, UA_XML_VARIANT_VALUE);
+    if(!isArray) {
+        const UA_DataType *type = src->type;
+        void *ptr = src->data;
+        UA_ExtensionObject eo;
+        if(type->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO) {
+            /* Wrap value in an ExtensionObject */
+            UA_ExtensionObject_setValue(&eo, (void*)(uintptr_t)ptr, type);
+            ptr = &eo;
+            type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+        }
+        ret |= writeXmlElement(ctx, type->typeName, ptr, type);
+    } else {
+        ret |= Array_encodeXml(ctx, src->data, src->arrayLength, src->type);
+    }
+    ret |= writeXmlElemNameEnd(ctx, UA_XML_VARIANT_VALUE);
+    return ret;
 }
 
 static status
@@ -619,9 +604,11 @@ UA_encodeXml(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
     ctx.end = &outBuf->data[outBuf->length];
     ctx.depth = 0;
     ctx.calcOnly = false;
-    ctx.printValOnly = false;
-    if(options)
-        ctx.prettyPrint = options->prettyPrint;
+    if(options) {
+        ctx.namespaceMapping = options->namespaceMapping;
+        ctx.serverUris = options->serverUris;
+        ctx.serverUrisSize = options->serverUrisSize;
+    }
 
     /* Encode */
     res = writeXmlElement(&ctx, type->typeName, src, type);
@@ -651,9 +638,10 @@ UA_calcSizeXml(const void *src, const UA_DataType *type,
     ctx.pos = NULL;
     ctx.end = (const UA_Byte*)(uintptr_t)SIZE_MAX;
     ctx.depth = 0;
-    ctx.printValOnly = false;
     if(options) {
-        ctx.prettyPrint = options->prettyPrint;
+        ctx.namespaceMapping = options->namespaceMapping;
+        ctx.serverUris = options->serverUris;
+        ctx.serverUrisSize = options->serverUrisSize;
     }
 
     ctx.calcOnly = true;
@@ -669,32 +657,32 @@ UA_calcSizeXml(const void *src, const UA_DataType *type,
 /* Decode */
 /**********/
 
+#define DECODE_XML(TYPE) static status                  \
+    TYPE##_decodeXml(ParseCtxXml *ctx, UA_##TYPE *dst, const UA_DataType *type)
+
 #define CHECK_DATA_BOUNDS                           \
     if(ctx->index >= ctx->tokensSize)               \
         return UA_STATUSCODE_BADDECODINGERROR;      \
     do { } while(0)
 
-#define GET_ELEM_CONTENT                                     \
+#define GET_ELEM_CONTENT                                           \
     const UA_Byte *data = ctx->tokens[ctx->index].content.data;    \
-    size_t length = ctx->tokens[ctx->index].content.length;  \
+    size_t length = ctx->tokens[ctx->index].content.length;        \
     do {} while(0)
 
 static void
 skipXmlObject(ParseCtxXml *ctx) {
     size_t end_parent = ctx->tokens[ctx->index].end;
-    do {
+    while(ctx->index < ctx->tokensSize &&
+          ctx->tokens[ctx->index].end <= end_parent) {
         ctx->index++;
-    } while(ctx->tokens[ctx->index].end <= end_parent);
+    }
 }
-
-/* Forward declarations */
-#define DECODE_XML(TYPE) static status                  \
-    TYPE##_decodeXml(ParseCtxXml *ctx, UA_##TYPE *dst,  \
-                      const UA_DataType *type)
 
 DECODE_XML(Boolean) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     if(length == 4 &&
        data[0] == 't' && data[1] == 'r' &&
@@ -709,7 +697,6 @@ DECODE_XML(Boolean) {
         return UA_STATUSCODE_BADDECODINGERROR;
     }
 
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -748,134 +735,125 @@ decodeUnsigned(const UA_Byte *data, size_t dataSize, UA_UInt64 *dst) {
 DECODE_XML(SByte) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_Int64 out = 0;
     UA_StatusCode s = decodeSigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD || out < UA_SBYTE_MIN || out > UA_SBYTE_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_SByte)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(Byte) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_UInt64 out = 0;
     UA_StatusCode s = decodeUnsigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD || out > UA_BYTE_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Byte)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(Int16) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_Int64 out = 0;
     UA_StatusCode s = decodeSigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD || out < UA_INT16_MIN || out > UA_INT16_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Int16)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(UInt16) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_UInt64 out = 0;
     UA_StatusCode s = decodeUnsigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD || out > UA_UINT16_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_UInt16)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(Int32) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_Int64 out = 0;
     UA_StatusCode s = decodeSigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD || out < UA_INT32_MIN || out > UA_INT32_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Int32)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(UInt32) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_UInt64 out = 0;
     UA_StatusCode s = decodeUnsigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD || out > UA_UINT32_MAX)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_UInt32)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(Int64) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_Int64 out = 0;
     UA_StatusCode s = decodeSigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_Int64)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(UInt64) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     UA_UInt64 out = 0;
     UA_StatusCode s = decodeUnsigned(data, length, &out);
-
     if(s != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = (UA_UInt64)out;
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(Double) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
      * Maximum digit counts for select IEEE floating-point formats: 1074
      * Sanity check. */
     if(length > 1075)
         return UA_STATUSCODE_BADDECODINGERROR;
-
-    ctx->index++;
 
     if(length == 3 && memcmp(data, "INF", 3) == 0) {
         *dst = INFINITY;
@@ -888,6 +866,11 @@ DECODE_XML(Double) {
     }
 
     if(length == 3 && memcmp(data, "NaN", 3) == 0) {
+        *dst = NAN;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    if(length == 3 && memcmp(data, "-NaN", 3) == 0) {
         *dst = NAN;
         return UA_STATUSCODE_GOOD;
     }
@@ -916,33 +899,51 @@ DECODE_XML(Float) {
 DECODE_XML(String) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     /* Empty string? */
     if(length == 0) {
         dst->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
         dst->length = 0;
-        ctx->index++;
         return UA_STATUSCODE_GOOD;
     }
 
-    /* Set the output */
-    dst->length = length;
-    if(dst->length > 0) {
-        UA_String str = {length, (UA_Byte*)(uintptr_t)data};
-        UA_String_copy(&str, dst);
-    } else {
-        dst->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
-    }
-
-    ctx->index++;
-    return UA_STATUSCODE_GOOD;
+    UA_String str = {length, (UA_Byte*)(uintptr_t)data};
+    return UA_String_copy(&str, dst);
 }
 
 DECODE_XML(DateTime) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
     UA_String str = {length, (UA_Byte*)(uintptr_t)data};
     return decodeDateTime(str, dst);
+}
+
+/* Find the child with the given name and return its content.
+ * This does not allocate/copy the content again. */
+static status
+getChildContent(ParseCtxXml *ctx, UA_String name, UA_String *out) {
+    size_t oldIndex = ctx->index;
+    size_t children = ctx->tokens[ctx->index].children;
+
+    /* Skip the attributes and go to the first child */
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
+
+    /* Find the child of the name */
+    UA_StatusCode res = UA_STATUSCODE_BADDECODINGERROR;
+    for(size_t i = 0; i < children; i++) {
+        if(!UA_String_equal(&name, &ctx->tokens[ctx->index].name)) {
+            skipXmlObject(ctx);
+            continue;
+        }
+        *out = ctx->tokens[ctx->index].content;
+        res = UA_STATUSCODE_GOOD;
+        break;
+    }
+
+    ctx->index = oldIndex;
+    return res;
 }
 
 static status
@@ -954,14 +955,15 @@ decodeXmlFields(ParseCtxXml *ctx, XmlDecodeEntry *entries, size_t entryCount) {
 
     size_t childCount = ctx->tokens[ctx->index].children;
 
-    /* Empty object, nothing to decode */
+    /* Empty object */
     if(childCount == 0) {
-        ctx->index++; /* Jump to the element after the empty object */
+        skipXmlObject(ctx);
         return UA_STATUSCODE_GOOD;
     }
 
+    /* Go to first entry element */
     ctx->depth++;
-    ctx->index++; /* Go to first entry element */
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
 
     status ret = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < childCount; i++) {
@@ -971,7 +973,7 @@ decodeXmlFields(ParseCtxXml *ctx, XmlDecodeEntry *entries, size_t entryCount) {
             /* Search for key, if found outer loop will be one less. Best case
              * if objectCount is in order! */
             size_t index = j % entryCount;
-            if(!UA_String_equal(&elem->name, &entries[index].name))
+            if(!UA_String_equal_ignorecase(&elem->name, &entries[index].name))
                 continue;
             entry = &entries[index];
             break;
@@ -1025,6 +1027,7 @@ DECODE_XML(Guid) {
 DECODE_XML(ByteString) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
+    skipXmlObject(ctx);
 
     /* Empty bytestring? */
     if(length == 0) {
@@ -1033,66 +1036,70 @@ DECODE_XML(ByteString) {
     } else {
         size_t flen = 0;
         unsigned char* unB64 = UA_unbase64((const unsigned char*)data, length, &flen);
-        if(unB64 == 0)
+        if(!unB64)
             return UA_STATUSCODE_BADDECODINGERROR;
         dst->data = (UA_Byte*)unB64;
         dst->length = flen;
     }
 
-    ctx->index++;
     return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(NodeId) {
     CHECK_DATA_BOUNDS;
-
     UA_String str;
-    UA_String_init(&str);
-    XmlDecodeEntry entry = {UA_STRING_STATIC(UA_XML_NODEID_IDENTIFIER), &str,
-                            NULL, false, &UA_TYPES[UA_TYPES_STRING]};
-
-    status ret = decodeXmlFields(ctx, &entry, 1);
-    ret |= UA_NodeId_parse(dst, str);
-
-    UA_String_clear(&str);
-    return ret;
+    static UA_String identifier = UA_STRING_STATIC(UA_XML_NODEID_IDENTIFIER);
+    status ret = getChildContent(ctx, identifier, &str);
+    if(ret != UA_STATUSCODE_GOOD) return ret;
+    skipXmlObject(ctx);
+    return UA_NodeId_parseEx(dst, str, ctx->namespaceMapping);
 }
 
 DECODE_XML(ExpandedNodeId) {
     CHECK_DATA_BOUNDS;
-
     UA_String str;
-    UA_String_init(&str);
-    XmlDecodeEntry entry = {UA_STRING_STATIC(UA_XML_EXPANDEDNODEID_IDENTIFIER), &str,
-                            NULL, false, &UA_TYPES[UA_TYPES_STRING]};
-
-    status ret = decodeXmlFields(ctx, &entry, 1);
-    ret |= UA_ExpandedNodeId_parse(dst, str);
-
-    UA_String_clear(&str);
-    return ret;
+    static UA_String expidentifier = UA_STRING_STATIC(UA_XML_EXPANDEDNODEID_IDENTIFIER);
+    status ret = getChildContent(ctx, expidentifier, &str);
+    if(ret != UA_STATUSCODE_GOOD) return ret;
+    skipXmlObject(ctx);
+    return UA_ExpandedNodeId_parseEx(dst, str, ctx->namespaceMapping,
+                                     ctx->serverUrisSize, ctx->serverUris);
 }
 
 DECODE_XML(StatusCode) {
     CHECK_DATA_BOUNDS;
-
-    XmlDecodeEntry entry = {UA_STRING_STATIC(UA_XML_STATUSCODE_CODE), dst,
-                            NULL, false, &UA_TYPES[UA_TYPES_UINT32]};
-
-    return decodeXmlFields(ctx, &entry, 1);
+    UA_String str;
+    static UA_String statusidentifier = UA_STRING_STATIC(UA_XML_STATUSCODE_CODE);
+    status ret = getChildContent(ctx, statusidentifier, &str);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+    skipXmlObject(ctx);
+    UA_UInt64 out = 0;
+    ret = decodeUnsigned(str.data, str.length, &out);
+    if(ret != UA_STATUSCODE_GOOD || out > UA_UINT32_MAX)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    *dst = (UA_StatusCode)out;
+    return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(QualifiedName) {
     CHECK_DATA_BOUNDS;
 
+    /* Decode the elements */
     XmlDecodeEntry entries[2] = {
         {UA_STRING_STATIC(UA_XML_QUALIFIEDNAME_NAMESPACEINDEX), &dst->namespaceIndex,
          NULL, false, &UA_TYPES[UA_TYPES_UINT16]},
         {UA_STRING_STATIC(UA_XML_QUALIFIEDNAME_NAME), &dst->name,
          NULL, false, &UA_TYPES[UA_TYPES_STRING]}
     };
+    UA_StatusCode res = decodeXmlFields(ctx, entries, 2);
 
-    return decodeXmlFields(ctx, entries, 2);
+    /* Map the NamespaceIndex */
+    if(ctx->namespaceMapping)
+        dst->namespaceIndex =
+            UA_NamespaceMapping_remote2Local(ctx->namespaceMapping, dst->namespaceIndex);
+
+    return res;
 }
 
 DECODE_XML(LocalizedText) {
@@ -1108,33 +1115,99 @@ DECODE_XML(LocalizedText) {
     return decodeXmlFields(ctx, entries, 2);
 }
 
+/* Compare both typeId and xmlEncodingId */
+static const UA_DataType *
+lookupXmlType(ParseCtxXml *ctx, UA_NodeId *typeId) {
+    /* Search in the builtin types */
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        if(UA_NodeId_equal(typeId, &UA_TYPES[i].typeId) ||
+           UA_NodeId_equal(typeId, &UA_TYPES[i].xmlEncodingId))
+            return &UA_TYPES[i];
+    }
+
+    /* Search in the customTypes */
+    const UA_DataTypeArray *customTypes = ctx->customTypes;
+    while(customTypes) {
+        for(size_t i = 0; i < customTypes->typesSize; ++i) {
+            const UA_DataType *type = &customTypes->types[i];
+            if(UA_NodeId_equal(typeId, &type->typeId) ||
+               UA_NodeId_equal(typeId, &type->xmlEncodingId))
+                return type;
+        }
+        customTypes = customTypes->next;
+    }
+    return NULL;
+}
+
 static UA_StatusCode
 decodeExtensionObjectBody(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
     UA_ExtensionObject *eo = (UA_ExtensionObject*)dst;
 
-    /* Does the body have a single "bytestring" member? */
     xml_token *tok = &ctx->tokens[ctx->index];
+    if(tok->children != 1)
+        return UA_STATUSCODE_BADDECODINGERROR; /* Only one child allowed */
 
-    if(tok->attributes > 0 || tok->children != 1)
+    if(UA_NodeId_isNull(&eo->content.encoded.typeId))
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    ctx->index++;
-    tok = &ctx->tokens[ctx->index];
+    /* Find the datatype of the body */
+    type = lookupXmlType(ctx, &eo->content.encoded.typeId);
 
-    UA_String bs = UA_STRING_STATIC(UA_XML_EXTENSIONOBJECT_BYTESTRING);
-    if(UA_String_equal(&tok->name, &bs)) {
-        eo->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
-        return decodeXmlJumpTable[UA_DATATYPEKIND_BYTESTRING]
-            (ctx, &eo->content.encoded.body, NULL);
+    /* Allocate decoded content */
+    void *decoded = NULL;
+    if(type) {
+        decoded = UA_new(type);
+        if(!decoded)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    eo->encoding = UA_EXTENSIONOBJECT_ENCODED_XML;
-    UA_String body = {tok->end - tok->start, (UA_Byte*)(uintptr_t)ctx->xml + tok->start};
-    return UA_String_copy(&body, &eo->content.encoded.body);
+    /* Jump to the first child element */
+    ctx->index += 1 + tok->attributes;
+    tok = &ctx->tokens[ctx->index];
+
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    UA_String bs = UA_STRING_STATIC(UA_XML_EXTENSIONOBJECT_BYTESTRING);
+    if(UA_String_equal(&tok->name, &bs)) {
+        /* Decode binary ByteString Body */
+        eo->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
+        ret = decodeXmlJumpTable[UA_DATATYPEKIND_BYTESTRING](ctx, &eo->content.encoded.body, NULL);
+        if(!type)
+            return ret;
+        UA_DecodeBinaryOptions opts;
+        memset(&opts, 0, sizeof(UA_DecodeBinaryOptions));
+        ret = UA_decodeBinary(&eo->content.encoded.body, decoded, type, &opts);
+    } else {
+        /* Decode XML Body */
+        eo->encoding = UA_EXTENSIONOBJECT_ENCODED_XML;
+        UA_String body = {tok->end - tok->start, (UA_Byte*)(uintptr_t)ctx->xml + tok->start};
+        skipXmlObject(ctx); /* Skip over the body */
+        if(!type)
+            return UA_String_copy(&body, &eo->content.encoded.body);
+        UA_DecodeXmlOptions opts;
+        memset(&opts, 0, sizeof(UA_DecodeXmlOptions));
+        opts.namespaceMapping = ctx->namespaceMapping;
+        opts.serverUris = ctx->serverUris;
+        opts.serverUrisSize = ctx->serverUrisSize;
+        opts.customTypes = ctx->customTypes;
+        ret = UA_decodeXml(&body, decoded, type, &opts);
+    }
+
+    if(ret != UA_STATUSCODE_GOOD) {
+        UA_free(decoded); /* Return the un-decoded content if decoding fails */
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_ExtensionObject_clear(eo); /* Also clears the already decoded TypeId */
+    UA_ExtensionObject_setValue(eo, decoded, type);
+    return UA_STATUSCODE_GOOD;
 }
 
 DECODE_XML(ExtensionObject) {
     CHECK_DATA_BOUNDS;
+    xml_token *tok = &ctx->tokens[ctx->index];
+    if(tok->children == 0)
+        return UA_STATUSCODE_GOOD; /* _NO_BODY */
+    dst->encoding = UA_EXTENSIONOBJECT_ENCODED_XML; /* default so the typeId gets cleaned up */
     XmlDecodeEntry entries[2] = {
         {UA_STRING_STATIC(UA_XML_EXTENSIONOBJECT_TYPEID), &dst->content.encoded.typeId,
          NULL, false, &UA_TYPES[UA_TYPES_NODEID]},
@@ -1144,39 +1217,261 @@ DECODE_XML(ExtensionObject) {
     return decodeXmlFields(ctx, entries, 2);
 }
 
-/* static status */
-/* Array_decodeXml(ParseCtxXml *ctx, void **dst, const UA_DataType *type) { */
-/*     if(strncmp(ctx->tokens[ctx->index]->name, "ListOf", strlen("ListOf"))) */
-/*         return UA_STATUSCODE_BADDECODINGERROR; */
+static status
+Array_decodeXml(ParseCtxXml *ctx, size_t *dstSize, const UA_DataType *type) {
+    /* Allocate memory */
+    size_t length = ctx->tokens[ctx->index].children;
+    void **dst = (void**)((uintptr_t)dstSize + sizeof(void*));
+    *dst = UA_Array_new(length, type);
+    if(!*dst)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    *dstSize = length;
 
-/*     if(ctx->dataMembers[ctx->index]->type == XML_DATA_TYPE_PRIMITIVE) { */
-/*         /\* Return early for empty arrays *\/ */
-/*         *dst = UA_EMPTY_ARRAY_SENTINEL; */
-/*         return UA_STATUSCODE_GOOD; */
-/*     } */
+    /* Go to first array member. */
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
 
-/*     size_t length = ctx->dataMembers[ctx->index]->value.complex.membersSize; */
-/*     ctx->index++; /\* Go to first array member. *\/ */
+    /* Decode array members */
+    uintptr_t ptr = (uintptr_t)*dst;
+    for(size_t i = 0; i < length; ++i) {
+        status ret = decodeXmlJumpTable[type->typeKind](ctx, (void*)ptr, type);
+        if(ret != UA_STATUSCODE_GOOD)
+            return ret;
+        ptr += type->memSize;
+    }
 
-/*     /\* Allocate memory *\/ */
-/*     *dst = UA_calloc(length, type->memSize); */
-/*     if(*dst == NULL) */
-/*         return UA_STATUSCODE_BADOUTOFMEMORY; */
+    return UA_STATUSCODE_GOOD;
+}
 
-/*     /\* Decode array members *\/ */
-/*     uintptr_t ptr = (uintptr_t)*dst; */
-/*     for(size_t i = 0; i < length; ++i) { */
-/*         status ret = decodeXmlJumpTable[type->typeKind](ctx, (void*)ptr, type); */
-/*         if(ret != UA_STATUSCODE_GOOD) { */
-/*             UA_Array_delete(*dst, i + 1, type); */
-/*             *dst = NULL; */
-/*             return ret; */
-/*         } */
-/*         ptr += type->memSize; */
-/*     } */
+static const UA_DataType *
+lookupTypeByName(ParseCtxXml *ctx, UA_String typeName) {
+    /* Search in the builtin types */
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        if(strncmp((char*)typeName.data, UA_TYPES[i].typeName, typeName.length) == 0)
+            return &UA_TYPES[i];
+    }
 
-/*     return UA_STATUSCODE_GOOD; */
-/* } */
+    /* Search in the customTypes */
+    const UA_DataTypeArray *customTypes = ctx->customTypes;
+    while(customTypes) {
+        for(size_t i = 0; i < customTypes->typesSize; ++i) {
+            const UA_DataType *type = &customTypes->types[i];
+            if(strncmp((char*)typeName.data, type->typeName, typeName.length) == 0)
+                return type;
+        }
+        customTypes = customTypes->next;
+    }
+    return NULL;
+}
+
+static void
+unwrapVariantExtensionObject(UA_Variant *dst, UA_Boolean isArray) {
+    if(dst->type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
+        return;
+    if(isArray && dst->arrayLength == 0)
+        return;
+
+    UA_ExtensionObject *eo = (UA_ExtensionObject*)dst->data;
+    if(eo->encoding != UA_EXTENSIONOBJECT_DECODED)
+        return;
+
+    const UA_DataType *type = eo->content.decoded.type;
+
+    /* Scalar */
+    if(!isArray) {
+        dst->data = eo->content.decoded.data;
+        dst->type = type;
+        UA_free(eo);
+        return;
+    }
+
+    /* Array. Check that all members can be unpacked */
+    for(size_t i = 0; i < dst->arrayLength; i++, eo++) {
+        if(eo->encoding != UA_EXTENSIONOBJECT_DECODED)
+            return;
+        if(eo->content.decoded.type != type)
+            return;
+    }
+
+    /* Allocate the array */
+    void *unpacked = UA_calloc(dst->arrayLength, type->memSize);
+    if(!unpacked)
+        return;
+
+    /* Unpack the content and set the new array */
+    uintptr_t uptr = (uintptr_t)unpacked;
+    eo = (UA_ExtensionObject*)dst->data;
+    for(size_t i = 0; i < dst->arrayLength; i++, eo++) {
+        /* Move the value content */
+        memcpy((void*)uptr, eo->content.decoded.data, type->memSize);
+        UA_free(eo->content.decoded.data); /* Free the old value location */
+        uptr += type->memSize;
+    }
+    UA_free(dst->data); /* Remove the old array of ExtensionObjects */
+    dst->data = unpacked;
+    dst->type = type;
+}
+
+static UA_StatusCode
+decodeMatrixVariant(ParseCtxXml *ctx, UA_Variant *dst) {
+    /* The <Matrix> token needs two children: <Dimensions> and <Elements> */
+    xml_token *tok = &ctx->tokens[ctx->index];
+    if(tok->children != 2)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Jump to the child of the <Matrix> token */
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
+    tok = &ctx->tokens[ctx->index];
+
+    UA_assert(tok->type == XML_TOKEN_ELEMENT);
+    static UA_String dimName = UA_STRING_STATIC("Dimensions");
+    if(!UA_String_equal(&tok->name, &dimName))
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    UA_StatusCode ret =
+        Array_decodeXml(ctx, &dst->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    UA_assert(tok->type == XML_TOKEN_ELEMENT);
+    static UA_String elemName = UA_STRING_STATIC("Elements");
+    tok = &ctx->tokens[ctx->index];
+    if(!UA_String_equal(&tok->name, &elemName))
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Get the type of the first element */
+    size_t oldIndex = ctx->index;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
+    tok = &ctx->tokens[ctx->index];
+    UA_assert(tok->type == XML_TOKEN_ELEMENT);
+
+    UA_String typeName = tok->name;
+    dst->type = lookupTypeByName(ctx, typeName);
+    if(!dst->type)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Decode the array */
+    ctx->index = oldIndex;
+    ret = Array_decodeXml(ctx, &dst->arrayLength, dst->type);
+
+    /* Check that the ArrayDimensions match */
+    size_t dimLen = 1;
+    for(size_t i = 0; i < dst->arrayDimensionsSize; i++)
+        dimLen *= dst->arrayDimensions[i];
+
+    return (dimLen == dst->arrayLength) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADDECODINGERROR;
+}
+
+DECODE_XML(Variant) {
+    CHECK_DATA_BOUNDS;
+
+    if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION)
+        return UA_STATUSCODE_BADENCODINGERROR;
+
+    xml_token *tok = &ctx->tokens[ctx->index];
+    if(tok->children == 0)
+        return UA_STATUSCODE_GOOD;
+    if(tok->children != 1)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Move forward to the content */
+    if(ctx->index + 2 >= ctx->tokensSize)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
+    tok = &ctx->tokens[ctx->index];
+    static UA_String valName = UA_STRING_STATIC("Value");
+    if(!UA_String_equal(&tok->name, &valName))
+        return UA_STATUSCODE_BADDECODINGERROR;
+    if(tok->children != 1)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Jump to the child of the <Value> token */
+    ctx->depth++;
+    ctx->index += 1 + ctx->tokens[ctx->index].attributes;
+    tok = &ctx->tokens[ctx->index];
+
+    /* Special case for multi-dimensional arrays */
+    static UA_String matrName = UA_STRING_STATIC("Matrix");
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(UA_String_equal(&tok->name, &matrName)) {
+        ret = decodeMatrixVariant(ctx, dst);
+        unwrapVariantExtensionObject(dst, true);
+        ctx->depth--;
+        return ret;
+    }
+
+    /* Get the Data type / array type */
+    UA_Boolean isArray = false;
+    static char *lo = "ListOf";
+    UA_String typeName = tok->name;
+    if(tok->name.length > strlen(lo) &&
+       strncmp((char*)tok->name.data, lo, strlen(lo)) == 0) {
+        isArray = true;
+        typeName.data += strlen(lo);
+        typeName.length -= strlen(lo);
+    }
+
+    /* Look up the DataType from the name */
+    dst->type = lookupTypeByName(ctx, typeName);
+    if(!dst->type) {
+        ctx->depth--;
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
+
+    /* Decode */
+    if(!isArray) {
+        dst->data = UA_new(dst->type);
+        if(!dst->data) {
+            ctx->depth--;
+            return UA_STATUSCODE_BADDECODINGERROR;
+        }
+        ret = decodeXmlJumpTable[dst->type->typeKind](ctx, dst->data, dst->type);
+    } else {
+        ret = Array_decodeXml(ctx, &dst->arrayLength, dst->type);
+    }
+
+    /* Unwrap ExtensionObject values in the variant */
+    unwrapVariantExtensionObject(dst, isArray);
+
+    ctx->depth--;
+    return ret;
+}
+
+static status
+decodeXmlStructure(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
+    /* Check the recursion limit */
+    if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION - 1)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth++;
+
+    uintptr_t ptr = (uintptr_t)dst;
+    status ret = UA_STATUSCODE_GOOD;
+    u8 membersSize = type->membersSize;
+    UA_STACKARRAY(XmlDecodeEntry, entries, membersSize);
+    for(size_t i = 0; i < membersSize; ++i) {
+        const UA_DataTypeMember *m = &type->members[i];
+        const UA_DataType *mt = m->memberType;
+        entries[i].type = mt;
+        entries[i].name = UA_STRING((char*)(uintptr_t)m->memberName);
+        entries[i].found = false;
+        ptr += m->padding;
+        entries[i].fieldPointer = (void*)ptr;
+        if(!m->isArray) {
+            entries[i].function = NULL;
+            ptr += mt->memSize;
+        } else {
+            entries[i].function = (decodeXmlSignature)Array_decodeXml;
+            ptr += sizeof(size_t) + sizeof(void*);
+        }
+    }
+
+    ret = decodeXmlFields(ctx, entries, membersSize);
+
+    if(ctx->depth == 0)
+        return UA_STATUSCODE_BADENCODINGERROR;
+    ctx->depth--;
+    return ret;
+}
 
 static status
 decodeXmlNotImplemented(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
@@ -1208,11 +1503,11 @@ const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
     (decodeXmlSignature)LocalizedText_decodeXml,    /* LocalizedText */
     (decodeXmlSignature)ExtensionObject_decodeXml,  /* ExtensionObject */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* DataValue */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* Variant */
+    (decodeXmlSignature)Variant_decodeXml,          /* Variant */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* DiagnosticInfo */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Decimal */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* Enum */
-    (decodeXmlSignature)decodeXmlNotImplemented,    /* Structure */
+    (decodeXmlSignature)Int32_decodeXml,            /* Enum */
+    (decodeXmlSignature)decodeXmlStructure,         /* Structure */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Structure with optional fields */
     (decodeXmlSignature)decodeXmlNotImplemented,    /* Union */
     (decodeXmlSignature)decodeXmlNotImplemented     /* BitfieldCluster */
@@ -1224,18 +1519,22 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
     if(!dst || !src || !type)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
 
-    /* Tokenize */
+    /* Tokenize. Add a fake wrapper element if options->unwrapped is enabled. */
+    unsigned tokensSize = 63;
     xml_token tokenbuf[64];
     xml_token *tokens = tokenbuf;
-    xml_result res = xml_tokenize((char*)src->data, src->length, tokens, 64);
+
+    xml_result res = xml_tokenize((char*)src->data, (unsigned)src->length,
+                                  tokens + 1, tokensSize);
     if(res.error == XML_ERROR_OVERFLOW) {
-        tokens = (xml_token*)UA_malloc(sizeof(xml_token) * res.num_tokens);
+        tokens = (xml_token*)UA_malloc(sizeof(xml_token) * (res.num_tokens + 1));
         if(!tokens)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        res = xml_tokenize((char*)src->data, src->length, tokens, res.num_tokens);
+        res = xml_tokenize((char*)src->data, (unsigned)src->length,
+                           tokens + 1, res.num_tokens);
     }
 
-    if(res.error != XML_ERROR_NONE) {
+    if(res.error != XML_ERROR_NONE || res.num_tokens == 0) {
         if(tokens != tokenbuf)
             UA_free(tokens);
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -1247,8 +1546,26 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
     ctx.xml = (const char*)src->data;
     ctx.tokens = tokens;
     ctx.tokensSize = res.num_tokens;
-    if(options)
+    if(options) {
         ctx.customTypes = options->customTypes;
+        ctx.namespaceMapping = options->namespaceMapping;
+        ctx.serverUris = options->serverUris;
+        ctx.serverUrisSize = options->serverUrisSize;
+    }
+
+    if(options && options->unwrapped) {
+        /* Set up the fake wrapper element */
+        xml_token *tok = tokens;
+        memset(tok, 0, sizeof(xml_token));
+        tok->type = XML_TOKEN_ELEMENT;
+        tok->name = UA_STRING((char*)(uintptr_t)type->typeName);
+        tok->children = 1;
+        tok->start = 0;
+        tok->end = (unsigned)src->length;
+        ctx.tokensSize++;
+    } else {
+        ctx.tokens++; /* Skip the first token */
+    }
 
     /* Decode */
     UA_StatusCode ret = decodeXmlJumpTable[type->typeKind](&ctx, dst, type);

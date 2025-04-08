@@ -2444,11 +2444,16 @@ UA_NamespaceMapping_index2Uri(const UA_NamespaceMapping *nm,
 }
 
 void
-UA_NamespaceMapping_delete(UA_NamespaceMapping *nm) {
+UA_NamespaceMapping_clear(UA_NamespaceMapping *nm) {
     if(!nm)
         return;
     UA_Array_delete(nm->namespaceUris, nm->namespaceUrisSize, &UA_TYPES[UA_TYPES_STRING]);
     UA_Array_delete(nm->local2remote, nm->local2remoteSize, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Array_delete(nm->remote2local, nm->remote2localSize, &UA_TYPES[UA_TYPES_UINT16]);
+}
+
+void
+UA_NamespaceMapping_delete(UA_NamespaceMapping *nm) {
+    UA_NamespaceMapping_clear(nm);
     UA_free(nm);
 }
