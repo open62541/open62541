@@ -53,13 +53,13 @@ xml_tokenize(const char *xml, unsigned int len,
 typedef struct {
     uint8_t *pos;
     const uint8_t *end;
-
     uint16_t depth; /* How often did we encoding recurse? */
     UA_Boolean calcOnly; /* Only compute the length of the decoding */
-    UA_Boolean prettyPrint;
-    UA_Boolean printValOnly; /* Encode only data value. */
-
     const UA_DataTypeArray *customTypes;
+
+    UA_NamespaceMapping *namespaceMapping;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
 } CtxXml;
 
 typedef struct {
@@ -69,6 +69,10 @@ typedef struct {
     xml_token *tokens;
     const UA_DataTypeArray *customTypes;
     const char *xml;
+
+    UA_NamespaceMapping *namespaceMapping;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
 } ParseCtxXml;
 
 typedef UA_StatusCode

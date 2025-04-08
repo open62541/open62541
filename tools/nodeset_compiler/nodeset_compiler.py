@@ -188,10 +188,6 @@ ns.sanitize()
 # Generate the BSD file from the XML.
 ns.generateParser(args.existing, args.infiles, args.bsdFile)
 
-# Allocate/Parse the data values. In order to do this, we must have run
-# buidEncodingRules.
-ns.allocateVariables()
-
 # Create inverse references
 ns.addInverseReferences()
 
