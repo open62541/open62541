@@ -203,6 +203,8 @@ Most options can be changed manually in :file:`ua_config.h` (:file:`open62541.h`
 for the single-file release) after the code generation. But usually there is no
 need to adjust them.
 
+.. _build_options:
+
 Main Build Options
 ^^^^^^^^^^^^^^^^^^
 
