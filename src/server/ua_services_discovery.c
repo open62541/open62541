@@ -459,7 +459,7 @@ setCurrentEndPointsArray(UA_Server *server, const UA_String endpointUrl,
                  * array of discovery urls */
                 retval |= UA_String_copy(&endpointUrl, &ed->endpointUrl);
 
-                /* Check if the ServerUrl is already present in the DiscoveryUrl array*/
+                /* Check if the ServerUrl is already present in the DiscoveryUrl array */
                 size_t k = 0;
                 for(; k < ed->server.discoveryUrlsSize; k++) {
                     if(UA_String_equal(&ed->endpointUrl, &ed->server.discoveryUrls[k]))
