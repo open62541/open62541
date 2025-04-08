@@ -24,8 +24,8 @@ jobs:
             cmd_deps: ""
             cmd_action: unit_tests_alarms
           - build_name: "Debug Build & Unit Tests (clang)"
-            cmd_deps: sudo apt-get install -y -qq clang-14 clang-tools-14 mosquitto
-            cmd_action: CC=clang-14 CXX=clang++-14 unit_tests
+            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 mosquitto
+            cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
           - build_name: "Debug Build & Unit Tests (tcc)"
             cmd_deps: sudo apt-get install -y -qq tcc mosquitto
             cmd_action: CC=tcc unit_tests
