@@ -4,6 +4,7 @@
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/log_stdout.h>
+#include "../common.h"
 
 
 #include <stdio.h>
@@ -227,8 +228,38 @@ static void stateChangeCallback(UA_Server *server, const UA_NodeId id, UA_PubSub
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGLEVEL_INFO, "State of the PubSubComponent '%lu' changed to '%i' with status '%s'", id.identifier.numeric, state, UA_StatusCode_name(status));
 }
 
+void addAxisVariable(UA_Server *server, const char *name, UA_UInt16 namespaceIndex, UA_UInt32 nodeIdValue) {
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("de-DE", name);
+    attr.dataType = UA_TYPES[UA_TYPES_INT16].typeId; // Built-in Type Int16
+    attr.valueRank = 1; // Array
+    UA_UInt32 arrayDimensions[1] = {76};
+    attr.arrayDimensions = arrayDimensions;
+    attr.arrayDimensionsSize = 1;
 
-int main(void) {
+    // Wert initialisieren
+    UA_Int16 initialValue[76] = {0}; // Beispielwerte
+    UA_Variant_setArray(&attr.value, initialValue, 76, &UA_TYPES[UA_TYPES_INT16]);
+
+    // Variable in den Namespace einfügen
+    UA_NodeId newNodeId = UA_NODEID_NUMERIC(namespaceIndex, nodeIdValue);
+    UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(namespaceIndex, name);
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId variableTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
+
+    UA_StatusCode status = UA_Server_addVariableNode(
+        server, newNodeId, parentNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        qualifiedName, variableTypeNodeId, attr, NULL, NULL);
+
+    if (status == UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Variable %s erfolgreich erstellt.", name);
+    } else {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Fehler beim Erstellen der Variable %s.", name);
+    }
+}
+
+
+int main(int argc, char** argv) {
     /* Prepare the values */
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
         valueStore[i] = (UA_UInt32) i + 1;
@@ -240,9 +271,22 @@ int main(void) {
     /* Initialize the server */
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *pConfig = UA_Server_getConfig(server);
+    UA_Server_addNamespace(server, "a");
+    UA_Server_addNamespace(server, "b");
+    UA_Server_addNamespace(server, "c");
+    UA_Server_addNamespace(server, "d");
+    UA_Server_addNamespace(server, "e");
+    UA_Server_addNamespace(server, "f");
+    UA_Server_addNamespace(server, "g");
+
     pConfig->pubSubConfig.componentLifecycleCallback = componentLifecycleCallback;
     pConfig->pubSubConfig.beforeStateChangeCallback = beforeStateChangeCallback;
     pConfig->pubSubConfig.stateChangeCallback = stateChangeCallback;
+    addAxisVariable(server, "Axis1", 7, 6127);
+    addAxisVariable(server, "Axis2", 7, 6128);
+    addAxisVariable(server, "Axis3", 7, 6129);
+    addAxisVariable(server, "Axis4", 7, 6135);
+
 
     // UInt32Array
     UA_NodeId_init(&ds2UInt32ArrId);
@@ -261,108 +305,18 @@ int main(void) {
                               UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "UInt32Array"),
                               UA_NS0ID(BASEDATAVARIABLETYPE), uint32ArrAttr, NULL, &ds2UInt32ArrId);
 
-    /* Add a PubSubConnection */
-    UA_PubSubConnectionConfig connectionConfig;
-    memset(&connectionConfig, 0, sizeof(connectionConfig));
-    connectionConfig.name = UA_STRING("UDP-UADP Connection 1");
-    connectionConfig.transportProfileUri =
-        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_NetworkAddressUrlDataType networkAddressUrl =
-        {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
-    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
-                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.id.uint16 = 2234;
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
 
-    /* Add a PublishedDataSet */
-    UA_PublishedDataSetConfig publishedDataSetConfig;
-    memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
-    publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
-    publishedDataSetConfig.name = UA_STRING("Demo PDS");
-    UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetIdent);
+    /* file based config */
+    UA_ByteString configuration = loadFile(argv[1]);
+    UA_Server_loadPubSubConfigFromByteString(server, configuration);
 
-    UA_DataSetFieldConfig uint32ArrConfig;
-    memset(&uint32ArrConfig, 0, sizeof(UA_DataSetFieldConfig));
-    uint32ArrConfig.field.variable.fieldNameAlias = UA_STRING("UInt32Array");
-    uint32ArrConfig.field.variable.promotedField = false;
-    uint32ArrConfig.field.variable.publishParameters.publishedVariable = ds2UInt32ArrId;
-    uint32ArrConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_Server_addDataSetField(server, publishedDataSetIdent, &uint32ArrConfig, &dataSetFieldIdent2);
 
-    /* Add DataSetFields with static value source to PDS */
-    UA_DataSetFieldConfig dsfConfig;
-    for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
-        /* Create the variable */
-        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
-        vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed UInt32");
-        vAttr.dataType    = UA_TYPES[UA_TYPES_UINT32].typeId;
-        UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
-                                  UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
-                                  UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
-                                  UA_NS0ID(BASEDATAVARIABLETYPE),
-                                  vAttr, NULL, &publishVariables[i]);
-
-        /* Set the value backend of the above create node to 'external value source' */
-        UA_ValueBackend valueBackend;
-        memset(&valueBackend, 0, sizeof(UA_ValueBackend));
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = &dvPointers[i];
-        UA_Server_setVariableNode_valueBackend(server, publishVariables[i], valueBackend);
-
-        /* Add the DataSetField */
-        memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
-        dsfConfig.field.variable.publishParameters.publishedVariable = publishVariables[i];
-        dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-        UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
-    }
-
-    /* Add a WriterGroup */
-    UA_WriterGroupConfig writerGroupConfig;
-    memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
-    writerGroupConfig.name = UA_STRING("Demo WriterGroup");
-    writerGroupConfig.publishingInterval = PUBSUB_CONFIG_PUBLISH_CYCLE_MS;
-    writerGroupConfig.writerGroupId = 100;
-    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-
-    /* Change message settings of writerGroup to send PublisherId, WriterGroupId
-     * in GroupHeader and DataSetWriterId in PayloadHeader of NetworkMessage */
-    UA_UadpWriterGroupMessageDataType writerGroupMessage;
-    UA_UadpWriterGroupMessageDataType_init(&writerGroupMessage);
-    writerGroupMessage.networkMessageContentMask = (UA_UadpNetworkMessageContentMask)
-        (UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
-         UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
-         UA_UADPNETWORKMESSAGECONTENTMASK_GROUPVERSION |
-         UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
-         UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER |
-         UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
-    UA_ExtensionObject_setValue(&writerGroupConfig.messageSettings, &writerGroupMessage,
-                                &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]);
-
-    UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent);
-
-    /* Add a DataSetWriter to the WriterGroup */
-    UA_NodeId dataSetWriterIdent;
-    UA_DataSetWriterConfig dataSetWriterConfig;
-    memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
-    dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
-    dataSetWriterConfig.dataSetWriterId = 62541;
-    dataSetWriterConfig.keyFrameCount = 10;
-    dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
-
-    UA_UadpDataSetWriterMessageDataType uadpDataSetWriterMessageDataType;
-    UA_UadpDataSetWriterMessageDataType_init(&uadpDataSetWriterMessageDataType);
-    uadpDataSetWriterMessageDataType.dataSetMessageContentMask =
-        UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER;
-    UA_ExtensionObject_setValue(&dataSetWriterConfig.messageSettings,
-                                &uadpDataSetWriterMessageDataType,
-                                &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE]);
-
-    UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
-                               &dataSetWriterConfig, &dataSetWriterIdent);
+    UA_StatusCode statusCode = UA_STATUSCODE_GOOD;
+    statusCode |= UA_Server_enableAllPubSubComponents(server);
 
     /* Print the Offset Table */
     UA_PubSubOffsetTable ot;
+    memset(&ot, 0, sizeof(UA_PubSubOffsetTable));
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server_computeWriterGroupOffsetTable(server, writerGroupIdent, &ot);
 for(size_t i = 0; i < ot.offsetsSize; i++) {

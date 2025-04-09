@@ -188,6 +188,7 @@ if(UA_ENABLE_PUBSUB)
     add_example(pubsub_subscribe_standalone_dataset pubsub/pubsub_subscribe_standalone_dataset.c)
 
     add_example(server_pubsub_publish_rt_offsets pubsub_realtime/server_pubsub_publish_rt_offsets.c)
+    add_example(server_pubsub_publish_rt_offsets_from_file pubsub_realtime/server_pubsub_publish_rt_offsets_from_file.c)
     add_example(server_pubsub_subscribe_rt_offsets pubsub_realtime/server_pubsub_subscribe_rt_offsets.c)
 
     ## Apple does not implement timer functions required by one of the examples
