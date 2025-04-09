@@ -290,14 +290,12 @@ static void clear_default(UA_AccessControl *ac) {
     }
 }
 
-UA_StatusCode
-UA_AccessControl_default(UA_ServerConfig *config,
-                         UA_Boolean allowAnonymous,
-                         const UA_ByteString *userTokenPolicyUri,
-                         size_t usernamePasswordLoginSize,
-                         const UA_UsernamePasswordLogin *usernamePasswordLogin) {
-    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
-                   "AccessControl: Unconfigured AccessControl. Users have all permissions.");
+static UA_StatusCode
+accessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
+                      const UA_ByteString *userTokenPolicyUri,
+                      size_t usernamePasswordLoginSize,
+                      const UA_UsernamePasswordLogin *usernamePasswordLogin,
+                      UA_UsernamePasswordLoginCallback loginCallback) {
     UA_AccessControl *ac = &config->accessControl;
 
     if(ac->clear)
@@ -370,7 +368,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
     size_t policies = 0;
     if(allowAnonymous)
         policies++;
-    if(usernamePasswordLoginSize > 0)
+    if(usernamePasswordLoginSize > 0 || loginCallback != NULL)
         policies++;
     if(config->sessionPKI.verifyCertificate)
         policies++;
@@ -419,11 +417,11 @@ UA_AccessControl_default(UA_ServerConfig *config,
             policies++;
         }
 
-        if(usernamePasswordLoginSize > 0) {
+        if(usernamePasswordLoginSize > 0 || loginCallback != NULL) {
             ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_USERNAME;
             ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
 #if UA_LOGLEVEL <= 400
-            if(UA_ByteString_equal(utpUri, &UA_SECURITY_POLICY_NONE_URI)) {
+            if(!config->securityPolicyNoneDiscoveryOnly && UA_ByteString_equal(utpUri, &UA_SECURITY_POLICY_NONE_URI)) {
                 UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
                                "Username/Password Authentication configured, "
                                "but no encrypting SecurityPolicy. "
@@ -439,6 +437,15 @@ UA_AccessControl_default(UA_ServerConfig *config,
 }
 
 UA_StatusCode
+UA_AccessControl_default(UA_ServerConfig *config, UA_Boolean allowAnonymous,
+                         const UA_ByteString *userTokenPolicyUri,
+                         size_t usernamePasswordLoginSize,
+                         const UA_UsernamePasswordLogin *usernamePasswordLogin) {
+    return accessControl_default(config, allowAnonymous, userTokenPolicyUri,
+                                 usernamePasswordLoginSize, usernamePasswordLogin, NULL);
+}
+
+UA_StatusCode
 UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
                                           UA_Boolean allowAnonymous,
                                           const UA_ByteString *userTokenPolicyUri,
@@ -447,9 +454,8 @@ UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
                                           UA_UsernamePasswordLoginCallback loginCallback,
                                           void *loginContext) {
     AccessControlContext *context;
-    UA_StatusCode sc =
-        UA_AccessControl_default(config, allowAnonymous, userTokenPolicyUri,
-                                 usernamePasswordLoginSize, usernamePasswordLogin);
+    UA_StatusCode sc = accessControl_default(config, allowAnonymous, userTokenPolicyUri,
+                                             0, NULL, loginCallback);
     if(sc != UA_STATUSCODE_GOOD)
         return sc;
 
@@ -459,4 +465,3 @@ UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
 
     return UA_STATUSCODE_GOOD;
 }
-
