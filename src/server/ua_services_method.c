@@ -301,19 +301,23 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         UA_CHECK_STATUS(result->statusCode, return);
     }
 
-    /* Verify access rights */
-    UA_Boolean executable = method->executable;
-    if(session != &server->adminSession) {
-        executable = executable && server->config.accessControl.
-            getUserExecutableOnObject(server, &server->config.accessControl,
-                                      &session->sessionId, session->context,
-                                      &request->methodId, method->head.context,
-                                      &request->objectId, object->head.context);
-    }
-
-    if(!executable) {
+    /* Verify method is executable */
+    if(!method->executable) {
         result->statusCode = UA_STATUSCODE_BADNOTEXECUTABLE;
         return;
+    }
+
+    /* Verify access rights */
+    if(session != &server->adminSession) {
+        UA_Boolean executable = server->config.accessControl.getUserExecutableOnObject(
+            server, &server->config.accessControl, &session->sessionId, session->context,
+            &request->methodId, method->head.context,
+            &request->objectId, object->head.context);
+
+        if(!executable) {
+            result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+            return;
+        }
     }
 
     /* The input arguments are const and not changed. We move the input
