@@ -6,12 +6,7 @@
 #include <open62541/plugin/log_stdout.h>
 #include "open62541/namespace_testnodeset_generated.h"
 
-#include <signal.h>
 #include <stdio.h>
-#include <stdlib.h>
-
-#include "../../src/util/ua_util_internal.h"
-#include "common.h"
 
 /*
  * To deploy this example, the server_testnodeset example must be running
@@ -28,10 +23,8 @@ int main(void) {
     cc->customDataTypes = &customTypesArray;
     /*connect to a server*/
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Not connected. Retrying to connect in 1 second");
-        sleep_ms(1000);
-    }
     /*get the nodeId of the PointWithArray_scalar_noInit from its browsepath*/
     UA_BrowsePath bp;
     UA_BrowsePath_init(&bp);
