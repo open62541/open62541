@@ -1777,14 +1777,14 @@ void
 connectSync(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
-
     /* Initialize the connection */
     initConnect(client);
     notifyClientState(client);
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return;
+
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
 
     /* EventLoop is started. Otherwise initConnect would have failed. */
     UA_EventLoop *el = client->config.eventLoop;
