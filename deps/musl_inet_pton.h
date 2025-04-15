@@ -29,6 +29,14 @@
 
 #include <open62541/types.h>
 
+#ifndef AF_INET
+#define AF_INET         2
+#endif
+
+#ifndef AF_INET6
+#define AF_INET6        10
+#endif
+
 int musl_inet_pton(int af, const char * UA_RESTRICT s, void * UA_RESTRICT a0);
 
 #endif /* MUSL_INET_PTON_H */
