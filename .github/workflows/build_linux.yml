@@ -104,6 +104,8 @@ jobs:
     services:
       mosquitto:
         image: eclipse-mosquitto:1.6-openssl
+    env:
+      OPEN62541_TEST_MQTT_BROKER: opc.mqtt://mosquitto:1883
     steps:
     - name: Work around disabled ipv6 on actions container networks
       run: |
