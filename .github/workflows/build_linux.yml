@@ -105,6 +105,16 @@ jobs:
       mosquitto:
         image: eclipse-mosquitto:1.6-openssl
     steps:
+    - name: Work around disabled ipv6 on actions container networks
+      run: |
+        IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+        echo "Current IPv6 status on eth0: $IPV6"
+        [ "$IPV6" = "1" ] || exit
+
+        echo 0 | sudo tee /proc/sys/net/ipv6/conf/eth0/disable_ipv6 > /dev/null
+        IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+        echo "New IPv6 status on eth0: $IPV6"
+        [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }
     - uses: actions/checkout@v4
       with:
         submodules: true
