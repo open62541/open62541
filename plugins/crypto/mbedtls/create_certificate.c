@@ -26,8 +26,6 @@
 #define SET_OID(x, oid) \
     do { x.len = MBEDTLS_OID_SIZE(oid); x.p = (unsigned char *) oid; } while (0)
 
-#define AF_INET         2
-
 typedef struct mbedtls_write_san_node{
     int type;
     char* host;

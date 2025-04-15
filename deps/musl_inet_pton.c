@@ -29,9 +29,6 @@
 #include <errno.h>
 #include <string.h>
 
-#define AF_INET         2
-#define AF_INET6        10
-
 static int hexval(unsigned c)
 {
 	if (c-'0'<10) return c-'0';
