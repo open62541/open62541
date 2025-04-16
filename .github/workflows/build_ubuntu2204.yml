@@ -33,7 +33,7 @@ jobs:
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq cmake pkg-config libssl-dev python3-sphinx graphviz check
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq cmake pkg-config libcap2-bin libssl-dev python3-sphinx graphviz check
         ${{ matrix.cmd_deps }}
     - name: ${{matrix.build_name}}
       shell: bash
