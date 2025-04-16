@@ -9,7 +9,6 @@ jobs:
       matrix:
         include:
           - build_name: "Debug Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq mosquitto
             cmd_action: unit_tests
           - build_name: "Debug Build & Unit Tests (gcc, 32bit)"
             cmd_deps: |
@@ -30,10 +29,10 @@ jobs:
             cmd_deps: ""
             cmd_action: unit_tests_alarms
           - build_name: "Debug Build & Unit Tests (clang)"
-            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 mosquitto
+            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11
             cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
           - build_name: "Debug Build & Unit Tests (tcc)"
-            cmd_deps: sudo apt-get install -y -qq tcc mosquitto
+            cmd_deps: sudo apt-get install -y -qq tcc
             cmd_action: CC=tcc unit_tests
           - build_name: "Encryption (MbedTLS) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
@@ -110,17 +109,36 @@ jobs:
             cmd_deps: ""
             cmd_action: build_all_companion_specs
     name: ${{matrix.build_name}}
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/marwinglaser/ci:ubuntu-20.04
+      options: --privileged
+    services:
+      mosquitto:
+        image: eclipse-mosquitto:1.6-openssl
+    env:
+      OPEN62541_TEST_MQTT_BROKER: opc.mqtt://mosquitto:1883
     steps:
+    - name: Work around disabled ipv6 on actions container networks
+      run: |
+        IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+        echo "Current IPv6 status on eth0: $IPV6"
+        [ "$IPV6" = "1" ] || exit
+
+        echo 0 | sudo tee /proc/sys/net/ipv6/conf/eth0/disable_ipv6 > /dev/null
+        IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+        echo "New IPv6 status on eth0: $IPV6"
+        [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }
     - uses: actions/checkout@v4
       with:
         submodules: true
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y -qq python3-sphinx graphviz check
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq cmake libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check
         ${{ matrix.cmd_deps }}
     - name: ${{matrix.build_name}}
+      shell: bash
       run: source tools/ci.sh && ${{matrix.cmd_action}}
       env:
         ETHERNET_INTERFACE: eth0

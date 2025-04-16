@@ -12,17 +12,31 @@ jobs:
             cmd_deps: sudo apt-get install -y -qq openssl
             cmd_action: unit_tests_encryption OPENSSL
     name: ${{matrix.build_name}}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/marwinglaser/ci:ubuntu-22.04
+      options: --privileged
     steps:
-    - uses: actions/checkout@v2
+    - name: Work around disabled ipv6 on actions container networks
+      run: |
+        IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+        echo "Current IPv6 status on eth0: $IPV6"
+        [ "$IPV6" = "1" ] || exit
+
+        echo 0 | sudo tee /proc/sys/net/ipv6/conf/eth0/disable_ipv6 > /dev/null
+        IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+        echo "New IPv6 status on eth0: $IPV6"
+        [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }
+    - uses: actions/checkout@v4
       with:
         submodules: true
     - name: Install Dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y -qq python3-sphinx graphviz check
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq cmake pkg-config libssl-dev python3-sphinx graphviz check
         ${{ matrix.cmd_deps }}
     - name: ${{matrix.build_name}}
+      shell: bash
       run: source tools/ci.sh && ${{matrix.cmd_action}}
       env:
         ETHERNET_INTERFACE: eth0
