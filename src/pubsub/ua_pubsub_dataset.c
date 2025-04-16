@@ -146,14 +146,10 @@ generateFieldMetaData(UA_PubSubManager *psm, UA_PublishedDataSet *pds,
         return res;
     }
 
-    if(value.arrayDimensionsSize > 0) {
-        fieldMetaData->arrayDimensions = (UA_UInt32 *)
-            UA_calloc(value.arrayDimensionsSize, sizeof(UA_UInt32));
-        if(!fieldMetaData->arrayDimensions)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    fieldMetaData->arrayDimensionsSize = value.arrayDimensionsSize;
-
+    fieldMetaData->arrayDimensions = (UA_UInt32*)value.data;
+    fieldMetaData->arrayDimensionsSize = value.arrayLength;
+    value.data = NULL;
+    value.arrayLength = 0;
     UA_Variant_clear(&value);
 
     /* Set the DataType */
