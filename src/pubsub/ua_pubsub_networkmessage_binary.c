@@ -1184,44 +1184,71 @@ UA_DataSetMessageHeader_decodeBinary(Ctx *ctx, UA_DataSetMessageHeader* dst) {
 }
 
 static UA_StatusCode
-UA_DataSetMessage_keyFrame_raw_encodeBinary(const UA_DataSetMessage* src,
-                                            const UA_DataValue *v, UA_FieldMetaData *fmd,
+UA_DataSetMessage_keyFrame_rawScalar_encodeBinary(void *p, const UA_DataType *type,
+                                                  UA_FieldMetaData *fmd,
+                                                  UA_Byte **bufPos, const UA_Byte *bufEnd) {
+    /* TODO: Padding not yet supported for strings inside structures */
+    UA_StatusCode rv = UA_encodeBinaryInternal(p, type, bufPos, &bufEnd, NULL, NULL, NULL);
+    if(fmd->maxStringLength != 0 &&
+       (type->typeKind == UA_DATATYPEKIND_STRING ||
+        type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
+        UA_String *str = (UA_String *)p;
+        if(str->length > fmd->maxStringLength)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        size_t padding = fmd->maxStringLength - str->length;
+        memset(*bufPos, 0, padding);
+        *bufPos += padding;
+    }
+    return rv;
+}
+
+static UA_StatusCode
+UA_DataSetMessage_keyFrame_raw_encodeBinary(const UA_Variant *v, UA_FieldMetaData *fmd,
                                             UA_Byte **bufPos, const UA_Byte *bufEnd) {
-    if(!v->value.type)
+    if(!v->type)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* For arrays we need to encode the dimension sizes before the actual data */
-    UA_StatusCode rv;
-    size_t elementCount = 1;
-    for(size_t cnt = 0; cnt < fmd->arrayDimensionsSize; cnt++) {
-        elementCount *= fmd->arrayDimensions[cnt];
-        rv = UA_UInt32_encodeBinary(&fmd->arrayDimensions[cnt], bufPos, bufEnd);
-        UA_CHECK_STATUS(rv, return rv);
+    /* Scalar encoding */
+    if(!UA_Variant_isScalar(v))
+        return UA_DataSetMessage_keyFrame_rawScalar_encodeBinary(v->data, v->type,
+                                                                 fmd, bufPos, bufEnd);
+
+    /* Set up the Arraydimensions of the value.
+     * No defined ArrayDimensions -> use one-dimensional */
+    UA_UInt32 tmpDim;
+    UA_UInt32 *arrayDims = v->arrayDimensions;
+    size_t arrayDimsSize = v->arrayDimensionsSize;
+    if(!arrayDims) {
+        tmpDim = v->arrayLength;
+        arrayDims = &tmpDim;
+        arrayDimsSize = 1;
     }
 
-    /* Check if Array size matches the one specified in metadata */
-    if(fmd->valueRank > 0 && elementCount != v->value.arrayLength)
-        return UA_STATUSCODE_BADENCODINGERROR;
-
-    UA_Byte *valuePtr = (UA_Byte *)v->value.data;
-    for(size_t cnt = 0; cnt < elementCount; cnt++) {
-        if(fmd->maxStringLength != 0 &&
-           (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
-            v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
-            if(((UA_String *)v->value.data)->length > fmd->maxStringLength){
-                return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-            }
-            rv = UA_encodeBinaryInternal(valuePtr, v->value.type, bufPos, &bufEnd,
-                                         NULL, NULL, NULL);
-            size_t lengthDifference = fmd->maxStringLength - ((UA_String *)valuePtr)->length;
-            memset(*bufPos, 0, lengthDifference);
-            *bufPos += lengthDifference;
-        } else {
-            /* Padding not yet supported for strings as part of structures */
-            rv = UA_encodeBinaryInternal(valuePtr, v->value.type, bufPos, &bufEnd,
-                                         NULL, NULL, NULL);
+    /* Verify the value-arraydimensions match the fmd->arraydimensions.
+     * TODO: Fill up with padding when the content is lacking. */
+    if(fmd->arrayDimensionsSize > 0) {
+        if(fmd->arrayDimensionsSize != arrayDimsSize)
+            return UA_STATUSCODE_BADENCODINGERROR;
+        for(size_t i = 0; i < arrayDimsSize; i++) {
+            if(arrayDims[i] != fmd->arrayDimensions[i])
+                return UA_STATUSCODE_BADENCODINGERROR;
         }
-        valuePtr += v->value.type->memSize;
+    }
+
+    /* For arrays encode the dimension sizes before the actual data */
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < arrayDimsSize; i++) {
+        rv |= UA_UInt32_encodeBinary(&arrayDims[i], bufPos, bufEnd);
+    }
+    UA_CHECK_STATUS(rv, return rv);
+
+    /* Encode the array of values */
+    uintptr_t valuePtr = (uintptr_t)v->data;
+    for(size_t i = 0; i < v->arrayLength; i++) {
+        rv = UA_DataSetMessage_keyFrame_rawScalar_encodeBinary((void*)valuePtr, v->type,
+                                                               fmd, bufPos, bufEnd);
+        UA_CHECK_STATUS(rv, return rv);
+        valuePtr += v->type->memSize;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -1249,7 +1276,7 @@ UA_DataSetMessage_keyFrame_encodeBinary(const UA_DataSetMessage* src, UA_Byte **
             rv = UA_DataValue_encodeBinary(v, bufPos, bufEnd);
         } else if(src->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
             UA_FieldMetaData *fmd = &src->data.keyFrameData.dataSetMetaDataType->fields[i];
-            rv = UA_DataSetMessage_keyFrame_raw_encodeBinary(src, v, fmd, bufPos, bufEnd);
+            rv = UA_DataSetMessage_keyFrame_raw_encodeBinary(&v->value, fmd, bufPos, bufEnd);
         } else {
             rv = UA_STATUSCODE_BADENCODINGERROR;
         }
@@ -1444,6 +1471,75 @@ UA_DataSetMessage_decodeBinary(Ctx *ctx, UA_DataSetMessage *dst, UA_UInt16 dsmSi
     return rv;
 }
 
+static size_t
+UA_DataSetMessage_rawScalar_calcSizeBinary(void *p, const UA_DataType *type,
+                                           UA_FieldMetaData *fmd,
+                                           size_t size) {
+    /* TODO: Padding not yet supported for strings inside structures */
+    size += UA_calcSizeBinary(p, type, NULL);
+    if(fmd->maxStringLength != 0 &&
+       (type->typeKind == UA_DATATYPEKIND_STRING ||
+        type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
+        UA_String *str = (UA_String *)p;
+        if(str->length > fmd->maxStringLength)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        size_t padding = fmd->maxStringLength - str->length;
+        size += padding;
+    }
+    return size;
+}
+
+static size_t
+UA_DataSetMessage_raw_calcSizeBinary(const UA_Variant *v, UA_FieldMetaData *fmd,
+                                     UA_PubSubOffsetTable *ot, size_t size) {
+    if(!v->type)
+        return 0;
+
+    /* Scalar encoding */
+    if(UA_Variant_isScalar(v))
+        return UA_DataSetMessage_rawScalar_calcSizeBinary(v->data, v->type, fmd, size);
+
+    /* Set up the Arraydimensions of the value.
+     * No defined ArrayDimensions -> use one-dimensional */
+    UA_UInt32 tmpDim;
+    UA_UInt32 *arrayDims = v->arrayDimensions;
+    size_t arrayDimsSize = v->arrayDimensionsSize;
+    if(!arrayDims) {
+        tmpDim = v->arrayLength;
+        arrayDims = &tmpDim;
+        arrayDimsSize = 1;
+    }
+
+    /* Verify the value-arraydimensions match the fmd->arraydimensions.
+     * TODO: Fill up with padding when the content is lacking. */
+    if(fmd->arrayDimensionsSize > 0) {
+        if(fmd->arrayDimensionsSize != arrayDimsSize)
+            return 0;
+        for(size_t i = 0; i < arrayDimsSize; i++) {
+            if(arrayDims[i] != fmd->arrayDimensions[i])
+                return 0;
+        }
+    }
+
+    /* For arrays add the dimension sizes before the actual data */
+    size += arrayDimsSize * sizeof(UA_UInt32);
+    if(ot) {
+        /* Start the offset at beginning of the payload, after the dimensions */
+        UA_PubSubOffset *offset = &ot->offsets[ot->offsetsSize-1];
+        offset->offset += arrayDimsSize * sizeof(UA_UInt32);
+    }
+
+    /* Add the array of values */
+    uintptr_t valuePtr = (uintptr_t)v->data;
+    for(size_t i = 0; i < v->arrayLength; i++) {
+        size = UA_DataSetMessage_rawScalar_calcSizeBinary((void*)valuePtr, v->type, fmd, size);
+        if(size == 0)
+            return 0;
+        valuePtr += v->type->memSize;
+    }
+    return size;
+}
+
 size_t
 UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p, UA_PubSubOffsetTable *ot,
                                  size_t size) {
@@ -1520,6 +1616,8 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p, UA_PubSubOffsetTable *ot,
             size += 2; /* p->data.keyFrameData.fieldCount */
 
         for(UA_UInt16 i = 0; i < p->data.keyFrameData.fieldCount; i++){
+            if(!p->data.keyFrameData.dataSetFields)
+                return 0;
             UA_PubSubOffset *offset = NULL;
             const UA_DataValue *v = &p->data.keyFrameData.dataSetFields[i];
             if(ot) {
@@ -1528,59 +1626,26 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p, UA_PubSubOffsetTable *ot,
                     return 0;
                 offset = &ot->offsets[pos];
                 offset->offset = size;
+                if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
+                    offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT;
+                } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
+                    if(!v->value.type || !v->value.type->pointerFree)
+                        return 0; /* only integer types for now */
+                    offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW;
+                } else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
+                    offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE;
+                }
             }
 
             if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
-                if(ot)
-                    offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT;
                 size += UA_calcSizeBinary(&v->value, &UA_TYPES[UA_TYPES_VARIANT], NULL);
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
-                if(p->data.keyFrameData.dataSetFields != NULL) {
-                    if(ot) {
-                        if(!v->value.type || !v->value.type->pointerFree)
-                            return 0; /* only integer types for now */
-                        /* Count the memory size of the specific field */
-                        offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW;
-                    }
-                    UA_FieldMetaData *fmd =
-                        &p->data.keyFrameData.dataSetMetaDataType->fields[i];
-
-                    /* For arrays add encoded array length (4 bytes for each dimension) */
-                    size += fmd->arrayDimensionsSize * sizeof(UA_UInt32);
-                    if(ot)
-                        offset->offset += fmd->arrayDimensionsSize * sizeof(UA_UInt32);
-
-                    /* We need to know how many elements there are */
-                    size_t elemCnt = 1;
-                    for(size_t cnt = 0; cnt < fmd->arrayDimensionsSize; cnt++) {
-                        elemCnt *= fmd->arrayDimensions[cnt];
-                    }
-                    size += (elemCnt * UA_calcSizeBinary(v->value.data, v->value.type, NULL));
-
-                    /* Handle zero-padding for strings with max-string-length.
-                     * Currently not supported for strings that are a part of larger
-                     * structures. */
-                    if(fmd->maxStringLength != 0 &&
-                       (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
-                        v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
-                        /* Check if length < maxStringLength, The types ByteString
-                         * and String are equal in their base definition */
-                        size_t lengthDifference = fmd->maxStringLength -
-                            ((UA_String *)v->value.data)->length;
-                        size += lengthDifference;
-                    }
-                } else {
-                    /* get length calculated in UA_DataSetMessage_decodeBinary */
-                    if(ot)
-                        offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW;
-                    size += p->data.keyFrameData.rawFields.length;
-                    /* no iteration needed */
-                    break;
-                }
+                UA_FieldMetaData *fmd = &p->data.keyFrameData.dataSetMetaDataType->fields[i];
+                size = UA_DataSetMessage_raw_calcSizeBinary(&v->value, fmd, ot, size);
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
-                if(ot)
-                    offset->offsetType = UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE;
                 size += UA_calcSizeBinary(v, &UA_TYPES[UA_TYPES_DATAVALUE], NULL);
+            } else {
+                return 0;
             }
         }
     } else if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME) {
