@@ -147,13 +147,15 @@ generateFieldMetaData(UA_PubSubManager *psm, UA_PublishedDataSet *pds,
     }
 
     if(value.arrayLength > 0) {
-        fieldMetaData->arrayDimensions = (UA_UInt32 *)
-            UA_calloc(value.arrayLength, sizeof(UA_UInt32));
-        if(!fieldMetaData->arrayDimensions)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        UA_Array_copy(value.data, value.arrayLength, (void **) &fieldMetaData->arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
+        res = UA_Array_copy(value.data, value.arrayLength,
+                            (void **)&fieldMetaData->arrayDimensions,
+                            &UA_TYPES[UA_TYPES_UINT32]);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_Variant_clear(&value);
+            return res;
+        }
+        fieldMetaData->arrayDimensionsSize = value.arrayLength;
     }
-    fieldMetaData->arrayDimensionsSize = value.arrayLength;
 
     UA_Variant_clear(&value);
 
