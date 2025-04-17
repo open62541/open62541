@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2025 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
@@ -246,7 +246,8 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
                        UA_PubSubState_name(wg->head.state));
 
     /* Trigger the connection as it might open a connection for the WG */
-    UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
+    if(wg->config.enabled)
+        UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(writerGroupIdentifier)
@@ -524,7 +525,8 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     /* Update the attached DataSetWriters */
     UA_DataSetWriter *writer;
     LIST_FOREACH(writer, &wg->writers, listEntry) {
-        UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
+        if(writer->config.enabled)
+            UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
