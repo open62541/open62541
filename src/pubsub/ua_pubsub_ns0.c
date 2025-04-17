@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2025 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019-2021 Kalycito Infotech Private Limited
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
  * Copyright (c) 2020-2022 Thomas Fischer, Siemens AG
@@ -2286,7 +2286,7 @@ UA_loadPubSubConfigMethodCallback(UA_Server *server,
     UA_LOCK_ASSERT(&server->serviceMutex);
     if(inputSize == 1) {
         UA_ByteString *inputStr = (UA_ByteString*)input->data;
-        return UA_Server_loadPubSubConfigFromByteString(server, *inputStr);
+        return UA_Server_loadPubSubConfigFromByteString(server, *inputStr, true);
     } else if(inputSize > 1) {
         return UA_STATUSCODE_BADTOOMANYARGUMENTS;
     } else {
