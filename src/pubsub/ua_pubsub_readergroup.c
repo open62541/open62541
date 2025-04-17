@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2025 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
@@ -186,7 +186,8 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
     }
 
     /* Trigger the connection */
-    UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
+    if(newGroup->config.enabled)
+        UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(readerGroupId)
@@ -370,7 +371,8 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     /* Update the attached DataSetReaders */
     UA_DataSetReader *dsr;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state,
+        if(dsr->config.enabled)
+            UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state,
                                         UA_STATUSCODE_GOOD);
     }
 
