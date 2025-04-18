@@ -76,35 +76,21 @@ typedef struct {
 } UA_DataSetMessageHeader;
 
 typedef struct {
-    UA_UInt16 fieldCount;
-    UA_DataValue* dataSetFields;
-    UA_ByteString rawFields;
-    /* Json keys for the dataSetFields: TODO: own dataSetMessageType for json? */
-    UA_String* fieldNames;
-    /* This information is for proper en- and decoding needed */
-    UA_DataSetMetaDataType *dataSetMetaDataType;
-} UA_DataSetMessage_DataKeyFrameData;
-
-typedef struct {
-    UA_UInt16 fieldIndex;
-    UA_DataValue fieldValue;
+    UA_UInt16 index;
+    UA_DataValue value;
 } UA_DataSetMessage_DeltaFrameField;
 
 typedef struct {
-    UA_UInt16 fieldCount;
-    UA_DataSetMessage_DeltaFrameField* deltaFrameFields;
-} UA_DataSetMessage_DataDeltaFrameData;
-
-typedef struct {
     UA_UInt16 dataSetWriterId; /* Goes into the payload header */
-
     UA_DataSetMessageHeader header;
-    union {
-        UA_DataSetMessage_DataKeyFrameData keyFrameData;
-        UA_DataSetMessage_DataDeltaFrameData deltaFrameData;
+    UA_UInt16 fieldCount;
+    union { /* Array of fields (cf. header->dataSetMessageType) */
+        UA_DataValue *keyFrameFields;
+        UA_DataSetMessage_DeltaFrameField *deltaFrameFields;
     } data;
-    size_t configuredSize;
 } UA_DataSetMessage;
+
+void UA_DataSetMessage_clear(UA_DataSetMessage *p);
 
 /**
  * Network Message
@@ -188,10 +174,10 @@ typedef struct {
 
     union {
         struct {
-            UA_DataSetMessage *dataSetMessages;
             size_t dataSetMessagesSize; /* Goes into the payload header */
+            UA_DataSetMessage *dataSetMessages;
         } dataSetPayload;
-        /* Extended with other payload types in the future */
+        /* TODO: Add support for Discovery Messages */
     } payload;
 
     UA_ByteString securityFooter;
@@ -202,46 +188,74 @@ UA_NetworkMessage_clear(UA_NetworkMessage* p);
 
 /**
  * NetworkMessage Encoding
- * ~~~~~~~~~~~~~~~~~~~~~~~ */
+ * ~~~~~~~~~~~~~~~~~~~~~~~
+ * The en/decoding translates the NetworkMessage structure to/from a binary or
+ * JSON encoding. The en/decoding of PubSub NetworkMessages can require
+ * additional metadata. For example, during decoding, the DataType of raw
+ * encoded fields must be already known. As an example for encoding, the
+ * ``configuredSize`` may define zero-padding after a DataSetMessage.
+ *
+ * In the below methods, the different encoding options can be a NULL pointer
+ * and will then be ignored. */
+
+typedef struct {
+    /* The WriterId is used to find the matching encoding metadata. If the
+     * NetworkMessage/DataSetMessage does not transmit the identifier, then the
+     * encoding metadata is used in-order for the received fields. */
+    UA_UInt16 dataSetWriterId;
+
+    /* FieldMetaData for JSON and RAW encoding */
+    size_t fieldsSize;
+    UA_FieldMetaData *fields;
+
+    /* Zero-padding if the DataSetMessage is shorter (UADP) */
+    UA_UInt16 configuredSize;
+} UA_DataSetMessage_EncodingMetaData;
+
+typedef struct {
+    size_t metaDataSize;
+    UA_DataSetMessage_EncodingMetaData *metaData;
+} UA_NetworkMessage_EncodingOptions;
 
 /* The output buffer is allocated to the required size if initially empty.
  * Otherwise, upon success, the length is adjusted. */
 UA_EXPORT UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src,
-                               UA_ByteString *outBuf);
+                               UA_ByteString *outBuf,
+                               const UA_NetworkMessage_EncodingOptions *eo);
 
 UA_EXPORT size_t
-UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage *p);
+UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage *p,
+                                 const UA_NetworkMessage_EncodingOptions *eo);
 
-/* The customTypes can be NULL */
 UA_EXPORT UA_StatusCode
 UA_NetworkMessage_decodeBinary(const UA_ByteString *src,
                                UA_NetworkMessage* dst,
-                               const UA_DecodeBinaryOptions *options);
+                               const UA_NetworkMessage_EncodingOptions *eo,
+                               const UA_DecodeBinaryOptions *bo);
 
 #ifdef UA_ENABLE_JSON_ENCODING
 
 /* The output buffer is allocated to the required size if initially empty.
- * Otherwise, upon success, the length is adjusted.
- * The encoding options can be NULL. */
+ * Otherwise, upon success, the length is adjusted. */
 UA_EXPORT UA_StatusCode
 UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
                              UA_ByteString *outBuf,
-                             const UA_EncodeJsonOptions *options);
+                             const UA_NetworkMessage_EncodingOptions *eo,
+                             const UA_EncodeJsonOptions *jo);
 
-/* The encoding options can be NULL */
 UA_EXPORT size_t
 UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
-                               const UA_EncodeJsonOptions *options);
+                               const UA_NetworkMessage_EncodingOptions *eo,
+                               const UA_EncodeJsonOptions *jo);
 
-/* The encoding options can be NULL */
 UA_EXPORT UA_StatusCode
 UA_NetworkMessage_decodeJson(const UA_ByteString *src,
                              UA_NetworkMessage *dst,
-                             const UA_DecodeJsonOptions *options);
+                             const UA_NetworkMessage_EncodingOptions *eo,
+                             const UA_DecodeJsonOptions *jo);
 
-#endif
-
+#endif /* UA_ENABLE_JSON_ENCODING */
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS
