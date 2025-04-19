@@ -2003,7 +2003,9 @@ removeFieldFromEncoding(ParseCtx *ctx, UA_ByteString *encoding, size_t tokenInde
     /* Subtract the offset between ctx->json5 end encoding */
     start -= objStart;
     end -= objStart;
-
+    /* Fix: Bounds and sanity check */
+    if(end < start || end > encoding->length || start > encoding->length)
+        return;
     /* Cut out the field we want to remove */
     size_t remaining = encoding->length - end;
     memmove(encoding->data + start, encoding->data + end, remaining);
