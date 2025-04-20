@@ -527,110 +527,6 @@ DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr
 }
 
 static void
-DataSetReader_processRaw(UA_PubSubManager *psm, UA_DataSetReader *dsr,
-                         UA_DataSetMessage* msg) {
-    UA_LOG_TRACE_PUBSUB(psm->logging, dsr, "Received RAW Frame");
-
-    if(dsr->config.dataSetMetaData.fieldsSize !=
-       dsr->config.subscribedDataSet.target.targetVariablesSize) {
-        UA_LOG_ERROR_PUBSUB(psm->logging, dsr, "Inconsistent number of fields configured");
-        return;
-    }
-
-    msg->data.keyFrameData.fieldCount = (UA_UInt16)
-        dsr->config.dataSetMetaData.fieldsSize;
-
-    /* Start iteration from beginning of rawFields buffer */
-    size_t offset = 0;
-    UA_TargetVariablesDataType *tvs = &dsr->config.subscribedDataSet.target;
-    for(size_t i = 0; i < tvs->targetVariablesSize ; i++) {
-        UA_FieldTargetDataType *tv = &tvs->targetVariables[i];
-
-        /* TODO The datatype reference should be part of the internal
-         * pubsub configuration to avoid the time-expensive lookup */
-        const UA_DataType *type =
-            UA_findDataTypeWithCustom(&dsr->config.dataSetMetaData.fields[i].dataType,
-                                      psm->sc.server->config.customDataTypes);
-        if(!type) {
-            UA_LOG_ERROR_PUBSUB(psm->logging, dsr, "Type not found");
-            return;
-        }
-
-        /* For arrays the length of the array is encoded before the actual data */
-        size_t elementCount = 1;
-        for(int cnt = 0; cnt < dsr->config.dataSetMetaData.fields[i].valueRank; cnt++) {
-            UA_UInt32 dimSize =
-                *(UA_UInt32 *)&msg->data.keyFrameData.rawFields.data[offset];
-            if(dimSize != dsr->config.dataSetMetaData.fields[i].arrayDimensions[cnt]) {
-                UA_LOG_INFO_PUBSUB(psm->logging, dsr,
-                                   "Error during Raw-decode KeyFrame field %u: "
-                                   "Dimension size in received data doesn't match the dataSetMetaData",
-                                   (unsigned)i);
-                return;
-            }
-            offset += sizeof(UA_UInt32);
-            elementCount *= dimSize;
-        }
-
-        /* Decode the value */
-        UA_STACKARRAY(UA_Byte, value, elementCount * type->memSize);
-        memset(value, 0, elementCount * type->memSize);
-        UA_Byte *valPtr = value;
-        UA_StatusCode res = UA_STATUSCODE_GOOD;
-        for(size_t cnt = 0; cnt < elementCount; cnt++) {
-            res = UA_decodeBinaryInternal(&msg->data.keyFrameData.rawFields,
-                                          &offset, valPtr, type, NULL);
-            if(dsr->config.dataSetMetaData.fields[i].maxStringLength != 0) {
-                if(type->typeKind == UA_DATATYPEKIND_STRING ||
-                   type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
-                    UA_ByteString *bs = (UA_ByteString *)valPtr;
-                    /* Check if length < maxStringLength, The types ByteString and
-                     * String are equal in their base definition */
-                    size_t lengthDifference =
-                        dsr->config.dataSetMetaData.fields[i].maxStringLength - bs->length;
-                    offset += lengthDifference;
-                }
-            }
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO_PUBSUB(psm->logging, dsr,
-                                   "Error during Raw-decode KeyFrame field %u: %s",
-                                   (unsigned)i, UA_StatusCode_name(res));
-                return;
-            }
-            valPtr += type->memSize;
-        }
-
-        /* Write the value */
-        UA_WriteValue writeVal;
-        UA_WriteValue_init(&writeVal);
-        writeVal.attributeId = tv->attributeId;
-        writeVal.indexRange = tv->receiverIndexRange;
-        writeVal.nodeId = tv->targetNodeId;
-        if(dsr->config.dataSetMetaData.fields[i].valueRank > 0) {
-            UA_Variant_setArray(&writeVal.value.value, value, elementCount, type);
-        } else {
-            UA_Variant_setScalar(&writeVal.value.value, value, type);
-        }
-        writeVal.value.hasValue = true;
-        Operation_Write(psm->sc.server, &psm->sc.server->adminSession, NULL, &writeVal, &res);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
-                                  "Error writing KeyFrame field %u: %s",
-                                  (unsigned)i, UA_StatusCode_name(res));
-        }
-
-        /* Clean up if string-type (with mallocs) was used */
-        if(!type->pointerFree) {
-            valPtr = value;
-            for(size_t cnt = 0; cnt < elementCount; cnt++) {
-                UA_clear(value, type);
-                valPtr += type->memSize;
-            }
-        }
-    }
-}
-
-static void
 UA_DataSetReader_handleMessageReceiveTimeout(UA_PubSubManager *psm,
                                              UA_DataSetReader *dsr) {
     UA_assert(dsr->head.componentType == UA_PUBSUBCOMPONENT_DATASETREADER);
@@ -706,28 +602,13 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         }
     }
 
-    /* Process message with raw encoding. We have no field-count information for
-     * the message. */
-    if(msg->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
-        DataSetReader_processRaw(psm, dsr, msg);
-        return;
-    }
-
     /* Received a heartbeat with no fields */
-    if(msg->data.keyFrameData.fieldCount == 0)
+    if(msg->fieldCount == 0)
         return;
 
     /* Check whether the field count matches the configuration */
-    size_t fieldCount = msg->data.keyFrameData.fieldCount;
-    if(dsr->config.dataSetMetaData.fieldsSize != fieldCount) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
-                              "Number of fields does not match the "
-                              "DataSetMetaData configuration");
-        return;
-    }
-
-    UA_TargetVariablesDataType *tvs = &dsr->config.subscribedDataSet.target;;
-    if(tvs->targetVariablesSize != fieldCount) {
+    UA_TargetVariablesDataType *tvs = &dsr->config.subscribedDataSet.target;
+    if(tvs->targetVariablesSize != msg->fieldCount) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
                               "Number of fields does not match the "
                               "TargetVariables configuration");
@@ -736,9 +617,9 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     /* Write the message fields. RT has the external data value configured. */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < fieldCount; i++) {
+    for(size_t i = 0; i < msg->fieldCount; i++) {
         UA_FieldTargetDataType *tv = &tvs->targetVariables[i];
-        UA_DataValue *field = &msg->data.keyFrameData.dataSetFields[i];
+        UA_DataValue *field = &msg->data.keyFrameFields[i];
         if(!field->hasValue)
             continue;
 
