@@ -1367,7 +1367,7 @@ UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
         case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_TIMESTAMP:
         case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_PICOSECONDS:
         case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_GROUPVERSION:
-            UA_NodeId_copy(&rg->head.identifier, &o->component);
+            res |= UA_NodeId_copy(&rg->head.identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE:
             dsr = (dsr == NULL) ? LIST_FIRST(&rg->readers) : LIST_NEXT(dsr, listEntry);
@@ -1378,24 +1378,24 @@ UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_TIMESTAMP:
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_PICOSECONDS:
             UA_assert(dsr);
-            UA_NodeId_copy(&dsr->head.identifier, &o->component);
+            res |= UA_NodeId_copy(&dsr->head.identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE:
             UA_assert(dsr);
             tv = &dsr->config.subscribedDataSet.target.targetVariables[fieldindex];
-            UA_NodeId_copy(&tv->targetNodeId, &o->component);
+            res |= UA_NodeId_copy(&tv->targetNodeId, &o->component);
             fieldindex++;
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT:
             UA_assert(dsr);
             tv = &dsr->config.subscribedDataSet.target.targetVariables[fieldindex];
-            UA_NodeId_copy(&tv->targetNodeId, &o->component);
+            res |= UA_NodeId_copy(&tv->targetNodeId, &o->component);
             fieldindex++;
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW:
             UA_assert(dsr);
             tv = &dsr->config.subscribedDataSet.target.targetVariables[fieldindex];
-            UA_NodeId_copy(&tv->targetNodeId, &o->component);
+            res |= UA_NodeId_copy(&tv->targetNodeId, &o->component);
             fieldindex++;
             break;
         default:
@@ -1408,6 +1408,9 @@ UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
     for(size_t i = 0; i < dsmCount; i++) {
         UA_DataSetMessage_clear(&dsmStore[i]);
     }
+
+    if(res != UA_STATUSCODE_GOOD)
+        UA_PubSubOffsetTable_clear(ot);
 
     unlockServer(server);
     return res;
