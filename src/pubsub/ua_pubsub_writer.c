@@ -345,59 +345,6 @@ UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
 /*               PublishValues handling                  */
 /*********************************************************/
 
-/* Compare two variants. Internally used for value change detection. */
-static UA_Boolean
-valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue) {
-    if(!oldValue || !newValue)
-        return false;
-
-    size_t oldValueEncodingSize = UA_calcSizeBinary(oldValue, &UA_TYPES[UA_TYPES_VARIANT], NULL);
-    size_t newValueEncodingSize = UA_calcSizeBinary(newValue, &UA_TYPES[UA_TYPES_VARIANT], NULL);
-    if(oldValueEncodingSize == 0 || newValueEncodingSize == 0)
-        return false;
-
-    if(oldValueEncodingSize != newValueEncodingSize)
-        return true;
-
-    UA_ByteString oldValueEncoding = UA_BYTESTRING_NULL;
-    UA_StatusCode res = UA_ByteString_allocBuffer(&oldValueEncoding, oldValueEncodingSize);
-    if(res != UA_STATUSCODE_GOOD)
-        return false;
-
-    UA_ByteString newValueEncoding = UA_BYTESTRING_NULL;
-    res = UA_ByteString_allocBuffer(&newValueEncoding, newValueEncodingSize);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_ByteString_clear(&oldValueEncoding);
-        return false;
-    }
-
-    UA_Byte *bufPosOldValue = oldValueEncoding.data;
-    const UA_Byte *bufEndOldValue = &oldValueEncoding.data[oldValueEncoding.length];
-    UA_Byte *bufPosNewValue = newValueEncoding.data;
-    const UA_Byte *bufEndNewValue = &newValueEncoding.data[newValueEncoding.length];
-
-    UA_Boolean compareResult = false; /* default */
-
-    res = UA_encodeBinaryInternal(oldValue, &UA_TYPES[UA_TYPES_VARIANT],
-                                  &bufPosOldValue, &bufEndOldValue, NULL, NULL, NULL);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    res = UA_encodeBinaryInternal(newValue, &UA_TYPES[UA_TYPES_VARIANT],
-                                  &bufPosNewValue, &bufEndNewValue, NULL, NULL, NULL);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    oldValueEncoding.length = (uintptr_t)bufPosOldValue - (uintptr_t)oldValueEncoding.data;
-    newValueEncoding.length = (uintptr_t)bufPosNewValue - (uintptr_t)newValueEncoding.data;
-    compareResult = !UA_ByteString_equal(&oldValueEncoding, &newValueEncoding);
-
- cleanup:
-    UA_ByteString_clear(&oldValueEncoding);
-    UA_ByteString_clear(&newValueEncoding);
-    return compareResult;
-}
-
 static UA_StatusCode
 UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
                                                UA_DataSetMessage *dataSetMessage,
@@ -494,7 +441,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
 
         /* Check if the value has changed */
         UA_DataSetWriterSample *ls = &dsw->lastSamples[counter];
-        if(valueChangedVariant(&ls->value.value, &value.value)) {
+        if(!UA_Variant_equal(&ls->value.value, &value.value)) {
             /* increase fieldCount for current delta message */
             dsm->data.deltaFrameData.fieldCount++;
             ls->valueChanged = true;
