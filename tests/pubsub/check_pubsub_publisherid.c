@@ -168,7 +168,6 @@ AddDataSetReader(UA_NodeId *pReaderGroupId, char *pName,
     readerConfig.messageSettings.content.decoded.data = dsReaderMessage;
     if (UseRawEncoding) {
         readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
-        readerConfig.expectedEncoding = UA_PUBSUB_RT_RAW;
     } else {
         readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_NONE;
     }

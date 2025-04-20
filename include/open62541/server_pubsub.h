@@ -678,14 +678,6 @@ UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId);
  * on the Subscriber side. DataSetReader must be linked with a
  * SubscribedDataSet and be contained within a ReaderGroup. */
 
-typedef enum {
-    UA_PUBSUB_RT_UNKNOWN = 0,
-    UA_PUBSUB_RT_VARIANT = 1,
-    UA_PUBSUB_RT_DATA_VALUE = 2,
-    UA_PUBSUB_RT_RAW = 4,
-} UA_PubSubRtEncoding;
-
-/* Parameters for PubSub DataSetReader Configuration */
 typedef struct {
     UA_String name;
     UA_PublisherId publisherId;
@@ -707,7 +699,6 @@ typedef struct {
     } subscribedDataSet;
     /* non std. fields */
     UA_String linkedStandaloneSubscribedDataSetName;
-    UA_PubSubRtEncoding expectedEncoding;
 
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
 } UA_DataSetReaderConfig;
