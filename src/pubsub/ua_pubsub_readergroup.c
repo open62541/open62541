@@ -477,6 +477,109 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     return processed;
 }
 
+UA_StatusCode
+UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
+                                    UA_ReaderGroup *rg,
+                                    UA_ByteString buffer,
+                                    UA_NetworkMessage *nm) {
+    /* Set up the decoding context */
+    PubSubDecodeCtx ctx;
+    memset(&ctx, 0, sizeof(PubSubDecodeCtx));
+    ctx.ctx.pos = buffer.data;
+    ctx.ctx.end = buffer.data + buffer.length;
+    ctx.ctx.opts.customTypes = psm->sc.server->config.customDataTypes;
+
+    /* Decode the headers. This sets the number of DataSetMessages and retrieves
+     * the DataSetWriterIds. Those get matched to the readers below. */
+    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(&ctx, nm);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, rg,
+                              "PubSub receive. decoding headers failed");
+        UA_NetworkMessage_clear(nm);
+        return rv;
+    }
+
+    /* Find a matching reader. Otherwise skip for this ReaderGroup */
+    UA_DataSetReader *dsr;
+    LIST_FOREACH(dsr, &rg->readers, listEntry) {
+        rv = UA_DataSetReader_checkIdentifier(psm, dsr, nm);
+        if(rv == UA_STATUSCODE_GOOD)
+            break;
+    }
+
+    if(!dsr) {
+        UA_NetworkMessage_clear(nm);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    /* Decrypt */
+    rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx.ctx, nm, rg);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_NetworkMessage_clear(nm);
+        return rv;
+    }
+
+    /* Prepare the metadata with information from the readers to decode the
+     * DataSetMessages */
+    size_t i = 0;
+    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, rg->readersCount);
+    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * rg->readersCount);
+    ctx.eo.metaData = emd;
+    ctx.eo.metaDataSize = rg->readersCount;
+    LIST_FOREACH(dsr, &rg->readers, listEntry) {
+        emd[i].dataSetWriterId = dsr->config.dataSetWriterId;
+        emd[i].fields = dsr->config.dataSetMetaData.fields;
+        emd[i].fieldsSize = dsr->config.dataSetMetaData.fieldsSize;
+        i++;
+    }
+
+    /* Decode the payload */
+    rv = UA_NetworkMessage_decodePayload(&ctx, nm);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_NetworkMessage_clear(nm);
+        return rv;
+    }
+
+    rv = UA_NetworkMessage_decodeFooters(&ctx, nm);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_NetworkMessage_clear(nm);
+        return rv;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
+                                        UA_ReaderGroup *rg,
+                                        UA_ByteString buffer,
+                                        UA_NetworkMessage *nm) {
+    /* Set up the decoding options */
+    UA_DecodeJsonOptions jo;
+    memset(&jo, 0, sizeof(jo));
+    jo.customTypes = psm->sc.server->config.customDataTypes;
+
+    /* Prepare the metadata with information from the readers to decode the
+     * DataSetMessages */
+    UA_NetworkMessage_EncodingOptions eo;
+    size_t i = 0;
+    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, rg->readersCount);
+    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * rg->readersCount);
+    eo.metaData = emd;
+    eo.metaDataSize = rg->readersCount;
+
+    UA_DataSetReader *dsr;
+    LIST_FOREACH(dsr, &rg->readers, listEntry) {
+        emd[i].dataSetWriterId = dsr->config.dataSetWriterId;
+        emd[i].fields = dsr->config.dataSetMetaData.fields;
+        emd[i].fieldsSize = dsr->config.dataSetMetaData.fieldsSize;
+        i++;
+    }
+
+    /* Decode */
+    return UA_NetworkMessage_decodeJson(&buffer, nm, &eo, &jo);
+}
+
 /******************************/
 /* Decrypt the NetworkMessage */
 /******************************/
@@ -739,10 +842,10 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
     if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
-        res = UA_PubSubConnection_decodeNetworkMessage(psm, rg->linkedConnection, msg, &nm);
+        res = UA_ReaderGroup_decodeNetworkMessage(psm, rg, msg, &nm);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
-        res = UA_NetworkMessage_decodeJson(&msg, &nm, NULL);
+        res = UA_ReaderGroup_decodeNetworkMessageJSON(psm, rg, msg, &nm);
 #else
         res = UA_STATUSCODE_BADNOTSUPPORTED;
 #endif
@@ -1096,18 +1199,17 @@ UA_PubSubDataSetReader_generateKeyFrameMessage(UA_Server *server,
     UA_TargetVariablesDataType *tv = &dsr->config.subscribedDataSet.target;
     dsm->header.dataSetMessageValid = true;
     dsm->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
-    dsm->data.keyFrameData.fieldCount = (UA_UInt16) tv->targetVariablesSize;
-    dsm->data.keyFrameData.dataSetFields = (UA_DataValue *)
+    dsm->fieldCount = (UA_UInt16) tv->targetVariablesSize;
+    dsm->data.keyFrameFields = (UA_DataValue *)
             UA_Array_new(tv->targetVariablesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    if(!dsm->data.keyFrameData.dataSetFields)
+    if(!dsm->data.keyFrameFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    dsm->data.keyFrameData.dataSetMetaDataType =
-        &dsr->config.dataSetMetaData;
+    // XXX
 
      for(size_t counter = 0; counter < tv->targetVariablesSize; counter++) {
         /* Read the value and set the source in the reader config */
-        UA_DataValue *dfv = &dsm->data.keyFrameData.dataSetFields[counter];
+        UA_DataValue *dfv = &dsm->data.keyFrameFields[counter];
         UA_FieldTargetDataType *ftv = &tv->targetVariables[counter];
 
         UA_ReadValueId rvi;
@@ -1327,8 +1429,26 @@ UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
     UA_STACKARRAY(UA_DataSetReader *, dsrStore, rg->readersCount);
     memset(dsmStore, 0, sizeof(UA_DataSetMessage) * rg->readersCount);
 
-    size_t dsmCount = 0;
+    /* Prepare the encoding context */
+    PubSubEncodeCtx ctx;
+    memset(&ctx, 0, sizeof(PubSubEncodeCtx));
+    ctx.ot = ot;
+
+    /* Add the encoding metadata for the DataSetMessages */
+    size_t i = 0;
     UA_DataSetReader *dsr;
+    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, rg->readersCount);
+    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * rg->readersCount);
+    ctx.eo.metaData = emd;
+    ctx.eo.metaDataSize = rg->readersCount;
+    LIST_FOREACH(dsr, &rg->readers, listEntry) {
+        emd[i].dataSetWriterId = dsr->config.dataSetWriterId;
+        emd[i].fields = dsr->config.dataSetMetaData.fields;
+        emd[i].fieldsSize = dsr->config.dataSetMetaData.fieldsSize;
+        i++;
+    }
+
+    size_t dsmCount = 0;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
         dsrStore[dsmCount] = dsr;
@@ -1347,14 +1467,14 @@ UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
 
     /* Compute the message length and generate the old format offset-table (done
      * inside calcSizeBinary) */
-    msgSize = UA_NetworkMessage_calcSizeBinaryWithOffsetTable(&networkMessage, ot);
+    msgSize = UA_NetworkMessage_calcSizeBinaryInternal(&ctx, &networkMessage);
     if(msgSize == 0) {
         res = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
 
     /* Create the encoded network message */
-    res = UA_NetworkMessage_encodeBinary(&networkMessage, &ot->networkMessage);
+    res = UA_NetworkMessage_encodeBinary(&networkMessage, &ot->networkMessage, &ctx.eo);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
