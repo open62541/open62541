@@ -1619,7 +1619,7 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
         case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_TIMESTAMP:
         case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_PICOSECONDS:
         case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_GROUPVERSION:
-            UA_NodeId_copy(&wg->head.identifier, &o->component);
+            res |= UA_NodeId_copy(&wg->head.identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE:
             dsw = (dsw == NULL) ? LIST_FIRST(&wg->writers) : LIST_NEXT(dsw, listEntry);
@@ -1630,25 +1630,25 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_TIMESTAMP:
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_PICOSECONDS:
             UA_assert(dsw);
-            UA_NodeId_copy(&dsw->head.identifier, &o->component);
+            res |= UA_NodeId_copy(&dsw->head.identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE:
             UA_assert(dsw && dsw->connectedDataSet);
             field = (field == NULL) ?
                 TAILQ_FIRST(&dsw->connectedDataSet->fields) : TAILQ_NEXT(field, listEntry);
-            UA_NodeId_copy(&field->identifier, &o->component);
+            res |= UA_NodeId_copy(&field->identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT:
             UA_assert(dsw && dsw->connectedDataSet);
             field = (field == NULL) ?
                 TAILQ_FIRST(&dsw->connectedDataSet->fields) : TAILQ_NEXT(field, listEntry);
-            UA_NodeId_copy(&field->identifier, &o->component);
+            res |= UA_NodeId_copy(&field->identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW:
             UA_assert(dsw && dsw->connectedDataSet);
             field = (field == NULL) ?
                 TAILQ_FIRST(&dsw->connectedDataSet->fields) : TAILQ_NEXT(field, listEntry);
-            UA_NodeId_copy(&field->identifier, &o->component);
+            res |= UA_NodeId_copy(&field->identifier, &o->component);
             break;
         default:
             break;
@@ -1657,6 +1657,9 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
 
     /* Clean up */
  cleanup:
+    if(res != UA_STATUSCODE_GOOD)
+        UA_PubSubOffsetTable_clear(ot);
+
     for(size_t i = 0; i < dsmCount; i++) {
         UA_DataSetMessage_clear(&dsmStore[i]);
     }
