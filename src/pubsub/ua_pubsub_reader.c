@@ -390,7 +390,6 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
     memset(dst, 0, sizeof(UA_DataSetReaderConfig));
     dst->writerGroupId = src->writerGroupId;
     dst->dataSetWriterId = src->dataSetWriterId;
-    dst->expectedEncoding = src->expectedEncoding;
     dst->dataSetFieldContentMask = src->dataSetFieldContentMask;
     dst->messageReceiveTimeout = src->messageReceiveTimeout;
 
