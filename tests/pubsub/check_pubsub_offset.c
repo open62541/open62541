@@ -284,7 +284,9 @@ START_TEST(SubscriberOffsets) {
 
     /* Print the Offset Table */
     UA_PubSubOffsetTable ot;
-    UA_Server_computeReaderGroupOffsetTable(server, readerGroupIdentifier, &ot);
+    UA_StatusCode res =
+        UA_Server_computeReaderGroupOffsetTable(server, readerGroupIdentifier, &ot);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < ot.offsetsSize; i++) {
         UA_String out = UA_STRING_NULL;
         UA_NodeId_print(&ot.offsets[i].component, &out);
