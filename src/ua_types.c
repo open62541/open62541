@@ -197,7 +197,7 @@ UA_String_append(UA_String *s, const UA_String s2) {
 }
 
 UA_StatusCode
-UA_String_printf(UA_String *str, const char *format, ...) {
+UA_String_format(UA_String *str, const char *format, ...) {
     va_list args;
     va_start(args, format);
     UA_StatusCode ret = UA_String_vprintf(str, format, args);
@@ -206,7 +206,7 @@ UA_String_printf(UA_String *str, const char *format, ...) {
 }
 
 UA_StatusCode
-UA_String_vprintf(UA_String *str, const char *format, va_list args) {
+UA_String_vformat(UA_String *str, const char *format, va_list args) {
     /* Encode initially */
     int out = mp_vsnprintf((char*)str->data, str->length, format, args);
     if(out < 0)
