@@ -244,10 +244,16 @@ UA_INLINABLE(UA_String
  * If the length is too short, then UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED is
  * reported. Also in that case the string is printed as much as possible. */
 UA_EXPORT UA_StatusCode
-UA_String_printf(UA_String *str, const char *format, ...);
+UA_String_format(UA_String *str, const char *format, ...);
 
 UA_EXPORT UA_StatusCode
-UA_String_vprintf(UA_String *str, const char *format, va_list args);
+UA_String_vformat(UA_String *str, const char *format, va_list args);
+
+/* Old API */
+#define UA_String_printf(str, format, ...) \
+    UA_String_format(str, format, __VA_ARGS__)
+#define UA_String_vprintf(str, format, args) \
+    UA_String_vformat(str, format, args)
 
 /**
  * .. _datetime:
