@@ -235,6 +235,10 @@ UA_INLINABLE(UA_String
  * - %S - UA_String (not wrapped in quotation marks in the output)
  * - %N - UA_NodeId (using UA_NodeId_print)
  *
+ * Example usage:
+ *   UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 4711);
+ *   UA_String_format(outString, "Test %N", nodeId);
+ *
  * The output is written to the output string in the first argument. Memory of
  * sufficient length is allocated when the output string initially has zero
  * length.
