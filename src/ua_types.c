@@ -207,35 +207,48 @@ UA_String_format(UA_String *str, const char *format, ...) {
 
 UA_StatusCode
 UA_String_vformat(UA_String *str, const char *format, va_list args) {
+    /* Store a copy of the arguments for the second pass. va_list cannot be
+     * iterated twice. */
+    va_list args2;
+    va_copy(args2, args);
+
     /* Encode initially */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     int out = mp_vsnprintf((char*)str->data, str->length, format, args);
-    if(out < 0)
-        return UA_STATUSCODE_BADENCODINGERROR;
+    if(out < 0) {
+        res = UA_STATUSCODE_BADENCODINGERROR;
+        goto errout;
+    }
 
     /* Output length zero */
     if(out == 0) {
         str->length = 0;
         if(str->data == NULL)
             str->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
-        return UA_STATUSCODE_GOOD;
+        goto errout;
     }
 
     /* Encode into existing buffer. mp_snprintf adds a trailing \0. So out must
      * be truly smaller than str->length for success. */
     if(str->length > 0) {
-        if((size_t)out >= str->length)
-            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-        str->length = (size_t)out;
-        return UA_STATUSCODE_GOOD;
+        if((size_t)out < str->length) {
+            str->length = (size_t)out;
+        } else {
+            res = UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        }
+        goto errout;
     }
 
     /* Allocate and encode again (+1 length for the trailing \0) */
-    UA_StatusCode res = UA_ByteString_allocBuffer(str, (size_t)out + 1);
+    res = UA_ByteString_allocBuffer(str, (size_t)out + 1);
     if(res != UA_STATUSCODE_GOOD)
-        return res;
-    mp_vsnprintf((char*)str->data, str->length, format, args);
+        goto errout;
+    mp_vsnprintf((char*)str->data, str->length, format, args2);
     str->length--;
-    return UA_STATUSCODE_GOOD;
+
+ errout:
+    va_end(args2);
+    return res;
 }
 
 /* QualifiedName */
