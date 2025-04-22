@@ -209,7 +209,7 @@ START_TEST(Client_subscription_async) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
+    UA_Client_run_iterate(client, 1);
 
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_UInt32 subId = response.subscriptionId;

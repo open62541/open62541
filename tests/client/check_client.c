@@ -180,7 +180,7 @@ START_TEST(Client_renewSecureChannel) {
     UA_fakeSleep((UA_UInt32)((UA_Double)cc->secureChannelLifeTime * 0.8));
 
     /* Make the client renew the channel */
-    retval = UA_Client_run_iterate(client, 0);
+    retval = UA_Client_run_iterate(client, 1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Now read */
@@ -224,7 +224,7 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     for(int i = 0; i < 15; ++i) {
         UA_fakeSleep(1000);
         UA_Server_run_iterate(server, true);
-        retval = UA_Client_run_iterate(client, 0);
+        retval = UA_Client_run_iterate(client, 1);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
