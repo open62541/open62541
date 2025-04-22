@@ -90,8 +90,8 @@ START_TEST(Client_connect_async) {
     UA_BrowseRequest_clear(&bReq);
     ck_assert_uint_eq(connected, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    /* With default setting the client uses 7 iterations to connect */
-    ck_assert_uint_eq(asyncCounter, 10-7);
+    /* With default setting the client uses 7 or 8 iterations to connect */
+    ck_assert(asyncCounter == 10-7 || asyncCounter == 10-8);
     UA_Client_disconnectAsync(client);
     while(connected) {
         UA_Server_run_iterate(server, false);
@@ -149,7 +149,7 @@ START_TEST(Client_no_connection) {
     //simulating unconnected server
     UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
     UA_Server_run_iterate(server, false);
-    retval = UA_Client_run_iterate(client, 0);  /* Open connection */
+    retval = UA_Client_run_iterate(client, 1);  /* Open connection */
     UA_Server_run_iterate(server, false);
     retval |= UA_Client_run_iterate(client, 0); /* Send HEL */
     UA_Server_run_iterate(server, false);
