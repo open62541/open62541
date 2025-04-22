@@ -10,7 +10,6 @@ jobs:
         os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
         build:
           - name: "Debug Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq mosquitto
             cmd_action: unit_tests
 
           - name: "Debug Build & Unit Tests (gcc, 32bit)"
@@ -34,21 +33,21 @@ jobs:
 
           - name: "Debug Build & Unit Tests (clang-11)"
             runs_on: "ubuntu-20.04"
-            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 mosquitto
+            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11
             cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
 
           - name: "Debug Build & Unit Tests (clang-15)"
             runs_on: "ubuntu-22.04"
-            cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 mosquitto && sudo sysctl -w vm.mmap_rnd_bits=28
+            cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 && sudo sysctl -w vm.mmap_rnd_bits=28
             cmd_action: CC=clang-15 CXX=clang++-15 unit_tests
 
           - name: "Debug Build & Unit Tests (clang-18)"
             runs_on: "ubuntu-24.04"
-            cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 mosquitto && sudo sysctl -w vm.mmap_rnd_bits=28
+            cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 && sudo sysctl -w vm.mmap_rnd_bits=28
             cmd_action: CC=clang-18 CXX=clang++-18 unit_tests
 
           - name: "Debug Build & Unit Tests (tcc)"
-            cmd_deps: sudo apt-get install -y -qq tcc mosquitto
+            cmd_deps: sudo apt-get install -y -qq tcc
             cmd_action: CC=tcc unit_tests
 
           - name: "Encryption (MbedTLS) Build & Unit Tests (gcc)"
@@ -173,45 +172,63 @@ jobs:
 
           - name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
             runs_on: "ubuntu-24.04"
-            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
             cmd_action: unit_tests_valgrind MBEDTLS
 
           - name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
             runs_on: "ubuntu-24.04"
-            cmd_deps: sudo apt-get install -y -qq valgrind openssl mosquitto
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl
             cmd_action: unit_tests_valgrind OPENSSL
 
           - name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
             runs_on: "ubuntu-24.04"
-            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces
             cmd_action: examples_valgrind MBEDTLS MDNSD
 
           - name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
             runs_on: "ubuntu-24.04"
-            cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev mosquitto libavahi-client-dev libavahi-common-dev
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev
             cmd_action: examples_valgrind OPENSSL AVAHI
 
           - name: "Clang Static Analyzer (clang11)"
             runs_on: "ubuntu-20.04"
-            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev mosquitto
+            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
             cmd_action: CC=clang-11 CXX=clang++-11 build_clang_analyzer 11
 
           - name: "Clang Static Analyzer (clang15)"
             runs_on: "ubuntu-22.04"
-            cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 libmbedtls-dev mosquitto
+            cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 libmbedtls-dev
             cmd_action: CC=clang-15 CXX=clang++-15 build_clang_analyzer 15
 
           - name: "Clang Static Analyzer (clang18)"
             runs_on: "ubuntu-24.04"
-            cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 libmbedtls-dev mosquitto
+            cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 libmbedtls-dev
             cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18
 
           - name: "Build All Companion Specifications"
             cmd_action: build_all_companion_specs
 
     name: ${{ matrix.os }}-${{ matrix.build.name }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/marwinglaser/ci:${{ matrix.os }}
+      options: --privileged
+    services:
+      mosquitto:
+        image: eclipse-mosquitto:1.6-openssl
+    env:
+      OPEN62541_TEST_MQTT_BROKER: opc.mqtt://mosquitto:1883
     steps:
+      - name: Work around disabled ipv6 on actions container networks
+        run: |
+          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+          echo "Current IPv6 status on eth0: $IPV6"
+          [ "$IPV6" = "1" ] || exit
+
+          echo 0 | sudo tee /proc/sys/net/ipv6/conf/eth0/disable_ipv6 > /dev/null
+          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+          echo "New IPv6 status on eth0: $IPV6"
+          [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }
       - uses: actions/checkout@v4
         if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
         with:
@@ -220,10 +237,11 @@ jobs:
         if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y -qq python3-sphinx graphviz check libpcap-dev
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev
           ${{ matrix.build.cmd_deps }}
       - name: ${{ matrix.build.name }}
         if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
+        shell: bash
         run: source tools/ci/ci.sh && ${{ matrix.build.cmd_action }}
         env:
           ETHERNET_INTERFACE: eth0

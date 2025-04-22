@@ -273,6 +273,8 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
 endforeach()
 
 
+# TODO: remove when CMP0118 is NEW (cmake 3.20)
+set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h PROPERTIES GENERATED 1)
 add_library(autoinject ${UA_NODESETINJECTOR_SOURCE_FILES} ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c)
 set_target_properties(autoinject PROPERTIES PUBLIC_HEADER "${UA_NODESETINJECTOR_HEADER_FILES}")
 target_link_libraries(autoinject open62541)
