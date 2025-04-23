@@ -309,7 +309,8 @@ UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
     }
 
     /* Print the name */
-    memcpy(pos, qn->name.data, qn->name.length);
+    if(UA_LIKELY(qn->name.data != NULL))
+        memcpy(pos, qn->name.data, qn->name.length);
 
     UA_assert(output->length == (size_t)((UA_Byte*)pos + qn->name.length - output->data));
     return UA_STATUSCODE_GOOD;
