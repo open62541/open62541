@@ -78,7 +78,8 @@ UA_WriterGroup_removePublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) 
     if(wg->publishCallbackId == 0)
         return;
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
-    el->removeTimer(el, wg->publishCallbackId);
+    if(UA_LIKELY(el != NULL))
+        el->removeTimer(el, wg->publishCallbackId);
     wg->publishCallbackId = 0;
 }
 
