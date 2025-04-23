@@ -1352,6 +1352,8 @@ decodeMatrixVariant(ParseCtxXml *ctx, UA_Variant *dst) {
     /* Decode the array */
     ctx->index = oldIndex;
     ret = Array_decodeXml(ctx, &dst->arrayLength, dst->type);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
 
     /* Check that the ArrayDimensions match */
     size_t dimLen = 1;
