@@ -230,23 +230,23 @@ jobs:
           echo "New IPv6 status on eth0: $IPV6"
           [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }
       - uses: actions/checkout@v4
-        if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
+        if: matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os
         with:
           submodules: true
       - name: Install Dependencies
-        if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
+        if: matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os
         run: |
           sudo apt-get update
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev
           ${{ matrix.build.cmd_deps }}
       - name: ${{ matrix.build.name }}
-        if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
+        if: matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os
         shell: bash
         run: source tools/ci/ci.sh && ${{ matrix.build.cmd_action }}
         env:
           ETHERNET_INTERFACE: eth0
       - name: Upload coverage to Codecov
-        if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
+        if: matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

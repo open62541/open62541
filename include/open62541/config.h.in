@@ -244,7 +244,13 @@
 #  endif
 # elif defined(__has_include) && __has_include(<stdatomic.h>)
 #  define UA_HAVE_C11_ATOMICS
-#  include <stdatomic.h>
+#  ifdef __cplusplus
+#    include <atomic>
+#    define _Atomic(T) std::atomic<T>
+#    define atomic_uintptr_t std::atomic_uintptr_t
+#  else
+#    include <stdatomic.h>
+#  endif
 # elif !defined(HAVE_GCC_SYNC_BUILTINS)
 #  error Atomic operations not implemented
 # endif
