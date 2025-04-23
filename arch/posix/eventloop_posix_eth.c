@@ -283,6 +283,7 @@ ETH_close(UA_POSIXConnectionManager *pcm, ETH_FD *conn) {
                         &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
 
     /* Close the socket */
+    UA_RESET_ERRNO;
     int ret = UA_close(conn->rfd.fd);
     if(ret == 0) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -339,6 +340,7 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     UA_ByteString response = pcm->rxBuffer;;
 
     /* Receive */
+    UA_RESET_ERRNO;
 #ifndef UA_ARCHITECTURE_WIN32
     ssize_t ret = UA_recv(rfd->fd, (char*)response.data,
                           response.length, MSG_DONTWAIT);
@@ -444,6 +446,7 @@ ETH_openListenConnection(UA_EventLoopPOSIX *el, ETH_FD *conn,
     conn->rfd.listenEvents = UA_FDEVENT_IN;
 
     /* Set receiving to promiscuous (all target host addresses) */
+    UA_RESET_ERRNO;
     const UA_Boolean *promiscuous = (const UA_Boolean*)
         UA_KeyValueMap_getScalar(params, ethConnectionParams[ETH_PARAMINDEX_PROMISCUOUS].name,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
@@ -486,6 +489,7 @@ ETH_openListenConnection(UA_EventLoopPOSIX *el, ETH_FD *conn,
             return UA_STATUSCODE_GOOD;
         }
 
+        UA_RESET_ERRNO;
         struct packet_mreq mreq;
         memset(&mreq, 0, sizeof(struct packet_mreq));
         mreq.mr_ifindex = ifindex;
@@ -564,6 +568,7 @@ ETH_openSendConnection(UA_EventLoopPOSIX *el, ETH_FD *conn, const UA_KeyValueMap
         UA_KeyValueMap_getScalar(params, ethConnectionParams[ETH_PARAMINDEX_PRIORITY].name,
                                  &UA_TYPES[UA_TYPES_INT32]);
     if(soPriority) {
+        UA_RESET_ERRNO;
         int prioRes = UA_setsockopt(conn->rfd.fd, SOL_SOCKET, SO_PRIORITY,
                                  soPriority, sizeof(int));
         if(prioRes != 0) {
@@ -589,6 +594,7 @@ ETH_openSendConnection(UA_EventLoopPOSIX *el, ETH_FD *conn, const UA_KeyValueMap
                        "ETH %u\t| txtime feature not supported",
                        (unsigned)conn->rfd.fd);
 #else
+        UA_RESET_ERRNO;
         struct sock_txtime so_txtime_val;
         memset(&so_txtime_val, 0, sizeof(struct sock_txtime));
         so_txtime_val.clockid = el->clockSourceMonotonic;
@@ -716,6 +722,7 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     /* Configure a listen or a send connection */
     if(!listen || !*listen) {
         /* Get the source address for the interface */
+        UA_RESET_ERRNO;
         struct ifreq ifr;
         memcpy(ifr.ifr_name, ifname, interface->length);
         ifr.ifr_name[interface->length] = 0;
@@ -932,6 +939,7 @@ ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
         do {
             UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                          "ETH %u\t| Attempting to send", (unsigned)connectionId);
+            UA_RESET_ERRNO;
             size_t bytes_to_send = buf->length - nWritten;
 #ifdef SO_TXTIME
             if(txtime) {
@@ -963,6 +971,7 @@ ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                  * (blocking) */
                 int poll_ret;
                 do {
+                    UA_RESET_ERRNO;
                     poll_ret = UA_poll(&tmp_poll_fd, 1, 100);
                     if(poll_ret < 0 && UA_ERRNO != UA_INTERRUPTED) {
                         UA_LOG_SOCKET_ERRNO_WRAP(
