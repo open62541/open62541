@@ -1877,6 +1877,9 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
             ctx->index = dimIndex;
             res |= Array_decodeJson(ctx, (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
 
+            /* Help clang-analyzer */
+            UA_assert(dst->arrayDimensionsSize == 0 || dst->arrayDimensions);
+
             /* Validate the dimensions */
             size_t total = 1;
             for(size_t i = 0; i < dst->arrayDimensionsSize; i++)
