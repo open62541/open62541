@@ -1569,19 +1569,23 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_STATUS:
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_TIMESTAMP:
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_PICOSECONDS:
+            UA_assert(dsw);
             UA_NodeId_copy(&dsw->head.identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE:
+            UA_assert(dsw && dsw->connectedDataSet);
             field = (field == NULL) ?
                 TAILQ_FIRST(&dsw->connectedDataSet->fields) : TAILQ_NEXT(field, listEntry);
             UA_NodeId_copy(&field->identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT:
+            UA_assert(dsw && dsw->connectedDataSet);
             field = (field == NULL) ?
                 TAILQ_FIRST(&dsw->connectedDataSet->fields) : TAILQ_NEXT(field, listEntry);
             UA_NodeId_copy(&field->identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW:
+            UA_assert(dsw && dsw->connectedDataSet);
             field = (field == NULL) ?
                 TAILQ_FIRST(&dsw->connectedDataSet->fields) : TAILQ_NEXT(field, listEntry);
             UA_NodeId_copy(&field->identifier, &o->component);
