@@ -8,6 +8,11 @@ macro(set_parent VAR)
     set(VAR "${${VAR}}" PARENT_SCOPE)
 endmacro()
 
+define_property(TARGET PROPERTY UA_SOURCES
+                BRIEF_DOCS "Recursively collects the source files (c.) on which the target depends")
+define_property(TARGET PROPERTY UA_HEADERS
+                BRIEF_DOCS "Recursively collects the header files (.h) on which the target depends")
+
 set_default(open62541_TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
 
 # --------------- Generate NodeIds header ---------------------
@@ -76,6 +81,8 @@ function(ua_generate_nodeid_header)
     if(NOT TARGET ${TARGET_NAME})
         add_custom_target(${TARGET_NAME}
                           DEPENDS ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h)
+        set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_HEADERS
+                     ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h)
     endif()
 
     if(UA_GEN_ID_AUTOLOAD AND UA_ENABLE_NODESET_INJECTOR)
@@ -243,6 +250,10 @@ function(ua_generate_datatypes)
         add_custom_target(${TARGET_NAME}
                           DEPENDS ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
                                   ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h)
+        set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_SOURCES
+                     ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c)
+        set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_HEADERS
+                     ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h)
     endif()
 
     if(UA_GEN_DT_AUTOLOAD AND UA_ENABLE_NODESET_INJECTOR)
@@ -428,10 +439,21 @@ function(ua_generate_nodeset)
         add_custom_target(${TARGET_NAME}
                           DEPENDS ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c
                                   ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
+        set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_SOURCES
+                     ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c)
+        set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_HEADERS
+                     ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
     endif()
 
+    # Collect dependencies
     if(UA_GEN_NS_DEPENDS_TARGET)
         add_dependencies(${TARGET_NAME} ${UA_GEN_NS_DEPENDS_TARGET})
+        foreach(DEPEND ${UA_GEN_NS_DEPENDS_TARGET})
+          get_property(DEPEND_SOURCES TARGET ${DEPEND} PROPERTY UA_SOURCES)
+          set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_SOURCES ${DEPEND_SOURCES})
+          get_property(DEPEND_HEADERS TARGET ${DEPEND} PROPERTY UA_HEADERS)
+          set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_SOURCES ${DEPEND_HEADERS})
+        endforeach()
     endif()
 
     if(UA_GEN_NS_AUTOLOAD)
@@ -446,6 +468,10 @@ function(ua_generate_nodeset)
                                           "namespace${FILE_SUFFIX}"
                                   DEPENDS ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c
                                           ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
+                set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_SOURCES
+                             ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c)
+                set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_HEADERS
+                             ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
                 set_source_files_properties(${TARGET_NAME}-autoinjection PROPERTIES SYMBOLIC "true")
                 add_dependencies(${TARGET_NAME} open62541-generator-nodesetinjector)
                 add_dependencies(${TARGET_NAME} ${TARGET_NAME}-autoinjection)
@@ -463,15 +489,14 @@ function(ua_generate_nodeset)
                 endforeach()
 
                 list(APPEND UA_NODESETINJECTOR_GENERATORS ${TARGET_NAME})
-                set_parent(UA_NODESETINJECTOR_GENERATORS)
-
                 list(APPEND UA_NODESETINJECTOR_SOURCE_FILES ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c)
-                set_parent(UA_NODESETINJECTOR_SOURCE_FILES)
-
                 list(APPEND UA_NODESETINJECTOR_HEADER_FILES ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
-                set_parent(UA_NODESETINJECTOR_HEADER_FILES)
             endif()
         endif()
+
+        set_parent(UA_NODESETINJECTOR_GENERATORS)
+        set_parent(UA_NODESETINJECTOR_SOURCE_FILES)
+        set_parent(UA_NODESETINJECTOR_HEADER_FILES)
     endif()
 
     string(REPLACE "-" "_" UA_GEN_NS_NAME ${UA_GEN_NS_NAME})
@@ -601,14 +626,14 @@ function(ua_generate_nodeset_and_datatypes)
     # directory if the bsd file is not specified.
     if("${UA_GEN_FILE_BSD}" STREQUAL "" AND NOT "${UA_GEN_FILE_CSV}" STREQUAL "")
         string(TOUPPER "${UA_GEN_NAME}" BSD_NAME)
+        set(UA_GEN_FILE_BSD "${PROJECT_BINARY_DIR}/bsd_files_gen/Opc.Ua.${BSD_NAME}.Types.bsd")
         file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/bsd_files_gen")
-        execute_process(COMMAND ${Python3_EXECUTABLE}
-                                ${open62541_TOOLS_DIR}/generate_bsd.py
-                                --xml ${UA_GEN_FILE_NS}
-                                ${PROJECT_BINARY_DIR}/bsd_files_gen/Opc.Ua.${BSD_NAME}.Types.bsd)
-        if(EXISTS "${PROJECT_BINARY_DIR}/bsd_files_gen/Opc.Ua.${BSD_NAME}.Types.bsd")
-            set(UA_GEN_FILE_BSD "${PROJECT_BINARY_DIR}/bsd_files_gen/Opc.Ua.${BSD_NAME}.Types.bsd")
-        endif()
+        add_custom_command(COMMAND ${Python3_EXECUTABLE}
+                                   ${open62541_TOOLS_DIR}/generate_bsd.py
+                                   --xml ${UA_GEN_FILE_NS} ${UA_GEN_FILE_BSD}
+                           OUTPUT ${UA_GEN_FILE_BSD}
+                           DEPEND ${UA_GEN_FILE_NS}
+                                  ${open62541_TOOLS_DIR}/generate_bsd.py)
     endif()
 
     if(NOT "${UA_GEN_FILE_BSD}" STREQUAL "")
