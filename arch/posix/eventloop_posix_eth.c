@@ -699,7 +699,9 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    res |= UA_EventLoopPOSIX_setReusable(sockfd);
+
+    /* SO_REUSEADDR is unnecessary (and unsupported on some Linux systems):
+     * res |= UA_EventLoopPOSIX_setReusable(sockfd); */
     res |= UA_EventLoopPOSIX_setNonBlocking(sockfd);
     res |= UA_EventLoopPOSIX_setNoSigPipe(sockfd);
     if(res != UA_STATUSCODE_GOOD)
