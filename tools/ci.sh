@@ -419,7 +419,11 @@ function build_clang_analyzer {
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_FORCE_WERROR=ON \
           ..
-    scan-build-11 --status-bugs make ${MAKEOPTS}
+    scan-build-$version \
+          --status-bugs \
+          --exclude ../src/util \
+          --exclude ../tests \
+          make ${MAKEOPTS}
 }
 
 ###################################################
