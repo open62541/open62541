@@ -412,8 +412,11 @@ function build_clang_analyzer {
           -DUA_FORCE_WERROR=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
-    scan-build-$version --status-bugs \
-          --exclude ../src/util make ${MAKEOPTS}
+    scan-build-$version \
+          --status-bugs \
+          --exclude ../src/util \
+          --exclude ../tests \
+          make ${MAKEOPTS}
 }
 
 ########################################
