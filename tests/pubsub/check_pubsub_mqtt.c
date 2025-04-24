@@ -13,7 +13,6 @@
 #include <check.h>
 #include <stdlib.h>
 
-#define TEST_MQTT_SERVER "opc.mqtt://localhost:1883"
 #define MQTT_CLIENT_ID               "TESTCLIENTPUBSUBMQTT"
 #define CONNECTIONOPTION_NAME        "mqttClientId"
 #define SUBSCRIBE_TOPIC              "customTopic"
@@ -31,6 +30,12 @@ UA_NodeId writerGroupIdent;
 
 UA_DataSetReaderConfig readerConfig;
 
+static char* get_mqtt_broker_address(void) {
+    char* broker = getenv("OPEN62541_TEST_MQTT_BROKER");
+    if (!broker) broker = "opc.mqtt://localhost:1883";
+    return broker;
+}
+
 static void setup(void) {
     server = UA_Server_new();
     ck_assert(server != NULL);
@@ -47,7 +52,7 @@ static void setup(void) {
     connectionConfig.enabled = UA_TRUE;
 
     /* configure address of the mqtt broker (local on default port) */
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING(TEST_MQTT_SERVER)};
+    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING(get_mqtt_broker_address())};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify

@@ -629,29 +629,18 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32") # GCC and Clang, possibly more
     endif()
 
-    if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
-        if(UA_ENABLE_HARDENING)
-            check_add_cc_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
-            check_add_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8
-            # future use (control flow integrity protection)
-            if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
-                check_add_cc_flag("-mcet")
-                check_add_cc_flag("-fcf-protection")
-            endif()
-        endif()
+    if(UA_ENABLE_HARDENING)
+        check_add_cc_flag("-fhardened") # See the GCC docs on which precise flags this enables
+    endif()
 
-        # IPO requires too much memory for unit tests
-        # GCC docu recommends to compile all files with the same options, therefore ignore it completely
-        if(NOT UA_BUILD_UNIT_TESTS AND NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
-            # needed to check if IPO is supported (check needs cmake > 3.9)
-            if("${CMAKE_VERSION}" VERSION_GREATER 3.9)
-                cmake_policy(SET CMP0069 NEW) # needed as long as required cmake < 3.9
-                include(CheckIPOSupported)
-                check_ipo_supported(RESULT CC_HAS_IPO) # Inter Procedural Optimization / Link Time Optimization (should be same as -flto)
-                if(CC_HAS_IPO)
-                    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
-                endif()
-            endif()
+    # Inter Procedural Optimization / Link Time Optimization (should be same as -flto)
+    # IPO requires too much memory for unit tests
+    # GCC docu recommends to compile all files with the same options, therefore ignore it completely
+    if(NOT UA_BUILD_UNIT_TESTS AND NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+        include(CheckIPOSupported)
+        check_ipo_supported(RESULT CC_HAS_IPO)
+        if(CC_HAS_IPO)
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
         endif()
     endif()
 
@@ -674,10 +663,6 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
         endif()
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
-    endif()
-
-    if(NOT MINGW AND UA_ENABLE_HARDENING AND ((CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")))
-        check_add_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)
     endif()
 
     # Strip release builds
@@ -1270,7 +1255,6 @@ ua_generate_nodeset(NAME "ns0" FILE ${UA_FILE_NODESETS}
 
 if(UA_ENABLE_NODESET_INJECTOR)
     message(STATUS "Nodesetinjector feature enabled")
-    cmake_minimum_required(VERSION 3.20)
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h
                        ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c
                        COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_injector/generate_nodesetinjector.py

@@ -2006,7 +2006,7 @@ DECODE_JSON(DateTime) {
     if(tokenSize == 0 || tokenData[tokenSize-1] != 'Z')
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    struct mytm dts;
+    struct musl_tm dts;
     memset(&dts, 0, sizeof(dts));
 
     size_t pos = 0;
@@ -2074,7 +2074,7 @@ DECODE_JSON(DateTime) {
     dts.tm_sec = (UA_UInt16)sec;
 
     /* Compute the seconds since the Unix epoch */
-    long long sinceunix = __tm_to_secs(&dts);
+    long long sinceunix = musl_tm_to_secs(&dts);
 
     /* Are we within the range that can be represented? */
     long long sinceunix_min =

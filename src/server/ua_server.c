@@ -632,6 +632,7 @@ verifyServerApplicationURI(const UA_Server *server) {
 UA_ServerStatistics
 UA_Server_getStatistics(UA_Server *server) {
     UA_ServerStatistics stat;
+    lockServer(server);
     stat.scs = server->secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType *sds = &server->serverDiagnosticsSummary;
     stat.ss.currentSessionCount = server->activeSessionCount;
@@ -640,6 +641,7 @@ UA_Server_getStatistics(UA_Server *server) {
     stat.ss.rejectedSessionCount = sds->rejectedSessionCount;
     stat.ss.sessionTimeoutCount = sds->sessionTimeoutCount;
     stat.ss.sessionAbortCount = sds->sessionAbortCount;
+    unlockServer(server);
     return stat;
 }
 
