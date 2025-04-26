@@ -20,8 +20,8 @@ set_default(open62541_TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
 # Generates header file from .csv which contains defines for every node id to be
 # used instead of numeric node ids.
 #
-# The resulting files will be put into OUTPUT_DIR with the names:
-# - NAME.h
+# The resulting files will be ${OUTPUT_DIR}/${NAME.h}
+# The resulting generator name is ${TARGET_PREFIX}-${TARGET_SUFFIX}
 #
 # The following arguments are accepted:
 #   Options:
@@ -32,39 +32,34 @@ set_default(open62541_TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
 #   Arguments taking one value:
 #
 #   NAME            Full name of the generated files, e.g. di_nodeids
-#   TARGET_SUFFIX   Suffix for the resulting target. e.g. ids-di
-#   [TARGET_PREFIX] Optional prefix for the resulting target. Default `open62541-generator`
 #   ID_PREFIX       Prefix for the generated node ID defines, e.g. NS_DI
-#   [OUTPUT_DIR]    Optional target directory for the generated files. Default is
-#                   '${PROJECT_BINARY_DIR}/src_generated'
+#   TARGET_SUFFIX   Suffix for the resulting target. e.g. ids-di
 #   FILE_CSV        Path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
+#   [TARGET_PREFIX] Optional prefix for the resulting target. Default `open62541-generator`
+#   [OUTPUT_DIR]    Optional target directory for the generated files. Default is
+#                   '${PROJECT_BINARY_DIR}/src_generated/open62541'
 
 function(ua_generate_nodeid_header)
     find_package(Python3 REQUIRED)
-
     set(options AUTOLOAD)
     set(oneValueArgs NAME ID_PREFIX OUTPUT_DIR FILE_CSV TARGET_SUFFIX TARGET_PREFIX)
-    set(multiValueArgs )
+    set(multiValueArgs)
     cmake_parse_arguments(UA_GEN_ID "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     # Argument checking
-    if(NOT UA_GEN_ID_TARGET_SUFFIX OR "${UA_GEN_ID_TARGET_SUFFIX}" STREQUAL "")
-        message(FATAL_ERROR "ua_generate_nodeid_header function requires TARGET_SUFFIX argument")
-    endif()
-
-    # Set default value for output dir
     set_default(UA_GEN_ID_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
-
-    # Set default target prefix
     set_default(UA_GEN_ID_TARGET_PREFIX "open62541-generator")
-
-    # Replace dash with underscore to make valid c literal
-    string(REPLACE "-" "_" UA_GEN_ID_NAME ${UA_GEN_ID_NAME})
+    if(NOT UA_GEN_ID_TARGET_SUFFIX OR "${UA_GEN_ID_TARGET_SUFFIX}" STREQUAL "")
+        message(FATAL_ERROR "TARGET_SUFFIX argument required")
+    endif()
 
     # Make sure that the output directory exists
     if(NOT EXISTS ${UA_GEN_ID_OUTPUT_DIR})
         file(MAKE_DIRECTORY ${UA_GEN_ID_OUTPUT_DIR})
     endif()
+
+    # Replace dash with underscore to make valid c literal
+    string(REPLACE "-" "_" UA_GEN_ID_NAME ${UA_GEN_ID_NAME})
 
     # Command generating the header containing defines for all NodeIds
     add_custom_command(COMMAND ${Python3_EXECUTABLE}
@@ -85,11 +80,11 @@ function(ua_generate_nodeid_header)
                      ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h)
     endif()
 
+    # Add to the injector list
     if(UA_GEN_ID_AUTOLOAD AND UA_ENABLE_NODESET_INJECTOR)
         list(APPEND UA_NODESETINJECTOR_GENERATORS ${TARGET_NAME})
         set_parent(UA_NODESETINJECTOR_GENERATORS)
     endif()
-
 endfunction()
 
 # --------------- Generate Datatypes ---------------------
