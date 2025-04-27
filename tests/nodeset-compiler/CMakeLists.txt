@@ -54,7 +54,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_TYPES_TESTS_PLC_SOURCES})
     add_dependencies(check_nodeset_compiler_plc open62541-generator-ns-tests-plc)
 
-    ua_add_test(check_client_nsMapping.c
+    ua_add_test(check_client_nsMapping.c EXTRASOURCES
             ${UA_NODESET_TESTS_DI_SOURCES}
             ${UA_NODESET_TESTS_PLC_SOURCES}
             ${UA_TYPES_TESTS_DI_SOURCES}
