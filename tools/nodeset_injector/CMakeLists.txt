@@ -269,57 +269,6 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     else()
         MESSAGE(WARNING "The specified nodeset '${MODEL}' is not supported or is misspelled.")
     endif()
-
 endforeach()
 
-
-# TODO: remove when CMP0118 is NEW (cmake 3.20)
-set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h PROPERTIES GENERATED 1)
-add_library(autoinject ${UA_NODESETINJECTOR_SOURCE_FILES} ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c)
-set_target_properties(autoinject PROPERTIES PUBLIC_HEADER "${UA_NODESETINJECTOR_HEADER_FILES}")
-target_link_libraries(autoinject open62541)
-
-# Create alias so that it can be found under open62541::autoinject
-add_library(open62541::autoinject ALIAS autoinject)
-
-# Define installation for the library
-install(TARGETS autoinject
-        EXPORT open62541Targets
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/autoinject
-        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-install(EXPORT open62541Targets
-        FILE open62541Targets.cmake
-        DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/open62541"
-        NAMESPACE open62541::)
-
-include(CMakePackageConfigHelpers)
-configure_package_config_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/autoinjectConfig.cmake.in
-        ${CMAKE_CURRENT_BINARY_DIR}/autoinjectConfig.cmake
-        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/open62541
-)
-
-install(FILES
-        ${CMAKE_CURRENT_BINARY_DIR}/autoinjectConfig.cmake
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/open62541
-)
-
-foreach(EXAMPLE_NAME ${UA_NODESETINJECTOR_EXAMPLE_NAMES})
-    if(UA_NODESETINJECTOR_GENERATORS)
-        target_link_libraries(${EXAMPLE_NAME} autoinject)
-        add_dependencies(${EXAMPLE_NAME} ${UA_NODESETINJECTOR_GENERATORS})
-    endif()
-endforeach()
-
-if(UA_BUILD_UNIT_TESTS)
-    foreach(TEST_NAME ${UA_NODESETINJECTOR_TEST_NAMES})
-        if(UA_NODESETINJECTOR_GENERATORS)
-            target_link_libraries(${TEST_NAME} autoinject)
-            add_dependencies(${TEST_NAME} ${UA_NODESETINJECTOR_GENERATORS})
-        endif()
-    endforeach()
-endif()
+set(UA_NODESETINJECTOR_SOURCE_FILES ${UA_NODESETINJECTOR_SOURCE_FILES} PARENT_SCOPE)

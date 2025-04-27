@@ -43,15 +43,6 @@ macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
     set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
     set_target_properties(${EXAMPLE_NAME} PROPERTIES
                           VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-
-    if(UA_ENABLE_NODESET_INJECTOR)
-        set(UA_NODESETINJECTOR_EXAMPLE_NAMES ${EXAMPLE_NAME} ${UA_NODESETINJECTOR_EXAMPLE_NAMES})
-        # If the nodeset injector is activated, the target must be built twice.
-        # Otherwise, it may result in the nodesets not being inserted.
-        add_custom_command(TARGET ${EXAMPLE_NAME} POST_BUILD
-                           COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}
-                                                    --target ${EXAMPLE_NAME})
-    endif()
 endmacro()
 
 #############
@@ -243,8 +234,5 @@ if(UA_ENABLE_NODESETLOADER)
 endif()
 
 if(UA_ENABLE_NODESET_INJECTOR)
-    set(UA_NODESETINJECTOR_GENERATORS ${UA_NODESETINJECTOR_GENERATORS} PARENT_SCOPE)
     set(UA_NODESETINJECTOR_SOURCE_FILES ${UA_NODESETINJECTOR_SOURCE_FILES} PARENT_SCOPE)
-    set(UA_NODESETINJECTOR_HEADER_FILES ${UA_NODESETINJECTOR_HEADER_FILES} PARENT_SCOPE)
-    set(UA_NODESETINJECTOR_EXAMPLE_NAMES ${UA_NODESETINJECTOR_EXAMPLE_NAMES} PARENT_SCOPE)
 endif()

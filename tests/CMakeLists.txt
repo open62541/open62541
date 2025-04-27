@@ -162,9 +162,6 @@ function(ua_add_test test_path_relative)
     target_compile_definitions(${TEST_NAME} PRIVATE -DUA_UNITTEST)
     set_target_properties(${TEST_NAME} PROPERTIES FOLDER "tests")
     add_test_valgrind(${TEST_NAME} ${TESTS_BINARY_DIR}/${TEST_NAME})
-    if(UA_ENABLE_NODESET_INJECTOR)
-        set(UA_NODESETINJECTOR_TEST_NAMES ${TEST_NAME} ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
-    endif()
 endfunction()
 
 ua_add_test(check_types_builtin.c)
@@ -433,10 +430,6 @@ endif()
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     ua_add_test(server/check_interfaces.c EXTRASOURCES ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c)
     target_include_directories(check_interfaces PRIVATE ${NODESET_COMPILER_OUTPUT_DIR})
-endif()
-
-if(UA_ENABLE_NODESET_INJECTOR)
-    set(UA_NODESETINJECTOR_TEST_NAMES ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
 endif()
 
 # Only do the network replay test for 64bit builds, as there is a bug in the Debian multi-arch installation

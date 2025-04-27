@@ -5,15 +5,25 @@ macro(set_default VAR DEFAULT)
 endmacro()
 
 macro(set_parent VAR)
-    set(VAR "${${VAR}}" PARENT_SCOPE)
+    set(${VAR} "${${VAR}}" PARENT_SCOPE)
 endmacro()
 
-define_property(TARGET PROPERTY UA_SOURCES
-                BRIEF_DOCS "Recursively collects the source files (c.) on which the target depends")
-define_property(TARGET PROPERTY UA_HEADERS
-                BRIEF_DOCS "Recursively collects the header files (.h) on which the target depends")
-
+# In a local dev environment, manually set the variables from open62541Config.cmake
 set_default(open62541_TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
+set_default(open62541_NS0_NODESETS ${UA_NS0_NODESET_FILES})
+set_default(open62541_SCHEMA_DIR ${UA_SCHEMA_DIR})
+
+# Set global variables to find targets and sources of dependencies
+function(export_target)
+    set(options)
+    set(oneValueArgs NAME TARGET)
+    set(multiValueArgs SOURCES)
+    cmake_parse_arguments(PARSE_ARGV 1 arg "${options}" "${oneValueArgs}" "${multiValueArgs}")
+    string(TOUPPER ${ARGV0} arg_NAME)
+    string(REPLACE "-" "_" arg_NAME ${arg_NAME})
+    set(${arg_NAME}_TARGET ${arg_TARGET} CACHE INTERNAL "")
+    set(${arg_NAME}_SOURCES ${arg_SOURCES} CACHE INTERNAL "")
+endfunction()
 
 # --------------- Generate NodeIds header ---------------------
 #
@@ -71,19 +81,23 @@ function(ua_generate_nodeid_header)
                        DEPENDS ${open62541_TOOLS_DIR}/generate_nodeid_header.py
                                ${UA_GEN_ID_FILE_CSV})
 
-    # Add the corresponding target
+    # Add the target depending on the generated file
     set(TARGET_NAME "${UA_GEN_ID_TARGET_PREFIX}-${UA_GEN_ID_TARGET_SUFFIX}")
     if(NOT TARGET ${TARGET_NAME})
-        add_custom_target(${TARGET_NAME}
-                          DEPENDS ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h)
-        set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_HEADERS
-                     ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h)
+        add_custom_target(${TARGET_NAME} DEPENDS ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h)
+        export_target(UA_${UA_GEN_ID_NAME}
+                      TARGET ${TARGET_NAME}
+                      SOURCES ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h)
     endif()
 
     # Add to the injector list
-    if(UA_GEN_ID_AUTOLOAD AND UA_ENABLE_NODESET_INJECTOR)
-        list(APPEND UA_NODESETINJECTOR_GENERATORS ${TARGET_NAME})
-        set_parent(UA_NODESETINJECTOR_GENERATORS)
+    if(UA_GEN_ID_AUTOLOAD)
+        if(NOT UA_ENABLE_NODESET_INJECTOR)
+            message(FATAL_ERROR "The AUTOLOAD flag requires the Nodesetinjector feature to be enabled")
+        endif()
+        add_dependencies(open62541-generator-nodesetinjector ${TARGET_NAME})
+        list(APPEND UA_NODESETINJECTOR_SOURCE_FILES ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h)
+        set_parent(UA_NODESETINJECTOR_SOURCE_FILES)
     endif()
 endfunction()
 
@@ -94,13 +108,12 @@ endfunction()
 # rest of the stack. Some nodesets come with custom datatypes. These datatype
 # structures first need to be generated so that the nodeset can use these types.
 #
-# The resulting files will be put into OUTPUT_DIR with the names:
-# - NAME_generated.c
-# - NAME_generated.h
-# - NAME_generated.rst (optional)
+# The resulting files will be put into ${OUTPUT_DIR} with the names:
+# - ${NAME}_generated.c
+# - ${NAME}_generated.h
+# - ${NAME}_generated.rst (optional / depends on GEN_DOC)
 #
-# The cmake resulting cmake target will be named like this:
-#   open62541-generator-${TARGET_SUFFIX}
+# The resulting cmake target is named ${TARGET_PREFIX}-${TARGET_SUFFIX}
 #
 # The following arguments are accepted:
 #   Options:
@@ -117,11 +130,11 @@ endfunction()
 #
 #   NAME            Full name of the generated files, e.g. ua_types_di
 #   TARGET_SUFFIX   Suffix for the resulting target. e.g. types-di
+#   FILE_CSV        Path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
 #   [TARGET_PREFIX] Optional prefix for the resulting target. Default
 #                   `open62541-generator`
 #   [OUTPUT_DIR]    Optional target directory for the generated files. Default is
-#                   '${PROJECT_BINARY_DIR}/src_generated'
-#   FILE_CSV        Path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
+#                   '${PROJECT_BINARY_DIR}/src_generated/open62541'
 #
 #   Arguments taking multiple values:
 #
@@ -131,7 +144,7 @@ endfunction()
 #   IMPORT_BSD      Combination of types array and path to the .bsd file containing
 #                   additional type definitions referenced by the FILES_BSD
 #                   files. The value is separated with a hash sign, i.e.
-#                   'UA_TYPES#${UA_SCHEMA_DIR}/Opc.Ua.Types.bsd' Multiple files
+#                   'UA_TYPES#${open62541_SCHEMA_DIR}/Opc.Ua.Types.bsd' Multiple files
 #                   can be passed which will all be imported.
 #   [FILES_SELECTED] Optional path to a simple text file which contains a list
 #                   of types which should be included in the generation. The
@@ -140,34 +153,36 @@ endfunction()
 
 function(ua_generate_datatypes)
     find_package(Python3 REQUIRED)
-
     set(options BUILTIN INTERNAL AUTOLOAD GEN_DOC)
     set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX OUTPUT_DIR FILE_XML FILE_CSV)
     set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     # Argument checking
+    set_default(UA_GEN_DT_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
+    set_default(UA_GEN_DT_TARGET_PREFIX "open62541-generator")
     if(NOT UA_GEN_DT_NAME OR "${UA_GEN_DT_NAME}" STREQUAL "")
-        message(FATAL_ERROR "ua_generate_datatype function requires the NAME argument")
+        message(FATAL_ERROR "NAME argument required")
     endif()
     if(NOT UA_GEN_DT_TARGET_SUFFIX OR "${UA_GEN_DT_TARGET_SUFFIX}" STREQUAL "")
-        message(FATAL_ERROR "ua_generate_datatype function requires the TARGET_SUFFIX argument")
+        message(FATAL_ERROR "TARGET_SUFFIX argument required")
     endif()
     if(NOT UA_GEN_DT_FILE_CSV OR "${UA_GEN_DT_FILE_CSV}" STREQUAL "")
-        message(FATAL_ERROR "ua_generate_datatype function requires the FILE_CSV argument")
+        message(FATAL_ERROR "FILE_CSV argument required")
     endif()
     if(NOT UA_GEN_DT_FILES_BSD OR "${UA_GEN_DT_FILES_BSD}" STREQUAL "")
-        message(FATAL_ERROR "ua_generate_datatype function requires the FILES_BSD argument")
+        message(FATAL_ERROR "FILES_BSD argument required")
     endif()
 
-    # Set default value for output dir
-    set_default(UA_GEN_DT_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
+    # Make sure that the output directory exists
+    if(NOT EXISTS ${UA_GEN_DT_OUTPUT_DIR})
+        file(MAKE_DIRECTORY ${UA_GEN_DT_OUTPUT_DIR})
+    endif()
 
-    # Set default target prefix
-    set_default(UA_GEN_DT_TARGET_PREFIX "open62541-generator")
+    # Replace dash with underscore to make valid c literal
+    string(REPLACE "-" "_" UA_GEN_DT_NAME ${UA_GEN_DT_NAME})
 
-    # ------ Add custom command and target -----
-
+    # Set up the arguments for the command
     set(UA_GEN_DT_NO_BUILTIN "--no-builtin")
     if(UA_GEN_DT_BUILTIN)
         set(UA_GEN_DT_NO_BUILTIN "")
@@ -197,14 +212,6 @@ function(ua_generate_datatypes)
     foreach(f ${UA_GEN_DT_IMPORT_BSD})
         set(IMPORT_BSD_TMP ${IMPORT_BSD_TMP} "--import=${f}")
     endforeach()
-
-    # Make sure that the output directory exists
-    if(NOT EXISTS ${UA_GEN_DT_OUTPUT_DIR})
-        file(MAKE_DIRECTORY ${UA_GEN_DT_OUTPUT_DIR})
-    endif()
-
-    # Replace dash with underscore to make valid c literal
-    string(REPLACE "-" "_" UA_GEN_DT_NAME ${UA_GEN_DT_NAME})
 
     if((MINGW) AND (DEFINED ENV{SHELL}))
         # fix issue 4156 that MINGW will do automatic Windows Path Conversion
@@ -245,30 +252,22 @@ function(ua_generate_datatypes)
         add_custom_target(${TARGET_NAME}
                           DEPENDS ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
                                   ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h)
-        set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_SOURCES
-                     ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c)
-        set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_HEADERS
-                     ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h)
+        export_target(UA_${UA_GEN_DT_NAME}
+                      TARGET ${TARGET_NAME}
+                      SOURCES ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
+                              ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h)
     endif()
 
-    if(UA_GEN_DT_AUTOLOAD AND UA_ENABLE_NODESET_INJECTOR)
-        list(APPEND UA_NODESETINJECTOR_GENERATORS ${TARGET_NAME})
-        set_parent(UA_NODESETINJECTOR_GENERATORS)
-        list(APPEND UA_NODESETINJECTOR_SOURCE_FILES
-             ${PROJECT_BINARY_DIR}/src_generated/open62541/${UA_GEN_DT_NAME}_generated.c)
+    # Add to the injector list
+    if(UA_GEN_DT_AUTOLOAD)
+        if(NOT UA_ENABLE_NODESET_INJECTOR)
+            message(FATAL_ERROR "The AUTOLOAD flag requires the Nodesetinjector feature to be enabled")
+        endif()
+        add_dependencies(open62541-generator-nodesetinjector ${TARGET_NAME})
+        list(APPEND UA_NODESETINJECTOR_SOURCE_FILES ${PROJECT_BINARY_DIR}/src_generated/open62541/${UA_GEN_DT_NAME}_generated.c
+                                                    ${PROJECT_BINARY_DIR}/src_generated/open62541/${UA_GEN_DT_NAME}_generated.h)
         set_parent(UA_NODESETINJECTOR_SOURCE_FILES)
-        list(APPEND UA_NODESETINJECTOR_HEADER_FILES
-             ${PROJECT_BINARY_DIR}/src_generated/open62541/${UA_GEN_DT_NAME}_generated.h)
-        set_parent(UA_NODESETINJECTOR_HEADER_FILES)
     endif()
-
-    string(TOUPPER "${UA_GEN_DT_NAME}" GEN_NAME_UPPER)
-    set(UA_${GEN_NAME_UPPER}_SOURCES
-        "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c"
-        CACHE INTERNAL "${UA_GEN_DT_NAME} source files")
-    set(UA_${GEN_NAME_UPPER}_HEADERS
-        "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h"
-        CACHE INTERNAL "${UA_GEN_DT_NAME} header files")
 endfunction()
 
 # --------------- Generate Nodeset ---------------------
@@ -281,7 +280,7 @@ endfunction()
 # - ua_namespace_NAME.h
 #
 # The resulting cmake target will be named like this:
-#   open62541-generator-ns-${NAME}
+#   {TARGET_PREFIX}-ns-${NAME}
 #
 # The following arguments are accepted:
 #   Options:
@@ -296,7 +295,7 @@ endfunction()
 #   [TYPES_ARRAY]   Optional name of the types array containing the custom
 #                   datatypes of this node set.
 #   [OUTPUT_DIR]    Optional target directory for the generated files. Default is
-#                   '${PROJECT_BINARY_DIR}/src_generated'
+#                   '${PROJECT_BINARY_DIR}/src_generated/open62541'
 #   [IGNORE]        Optional file containing a list of node ids which should be
 #                   ignored. The file should have one id per line.
 #   [TARGET_PREFIX] Optional prefix for the resulting target. Default `open62541-generator`
@@ -319,25 +318,20 @@ endfunction()
 
 function(ua_generate_nodeset)
     find_package(Python3 REQUIRED)
-
     set(options INTERNAL AUTOLOAD)
     set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST FILES_BSD)
     set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
     cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     # Argument checking
+    set_default(UA_GEN_NS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
+    set_default(UA_GEN_NS_TARGET_PREFIX "open62541-generator")
     if(NOT UA_GEN_NS_NAME OR "${UA_GEN_NS_NAME}" STREQUAL "")
-        message(FATAL_ERROR "ua_generate_nodeset function requires the NAME argument")
+        message(FATAL_ERROR "NAME argument required")
     endif()
     if(NOT UA_GEN_NS_FILE OR "${UA_GEN_NS_FILE}" STREQUAL "")
-        message(FATAL_ERROR "ua_generate_nodeset function requires the FILE argument")
+        message(FATAL_ERROR "FILE argument required")
     endif()
-
-    # Set default value for output dir
-    set_default(UA_GEN_NS_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
-
-    # Set default target prefix
-    set_default(UA_GEN_NS_TARGET_PREFIX "open62541-generator")
 
     # Set blacklist file
     set(GEN_BLACKLIST "")
@@ -357,8 +351,12 @@ function(ua_generate_nodeset)
         set(GEN_BSD_DEPENDS "${UA_GEN_NS_FILES_BSD}")
     endif()
 
-    # ------ Add custom command and target -----
+    # Make sure that the output directory exists
+    if(NOT EXISTS ${UA_GEN_NS_OUTPUT_DIR})
+        file(MAKE_DIRECTORY ${UA_GEN_NS_OUTPUT_DIR})
+    endif()
 
+    # Set up the command
     set(GEN_INTERNAL_HEADERS "")
     if(UA_GEN_NS_INTERNAL)
         set(GEN_INTERNAL_HEADERS "--internal-headers")
@@ -389,6 +387,8 @@ function(ua_generate_nodeset)
         # Replace dash with underscore to make valid c literal
         string(REPLACE "-" "_" TYPE_ARRAY ${UA_GEN_NS_TYPES_ARRAY})
         set(TYPES_ARRAY_LIST ${TYPES_ARRAY_LIST} "--types-array=${TYPE_ARRAY}")
+    else()
+        set(UA_GEN_NS_TYPES_ARRAY "")
     endif()
 
     set(DEPENDS_FILE_LIST "")
@@ -399,11 +399,6 @@ function(ua_generate_nodeset)
     foreach(f ${UA_GEN_NS_FILE})
         set(FILE_LIST ${FILE_LIST} "--xml=${f}")
     endforeach()
-
-    # Make sure that the output directory exists
-    if(NOT EXISTS ${UA_GEN_NS_OUTPUT_DIR})
-        file(MAKE_DIRECTORY ${UA_GEN_NS_OUTPUT_DIR})
-    endif()
 
     add_custom_command(COMMAND ${Python3_EXECUTABLE}
                                ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset_compiler.py
@@ -429,95 +424,59 @@ function(ua_generate_nodeset)
                                ${GEN_BLACKLIST_DEPENDS}
                                ${GEN_BSD_DEPENDS})
 
-    set(TARGET_NAME ${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX})
-    if(NOT TARGET ${TARGET_NAME})
-        add_custom_target(${TARGET_NAME}
-                          DEPENDS ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c
-                                  ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
-        set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_SOURCES
-                     ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c)
-        set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_HEADERS
-                     ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
+    # Collect file names of type/nodeid sources
+    string(TOUPPER ${UA_GEN_NS_NAME} UA_GEN_NS_NAME_UPPER)
+    string(REPLACE "-" "_" UA_GEN_NS_NAME_UPPER ${UA_GEN_NS_NAME_UPPER})
+    set(TARGET_SOURCES ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c;
+                       ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
+    if(DEFINED UA_NODEIDS_${UA_GEN_NS_NAME_UPPER}_SOURCES)
+        list(APPEND TARGET_SOURCES ${UA_NODEIDS_${UA_GEN_NS_NAME_UPPER}_SOURCES})
+    endif()
+    if(DEFINED UA_TYPES_${UA_GEN_NS_NAME_UPPER}_SOURCES)
+        list(APPEND TARGET_SOURCES ${UA_TYPES_${UA_GEN_NS_NAME_UPPER}_SOURCES})
     endif()
 
-    # Collect dependencies
+    set(TARGET_NAME ${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX})
+    if(NOT TARGET ${TARGET_NAME})
+        # Generate the target
+        add_custom_target(${TARGET_NAME} DEPENDS ${TARGET_SOURCES})
+
+        # Export target and source names and also the nodeset
+        export_target(UA_NODESET_${UA_GEN_NS_NAME}
+                      TARGET ${TARGET_NAME} SOURCES ${TARGET_SOURCES})
+
+        # Export global variable for the nodeset xml files and types used for the target
+        list(APPEND UA_GEN_NS_DEPENDS_NS ${UA_GEN_NS_FILE})
+        list(REMOVE_DUPLICATES UA_GEN_NS_DEPENDS_NS)
+        set(UA_NODESET_${UA_GEN_NS_NAME_UPPER}_XML ${UA_GEN_NS_DEPENDS_NS} CACHE INTERNAL "")
+        list(APPEND UA_GEN_NS_TYPES_ARRAY ${UA_GEN_NS_DEPENDS_TYPES})
+        list(REMOVE_DUPLICATES UA_GEN_NS_TYPES_ARRAY)
+        set(UA_NODESET_${UA_GEN_NS_NAME_UPPER}_TYPES ${UA_GEN_NS_TYPES_ARRAY} CACHE INTERNAL "")
+    endif()
+
+    # Collect target dependencies
     if(UA_GEN_NS_DEPENDS_TARGET)
-        add_dependencies(${TARGET_NAME} ${UA_GEN_NS_DEPENDS_TARGET})
-        foreach(DEPEND ${UA_GEN_NS_DEPENDS_TARGET})
-          get_property(DEPEND_SOURCES TARGET ${DEPEND} PROPERTY UA_SOURCES)
-          set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_SOURCES ${DEPEND_SOURCES})
-          get_property(DEPEND_HEADERS TARGET ${DEPEND} PROPERTY UA_HEADERS)
-          set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_SOURCES ${DEPEND_HEADERS})
+        foreach(DEPEND_TARGET ${UA_GEN_NS_DEPENDS_TARGET})
+            # Is this a target name? If not, read from variable ${DEPEND_TARGET}_TARGET.
+            if(NOT TARGET ${DEPEND_TARGET})
+                string(TOUPPER ${DEPEND_TARGET} DEPEND_TARGET)
+                string(REPLACE "-" "_" DEPEND_TARGET UA_NODESET_${DEPEND_TARGET}_TARGET)
+                set(DEPEND_TARGET ${${DEPEND_TARGET}})
+            endif()
+            if(${DEPEND_TARGET})
+                add_dependencies(${TARGET_NAME} ${DEPEND_TARGET})
+            endif()
         endforeach()
     endif()
 
     if(UA_GEN_NS_AUTOLOAD)
         if(NOT UA_ENABLE_NODESET_INJECTOR)
-            message(WARNING "The AUTOLOAD flag is set. However, the Nodesetinjector feature isn't enabled.")
-        else()
-            if(NOT TARGET ${TARGET_NAME}-autoinjection)
-                add_custom_target(${TARGET_NAME}-autoinjection
-                                  COMMAND ${Python3_EXECUTABLE}
-                                          ${open62541_TOOLS_DIR}/nodeset_injector/generate_nodesetinjector_content.py
-                                          ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector
-                                          "namespace${FILE_SUFFIX}"
-                                  DEPENDS ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c
-                                          ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
-                set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_SOURCES
-                             ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c)
-                set_property(TARGET ${TARGET_NAME} APPEND PROPERTY UA_HEADERS
-                             ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
-                set_source_files_properties(${TARGET_NAME}-autoinjection PROPERTIES SYMBOLIC "true")
-                add_dependencies(${TARGET_NAME} open62541-generator-nodesetinjector)
-                add_dependencies(${TARGET_NAME} ${TARGET_NAME}-autoinjection)
-
-                # The dependency ensures that the generated code is in the
-                # correct order in the nodeset injector and that the required
-                # namespaces are loaded first. Otherwise it can happen that e.g.
-                # machinery is loaded before di, which does not work because
-                # machinery is based on di.
-                foreach(DEPEND ${UA_GEN_NS_DEPENDS_TARGET})
-                    string(FIND ${DEPEND} "open62541-generator-ns" POS)
-                    if(POS GREATER_EQUAL 0)
-                        add_dependencies(${TARGET_NAME}-autoinjection ${DEPEND}-autoinjection)
-                    endif()
-                endforeach()
-
-                list(APPEND UA_NODESETINJECTOR_GENERATORS ${TARGET_NAME})
-                list(APPEND UA_NODESETINJECTOR_SOURCE_FILES ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c)
-                list(APPEND UA_NODESETINJECTOR_HEADER_FILES ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
-            endif()
+            message(FATAL_ERROR "The AUTOLOAD flag requires the Nodesetinjector feature to be enabled")
         endif()
-
-        set_parent(UA_NODESETINJECTOR_GENERATORS)
+        add_dependencies(open62541-generator-nodesetinjector ${TARGET_NAME})
+        list(APPEND UA_NODESETINJECTOR_SOURCE_FILES ${TARGET_SOURCES})
         set_parent(UA_NODESETINJECTOR_SOURCE_FILES)
-        set_parent(UA_NODESETINJECTOR_HEADER_FILES)
     endif()
-
-    string(REPLACE "-" "_" UA_GEN_NS_NAME ${UA_GEN_NS_NAME})
-    string(TOUPPER "${UA_GEN_NS_NAME}" GEN_NAME_UPPER)
-
-    set_property(GLOBAL PROPERTY "UA_GEN_NS_DEPENDS_FILE_${UA_GEN_NS_NAME}"
-                 ${UA_GEN_NS_DEPENDS_NS} ${UA_GEN_NS_FILE})
-    set_property(GLOBAL PROPERTY "UA_GEN_NS_DEPENDS_TYPES_${UA_GEN_NS_NAME}"
-                 ${UA_GEN_NS_DEPENDS_TYPES} ${UA_GEN_NS_TYPES_ARRAY})
-
-    set_property(GLOBAL PROPERTY UA_NODESET_${GEN_NAME_UPPER}_SOURCES
-                 ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c)
-    set_property(GLOBAL PROPERTY UA_NODESET_${GEN_NAME_UPPER}_HEADERS
-                 ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
-    set_property(GLOBAL PROPERTY UA_NODESET_${GEN_NAME_UPPER}_TARGET
-                 ${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX})
-
-    set(UA_NODESET_${GEN_NAME_UPPER}_SOURCES
-        "${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c"
-        CACHE INTERNAL "UA_NODESET_${GEN_NAME_UPPER} source files")
-    set(UA_NODESET_${GEN_NAME_UPPER}_HEADERS
-        "${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h"
-        CACHE INTERNAL "UA_NODESET_${GEN_NAME_UPPER} header files")
-    set(UA_NODESET_${GEN_NAME_UPPER}_TARGET "${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}"
-        CACHE INTERNAL "UA_NODESET_${GEN_NAME_UPPER} target")
-
 endfunction()
 
 # --------------- Generate Nodeset and Datatypes ---------------------
@@ -536,8 +495,7 @@ endfunction()
 # needs to be generated with this function or with the ua_generate_nodeset
 # function.
 #
-# The resulting cmake target will be named like this:
-#   open62541-generator-ns-${NAME}
+# The resulting cmake target will be named ${TARGET_PREFIX}-ns-${NAME}
 #
 # The following arguments are accepted:
 #
@@ -581,65 +539,79 @@ endfunction()
 
 function(ua_generate_nodeset_and_datatypes)
     find_package(Python3 REQUIRED)
-
     set(options INTERNAL AUTOLOAD)
     set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD OUTPUT_DIR TARGET_PREFIX BLACKLIST)
     set(multiValueArgs DEPENDS IMPORT_BSD)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
-    if(NOT DEFINED UA_SCHEMA_DIR)
-        message(FATAL_ERROR "UA_SCHEMA_DIR must point to the directory that contains the schema files")
-    endif()
-
     # Argument checking
+    set_default(UA_GEN_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
+    set_default(UA_GEN_TARGET_PREFIX "open62541-generator")
     if(NOT UA_GEN_NAME OR "${UA_GEN_NAME}" STREQUAL "")
-        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires the NAME argument")
+        message(FATAL_ERROR "NAME argument required")
     endif()
     if(NOT UA_GEN_FILE_NS OR "${UA_GEN_FILE_NS}" STREQUAL "")
-        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires the FILE_NS argument")
+        message(FATAL_ERROR "FILE_NS argument required")
     endif()
-    if((NOT UA_GEN_FILE_CSV OR "${UA_GEN_FILE_CSV}" STREQUAL "") AND (NOT "${UA_GEN_FILE_BSD}" STREQUAL ""))
-        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_CSV argument if FILE_BSD is set")
+    if((NOT UA_GEN_FILE_CSV OR "${UA_GEN_FILE_CSV}" STREQUAL "") AND
+       (NOT "${UA_GEN_FILE_BSD}" STREQUAL ""))
+        message(FATAL_ERROR "FILE_CSV argument required if FILE_BSD is set")
     endif()
 
     string(TOUPPER "${UA_GEN_NAME}" GEN_NAME_UPPER)
+    string(REPLACE "-" "_" GEN_NAME_UPPER ${GEN_NAME_UPPER})
 
-    # Set default value for output dir
-    set_default(UA_GEN_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
-
-    # Set default target prefix
-    set_default(UA_GEN_TARGET_PREFIX "open62541-generator")
-
-    set(NODESET_DEPENDS_TARGET "")
-    set(NODESET_TYPES_ARRAY "UA_TYPES")
     set(NODESET_AUTOLOAD "")
     if(${UA_GEN_AUTOLOAD})
         set(NODESET_AUTOLOAD "AUTOLOAD")
     endif()
 
-    # Extracts the bsd from the xml file and creates a file in the build
-    # directory if the bsd file is not specified.
+    # If the bsd file is not specified, extract the bsd from the xml file and
+    # create a file in the build directory.
     if("${UA_GEN_FILE_BSD}" STREQUAL "" AND NOT "${UA_GEN_FILE_CSV}" STREQUAL "")
         string(TOUPPER "${UA_GEN_NAME}" BSD_NAME)
-        set(UA_GEN_FILE_BSD "${PROJECT_BINARY_DIR}/bsd_files_gen/Opc.Ua.${BSD_NAME}.Types.bsd")
         file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/bsd_files_gen")
-        add_custom_command(COMMAND ${Python3_EXECUTABLE}
-                                   ${open62541_TOOLS_DIR}/generate_bsd.py
-                                   --xml ${UA_GEN_FILE_NS} ${UA_GEN_FILE_BSD}
-                           OUTPUT ${UA_GEN_FILE_BSD}
-                           DEPEND ${UA_GEN_FILE_NS}
-                                  ${open62541_TOOLS_DIR}/generate_bsd.py)
+        set(UA_GEN_FILE_BSD_TMP "${PROJECT_BINARY_DIR}/bsd_files_gen/Opc.Ua.${BSD_NAME}.Types.bsd")
+        execute_process(COMMAND ${Python3_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_bsd.py
+                                --xml ${UA_GEN_FILE_NS} ${UA_GEN_FILE_BSD_TMP})
+        if(EXISTS "${UA_GEN_FILE_BSD_TMP}")
+            set(UA_GEN_FILE_BSD "${UA_GEN_FILE_BSD_TMP}")
+        endif()
+    endif()
+
+    set(NODESET_TYPES_ARRAY "UA_TYPES")
+    if(NOT "${UA_GEN_FILE_BSD}" STREQUAL "")
+        set(NODESET_TYPES_ARRAY "UA_TYPES_${GEN_NAME_UPPER}")
+    endif()
+
+    # All nodesets (besides ns0) depend on ns0
+    if(NOT ${UA_GEN_NAME} STREQUAL "ns0")
+        set(NODESET_DEPENDS ${open62541_NS0_NODESETS})
+        set(TYPES_DEPENDS "UA_TYPES")
+    endif()
+
+    # Add xml nodesets and types from the dependencies
+    foreach(f ${UA_GEN_DEPENDS})
+        string(TOUPPER ${f} f)
+        string(REPLACE "-" "_" f ${f})
+        if(DEFINED UA_NODESET_${f}_XML)
+            list(APPEND NODESET_DEPENDS "${UA_NODESET_${f}_XML}")
+        endif()
+        if(DEFINED UA_NODESET_${f}_TYPES)
+            list(APPEND TYPES_DEPENDS "${UA_NODESET_${f}_TYPES}")
+        endif()
+    endforeach()
+    list(REMOVE_DUPLICATES NODESET_DEPENDS)
+    list(REMOVE_DUPLICATES TYPES_DEPENDS)
+
+    set(NODESET_INTERNAL "")
+    if(${UA_GEN_INTERNAL})
+        set(NODESET_INTERNAL "INTERNAL")
     endif()
 
     if(NOT "${UA_GEN_FILE_BSD}" STREQUAL "")
-        string(REPLACE "-" "_" GEN_NAME_UPPER ${GEN_NAME_UPPER})
-        string(TOUPPER "${GEN_NAME_UPPER}" GEN_NAME_UPPER)
-        set(NODESET_TYPES_ARRAY "UA_TYPES_${GEN_NAME_UPPER}")
-        list(APPEND NODESET_DEPENDS_TARGET "${UA_GEN_TARGET_PREFIX}-ids-${UA_GEN_NAME}")
-        list(APPEND NODESET_DEPENDS_TARGET "${UA_GEN_TARGET_PREFIX}-types-${UA_GEN_NAME}")
-
-        # Generate datatypes for nodeset
-        ua_generate_datatypes(NAME "types_${UA_GEN_NAME}"
+        # Generates target ${UA_GEN_TARGET_PREFIX}-types-${UA_GEN_NAME}
+        ua_generate_datatypes(NAME types-${UA_GEN_NAME}
                               TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}"
                               TARGET_SUFFIX "types-${UA_GEN_NAME}"
                               FILE_XML "${UA_GEN_FILE_NS}"
@@ -649,7 +621,8 @@ function(ua_generate_nodeset_and_datatypes)
                               IMPORT_BSD "${UA_GEN_IMPORT_BSD}"
                               OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}")
 
-        ua_generate_nodeid_header(NAME "${UA_GEN_NAME}_nodeids"
+        # Generates target ${UA_GEN_TARGET_PREFIX}-ids-${UA_GEN_NAME}
+        ua_generate_nodeid_header(NAME nodeids-${UA_GEN_NAME}
                                   ID_PREFIX "${GEN_NAME_UPPER}"
                                   FILE_CSV "${UA_GEN_FILE_CSV}"
                                   OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}"
@@ -658,54 +631,19 @@ function(ua_generate_nodeset_and_datatypes)
                                   ${NODESET_AUTOLOAD})
     endif()
 
-    # Create a list of nodesets on which this nodeset depends on
-    if(NOT UA_GEN_DEPENDS OR "${UA_GEN_DEPENDS}" STREQUAL "" )
-        if(NOT UA_FILE_NS0_INTERNAL)
-            set(NODESET_DEPENDS "${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml")
-        else()
-            set(NODESET_DEPENDS "${UA_FILE_NS0_INTERNAL}")
-        endif()
-        set(TYPES_DEPENDS "UA_TYPES")
-    else()
-        foreach(f ${UA_GEN_DEPENDS})
-          if(EXISTS ${f})
-            list(APPEND NODESET_DEPENDS ${f})
-          else()
-            string(REPLACE "-" "_" DEPENDS_NAME "${f}")
-
-            get_property(DEPENDS_FILE GLOBAL PROPERTY "UA_GEN_NS_DEPENDS_FILE_${DEPENDS_NAME}")
-            if(NOT DEPENDS_FILE OR "${DEPENDS_FILE}" STREQUAL "")
-                message(FATAL_ERROR "Nodeset dependency ${f} needs to be generated before ${UA_GEN_NAME}")
-            endif()
-            list(APPEND NODESET_DEPENDS ${DEPENDS_FILE})
-
-            get_property(DEPENDS_TYPES GLOBAL PROPERTY "UA_GEN_NS_DEPENDS_TYPES_${DEPENDS_NAME}")
-            list(APPEND TYPES_DEPENDS ${DEPENDS_TYPES})
-
-            list(APPEND NODESET_DEPENDS_TARGET "${UA_GEN_TARGET_PREFIX}-ns-${f}")
-          endif()
-        endforeach()
-    endif()
-
-    set(NODESET_INTERNAL "")
-    if(${UA_GEN_INTERNAL})
-        set(NODESET_INTERNAL "INTERNAL")
-    endif()
-
+    # Generates target ${UA_GEN_TARGET_PREFIX}-ns-${UA_GEN_NAME}
     ua_generate_nodeset(NAME "${UA_GEN_NAME}"
                         FILE "${UA_GEN_FILE_NS}"
                         TYPES_ARRAY "${NODESET_TYPES_ARRAY}"
                         BLACKLIST "${UA_GEN_BLACKLIST}"
                         FILES_BSD "${UA_GEN_FILE_BSD}"
-                                  ${NODESET_INTERNAL}
-                                  ${NODESET_AUTOLOAD}
+                        ${NODESET_INTERNAL}
+                        ${NODESET_AUTOLOAD}
                         DEPENDS_TYPES ${TYPES_DEPENDS}
                         DEPENDS_NS ${NODESET_DEPENDS}
-                        DEPENDS_TARGET ${NODESET_DEPENDS_TARGET}
+                        DEPENDS_TARGET ${UA_GEN_DEPENDS}
                         OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}"
                         TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}")
 
-    set_parent(UA_NODESETINJECTOR_GENERATORS)
     set_parent(UA_NODESETINJECTOR_SOURCE_FILES)
-    set_parent(UA_NODESETINJECTOR_HEADER_FILES)
 endfunction()

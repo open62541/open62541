@@ -114,7 +114,3 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_TYPES_TESTS_TESTNODESET_SOURCES})
     add_dependencies(check_nodeset_compiler_testnodeset open62541-generator-ns-tests-testnodeset)
 endif()
-
-if(UA_ENABLE_NODESET_INJECTOR)
-    set(UA_NODESETINJECTOR_TEST_NAMES ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
-endif()
