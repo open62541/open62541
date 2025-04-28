@@ -455,7 +455,8 @@ UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
                                           void *loginContext) {
     AccessControlContext *context;
     UA_StatusCode sc = accessControl_default(config, allowAnonymous, userTokenPolicyUri,
-                                             0, NULL, loginCallback);
+                                             usernamePasswordLoginSize,
+                                             usernamePasswordLogin, loginCallback);
     if(sc != UA_STATUSCODE_GOOD)
         return sc;
 

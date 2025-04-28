@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include <check.h>
 
-#include "test_helpers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
@@ -61,7 +60,7 @@ static void setup(void) {
      * password */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize-1];
-    UA_AccessControl_defaultWithLoginCallback(config, true, &sp->policyUri,
+    UA_AccessControl_defaultWithLoginCallback(config, true, &sp->policyUri, 0, NULL,
                                               usernamePasswordLoginCallback, NULL);
 
     UA_Server_run_startup(server);
