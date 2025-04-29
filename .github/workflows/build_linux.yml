@@ -213,22 +213,22 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-        if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
+        if: matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os
         with:
           submodules: true
       - name: Install Dependencies
-        if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
+        if: matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os
         run: |
           sudo apt-get update
           sudo apt-get install -y -qq python3-sphinx graphviz check libpcap-dev
           ${{ matrix.build.cmd_deps }}
       - name: ${{ matrix.build.name }}
-        if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
+        if: matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os
         run: source tools/ci/ci.sh && ${{ matrix.build.cmd_action }}
         env:
           ETHERNET_INTERFACE: eth0
       - name: Upload coverage to Codecov
-        if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
+        if: matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
