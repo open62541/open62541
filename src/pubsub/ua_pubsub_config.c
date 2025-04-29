@@ -243,10 +243,10 @@ createPubSubConnection(UA_PubSubManager *psm, const UA_PubSubConnectionDataType 
         UA_Variant_setScalar(&(config.connectionTransportSettings),
                              connParams->transportSettings.content.decoded.data,
                              connParams->transportSettings.content.decoded.type);
-    } else {
+    } else if(connParams->transportSettings.encoding != UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
         UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                       "[UA_PubSubManager_createPubSubConnection] "
-                       "TransportSettings can not be read");
+               "[UA_PubSubManager_createPubSubConnection] "
+               "TransportSettings can not be read");
     }
 
     /* Load connection config */
