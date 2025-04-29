@@ -373,7 +373,7 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
                            UA_PubSubState_name(c->head.state));
         if(server->config.pubSubConfig.stateChangeCallback) {
             server->config.pubSubConfig.
-                stateChangeCallback(server, c->head.identifier, targetState, ret);
+                stateChangeCallback(server, c->head.identifier, c->head.state, ret);
         }
     }
 
