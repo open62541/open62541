@@ -16,12 +16,6 @@
 
 #include "ua_client_internal.h"
 
-struct UA_Client_MonitoredItem_ForDelete {
-    UA_Client *client;
-    UA_Client_Subscription *sub;
-    UA_UInt32 *monitoredItemId;
-};
-
 /*****************/
 /* Subscriptions */
 /*****************/
@@ -154,8 +148,10 @@ UA_Client_Subscriptions_create_async(UA_Client *client, const UA_CreateSubscript
     cc->clientData = sub;
 
     /* Send the request as asynchronous service call */
-    return __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
-                                    ua_Subscriptions_create_handler, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE],
+    return __UA_Client_AsyncService(client,
+                                    &request, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
+                                    ua_Subscriptions_create_handler,
+                                    &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE],
                                     cc, requestId);
 }
 
@@ -299,17 +295,17 @@ UA_Client_Subscriptions_modify_async(UA_Client *client,
     return res;
 }
 
+struct UA_Client_MonitoredItem_ForDelete {
+    UA_Client *client;
+    UA_Client_Subscription *sub;
+};
+
 static void *
 UA_MonitoredItem_delete_wrapper(void *data, UA_Client_MonitoredItem *mon) {
     struct UA_Client_MonitoredItem_ForDelete *deleteMonitoredItem =
         (struct UA_Client_MonitoredItem_ForDelete *)data;
-    if(deleteMonitoredItem != NULL) {
-        if(deleteMonitoredItem->monitoredItemId != NULL &&
-           (mon->monitoredItemId != *deleteMonitoredItem->monitoredItemId)) {
-            return NULL;
-        }
-        MonitoredItem_delete(deleteMonitoredItem->client, deleteMonitoredItem->sub, mon);
-    }
+    /* No need to remove from the zip-tree. We walk bottom up and free all elements. */
+    MonitoredItem_delete(deleteMonitoredItem->client, deleteMonitoredItem->sub, mon);
     return NULL;
 }
 
@@ -415,8 +411,10 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
     }
 
     /* Make the async call */
-    return __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
-                                    ua_Subscriptions_delete_handler, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE],
+    return __UA_Client_AsyncService(client,
+                                    &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
+                                    ua_Subscriptions_delete_handler,
+                                    &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE],
                                     dsc, requestId);
 }
 
@@ -472,7 +470,6 @@ MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
                      UA_Client_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
-    ZIP_REMOVE(MonitorItemsTree, &sub->monitoredItems, mon);
     if(mon->deleteCallback) {
         void *subC = sub->context;
         void *monC = mon->context;
@@ -503,8 +500,8 @@ MonitoredItems_CreateData_clear(UA_Client *client, MonitoredItems_CreateData *da
 }
 
 static void
-ua_MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
-                         UA_CreateMonitoredItemsResponse *response) {
+MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
+                      UA_CreateMonitoredItemsResponse *response) {
     UA_CreateMonitoredItemsRequest *request = &data->request;
     UA_Client_DeleteMonitoredItemCallback *deleteCallbacks = data->deleteCallbacks;
 
@@ -530,9 +527,9 @@ ua_MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
             continue;
         }
 
-        UA_Client_MonitoredItem *newMon = (UA_Client_MonitoredItem *)
+        UA_Client_MonitoredItem *mon = (UA_Client_MonitoredItem *)
             UA_malloc(sizeof(UA_Client_MonitoredItem));
-        if(!newMon) {
+        if(!mon) {
             void *subC = sub->context;
             UA_UInt32 subId = sub->subscriptionId;
             if(deleteCallbacks[i])
@@ -540,20 +537,19 @@ ua_MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
             continue;
         }
 
-        newMon->monitoredItemId = response->results[i].monitoredItemId;
-        newMon->clientHandle = request->itemsToCreate[i].requestedParameters.clientHandle;
-        newMon->context = data->contexts[i];
-        newMon->deleteCallback = deleteCallbacks[i];
-        newMon->handler.dataChangeCallback =
-            (UA_Client_DataChangeNotificationCallback)(uintptr_t)
-                data->handlingCallbacks[i];
-        newMon->isEventMonitoredItem =
+        mon->monitoredItemId = response->results[i].monitoredItemId;
+        mon->clientHandle = request->itemsToCreate[i].requestedParameters.clientHandle;
+        mon->context = data->contexts[i];
+        mon->deleteCallback = deleteCallbacks[i];
+        mon->handler.dataChangeCallback = (UA_Client_DataChangeNotificationCallback)
+            (uintptr_t)data->handlingCallbacks[i];
+        mon->isEventMonitoredItem =
             (request->itemsToCreate[i].itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
-        ZIP_INSERT(MonitorItemsTree, &sub->monitoredItems, newMon);
+        ZIP_INSERT(MonitorItemsTree, &sub->monitoredItems, mon);
 
         UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Subscription %" PRIu32 " | Added a MonitoredItem with handle %" PRIu32,
-                     sub->subscriptionId, newMon->clientHandle);
+                     sub->subscriptionId, mon->clientHandle);
     }
     return;
 
@@ -568,14 +564,13 @@ ua_MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
 }
 
 static void
-ua_MonitoredItems_create_async_handler(UA_Client *client, void *d, UA_UInt32 requestId,
-                                       void *r) {
+MonitoredItems_create_async_handler(UA_Client *client, void *d, UA_UInt32 requestId, void *r) {
     UA_CreateMonitoredItemsResponse *response = (UA_CreateMonitoredItemsResponse *)r;
     MonitoredItems_CreateData *data = (MonitoredItems_CreateData *)d;
 
     lockClient(client);
 
-    ua_MonitoredItems_create(client, data, response);
+    MonitoredItems_create(client, data, response);
     MonitoredItems_CreateData_clear(client, data);
 
     if(data->userCallback)
@@ -670,7 +665,7 @@ ua_Client_MonitoredItems_create(UA_Client *client,
                      response, &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE]);
 
     /* Add internal representation */
-    ua_MonitoredItems_create(client, &data, response);
+    MonitoredItems_create(client, &data, response);
 
     MonitoredItems_CreateData_clear(client, &data);
 }
@@ -706,7 +701,7 @@ createDataChanges_async(UA_Client *client, const UA_CreateMonitoredItemsRequest 
 
     return __Client_AsyncService(client, &data->request,
                                  &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
-                                 ua_MonitoredItems_create_async_handler,
+                                 MonitoredItems_create_async_handler,
                                  &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE],
                                  data, requestId);
 }
@@ -798,8 +793,10 @@ UA_Client_MonitoredItems_createEvents_async(UA_Client *client,
                                             void *userdata, UA_UInt32 *requestId) {
     lockClient(client);
     UA_StatusCode res =
-        createDataChanges_async(client, request, contexts, (void **)callbacks, deleteCallbacks,
-                                (UA_ClientAsyncServiceCallback)createCallback, userdata, requestId);
+        createDataChanges_async(client, request, contexts,
+                                (void **)callbacks, deleteCallbacks,
+                                (UA_ClientAsyncServiceCallback)createCallback,
+                                userdata, requestId);
     unlockClient(client);
     return res;
 }
@@ -833,33 +830,26 @@ UA_Client_MonitoredItems_createEvent(UA_Client *client, UA_UInt32 subscriptionId
 }
 
 static void
-ua_MonitoredItems_delete(UA_Client *client, UA_Client_Subscription *sub,
-                         const UA_DeleteMonitoredItemsRequest *request,
-                         const UA_DeleteMonitoredItemsResponse *response) {
-#ifdef __clang_analyzer__
-    return;
-#endif
-
-    /* Loop over deleted MonitoredItems */
-    struct UA_Client_MonitoredItem_ForDelete deleteMonitoredItem;
-    memset(&deleteMonitoredItem, 0, sizeof(struct UA_Client_MonitoredItem_ForDelete));
-    deleteMonitoredItem.client = client;
-    deleteMonitoredItem.sub = sub;
-
+MonitoredItems_delete(UA_Client *client, UA_Client_Subscription *sub,
+                      const UA_DeleteMonitoredItemsRequest *request,
+                      const UA_DeleteMonitoredItemsResponse *response) {
     for(size_t i = 0; i < response->resultsSize; i++) {
         if(response->results[i] != UA_STATUSCODE_GOOD &&
-           response->results[i] != UA_STATUSCODE_BADMONITOREDITEMIDINVALID) {
+           response->results[i] != UA_STATUSCODE_BADMONITOREDITEMIDINVALID)
             continue;
+        UA_Client_MonitoredItem *mon =
+            findMonitoredItemById(sub, request->monitoredItemIds[i]);
+        if(mon) {
+            ZIP_REMOVE(MonitorItemsTree, &sub->monitoredItems, mon);
+            MonitoredItem_delete(client, sub, mon);
+        } else {
+            response->results[i] = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         }
-        deleteMonitoredItem.monitoredItemId = &request->monitoredItemIds[i];
-        /* Delete the internal representation */
-        ZIP_ITER(MonitorItemsTree,&sub->monitoredItems,
-                 UA_MonitoredItem_delete_wrapper, &deleteMonitoredItem);
     }
 }
 
 static void
-ua_MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId, void *r) {
+MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId, void *r) {
     UA_Client_Subscription *sub = NULL;
     CustomCallback *cc = (CustomCallback *)d;
     UA_DeleteMonitoredItemsResponse *response = (UA_DeleteMonitoredItemsResponse *)r;
@@ -880,7 +870,7 @@ ua_MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId
     }
 
     /* Delete MonitoredItems from the internal representation */
-    ua_MonitoredItems_delete(client, sub, request, response);
+    MonitoredItems_delete(client, sub, request, response);
 
 cleanup:
     if(cc->userCallback)
@@ -916,7 +906,7 @@ UA_Client_MonitoredItems_delete(UA_Client *client,
     }
 
     /* Remove MonitoredItems in the internal representation */
-    ua_MonitoredItems_delete(client, sub, &request, &response);
+    MonitoredItems_delete(client, sub, &request, &response);
 
     unlockClient(client);
 
@@ -944,9 +934,11 @@ UA_Client_MonitoredItems_delete_async(UA_Client *client,
     cc->userCallback = (UA_ClientAsyncServiceCallback)callback;
     cc->userData = userdata;
 
-    return __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
-                                    ua_MonitoredItems_delete_handler,
-                                    &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE], cc, requestId);
+    return __UA_Client_AsyncService(client,
+                                    &request, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
+                                    MonitoredItems_delete_handler,
+                                    &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE],
+                                    cc, requestId);
 }
 
 UA_StatusCode
@@ -1052,7 +1044,7 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
 }
 
 static void *
-ua_MonitoredItem_findByID(void *data, UA_Client_MonitoredItem *mon) {
+MonitoredItem_findByID(void *data, UA_Client_MonitoredItem *mon) {
 	UA_UInt32 monitorId = *(UA_UInt32*)data;
 	if(monitorId && (mon->monitoredItemId == monitorId))
 		return mon;
@@ -1063,7 +1055,7 @@ static UA_Client_MonitoredItem *
 findMonitoredItemById(UA_Client_Subscription *sub, UA_UInt32 monitoredItemId) {
 	return (UA_Client_MonitoredItem *)
 		ZIP_ITER(MonitorItemsTree, &sub->monitoredItems,
-                 ua_MonitoredItem_findByID, &monitoredItemId);
+                 MonitoredItem_findByID, &monitoredItemId);
 }
 
 UA_StatusCode
