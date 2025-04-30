@@ -101,8 +101,8 @@ updatePubSubConfig(UA_PubSubManager *psm,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    //TODO: Stop running PDS and spin eventloop for a while
-
+    /* Stop the current PSM before clearing */
+    UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
     UA_PubSubManager_clear(psm);
 
     /* Configuration of Published DataSets: */
