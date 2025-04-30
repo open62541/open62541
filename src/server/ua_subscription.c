@@ -664,16 +664,17 @@ UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
         switch(mon->itemToMonitor.attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         case UA_ATTRIBUTEID_EVENTNOTIFIER:
-            /* Set the fields in the key-value map */
-            UA_assert(n->data.event.eventFieldsSize == localMon->eventFields.mapSize);
-            for(size_t i = 0; i < localMon->eventFields.mapSize; i++) {
-                localMon->eventFields.map[i].value = n->data.event.eventFields[i];
+            /* Set the fields in the key-value map. This is a shallow copy and
+             * the values must not be accessed after the callback. */
+            UA_assert(n->data.event.eventFieldsSize == mon->eventFields.mapSize);
+            for(size_t i = 0; i < mon->eventFields.mapSize; i++) {
+                mon->eventFields.map[i].value = n->data.event.eventFields[i];
             }
 
             /* Call the callback */
             localMon->callback.
-                eventCallback(server, mon->monitoredItemId, localMon->context,
-                              localMon->eventFields);
+                eventCallback(server, mon->monitoredItemId,
+                              localMon->context, mon->eventFields);
             break;
 #endif
         default:
@@ -1379,7 +1380,22 @@ UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
 
 static void
 delayedFreeMonitoredItem(void *app, void *context) {
-    UA_free(context);
+    UA_MonitoredItem *mon = (UA_MonitoredItem*)context;
+
+    /* Remove the settings */
+    UA_ReadValueId_clear(&mon->itemToMonitor);
+    UA_MonitoringParameters_clear(&mon->parameters);
+
+    /* Remove the last samples */
+    UA_DataValue_clear(&mon->lastValue);
+
+    /* If this is a local MonitoredItem, clean up additional values */
+    for(size_t i = 0; i < mon->eventFields.mapSize; i++) {
+        UA_Variant_init(&mon->eventFields.map[i].value);
+    }
+    UA_KeyValueMap_clear(&mon->eventFields);
+
+    UA_free(mon);
 }
 
 void
@@ -1404,21 +1420,6 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     UA_Notification *notification, *notification_tmp;
     TAILQ_FOREACH_SAFE(notification, &mon->queue, monEntry, notification_tmp) {
         UA_Notification_delete(notification);
-    }
-
-    /* Remove the settings */
-    UA_ReadValueId_clear(&mon->itemToMonitor);
-    UA_MonitoringParameters_clear(&mon->parameters);
-
-    /* Remove the last samples */
-    UA_DataValue_clear(&mon->lastValue);
-
-    /* If this is a local MonitoredItem, clean up additional values */
-    if(mon->subscription == server->adminSubscription) {
-        UA_LocalMonitoredItem *lm = (UA_LocalMonitoredItem*)mon;
-        for(size_t i = 0; i < lm->eventFields.mapSize; i++)
-            UA_Variant_init(&lm->eventFields.map[i].value);
-        UA_KeyValueMap_clear(&lm->eventFields);
     }
 
     /* Add a delayed callback to remove the MonitoredItem when the current jobs

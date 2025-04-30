@@ -168,6 +168,11 @@ struct UA_MonitoredItem {
                        * (maximum) queueSize in the parameters. */
     size_t eventOverflows; /* Separate counter for the queue. Can at most double
                             * the queue size */
+
+    /* For Event-MonitoredItems only. The value fields are overwritten before
+     * each callback. They can contain stray pointers between callbacks. So
+     * don't clean up the value fields. */
+    UA_KeyValueMap eventFields;
 };
 
 void UA_MonitoredItem_init(UA_MonitoredItem *mon);
