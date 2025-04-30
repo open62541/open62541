@@ -288,6 +288,7 @@ endfunction()
 #   [INTERNAL]      Optional argument. If given, then the generated node set code
 #                   will use internal headers.
 #   [AUTOLOAD]      Optional argument. If given, the nodeset is automatically attached to the server.
+#   [METHOD_CALLBACKS] Optional argument. If give, empty method callback stubs will be generated.
 #
 #   Arguments taking one value:
 #
@@ -318,7 +319,7 @@ endfunction()
 
 function(ua_generate_nodeset)
     find_package(Python3 REQUIRED)
-    set(options INTERNAL AUTOLOAD)
+    set(options INTERNAL AUTOLOAD METHOD_CALLBACKS)
     set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST FILES_BSD)
     set(multiValueArgs FILE DEPENDS_TYPES DEPENDS_NS DEPENDS_TARGET)
     cmake_parse_arguments(UA_GEN_NS "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
@@ -400,9 +401,16 @@ function(ua_generate_nodeset)
         set(FILE_LIST ${FILE_LIST} "--xml=${f}")
     endforeach()
 
+
+    set(GEN_METHOD_CALLBACKS "")
+    if(UA_GEN_NS_METHOD_CALLBACKS)
+        set(GEN_METHOD_CALLBACKS "--method-callbacks")
+    endif()
+
     add_custom_command(COMMAND ${Python3_EXECUTABLE}
                                ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset_compiler.py
                                ${GEN_INTERNAL_HEADERS}
+                               ${GEN_METHOD_CALLBACKS}
                                ${GEN_NS0}
                                ${GEN_BIN_SIZE}
                                ${GEN_IGNORE}
@@ -504,6 +512,7 @@ endfunction()
 #   INTERNAL        Include internal headers. Required if custom datatypes are added.
 #   [AUTOLOAD]      Optional argument. If given, the nodeset is automatically
 #                   attached to the server.
+#   [METHOD_CALLBACKS] Optional argument. If give, empty method callback stubs will be generated.
 #
 #   Arguments taking one value:
 #
@@ -539,7 +548,7 @@ endfunction()
 
 function(ua_generate_nodeset_and_datatypes)
     find_package(Python3 REQUIRED)
-    set(options INTERNAL AUTOLOAD)
+    set(options INTERNAL AUTOLOAD METHOD_CALLBACKS)
     set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD OUTPUT_DIR TARGET_PREFIX BLACKLIST)
     set(multiValueArgs DEPENDS IMPORT_BSD)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
@@ -564,6 +573,11 @@ function(ua_generate_nodeset_and_datatypes)
     set(NODESET_AUTOLOAD "")
     if(${UA_GEN_AUTOLOAD})
         set(NODESET_AUTOLOAD "AUTOLOAD")
+    endif()
+
+    set(METHOD_CALLBACKS "")
+    if (${UA_GEN_METHOD_CALLBACKS})
+        set(METHOD_CALLBACKS "METHOD_CALLBACKS")
     endif()
 
     # If the bsd file is not specified, extract the bsd from the xml file and
@@ -618,6 +632,7 @@ function(ua_generate_nodeset_and_datatypes)
                               FILE_CSV "${UA_GEN_FILE_CSV}"
                               FILES_BSD "${UA_GEN_FILE_BSD}"
                               ${NODESET_AUTOLOAD}
+                              ${METHOD_CALLBACKS}
                               IMPORT_BSD "${UA_GEN_IMPORT_BSD}"
                               OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}")
 
@@ -639,7 +654,8 @@ function(ua_generate_nodeset_and_datatypes)
                         FILES_BSD "${UA_GEN_FILE_BSD}"
                         ${NODESET_INTERNAL}
                         ${NODESET_AUTOLOAD}
-                        DEPENDS_TYPES ${TYPES_DEPENDS}
+                        ${METHOD_CALLBACKS}
+        DEPENDS_TYPES ${TYPES_DEPENDS}
                         DEPENDS_NS ${NODESET_DEPENDS}
                         DEPENDS_TARGET ${UA_GEN_DEPENDS}
                         OUTPUT_DIR "${UA_GEN_OUTPUT_DIR}"

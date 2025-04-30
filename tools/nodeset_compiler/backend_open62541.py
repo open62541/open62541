@@ -432,21 +432,200 @@ def generateNodeCode_begin(node, nodeset, code_global):
     code.extend(codeCleanup)
     return "\n".join(code)
 
-def generateNodeCode_finish(node):
+def generateNodeCode_finish(node, outfilebase, method_callbacks = False):
+    code = []
+
+    if isinstance(node, MethodNode):
+        code.append("UA_StatusCode retVal = UA_STATUSCODE_GOOD;")
+        code.append("retVal |= UA_Server_addMethodNode_finish(server, ")
+    else:
+        code.append("return UA_Server_addNode_finish(server, ")
+    code.append(generateNodeIdCode(node.id))
+
+    if isinstance(node, MethodNode):
+        code.append(", NULL, 0, NULL, 0, NULL);")
+        if method_callbacks:
+            code.append("retVal |= UA_Server_setMethodNode_callback(server, ")
+            code.append(generateNodeIdCode(node.id))
+            code.append(", " + getNodeMethodCallbackName(node, outfilebase) + ");")
+        code.append("return retVal;")
+    else:
+        code.append(");")
+
+    return "\n".join(code)
+
+def generateMethodNodeCodeStub(node, outfilebase):
     code = []
     if isinstance(node, MethodNode):
-        code.append("UA_Server_addMethodNode_finish(server, ")
-        code.append(generateNodeIdCode(node.id))
-        code.append(", NULL, 0, NULL, 0, NULL);")
-    else:
-        code.append("UA_Server_addNode_finish(server, ")
-        code.append(generateNodeIdCode(node.id))
-        code.append(");")
-    return "".join(code)
+        methodname = getNodeMethodCallbackName(node, outfilebase)
+        code.append("UA_StatusCode ")
+        code.append(methodname)
+        code.append("(UA_Server *server, const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *methodId, void *methodContext, const UA_NodeId *objectId, void *objectContext, size_t inputSize, const UA_Variant *input, size_t outputSize, UA_Variant *output);")
+    return "\n".join(code)
+
+def generateMethodNodeCodeStubBody(node, outfilebase, nodeset):
+    code = []
+    if isinstance(node, MethodNode):
+        methodname = getNodeMethodCallbackName(node, outfilebase)
+        code.append("UA_StatusCode ")
+        code.append(methodname)
+        code.append("(UA_Server *server, const UA_NodeId *sessionId, void *sessionHandle, const UA_NodeId *methodId, void *methodContext, const UA_NodeId *objectId, void *objectContext, size_t inputSize, const UA_Variant *input, size_t outputSize, UA_Variant *output) {")
+        code.append(getArgumentsInfo(node, nodeset))
+        code.append("return UA_STATUSCODE_BADNOTIMPLEMENTED;")
+        code.append("}")
+    return "\n".join(code)
+
+def getArgumentsInfo(node, nodeset):
+    code = []
+    if isinstance(node, MethodNode):
+        for ref in node.references:
+            target_node = nodeset.getNodeByIDString(str(ref.target))
+            if target_node is not None and isinstance(target_node, VariableNode):
+                if target_node.value is not None:
+                    code.append("/* {} arrayDimensions={} */".format(target_node.displayName, target_node.arrayDimensions))
+                    arguments = parse_arguments_from_value(target_node.value)
+                    for i in range(len(arguments)):
+                        arg = arguments[i]
+                        key = next((k for k, v in nodeset.aliases.items() if v == arg.dataTypeIdentifier), None)
+                        arg_node = None
+                        if key is None:
+                            refNodeIdString = NodeId(arg.dataTypeIdentifier)
+                            refNodeIdString.ns = nodeset.namespaceMapping[refNodeIdString.ns]
+                            arg_node = nodeset.getNodeByIDString(str(refNodeIdString))
+                        else:
+                            arg_node = nodeset.getNodeByBrowseName(str(key))
+
+                        if arg_node is not None:
+                            if target_node.displayName.text == "InputArguments":
+                                code.append("UA_{} {} = *(UA_{}*)input[{}].data;".format(
+                                    arg_node.displayName, arg.name.lower(), arg_node.displayName, i))
+                            elif target_node.displayName.text == "OutputArguments":
+                                code.append("UA_{} {};".format(
+                                    arg_node.displayName, arg.name.lower()))
+                                typesArrayName = get_types_array_name(arg_node)
+                                code.append("UA_init(&{}, &{}[{}_{}]);".format(arg.name.lower(), typesArrayName, typesArrayName, arg_node.displayName.text.upper()))
+                            code.append(get_members_info(arg_node))
+
+                        else:
+                            code.append("/ argument {} not found".format(arg.dataTypeIdentifier))
+
+    return "\n".join(code)
+
+def parse_arguments_from_value(value_node):
+    arguments = []
+
+    for list_node in value_node.childNodes:
+        if list_node.nodeType == list_node.ELEMENT_NODE and list_node.tagName == "ListOfExtensionObject":
+            for ext_obj in list_node.childNodes:
+                if ext_obj.nodeType == ext_obj.ELEMENT_NODE and ext_obj.tagName == "ExtensionObject":
+                    arguments.append(parse_extension_object(ext_obj))
+
+    return arguments
+
+
+def parse_extension_object(ext_obj_node):
+    arg = Argument()
+
+    for child in ext_obj_node.childNodes:
+        if child.nodeType != child.ELEMENT_NODE:
+            continue
+        tag = child.tagName
+
+        if tag == "TypeId":
+            parse_type_id(child, arg)
+        elif tag == "Body":
+            parse_argument_body(child, arg)
+
+    return arg
+
+
+def parse_type_id(type_id_node, arg: Argument):
+    for node in type_id_node.getElementsByTagName("Identifier"):
+        text = get_text(node)
+        if text:
+            arg.dataTypeIdentifier = text
+            break
+
+
+def parse_argument_body(body_node, arg: Argument):
+    for argument_node in body_node.getElementsByTagName("Argument"):
+        for child in argument_node.childNodes:
+            if child.nodeType != child.ELEMENT_NODE:
+                continue
+            tag = child.tagName
+
+            if tag == "Name":
+                arg.name = get_text(child)
+            elif tag == "DataType":
+                parse_data_type(child, arg)
+            elif tag == "ValueRank":
+                val = get_text(child)
+                arg.valueRank = int(val) if val and val.lstrip("-").isdigit() else None
+
+
+def parse_data_type(data_type_node, arg: Argument):
+    for node in data_type_node.getElementsByTagName("Identifier"):
+        text = get_text(node)
+        if text:
+            arg.dataTypeIdentifier = text
+            break
+
+def get_text(node):
+    if node.firstChild and node.firstChild.nodeType == node.TEXT_NODE:
+        return node.firstChild.data.strip()
+    return None
+
+def get_types_array_name(node):
+    if node.modelUri:
+        ns = extract_ua_namespace(node.modelUri)
+        if ns:
+            return "UA_TYPES_{}".format(ns.upper())
+    return "UA_TYPES"
+
+def extract_ua_namespace(namespace_string):
+    match = re.search(r"UA/([^/]+)", namespace_string)
+    if match:
+        return match.group(1).lower()
+    return ""
+
+def get_members_info(node):
+    code = []
+
+    if isinstance(node, DataTypeNode):
+        if node.definition is None:
+            return "\n"
+
+        code.append("/* INFO Members of UA_{}:".format(node.displayName))
+
+        for field_elem in node.definition.childNodes:
+            if field_elem.nodeType == field_elem.ELEMENT_NODE and field_elem.tagName == "Field":
+                field_name = field_elem.getAttribute("Name")
+                field_type = field_elem.getAttribute("DataType")
+                is_optional = field_elem.getAttribute("IsOptional")
+                field_value = field_elem.getAttribute("Value")
+
+                description = None
+                for child in field_elem.childNodes:
+                    if child.nodeType == child.ELEMENT_NODE and child.tagName == "Description":
+                        description = get_text(child)
+                        break
+
+                if field_value:
+                    field_value = field_value[0].lower() + field_value[1:] if field_value else field_value
+                    code.append("* {} = {} ({})".format(field_name, field_value, description if description else ""))
+                elif field_name and field_type:
+                    field_name = field_name[0].lower() + field_name[1:] if field_name else field_name
+                    optional_suffix = " (optional)" if is_optional == "true" else ""
+                    code.append("* {} : {} {}".format(field_name, field_type, optional_suffix))
+
+        code.append("*/\n")
+
+    return "\n".join(code)
 
 # Kahn's algorithm: https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
 def sortNodes(nodeset):
     # reverse hastypedefinition references to treat only forward references
+
     hasTypeDef = NodeId("ns=0;i=40")
     for u in nodeset.nodes.values():
         for ref in u.references:
@@ -529,11 +708,26 @@ def sortNodes(nodeset):
         raise Exception("Node graph is circular on the specified references. Still open nodes:\r\n" + stillOpen)
     return L
 
+def getNodeMethodCallbackName(node, outfilebase):
+    methodname = "NULL"
+    if isinstance(node, MethodNode):
+        methodname = ""
+        nn = node
+        while nn.parent is not None:
+            methodname = "_" + nn.browseName.name + methodname
+            nn = nn.parent
+        methodname = "methodCallback" +  methodname
+        return re.sub(r'[<>]', '', outfilebase + "_" + methodname)
+
+    return methodname
+
+
+
 ###################
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArray=[]):
+def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArray=[], method_callbacks=False):
     outfilebase = basename(outfilename)
     # Printing functions
     outfileh = codecs.open(outfilename + ".h", r"w+", encoding='utf-8')
@@ -569,12 +763,7 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
     writeh("""
 _UA_BEGIN_DECLS
 
-extern UA_StatusCode %s(UA_Server *server);
-
-_UA_END_DECLS
-
-#endif /* %s_H_ */""" % \
-           (outfilebase, outfilebase.upper()))
+extern UA_StatusCode %s(UA_Server *server);""" % (outfilebase))
 
     writec("""/* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
@@ -633,15 +822,20 @@ _UA_END_DECLS
             writec("#endif /* UA_ENABLE_METHODCALLS */")
         writec("}")
 
+        if (isinstance(node, MethodNode) or isinstance(node.parent, MethodNode)) and method_callbacks:
+            writeh(generateMethodNodeCodeStub(node, outfilebase))
+            writec("\n" + generateMethodNodeCodeStubBody(node, outfilebase))
+
         writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_NamespaceMapping *nsMapping) {")
 
         if isinstance(node, MethodNode) or isinstance(node.parent, MethodNode):
             writec("#ifdef UA_ENABLE_METHODCALLS")
-        writec("return " + generateNodeCode_finish(node))
-        if isinstance(node, MethodNode) or isinstance(node.parent, MethodNode):
+            writec(generateNodeCode_finish(node, outfilebase, method_callbacks))
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
+        else:
+            writec(generateNodeCode_finish(node, outfilebase))
         writec("}")
 
         # ReferenceTypeNodes have to be _finished immediately. The _begin phase
@@ -651,6 +845,12 @@ _UA_END_DECLS
             reftypes_functionNumbers.append(functionNumber)
 
         functionNumber = functionNumber + 1
+
+    writeh("""_UA_END_DECLS
+
+#endif /* %s_H_ */""" % (outfilebase.upper()))
+
+
 
     # Load generated types
     for arr in typesArray:
