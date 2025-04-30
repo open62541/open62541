@@ -212,71 +212,70 @@ checkEventFilterParam(UA_Server *server, UA_Session *session,
 }
 #endif
 
+static UA_StatusCode
+checkAdjustDataChangeFilter(UA_Server *server, UA_Session *session,
+                            const UA_MonitoredItem *mon,
+                            const UA_DataType *valueType,
+                            UA_MonitoringParameters *params) {
+    /* No filter */
+    if(params->filter.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
+        return UA_STATUSCODE_GOOD;
+
+    /* If the filter ExtensionObject has a body, then it must be a
+     * DataChangeFilter */
+    if(!UA_ExtensionObject_hasDecodedType(&params->filter,
+                                          &UA_TYPES[UA_TYPES_DATACHANGEFILTER]))
+        return UA_STATUSCODE_BADFILTERNOTALLOWED;
+
+    UA_DataChangeFilter *filter = (UA_DataChangeFilter *)
+        params->filter.content.decoded.data;
+
+    switch(filter->deadbandType) {
+    case UA_DEADBANDTYPE_NONE:
+        break;
+    case UA_DEADBANDTYPE_ABSOLUTE:
+        if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
+           !valueType || !UA_DataType_isNumeric(valueType))
+            return UA_STATUSCODE_BADFILTERNOTALLOWED;
+        break;
+#ifdef UA_ENABLE_DA
+    case UA_DEADBANDTYPE_PERCENT:
+        if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
+           !valueType || !UA_DataType_isNumeric(valueType))
+            return UA_STATUSCODE_BADFILTERNOTALLOWED;
+        /* If percentage deadband is supported, look up the range values
+         * and precompute as if it was an absolute deadband. */
+        return setAbsoluteFromPercentageDeadband(server, session, mon, filter);
+#endif
+    default:
+        return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Verify and adjust the parameters of a MonitoredItem */
 static UA_StatusCode
 checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                                const UA_MonitoredItem *mon,
-                               const UA_DataType* valueType,
+                               const UA_DataType *valueType,
                                UA_MonitoringParameters *params,
                                UA_ExtensionObject *filterResult) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Check the filter */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
         /* Event MonitoredItems need a filter */
 #ifndef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         return UA_STATUSCODE_BADNOTSUPPORTED;
 #else
-        UA_StatusCode res = checkEventFilterParam(server, session, mon,
-                                                  params, filterResult);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
+        res = checkEventFilterParam(server, session, mon, params, filterResult);
 #endif
     } else {
-        /* DataChange MonitoredItem. Can be "no filter" which defaults to
-         * triggering on Status and Value. */
-        if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED &&
-           params->filter.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE &&
-           params->filter.encoding != UA_EXTENSIONOBJECT_ENCODED_NOBODY)
-            return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
-
-        /* If the filter ExtensionObject has a body, then it must be a
-         * DataChangeFilter */
-        if(params->filter.encoding != UA_EXTENSIONOBJECT_ENCODED_NOBODY &&
-           params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_DATACHANGEFILTER])
-            return UA_STATUSCODE_BADFILTERNOTALLOWED;
-
-        /* Check the deadband and adjust if necessary. */
-        if(params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
-            UA_DataChangeFilter *filter = (UA_DataChangeFilter *)
-                params->filter.content.decoded.data;
-            switch(filter->deadbandType) {
-            case UA_DEADBANDTYPE_NONE:
-                break;
-            case UA_DEADBANDTYPE_ABSOLUTE:
-                if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
-                   !valueType || !UA_DataType_isNumeric(valueType))
-                    return UA_STATUSCODE_BADFILTERNOTALLOWED;
-                break;
-#ifdef UA_ENABLE_DA
-            case UA_DEADBANDTYPE_PERCENT: {
-                if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
-                   !valueType || !UA_DataType_isNumeric(valueType))
-                    return UA_STATUSCODE_BADFILTERNOTALLOWED;
-                /* If percentage deadband is supported, look up the range values
-                 * and precompute as if it was an absolute deadband. */
-                UA_StatusCode res =
-                    setAbsoluteFromPercentageDeadband(server, session, mon, filter);
-                if(res != UA_STATUSCODE_GOOD)
-                    return res;
-                break;
-            }
-#endif
-            default:
-                return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
-            }
-        }
+        res = checkAdjustDataChangeFilter(server, session, mon, valueType, params);
     }
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Read the minimum sampling interval for the variable. The sampling
      * interval of the MonitoredItem must not be less than that. */
@@ -296,7 +295,6 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
             UA_NODESTORE_RELEASE(server, node);
         }
     }
-        
 
     /* A negative number indicates that the sampling interval is the publishing
      * interval of the Subscription. Note that the sampling interval selected
