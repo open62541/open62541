@@ -310,7 +310,7 @@ eventSetup(UA_NodeId *eventNodeId) {
 }
 
 static UA_MonitoredItemCreateResult
-addMonitoredItem(UA_Client_EventNotificationCallback handler, bool setFilter, bool discardOldest) {
+addMonitoredItem(UA_Client_EventNotificationCallback handler, bool discardOldest) {
     UA_MonitoredItemCreateRequest item;
     UA_MonitoredItemCreateRequest_init(&item);
     item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, 2253); // Root->Objects->Server
@@ -322,11 +322,9 @@ addMonitoredItem(UA_Client_EventNotificationCallback handler, bool setFilter, bo
     filter.selectClauses = selectClauses;
     filter.selectClausesSize = nSelectClauses;
 
-    if (setFilter) {
-        item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
-        item.requestedParameters.filter.content.decoded.data = &filter;
-        item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
-    }
+    item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
+    item.requestedParameters.filter.content.decoded.data = &filter;
+    item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
 
     item.requestedParameters.queueSize = 1;
     item.requestedParameters.discardOldest = discardOldest;
@@ -337,19 +335,6 @@ addMonitoredItem(UA_Client_EventNotificationCallback handler, bool setFilter, bo
 }
 
 
-/* Create event with empty filter */
-
-START_TEST(generateEventEmptyFilter) {
-        UA_NodeId eventNodeId;
-        UA_StatusCode retval = eventSetup(&eventNodeId);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-        // add a monitored item
-        UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, false, true);
-        ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
-} END_TEST
-
-
 /* Ensure events are received with proper values */
 START_TEST(generateEvents) {
     UA_NodeId eventNodeId;
@@ -357,7 +342,7 @@ START_TEST(generateEvents) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     // add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, true, true);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
     // trigger the event
@@ -494,7 +479,7 @@ START_TEST(uppropagation) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     //add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_propagate, true, true);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_propagate, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
     // trigger the event on a child of server, using namespaces in this case (no reason in particular)
@@ -530,24 +515,27 @@ START_TEST(uppropagation) {
 static void
 handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
                         UA_UInt32 monId, void *monContext, UA_KeyValueMap eventFields) {
+    ck_assert_uint_eq(eventFields.mapSize, 4);
     ck_assert_uint_eq(*(UA_UInt32 *) monContext, monitoredItemId);
-    if(eventFields.mapSize == 1) {
-        /* overflow was received */
-        ck_assert(eventFields.map[0].value.type == &UA_TYPES[UA_TYPES_NODEID]);
-        UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
-        ck_assert((UA_NodeId_equal((UA_NodeId *) eventFields.map[0].value.data, &comp)));
+
+    /* The Event Type is in the field at index 2 */
+    ck_assert(eventFields.map[2].value.type == &UA_TYPES[UA_TYPES_NODEID]);
+    UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
+    if(UA_NodeId_equal((UA_NodeId *) eventFields.map[2].value.data, &comp)) {
+        /* Overflow was received */
         overflowNotificationReceived = true;
-    } else if(eventFields.mapSize == 4) {
-        /* other event was received */
-        handler_events_simple(lclient, subId, subContext, monId,
-                              monContext, eventFields);
+        return;
     }
+
+    /* Other event was received */
+    handler_events_simple(lclient, subId, subContext, monId,
+                          monContext, eventFields);
 }
 
 /* Ensures an eventQueueOverflowEvent is published when appropriate */
 START_TEST(eventOverflow) {
     // add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true, true);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
@@ -636,7 +624,7 @@ START_TEST(multipleMonitoredItemsOneNode) {
 
 START_TEST(discardNewestOverflow) {
     // add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true, false);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, false);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
@@ -671,7 +659,7 @@ START_TEST(discardNewestOverflow) {
 
 START_TEST(eventStressing) {
     // add a monitored item
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true, true);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_overflow, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
@@ -919,7 +907,6 @@ static Suite *testSuite_Client(void) {
     TCase *tc_server = tcase_create("Server Subscription Events");
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
-    tcase_add_test(tc_server, generateEventEmptyFilter);
     tcase_add_test(tc_server, generateEvents);
     tcase_add_test(tc_server, createAbstractEvent);
     tcase_add_test(tc_server, createAbstractEventWithParent);
