@@ -178,11 +178,16 @@ typedef void (*UA_Client_DataChangeNotificationCallback)
      UA_UInt32 monId, void *monContext,
      UA_DataValue *value);
 
-/* Callback for Event notifications */
+/* Callback for Event notifications.
+ * The fields are a key-value-map which names the monitored EventFields. The
+ * EventFilter defines the fields as a list of SimpleAttributeOperands. The
+ * key-value-map respects the order of fields from the EventFilter. See the
+ * documentation of SimpleAttributeOperand_print how to the human-readable name
+ * is generated. */
 typedef void (*UA_Client_EventNotificationCallback)
     (UA_Client *client, UA_UInt32 subId, void *subContext,
      UA_UInt32 monId, void *monContext,
-     size_t nEventFields, UA_Variant *eventFields);
+     const UA_KeyValueMap eventFields);
 
 /* Don't use to monitor the EventNotifier attribute */
 UA_CreateMonitoredItemsResponse UA_EXPORT UA_THREADSAFE

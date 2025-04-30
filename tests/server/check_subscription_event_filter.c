@@ -102,7 +102,8 @@ setupSelectClauses(void) {
 static void
 handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
                       UA_UInt32 monId, void *monContext,
-                      size_t nEventFields, UA_Variant *eventFields) {
+                      UA_KeyValueMap eventFields) {
+    size_t nEventFields = eventFields.mapSize;
     UA_Boolean foundSeverity = UA_FALSE;
     UA_Boolean foundMessage = UA_FALSE;
     UA_Boolean foundType = UA_FALSE;
@@ -111,24 +112,25 @@ handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
     ck_assert_uint_eq(nEventFields, defaultSlectClauseSize);
     /*  check all event fields */
     for(size_t i = 0; i < nEventFields; i++) {
+        UA_Variant *value = &eventFields.map[i].value;
         /*  find out which attribute of the event is being looked at */
-        if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
+        if(UA_Variant_hasScalarType(value, &UA_TYPES[UA_TYPES_UINT16])) {
             /*  Severity */
-            ck_assert_uint_eq(*((UA_UInt16 *) (eventFields[i].data)), 1000);
+            ck_assert_uint_eq(*((UA_UInt16 *) (value->data)), 1000);
             foundSeverity = UA_TRUE;
-        } else if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
+        } else if(UA_Variant_hasScalarType(value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
             /*  Message */
             UA_LocalizedText comp = UA_LOCALIZEDTEXT("en-US", "Generated Event");
-            ck_assert(UA_String_equal(&((UA_LocalizedText *) eventFields[i].data)->locale, &comp.locale));
-            ck_assert(UA_String_equal(&((UA_LocalizedText *) eventFields[i].data)->text, &comp.text));
+            ck_assert(UA_String_equal(&((UA_LocalizedText *) value->data)->locale, &comp.locale));
+            ck_assert(UA_String_equal(&((UA_LocalizedText *) value->data)->text, &comp.text));
             foundMessage = UA_TRUE;
-        } else if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_NODEID])) {
+        } else if(UA_Variant_hasScalarType(value, &UA_TYPES[UA_TYPES_NODEID])) {
             /*  either SourceNode or EventType */
             UA_NodeId serverId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
-            if(UA_NodeId_equal((UA_NodeId *) eventFields[i].data, &eventType)) {
+            if(UA_NodeId_equal((UA_NodeId *) value->data, &eventType)) {
                 /*  EventType */
                 foundType = UA_TRUE;
-            } else if(UA_NodeId_equal((UA_NodeId *) eventFields[i].data, &serverId)) {
+            } else if(UA_NodeId_equal((UA_NodeId *) value->data, &serverId)) {
                 /*  SourceNode */
                 foundSource = UA_TRUE;
             } else {
