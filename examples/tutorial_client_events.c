@@ -13,18 +13,6 @@
 #include <stdio.h>
 #include <signal.h>
 
-#ifdef _MSC_VER
-#pragma warning(disable:4996) // warning C4996: 'UA_Client_Subscriptions_addMonitoredEvent': was declared deprecated
-#endif
-
-#ifdef __clang__
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
-#ifdef __GNUC__
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
 static UA_Boolean running = true;
 static void stopHandler(int sig) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
@@ -36,31 +24,19 @@ static void stopHandler(int sig) {
 static void
 handler_events(UA_Client *client, UA_UInt32 subId, void *subContext,
                UA_UInt32 monId, void *monContext,
-               size_t nEventFields, UA_Variant *eventFields) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Notification");
+               UA_KeyValueMap eventFields) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Event Notification");
 
     /* The context should point to the monId on the stack */
     UA_assert(*(UA_UInt32*)monContext == monId);
 
-    for(size_t i = 0; i < nEventFields; ++i) {
-        if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
-            UA_UInt16 severity = *(UA_UInt16 *)eventFields[i].data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Severity: %u", severity);
-        } else if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
-            UA_LocalizedText *lt = (UA_LocalizedText *)eventFields[i].data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message: '%.*s'", (int)lt->text.length, lt->text.data);
-        }
-        else {
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Don't know how to handle type: '%s'", eventFields[i].type->typeName);
-#else
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Don't know how to handle type, enable UA_ENABLE_TYPEDESCRIPTION "
-                        "for typename");
-#endif
-        }
+    /* Print fields */
+    for(size_t i = 0; i < eventFields.mapSize; ++i) {
+        UA_String valueStr = UA_STRING_NULL;
+        UA_print(&eventFields.map[i].value, &UA_TYPES[UA_TYPES_VARIANT], &valueStr);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "%S: %S",
+                    eventFields.map[i].key.name, valueStr);
+        UA_String_clear(&valueStr);
     }
 }
 

@@ -480,6 +480,11 @@ MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
         UA_UInt32 monId = mon->monitoredItemId;
         mon->deleteCallback(client, subId, subC, monId, monC);
     }
+
+    for(size_t i = 0; i < mon->eventFields.mapSize; i++) {
+        UA_Variant_init(&mon->eventFields.map[i].value);
+    }
+    UA_KeyValueMap_clear(&mon->eventFields);
     UA_free(mon);
 }
 
@@ -500,6 +505,41 @@ MonitoredItems_CreateData_clear(UA_Client *client, MonitoredItems_CreateData *da
     UA_free(data->deleteCallbacks);
     UA_free(data->handlingCallbacks);
     UA_CreateMonitoredItemsRequest_clear(&data->request);
+}
+
+static UA_StatusCode
+MonitoredItem_setupParams(UA_Client_MonitoredItem *mon,
+                          UA_MonitoringParameters *mp) {
+    mon->clientHandle = mp->clientHandle;
+    if(!mon->isEventMonitoredItem)
+        return UA_STATUSCODE_GOOD;
+
+    /* The filter needs to be an EventFilter */
+    if(mp->filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Are there fields defined? */
+    UA_EventFilter *ef = (UA_EventFilter*)mp->filter.content.decoded.data;
+    if(ef->selectClausesSize == 0)
+        return UA_STATUSCODE_GOOD;
+
+    /* Allocate the key-value map */
+    mon->eventFields.map = (UA_KeyValuePair*)
+        UA_calloc(ef->selectClausesSize, sizeof(UA_KeyValuePair));
+    if(!mon->eventFields.map)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    mon->eventFields.mapSize = ef->selectClausesSize;
+
+    /* Print the field names */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < ef->selectClausesSize; i++) {
+        res |= UA_SimpleAttributeOperand_print(&ef->selectClauses[i],
+                                               &mon->eventFields.map[i].key.name);
+    }
+
+    if(res != UA_STATUSCODE_GOOD)
+        UA_KeyValueMap_clear(&mon->eventFields);
+    return res;
 }
 
 static void
@@ -548,7 +588,6 @@ MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
 
         /* Set the members */
         mon->monitoredItemId = response->results[i].monitoredItemId;
-        mon->clientHandle = request->itemsToCreate[i].requestedParameters.clientHandle;
         mon->context = data->contexts[i];
         mon->deleteCallback = deleteCallbacks[i];
         mon->handler.dataChangeCallback = (UA_Client_DataChangeNotificationCallback)
@@ -1231,13 +1270,26 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
             continue;
         }
 
+        /* Check the number of event fields corresponds to the EventFilter select-clause */
+        if(mon->eventFields.mapSize != eventFieldList->eventFieldsSize) {
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                           "Received the wrong number of event fields");
+            continue;
+        }
+
+        /* Make a shallow copy of the event field content.
+         * The value fields are reset before cleaning up the map. */
+        for(size_t i = 0; i < mon->eventFields.mapSize; i++) {
+            mon->eventFields.map[i].value = eventFieldList->eventFields[i];
+        }
+
+        /* Call the callback */
         void *subC = sub->context;
         void *monC = mon->context;
         UA_UInt32 subId = sub->subscriptionId;
         UA_UInt32 monId = mon->monitoredItemId;
         mon->handler.eventCallback(client, subId, subC, monId, monC,
-                                   eventFieldList->eventFieldsSize,
-                                   eventFieldList->eventFields);
+                                   mon->eventFields);
     }
 }
 
