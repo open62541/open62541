@@ -465,6 +465,9 @@ UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId
 /* MonitoredItems */
 /******************/
 
+static UA_Client_MonitoredItem *
+findMonitoredItemById(UA_Client_Subscription *sub, UA_UInt32 monitoredItemId);
+
 static void
 MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
                      UA_Client_MonitoredItem *mon) {
@@ -505,38 +508,45 @@ MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
     UA_CreateMonitoredItemsRequest *request = &data->request;
     UA_Client_DeleteMonitoredItemCallback *deleteCallbacks = data->deleteCallbacks;
 
+    /* Find the subscription */
     UA_Client_Subscription *sub = findSubscriptionById(client, data->request.subscriptionId);
     if(!sub)
-        goto cleanup;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTFOUND;
 
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    if(response->resultsSize != request->itemsToCreateSize) {
+    /* Check the number of result items */
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
+       response->resultsSize != request->itemsToCreateSize)
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
+
+    /* In case of failure, notify the application */
+    void *subC = sub ? sub->context : NULL;
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        for(size_t i = 0; i < request->itemsToCreateSize; i++) {
+            if(!deleteCallbacks[i])
+                continue;
+            deleteCallbacks[i](client, data->request.subscriptionId,
+                               subC, 0, data->contexts[i]);
+        }
+        return;
     }
 
-    /* Add internally */
+    /* Create MonitoredItems */
+    UA_UInt32 subId = sub->subscriptionId;
     for(size_t i = 0; i < request->itemsToCreateSize; i++) {
-        if(response->results[i].statusCode != UA_STATUSCODE_GOOD) {
-            void *subC = sub->context;
-            UA_UInt32 subId = sub->subscriptionId;
-            if(deleteCallbacks[i])
-                deleteCallbacks[i](client, subId, subC, 0, data->contexts[i]);
-            continue;
-        }
+        /* Check the returned StatusCode */
+        UA_Client_MonitoredItem *mon = NULL;
+        UA_StatusCode elemRes = response->results[i].statusCode;
+        if(elemRes != UA_STATUSCODE_GOOD)
+            goto error;
 
-        UA_Client_MonitoredItem *mon = (UA_Client_MonitoredItem *)
-            UA_malloc(sizeof(UA_Client_MonitoredItem));
+        /* Allocate the memory */
+        mon = (UA_Client_MonitoredItem*)UA_calloc(1, sizeof(UA_Client_MonitoredItem));
         if(!mon) {
-            void *subC = sub->context;
-            UA_UInt32 subId = sub->subscriptionId;
-            if(deleteCallbacks[i])
-                deleteCallbacks[i](client, subId, subC, 0, data->contexts[i]);
-            continue;
+            elemRes = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto error;
         }
 
+        /* Set the members */
         mon->monitoredItemId = response->results[i].monitoredItemId;
         mon->clientHandle = request->itemsToCreate[i].requestedParameters.clientHandle;
         mon->context = data->contexts[i];
@@ -545,21 +555,24 @@ MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
             (uintptr_t)data->handlingCallbacks[i];
         mon->isEventMonitoredItem =
             (request->itemsToCreate[i].itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
-        ZIP_INSERT(MonitorItemsTree, &sub->monitoredItems, mon);
+        elemRes = MonitoredItem_setupParams(mon, &request->itemsToCreate[i].requestedParameters);
+        if(elemRes != UA_STATUSCODE_GOOD)
+            goto error;
 
+        /* Insert into the tree */
+        ZIP_INSERT(MonitorItemsTree, &sub->monitoredItems, mon);
         UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Subscription %" PRIu32 " | Added a MonitoredItem with handle %" PRIu32,
                      sub->subscriptionId, mon->clientHandle);
-    }
-    return;
 
-    /* Adding failed */
- cleanup:
-    for(size_t i = 0; i < request->itemsToCreateSize; i++) {
-        void *subC = sub ? sub->context : NULL;
+    error:
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Subscription %" PRIu32 " | Could not create a MonitoredItem with "
+                     "StatusCode %s", subId, UA_StatusCode_name(elemRes));
         if(deleteCallbacks[i])
-            deleteCallbacks[i](client, data->request.subscriptionId,
-                               subC, 0, data->contexts[i]);
+            deleteCallbacks[i](client, subId, subC, 0, data->contexts[i]);
+        if(mon)
+            UA_free(mon);
     }
 }
 
