@@ -14,7 +14,6 @@
 static UA_Server *server = NULL;
 
 /* global variables for fast-path configuration */
-static UA_Boolean UseFastPath = false;
 static UA_DataValue *pFastPathPublisherValue = 0;
 static UA_DataValue *pFastPathSubscriberValue = 0;
 
@@ -29,8 +28,6 @@ static void setup(void) {
 
     UA_StatusCode res = UA_Server_run_startup(server);
     ck_assert(UA_STATUSCODE_GOOD == res);
-
-    UseFastPath = UA_FALSE;
 }
 
 static void teardown(void) {
@@ -138,25 +135,10 @@ AddPublishedDataSet(UA_NodeId *pWriterGroupId, char *pPublishedDataSetName,
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable = *opPublishedVarId;
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-    if (UseFastPath) {
-        pFastPathPublisherValue = UA_DataValue_new();
-        ck_assert(pFastPathPublisherValue != 0);
-        UA_Int32 *pPublisherData  = UA_Int32_new();
-        ck_assert(pPublisherData != 0);
-        *pPublisherData = 42;
-        UA_Variant_setScalar(&pFastPathPublisherValue->value,
-                             pPublisherData, &UA_TYPES[UA_TYPES_INT32]);
-        /* add external value backend for fast-path */
-        UA_ValueBackend valueBackend;
-        memset(&valueBackend, 0, sizeof(valueBackend));
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = &pFastPathPublisherValue;
-        ck_assert_int_eq(UA_STATUSCODE_GOOD,
-                         UA_Server_setVariableNode_valueBackend(server, *opPublishedVarId,
-                                                                valueBackend));
-    }
-    UA_DataSetFieldResult PdsFieldResult = UA_Server_addDataSetField(server, *opPublishedDataSetId,
-                              &dataSetFieldConfig, &dataSetFieldId);
+
+    UA_DataSetFieldResult PdsFieldResult =
+        UA_Server_addDataSetField(server, *opPublishedDataSetId,
+                                  &dataSetFieldConfig, &dataSetFieldId);
     ck_assert(PdsFieldResult.result == UA_STATUSCODE_GOOD);
 
     UA_DataSetWriterConfig dataSetWriterConfig;
@@ -239,25 +221,6 @@ AddDataSetReader(UA_NodeId *pReaderGroupId, char *pName, UA_UInt32 PublisherId,
                                         UA_QUALIFIEDNAME(1, "Subscribed Int32"),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                         attr, NULL, opSubscriberVarId) == UA_STATUSCODE_GOOD);
-
-    if (UseFastPath) {
-        pFastPathSubscriberValue = UA_DataValue_new();
-        ck_assert(pFastPathSubscriberValue != 0);
-        UA_Int32 *pSubscriberData  = UA_Int32_new();
-        ck_assert(pSubscriberData != 0);
-        *pSubscriberData = 0;
-        UA_Variant_setScalar(&pFastPathSubscriberValue->value, pSubscriberData,
-                             &UA_TYPES[UA_TYPES_INT32]);
-        /* add external value backend for fast-path */
-        UA_ValueBackend valueBackend;
-        memset(&valueBackend, 0, sizeof(valueBackend));
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = &pFastPathSubscriberValue;
-        ck_assert_int_eq(UA_STATUSCODE_GOOD,
-                         UA_Server_setVariableNode_valueBackend(server,
-                                                                *opSubscriberVarId,
-                                                                valueBackend));
-    }
 
     UA_FieldTargetDataType *pTargetVariables =  (UA_FieldTargetDataType *)
         UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetDataType));
@@ -753,145 +716,6 @@ START_TEST(Test_add_remove) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_add_remove\n\n");
 } END_TEST
 
-/* simple test with 2 connections: 1 DataSetWriter and 1 DataSetReader */
-START_TEST(Test_fast_path) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nSTART: Test_fast_path");
-
-    UseFastPath = UA_TRUE;
-
-    /* Connection 1: Writer 1  --> Connection 2: Reader 1 */
-
-    /* setup Connection 1: 1 writergroup, 1 writer */
-    UA_NodeId ConnId_1;
-    UA_NodeId_init(&ConnId_1);
-    AddConnection("Conn1", 1, &ConnId_1);
-
-    UA_NodeId WGId_Conn1_WG1;
-    UA_NodeId_init(&WGId_Conn1_WG1);
-    UA_Duration PublishingInterval_Conn1WG1 = 300.0;
-    AddWriterGroup(&ConnId_1, "Conn1_WG1", 1, PublishingInterval_Conn1WG1, &WGId_Conn1_WG1);
-
-    UA_NodeId DsWId_Conn1_WG1_DS1;
-    UA_NodeId_init(&DsWId_Conn1_WG1_DS1);
-    UA_NodeId VarId_Conn1_WG1;
-    UA_NodeId_init(&VarId_Conn1_WG1);
-    UA_NodeId PDSId_Conn1_WG1_PDS1;
-    UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
-
-    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1",
-                        1, &PDSId_Conn1_WG1_PDS1, &VarId_Conn1_WG1, &DsWId_Conn1_WG1_DS1);
-
-    /* setup Connection 2: corresponding readergroup and reader for Connection 1 */
-
-    UA_NodeId ConnId_2;
-    UA_NodeId_init(&ConnId_2);
-    AddConnection("Conn2", 2, &ConnId_2);
-
-    UA_NodeId RGId_Conn2_RG1;
-    UA_NodeId_init(&RGId_Conn2_RG1);
-    AddReaderGroup(&ConnId_2, "Conn2_RG1", &RGId_Conn2_RG1);
-    UA_NodeId DSRId_Conn2_RG1_DSR1;
-    UA_NodeId_init(&DSRId_Conn2_RG1_DSR1);
-    UA_NodeId VarId_Conn2_RG1_DSR1;
-    UA_NodeId_init(&VarId_Conn2_RG1_DSR1);
-    UA_Duration MessageReceiveTimeout = 400.0;
-    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR1", 1, 1, 1,
-                     MessageReceiveTimeout, &VarId_Conn2_RG1_DSR1, &DSRId_Conn2_RG1_DSR1);
-
-    UA_PubSubState state;
-    /* check WriterGroup and DataSetWriter state */
-    ck_assert(UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_DISABLED);
-    ck_assert(UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_DISABLED);
-
-    UA_Server_enableAllPubSubComponents(server);
-
-    ServerDoProcess("0", (UA_UInt32) (PublishingInterval_Conn1WG1), 1);
-
-    ck_assert(UA_Server_ReaderGroup_getState(server, RGId_Conn2_RG1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
-    ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
-
-    /* check that publish/subscribe works -> set some test values */
-    ValidatePublishSubscribe_fast_path(10, (UA_UInt32) PublishingInterval_Conn1WG1, 3);
-
-    ValidatePublishSubscribe_fast_path(33, (UA_UInt32) PublishingInterval_Conn1WG1, 3);
-
-    ValidatePublishSubscribe_fast_path(44, (UA_UInt32) PublishingInterval_Conn1WG1, 3);
-
-    ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
-
-    /* now we disable the publisher WriterGroup and check if a MessageReceiveTimeout occurs at Subscriber */
-
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable writergroup");
-    ck_assert(UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
-
-    ck_assert(UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_DISABLED);
-    ck_assert(UA_Server_enableDataSetWriter(server, DsWId_Conn1_WG1_DS1) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_PAUSED);
-
-    ServerDoProcess("1", (UA_UInt32) (PublishingInterval_Conn1WG1), 3);
-
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "check state of datasetreader");
-
-    /* state of ReaderGroup should still be ok */
-    ck_assert(UA_Server_ReaderGroup_getState(server, RGId_Conn2_RG1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
-     /* but DataSetReader state shall be error */
-    ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_ERROR);
-
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "enable writergroup");
-    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_enableDataSetReader(server, DSRId_Conn2_RG1_DSR1) == UA_STATUSCODE_GOOD);
-
-    ServerDoProcess("2", (UA_UInt32) (PublishingInterval_Conn1WG1), 4);
-
-    ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
-
-    ServerDoProcess("3", (UA_UInt32) (PublishingInterval_Conn1WG1), 4);
-
-    ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
-
-    /* now we disable the reader */
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable readergroup. writergroup is still working");
-
-    ck_assert(UA_Server_setReaderGroupDisabled(server, RGId_Conn2_RG1) == UA_STATUSCODE_GOOD);
-
-    ck_assert(UA_Server_ReaderGroup_getState(server, RGId_Conn2_RG1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_DISABLED);
-    ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_PAUSED);
-
-    ServerDoProcess("4", (UA_UInt32) (PublishingInterval_Conn1WG1), 4);
-
-    /* then we disable the writer -> no timeout shall occur, because the reader is disabled */
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable writergroup");
-    ck_assert(UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_DISABLED);
-    ck_assert(UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_PAUSED);
-
-    ServerDoProcess("5", (UA_UInt32) (PublishingInterval_Conn1WG1), 4);
-
-    UA_DataValue_clear(pFastPathPublisherValue);
-    UA_DataValue_delete(pFastPathPublisherValue);
-    UA_DataValue_clear(pFastPathSubscriberValue);
-    UA_DataValue_delete(pFastPathSubscriberValue);
-
-    UseFastPath = UA_FALSE;
-
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_fast_path\n\n");
-} END_TEST
-
 int main(void) {
     TCase *tc_basic = tcase_create("Message Receive Timeout");
     tcase_add_checked_fixture(tc_basic, setup, teardown);
@@ -927,11 +751,6 @@ int main(void) {
         - add and remove a reader without any operation -> check for memory leaks
     */
     tcase_add_test(tc_basic, Test_add_remove);
-
-    /* test case description:
-        - test message receive timeout with fast-path
-    */
-    tcase_add_test(tc_basic, Test_fast_path);
 
     Suite *s = suite_create("PubSub timeout test suite: message receive timeout");
     suite_add_tcase(s, tc_basic);
