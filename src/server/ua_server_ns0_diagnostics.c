@@ -216,9 +216,9 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
         goto cleanup;
 
     /* Add the callback to all variables  */
-    UA_DataSource subDiagSource = {readSubscriptionDiagnostics, NULL};
+    UA_ExternalValueSource subDiagSource = {readSubscriptionDiagnostics, NULL};
     for(size_t i = 0; i < childrenSize; i++) {
-        setVariableNode_dataSource(server, children[i].nodeId, subDiagSource);
+        setVariableNode_externalValueSource(server, children[i].nodeId, subDiagSource);
         setNodeContext(server, children[i].nodeId, sub);
     }
 
@@ -508,9 +508,9 @@ createSessionObject(UA_Server *server, UA_Session *session) {
         goto cleanup;
 
     /* Add the callback to all variables  */
-    UA_DataSource sessionDiagSource = {readSessionDiagnostics, NULL};
+    UA_ExternalValueSource sessionDiagSource = {readSessionDiagnostics, NULL};
     for(size_t i = 0; i < childrenSize; i++) {
-        setVariableNode_dataSource(server, children[i].nodeId, sessionDiagSource);
+        setVariableNode_externalValueSource(server, children[i].nodeId, sessionDiagSource);
     }
 
  cleanup:
