@@ -422,17 +422,21 @@ typedef struct {
     /* User's callback implementation. The user configured base time and timer policy
      * will be provided as an argument to this callback so that the user can
      * implement his callback (thread) considering base time and timer policies */
-    UA_StatusCode (*addCustomCallback)(UA_Server *server, UA_NodeId identifier,
-                                       UA_ServerCallback callback,
-                                       void *data, UA_Double interval_ms,
-                                       UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
-                                       UA_UInt64 *callbackId);
+    UA_StatusCode
+    (*addCustomCallback)(UA_Server *server, UA_NodeId identifier,
+                         UA_ServerCallback callback, void *data,
+                         UA_Double interval_ms, const UA_DateTime *baseTime,
+                         UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId);
 
-    UA_StatusCode (*changeCustomCallback)(UA_Server *server, UA_NodeId identifier,
-                                          UA_UInt64 callbackId, UA_Double interval_ms,
-                                          UA_DateTime *baseTime, UA_TimerPolicy timerPolicy);
+    UA_StatusCode
+    (*changeCustomCallback)(UA_Server *server, UA_NodeId identifier,
+                            UA_UInt64 callbackId, UA_Double interval_ms,
+                            const UA_DateTime *baseTime,
+                            UA_TimerPolicy timerPolicy);
 
-    void (*removeCustomCallback)(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId);
+    void
+    (*removeCustomCallback)(UA_Server *server, UA_NodeId identifier,
+                            UA_UInt64 callbackId);
 
 } UA_PubSub_CallbackLifecycle;
 
@@ -500,7 +504,17 @@ typedef struct {
     UA_Byte priority;
     UA_ExtensionObject transportSettings;
     UA_ExtensionObject messageSettings;
+
+    /* The group properties are a key-value map whose members are defined in
+     * future versions of the OPC UA standard. We prefix the non-standard fields
+     * defined for open62541 with __.
+     *
+     * 0:__publish-basetime [datetime]: Defines the basetime for the cyclic
+     *     publishing interval. This also sets the timer policy
+     *     UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME for the publishing interval.
+     */
     UA_KeyValueMap groupProperties;
+
     UA_PubSubEncodingType encodingMimeType;
     /* PubSub Manager Callback */
     UA_PubSub_CallbackLifecycle pubsubManagerCallback;
