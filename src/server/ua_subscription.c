@@ -1157,7 +1157,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
 
     /* Update the diagnostics statistics */
 #ifdef UA_ENABLE_DIAGNOSTICS
-    sub->eventQueueOverFlowCount++;
+    sub->eventQueueOverflowCount++;
 #endif
 
     return UA_STATUSCODE_GOOD;

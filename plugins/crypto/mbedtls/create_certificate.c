@@ -26,7 +26,14 @@
 #define SET_OID(x, oid) \
     do { x.len = MBEDTLS_OID_SIZE(oid); x.p = (unsigned char *) oid; } while (0)
 
-#define AF_INET         2
+/* Define this so we do not depend on arch-dependent imports here */
+#if defined(UA_ARCHITECTURE_WIN32)
+# include <winsock2.h>
+#elif defined(UA_ARCHITECTURE_POSIX)
+# include <sys/socket.h>
+#else
+# define AF_INET 2
+#endif
 
 typedef struct mbedtls_write_san_node{
     int type;
