@@ -22,10 +22,6 @@
 
 #include "parse_num.h"
 
-#include <string.h>
-#include <stdlib.h>
-#include <errno.h>
-
 size_t
 parseUInt64(const char *str, size_t size, uint64_t *result) {
     size_t i = 0;
@@ -94,18 +90,4 @@ parseInt64(const char *str, size_t size, int64_t *result) {
         *result = -(int64_t)n;
     }
     return len + i;
-}
-
-size_t parseDouble(const char *str, size_t size, double *result) {
-    char buf[2000];
-    if(size >= 2000)
-        return 0;
-    memcpy(buf, str, size);
-    buf[size] = 0;
-    errno = 0;
-    char *endptr;
-    *result = strtod(str, &endptr);
-    if(errno != 0 && errno != ERANGE)
-        return 0;
-    return (uintptr_t)endptr - (uintptr_t)str;
 }
