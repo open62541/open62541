@@ -8,9 +8,10 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <check.h>
+#include <stdlib.h>
 
 #include "test_helpers.h"
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub_networkmessage.h"
 
@@ -61,7 +62,9 @@ START_TEST(EthernetSendWithoutVLANTag) {
     connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
-    connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
+
+    UA_PubSubManager *psm = getPSM(server);
+    connection = UA_PubSubConnection_find(psm, connection_test);
     /* Remove the connection if invalid*/
     if(!connection) {
         return;
@@ -93,7 +96,9 @@ START_TEST(EthernetSendWithVLANTag) {
     connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
-    connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
+
+    UA_PubSubManager *psm = getPSM(server);
+    connection = UA_PubSubConnection_find(psm, connection_test);
     /* Remove the connection if invalid*/
     if(!connection) {
         return;

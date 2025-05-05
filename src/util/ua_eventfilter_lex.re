@@ -7,7 +7,6 @@
 
 #include <open62541/util.h>
 #include "ua_eventfilter_parser.h"
-#include "ua_eventfilter_grammar.h"
 
 /* This compilation unit uses the re2c lexer generator. The final C source is
  * generated with the following script:
@@ -38,7 +37,7 @@
 #define YYRESTORETAG(t) pos = t;
 
 /*!re2c
-    re2c:define:YYCTYPE = char;
+    re2c:define:YYCTYPE = u8;
     re2c:flags:tags = 1;
     re2c:yyfill:enable = 0;
     re2c:flags:input = custom;
@@ -51,11 +50,11 @@
 UA_StatusCode
 UA_EventFilter_skip(const UA_ByteString content, size_t *offset,
                     EFParseContext *ctx) {
-    const char *pos = (const char*)&content.data[*offset];
-    const char *end = (const char*)&content.data[content.length];
+    const u8 *pos = &content.data[*offset];
+    const u8 *end = &content.data[content.length];
 
   begin:
-    *offset = (uintptr_t)(pos - (const char*)content.data);
+    *offset = (uintptr_t)(pos - content.data);
     size_t initial = *offset;
 
     /*!re2c
@@ -77,10 +76,10 @@ UA_EventFilter_skip(const UA_ByteString content, size_t *offset,
 int
 UA_EventFilter_lex(const UA_ByteString content, size_t *offset,
                    EFParseContext *ctx, Operand **token) {
-    const char *pos = (const char*)&content.data[*offset];
-    const char *end = (const char*)&content.data[content.length];
-    const char *m, *b; /* marker, match begin */
-    /*!stags:re2c format = 'const char *@@;'; */
+    const u8 *pos = &content.data[*offset];
+    const u8 *end = &content.data[content.length];
+    const u8 *m, *b; /* marker, match begin */
+    /*!stags:re2c format = 'const u8 *@@;'; */
     const UA_DataType *lt; /* literal type */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_ByteString match;
@@ -106,11 +105,11 @@ UA_EventFilter_lex(const UA_ByteString content, size_t *offset,
         /* Operators */
         ('AND'                | '&&') { f = UA_FILTEROPERATOR_AND;     tokenId = EF_TOK_AND;     goto make_op; }
         ('OR'                 | '||') { f = UA_FILTEROPERATOR_OR;      tokenId = EF_TOK_OR;      goto make_op; }
+        ('NOT'                | '!')  { f = UA_FILTEROPERATOR_NOT;     tokenId = EF_TOK_NOT;     goto make_op; }
         'BETWEEN'                     { f = UA_FILTEROPERATOR_BETWEEN; tokenId = EF_TOK_BETWEEN; goto make_op; }
         'INLIST'                      { f = UA_FILTEROPERATOR_INLIST;  tokenId = EF_TOK_INLIST;  goto make_op; }
         'ISNULL'                      { f = UA_FILTEROPERATOR_ISNULL;                            goto unary_op; }
         'OFTYPE'                      { f = UA_FILTEROPERATOR_OFTYPE;                            goto unary_op; }
-        ('NOT'                | '!')  { f = UA_FILTEROPERATOR_NOT;                               goto unary_op; }
         ('EQUALS'             | '==') { f = UA_FILTEROPERATOR_EQUALS;                            goto binary_op; }
         ('GREATERTHANOREQUAL' | '>=') { f = UA_FILTEROPERATOR_GREATERTHANOREQUAL;                goto binary_op; }
         ('GREATERTHAN'        | '>')  { f = UA_FILTEROPERATOR_GREATERTHAN;                       goto binary_op; }
@@ -123,33 +122,35 @@ UA_EventFilter_lex(const UA_ByteString content, size_t *offset,
         '$' [a-zA-Z0-9_]+             { goto namedoperand; }
 
         /* Literal */
-        '{'                                               { goto json; }
-        'BYTE'           space @b [0-9]+                  { lt = &UA_TYPES[UA_TYPES_BYTE];           goto lit; }
-        'SBYTE'          space @b '-'? [0-9]+             { lt = &UA_TYPES[UA_TYPES_SBYTE];          goto lit; }
-        'UINT16'         space @b [0-9]+                  { lt = &UA_TYPES[UA_TYPES_UINT16];         goto lit; }
-        'INT16'          space @b '-'? [0-9]+             { lt = &UA_TYPES[UA_TYPES_INT16];          goto lit; }
-        'UINT32'         space @b [0-9]+                  { lt = &UA_TYPES[UA_TYPES_UINT32];         goto lit; }
-        'INT32'          space @b '-'? [0-9]+             { lt = &UA_TYPES[UA_TYPES_INT32];          goto lit; }
-        'UINT64'         space @b [0-9]+                  { lt = &UA_TYPES[UA_TYPES_UINT64];         goto lit; }
-        'INT64'          space @b '-'? [0-9]+             { lt = &UA_TYPES[UA_TYPES_INT64];          goto lit; }
-        'FLOAT'          space @b ('+'|'-')? [0-9.eE+-]+  { lt = &UA_TYPES[UA_TYPES_FLOAT];          goto lit; }
-        'DOUBLE'         space @b ('+'|'-')? [0-9.eE+-]+  { lt = &UA_TYPES[UA_TYPES_DOUBLE];         goto lit; }
-        'STATUSCODE'     space @b [0-9a-zA-Z]+            { lt = &UA_TYPES[UA_TYPES_STATUSCODE];     goto lit; }
-        'BOOLEAN'        space @b ('true' | 'false')      { lt = &UA_TYPES[UA_TYPES_BOOLEAN];        goto lit; }
-        'STRING'         space @b '"' ('\"' | .\["])* '"' { lt = &UA_TYPES[UA_TYPES_STRING];         goto lit; }
-        'GUID'           space @b [a-zA-Z-]               { lt = &UA_TYPES[UA_TYPES_GUID];           goto lit; }
-        'BYTESTRING'     space @b [a-zA-Z=]+              { lt = &UA_TYPES[UA_TYPES_BYTESTRING];     goto lit; }
-        'NODEID'         space @b escaped*                { lt = &UA_TYPES[UA_TYPES_NODEID];         goto lit; }
-        'EXPANDEDNODEID' space @b escaped*                { lt = &UA_TYPES[UA_TYPES_EXPANDEDNODEID]; goto lit; }
-        'DATETIME'       space @b [a-zA-Z:-]+             { lt = &UA_TYPES[UA_TYPES_DATETIME];       goto lit; }
-        'QUALIFIEDNAME'  space @b ([0-9]+ ':')? escaped*  { lt = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];  goto lit; }
-        'LOCALIZEDTEXT'  space @b escaped* ':' escaped*   { lt = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];  goto lit; }
+        '{'                                                    { goto json; }
+        'BYTE'           space @b [0-9]+                       { lt = &UA_TYPES[UA_TYPES_BYTE];           goto lit; }
+        'SBYTE'          space @b '-'? [0-9]+                  { lt = &UA_TYPES[UA_TYPES_SBYTE];          goto lit; }
+        'UINT16'         space @b [0-9]+                       { lt = &UA_TYPES[UA_TYPES_UINT16];         goto lit; }
+        'INT16'          space @b '-'? [0-9]+                  { lt = &UA_TYPES[UA_TYPES_INT16];          goto lit; }
+        'UINT32'         space @b [0-9]+                       { lt = &UA_TYPES[UA_TYPES_UINT32];         goto lit; }
+        'INT32'          space @b '-'? [0-9]+                  { lt = &UA_TYPES[UA_TYPES_INT32];          goto lit; }
+        'UINT64'         space @b [0-9]+                       { lt = &UA_TYPES[UA_TYPES_UINT64];         goto lit; }
+        'INT64'          space @b '-'? [0-9]+                  { lt = &UA_TYPES[UA_TYPES_INT64];          goto lit; }
+        'FLOAT'          space @b ('+'|'-')? [0-9.eE+-]+       { lt = &UA_TYPES[UA_TYPES_FLOAT];          goto lit; }
+        'DOUBLE'         space @b ('+'|'-')? [0-9.eE+-]+       { lt = &UA_TYPES[UA_TYPES_DOUBLE];         goto lit; }
+        'STATUSCODE'     space @b [0-9a-zA-Z]+                 { lt = &UA_TYPES[UA_TYPES_STATUSCODE];     goto lit; }
+        'BOOLEAN'        space @b ('true' | 'false')           { lt = &UA_TYPES[UA_TYPES_BOOLEAN];        goto lit; }
+        'STRING'         space @b '"' ('\\"' | [^"\x00])* '"'  { lt = &UA_TYPES[UA_TYPES_STRING];         goto lit; }
+        'STRING'         space @b ['] ('\\\'' | [^'\x00])* ['] { lt = &UA_TYPES[UA_TYPES_STRING];         goto lit; }
+        'GUID'           space @b [a-zA-Z-]                    { lt = &UA_TYPES[UA_TYPES_GUID];           goto lit; }
+        'BYTESTRING'     space @b [a-zA-Z=]+                   { lt = &UA_TYPES[UA_TYPES_BYTESTRING];     goto lit; }
+        'NODEID'         space @b escaped*                     { lt = &UA_TYPES[UA_TYPES_NODEID];         goto lit; }
+        'EXPANDEDNODEID' space @b escaped*                     { lt = &UA_TYPES[UA_TYPES_EXPANDEDNODEID]; goto lit; }
+        'DATETIME'       space @b [a-zA-Z:-]+                  { lt = &UA_TYPES[UA_TYPES_DATETIME];       goto lit; }
+        'QUALIFIEDNAME'  space @b ([0-9]+ ':')? escaped*       { lt = &UA_TYPES[UA_TYPES_QUALIFIEDNAME];  goto lit; }
+        'LOCALIZEDTEXT'  space @b escaped* ':' escaped*        { lt = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];  goto lit; }
 
         /* SimpleAttributeOperand - contains at least one unescaped '/' or '#' */
         escaped* ('/' | '#') (escaped | '/' | '#' | ':')* ('[' [0-9,:]+ ']')? { goto sao; }
 
         /* Naked Literal */
-        '"' ('\"' | .\["])* '"'                            { lt = &UA_TYPES[UA_TYPES_STRING]; goto lit; }
+        '"' ('\\"' | [^"\x00])* '"'                        { lt = &UA_TYPES[UA_TYPES_STRING]; goto lit; }
+        ['] ('\\\'' | [^'\x00])* [']                       { lt = &UA_TYPES[UA_TYPES_STRING]; goto lit; }
         'true' | 'false'                                   { lt = &UA_TYPES[UA_TYPES_BOOLEAN]; goto lit; }
         '-'? [0-9]+                                        { lt = &UA_TYPES[UA_TYPES_INT32]; goto lit; }
         ("ns=" [0-9]+ ";")? ("i="|"s="|"g="|"b=") escaped+ { lt = &UA_TYPES[UA_TYPES_NODEID]; goto lit; }
@@ -229,7 +230,7 @@ finish:
 
     /* Update the offset */
     if(tokenId != 0)
-        *offset = (uintptr_t)(pos - (const char*)content.data);
+        *offset = (uintptr_t)(pos - content.data);
 
     return tokenId;
 }

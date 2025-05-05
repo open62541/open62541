@@ -11,7 +11,7 @@
 #include "test_helpers.h"
 #include "tests/namespace_tests_di_generated.h"
 #include "tests/namespace_tests_plc_generated.h"
-#include "unistd.h"
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 

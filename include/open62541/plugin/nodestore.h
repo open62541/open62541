@@ -28,8 +28,8 @@ typedef struct UA_MonitoredItem UA_MonitoredItem;
 #endif
 
 /**
- * Node Store Plugin API
- * =====================
+ * Nodestore Plugin API
+ * ====================
  *
  * **Warning!!** The structures defined in this section are only relevant for
  * the developers of custom Nodestores. The interaction with the information
@@ -768,7 +768,9 @@ typedef struct {
      * It can be indicated if only a subset of the attributes and referencs need
      * to be accessed. That is relevant when the nodestore accesses a slow
      * storage backend for the attributes. The attribute mask is a bitfield with
-     * ORed entries from UA_NodeAttributesMask.
+     * ORed entries from UA_NodeAttributesMask. If the attributes mask is empty,
+     * then only the non-standard entries (context-pointer, callbacks, etc.) are
+     * returned.
      *
      * The returned node always contains the context-pointer and other fields
      * specific to open626541 (not official attributes).
@@ -788,6 +790,34 @@ typedef struct {
                                       UA_UInt32 attributeMask,
                                       UA_ReferenceTypeSet references,
                                       UA_BrowseDirection referenceDirections);
+
+    /* ``GetEditNode`` returns a pointer to a mutable version of the node. A
+     * plugin implementation that keeps all nodes in RAM can return the same
+     * pointer from ``GetNode`` and ``GetEditNode``. The differences are more
+     * important if, for example, nodes are stored in a backend database. Then
+     * the ``GetEditNode`` version is used to indicate that modifications are
+     * being made.
+     *
+     * Call ``releaseNode`` to indicate when editing is done and the pointer is
+     * no longer used. Note that changes are not (necessarily) visible in other
+     * (const) node-pointers that were previously retrieved. Changes are however
+     * visible in all newly retrieved node-pointers for the given NodeId after
+     * calling ``releaseNode``.
+     *
+     * The attribute-mask and reference-description indicate if only a subset of
+     * the attributes and referencs are to be modified. Other attributes and
+     * references shall not be changed. */
+    UA_Node * (*getEditNode)(void *nsCtx, const UA_NodeId *nodeId,
+                             UA_UInt32 attributeMask,
+                             UA_ReferenceTypeSet references,
+                             UA_BrowseDirection referenceDirections);
+
+    /* Similar to ``getEditNode``. But it can take advantage of the NodePointer
+     * structure, e.g. if it contains a direct pointer. */
+    UA_Node * (*getEditNodeFromPtr)(void *nsCtx, UA_NodePointer ptr,
+                                    UA_UInt32 attributeMask,
+                                    UA_ReferenceTypeSet references,
+                                    UA_BrowseDirection referenceDirections);
 
     /* Release a node that has been retrieved with ``getNode`` or
      * ``getNodeFromPtr``. */

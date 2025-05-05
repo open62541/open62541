@@ -69,7 +69,7 @@ static void setup(void) {
     ck_assert(server != NULL);
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_CertificateVerification_AcceptAll(&config->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
@@ -110,11 +110,7 @@ START_TEST(Client_connect_certificate) {
 
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          NULL, 0, NULL, 0);
-    UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
-
-    /* Set the ApplicationUri used in the certificate */
-    UA_String_clear(&cc->clientDescription.applicationUri);
-    cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
     UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -154,11 +150,7 @@ START_TEST(Client_connect_invalid_certificate) {
 
         UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                              NULL, 0, NULL, 0);
-        UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
-
-        /* Set the ApplicationUri used in the certificate */
-        UA_String_clear(&cc->clientDescription.applicationUri);
-        cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
+        UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
         UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");

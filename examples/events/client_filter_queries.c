@@ -9,7 +9,6 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/eventfilter_parser_examples.h>
 
 #include <signal.h>
 #include <stdio.h>
@@ -18,93 +17,8 @@
  * This Tutorial repeats the client_eventfilter.c tutorial,
  * however the filter are created based on the Query Language for Eventfilter
  */
-static void
-check_eventfilter(UA_EventFilter *filter, UA_Boolean print_filter){
-    UA_EventFilter empty_filter;
-    UA_EventFilter_init(&empty_filter);
-    if(memcmp(&empty_filter, filter, sizeof(UA_EventFilter)) == 0){
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Failed to parse the EventFilter");
-    }
-    else{
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "EventFilter parsing succeeded");
-        if(print_filter){
-            UA_String out = UA_STRING_NULL;
-            UA_print(filter, &UA_TYPES[UA_TYPES_EVENTFILTER], &out);
-            printf("%.*s\n", (int)out.length, out.data);
-            UA_String_clear(&out);
-        }
-    }
-}
 
 static UA_Boolean running = true;
-
-static UA_StatusCode
-read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
-    switch(filterSelection){
-        case 0 : {
-            char *inp = "SELECT /Message, /0:Severity /EventType "
-                        "WHERE OR($ref_1, $ref_2) "
-                        "FOR "
-                        "$ref2 := OFTYPE(ns=1;i=5003) AND "
-                        "$ref1 := (OFTYPE i=3035)";
-
-            UA_ByteString case_0 = UA_String_fromChars(inp);
-            UA_EventFilter_parse(filter, case_0, NULL);
-            check_eventfilter(filter, UA_FALSE);
-            UA_ByteString_clear(&case_0);
-            break;
-        }
-        case 1 : {
-            /*query can be found in the file example_queries/case_1 */
-            UA_ByteString case_1 = UA_String_fromChars(CASE_1);
-            UA_EventFilter_parse(filter, case_1, NULL);
-            check_eventfilter(filter, UA_FALSE);
-            UA_ByteString_clear(&case_1);
-            break;
-        }
-        case 2 : {
-            /*query can be found in the file example_queries/case_2 */
-            UA_ByteString case_2 = UA_String_fromChars(CASE_2);
-            UA_EventFilter_parse(filter, case_2, NULL);
-            check_eventfilter(filter, UA_FALSE);
-            UA_ByteString_clear(&case_2);
-            break;
-        }
-        case 3 : {
-            char *inp = "SELECT /Message, /Severity, /EventType "
-                         "WHERE AND(OFTYPE(ns=1;i=5001), $abc) "
-                         "FOR "
-                         "$abc := AND($xyz, $uvw) AND "
-                         "$xyz := ==(INT64 99, 99) AND "
-                         "$uvw := GREATER(i=5000/Severity, 99)";
-
-            UA_ByteString case_3 = UA_String_fromChars(inp);
-            UA_EventFilter_parse(filter, case_3, NULL);
-            check_eventfilter(filter, UA_FALSE);
-            UA_ByteString_clear(&case_3);
-            break;
-        }
-        case 4 : {
-            char *inp = "SELECT /Message, /0:Severity, /EventType "
-                        "WHERE "
-                        "AND($a, GREATER(i=5000/Severity, $ref)) "
-                        "FOR "
-                        "$ref := 99 AND "
-                        "$a := OFTYPE(ns=1;i=5000)";
-            UA_ByteString case_4 = UA_String_fromChars(inp);
-            UA_EventFilter_parse(filter, case_4, NULL);
-            check_eventfilter(filter, UA_FALSE);
-            UA_ByteString_clear(&case_4);
-            break;
-        }
-        default:
-            UA_EventFilter_clear(filter);
-            return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
-    return UA_STATUSCODE_GOOD;
-}
 
 static void
 handler_events_filter(UA_Client *client, UA_UInt32 subId, void *subContext,
@@ -139,14 +53,16 @@ handler_events_filter(UA_Client *client, UA_UInt32 subId, void *subContext,
     }
 }
 
-
 static UA_StatusCode
-create_event_filter_with_monitored_item(UA_UInt16 filterSelection, UA_Client *client,
+create_event_filter_with_monitored_item(UA_Client *client,
                                         UA_EventFilter *filter,
                                         UA_CreateSubscriptionResponse *response,
                                         UA_MonitoredItemCreateResult *result){
     /* read the eventfilter query string and create the corresponding eventfilter */
-    UA_StatusCode retval = read_queries(filterSelection, filter);
+
+    char *input = "SELECT /Message, /0:Severity, /EventType "
+        "WHERE /Severity >= 100";
+    UA_StatusCode retval = UA_EventFilter_parse(filter, UA_STRING(input), NULL);
     if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                          "Failed to parse the filter query with statuscode %s \n",
@@ -166,7 +82,7 @@ create_event_filter_with_monitored_item(UA_UInt16 filterSelection, UA_Client *cl
     /* Add a MonitoredItem */
     UA_MonitoredItemCreateRequest item;
     UA_MonitoredItemCreateRequest_init(&item);
-    item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER); // Root->Objects->Server
+    item.itemToMonitor.nodeId = UA_NS0ID(SERVER); // Root->Objects->Server
     item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
     item.monitoringMode = UA_MONITORINGMODE_REPORTING;
     item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -187,8 +103,8 @@ create_event_filter_with_monitored_item(UA_UInt16 filterSelection, UA_Client *cl
             return UA_STATUSCODE_BAD;
     }
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                            "Monitoring 'Root->Objects->Server', id %u",
-                            response->subscriptionId);
+                "Monitoring 'Root/Objects/Server', id %u",
+                response->subscriptionId);
     monId = result->monitoredItemId;
     return UA_STATUSCODE_GOOD;
 }
@@ -219,7 +135,7 @@ int main(int argc, char *argv[]) {
     UA_EventFilter_init(&filter);
     UA_CreateSubscriptionResponse *response = UA_CreateSubscriptionResponse_new();
     UA_MonitoredItemCreateResult *result = UA_MonitoredItemCreateResult_new();
-    retval = create_event_filter_with_monitored_item(3, client, &filter, response, result);
+    retval = create_event_filter_with_monitored_item(client, &filter, response, result);
     if(retval == UA_STATUSCODE_GOOD){
         while(running)
             UA_Client_run_iterate(client, true);

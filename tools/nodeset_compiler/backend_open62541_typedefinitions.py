@@ -1,14 +1,9 @@
-from __future__ import print_function
 import re
-import itertools
 import sys
 import copy
 from collections import OrderedDict
 
-if sys.version_info[0] >= 3:
-    from nodeset_compiler.type_parser import BuiltinType, EnumerationType, OpaqueType, StructType
-else:
-    from type_parser import BuiltinType, EnumerationType, OpaqueType, StructType
+from nodeset_compiler.type_parser import BuiltinType, EnumerationType, OpaqueType, StructType
 
 # Some types can be memcpy'd off the binary stream. That's especially important
 # for arrays. But we need to check if they contain padding and whether the
@@ -54,14 +49,14 @@ def getNodeidTypeAndId(nodeId):
     if not nodeId:
         return "UA_NODEIDTYPE_NUMERIC, {0}"
     if '=' not in nodeId:
-        return "UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId)
+        return f"UA_NODEIDTYPE_NUMERIC, {{{nodeId}LU}}"
     if nodeId.startswith("i="):
-        return "UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId[2:])
+        return f"UA_NODEIDTYPE_NUMERIC, {{{nodeId[2:]}LU}}"
     if nodeId.startswith("s="):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
 
-class CGenerator(object):
+class CGenerator:
     def __init__(self, parser, inname, outfile, is_internal_types, gen_doc, namespaceMap):
         self.parser = parser
         self.inname = inname
@@ -71,7 +66,6 @@ class CGenerator(object):
         self.filtered_types = None
         self.namespaceMap = namespaceMap
         self.fh = None
-        self.ff = None
         self.fc = None
         self.fd = None
         self.fe = None
@@ -131,15 +125,16 @@ class CGenerator(object):
         raise RuntimeError("Unknown datatype")
 
     def print_datatype(self, datatype, namespaceMap):
-        typeid = "{%s, %s}" % ("0", getNodeidTypeAndId(datatype.nodeId))
-        binaryEncodingId = "{%s, %s}" % ("0",
-                                         getNodeidTypeAndId(datatype.binaryEncodingId))
+        typeid = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.nodeId))
+        binaryEncodingId = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.binaryEncodingId))
+        xmlEncodingId = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.xmlEncodingId))
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
         return "{\n" + \
                "    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
                "    " + typeid + ", /* .typeId */\n" + \
                "    " + binaryEncodingId + ", /* .binaryEncodingId */\n" + \
+               "    " + xmlEncodingId + ", /* .xmlEncodingId */\n" + \
                "    sizeof(UA_" + idName + "), /* .memSize */\n" + \
                "    " + self.get_type_kind(datatype) + ", /* .typeKind */\n" + \
                "    " + pointerfree + ", /* .pointerFree */\n" + \
@@ -154,7 +149,7 @@ class CGenerator(object):
         if len(datatype.members) == 0:
             return "#define %s_members NULL" % (idName)
         isUnion = isinstance(datatype, StructType) and datatype.is_union
-        members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members))
+        members = "static UA_DataTypeMember {}_members[{}] = {{".format(idName, len(datatype.members))
         before = None
         size = len(datatype.members)
         for i, member in enumerate(datatype.members):
@@ -177,20 +172,20 @@ class CGenerator(object):
                 member_name_capital = member_name[0].upper() + member_name[1:]
             m = "\n{\n"
             m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % member_name_capital
-            m += "    &UA_%s[UA_%s_%s], /* .memberType */\n" % (
+            m += "    &UA_{}[UA_{}_{}], /* .memberType */\n".format(
                 member.member_type.outname.upper(), member.member_type.outname.upper(),
                 makeCIdentifier(type_name.upper()))
             m += "    "
             if not before and not isUnion:
                 m += "0,"
             elif isUnion:
-                    m += "offsetof(UA_%s, fields.%s)," % (idName, member_name)
+                    m += "offsetof(UA_{}, fields.{}),".format(idName, member_name)
             else:
                 if member.is_array:
-                    m += "offsetof(UA_%s, %sSize)" % (idName, member_name)
+                    m += "offsetof(UA_{}, {}Size)".format(idName, member_name)
                 else:
-                    m += "offsetof(UA_%s, %s)" % (idName, member_name)
-                m += " - offsetof(UA_%s, %s)" % (idName, makeCIdentifier(before.name))
+                    m += "offsetof(UA_{}, {})".format(idName, member_name)
+                m += " - offsetof(UA_{}, {})".format(idName, makeCIdentifier(before.name))
                 if before.is_array or before.is_optional:
                     m += " - sizeof(void *),"
                 else:
@@ -211,66 +206,43 @@ class CGenerator(object):
 
     def print_functions(self, datatype):
         idName = makeCIdentifier(datatype.name)
-        funcs = "UA_INLINABLE( void\nUA_%s_init(UA_%s *p) ,{\n    memset(p, 0, sizeof(UA_%s));\n})\n\n" % (
-            idName, idName, idName)
-        funcs += "UA_INLINABLE( UA_%s *\nUA_%s_new(void) ,{\n    return (UA_%s*)UA_new(%s);\n})\n\n" % (
-            idName, idName, idName, CGenerator.print_datatype_ptr(datatype))
+        funcs = "UA_INLINABLE( void\nUA_{}_init(UA_{} *p), {{\n    memset(p, 0, sizeof(UA_{}));\n}})\n\n".format(idName, idName, idName)
+        funcs += "UA_INLINABLE( UA_{} *\nUA_{}_new(void), {{\n    return (UA_{}*)UA_new({});\n}})\n\n".format(idName, idName, idName, CGenerator.print_datatype_ptr(datatype))
         if datatype.pointerfree == "true":
-            funcs += "UA_INLINABLE( UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) ,{\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n})\n\n" % (
-                idName, idName, idName)
-            funcs += "UA_DEPRECATED UA_INLINABLE( void\nUA_%s_deleteMembers(UA_%s *p) ,{\n    memset(p, 0, sizeof(UA_%s));\n})\n\n" % (
-                idName, idName, idName)
-            funcs += "UA_INLINABLE( void\nUA_%s_clear(UA_%s *p) ,{\n    memset(p, 0, sizeof(UA_%s));\n})\n\n" % (
-                idName, idName, idName)
+            funcs += "UA_INLINABLE( UA_StatusCode\nUA_{}_copy(const UA_{} *src, UA_{} *dst), {{\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n}})\n\n".format(idName, idName, idName)
+            funcs += "UA_INLINABLE( void\nUA_{}_clear(UA_{} *p), {{\n    memset(p, 0, sizeof(UA_{}));\n}})\n".format(idName, idName, idName)
         else:
             for entry in whitelistFuncAttrWarnUnusedResult:
                 if idName == entry:
                     funcs += "UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT "
                     break
 
-            funcs += "UA_INLINABLE( UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) ,{\n    return UA_copy(src, dst, %s);\n})\n\n" % (
-                idName, idName, idName, self.print_datatype_ptr(datatype))
-            funcs += "UA_DEPRECATED UA_INLINABLE( void\nUA_%s_deleteMembers(UA_%s *p) ,{\n    UA_clear(p, %s);\n})\n\n" % (
-                idName, idName, self.print_datatype_ptr(datatype))
-            funcs += "UA_INLINABLE( void\nUA_%s_clear(UA_%s *p) ,{\n    UA_clear(p, %s);\n})\n\n" % (
-                idName, idName, self.print_datatype_ptr(datatype))
-        funcs += "UA_INLINABLE( void\nUA_%s_delete(UA_%s *p) ,{\n    UA_delete(p, %s);\n})" % (
-            idName, idName, self.print_datatype_ptr(datatype))
-        funcs += "static UA_INLINE UA_Boolean\nUA_%s_equal(const UA_%s *p1, const UA_%s *p2) {\n    return (UA_order(p1, p2, %s) == UA_ORDER_EQ);\n}\n\n" % (
+            funcs += "UA_INLINABLE( UA_StatusCode\nUA_{}_copy(const UA_{} *src, UA_{} *dst), {{\n    return UA_copy(src, dst, {});\n}})\n\n".format(idName, idName, idName, self.print_datatype_ptr(datatype))
+            funcs += "UA_INLINABLE( void\nUA_{}_clear(UA_{} *p), {{\n    UA_clear(p, {});\n}})\n\n".format(idName, idName, self.print_datatype_ptr(datatype))
+        funcs += "UA_INLINABLE( void\nUA_{}_delete(UA_{} *p), {{\n    UA_delete(p, {});\n}})\n\n".format(idName, idName, self.print_datatype_ptr(datatype))
+        funcs += "UA_INLINABLE( UA_Boolean\nUA_{}_equal(const UA_{} *p1, const UA_{} *p2), {{\n    return (UA_order(p1, p2, {}) == UA_ORDER_EQ);\n}})\n".format(
             idName, idName, idName, self.print_datatype_ptr(datatype))
         return funcs
 
-    def print_datatype_encoding(self, datatype):
-        idName = makeCIdentifier(datatype.name)
-        enc = "UA_INLINABLE( size_t\nUA_%s_calcSizeBinary(const UA_%s *src) ,{\n    return UA_calcSizeBinary(src, %s);\n})\n"
-        enc += "UA_INLINABLE( UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_Byte **bufPos, const UA_Byte *bufEnd) ,{\n    return UA_encodeBinary(src, %s, bufPos, &bufEnd, NULL, NULL);\n})\n"
-        enc += "UA_INLINABLE( UA_StatusCode\nUA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) ,{\n    return UA_decodeBinary(src, offset, dst, %s, NULL);\n})"
-        return enc % tuple(
-            list(itertools.chain(*itertools.repeat([idName, idName, self.print_datatype_ptr(datatype)], 3))))
-
     @staticmethod
     def print_enum_typedef(enum, gen_doc=False):
-        if sys.version_info[0] < 3:
-            values = enum.elements.iteritems()
-        else:
-            values = enum.elements.items()
-
+        values = enum.elements.items()
         if enum.isOptionSet == True:
             elements = map(lambda kv: "#define " + makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) + " " + kv[1], values)
             return "typedef " + enum.strDataType + " " + makeCIdentifier("UA_" + enum.name) + ";\n\n" + "\n".join(elements)
         else:
             elements = [makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) + " = " + kv[1] for kv in values]
             if not gen_doc:
-                elements.append("__UA_{}_FORCE32BIT = 0x7fffffff".format(makeCIdentifier(enum.name.upper())))
+                elements.append(f"__UA_{makeCIdentifier(enum.name.upper())}_FORCE32BIT = 0x7fffffff")
             out = []
             out.append("typedef enum {")
             for i,e in enumerate(elements):
                 out.append("    " + e)
                 if i < len(elements)-1:
                     out[-1] += ","
-            out.append("}} UA_{0};".format(makeCIdentifier(enum.name)))
+            out.append(f"}} UA_{makeCIdentifier(enum.name)};")
             if not gen_doc:
-                out.append("\nUA_STATIC_ASSERT(sizeof(UA_{0}) == sizeof(UA_Int32), enum_must_be_32bit);".format(makeCIdentifier(enum.name)))
+                out.append(f"\nUA_STATIC_ASSERT(sizeof(UA_{makeCIdentifier(enum.name)}) == sizeof(UA_Int32), enum_must_be_32bit);")
             return "\n".join(out)
 
     @staticmethod
@@ -290,7 +262,7 @@ class CGenerator(object):
         if len(struct.members) == 0:
             raise Exception("Structs with no members are filtered out. Why not here?")
         if struct.is_recursive:
-            returnstr += "typedef struct UA_%s UA_%s;\n" % (makeCIdentifier(struct.name), makeCIdentifier(struct.name))
+            returnstr += "typedef struct UA_{} UA_{};\n".format(makeCIdentifier(struct.name), makeCIdentifier(struct.name))
             returnstr += "struct UA_%s {\n" % makeCIdentifier(struct.name)
         else:
             returnstr += "typedef struct {\n"
@@ -309,18 +281,18 @@ class CGenerator(object):
                 returnstr += "    size_t %sSize;\n" % makeCIdentifier(member.name)
                 if struct.is_union:
                     returnstr += "        "
-                returnstr += "    UA_%s *%s;\n" % (
+                returnstr += "    UA_{} *{};\n".format(
                     makeCIdentifier(type_name), makeCIdentifier(member.name))
                 if struct.is_union:
                     returnstr += "        } " + makeCIdentifier(member.name) + ";\n"
             elif struct.is_union:
-                returnstr += "        UA_%s %s;\n" % (
+                returnstr += "        UA_{} {};\n".format(
                 makeCIdentifier(type_name), makeCIdentifier(member.name))
             elif member.is_optional:
-                returnstr += "    UA_%s *%s;\n" % (
+                returnstr += "    UA_{} *{};\n".format(
                     makeCIdentifier(type_name), makeCIdentifier(member.name))
             else:
-                returnstr += "    UA_%s %s;\n" % (
+                returnstr += "    UA_{} {};\n".format(
                     makeCIdentifier(type_name), makeCIdentifier(member.name))
         if struct.is_union:
             returnstr += "    } fields;\n"
@@ -341,17 +313,14 @@ class CGenerator(object):
 
     def write_definitions(self):
         self.fh = open(self.outfile + "_generated.h", 'w')
-        self.ff = open(self.outfile + "_generated_handling.h", 'w')
         self.fc = open(self.outfile + "_generated.c", 'w')
 
         self.filtered_types = self.iter_types(self.parser.types)
 
         self.print_header()
-        self.print_handling()
         self.print_description_array()
 
         self.fh.close()
-        self.ff.close()
         self.fc.close()
 
         if self.gen_doc:
@@ -361,9 +330,6 @@ class CGenerator(object):
 
     def printh(self, string):
         print(string, end='\n', file=self.fh)
-
-    def printf(self, string):
-        print(string, end='\n', file=self.ff)
 
     def printc(self, string):
         print(string, end='\n', file=self.fc)
@@ -415,17 +381,12 @@ class CGenerator(object):
             typeFile = arr.lower()
             typeFile = typeFile[typeFile.startswith("ua_") and len("ua_"):]
             additionalHeaders += """#include "%s_generated.h"\n""" % typeFile
-            
-        self.printh(u'''/**********************************
+
+        self.printh('''/**********************************
  * Autogenerated -- do not modify *
  **********************************/
 
-/* Must be before the include guards */
-#ifdef UA_ENABLE_AMALGAMATION
-# include "open62541.h"
-#else
-# include <open62541/types.h>
-#endif
+#include <open62541/types.h>
 
 #ifndef ''' + self.parser.outname.upper() + '''_GENERATED_H_
 #define ''' + self.parser.outname.upper() + '''_GENERATED_H_
@@ -457,16 +418,16 @@ _UA_BEGIN_DECLS
                         self.printh("\n/* " + t.name + ": " + t.description + " */")
                     if not isinstance(t, BuiltinType):
                         self.printh(self.print_datatype_typedef(t) + "\n")
-                    self.printh(
-                        "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
+                    self.printh("#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
+                    self.printh("")
+                    self.printh(self.print_functions(t))
         else:
             self.printh("#define UA_" + self.parser.outname.upper() + " NULL")
 
         self.printh('''
-
 _UA_END_DECLS
 
-#endif /* %s_GENERATED_H_ */''' % self.parser.outname.upper())
+#endif /* %s_GENERATED_H_ */\n''' % self.parser.outname.upper())
 
     def print_doc(self):
         for ns in self.filtered_types:
@@ -483,42 +444,8 @@ _UA_END_DECLS
                     self.printd("    " + l)
                 self.printd("")
 
-    def print_handling(self):
-        self.printf(u'''/**********************************
- * Autogenerated -- do not modify *
- **********************************/
-
-#ifndef ''' + self.parser.outname.upper() + '''_GENERATED_HANDLING_H_
-#define ''' + self.parser.outname.upper() + '''_GENERATED_HANDLING_H_
-
-#include "''' + self.parser.outname + '''_generated.h"
-
-_UA_BEGIN_DECLS
-
-#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-# pragma GCC diagnostic ignored "-Wmissing-braces"
-#endif
-''')
-
-        for ns in self.filtered_types:
-            for i, t_name in enumerate(self.filtered_types[ns]):
-                t = self.filtered_types[ns][t_name]
-                self.printf("\n/* " + t.name + " */")
-                self.printf(self.print_functions(t))
-
-        self.printf('''
-#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
-# pragma GCC diagnostic pop
-#endif
-
-_UA_END_DECLS
-
-#endif /* %s_GENERATED_HANDLING_H_ */''' % self.parser.outname.upper())
-
     def print_description_array(self):
-        self.printc(u'''/**********************************
+        self.printc('''/**********************************
  * Autogenerated -- do not modify *
  **********************************/
 
@@ -535,7 +462,7 @@ _UA_END_DECLS
 
         if totalCount > 0:
             self.printc(
-                "UA_DataType UA_%s[UA_%s_COUNT] = {" % (self.parser.outname.upper(), self.parser.outname.upper()))
+                "UA_DataType UA_{}[UA_{}_COUNT] = {{".format(self.parser.outname.upper(), self.parser.outname.upper()))
 
             for ns in self.filtered_types:
                 for i, t_name in enumerate(self.filtered_types[ns]):

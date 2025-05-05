@@ -80,7 +80,7 @@ START_TEST(Case_5) {
     char *inp = "SELECT /Severity "
                 "WHERE true AND false AND NOT true OR 123 BETWEEN [1,2]";
     char *inp2 = "SELECT /Severity "
-                 "WHERE (((true AND false) AND (NOT true)) OR 123) BETWEEN [1,2]";
+                 "WHERE ((true AND false) AND (NOT true)) OR (123 BETWEEN [1,2])";
     UA_EventFilter filter, filter2;
     UA_String case1 = UA_STRING(inp);
     UA_String case2 = UA_STRING(inp2);
@@ -158,7 +158,7 @@ START_TEST(Case_11) {
 /* JSON */
 START_TEST(Case_12) {
     char *inp = "SELECT /Severity "
-                "WHERE /Value == {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]}";
+                "WHERE /Value == {\"UaType\": 3,\"Value\": [1,2,1,5],\"Dimension\": [2,2]}";
     UA_String case1 = UA_STRING(inp);
     UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
@@ -201,6 +201,44 @@ START_TEST(Case_16) {
     UA_EventFilter_clear(&filter);
 } END_TEST
 
+/* Combination of NOT with binary operators */
+START_TEST(Case_17) {
+    char *inp = "SELECT /Severity WHERE /1:Diameter == 1 AND NOT /Severity BETWEEN [100,200] OR /Severity > 200";
+    char *inp2 = "SELECT /Severity WHERE ((/1:Diameter == 1) AND (NOT (/Severity BETWEEN [100,200]))) OR (/Severity > 200)";
+    UA_EventFilter filter, filter2;
+    UA_String case1 = UA_STRING(inp);
+    UA_String case2 = UA_STRING(inp2);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    res |= UA_EventFilter_parse(&filter2, case2, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_EventFilter_equal(&filter, &filter2));
+    UA_EventFilter_clear(&filter);
+    UA_EventFilter_clear(&filter2);
+} END_TEST
+
+/* More precedence tests */
+START_TEST(Case_18) {
+    char *inp = "SELECT /Severity WHERE OFTYPE ns=1;s=DrillEventType AND (/Severity > 100 AND (NOT /1:Diameter BETWEEN [5,6] AND 75 >= /1:FeedForce)) OR /1:Result == \"Failed\"";
+    char *inp2 = "SELECT /Severity WHERE OFTYPE ns=1;s=DrillEventType AND ((/Severity > 100) AND ((NOT (/1:Diameter BETWEEN [5,6])) AND 75 >= /1:FeedForce)) OR (/1:Result == \"Failed\")";
+    UA_EventFilter filter, filter2;
+    UA_String case1 = UA_STRING(inp);
+    UA_String case2 = UA_STRING(inp2);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    res |= UA_EventFilter_parse(&filter2, case2, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_EventFilter_equal(&filter, &filter2));
+    UA_EventFilter_clear(&filter);
+    UA_EventFilter_clear(&filter2);
+} END_TEST
+
+START_TEST(Case_19) {
+    char *inp = "SELECT /Message#Value WHERE /Severity INLIST [1,2,3]";
+    UA_String case0 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case0, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("EventFilter Parser");
     TCase *tc_call = tcase_create("eventfilter parser - basics");
@@ -221,6 +259,9 @@ int main(void) {
     tcase_add_test(tc_call, Case_14);
     tcase_add_test(tc_call, Case_15);
     tcase_add_test(tc_call, Case_16);
+    tcase_add_test(tc_call, Case_17);
+    tcase_add_test(tc_call, Case_18);
+    tcase_add_test(tc_call, Case_19);
     suite_add_tcase(s, tc_call);
 
     SRunner *sr = srunner_create(s);

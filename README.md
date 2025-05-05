@@ -2,7 +2,7 @@
 
 open62541 (<http://open62541.org>) is an open source implementation of OPC UA (OPC Unified Architecture / IEC 62541) written in the C language. The library is usable with all major compilers and provides the necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications. The open62541 library is platform independent: All platform-specific functionality is implemented via exchangeable plugins for easy porting to different (embedded) targets.
 
-open62541 is licensed under the Mozilla Public License v2.0 (MPLv2). This allows the open62541 library to be combined and distributed with any proprietary software. Only changes to the open62541 library itself need to be licensed under the MPLv2 when copied and distributed. The plugins, as well as the server and client examples are in the public domain (CC0 license). They can be reused under any license and changes do not have to be published.
+open62541 is licensed under the Mozilla Public License v2.0 (MPLv2). This allows the open62541 library to be combined and distributed with any proprietary software. Only changes to the open62541 library itself need to be licensed under the MPLv2 when copied and distributed. Some plugins and examples are in the public domain (CC0 license) and some are licensed under MPLv2. The CC0 licensed ones can be reused under any license and changes do not have to be published.
 
 The library is [available](https://github.com/open62541/open62541/releases) in standard source and binary form. In addition, the single-file source distribution merges the entire library into a single .c and .h file that can be easily added to existing projects. Example server and client implementations can be found in the [/examples](examples/) directory or further down on this page.
 
@@ -45,8 +45,8 @@ open62541 is licensed under the MPLv2. That is, changes to files under MPLv2 fal
 But the library can be combined with private development from separate files, also if a static binary is produced, without the license affecting the private files.
 See the full [license document](LICENSE) for details.
 
-**Fraunhofer IOSB** maintains open62541 and provides **[official commercial support](https://www.iosb.fraunhofer.de/en/projects-and-products/open62541.html)**.
-Additional service providers are listed on [open62541.org](https://www.open62541.org/).
+**Fraunhofer IOSB** employs several of the open62541 developers and provides **[commercial support](https://www.iosb.fraunhofer.de/en/projects-and-products/open62541.html)**.
+Additional service providers in the open62541 ecosystem are listed on [open62541.org](https://www.open62541.org/).
 
 ## Official Certification
 
@@ -84,9 +84,29 @@ For individual discussion and support, use the following channels:
 
 We want to foster an open and welcoming community. Please take our [code of conduct](CODE_OF_CONDUCT.md) into regard.
 
+## Build System, Code Structure and Dependencies
+
+The build environment of open62541 is generated via CMake. See the [build documentation](https://www.open62541.org/doc/master/building.html) for details.
+To simplify the integration with existing software projects, the open62541 sources can be compressed (amalgamated) into a single-file-distribution, a pair of `open62541.c/.h` files.
+The functionality included in the single-file-distribution depends on the current CMake configuration.
+
+The source code is structured as follows:
+
+- Public API (`/include`): The public API is exposed to applications using open62541. The headers for plugin implementations are in `/plugins/include`.
+- Core Library (`/src`): The core library has no dependencies besides the C99 standard headers.
+- Architecture Support (`/arch`): Architecture support is implemented via the `EventLoop` plugin. This keeps the architecture-specific code - for example to use the POSIX APIs - out of the core library. Ports to different (embedded) architectures are provided.
+- Default Plugins Implementations (`/plugins`): The plugin interfaces allow the integration with different backend systems and libraries. For example concerning crypto primitives, storage of the information model, and so on. Default implementations are provided.
+- Dependencies (`/deps`): Some additional libraries are used via git submodules or have been internalized in the `deps/` folder. More information on the third-party libraries and their respective licenses can be found in [deps/README.md](deps/README.md)
+- Building and Code Generation: Some code is auto-generated from XML definitions that are part of the OPC UA standard. The code generation scripts use Python as part of the build process.
+
+On most systems, a bare-bones open62541 requires the C standard library only.
+Depending on the build configuration, open62541 depends on additional libraries, such as mbedTLS or OpenSSL for encryption.
+
 ## Development
 
-As an open source project, new contributors are encouraged to help improve open62541. The file [CONTRIBUTING.md](CONTRIBUTING.md) aggregates good practices that we expect for code contributions. The following are good starting points for new contributors:
+As an open source project, new contributors are encouraged to help improve open62541.
+The file [CONTRIBUTING.md](CONTRIBUTING.md) aggregates good practices that we expect for code contributions.
+The following are good starting points for new contributors:
 
 - [Report bugs](https://github.com/open62541/open62541/issues)
 - Improve the [documentation](http://open62541.org/doc/current)
@@ -94,48 +114,25 @@ As an open source project, new contributors are encouraged to help improve open6
 
 For custom development that shall eventually become part of the open62541 library, please keep one of the core maintainers in the loop.
 
-### Dependencies
-
-On most systems, open62541 requires the C standard library only. For dependencies during the build process, see the following list and the [build documentation](https://www.open62541.org/doc/master/building.html) for details.
-
-- Core Library: The core library has no dependencies besides the C99 standard headers.
-- Default Plugins: The default plugins use the POSIX interfaces for networking and accessing the system clock. Ports to different (embedded) architectures are achieved by customizing the plugins.
-- Building and Code Generation: The build environment is generated via CMake. Some code is auto-generated from XML definitions that are part of the OPC UA standard. The code generation scripts run with both Python 2 and 3.
-
-**Note:**
-Some (optional) features are dependent on third-party libraries. These are all listed under the `deps/` folder.
-Depending on the selected feature set, some of these libraries will be included in the resulting library.
-More information on the third-party libraries can be found in the corresponding [deps/README.md](deps/README.md)
-
 ### Code Quality
 
 We emphasize code quality. The following quality metrics are continuously checked and are ensured to hold before an official release is made:
 
 - Zero errors indicated by the Compliance Testing Tool (CTT) of the OPC Foundation for the supported features
 - Zero compiler warnings from GCC/Clang/MSVC with very strict compilation flags
-- Zero issues indicated by unit tests (more than 80% coverage)
+- Zero issues indicated by unit tests (we target more than 80% code coverage)
 - Zero issues indicated by clang-analyzer, clang-tidy, cpp-check and the Codacy static code analysis tools
 - Zero unresolved issues from fuzzing the library in Google's oss-fuzz infrastructure
 - Zero issues indicated by Valgrind (Linux), DrMemory (Windows) and Clang AddressSanitizer / MemorySanitizer for the CTT tests, unit tests and fuzzing
 
-## Installation and code usage
+### Security and Vulnerability Handling
 
-For every release, we provide some pre-packed release packages which you can directly use in your compile infrastructure.
-
-Have a look at the [release page](https://github.com/open62541/open62541/releases) and the corresponding attached assets.
-
-A more detailed explanation on how to install the open62541 SDK is given in our [documentation](https://www.open62541.org/doc/master/building.html#building-the-library).
-In essence, clone the repository and initialize all the submodules using `git submodule update --init --recursive`. Then use CMake to configure your build.
-
-Furthermore we provide "pack branches" that are up-to-date with the corresponding base branches, and in addition have the git submodules in-place for a zip download.
-Here are some direct download links for the current pack branches:  
-
-  - [pack/master.zip](https://github.com/open62541/open62541/archive/pack/master.zip)
-  - [pack/1.0.zip](https://github.com/open62541/open62541/archive/pack/1.0.zip)
+The project has established a process for handling vulnerabilities.
+See the [SECURITY.md](SECURITY.md) for details and how to responsibly disclose findings to the maintainers.
 
 ## Examples
 
-A complete list of examples can be found in the [examples directory](https://github.com/open62541/open62541/tree/master/examples).
+Code examples can be found in the [/examples](https://github.com/open62541/open62541/tree/master/examples) directory.
 To build the examples, we recommend to install open62541 as mentioned in the previous section.
 Using the GCC compiler, just run ```gcc -std=c99 <server.c> -lopen62541 -o server``` (under Windows you may need to add additionally link against the ```ws2_32``` 
 socket library).
@@ -160,8 +157,8 @@ int main(int argc, char** argv)
 
     /* 2) Define where the node shall be added with which browsename */
     UA_NodeId newNodeId = UA_NODEID_STRING(1, "the.answer");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
     UA_NodeId variableType = UA_NODEID_NULL; /* take the default variable type */
     UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "the answer");
 

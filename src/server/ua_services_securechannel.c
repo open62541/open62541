@@ -36,7 +36,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
         /* Set the SecurityMode */
         if(request->securityMode != UA_MESSAGESECURITYMODE_NONE &&
-           UA_ByteString_equal(&sp->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
+           UA_String_equal(&sp->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURITYMODEREJECTED;
             goto error;
         }
@@ -74,7 +74,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
      * message is received. The ChannelId is left unchanged. */
     UA_EventLoop *el = server->config.eventLoop;
     channel->altSecurityToken.channelId = channel->securityToken.channelId;
-    channel->altSecurityToken.tokenId = generateSecureChannelTokenId(server);
+    channel->altSecurityToken.tokenId = server->lastTokenId++;
     channel->altSecurityToken.createdAt = el->dateTime_nowMonotonic(el);
     channel->altSecurityToken.revisedLifetime =
         (request->requestedLifetime > server->config.maxSecurityTokenLifetime) ?
@@ -106,10 +106,9 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     /* Success */
     if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_ISSUE) {
         UA_LOG_INFO_CHANNEL(server->config.logging, channel,
-                            "SecureChannel opened with SecurityPolicy %.*s "
+                            "SecureChannel opened with SecurityPolicy %S "
                             "and a revised lifetime of %.2fs",
-                            (int)channel->securityPolicy->policyUri.length,
-                            channel->securityPolicy->policyUri.data,
+                            channel->securityPolicy->policyUri,
                             (UA_Float)response->securityToken.revisedLifetime / 1000);
     } else {
         UA_LOG_INFO_CHANNEL(server->config.logging, channel, "SecureChannel renewed "

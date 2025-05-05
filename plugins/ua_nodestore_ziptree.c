@@ -6,7 +6,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include <open62541/types_generated_handling.h>
+#include <open62541/types.h>
 #include <open62541/plugin/nodestore_default.h>
 #include "ziptree.h"
 
@@ -402,6 +402,19 @@ UA_Nodestore_ZipTree(UA_Nodestore *ns) {
     ns->removeNode = zipNsRemoveNode;
     ns->getReferenceTypeId = zipNsGetReferenceTypeId;
     ns->iterate = zipNsIterate;
+
+    /* All nodes are stored in RAM. Changes are made in-situ. GetEditNode is
+     * identical to GetNode -- but the Node pointer is non-const. */
+    ns->getEditNode =
+        (UA_Node * (*)(void *nsCtx, const UA_NodeId *nodeId,
+                       UA_UInt32 attributeMask,
+                       UA_ReferenceTypeSet references,
+                       UA_BrowseDirection referenceDirections))zipNsGetNode;
+    ns->getEditNodeFromPtr =
+        (UA_Node * (*)(void *nsCtx, UA_NodePointer ptr,
+                       UA_UInt32 attributeMask,
+                       UA_ReferenceTypeSet references,
+                       UA_BrowseDirection referenceDirections))zipNsGetNodeFromPtr;
 
     return UA_STATUSCODE_GOOD;
 }

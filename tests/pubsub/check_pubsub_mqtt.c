@@ -10,9 +10,11 @@
 #include <open62541/server_pubsub.h>
 
 #include "test_helpers.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 #define TEST_MQTT_SERVER "opc.mqtt://localhost:1883"
 //#define TEST_MQTT_SERVER "opc.mqtt://test.mosquitto.org:1883"
@@ -45,7 +47,6 @@ static void setup(void) {
     connectionConfig.name = UA_STRING("Mqtt Connection");
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp");
-    connectionConfig.enabled = UA_TRUE;
 
     /* configure address of the mqtt broker (local on default port) */
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING(TEST_MQTT_SERVER)};
@@ -57,9 +58,7 @@ static void setup(void) {
     connectionConfig.publisherId.id.uint16 = 2234;
 
     /* configure options, set mqtt client id */
-    const int connectionOptionsCount = 1;
-
-    UA_KeyValuePair connectionOptions[connectionOptionsCount];
+    UA_KeyValuePair connectionOptions[1];
 
     size_t connectionOptionIndex = 0;
     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, CONNECTIONOPTION_NAME);
@@ -156,7 +155,6 @@ START_TEST(SinglePublishSubscribeDateTime){
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
         writerGroupConfig.publishingInterval = SUBSCRIBE_INTERVAL;
-        writerGroupConfig.enabled = UA_FALSE;
         writerGroupConfig.writerGroupId = 100;
         UA_UadpWriterGroupMessageDataType *writerGroupMessage;
 
@@ -189,8 +187,6 @@ START_TEST(SinglePublishSubscribeDateTime){
         writerGroupConfig.transportSettings = transportSettings;
         retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-        retval = UA_Server_enableWriterGroup(server, writerGroupIdent);
-        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 
         // add DataSetWriter
@@ -206,16 +202,17 @@ START_TEST(SinglePublishSubscribeDateTime){
                                             &dataSetWriterConfig, &dataSetWriterIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-        retval = UA_Server_enableWriterGroup(server, writerGroupIdent);
+        retval = UA_Server_enableAllPubSubComponents(server);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupIdent);
+        UA_PubSubManager *psm = getPSM(server);
+        UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroupIdent);
         ck_assert(wg != 0);
 
-        while(wg->state != UA_PUBSUBSTATE_OPERATIONAL)
+        while(wg->head.state != UA_PUBSUBSTATE_OPERATIONAL)
             UA_Server_run_iterate(server, false);
 
-        UA_WriterGroup_publishCallback(server, wg);
+        UA_WriterGroup_publishCallback(psm, wg);
 
         /*---------------------------------------------------------------------*/
 
@@ -225,8 +222,8 @@ START_TEST(SinglePublishSubscribeDateTime){
         readerGroupConfig.name = UA_STRING("ReaderGroup1");
 
         /* configure the mqtt publish topic */
-        UA_BrokerWriterGroupTransportDataType brokerTransportSettingsSubscriber;
-        memset(&brokerTransportSettingsSubscriber, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
+        UA_BrokerDataSetReaderTransportDataType brokerTransportSettingsSubscriber;
+        memset(&brokerTransportSettingsSubscriber, 0, sizeof(UA_BrokerDataSetReaderTransportDataType));
 
         brokerTransportSettingsSubscriber.queueName = UA_STRING(SUBSCRIBE_TOPIC);
         brokerTransportSettingsSubscriber.resourceUri = UA_STRING_NULL;
@@ -245,8 +242,6 @@ START_TEST(SinglePublishSubscribeDateTime){
         retval = UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
                                           &readerGroupIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-        retval = UA_Server_enableReaderGroup(server, readerGroupIdent);
-        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         // add DataSetReader
         memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
@@ -262,7 +257,6 @@ START_TEST(SinglePublishSubscribeDateTime){
         retval = UA_Server_addDataSetReader(server, readerGroupIdent, &readerConfig,
                                             &subscribedDataSetIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-
 
         // add SubscribedVariables
         UA_NodeId folderId;
@@ -288,8 +282,8 @@ START_TEST(SinglePublishSubscribeDateTime){
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         /* Create the TargetVariables with respect to DataSetMetaData fields */
-        UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
-            UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
+        UA_FieldTargetDataType *targetVars = (UA_FieldTargetDataType*)
+            UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetDataType));
         for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++) {
             /* Variable to subscribe data */
             UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -307,29 +301,79 @@ START_TEST(SinglePublishSubscribeDateTime){
                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                                 vAttr, NULL, &newNode);
             ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-
-            /* For creating Targetvariables */
-            UA_FieldTargetDataType_init(&targetVars[i].targetVariable);
-            targetVars[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-            targetVars[i].targetVariable.targetNodeId = newNode;
+            targetVars[i].attributeId  = UA_ATTRIBUTEID_VALUE;
+            targetVars[i].targetNodeId = newNode;
         }
 
         retval = UA_Server_DataSetReader_createTargetVariables(server, subscribedDataSetIdent,
                                                                readerConfig.dataSetMetaData.fieldsSize, targetVars);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-        for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++)
-            UA_FieldTargetDataType_clear(&targetVars[i].targetVariable);
-
         UA_free(targetVars);
         UA_free(readerConfig.dataSetMetaData.fields);
 
+        retval = UA_Server_enableAllPubSubComponents(server);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
     } END_TEST
+
+START_TEST(CreateReaderGroup) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    // add reader group
+    UA_ReaderGroupConfig readerGroupConfig;
+    memset(&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
+    readerGroupConfig.name = UA_STRING("ReaderGroup1");
+
+    /* configure the mqtt publish topic */
+    UA_BrokerDataSetReaderTransportDataType transportSettingsData;
+    memset(&transportSettingsData, 0, sizeof(UA_BrokerDataSetReaderTransportDataType));
+
+    transportSettingsData.queueName = UA_STRING(SUBSCRIBE_TOPIC);
+    transportSettingsData.resourceUri = UA_STRING_NULL;
+    transportSettingsData.authenticationProfileUri = UA_STRING_NULL;
+
+    transportSettingsData.requestedDeliveryGuarantee =
+        UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
+
+    UA_ExtensionObject transportSettings;
+    memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
+    transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    transportSettings.content.decoded.type =
+        &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE];
+    transportSettings.content.decoded.data = &transportSettingsData;
+
+    readerGroupConfig.transportSettings = transportSettings;
+
+    retval = UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
+                                      &readerGroupIdent);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    // Check if reader group was created correctly (Issue #6808)
+    memset(&transportSettingsData, 0,
+           sizeof(UA_BrokerDataSetReaderTransportDataType));
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupIdent);
+    ck_assert(rg != 0);
+    UA_ExtensionObject *ts = &rg->config.transportSettings;
+
+    ck_assert((ts->encoding == UA_EXTENSIONOBJECT_DECODED ||
+               ts->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
+                  ts->content.decoded.type ==
+                      &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE]);
+    UA_String *topic =
+        &((UA_BrokerDataSetReaderTransportDataType *)ts->content.decoded.data)->queueName;
+    ck_assert(topic->data != 0 && topic->length != 0 &&
+              strncmp(SUBSCRIBE_TOPIC, (const char *)topic->data,
+                      strlen(SUBSCRIBE_TOPIC)) == 0);
+} END_TEST
 
 int main(void) {
     TCase *tc_pubsub_subscribe_mqtt = tcase_create("PubSub subscribe mqtt");
     tcase_add_checked_fixture(tc_pubsub_subscribe_mqtt, setup, teardown);
     tcase_add_test(tc_pubsub_subscribe_mqtt, SinglePublishSubscribeDateTime);
+    tcase_add_test(tc_pubsub_subscribe_mqtt, CreateReaderGroup);
 
     Suite *s = suite_create("PubSub subscribe via mqtt");
     suite_add_tcase(s, tc_pubsub_subscribe_mqtt);

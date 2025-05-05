@@ -9,10 +9,11 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/types.h>
 
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "test_helpers.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
@@ -58,8 +59,6 @@ START_TEST(SinglePublishDataSetField){
     UA_StatusCode retVal =
         UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    retVal = UA_Server_enableWriterGroup(server, writerGroup1);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
@@ -88,9 +87,13 @@ START_TEST(SinglePublishDataSetField){
                                         &dataSetWriterConfig, &dataSetWriter1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
-    ck_assert(wg != 0);
-    UA_WriterGroup_publishCallback(server, wg);
+    retVal = UA_Server_enableDataSetWriter(server, dataSetWriter1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    retVal = UA_Server_enableWriterGroup(server, writerGroup1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_Server_WriterGroup_publish(server, writerGroup1);
 } END_TEST
 
 int main(void) {

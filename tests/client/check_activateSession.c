@@ -167,6 +167,9 @@ START_TEST(Client_activateSession) {
 END_TEST
 
 START_TEST(Client_activateSession_username) {
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->allowNonePolicyPassword = true;
+
     UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
     config->sessionLocaleIdsSize = 2;

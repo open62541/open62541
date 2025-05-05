@@ -20,18 +20,14 @@ UA_AsyncOperation_delete(UA_AsyncOperation *ar) {
 static void
 UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
                                   UA_AsyncResponse *ar) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_LOCK_ASSERT(&am->queueLock, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&am->queueLock);
 
     /* Get the session */
     UA_Session* session = getSessionById(server, &ar->sessionId);
     if(!session) {
-        UA_String sessionId = UA_STRING_NULL;
-        UA_NodeId_print(&ar->sessionId, &sessionId);
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "Async Service: Session %.*s no longer exists",
-                       (int)sessionId.length, sessionId.data);
-        UA_String_clear(&sessionId);
+                       "Async Service: Session %N no longer exists", ar->sessionId);
         UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
         return;
     }
@@ -69,8 +65,8 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
 static UA_Boolean
 integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
                          UA_AsyncOperation *ao) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_LOCK_ASSERT(&am->queueLock, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&am->queueLock);
 
     /* Grab the open request, so we can continue to construct the response */
     UA_AsyncResponse *ar = ao->parent;
@@ -99,8 +95,7 @@ integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
 static UA_UInt32
 processAsyncResults(UA_Server *server) {
     UA_AsyncManager *am = &server->asyncManager;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_LOCK_ASSERT(&am->queueLock, 0);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_UInt32 count = 0;
     UA_AsyncOperation *ao;
@@ -163,9 +158,9 @@ checkTimeouts(UA_Server *server, void *_) {
     UA_UNLOCK(&am->queueLock);
 
     /* Integrate async results and send out complete responses */
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     processAsyncResults(server);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 }
 
 void
@@ -389,23 +384,25 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
 /* Server Methods */
 /******************/
 
-static UA_StatusCode
-setMethodNodeAsync(UA_Server *server, UA_Session *session,
-                   UA_Node *node, UA_Boolean *isAsync) {
-    if(node->head.nodeClass != UA_NODECLASS_METHOD)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->methodNode.async = *isAsync;
-    return UA_STATUSCODE_GOOD;
-}
-
 UA_StatusCode
 UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
                              UA_Boolean isAsync) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res =
-        UA_Server_editNode(server, &server->adminSession, &id,
-                           (UA_EditNodeCallback)setMethodNodeAsync, &isAsync);
-    UA_UNLOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    lockServer(server);
+    UA_Node *node =
+        UA_NODESTORE_GET_EDIT_SELECTIVE(server, &id, UA_NODEATTRIBUTESMASK_NONE,
+                                        UA_REFERENCETYPESET_NONE,
+                                        UA_BROWSEDIRECTION_INVALID);
+    if(node) {
+        if(node->head.nodeClass == UA_NODECLASS_METHOD)
+            node->methodNode.async = isAsync;
+        else
+            res = UA_STATUSCODE_BADNODECLASSINVALID;
+        UA_NODESTORE_RELEASE(server, node);
+    } else {
+        res = UA_STATUSCODE_BADNODEIDINVALID;
+    }
+    unlockServer(server);
     return res;
 }
 
@@ -444,7 +441,7 @@ UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
 
 UA_UInt32
 UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_AsyncManager *am = &server->asyncManager;
 
     UA_LOCK(&am->queueLock);

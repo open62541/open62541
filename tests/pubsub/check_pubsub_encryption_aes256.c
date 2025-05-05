@@ -10,10 +10,11 @@
 #include <open62541/plugin/securitypolicy_default.h>
 
 #include "test_helpers.h"
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 #define UA_AES256CTR_SIGNING_KEY_LENGTH 32
 #define UA_AES256CTR_KEY_LENGTH 32
@@ -82,7 +83,6 @@ START_TEST(SinglePublishDataSetField) {
     writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
     retVal |= UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup3);
-    retVal |= UA_Server_enableWriterGroup(server, writerGroup3);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     UA_PublishedDataSetConfig pdsConfig;
@@ -117,8 +117,12 @@ START_TEST(SinglePublishDataSetField) {
 
     UA_Server_setWriterGroupEncryptionKeys(server, writerGroup3, 1, sk, ek, kn);
 
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup3);
-    UA_WriterGroup_publishCallback(server, wg);
+    retVal |= UA_Server_enableAllPubSubComponents(server);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup3);
+    UA_WriterGroup_publishCallback(psm, wg);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 

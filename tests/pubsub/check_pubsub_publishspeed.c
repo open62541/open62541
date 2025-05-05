@@ -9,11 +9,13 @@
 #include <open62541/server_pubsub.h>
 
 #include "test_helpers.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
@@ -66,7 +68,8 @@ START_TEST(PublishSpeedTest) {
     UA_StatusCode retval = UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL).result;
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup1);
 
     printf("start sending 8000 publish messages via UDP\n");
 
@@ -74,7 +77,7 @@ START_TEST(PublishSpeedTest) {
     begin = clock();
 
     for(int i = 0; i < 8000; i++) {
-        UA_WriterGroup_publishCallback(server, wg);
+        UA_WriterGroup_publishCallback(psm, wg);
     }
 
     finish = clock();

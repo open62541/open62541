@@ -128,6 +128,44 @@ checkMethodReference(const UA_NodeHead *h, UA_ReferenceTypeSet refs,
     return false;
 }
 
+static UA_Boolean
+checkMethodReferenceRecursive(UA_Server *server, const UA_NodeHead *h,
+                              UA_ReferenceTypeSet refs, const UA_ExpandedNodeId *methodId) {
+    if(checkMethodReference(h, refs, methodId))
+        return true;
+
+    for(size_t i = 0; i < h->referencesSize; i++) {
+        const UA_NodeReferenceKind *rk = &h->references[i];
+
+        if(!rk->isInverse)
+            continue;
+        if(rk->referenceTypeIndex != UA_REFERENCETYPEINDEX_HASSUBTYPE)
+            continue;
+
+        UA_NodeId targetId;
+        if(!rk->hasRefTree) {
+            if(rk->targetsSize == 0)
+                continue;
+            targetId = UA_NodePointer_toNodeId(rk->targets.array[0].targetId);
+        } else {
+            if(!rk->targets.tree.idRoot)
+                continue;
+            targetId = UA_NodePointer_toNodeId(rk->targets.tree.idRoot->target.targetId);
+        }
+
+        const UA_Node *superType = UA_NODESTORE_GET(server, &targetId);
+        if(!superType)
+            continue;
+
+        UA_Boolean found = checkMethodReferenceRecursive(server, &superType->head, refs, methodId);
+        UA_NODESTORE_RELEASE(server, superType);
+
+        if(found)
+            return true;
+    }
+    return false;
+}
+
 static void *
 iterateFunctionGroupSearch(void *context, UA_ReferenceTarget *t) {
     UA_Server *server = (UA_Server*)context;
@@ -201,7 +239,7 @@ static void
 callWithMethodAndObject(UA_Server *server, UA_Session *session,
                         const UA_CallMethodRequest *request, UA_CallMethodResult *result,
                         const UA_MethodNode *method, const UA_ObjectNode *object) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Verify the object's NodeClass */
     if(object->head.nodeClass != UA_NODECLASS_OBJECT &&
@@ -240,7 +278,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
          * of one of its subtypes). */
         const UA_Node *objectType = getNodeType(server, &object->head);
         if(objectType) {
-            found = checkMethodReference(&objectType->head, hasComponentRefs, &methodId);
+            found = checkMethodReferenceRecursive(server, &objectType->head, hasComponentRefs, &methodId);
             UA_NODESTORE_RELEASE(server, objectType);
         }
     }
@@ -266,13 +304,11 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     /* Verify access rights */
     UA_Boolean executable = method->executable;
     if(session != &server->adminSession) {
-        UA_UNLOCK(&server->serviceMutex);
         executable = executable && server->config.accessControl.
             getUserExecutableOnObject(server, &server->config.accessControl,
                                       &session->sessionId, session->context,
                                       &request->methodId, method->head.context,
                                       &request->objectId, object->head.context);
-        UA_LOCK(&server->serviceMutex);
     }
 
     if(!executable) {
@@ -290,8 +326,10 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         return;
     }
     UA_Variant mutableInputArgs[UA_MAX_METHOD_ARGUMENTS];
-    memcpy(mutableInputArgs, request->inputArguments,
-           sizeof(UA_Variant) * request->inputArgumentsSize);
+    if(request->inputArgumentsSize > 0) {
+        memcpy(mutableInputArgs, request->inputArguments,
+               sizeof(UA_Variant) * request->inputArgumentsSize);
+    }
 
     /* Allocate the inputArgumentResults array */
     result->inputArgumentResults = (UA_StatusCode*)
@@ -348,14 +386,22 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     /* Release the output arguments node */
     UA_NODESTORE_RELEASE(server, (const UA_Node*)outputArguments);
 
-    /* Call the method */
-    UA_UNLOCK(&server->serviceMutex);
+    /* Call the method. If this is an async method, unlock the server lock for
+     * the duration of the (long-running) call. */
+#if UA_MULTITHREADING >= 100
+    if(method->async)
+        unlockServer(server);
+#endif
     result->statusCode = method->method(server, &session->sessionId, session->context,
                                         &method->head.nodeId, method->head.context,
                                         &object->head.nodeId, object->head.context,
                                         request->inputArgumentsSize, mutableInputArgs,
                                         result->outputArgumentsSize, result->outputArguments);
-    UA_LOCK(&server->serviceMutex);
+#if UA_MULTITHREADING >= 100
+    if(method->async)
+        lockServer(server);
+#endif
+
     /* TODO: Verify Output matches the argument definition */
 }
 
@@ -504,7 +550,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request, UA_CallResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing CallRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(server->config.maxNodesPerMethodCall != 0 &&
        request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
@@ -523,9 +569,9 @@ UA_CallMethodResult
 UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Operation_CallMethod(server, &server->adminSession, NULL, request, &result);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return result;
 }
 

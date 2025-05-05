@@ -20,23 +20,28 @@ clearVerifyAllowAll(UA_CertificateGroup *certGroup) {
 
 }
 
-void UA_CertificateVerification_AcceptAll(UA_CertificateGroup *certGroup) {
+void UA_CertificateGroup_AcceptAll(UA_CertificateGroup *certGroup) {
     /* Clear the structure, as it may have already been initialized. */
+    UA_NodeId groupId = certGroup->certificateGroupId;
     if(certGroup->clear)
         certGroup->clear(certGroup);
+    UA_NodeId_copy(&groupId, &certGroup->certificateGroupId);
     certGroup->verifyCertificate = verifyCertificateAllowAll;
     certGroup->clear = clearVerifyAllowAll;
     certGroup->getTrustList = NULL;
     certGroup->setTrustList = NULL;
     certGroup->addToTrustList = NULL;
     certGroup->removeFromTrustList = NULL;
+    certGroup->getRejectedList = NULL;
+    certGroup->getCertificateCrls = NULL;
 }
 
 #ifndef UA_ENABLE_ENCRYPTION
 UA_StatusCode
 UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
                                          const UA_ByteString *certificate,
-                                         const UA_String *applicationURI){
+                                         const UA_String *applicationURI,
+                                         UA_Logger *logger) {
     return UA_STATUSCODE_GOOD;
 }
 
@@ -55,6 +60,23 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
                                   UA_String *thumbprint){
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+UA_StatusCode
+UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
+                                      const UA_ByteString *certificate2) {
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+UA_StatusCode
+UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
+                                 const UA_ByteString *privateKey) {
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+UA_StatusCode
+UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     return UA_STATUSCODE_BADNOTSUPPORTED;
 }
 #endif

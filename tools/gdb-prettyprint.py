@@ -54,7 +54,7 @@ class LocalizedText:
         self.val = val
 
     def to_string(self):
-        return "UA_LocalizedText(%s, %s)" % (self.val['locale'], self.val['text'])
+        return "UA_LocalizedText({}, {})".format(self.val['locale'], self.val['text'])
 
 class QualifiedName:
     def __init__(self, val):
@@ -125,9 +125,9 @@ class ExtensionObject:
         content = self.val['content']
         if encoding == 0:
             return "UA_ExtensionObject()"
-        elif encoding == 1 or encoding == 2:
+        if encoding in (1, 2):
             encoded = content['encoded']
-            return "UA_ExtensionObject(%s, %s)" % (encoded['typeId'], encoded['body'])
+            return "UA_ExtensionObject({}, {})".format(encoded['typeId'], encoded['body'])
         decoded = content['decoded']
         if int(decoded['type']) == 0:
             return "UA_ExtensionObject()"
@@ -135,9 +135,9 @@ class ExtensionObject:
         typeName = datatype['typeName'].string()
         tt = findType(typeName)
         if not tt:
-            return "UA_ExtensionObject<%s>((void*) %s)" % (typeName, decoded['data'])
+            return "UA_ExtensionObject<{}>((void*) {})".format(typeName, decoded['data'])
         value = decoded['data'].cast(tt.pointer()).dereference()
-        return "UA_ExtensionObject<%s>(%s)" % (tt, value)
+        return "UA_ExtensionObject<{}>({})".format(tt, value)
 
 class Variant:
     def __init__(self, val):
@@ -159,23 +159,23 @@ class Variant:
             content = self.val['data'].cast(tt.array(array_length - 1).pointer()).dereference()
         dims_length = int(self.val['arrayDimensionsSize'])
         if dims_length == 0:
-            return "UA_Variant<%s>(%s)" % (tt, content)
+            return "UA_Variant<{}>({})".format(tt, content)
         dims_type = findType("UInt32").array(dims_length - 1).pointer()
         dims = self.val['arrayDimensions'].cast(dims_type).dereference()
         return "UA_Variant<%s[%i]>(%s, arrayDimensions = %s)" % (tt, array_length, content, dims)
 
 def build_open62541_printer():
-   pp = gdb.printing.RegexpCollectionPrettyPrinter("open62541")
-   pp.add_printer('UA_String', '^UA_String$', String)
-   pp.add_printer('UA_ByteString', '^UA_ByteString$', ByteString)
-   pp.add_printer('UA_LocalizedText', '^UA_LocalizedText$', LocalizedText)
-   pp.add_printer('UA_QualifiedName', '^UA_QualifiedName$', QualifiedName)
-   pp.add_printer('UA_Guid', '^UA_Guid$', Guid)
-   pp.add_printer('UA_NodeId', '^UA_NodeId$', NodeId)
-   pp.add_printer('UA_ExpandedNodeId', '^UA_ExpandedNodeId$', ExpandedNodeId)
-   pp.add_printer('UA_ExtensionObject', '^UA_ExtensionObject$', ExtensionObject)
-   pp.add_printer('UA_Variant', '^UA_Variant$', Variant)
-   return pp
+    pp = gdb.printing.RegexpCollectionPrettyPrinter("open62541")
+    pp.add_printer('UA_String', '^UA_String$', String)
+    pp.add_printer('UA_ByteString', '^UA_ByteString$', ByteString)
+    pp.add_printer('UA_LocalizedText', '^UA_LocalizedText$', LocalizedText)
+    pp.add_printer('UA_QualifiedName', '^UA_QualifiedName$', QualifiedName)
+    pp.add_printer('UA_Guid', '^UA_Guid$', Guid)
+    pp.add_printer('UA_NodeId', '^UA_NodeId$', NodeId)
+    pp.add_printer('UA_ExpandedNodeId', '^UA_ExpandedNodeId$', ExpandedNodeId)
+    pp.add_printer('UA_ExtensionObject', '^UA_ExtensionObject$', ExtensionObject)
+    pp.add_printer('UA_Variant', '^UA_Variant$', Variant)
+    return pp
 
 gdb.printing.register_pretty_printer(gdb.current_objfile(),
                                      build_open62541_printer())

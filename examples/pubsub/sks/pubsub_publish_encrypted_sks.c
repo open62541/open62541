@@ -13,21 +13,12 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
-#include <signal.h>
-
 #include "common.h"
 
 #define DEMO_SECURITYGROUPNAME "DemoSecurityGroup"
 #define SKS_SERVER_DISCOVERYURL "opc.tcp://localhost:4840"
 
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
-
-UA_Boolean running = true;
-static void
-stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
 
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
@@ -36,7 +27,6 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection 1");
     connectionConfig.transportProfileUri = *transportProfile;
-    connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
@@ -63,7 +53,7 @@ addDataSetField(UA_Server *server) {
     dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+        UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
     dataSetFieldConfig.field.variable.publishParameters.attributeId =
         UA_ATTRIBUTEID_VALUE;
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig,
@@ -84,7 +74,6 @@ addWriterGroup(UA_Server *server, UA_ClientConfig *sksClientConfig) {
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
     writerGroupConfig.publishingInterval = 100;
-    writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -136,24 +125,17 @@ addDataSetWriter(UA_Server *server) {
                                &dataSetWriterConfig, &dataSetWriterIdent);
 }
 
-
-static int
+static void
 run(UA_UInt16 port, UA_String *transportProfile,
     UA_NetworkAddressUrlDataType *networkAddressUrl, UA_ClientConfig *sksClientConfig) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
     UA_Server *server = UA_Server_new();
-
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, port, NULL);
 
     /* Instantiate the PubSub SecurityPolicy */
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
-    UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
-                                      config->logging);
+    UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies, config->logging);
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);
@@ -161,11 +143,11 @@ run(UA_UInt16 port, UA_String *transportProfile,
     addWriterGroup(server, sksClientConfig);
     addDataSetWriter(server);
 
-    UA_StatusCode retval = UA_Server_run(server, &running);
-    
+    UA_Server_enableAllPubSubComponents(server);
+    UA_Server_runUntilInterrupt(server);
+
     UA_ClientConfig_delete(sksClientConfig);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 static UA_ClientConfig *
@@ -194,8 +176,7 @@ encyrptedClient(const char *username, const char *password,
 static void
 usage(char *progname) {
     printf("usage: %s  server_ctt <server-certificate.der> <private-key.der>\n"
-           "<uri> [device]\n",
-           progname);
+           "<uri> [device]\n", progname);
 }
 
 int
@@ -258,5 +239,6 @@ main(int argc, char **argv) {
     UA_ClientConfig *sksClientConfig =
         encyrptedClient("user1", "password", certificate, privateKey);
 
-    return run(port, &transportProfile, &networkAddressUrl, sksClientConfig);
+    run(port, &transportProfile, &networkAddressUrl, sksClientConfig);
+    return 0;
 }

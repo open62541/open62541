@@ -229,10 +229,10 @@ removeSubscription(void) {
 
     UA_DeleteSubscriptionsResponse deleteSubscriptionsResponse;
     UA_DeleteSubscriptionsResponse_init(&deleteSubscriptionsResponse);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_DeleteSubscriptions(server, &server->adminSession, &deleteSubscriptionsRequest,
                                 &deleteSubscriptionsResponse);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     UA_DeleteSubscriptionsResponse_clear(&deleteSubscriptionsResponse);
 }
 

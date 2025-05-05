@@ -86,9 +86,11 @@
   mdnsEnabled: false,
   mdns: {
     mdnsServerName: "mdnsServerName",
+    // See https://reference.opcfoundation.org/GDS/v105/docs/D
     serverCapabilities: [
+      // "NA" should be first and only server capability:
+      //"NA"
       "LDS",
-      "NA",
       "GDS"
     ],
     mdnsInterfaceIP: "127.0.0.1",
@@ -187,17 +189,13 @@
 //      policy: "http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep",
 //      certificate: "/path/to/certificate",
 //      privateKey: "/path/to/privateKey"
+//    },
+//    {
+//      policy: "http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss"",
+//      certificate: "/path/to/certificate",
+//      privateKey: "/path/to/privateKey"
 //    }
 //  ],
 
-//  secureChannelPKI: {
-//    trustListFolder: "/path/to/folder",
-//    issuerListFolder: "/path/to/folder",
-//    revocationListFolder: "/path/to/folder"
-//  },
-//  sessionPKI: {
-//    trustListFolder: "/path/to/folder",
-//    issuerListFolder: "/path/to/folder",
-//    revocationListFolder: "/path/to/folder"
-//  },
+//  pkiFolder: "/store",
 }

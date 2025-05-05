@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/types.h>
-#include <open62541/types_generated_handling.h>
 #include "test_helpers.h"
 #include "open62541/util.h"
 
@@ -158,7 +157,8 @@ START_TEST(parseRelativePath) {
     UA_String ex = UA_STRING("");
     UA_String exout = UA_STRING_NULL;
     UA_StatusCode res = UA_RelativePath_parse(&rp, ex);
-    res |= UA_RelativePath_print(&rp, &exout);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_RelativePath_print(&rp, &exout);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 0);
     ck_assert(UA_String_equal(&ex, &exout));
@@ -271,12 +271,12 @@ START_TEST(parseRelativePathWithServer) {
     UA_Server *server = UA_Server_newForUnitTest();
 
     /* Add a custom non-hierarchical reference type */
-	UA_NodeId refTypeId;
-	UA_ReferenceTypeAttributes refattr = UA_ReferenceTypeAttributes_default;
-	refattr.displayName = UA_LOCALIZEDTEXT(NULL, "MyRef");
-	refattr.inverseName = UA_LOCALIZEDTEXT(NULL, "RefMy");
-	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "MyRef");
-	UA_StatusCode res =
+    UA_NodeId refTypeId;
+    UA_ReferenceTypeAttributes refattr = UA_ReferenceTypeAttributes_default;
+    refattr.displayName = UA_LOCALIZEDTEXT(NULL, "MyRef");
+    refattr.inverseName = UA_LOCALIZEDTEXT(NULL, "RefMy");
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "MyRef");
+    UA_StatusCode res =
         UA_Server_addReferenceTypeNode(server, UA_NODEID_NULL,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
@@ -312,7 +312,7 @@ START_TEST(parseSimpleAttributeOperand) {
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     UA_SimpleAttributeOperand_clear(&sao3);
 
-    UA_String sao4_str = UA_STRING("ns=1;s=1&&23/1:& Boiler/Temperature#BrowseName[0:5]");
+    UA_String sao4_str = UA_STRING("ns=1;s=1%2623/1:%20Boiler/Temperature#BrowseName[0:5]");
     UA_SimpleAttributeOperand sao4;
     UA_String cmp1 = UA_STRING("1&23");
     UA_String cmp2 = UA_STRING(" Boiler");

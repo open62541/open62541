@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
 ### License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -10,8 +9,6 @@
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 ###    Copyright 2021 (c) Wind River Systems, Inc.
 
-
-from __future__ import print_function
 from os.path import basename
 import logging
 import codecs
@@ -20,12 +17,6 @@ try:
     from StringIO import StringIO
 except ImportError:
     from io import StringIO
-
-import sys
-if sys.version_info[0] >= 3:
-    # strings are already parsed to unicode
-    def unicode(s):
-        return s
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +43,7 @@ def sortNodes(nodeset):
     in_degree = {id: 0 for id in R.keys()}
     for u in R.values(): # for each node
         for ref in u.references:
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -73,7 +64,7 @@ def sortNodes(nodeset):
         del R[u.id]
 
         for ref in sorted(u.references, key=lambda r: str(r.target)):
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -91,7 +82,7 @@ def sortNodes(nodeset):
         del R[u.id]
 
         for ref in sorted(u.references, key=lambda r: str(r.target)):
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -130,10 +121,10 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
     outfilec = StringIO()
 
     def writeh(line):
-        print(unicode(line), end='\n', file=outfileh)
+        print(line, end='\n', file=outfileh)
 
     def writec(line):
-        print(unicode(line), end='\n', file=outfilec)
+        print(line, end='\n', file=outfilec)
 
     additionalHeaders = ""
     if len(typesArray) > 0:
@@ -149,53 +140,11 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
     writeh("""/* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
 
-#ifndef %s_H_
-#define %s_H_
-""" % (outfilebase.upper(), outfilebase.upper()))
-    if internal_headers:
-        writeh("""
-#ifdef UA_ENABLE_AMALGAMATION
-# include "open62541.h"
-
-/* The following declarations are in the open62541.c file so here's needed when compiling nodesets externally */
-
-# ifndef UA_INTERNAL //this definition is needed to hide this code in the amalgamated .c file
-
-typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
-                                                 const UA_Byte **bufEnd);
-
-UA_StatusCode
-UA_encodeBinary(const void *src, const UA_DataType *type,
-                UA_Byte **bufPos, const UA_Byte **bufEnd,
-                UA_exchangeEncodeBuffer exchangeCallback,
-                void *exchangeHandle) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-UA_StatusCode
-UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
-                const UA_DataType *type, size_t customTypesSize,
-                const UA_DataType *customTypes) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-size_t
-UA_calcSizeBinary(void *p, const UA_DataType *type);
-
-const UA_DataType *
-UA_findDataTypeByBinary(const UA_NodeId *typeId);
-
-# endif // UA_INTERNAL
-
-#else // UA_ENABLE_AMALGAMATION
-# include <open62541/server.h>
-#endif
-
-%s
-""" % (additionalHeaders))
-    else:
-        writeh("""
-#ifdef UA_ENABLE_AMALGAMATION
-# include "open62541.h"
-#else
-# include <open62541/server.h>
-#endif
+#ifndef {}_H_
+#define {}_H_
+""".format(outfilebase.upper(), outfilebase.upper()))
+    writeh("""
+#include <open62541/server.h>
 %s
 """ % (additionalHeaders))
     writeh("""
@@ -237,7 +186,7 @@ _UA_END_DECLS
                 if len(code_global) > 0:
                     writec("\n".join(code_global))
                     writec("\n")
-                writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_UInt16* ns) {")
+                writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_NamespaceMapping *nsMapping) {")
                 if isinstance(node, MethodNode) or isinstance(node.parent, MethodNode):
                     writec("#ifdef UA_ENABLE_METHODCALLS")
                 writec(code)
@@ -263,9 +212,9 @@ _UA_END_DECLS
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
-        writec("}");
+        writec("}")
 
-        writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_UInt16* ns) {")
+        writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_NamespaceMapping *nsMapping) {")
 
         if isinstance(node, MethodNode) or isinstance(node.parent, MethodNode):
             writec("#ifdef UA_ENABLE_METHODCALLS")
@@ -274,7 +223,7 @@ _UA_END_DECLS
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
-        writec("}");
+        writec("}")
 
         # ReferenceTypeNodes have to be _finished immediately. The _begin phase
         # of other nodes might depend on the subtyping information of the
@@ -283,7 +232,6 @@ _UA_END_DECLS
             reftypes_functionNumbers.append(functionNumber)
 
         functionNumber = functionNumber + 1
-
 
     # Load generated types
     for arr in typesArray:
@@ -301,21 +249,41 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
 
     # Generate namespaces (don't worry about duplicates)
     writec("/* Use namespace ids generated by the server */")
-    writec("UA_UInt16 ns[" + str(len(nodeset.namespaces)) + "];")
+    writec("UA_UInt16 ns[" + str(len(nodeset.namespaces)+1) + "];")
     for i, nsid in enumerate(nodeset.namespaces):
         nsid = nsid.replace("\"", "\\\"")
         writec("ns[" + str(i) + "] = UA_Server_addNamespace(server, \"" + nsid + "\");")
+
+    # Write the list of ns mappings
+    maxns = max(nodeset.namespaceMapping.keys()) + 1
+    if maxns < 2:
+        maxns = 2
+    mapping = [0] * maxns
+    mapping[1] = 1 # default
+    for k, v in nodeset.namespaceMapping.items():
+        mapping[k] = v
+    writec(f"UA_UInt16 nsMappingTable[{len(mapping)}]" + " = {" + ", ".join(map(lambda x: f"ns[{x}]", mapping)) + "};")
+
+    # Create the namespace mapping
+    writec("UA_NamespaceMapping nsMapping;")
+    writec("memset(&nsMapping, 0, sizeof(UA_NamespaceMapping));")
+    writec("nsMapping.local2remote = ns;")
+    writec(f"nsMapping.local2remoteSize = {len(nodeset.namespaces)};")
+    writec("nsMapping.remote2local = nsMappingTable;")
+    writec(f"nsMapping.remote2localSize = {len(mapping)};")
 
     # Change namespaceIndex from the current namespace,
     # but only if it defines its own data types, otherwise it is not necessary.
     if len(typesArray) > 0:
         typeArr = typesArray[-1]
-        if typeArr != "UA_TYPES" and typeArr != "ns0":
+        # Build the name of the TypeArray to compare if the current nodeset defines data types.
+        currentTypeArr = '_'.join(outfilebase.upper().split('_')[1:-1])
+        if typeArr != "UA_TYPES" and typeArr != "ns0" and typeArr == "UA_TYPES_"+currentTypeArr:
             writec("/* Change namespaceIndex from current namespace */")
             writec("#if " + typeArr + "_COUNT" + " > 0")
             writec("for(int i = 0; i < " + typeArr + "_COUNT" + "; i++) {")
-            writec(typeArr + "[i]" + ".typeId.namespaceIndex = ns[" + str(nodeset.namespaceMapping[1]) + "];")
-            writec(typeArr + "[i]" + ".binaryEncodingId.namespaceIndex = ns[" + str(nodeset.namespaceMapping[1]) + "];")
+            writec(typeArr + "[i]" + ".typeId.namespaceIndex = ns[" + str(len(nodeset.namespaces)-1) + "];")
+            writec(typeArr + "[i]" + ".binaryEncodingId.namespaceIndex = ns[" + str(len(nodeset.namespaces)-1) + "];")
             writec("}")
             writec("#endif")
 
@@ -331,16 +299,16 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
 
     if functionNumber > 0:
         for i in range(0, functionNumber):
-            writec("retVal |= function_{outfilebase}_{idx}_begin(server, ns);". \
+            writec("retVal |= function_{outfilebase}_{idx}_begin(server, &nsMapping);". \
                    format(outfilebase=outfilebase, idx=str(i)))
             if i in reftypes_functionNumbers:
-                writec("retVal |= function_{outfilebase}_{idx}_finish(server, ns);". \
+                writec("retVal |= function_{outfilebase}_{idx}_finish(server, &nsMapping);". \
                        format(outfilebase=outfilebase, idx=str(i)))
 
         for i in reversed(range(0, functionNumber)):
             if i in reftypes_functionNumbers:
                 continue
-            writec("retVal |= function_{outfilebase}_{idx}_finish(server, ns);". \
+            writec("retVal |= function_{outfilebase}_{idx}_finish(server, &nsMapping);". \
                    format(outfilebase=outfilebase, idx=str(i)))
 
     writec("return retVal;\n}")

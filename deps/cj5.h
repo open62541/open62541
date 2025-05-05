@@ -76,18 +76,8 @@
 # define CJ5_API
 #endif
 
-#if !defined(_MSC_VER) || _MSC_VER >= 1800
-# include <stdint.h>
-# include <stdbool.h>
-#else
-# include "ms_stdint.h"
-# if !defined(__bool_true_false_are_defined)
-#  define bool unsigned char
-#  define true 1
-#  define false 0
-#  define __bool_true_false_are_defined
-# endif
-#endif
+#include <stdint.h>
+#include <stdbool.h>
 
 typedef enum cj5_token_type {
     CJ5_TOKEN_OBJECT = 0,
@@ -121,8 +111,7 @@ typedef struct cj5_token {
 
 typedef struct cj5_result {
     cj5_error_code error;
-    unsigned int error_line;
-    unsigned int error_col;
+    unsigned int error_pos;
     unsigned int num_tokens;
     const cj5_token* tokens;
     const char* json5;

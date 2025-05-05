@@ -1,0 +1,13 @@
+manifest:
+  version: 1.2
+  remotes:
+    - name: ncs
+      url-base: https://github.com/nrfconnect
+
+  projects:
+    - name: nrf
+      remote: ncs
+      repo-path: sdk-nrf
+      revision: v2.7.0
+      import: true
+

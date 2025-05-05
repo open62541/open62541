@@ -55,6 +55,9 @@ START_TEST(SecureChannel_timeout_max) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+    /* To generate the namespace mapping table */
+    UA_Client_run_iterate(client, 1);
+
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_fakeSleep(cconfig->secureChannelLifeTime);
 
@@ -74,6 +77,14 @@ START_TEST(SecureChannel_renew) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* To generate the namespace mapping table */
+    size_t max_stop_iteration_count = 100000;
+    size_t iteration = 0;
+    while(!client->haveNamespaces && iteration < max_stop_iteration_count) {
+        UA_Client_run_iterate(client, 0);
+        iteration++;
+    }
 
     pauseServer();
 
@@ -208,6 +219,59 @@ START_TEST(SecureChannel_cableunplugged) {
 }
 END_TEST
 
+/* Some servers have a certificate in their endpoint which they do not use for
+ * #None SecureChannels. To be compatible with them, only check if the
+ * certificate matches IF it gets sent in th asymHeader of the OPN message. */
+START_TEST(SecureChannel_serverCert) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Copy the endpont and disconnect */
+    UA_EndpointDescription endpoint;
+    UA_EndpointDescription_copy(&client->endpoint, &endpoint);
+    UA_Client_disconnect(client);
+
+    /* Add a fake certificate information to the endpoint - which is not getting
+     * used during the connect with #None. */
+    endpoint.serverCertificate = UA_STRING_ALLOC("random 123");
+    client->config.endpoint = endpoint;
+
+    /* Reconnect */
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant_clear(&val);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* The monotonic clock is 24h in the future */
+static UA_DateTime
+dateTime_nowMonotonicWithOffset(UA_EventLoop *el) {
+    return UA_DateTime_now_fake(el) + (UA_DATETIME_SEC * 24 * 3600);
+}
+
+/* Simulate a deviation between the "wallclock" and the monotonic clock */
+START_TEST(SecureChannel_differentMonotonicClock) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 int main(void) {
     TCase *tc_sc = tcase_create("Client SecureChannel");
     tcase_add_checked_fixture(tc_sc, setup, teardown);
@@ -217,6 +281,8 @@ int main(void) {
     tcase_add_test(tc_sc, SecureChannel_networkfail);
     tcase_add_test(tc_sc, SecureChannel_reconnect);
     tcase_add_test(tc_sc, SecureChannel_cableunplugged);
+    tcase_add_test(tc_sc, SecureChannel_serverCert);
+    tcase_add_test(tc_sc, SecureChannel_differentMonotonicClock);
 
     Suite *s = suite_create("Client");
     suite_add_tcase(s, tc_sc);

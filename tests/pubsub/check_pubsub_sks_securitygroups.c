@@ -13,11 +13,12 @@
 #include <open62541/server_pubsub.h>
 
 #include "test_helpers.h"
-#include "ua_pubsub.h"
 #include "ua_pubsub_keystorage.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 #include <testing_clock.h>
 
 #include "../encryption/certificates.h"
@@ -154,8 +155,9 @@ START_TEST(AddSecurityGroupWithvalidConfig) {
                                         &securityGroupNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_LOCK(&server->serviceMutex);
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroupNodeId);
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(psm, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
     ck_assert(UA_NodeId_equal(&sg->securityGroupNodeId, &securityGroupNodeId) == UA_TRUE);
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -164,7 +166,7 @@ START_TEST(AddSecurityGroupWithvalidConfig) {
 #endif
     ck_assert(UA_String_equal(&sg->securityGroupId, &config.securityGroupName) ==
               UA_TRUE);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     /*check properties*/
@@ -246,17 +248,18 @@ START_TEST(RemoveSecurityGroup) {
                                         &securityGroupNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_LOCK(&server->serviceMutex);
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroupNodeId);
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(psm, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     UA_Server_removeSecurityGroup(server, securityGroupNodeId);
 
-    UA_LOCK(&server->serviceMutex);
-    sg = UA_SecurityGroup_findSGbyId(server, securityGroupNodeId);
+    lockServer(server);
+    sg = UA_SecurityGroup_find(psm, securityGroupNodeId);
     ck_assert_ptr_eq(sg, NULL);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 } END_TEST
 
 START_TEST(AddSecurityGroupWithKeyManagement){
@@ -277,12 +280,19 @@ START_TEST(AddSecurityGroupWithKeyManagement){
                                         &securityGroupNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_LOCK(&server->serviceMutex);
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroupNodeId);
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(psm, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, sg->securityGroupId);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, sg->securityGroupId);
     ck_assert_ptr_ne(ks, NULL);
     ck_assert_uint_eq(ks->keyListSize, 1 + config.maxFutureKeyCount);
+    UA_UNLOCK(&server->serviceMutex);
+
+    retval = UA_Server_enableAllPubSubComponents(server);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LOCK(&server->serviceMutex);
     UA_UInt32 expectKeyId = 1;
     UA_PubSubKeyListItem *iterator = TAILQ_FIRST(&ks->keyList);
     for (size_t i = 0; i < ks->keyListSize; i++) {
@@ -292,10 +302,10 @@ START_TEST(AddSecurityGroupWithKeyManagement){
         iterator = TAILQ_NEXT(iterator, keyListEntry);
         expectKeyId++;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 } END_TEST
 
-START_TEST(SecurityGroupPeriodicInsertNewKeys){
+START_TEST(SecurityGroupPeriodicInsertNewKeys) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_NodeId securityGroupNodeId;
     UA_NodeId securityGroupParent =
@@ -313,23 +323,24 @@ START_TEST(SecurityGroupPeriodicInsertNewKeys){
                                         &securityGroupNodeId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_LOCK(&server->serviceMutex);
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroupNodeId);
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(psm, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, sg->securityGroupId);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, sg->securityGroupId);
     ck_assert_ptr_ne(ks, NULL);
 
     UA_UInt32 expectKeyId = 1;
     UA_PubSubKeyListItem *preLastItem = TAILQ_LAST(&ks->keyList, keyListItems);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     for (size_t i = 0; i < ks->keyListSize; i++) {
         UA_fakeSleep(500);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         UA_Server_run_iterate(server, false);
         UA_PubSubKeyListItem *newlastItem = TAILQ_LAST(&ks->keyList, keyListItems);
         ck_assert_uint_eq(ks->keyListSize, config.maxPastKeyCount + 1 + config.maxFutureKeyCount);
         ck_assert_ptr_eq(preLastItem->keyListEntry.tqe_next, newlastItem);
-        ck_assert_uint_eq(preLastItem->keyID + 1 ,  newlastItem->keyID);
-        ck_assert(UA_ByteString_equal(&preLastItem->keyListEntry.tqe_next->key, &newlastItem->key) == UA_TRUE);
+        ck_assert_uint_eq(preLastItem->keyID + 1,  newlastItem->keyID);
         preLastItem = newlastItem;
         expectKeyId++;
     }

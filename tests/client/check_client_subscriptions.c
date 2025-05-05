@@ -7,7 +7,6 @@
 #include <open62541/client_config_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include "open62541/types_generated_handling.h"
 
 #include "client/ua_client_internal.h"
 #include "server/ua_server_internal.h"
@@ -75,37 +74,32 @@ dataChangeHandler(UA_Client *client, UA_UInt32 subId, void *subContext,
 
 static void
 createSubscriptionCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                           void *r) {
-    UA_CreateSubscriptionResponse_copy((const UA_CreateSubscriptionResponse *)r,
-                                       (UA_CreateSubscriptionResponse *)userdata);
+                           UA_CreateSubscriptionResponse *r) {
+    UA_CreateSubscriptionResponse_copy(r, (UA_CreateSubscriptionResponse *)userdata);
 }
 
 static void
 modifySubscriptionCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                           void *r) {
-    UA_ModifySubscriptionResponse_copy((const UA_ModifySubscriptionResponse *)r,
-                                       (UA_ModifySubscriptionResponse *)userdata);
+                           UA_ModifySubscriptionResponse *r) {
+    UA_ModifySubscriptionResponse_copy(r, (UA_ModifySubscriptionResponse *)userdata);
 }
 
 static void
 createDataChangesCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                          void *r) {
-    UA_CreateMonitoredItemsResponse_copy((const UA_CreateMonitoredItemsResponse *)r,
-                                         (UA_CreateMonitoredItemsResponse *)userdata);
+                          UA_CreateMonitoredItemsResponse *r) {
+    UA_CreateMonitoredItemsResponse_copy(r, (UA_CreateMonitoredItemsResponse *)userdata);
 }
 
 static void
 deleteMonitoredItemsCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                             void *r) {
-    UA_DeleteMonitoredItemsResponse_copy((const UA_DeleteMonitoredItemsResponse *)r,
-                                         (UA_DeleteMonitoredItemsResponse *)userdata);
+                             UA_DeleteMonitoredItemsResponse *r) {
+    UA_DeleteMonitoredItemsResponse_copy(r, (UA_DeleteMonitoredItemsResponse *)userdata);
 }
 
 static void
 deleteSubscriptionsCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                            void *r) {
-    UA_DeleteSubscriptionsResponse_copy((const UA_DeleteSubscriptionsResponse *)r,
-                                        (UA_DeleteSubscriptionsResponse *)userdata);
+                            UA_DeleteSubscriptionsResponse *r) {
+    UA_DeleteSubscriptionsResponse_copy(r, (UA_DeleteSubscriptionsResponse *)userdata);
 }
 
 START_TEST(Client_subscription) {
@@ -1258,14 +1252,14 @@ static UA_SessionState sessState;
 static UA_Boolean hasMon;
 
 static void
-monCallback(UA_Client *client, void *userdata,
-            UA_UInt32 requestId, void *r) {
+monCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+            UA_CreateMonitoredItemsResponse *r) {
     hasMon = true;
 }
 
 static void
-createSubscriptionCallback2(UA_Client *client, void *userdata,
-                            UA_UInt32 requestId, void *r) {
+createSubscriptionCallback2(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                            UA_CreateSubscriptionResponse *r) {
     UA_CreateSubscriptionResponse *rr = (UA_CreateSubscriptionResponse*)r;
 
     ck_assert_uint_ne(rr->subscriptionId, 0);

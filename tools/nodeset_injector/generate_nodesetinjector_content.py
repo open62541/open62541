@@ -60,14 +60,14 @@ def unix_exec():
     global data
 
     with open(args.outfile + ".c", "r+", encoding='utf8') as file:
-            # Acquire a lock on the file
-            fcntl.flock(file, fcntl.LOCK_EX)
+        # Acquire a lock on the file
+        fcntl.flock(file, fcntl.LOCK_EX)
 
-            # Write to the file
-            write_code_generation(file)
+        # Write to the file
+        write_code_generation(file)
 
-            # Release the lock on the file
-            fcntl.flock(file, fcntl.LOCK_UN)
+        # Release the lock on the file
+        fcntl.flock(file, fcntl.LOCK_UN)
 
 
 def print_include(string):
@@ -83,7 +83,7 @@ def generate_code():
     # Print the header file #
     #########################
 
-    print_include(u'''
+    print_include('''
 #include <open62541/{namespace}.h>
 //<
 '''.format(namespace=args.namespace))
@@ -92,13 +92,12 @@ def generate_code():
     # Print the source file #
     #########################
 
-    print_function_call(u'''
+    print_function_call('''
 /* {namespace} */
 retval |= {namespace}(server);
 if(retval != UA_STATUSCODE_GOOD) {{
-UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the {namespace} failed. Please check previous error output.");
-UA_Server_delete(server);
-return EXIT_FAILURE;
+    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Adding the {namespace} failed. Please check previous error output.");
+    return retval;
 }}
 UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "The {namespace} successfully added.");
 //>
@@ -117,7 +116,7 @@ def write_code_generation(file):
     # List which contains the existing namespaces
     existing_namespaces = []
     for line in lines:
-        namespaces = re.findall("namespace_.*_generated\(.*\)", line)
+        namespaces = re.findall(r"namespace_.*_generated\(.*\)", line)
         if namespaces:
             namespaces = namespaces[0].split("(")[0]
             existing_namespaces.append(namespaces)

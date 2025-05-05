@@ -50,9 +50,9 @@ START_TEST(Client_connect_badEndpointUrl) {
     /* Open a Session when possible */
     client->config.noSession = false;
 
-    UA_LOCK(&client->clientMutex);
+    lockClient(client);
     connectSync(client);
-    UA_UNLOCK(&client->clientMutex);
+    unlockClient(client);
     ck_assert_uint_eq(client->connectStatus, UA_STATUSCODE_GOOD);
 
     UA_Client_disconnect(client);

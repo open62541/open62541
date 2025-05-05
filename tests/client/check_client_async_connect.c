@@ -68,27 +68,20 @@ START_TEST(Client_connect_async) {
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
     /* Connected gets updated when client is connected */
 
-    do {
-        if(connected) {
-            /* If not connected requests are not sent */
-            UA_Client_sendAsyncBrowseRequest(client, &bReq, asyncBrowseCallback,
-                                             &asyncCounter, &reqId);
-        }
-        /* Give network a chance to process packet */
-        UA_realSleep(100);
-        /* Manual clock for unit tests */
+    while(!connected) {
         UA_Server_run_iterate(server, false);
         retval = UA_Client_run_iterate(client, 0);
-        /*fix infinite loop, but why is server occasionally shut down in Appveyor?!*/
-        if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED)
-            break;
-    } while(reqId < 10);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
+
+    /* If not connected requests are not sent */
+    UA_Client_sendAsyncBrowseRequest(client, &bReq, asyncBrowseCallback,
+                                     &asyncCounter, &reqId);
+    UA_Server_run_iterate(server, false);
+    retval = UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_BrowseRequest_clear(&bReq);
-    ck_assert_uint_eq(connected, true);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    /* With default setting the client uses 7 iterations to connect */
-    ck_assert_uint_eq(asyncCounter, 5);
     UA_Client_disconnectAsync(client);
     while(connected) {
         UA_Server_run_iterate(server, false);

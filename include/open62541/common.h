@@ -17,7 +17,22 @@
 
 _UA_BEGIN_DECLS
 
+/* Forward Declarations. Opaque pointers used in Client, Server and PubSub.
+ * Defined at the top so they don't show up in the rendered documentation. */
+struct UA_Server;
+typedef struct UA_Server UA_Server;
+
+typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
+
+struct UA_ServerConfig;
+typedef struct UA_ServerConfig UA_ServerConfig;
+
+struct UA_Client;
+typedef struct UA_Client UA_Client;
+
 /**
+ * .. _common:
+ *
  * Common Definitions
  * ==================
  *
@@ -61,8 +76,10 @@ typedef enum {
     UA_ATTRIBUTEID_ACCESSLEVELEX           = 27
 } UA_AttributeId;
 
-/* Returns a readable attribute name like "NodeId" or "Invalid" if the attribute
- * does not exist */
+/**
+ * Returns a readable attribute name like "NodeId" or "Invalid" if the attribute
+ * does not exist. */
+
 UA_EXPORT const char *
 UA_AttributeId_name(UA_AttributeId attrId);
 
@@ -75,7 +92,9 @@ UA_AttributeId_name(UA_AttributeId attrId);
  * with the overall access level. */
 
 #define UA_ACCESSLEVELMASK_READ           (0x01u << 0u)
+#define UA_ACCESSLEVELMASK_CURRENTREAD    (0x01u << 0u)
 #define UA_ACCESSLEVELMASK_WRITE          (0x01u << 1u)
+#define UA_ACCESSLEVELMASK_CURRENTWRITE   (0x01u << 1u)
 #define UA_ACCESSLEVELMASK_HISTORYREAD    (0x01u << 2u)
 #define UA_ACCESSLEVELMASK_HISTORYWRITE   (0x01u << 3u)
 #define UA_ACCESSLEVELMASK_SEMANTICCHANGE (0x01u << 4u)
@@ -112,6 +131,9 @@ UA_AttributeId_name(UA_AttributeId attrId);
 #define UA_WRITEMASK_VALUERANK               (0x01u << 19u)
 #define UA_WRITEMASK_WRITEMASK               (0x01u << 20u)
 #define UA_WRITEMASK_VALUEFORVARIABLETYPE    (0x01u << 21u)
+#define UA_WRITEMASK_DATATYPEDEFINITION      (0x01u << 22u)
+#define UA_WRITEMASK_ROLEPERMISSIONS         (0x01u << 23u)
+#define UA_WRITEMASK_ACCESSRESTRICTIONS      (0x01u << 24u)
 #define UA_WRITEMASK_ACCESSLEVELEX           (0x01u << 25u)
 
 /**
@@ -150,7 +172,6 @@ UA_AttributeId_name(UA_AttributeId attrId);
  *
  * Rule Handling
  * -------------
- *
  * The RuleHanding settings define how error cases that result from rules in the
  * OPC UA specification shall be handled. The rule handling can be softened,
  * e.g. to workaround misbehaving implementations or to mitigate the impact of
@@ -166,7 +187,6 @@ typedef enum {
 /**
  * Order
  * -----
- *
  * The Order enum is used to establish an absolute ordering between elements.
  */
 
@@ -219,7 +239,6 @@ typedef enum {
 /**
  * Statistic Counters
  * ------------------
- *
  * The stack manages statistic counters for SecureChannels and Sessions.
  *
  * The Session layer counters are matching the counters of the
@@ -257,7 +276,6 @@ typedef struct {
 /**
  * Lifecycle States
  * ----------------
- *
  * Generic lifecycle states. The STOPPING state indicates that the lifecycle is
  * being terminated. But it might take time to (asynchronously) perform a
  * graceful shutdown. */
@@ -267,25 +285,6 @@ typedef enum {
     UA_LIFECYCLESTATE_STARTED,
     UA_LIFECYCLESTATE_STOPPING
 } UA_LifecycleState;
-
-/**
- * Forward Declarations
- * --------------------
- * Opaque pointers used in Client, Server and PubSub. */
-
-struct UA_Server;
-typedef struct UA_Server UA_Server;
-
-struct UA_ServerConfig;
-typedef struct UA_ServerConfig UA_ServerConfig;
-
-typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
-
-struct UA_Client;
-typedef struct UA_Client UA_Client;
-
-/**
- * .. include:: util.rst */
 
 _UA_END_DECLS
 

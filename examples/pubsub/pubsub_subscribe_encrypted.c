@@ -13,7 +13,6 @@
 #include <open62541/plugin/securitypolicy_default.h>
 
 #include <stdio.h>
-#include <signal.h>
 #include <stdlib.h>
 
 #define UA_AES128CTR_SIGNING_KEY_LENGTH 32
@@ -33,31 +32,19 @@ UA_DataSetReaderConfig readerConfig;
 static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData);
 
 /* Add new connection to the server */
-static UA_StatusCode
+static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                     UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    if((server == NULL) || (transportProfile == NULL) ||
-        (networkAddressUrl == NULL)) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Configuration creation for the connection */
     UA_PubSubConnectionConfig connectionConfig;
     memset (&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UDPMC Connection 1");
     connectionConfig.transportProfileUri = *transportProfile;
-    connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
     connectionConfig.publisherId.id.uint32 = UA_UInt32_random();
-    retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
-    if (retval != UA_STATUSCODE_GOOD) {
-        return retval;
-    }
-
-    return retval;
+    UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
 }
 
 /**
@@ -66,35 +53,24 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
  * ReaderGroup is used to group a list of DataSetReaders. All ReaderGroups are
  * created within a PubSubConnection and automatically deleted if the connection
  * is removed. All network message related filters are only available in the DataSetReader. */
-/* Add ReaderGroup to the created connection */
-static UA_StatusCode
+static void
 addReaderGroup(UA_Server *server) {
-    if(server == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    UA_ServerConfig *config = UA_Server_getConfig(server);
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* Encryption settings */
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
-
-    /* Encryption settings */
-    UA_ServerConfig *config = UA_Server_getConfig(server);
     readerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
+    UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
+                             &readerGroupIdentifier);
 
-    retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
-                                       &readerGroupIdentifier);
-    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
     /* Add the encryption key informaton */
     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
     UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
     UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
-
-    // TODO security token not necessary for readergroup (extracted from security-header)
     UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdentifier, 1, sk, ek, kn);
-
-    return retval;
 }
 
 /**
@@ -105,14 +81,8 @@ addReaderGroup(UA_Server *server) {
  * the configuration necessary to receive and process DataSetMessages
  * on the Subscriber side. DataSetReader must be linked with a
  * SubscribedDataSet and be contained within a ReaderGroup. */
-/* Add DataSetReader to the ReaderGroup */
-static UA_StatusCode
+static void
 addDataSetReader(UA_Server *server) {
-    if(server == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING("DataSet Reader 1");
     /* Parameters to filter which DataSetMessage has to be processed
@@ -129,9 +99,8 @@ addDataSetReader(UA_Server *server) {
     /* Setting up Meta data configuration in DataSetReader */
     fillTestDataSetMetaData(&readerConfig.dataSetMetaData);
 
-    retval |= UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
-                                         &readerIdentifier);
-    return retval;
+    UA_Server_addDataSetReader(server, readerGroupIdentifier,
+                               &readerConfig, &readerIdentifier);
 }
 
 /**
@@ -139,12 +108,8 @@ addDataSetReader(UA_Server *server) {
  *
  * Set SubscribedDataSet type to TargetVariables data type.
  * Add subscribedvariables to the DataSetReader */
-static UA_StatusCode
+static void
 addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
-    if(server == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_NodeId folderId;
     UA_String folderName = readerConfig.dataSetMetaData.name;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
@@ -154,17 +119,14 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
         oAttr.displayName.text = folderName;
         folderBrowseName.namespaceIndex = 1;
         folderBrowseName.name = folderName;
-    }
-    else {
+    } else {
         oAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode (server, UA_NODEID_NULL,
-                             UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
-                             UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
-                             folderBrowseName, UA_NODEID_NUMERIC (0,
-                             UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                            UA_NS0ID(ORGANIZES), folderBrowseName,
+                            UA_NS0ID(BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
 /**
  * **TargetVariables**
@@ -173,8 +135,8 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
  * received DataSet fields and target Variables in the Subscriber AddressSpace.
  * The values subscribed from the Publisher are updated in the value field of these variables */
     /* Create the TargetVariables with respect to DataSetMetaData fields */
-    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
-            UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
+    UA_FieldTargetDataType *targetVars = (UA_FieldTargetDataType*)
+            UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetDataType));
     for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++) {
         /* Variable to subscribe data */
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -185,27 +147,21 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
         vAttr.dataType = readerConfig.dataSetMetaData.fields[i].dataType;
 
         UA_NodeId newNode;
-        retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
-                                           folderId,
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                           UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                           vAttr, NULL, &newNode);
-
-        /* For creating Targetvariables */
-        UA_FieldTargetDataType_init(&targetVars[i].targetVariable);
-        targetVars[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVars[i].targetVariable.targetNodeId = newNode;
+        UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
+                                  folderId, UA_NS0ID(HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
+                                  vAttr, NULL, &newNode);
+        targetVars[i].attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars[i].targetNodeId = newNode;
     }
 
-    retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
-                                                           readerConfig.dataSetMetaData.fieldsSize, targetVars);
-    for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++)
-        UA_FieldTargetDataType_clear(&targetVars[i].targetVariable);
+    UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
+                                                  readerConfig.dataSetMetaData.fieldsSize,
+                                                  targetVars);
 
     UA_free(targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
-    return retval;
 }
 
 /**
@@ -215,12 +171,7 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
  * DataSetMessages on the Subscriber side. DataSetMessages received from the Publisher are decoded into
  * DataSet and each field is updated in the Subscriber based on datatype match of TargetVariable fields of Subscriber
  * and PublishedDataSetFields of Publisher */
-/* Define MetaData for TargetVariables */
 static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
-    if(pMetaData == NULL) {
-        return;
-    }
-
     UA_DataSetMetaDataType_init (pMetaData);
     pMetaData->name = UA_STRING ("DataSet 1");
 
@@ -264,27 +215,13 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     pMetaData->fields[3].valueRank = -1; /* scalar */
 }
 
-/*
- * TODO: add something similary ass addDataSetMetadata for security configuration
- */
-
 /**
  * Followed by the main server code, making use of the above definitions */
-UA_Boolean running = true;
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
 
-static int
+static void
 run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-    /* Return value initialized to Status Good */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, 4801, NULL);
 
     /* Instantiate the PubSub SecurityPolicy */
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
@@ -293,30 +230,15 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
                                       config->logging);
 
-    /* API calls */
-    /* Add PubSubConnection */
-    retval |= addPubSubConnection(server, transportProfile, networkAddressUrl);
-    if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
+    addPubSubConnection(server, transportProfile, networkAddressUrl);
+    addReaderGroup(server);
+    addDataSetReader(server);
+    addSubscribedVariables(server, readerIdentifier);
 
-    /* Add ReaderGroup to the created PubSubConnection */
-    retval |= addReaderGroup(server);
-    if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
+    UA_Server_enableAllPubSubComponents(server);
+    UA_Server_runUntilInterrupt(server);
 
-    /* Add DataSetReader to the created ReaderGroup */
-    retval |= addDataSetReader(server);
-    if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
-
-    /* Add SubscribedVariables to the created DataSetReader */
-    retval |= addSubscribedVariables(server, readerIdentifier);
-    if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
-
-    retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 static void
@@ -355,5 +277,6 @@ int main(int argc, char **argv) {
         networkAddressUrl.networkInterface = UA_STRING(argv[2]);
     }
 
-    return run(&transportProfile, &networkAddressUrl);
+    run(&transportProfile, &networkAddressUrl);
+    return 0;
 }

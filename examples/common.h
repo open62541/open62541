@@ -2,12 +2,11 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <open62541/types.h>
-#include <open62541/types_generated_handling.h>
 #include <stdio.h>
 #include <errno.h>
 
 /* sleep_ms */
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
 # include <synchapi.h>
 # define sleep_ms(ms) Sleep(ms)
 #else

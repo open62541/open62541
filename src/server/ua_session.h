@@ -11,7 +11,7 @@
 
 #include <open62541/util.h>
 
-#include "ua_securechannel.h"
+#include "../ua_securechannel.h"
 
 _UA_BEGIN_DECLS
 
@@ -142,17 +142,15 @@ UA_Session_dequeuePublishReq(UA_Session *session);
  * string of length zero). */
 
 #define UA_LOG_SESSION_INTERNAL(LOGGER, LEVEL, SESSION, MSG, ...)       \
-    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                           \
-        int nameLen = (SESSION) ? (int)(SESSION)->sessionName.length : 0; \
-        const char *nameStr = (SESSION) ?                               \
-            (const char*)(SESSION)->sessionName.data : "";              \
-        unsigned long sockId = ((SESSION) && (SESSION)->channel) ? \
-            (unsigned long)(SESSION)->channel->connectionId : 0; \
-        UA_UInt32 chanId = ((SESSION) && (SESSION)->channel) ?   \
-            (SESSION)->channel->securityToken.channelId : 0;     \
+    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
+        UA_String sessionName = (SESSION) ? (SESSION)->sessionName: UA_STRING_NULL; \
+        unsigned long sockId = ((SESSION) && (SESSION)->channel) ?      \
+            (unsigned long)(SESSION)->channel->connectionId : 0;        \
+        UA_UInt32 chanId = ((SESSION) && (SESSION)->channel) ?          \
+            (SESSION)->channel->securityToken.channelId : 0;            \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "TCP %lu\t| SC %" PRIu32 "\t| Session \"%.*s\"\t| " MSG "%.0s", \
-                       sockId, chanId, nameLen, nameStr, __VA_ARGS__);   \
+                       "TCP %lu\t| SC %" PRIu32 "\t| Session \"%S\"\t| " MSG "%.0s", \
+                       sockId, chanId, sessionName, __VA_ARGS__);   \
     }
 
 #define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)                      \

@@ -7,16 +7,9 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 #include <open62541/pubsub.h>
 
 #include <stdio.h>
-#if defined(_MSC_VER)
-# include <BaseTsd.h>
-typedef SSIZE_T ssize_t;
-#else
-#include <unistd.h>
-#endif
 
 static UA_StatusCode
 encode(const UA_ByteString *buf, UA_ByteString *out, const UA_DataType *type) {
@@ -56,7 +49,7 @@ decode(const UA_ByteString *buf, UA_ByteString *out, const UA_DataType *type) {
     }
 
     /* Encode Binary. Internally allocates the buffer upon success */
-    retval = UA_encodeBinary(data, type, out);
+    retval = UA_encodeBinary(data, type, out, NULL);
 
     /* Clean up */
     UA_delete(data, type);
@@ -240,12 +233,13 @@ int main(int argc, char **argv) {
         }
 
         size_t c = fread(&buf.data[pos], sizeof(UA_Byte), length - pos, in);
-		if(ferror(in)) {
-			fprintf(stderr, "Reading from input failed\n");
-			goto cleanup;
-		}
+        if(ferror(in)) {
+            fprintf(stderr, "Reading from input failed\n");
+            goto cleanup;
+        }
+
         pos += c;
-	} while (!feof(in));
+    } while (!feof(in));
 
     if(pos == 0) {
         fprintf(stderr, "No input\n");

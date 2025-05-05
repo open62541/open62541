@@ -29,7 +29,6 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -44,7 +43,6 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection 1");
     connectionConfig.transportProfileUri = *transportProfile;
-    connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
@@ -88,7 +86,7 @@ addDataSetField(UA_Server *server) {
     dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
-    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_Server_addDataSetField(server, publishedDataSetIdent,
                               &dataSetFieldConfig, &dataSetFieldIdent);
@@ -107,7 +105,6 @@ addWriterGroup(UA_Server *server) {
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
     writerGroupConfig.publishingInterval = 1000;
-    writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
@@ -126,7 +123,6 @@ addWriterGroup(UA_Server *server) {
                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
     writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
-    UA_Server_enableWriterGroup(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 }
 
@@ -165,22 +161,15 @@ addDataSetWriter(UA_Server *server) {
  * which already contains the decoding code for UADP messages.
  *
  * It follows the main server code, making use of the above definitions. */
-UA_Boolean running = true;
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
 
 static void
 onDemandPublish(UA_Server *server, void *data){
     UA_Server_WriterGroup_publish(server, writerGroupIdent);
 }
 
-static int run(UA_String *transportProfile,
-               UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
+static void
+run(UA_String *transportProfile,
+    UA_NetworkAddressUrlDataType *networkAddressUrl) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
@@ -193,11 +182,10 @@ static int run(UA_String *transportProfile,
 
     UA_Server_addRepeatedCallback(server, onDemandPublish, NULL, 5000, NULL);
 
-
-    UA_StatusCode retval = UA_Server_run(server, &running);
+    UA_Server_enableAllPubSubComponents(server);
+    UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 static void
@@ -234,6 +222,6 @@ int main(int argc, char **argv) {
         networkAddressUrl.networkInterface = UA_STRING(argv[2]);
     }
 
-
-    return run(&transportProfile, &networkAddressUrl);
+    run(&transportProfile, &networkAddressUrl);
+    return 0;
 }

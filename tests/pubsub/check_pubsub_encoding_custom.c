@@ -7,11 +7,12 @@
 
 #include <open62541/types.h>
 
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "ua_pubsub_networkmessage.h"
 
 #include "math.h"
 #include "check.h"
+#include <stdlib.h>
 
 /* The custom datatype for describing a 3d position */
 
@@ -61,6 +62,7 @@ static const UA_DataType PointType = {
     {1, UA_NODEIDTYPE_NUMERIC, {17}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
+    {1, UA_NODEIDTYPE_NUMERIC, {18}}, /* .xmlEncodingId */
     sizeof(Point),                   /* .memSize */
     UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
     true,                            /* .pointerFree */
@@ -120,6 +122,7 @@ static const UA_DataType OptType = {
         {1, UA_NODEIDTYPE_NUMERIC, {5}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
+        {1, UA_NODEIDTYPE_NUMERIC, {5+111}}, /* .xmlEncodingId */
         sizeof(Opt),                     /* .memSize */
         UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
         false,                            /* .pointerFree */
@@ -178,6 +181,7 @@ static const UA_DataType ArrayOptType = {
     {1, UA_NODEIDTYPE_NUMERIC, {1337}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
+    {1, UA_NODEIDTYPE_NUMERIC, {1338}}, /* .binaryEncodingId */
     sizeof(OptArray),                   /* .memSize */
     UA_DATATYPEKIND_OPTSTRUCT,       /* .typeKind */
     false,                            /* .pointerFree */
@@ -220,6 +224,7 @@ static const UA_DataType UniType = {
         UA_TYPENAME("Uni")
         {1, UA_NODEIDTYPE_NUMERIC, {4245}},
         {1, UA_NODEIDTYPE_NUMERIC, {13338}},
+        {1, UA_NODEIDTYPE_NUMERIC, {13339}},
         sizeof(Uni),
         UA_DATATYPEKIND_UNION,
         false,
@@ -271,6 +276,7 @@ const UA_DataType selfContainingUnionType = {
     UA_TYPENAME("SelfContainingStruct") /* .typeName */
     {2, UA_NODEIDTYPE_NUMERIC, {4002LU}}, /* .typeId */
     {2, UA_NODEIDTYPE_NUMERIC, {0}}, /* .binaryEncodingId */
+    {2, UA_NODEIDTYPE_NUMERIC, {0}}, /* .xmlEncodingId */
     sizeof(UA_SelfContainingUnion), /* .memSize */
     UA_DATATYPEKIND_UNION, /* .typeKind */
     false, /* .pointerFree */
@@ -308,6 +314,7 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarDeltaFrame) {
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -318,9 +325,13 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarDeltaFrame) {
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypes;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypes);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -376,6 +387,7 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarKeyFrame) {
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -386,9 +398,13 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarKeyFrame) {
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypes;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypes);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -453,6 +469,7 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarExtensionObjectDeltaFrame) {
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -463,9 +480,13 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarExtensionObjectDeltaFrame) {
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypes;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypes);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -527,6 +548,7 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarExtensionObjectKeyFrame) {
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -537,9 +559,13 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarExtensionObjectKeyFrame) {
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypes;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypes);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -599,6 +625,7 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayDeltaFrame){
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -609,9 +636,13 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayDeltaFrame){
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypes;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypes);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     for (size_t i = 0; i < 10; i++) {
@@ -658,6 +689,7 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayKeyFrame){
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -668,9 +700,13 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayKeyFrame){
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypes;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypes);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     for (size_t i = 0; i < 10; i++) {
@@ -721,6 +757,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsDeltaFrame){
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -731,9 +768,13 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsDeltaFrame){
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypesOptStruct;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypesOptStruct);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -795,6 +836,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsKeyFrame){
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -805,9 +847,13 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsKeyFrame){
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypesOptStruct;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypesOptStruct);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -867,6 +913,7 @@ START_TEST(UA_PubSub_EnDecode_CustomUnionDeltaFrame){
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -877,9 +924,13 @@ START_TEST(UA_PubSub_EnDecode_CustomUnionDeltaFrame){
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypesUnion;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypesUnion);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -934,6 +985,7 @@ START_TEST(UA_PubSub_EnDecode_CustomUnionKeyFrame){
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -944,9 +996,13 @@ START_TEST(UA_PubSub_EnDecode_CustomUnionKeyFrame){
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypesUnion;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypesUnion);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -1003,6 +1059,7 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionNormalMemberDeltaFrame){
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1013,9 +1070,13 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionNormalMemberDeltaFrame){
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypesSelfContainingUnion;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypesSelfContainingUnion);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -1069,6 +1130,7 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionNormalMemberKeyFrame){
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1079,9 +1141,13 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionNormalMemberKeyFrame){
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypesSelfContainingUnion;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypesSelfContainingUnion);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -1143,6 +1209,7 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionSelfMemberDeltaFrame){
     UA_free(s.fields.array.array);
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1153,9 +1220,13 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionSelfMemberDeltaFrame){
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypesSelfContainingUnion;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypesSelfContainingUnion);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -1218,6 +1289,7 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionSelfMemberKeyFrame){
     UA_free(s.fields.array.array);
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1228,9 +1300,13 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionSelfMemberKeyFrame){
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypesSelfContainingUnion;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypesSelfContainingUnion);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -1297,6 +1373,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayNotConta
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1307,9 +1384,13 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayNotConta
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypesOptArrayStruct;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypesOptArrayStruct);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -1381,6 +1462,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayNotConta
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1391,9 +1473,13 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayNotConta
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypesOptArrayStruct;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypesOptArrayStruct);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -1471,6 +1557,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayContaine
     dmdf.data.deltaFrameData.deltaFrameFields[0].fieldValue.hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmdf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1481,9 +1568,13 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayContaine
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypesOptArrayStruct;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypesOptArrayStruct);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -1563,6 +1654,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayContaine
     dmkf.data.keyFrameData.dataSetFields[0].hasValue = true;
 
     m.payload.dataSetPayload.dataSetMessages = &dmkf;
+    m.payload.dataSetPayload.dataSetMessagesSize = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1573,9 +1665,13 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayContaine
     rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = &customDataTypesOptArrayStruct;
+
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &customDataTypesOptArrayStruct);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, &opt);
 
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);

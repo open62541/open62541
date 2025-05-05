@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # This Source Code Form is subject to the terms of the Mozilla Public
-# License, v. 2.0. If a copy of the MPL was not distributed with this 
+# License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import sys
@@ -20,7 +20,7 @@ remove_keyword = [" UA_EXPORT", " UA_FUNC_ATTR_WARN_UNUSED_RESULT",
                   " UA_FUNC_ATTR_MALLOC", " UA_RESTRICT "]
 
 def clean_comment(line):
-    m = re.search("^\s*(\* |/\*\* )(.*?)( \*/)?$", line)
+    m = re.search(r"^\s*(\* |/\*\* )(.*?)( \*/)?$", line)
     if not m:
         return "\n"
     return m.group(2) + "\n"
@@ -31,13 +31,13 @@ def clean_line(line):
     return line
 
 def comment_start(line):
-    m = re.search("^\s*/\*\*[ \n]", line)
+    m = re.search("^\\s*/\\*\\*[ \n]", line)
     if not m:
         return False
     return True
 
 def comment_end(line):
-    m = re.search(" \*/$", line)
+    m = re.search(r" \*/$", line)
     if not m:
         return False
     return True
@@ -69,37 +69,39 @@ def last_line(c):
             return i
     return len(c)-1
 
-if len(sys.argv) < 2:
-    print("Usage: python c2rst.py input.c/h output.rst")
+args = len(sys.argv)
+if args < 3:
+    print("Usage: python c2rst.py [input.c/h] output.rst")
     exit(0)
 
-with open(sys.argv[1]) as f:
-    c = f.readlines()
-
-with open(sys.argv[2], 'w') as rst:
-    in_doc = False
-    last = last_line(c)
-    for i in range(first_line(c), last+1):
-        line = c[i]
-        doc_start = False
-        doc_end = False
-        if in_doc:
-            doc_end = comment_end(line)
-            line = clean_comment(line)
-        else:
-            doc_start = comment_start(line)
-            if doc_start:
+with open(sys.argv[args-1], 'w') as rst:
+    for j in range(1,args-1):
+        with open(sys.argv[j]) as f:
+            c = f.readlines()
+        in_doc = False
+        last = last_line(c)
+        for i in range(first_line(c), last+1):
+            line = c[i]
+            doc_start = False
+            doc_end = False
+            if in_doc:
                 doc_end = comment_end(line)
                 line = clean_comment(line)
+            else:
+                doc_start = comment_start(line)
+                if doc_start:
+                    doc_end = comment_end(line)
+                    line = clean_comment(line)
 
-        if doc_start:
-            in_doc = True
+            if doc_start:
+                in_doc = True
 
-        if not ((doc_start or doc_end) and line == "\n"):
-            if not in_doc:
-                line = "   " + line
-            rst.write(clean_line(line))
+            if not ((doc_start or doc_end) and line == "\n"):
+                if not in_doc:
+                    line = "   " + line
+                rst.write(clean_line(line))
 
-        if doc_end and i < last:
-            rst.write("\n.. code-block:: c\n\n")
-            in_doc = False
+            if doc_end and i < last:
+                rst.write("\n.. code-block:: c\n\n")
+                in_doc = False
+        rst.write("\n")

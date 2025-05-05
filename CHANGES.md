@@ -3,6 +3,59 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Client async methods are typed
+
+For more of the client async service calls, specialized callback types were
+added. With this the callbacks receive the accurate response type instead of
+void-pointers. The order of callback arguments did not change, thereby the
+change is ABI stable and old code continues to work (but might get a
+type-warning during compilation).
+
+### New Realtime-PubSub model
+
+The new Realtime-PubSub model builds upon two new public APIS: (i) The
+possibility to integrate custom state machines to control the state of
+PubSub-components and (ii) the generation of offset-tables for the content of
+PubSub NetworkMessages. The approach is described in
+/examples/pubsub_realtime/README.md with code examples in the same folder.
+
+### JSON encoding changed with the v1.05 specification
+
+The JSON encoding was reworked for the v1.05 version of the OPC UA
+specification. The change breaks backwards compatibility. The legacy JSON
+encoding is still available throught the UA_ENABLE_JSON_ENCODING_LEGACY build
+option. This legacy feature wil get removed at some point in the future.
+
+### PubSub NetworkMessage structure has an explicit DataSetMessageSize
+
+In prior versions of the standard, when the PayloadHeader was missing, the
+PubSub NetworkMessage needed to have exactly one DataSetMessage. In the current
+standard there can be several DataSetMessages also without a PayloadHeader. To
+allow for this the UA_NetworkMessage structure now contains an explicit
+DataSetMessageSize field outside of the PayloadHeader.
+
+Note that code could before rely on the default of one DataSetMessage. This code
+needs to be revised to set the new DataSetMessageSize field to one.
+
+### PubSub Components are disabled initially
+
+PubSubComponents (PubSubConnections, ReaderGroups, ...) are no longer enabled
+automatically after creating them. This makes the behavior uniform for all
+PubSubComponents. And the configuration can be finalized prior to enabling. A
+method UA_Server_enableAllPubSubComponents simplifies enabling the entire
+system of configured components.
+
+### PubSub Configuration freezing
+
+The configuration is now "frozen" automatically when the state machine switches
+to an enabled state (PAUSED / OPERATIONAL / PREOPERATIONAL). The freezing
+mechanism is no longer exposed in the public API.
+
+### Timer Simplification
+
+For timed callbacks that are not repeated, use the same API
+but with the UA_TIMERPOLICY_ONCE TimerPolicy.
+
 ### EventLoop Canceling
 
 The `cancel` method of the EventLoop makes the (blocking) EventLoop `run` return

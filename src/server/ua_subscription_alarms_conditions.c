@@ -209,7 +209,7 @@ addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
 
 static UA_ConditionSource *
 getConditionSource(UA_Server *server, const UA_NodeId *sourceId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_ConditionSource *cs;
     LIST_FOREACH(cs, &server->conditionSources, listEntry) {
         if(UA_NodeId_equal(&cs->conditionSourceId, sourceId))
@@ -221,7 +221,7 @@ getConditionSource(UA_Server *server, const UA_NodeId *sourceId) {
 static UA_Condition *
 getCondition(UA_Server *server, const UA_NodeId *sourceId,
              const UA_NodeId *conditionId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_ConditionSource *cs = getConditionSource(server, sourceId);
     if(!cs)
         return NULL;
@@ -244,13 +244,12 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeI
                                                const UA_NodeId conditionSource, UA_Boolean removeBranch,
                                                UA_TwoStateVariableChangeCallback callback,
                                                UA_TwoStateVariableCallbackType callbackType) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     /* Get Condition */
     UA_Condition *c = getCondition(server, &conditionSource, &condition);
     if(!c) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
@@ -271,11 +270,11 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeI
         c->callbacks.activeStateCallback = callback;
         break;
     default:
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -283,11 +282,11 @@ static UA_StatusCode
 getConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId *branch,
                                      UA_Condition *condition, UA_Boolean *removeBranch,
                                      UA_TwoStateVariableCallbackType callbackType) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     /* That callbacks are defined in the userland. Release the server lock before. */
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     /* TODO log warning when the callback wasn't set */
     switch(callbackType) {
@@ -319,7 +318,7 @@ getConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId *branch,
         res = UA_STATUSCODE_BADNOTFOUND;
         break;
     }
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     return res;
 }
@@ -328,7 +327,7 @@ static UA_StatusCode
 callConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId *condition,
                                       const UA_NodeId *conditionSource, UA_Boolean *removeBranch,
                                       UA_TwoStateVariableCallbackType callbackType) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_ConditionSource *source = getConditionSource(server, conditionSource);
     if(!source)
@@ -356,10 +355,10 @@ UA_Server_callConditionTwoStateVariableCallback(UA_Server *server, const UA_Node
                                                 const UA_NodeId *conditionSource,
                                                 UA_Boolean *removeBranch,
                                                 UA_TwoStateVariableCallbackType callbackType) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = callConditionTwoStateVariableCallback(server, condition, conditionSource,
                                                               removeBranch, callbackType);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -377,7 +376,7 @@ copyFieldParent(void *context, UA_ReferenceTarget *t) {
  * EnabledState/Id) */
 static UA_StatusCode
 getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *parent) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     *parent = UA_NODEID_NULL;
     const UA_Node *fieldNode = UA_NODESTORE_GET(server, field);
@@ -403,9 +402,9 @@ getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *paren
 
 static UA_StatusCode
 UA_Server_getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *parent) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = getFieldParentNodeId(server, field, parent);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -413,7 +412,7 @@ UA_Server_getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_Nod
 static UA_StatusCode
 getConditionFieldNodeId(UA_Server *server, const UA_NodeId *conditionNodeId,
                         const UA_QualifiedName* fieldName, UA_NodeId *outFieldNodeId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_BrowsePathResult bpr =
         browseSimplifiedBrowsePath(server, *conditionNodeId, 1, fieldName);
@@ -430,7 +429,7 @@ getConditionFieldPropertyNodeId(UA_Server *server, const UA_NodeId *originCondit
                                 const UA_QualifiedName* variableFieldName,
                                 const UA_QualifiedName* variablePropertyName,
                                 UA_NodeId *outFieldPropertyNodeId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* 1) Find Variable Field of the Condition */
     UA_BrowsePathResult bprConditionVariableField =
@@ -458,7 +457,7 @@ getConditionFieldPropertyNodeId(UA_Server *server, const UA_NodeId *originCondit
 static UA_StatusCode
 getNodeIdValueOfConditionField(UA_Server *server, const UA_NodeId *condition,
                                UA_QualifiedName fieldName, UA_NodeId *outNodeId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     *outNodeId = UA_NODEID_NULL;
     UA_NodeId nodeIdValue;
@@ -485,9 +484,9 @@ getNodeIdValueOfConditionField(UA_Server *server, const UA_NodeId *condition,
 static UA_StatusCode
 UA_Server_getNodeIdValueOfConditionField(UA_Server *server, const UA_NodeId *condition,
                                          UA_QualifiedName fieldName, UA_NodeId *outNodeId) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = getNodeIdValueOfConditionField(server, condition, fieldName, outNodeId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -496,8 +495,7 @@ UA_Server_getNodeIdValueOfConditionField(UA_Server *server, const UA_NodeId *con
 static UA_StatusCode
 UA_Server_getConditionBranchNodeId(UA_Server *server, const UA_ByteString *eventId,
                          UA_NodeId *outConditionBranchNodeId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     *outConditionBranchNodeId = UA_NODEID_NULL;
     /* The function checks the BranchId based on the event Id, if BranchId ==
@@ -516,11 +514,11 @@ UA_Server_getConditionBranchNodeId(UA_Server *server, const UA_ByteString *event
                     continue;
                 if(UA_NodeId_isNull(&branch->conditionBranchId)) {
                     res = UA_NodeId_copy(&cond->conditionId, outConditionBranchNodeId);
-                    UA_UNLOCK(&server->serviceMutex);
+                    unlockServer(server);
                     return res;
                 } else {
                     res = UA_NodeId_copy(&branch->conditionBranchId, outConditionBranchNodeId);
-                    UA_UNLOCK(&server->serviceMutex);
+                    unlockServer(server);
                     return res;
                 }
                 goto out;
@@ -529,7 +527,7 @@ UA_Server_getConditionBranchNodeId(UA_Server *server, const UA_ByteString *event
     }
 
  out:
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -537,18 +535,17 @@ static UA_StatusCode
 UA_Server_getConditionLastSeverity(UA_Server *server, const UA_NodeId *conditionSource,
                          const UA_NodeId *conditionId, UA_UInt16 *outLastSeverity,
                          UA_DateTime *outLastSeveritySourceTimeStamp) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "Entry not found in list!");
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     *outLastSeverity = cond->lastSeverity;
     *outLastSeveritySourceTimeStamp = cond->lastSeveritySourceTimeStamp;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -556,18 +553,17 @@ static UA_StatusCode
 UA_Server_updateConditionLastSeverity(UA_Server *server, const UA_NodeId *conditionSource,
                                       const UA_NodeId *conditionId, UA_UInt16 lastSeverity,
                                       UA_DateTime lastSeveritySourceTimeStamp) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "Entry not found in list!");
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     cond->lastSeverity = lastSeverity;
     cond->lastSeveritySourceTimeStamp =  lastSeveritySourceTimeStamp;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -575,19 +571,18 @@ static UA_StatusCode
 UA_Server_getConditionActiveState(UA_Server *server, const UA_NodeId *conditionSource,
                                   const UA_NodeId *conditionId, UA_ActiveState *outLastActiveState,
                                   UA_ActiveState *outCurrentActiveState, UA_Boolean *outIsLimitAlarm) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "Entry not found in list!");
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     *outLastActiveState = cond->lastActiveState;
     *outCurrentActiveState = cond->currentActiveState;
     *outIsLimitAlarm = cond->isLimitAlarm;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -595,19 +590,18 @@ static UA_StatusCode
 UA_Server_updateConditionActiveState(UA_Server *server, const UA_NodeId *conditionSource,
                                      const UA_NodeId *conditionId, const UA_ActiveState lastActiveState,
                                      const UA_ActiveState currentActiveState, UA_Boolean isLimitAlarm) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "Entry not found in list!");
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     cond->lastActiveState = lastActiveState;
     cond->currentActiveState = currentActiveState;
     cond->isLimitAlarm = isLimitAlarm;
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -615,7 +609,7 @@ static UA_StatusCode
 updateConditionLastEventId(UA_Server *server, const UA_NodeId *triggeredEvent,
                            const UA_NodeId *conditionSource,
                            const UA_ByteString *lastEventId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_Condition *cond = getCondition(server, conditionSource, triggeredEvent);
     if(!cond) {
@@ -640,7 +634,7 @@ updateConditionLastEventId(UA_Server *server, const UA_NodeId *triggeredEvent,
 static void
 setIsCallerAC(UA_Server *server, const UA_NodeId *condition,
               const UA_NodeId *conditionSource, UA_Boolean isCallerAC) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_Condition *cond = getCondition(server, conditionSource, condition);
     if(!cond) {
@@ -663,7 +657,7 @@ setIsCallerAC(UA_Server *server, const UA_NodeId *condition,
 UA_Boolean
 isConditionOrBranch(UA_Server *server, const UA_NodeId *condition,
                     const UA_NodeId *conditionSource, UA_Boolean *isCallerAC) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_Condition *cond = getCondition(server, conditionSource, condition);
     if(!cond) {
@@ -686,7 +680,7 @@ isConditionOrBranch(UA_Server *server, const UA_NodeId *condition,
 
 static UA_Boolean
 isRetained(UA_Server *server, const UA_NodeId *condition) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Get EnabledStateId NodeId */
     UA_NodeId retainNodeId;
@@ -719,16 +713,16 @@ isRetained(UA_Server *server, const UA_NodeId *condition) {
 
 static UA_Boolean
 UA_Server_isRetained(UA_Server *server, const UA_NodeId *condition) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Boolean res = isRetained(server, condition);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
 static UA_Boolean
 isTwoStateVariableInTrueState(UA_Server *server, const UA_NodeId *condition,
                               const UA_QualifiedName *twoStateVariable) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Get TwoStateVariableId NodeId */
     UA_NodeId twoStateVariableIdNodeId;
@@ -764,16 +758,16 @@ isTwoStateVariableInTrueState(UA_Server *server, const UA_NodeId *condition,
 static UA_Boolean
 UA_Server_isTwoStateVariableInTrueState(UA_Server *server, const UA_NodeId *condition,
                                         const UA_QualifiedName *twoStateVariable) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Boolean res = isTwoStateVariableInTrueState(server, condition, twoStateVariable);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
 static UA_StatusCode
 enteringDisabledState(UA_Server *server, const UA_NodeId *conditionId,
                       const UA_NodeId *conditionSource) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
@@ -829,9 +823,9 @@ enteringDisabledState(UA_Server *server, const UA_NodeId *conditionId,
 static UA_StatusCode
 UA_Server_enteringDisabledState(UA_Server *server, const UA_NodeId *conditionId,
                                 const UA_NodeId *conditionSource) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = enteringDisabledState(server, conditionId, conditionSource);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -839,7 +833,7 @@ static UA_StatusCode
 enteringEnabledState(UA_Server *server,
                      const UA_NodeId *conditionId,
                      const UA_NodeId *conditionSource) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Get Condition */
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
@@ -890,9 +884,9 @@ enteringEnabledState(UA_Server *server,
 static UA_StatusCode
 UA_Server_enteringEnabledState(UA_Server *server, const UA_NodeId *conditionId,
                                const UA_NodeId *conditionSource) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = enteringEnabledState(server, conditionId, conditionSource);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -901,8 +895,6 @@ afterWriteCallbackEnabledStateChange(UA_Server *server,
                                      const UA_NodeId *sessionId, void *sessionContext,
                                      const UA_NodeId *nodeId, void *nodeContext,
                                      const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     /* Callback for change in EnabledState/Id property.
      * First we get the EnabledState NodeId then The Condition NodeId */
     UA_NodeId twoStateVariableNode;
@@ -951,8 +943,6 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
                                    const UA_NodeId *sessionId, void *sessionContext,
                                    const UA_NodeId *nodeId, void *nodeContext,
                                    const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     /* Get the AckedState NodeId then The Condition NodeId */
     UA_NodeId twoStateVariableNode;
     UA_StatusCode retval = UA_Server_getFieldParentNodeId(server, nodeId, &twoStateVariableNode);
@@ -1046,8 +1036,6 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
                                        const UA_NodeId *sessionId, void *sessionContext,
                                        const UA_NodeId *nodeId, void *nodeContext,
                                        const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_Variant value;
     UA_NodeId twoStateVariableNode;
     UA_StatusCode retval = UA_Server_getFieldParentNodeId(server, nodeId, &twoStateVariableNode);
@@ -1141,8 +1129,6 @@ afterWriteCallbackActiveStateChange(UA_Server *server,
                                     const UA_NodeId *sessionId, void *sessionContext,
                                     const UA_NodeId *nodeId, void *nodeContext,
                                     const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_Variant value;
     UA_NodeId twoStateVariableNode;
     UA_StatusCode retval = UA_Server_getFieldParentNodeId(server, nodeId, &twoStateVariableNode);
@@ -1288,8 +1274,6 @@ afterWriteCallbackSeverityChange(UA_Server *server,
                                  const UA_NodeId *sessionId, void *sessionContext,
                                  const UA_NodeId *nodeId, void *nodeContext,
                                  const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_QualifiedName fieldLastSeverity = UA_QUALIFIEDNAME(0, CONDITION_FIELD_LASTSEVERITY);
     UA_QualifiedName fieldSourceTimeStamp =
         UA_QUALIFIEDNAME(0, CONDITION_FIELD_CONDITIONVARIABLE_SOURCETIMESTAMP);
@@ -1379,8 +1363,6 @@ disableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *methodContext, const UA_NodeId *objectId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize, UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
@@ -1412,8 +1394,6 @@ enableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                      void *objectContext, size_t inputSize,
                      const UA_Variant *input, size_t outputSize,
                      UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
@@ -1445,7 +1425,6 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                          void *objectContext, size_t inputSize,
                          const UA_Variant *input, size_t outputSize,
                          UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_EventLoop *el = server->config.eventLoop;
 
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
@@ -1503,8 +1482,8 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* Set Comment. Check whether comment is empty -> leave the last value as is*/
     UA_LocalizedText *inputComment = (UA_LocalizedText *)input[1].data;
     UA_String nullString = UA_STRING_NULL;
-    if(!UA_ByteString_equal(&inputComment->locale, &nullString) &&
-       !UA_ByteString_equal(&inputComment->text, &nullString)) {
+    if(!UA_String_equal(&inputComment->locale, &nullString) &&
+       !UA_String_equal(&inputComment->text, &nullString)) {
         UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         retval = UA_Server_setConditionField(server, triggerEvent, &value, fieldComment);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Comment failed",
@@ -1534,8 +1513,6 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                           void *objectContext, size_t inputSize,
                           const UA_Variant *input, size_t outputSize,
                           UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
     UA_Variant value;
 
@@ -1573,10 +1550,10 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* Check if ConditionType is subType of AcknowledgeableConditionType TODO Over Kill*/
     UA_NodeId AcknowledgeableConditionTypeId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Boolean found = isNodeInTree_singleRef(server, &eventType, &AcknowledgeableConditionTypeId,
                                               UA_REFERENCETYPEINDEX_HASSUBTYPE);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     if(!found) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "Condition Type must be a subtype of AcknowledgeableConditionType!");
@@ -1590,8 +1567,8 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* Set Comment. Check whether comment is empty -> leave the last value as is*/
     UA_LocalizedText *inputComment = (UA_LocalizedText *)input[1].data;
     UA_String nullString = UA_STRING_NULL;
-    if(!UA_ByteString_equal(&inputComment->locale, &nullString) &&
-       !UA_ByteString_equal(&inputComment->text, &nullString)) {
+    if(!UA_String_equal(&inputComment->locale, &nullString) &&
+       !UA_String_equal(&inputComment->text, &nullString)) {
         UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         retval = UA_Server_setConditionField(server, conditionNode, &value, fieldComment);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Comment failed",
@@ -1616,8 +1593,6 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
     UA_Variant value;
 
@@ -1655,10 +1630,10 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* Check if ConditionType is subType of AcknowledgeableConditionType. */
     UA_NodeId AcknowledgeableConditionTypeId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Boolean found = isNodeInTree_singleRef(server, &eventType, &AcknowledgeableConditionTypeId,
                                               UA_REFERENCETYPEINDEX_HASSUBTYPE);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     if(!found) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "Condition Type must be a subtype of AcknowledgeableConditionType!");
@@ -1672,8 +1647,8 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* Set Comment. Check whether comment is empty -> leave the last value as is*/
     UA_LocalizedText *inputComment = (UA_LocalizedText *)input[1].data;
     UA_String nullString = UA_STRING_NULL;
-    if(!UA_ByteString_equal(&inputComment->locale, &nullString) &&
-       !UA_ByteString_equal(&inputComment->text, &nullString)) {
+    if(!UA_String_equal(&inputComment->locale, &nullString) &&
+       !UA_String_equal(&inputComment->text, &nullString)) {
         UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         retval = UA_Server_setConditionField(server, conditionNode, &value, fieldComment);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Comment failed",
@@ -1694,7 +1669,7 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
 static UA_StatusCode
 setRefreshMethodEventFields(UA_Server *server, const UA_NodeId *refreshEventNodId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_QualifiedName fieldSeverity = UA_QUALIFIEDNAME(0, CONDITION_FIELD_SEVERITY);
     UA_QualifiedName fieldSourceName = UA_QUALIFIEDNAME(0, CONDITION_FIELD_SOURCENAME);
@@ -1739,7 +1714,7 @@ setRefreshMethodEventFields(UA_Server *server, const UA_NodeId *refreshEventNodI
 static UA_StatusCode
 createRefreshMethodEvents(UA_Server *server, UA_NodeId *outRefreshStartNodId,
                           UA_NodeId *outRefreshEndNodId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_NodeId refreshStartEventTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_REFRESHSTARTEVENTTYPE);
     UA_NodeId refreshEndEventTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_REFRESHENDEVENTTYPE);
@@ -1758,7 +1733,7 @@ createRefreshMethodEvents(UA_Server *server, UA_NodeId *outRefreshStartNodId,
 static UA_StatusCode
 setRefreshMethodEvents(UA_Server *server, const UA_NodeId *refreshStartNodId,
                        const UA_NodeId *refreshEndNodId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Set Standard Fields for RefreshStart */
     UA_StatusCode retval = setRefreshMethodEventFields(server, refreshStartNodId);
@@ -1774,7 +1749,7 @@ setRefreshMethodEvents(UA_Server *server, const UA_NodeId *refreshStartNodId,
 static UA_Boolean
 isConditionSourceInMonitoredItem(UA_Server *server, const UA_MonitoredItem *monitoredItem,
                                  const UA_NodeId *conditionSource){
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* TODO: check also other hierarchical references */
     UA_ReferenceTypeSet refs = UA_REFTYPESET(UA_REFERENCETYPEINDEX_ORGANIZES);
@@ -1787,7 +1762,7 @@ isConditionSourceInMonitoredItem(UA_Server *server, const UA_MonitoredItem *moni
 static UA_StatusCode
 refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
              const UA_NodeId *refreshEndNodId, UA_MonitoredItem *monitoredItem) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_assert(monitoredItem != NULL);
 
     /* 1. Trigger RefreshStartEvent */
@@ -1858,15 +1833,14 @@ refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     //TODO implement logic for subscription array
     /* Check if valid subscriptionId */
     UA_Session *session = getSessionById(server, sessionId);
     UA_Subscription *subscription =
         UA_Session_getSubscriptionById(session, *((UA_UInt32 *)input[0].data));
     if(!subscription) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
@@ -1875,14 +1849,14 @@ refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                                                   &server->refreshEvents[REFRESHEVENT_START_IDX],
                                                   &server->refreshEvents[REFRESHEVENT_END_IDX]);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Create Event RefreshStart or RefreshEnd failed",
-                                   UA_UNLOCK(&server->serviceMutex););
+                                   unlockServer(server););
 
     /* Trigger RefreshStartEvent and RefreshEndEvent for the each monitoredItem
      * in the subscription */
     UA_MonitoredItem *monitoredItem =
         UA_Subscription_getMonitoredItem(subscription, *((UA_UInt32 *)input[1].data));
     if(!monitoredItem) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
     }
 
@@ -1890,8 +1864,8 @@ refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     retval = refreshLogic(server, &server->refreshEvents[REFRESHEVENT_START_IDX],
                           &server->refreshEvents[REFRESHEVENT_END_IDX], monitoredItem);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Could not refresh Condition",
-                                   UA_UNLOCK(&server->serviceMutex););
-    UA_UNLOCK(&server->serviceMutex);
+                                   unlockServer(server););
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1902,8 +1876,7 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     //TODO implement logic for subscription array
     /* Check if valid subscriptionId */
@@ -1911,7 +1884,7 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     UA_Subscription *subscription =
         UA_Session_getSubscriptionById(session, *((UA_UInt32 *)input[0].data));
     if(!subscription) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
@@ -1920,7 +1893,7 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         setRefreshMethodEvents(server, &server->refreshEvents[REFRESHEVENT_START_IDX],
                                &server->refreshEvents[REFRESHEVENT_END_IDX]);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Create Event RefreshStart or RefreshEnd failed",
-                                   UA_UNLOCK(&server->serviceMutex););
+                                   unlockServer(server););
 
     /* Trigger RefreshStartEvent and RefreshEndEvent for the each monitoredItem
      * in the subscription */
@@ -1930,9 +1903,9 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
         retval = refreshLogic(server, &server->refreshEvents[REFRESHEVENT_START_IDX],
                               &server->refreshEvents[REFRESHEVENT_END_IDX], monitoredItem);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Could not refresh Condition",
-                                       UA_UNLOCK(&server->serviceMutex););
+                                       unlockServer(server););
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1943,7 +1916,7 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 static UA_StatusCode
 setConditionInConditionList(UA_Server *server, const UA_NodeId *conditionNodeId,
                             UA_ConditionSource *conditionSourceEntry) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_Condition *conditionListEntry = (UA_Condition*)UA_malloc(sizeof(UA_Condition));
     if(!conditionListEntry)
@@ -1973,7 +1946,7 @@ setConditionInConditionList(UA_Server *server, const UA_NodeId *conditionNodeId,
 static UA_StatusCode
 appendConditionEntry(UA_Server *server, const UA_NodeId *conditionNodeId,
                      const UA_NodeId *conditionSourceNodeId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* See if the ConditionSource Entry already exists*/
     UA_ConditionSource *source = getConditionSource(server, conditionSourceNodeId);
@@ -2020,7 +1993,7 @@ deleteCondition(UA_Condition *cond) {
 
 void
 UA_ConditionList_delete(UA_Server *server) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_ConditionSource *source, *tmp_source;
     LIST_FOREACH_SAFE(source, &server->conditionSources, listEntry, tmp_source) {
@@ -2042,7 +2015,7 @@ UA_ConditionList_delete(UA_Server *server) {
 UA_StatusCode
 UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
                   UA_NodeId *outConditionId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Get ConditionSource Entry */
     UA_ConditionSource *source;
@@ -2071,7 +2044,7 @@ UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
  * subtypes inverse reference. */
 static UA_Boolean
 doesHasEventSourceReferenceExist(UA_Server *server, const UA_NodeId nodeToCheck) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_NodeId hasEventSourceId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASEVENTSOURCE);
     const UA_Node* node = UA_NODESTORE_GET(server, &nodeToCheck);
@@ -2095,7 +2068,7 @@ static UA_StatusCode
 setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
                            const UA_NodeId* conditionType, const UA_NodeId* conditionSource,
                            const UA_QualifiedName* conditionName) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Set Fields */
     /* 1.Set EventType */
@@ -2296,7 +2269,7 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
 static UA_StatusCode
 setTwoStateVariableCallbacks(UA_Server *server, const UA_NodeId* condition,
                              const UA_NodeId* conditionType) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Set EnabledState Callback */
     UA_NodeId twoStateVariableIdNodeId = UA_NODEID_NULL;
@@ -2375,7 +2348,7 @@ setTwoStateVariableCallbacks(UA_Server *server, const UA_NodeId* condition,
 static UA_StatusCode
 setConditionVariableCallbacks(UA_Server *server, const UA_NodeId *condition,
                               const UA_NodeId *conditionType) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_QualifiedName conditionVariableName[2] = {
@@ -2412,7 +2385,7 @@ setConditionVariableCallbacks(UA_Server *server, const UA_NodeId *condition,
 static UA_StatusCode
 setConditionMethodCallbacks(UA_Server *server, const UA_NodeId* condition,
                             const UA_NodeId* conditionType) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_NodeId methodId[7] = {
         {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_CONDITIONTYPE_DISABLE}},
@@ -2443,7 +2416,7 @@ setConditionMethodCallbacks(UA_Server *server, const UA_NodeId* condition,
 static UA_StatusCode
 setStandardConditionCallbacks(UA_Server *server, const UA_NodeId* condition,
                               const UA_NodeId* conditionType) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_StatusCode retval = setTwoStateVariableCallbacks(server, condition, conditionType);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set TwoStateVariable Callback failed",);
@@ -2472,7 +2445,7 @@ static UA_StatusCode
 addCondition_finish(UA_Server *server, const UA_NodeId conditionId,
                     const UA_NodeId conditionType, const UA_QualifiedName conditionName,
                     const UA_NodeId conditionSource, const UA_NodeId hierarchialReferenceType) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_StatusCode retval = addNode_finish(server, &server->adminSession, &conditionId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Finish node failed",);
@@ -2552,8 +2525,6 @@ UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId conditionSource,
                           const UA_NodeId hierarchialReferenceType,
                           UA_NodeId *outNodeId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     if(!outNodeId) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "outNodeId cannot be NULL!");
@@ -2565,10 +2536,10 @@ UA_Server_createCondition(UA_Server *server,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     retval = addCondition_finish(server, *outNodeId, conditionType, conditionName,
                                conditionSource, hierarchialReferenceType);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retval;
 }
 
@@ -2576,8 +2547,6 @@ UA_StatusCode
 UA_Server_addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
                              const UA_NodeId conditionType,
                              const UA_QualifiedName conditionName, UA_NodeId *outNodeId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     if(!outNodeId) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "outNodeId cannot be NULL!");
@@ -2586,10 +2555,10 @@ UA_Server_addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
 
     /* Make sure the conditionType is a Subtype of ConditionType */
     UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_Boolean found = isNodeInTree_singleRef(server, &conditionType, &conditionTypeId,
                                               UA_REFERENCETYPEINDEX_HASSUBTYPE);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     if(!found) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "Condition Type must be a subtype of ConditionType!");
@@ -2613,20 +2582,19 @@ UA_StatusCode
 UA_Server_addCondition_finish(UA_Server *server, const UA_NodeId conditionId,
                               const UA_NodeId conditionSource,
                               const UA_NodeId hierarchialReferenceType) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
 
     const UA_Node *node = UA_NODESTORE_GET(server, &conditionId);
 
     if(!node) {
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
     const UA_Node *type = getNodeType(server, &node->head);
     if(!type) {
         UA_NODESTORE_RELEASE(server, node);
-        UA_UNLOCK(&server->serviceMutex);
+        unlockServer(server);
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
     }
 
@@ -2637,7 +2605,7 @@ UA_Server_addCondition_finish(UA_Server *server, const UA_NodeId conditionId,
     UA_NODESTORE_RELEASE(server, type);
     UA_NODESTORE_RELEASE(server, node);
 
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retval;
 }
 
@@ -2648,7 +2616,7 @@ addOptionalVariableField(UA_Server *server, const UA_NodeId *originCondition,
                          const UA_QualifiedName *fieldName,
                          const UA_VariableNode *optionalVariableFieldNode,
                          UA_NodeId *outOptionalVariable) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.valueRank = optionalVariableFieldNode->valueRank;
@@ -2689,7 +2657,7 @@ addOptionalObjectField(UA_Server *server, const UA_NodeId *originCondition,
                        const UA_QualifiedName* fieldName,
                        const UA_ObjectNode *optionalObjectFieldNode,
                        UA_NodeId *outOptionalObject) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_Session_getNodeDisplayName(&server->adminSession,
@@ -2727,7 +2695,7 @@ static UA_StatusCode
 addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
                           const UA_NodeId conditionType, const UA_QualifiedName fieldName,
                           UA_NodeId *outOptionalNode) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
 #ifdef CONDITIONOPTIONALFIELDS_SUPPORT
     /* Get optional Field NodId from ConditionType -> user should give the
@@ -2803,11 +2771,10 @@ UA_StatusCode
 UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
                                     const UA_NodeId conditionType, const UA_QualifiedName fieldName,
                                     UA_NodeId *outOptionalNode) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = addConditionOptionalField(server, condition, conditionType,
                                                   fieldName, outOptionalNode);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -2815,7 +2782,7 @@ UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition
 static UA_StatusCode
 setConditionField(UA_Server *server, const UA_NodeId condition,
                   const UA_Variant* value, const UA_QualifiedName fieldName) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(value->arrayLength != 0 || value->data <= UA_EMPTY_ARRAY_SENTINEL) {
       //TODO implement logic for array variants!
@@ -2837,10 +2804,9 @@ setConditionField(UA_Server *server, const UA_NodeId condition,
 UA_StatusCode
 UA_Server_setConditionField(UA_Server *server, const UA_NodeId condition,
                             const UA_Variant* value, const UA_QualifiedName fieldName) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode retval = setConditionField(server, condition, value, fieldName);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retval;
 }
 
@@ -2849,7 +2815,7 @@ setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId condition,
                                   const UA_Variant* value,
                                   const UA_QualifiedName variableFieldName,
                                   const UA_QualifiedName variablePropertyName) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(value->arrayLength != 0 || value->data <= UA_EMPTY_ARRAY_SENTINEL) {
         //TODO implement logic for array variants!
@@ -2885,11 +2851,10 @@ UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId c
                                             const UA_Variant* value,
                                             const UA_QualifiedName variableFieldName,
                                             const UA_QualifiedName variablePropertyName) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = setConditionVariableFieldProperty(server, condition, value,
                                                           variableFieldName, variablePropertyName);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -2898,7 +2863,7 @@ UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId c
 static UA_StatusCode
 triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
                       const UA_NodeId conditionSource, UA_ByteString *outEventId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Check if enabled */
     UA_ByteString eventId = UA_BYTESTRING_NULL;
@@ -2934,23 +2899,20 @@ triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
 UA_StatusCode
 UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
                                 const UA_NodeId conditionSource, UA_ByteString *outEventId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = triggerConditionEvent(server, condition, conditionSource, outEventId);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
 UA_StatusCode
 UA_Server_deleteCondition(UA_Server *server, const UA_NodeId condition,
                           const UA_NodeId conditionSource) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     /* Get ConditionSource Entry */
     UA_Boolean found = false; /* Delete from internal list */
     UA_ConditionSource *source, *tmp_source;
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     LIST_FOREACH_SAFE(source, &server->conditionSources, listEntry, tmp_source) {
         if(!UA_NodeId_equal(&source->conditionSourceId, &conditionSource))
             continue;
@@ -2972,7 +2934,7 @@ UA_Server_deleteCondition(UA_Server *server, const UA_NodeId condition,
         }
         break;
     }
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     if(!found)
         return UA_STATUSCODE_BADNOTFOUND;
@@ -2983,7 +2945,7 @@ UA_Server_deleteCondition(UA_Server *server, const UA_NodeId condition,
 
 static UA_StatusCode
 getLowLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *lowLimit) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
@@ -2994,7 +2956,7 @@ getLowLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *lowLimit) {
 
 static UA_StatusCode
 getLowLowLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *lowLowLimit) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
@@ -3005,7 +2967,7 @@ getLowLowLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *lowLowLimit)
 
 static UA_StatusCode
 getHighLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *highLimit) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
@@ -3016,7 +2978,7 @@ getHighLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *highLimit) {
 
 static UA_StatusCode
 getHighHighLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *highHighLimit) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
@@ -3028,7 +2990,7 @@ getHighHighLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *highHighLi
 static UA_StatusCode
 setLimitState(UA_Server *server, const UA_NodeId conditionId,
               UA_Double limitValue) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_NodeId limitState;
     UA_Double lowLowLimit;
@@ -3122,9 +3084,9 @@ setLimitState(UA_Server *server, const UA_NodeId conditionId,
 UA_StatusCode
 UA_Server_setLimitState(UA_Server *server, const UA_NodeId conditionId,
                         UA_Double limitValue) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = setLimitState(server, conditionId, limitValue);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -3132,8 +3094,6 @@ UA_Server_setLimitState(UA_Server *server, const UA_NodeId conditionId,
 UA_StatusCode
 UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
                             UA_ByteString  cert) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_StatusCode retval;
     if(cert.data == NULL){
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,

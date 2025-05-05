@@ -7,7 +7,6 @@
  */
 
 #include <open62541/types.h>
-#include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
 #include <open62541/nodeids.h>
 #include "base64.h"
@@ -37,18 +36,19 @@
 #define YYSHIFTSTAG(t, shift) t += shift
 
 typedef struct {
-    const char *marker;
-    /*!stags:re2c format = 'const char *@@;'; */
+    const u8 *marker;
+    /*!stags:re2c format = 'const u8 *@@;'; */
 } LexContext;
 
 /*!re2c
-    re2c:define:YYCTYPE = char;
+    re2c:define:YYCTYPE = u8;
     re2c:flags:tags = 1;
     re2c:tags:expression = context.@@;
     re2c:yyfill:enable = 0;
     re2c:flags:input = custom;
 
     nodeid_body = ("i=" | "s=" | "g=" | "b=");
+    escaped_uri = [^;\000]*;
 */
 
 static UA_StatusCode
@@ -96,129 +96,194 @@ UA_Guid_parse(UA_Guid *guid, const UA_String str) {
 }
 
 static UA_StatusCode
-parse_nodeid_body(UA_NodeId *id, const char *body, const char *end) {
-    size_t len = (size_t)(end - (body+2));
+escapedUri2Index(UA_String uri, UA_UInt16 *nsIndex,
+                 const UA_NamespaceMapping *nsMapping) {
+    if(!nsMapping)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    UA_String tmp = uri; 
+    status res = UA_String_unescape(&uri, true, UA_ESCAPING_PERCENT);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = UA_NamespaceMapping_uri2Index(nsMapping, uri, nsIndex);
+    if(tmp.data != uri.data)
+        UA_String_clear(&uri);
+    return res;
+}
+
+static UA_StatusCode
+parse_nodeid_body(UA_NodeId *id, const u8 *body, const u8 *end, UA_Escaping esc) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_String str = {(size_t)(end - (body+2)), (UA_Byte*)(uintptr_t)body + 2};
     switch(*body) {
-    case 'i': {
-        if(UA_readNumber((const UA_Byte*)body+2, len, &id->identifier.numeric) != len)
-            return UA_STATUSCODE_BADDECODINGERROR;
+    case 'i':
         id->identifierType = UA_NODEIDTYPE_NUMERIC;
+        if(UA_readNumber(str.data, str.length, &id->identifier.numeric) != str.length)
+            res = UA_STATUSCODE_BADDECODINGERROR;
         break;
-    }
-    case 's': {
-        UA_String tmpstr;
-        tmpstr.data = (UA_Byte*)(uintptr_t)body+2;
-        tmpstr.length = len;
-        res = UA_String_copy(&tmpstr, &id->identifier.string);
-        if(res != UA_STATUSCODE_GOOD)
-            break;
+    case 's':
         id->identifierType = UA_NODEIDTYPE_STRING;
+        res |= UA_String_copy(&str, &id->identifier.string);
+        res |= UA_String_unescape(&id->identifier.string, false, esc);
         break;
-    }
     case 'g':
-        res = parse_guid(&id->identifier.guid, (const UA_Byte*)body+2, (const UA_Byte*)end);
-        if(res == UA_STATUSCODE_GOOD)
-            id->identifierType = UA_NODEIDTYPE_GUID;
+        id->identifierType = UA_NODEIDTYPE_GUID;
+        res = parse_guid(&id->identifier.guid, str.data, end);
         break;
     case 'b':
-        id->identifier.byteString.data =
-            UA_unbase64((const unsigned char*)body+2, len,
-                        &id->identifier.byteString.length);
-        if(!id->identifier.byteString.data && len > 0)
-            return UA_STATUSCODE_BADDECODINGERROR;
+        /* For percent-escaping, base64url bytestring encoding is used. That
+         * doesn't need to be escaped here. The and-escaping is not applied to
+         * the NodeId identifier part. */
         id->identifierType = UA_NODEIDTYPE_BYTESTRING;
+        id->identifier.byteString.data =
+            UA_unbase64(str.data, str.length, &id->identifier.byteString.length);
+        if(!id->identifier.byteString.data && str.length > 0)
+            res = UA_STATUSCODE_BADDECODINGERROR;
         break;
     default:
-        return UA_STATUSCODE_BADDECODINGERROR;
+        res = UA_STATUSCODE_BADDECODINGERROR;
+        break;
     }
     return res;
 }
 
 static UA_StatusCode
-parse_nodeid(UA_NodeId *id, const char *pos, const char *end) {
+parse_nodeid(UA_NodeId *id, const u8 *pos, const u8 *end,
+             UA_Escaping idEsc, const UA_NamespaceMapping *nsMapping) {
     *id = UA_NODEID_NULL; /* Reset the NodeId */
     LexContext context;
     memset(&context, 0, sizeof(LexContext));
-    const char *ns = NULL, *nse= NULL;
+    UA_Byte *begin = (UA_Byte*)(uintptr_t)pos;
+    const u8 *ns = NULL, *nsu = NULL, *body = NULL;
 
-    /*!re2c
-    ("ns=" @ns [0-9]+ @nse ";")? nodeid_body {
-        (void)pos; // Get rid of a dead store clang-analyzer warning
-        if(ns) {
-            UA_UInt32 tmp;
-            size_t len = (size_t)(nse - ns);
-            if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
-                return UA_STATUSCODE_BADDECODINGERROR;
-            id->namespaceIndex = (UA_UInt16)tmp;
+    /*!re2c // Match the grammar
+    (("nsu=" @nsu escaped_uri | "ns=" @ns [0-9]+) ";")? @body nodeid_body { goto match; }
+    * { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; } */
+
+ match:
+    if(nsu) {
+        /* NamespaceUri */
+        UA_String nsUri = {(size_t)(body - 1 - nsu), (UA_Byte*)(uintptr_t)nsu};
+        UA_StatusCode res = escapedUri2Index(nsUri, &id->namespaceIndex, nsMapping);
+        if(res != UA_STATUSCODE_GOOD) {
+            /* Return the entire NodeId string s=... */
+            UA_String total = {(size_t)((const UA_Byte*)end - begin), begin};
+            id->identifierType = UA_NODEIDTYPE_STRING;
+            return UA_String_copy(&total, &id->identifier.string);
         }
-
-        // From the current position until the end
-        return parse_nodeid_body(id, &pos[-2], end);
+    } else if(ns) {
+        /* NamespaceIndex */
+        UA_UInt32 tmp;
+        size_t len = (size_t)(body - 1 - ns);
+        if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        id->namespaceIndex = (UA_UInt16)tmp;
+        if(nsMapping)
+            id->namespaceIndex =
+                UA_NamespaceMapping_remote2Local(nsMapping, id->namespaceIndex);
     }
 
-    * { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; } */
+    /* From the current position until the end */
+    return parse_nodeid_body(id, body, end, idEsc);
 }
 
 UA_StatusCode
-UA_NodeId_parse(UA_NodeId *id, const UA_String str) {
+UA_NodeId_parseEx(UA_NodeId *id, const UA_String str,
+                  const UA_NamespaceMapping *nsMapping) {
     UA_StatusCode res =
-        parse_nodeid(id, (const char*)str.data, (const char*)str.data+str.length);
+        parse_nodeid(id, str.data, str.data+str.length, UA_ESCAPING_NONE, nsMapping);
     if(res != UA_STATUSCODE_GOOD)
         UA_NodeId_clear(id);
     return res;
 }
 
+UA_StatusCode
+UA_NodeId_parse(UA_NodeId *id, const UA_String str) {
+    return UA_NodeId_parseEx(id, str, NULL);
+}
+
 static UA_StatusCode
-parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end) {
+parse_expandednodeid(UA_ExpandedNodeId *id, const u8 *pos, const u8 *end,
+                     UA_Escaping idEsc, const UA_NamespaceMapping *nsMapping,
+                     size_t serverUrisSize, const UA_String *serverUris) {
     *id = UA_EXPANDEDNODEID_NULL; /* Reset the NodeId */
     LexContext context;
     memset(&context, 0, sizeof(LexContext));
-    const char *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
+    const u8 *svr = NULL, *sve = NULL, *svu = NULL,
+        *nsu = NULL, *ns = NULL, *body = NULL, *begin = pos;
 
-    /*!re2c
-    // The "." character class also matches \x00. Exlude this as we produce
-    // an infinite sequence of zeros once the end of the buffer was hit.
-    ("svr=" @svr [0-9]+ @svre ";")?
-    ("ns=" @ns [0-9]+ ";" | "nsu=" @nsu (.\[;\x00])* ";")?
-    @body nodeid_body {
-        (void)pos; // Get rid of a dead store clang-analyzer warning
-        if(svr) {
-            size_t len = (size_t)((svre) - svr);
-            if(UA_readNumber((const UA_Byte*)svr, len, &id->serverIndex) != len)
-                return UA_STATUSCODE_BADDECODINGERROR;
+    /*!re2c // Match the grammar
+    (("svr=" @svr [0-9]+ | "svu=" @svu escaped_uri) @sve ";")?
+     (("ns=" @ns [0-9]+  | "nsu=" @nsu escaped_uri) ";")?
+     @body nodeid_body { goto match; }
+    * { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; } */
+
+ match:
+    if(svu) {
+        /* ServerUri */
+        UA_String serverUri = {(size_t)(sve - svu), (UA_Byte*)(uintptr_t)svu};
+        size_t i = 0;
+        for(; i < serverUrisSize; i++) {
+            if(UA_String_equal(&serverUri, &serverUris[i]))
+                break;
         }
-
-        if(nsu) {
-            size_t len = (size_t)((body-1) - nsu);
-            UA_String nsuri;
-            nsuri.data = (UA_Byte*)(uintptr_t)nsu;
-            nsuri.length = len;
-            UA_StatusCode res = UA_String_copy(&nsuri, &id->namespaceUri);
-            if(res != UA_STATUSCODE_GOOD)
-                return res;
-        } else if(ns) {
-            UA_UInt32 tmp;
-            size_t len = (size_t)((body-1) - ns);
-            if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
-                return UA_STATUSCODE_BADDECODINGERROR;
-            id->nodeId.namespaceIndex = (UA_UInt16)tmp;
+        if(i == serverUrisSize) {
+            /* The ServerUri cannot be mapped. Return the entire input as a
+             * string NodeId. */
+            UA_String total = {(size_t)(end - begin), (UA_Byte*)(uintptr_t)begin};
+            id->nodeId.identifierType = UA_NODEIDTYPE_STRING;
+            return UA_String_copy(&total, &id->nodeId.identifier.string);
         }
-
-        // From the current position until the end
-        return parse_nodeid_body(&id->nodeId, &pos[-2], end);
+        id->serverIndex = (UA_UInt32)i;
+    } else if(svr) {
+        /* ServerIndex */
+        size_t len = (size_t)(sve - svr);
+        if(UA_readNumber((const UA_Byte*)svr, len, &id->serverIndex) != len)
+            return UA_STATUSCODE_BADDECODINGERROR;
     }
 
-    * { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; } */
+    if(nsu) {
+        /* NamespaceUri */
+        UA_String nsuri = {(size_t)(body - 1 - nsu), (UA_Byte*)(uintptr_t)nsu};
+        UA_StatusCode res = UA_STATUSCODE_BADDECODINGERROR;
+        /* Try to map the NamespaceUri to its NamespaceIndex for ServerIndex == 0.
+         * If this fails, keep the full NamespaceUri. */
+        if(id->serverIndex == 0)
+            res = escapedUri2Index(nsuri, &id->nodeId.namespaceIndex, nsMapping);
+        if(res != UA_STATUSCODE_GOOD)
+            res = UA_String_copy(&nsuri, &id->namespaceUri); /* Keep the Uri without mapping */
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else if(ns) {
+        /* NamespaceIndex */
+        UA_UInt32 tmp;
+        size_t len = (size_t)(body - 1 - ns);
+        if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        id->nodeId.namespaceIndex = (UA_UInt16)tmp;
+        if(nsMapping)
+            id->nodeId.namespaceIndex =
+                UA_NamespaceMapping_remote2Local(nsMapping, id->nodeId.namespaceIndex);
+    }
+
+    /* From the current position until the end */
+    return parse_nodeid_body(&id->nodeId, body, end, idEsc);
+}
+
+UA_StatusCode
+UA_ExpandedNodeId_parseEx(UA_ExpandedNodeId *id, const UA_String str,
+                          const UA_NamespaceMapping *nsMapping,
+                          size_t serverUrisSize, const UA_String *serverUris) {
+    UA_StatusCode res =
+        parse_expandednodeid(id, str.data, str.data + str.length, UA_ESCAPING_NONE,
+                             nsMapping, serverUrisSize, serverUris);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_ExpandedNodeId_clear(id);
+    return res;
 }
 
 UA_StatusCode
 UA_ExpandedNodeId_parse(UA_ExpandedNodeId *id, const UA_String str) {
-    UA_StatusCode res =
-        parse_expandednodeid(id, (const char*)str.data, (const char*)str.data+str.length);
-    if(res != UA_STATUSCODE_GOOD)
-        UA_ExpandedNodeId_clear(id);
-    return res;
+    return UA_ExpandedNodeId_parseEx(id, str, NULL, 0, NULL);
 }
 
 static UA_StatusCode
@@ -236,166 +301,211 @@ relativepath_addelem(UA_RelativePath *rp, UA_RelativePathElement *el) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* Parse name string with '&' as the escape character */
 static UA_StatusCode
-parse_refpath_qn_name(UA_QualifiedName *qn, const char **pos, const char *end) {
-    /* Allocate the max length the name can have */
-    size_t maxlen = (size_t)(end - *pos);
-    if(maxlen == 0) {
-        qn->name.data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
-        return UA_STATUSCODE_GOOD;
-    }
-    char *name = (char*)UA_malloc(maxlen);
-    if(!name)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+parse_qn(UA_QualifiedName *qn, const u8 *pos, const u8 *end,
+         UA_Escaping escName, const UA_NamespaceMapping *nsMapping) {
+    size_t len;
+    UA_UInt32 tmp;
+    UA_String str;
+    UA_StatusCode res;
 
-    size_t index = 0;
-    for(; *pos < end; (*pos)++) {
-        char c = **pos;
-        /* Unescaped special characer: The end of the QualifiedName */
-        if(c == '/' || c == '.' || c == '<' || c == '>' ||
-           c == ':' || c == '#' || c == '!')
-            break;
-
-        /* Escaped character */
-        if(c == '&') {
-            (*pos)++;
-            if(*pos >= end ||
-               (**pos != '/' && **pos != '.' && **pos != '<' && **pos != '>' &&
-                **pos != ':' && **pos != '#' && **pos != '!' && **pos != '&')) {
-                UA_free(name);
-                return UA_STATUSCODE_BADDECODINGERROR;
-            }
-            c = **pos;
-        }
-
-        /* Unescaped normal character */
-        name[index] = c;
-        index++;
-    }
-
-    if(index > 0) {
-        qn->name.data = (UA_Byte*)name;
-        qn->name.length = index;
-    } else {
-        qn->name.data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
-        UA_free(name);
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-parse_refpath_qn(UA_QualifiedName *qn, const char *pos, const char *end) {
     LexContext context;
     memset(&context, 0, sizeof(LexContext));
-    const char *ns = NULL, *nse = NULL;
+
+    const u8 *begin = pos;
     UA_QualifiedName_init(qn);
 
-    /*!re2c
-    @ns [0-9]+ @nse ":" {
-        UA_UInt32 tmp;
-        size_t len = (size_t)(nse - ns);
-        if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
-            return UA_STATUSCODE_BADDECODINGERROR;
-        qn->namespaceIndex = (UA_UInt16)tmp;
-        goto parse_qn_name;
-    }
+    /*!re2c // Match the grammar
+    [0-9]+ ":"      { goto match_index; }
+    escaped_uri ";" { goto match_uri; }
+    *               { pos = begin; goto match_name; } */
 
-    // Default namespace 0. Ungobble last position.
-    * { pos--; goto parse_qn_name; } */
+ match_index:
+    len = (size_t)(pos - 1 - begin);
+    if(UA_readNumber((const UA_Byte*)begin, len, &tmp) != len)
+        return UA_STATUSCODE_BADDECODINGERROR;
+    qn->namespaceIndex = (UA_UInt16)tmp;
+    goto match_name;
 
- parse_qn_name:
-    return parse_refpath_qn_name(qn, &pos, end);
+ match_uri:
+    str.length = (size_t)(pos - 1 - begin);
+    str.data = (UA_Byte*)(uintptr_t)begin;
+    res = escapedUri2Index(str, &qn->namespaceIndex, nsMapping);
+    if(res != UA_STATUSCODE_GOOD)
+        pos = begin; /* Use the entire string for the name */
+
+ match_name:
+    str.length = (size_t)(end - pos);
+    str.data = (UA_Byte*)(uintptr_t)pos;
+    res = UA_String_copy(&str, &qn->name);
+    if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
+        res = UA_String_unescape(&qn->name, false, escName);
+    return res;
 }
 
+UA_StatusCode
+UA_QualifiedName_parseEx(UA_QualifiedName *qn, const UA_String str,
+                         const UA_NamespaceMapping *nsMapping) {
+    const u8 *pos = str.data;
+    const u8 *end = str.data + str.length;
+    UA_StatusCode res = parse_qn(qn, pos, end, UA_ESCAPING_NONE, nsMapping);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_QualifiedName_clear(qn);
+    return res;
+}
+
+UA_StatusCode
+UA_QualifiedName_parse(UA_QualifiedName *qn, const UA_String str) {
+    return UA_QualifiedName_parseEx(qn, str, NULL);
+}
+
+/* Add one element to the path in every iteration */
 static UA_StatusCode
-parse_relativepath(UA_Server *server, UA_RelativePath *rp, const UA_String str) {
-    const char *pos = (const char*)str.data;
-    const char *end = (const char*)(str.data + str.length);
+parse_relativepathElement(UA_RelativePath *rp, const u8 **ppos, const u8 *end,
+                          UA_Server *server, UA_Escaping esc, UA_Boolean *done) {
+    const u8 *pos = *ppos;
+    if(pos == end) {
+        *done = true;
+        return UA_STATUSCODE_GOOD;
+    }
 
-    LexContext context;
-    memset(&context, 0, sizeof(LexContext));
-    const char *begin = NULL, *finish = NULL;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_RelativePath_init(rp); /* Reset the BrowsePath */
-
-    /* Add one element to the path in every iteration */
+    /* Create the element on the stack.
+     * Moved into the rp upon successful parsing. */
     UA_RelativePathElement current;
- loop:
     UA_RelativePathElement_init(&current);
     current.includeSubtypes = true; /* Follow subtypes by default */
 
-    /* Get the ReferenceType and its modifiers */
-    /*!re2c
-    "/" {
+    /* Which ReferenceType? */
+    const u8 *begin;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    switch(*pos) {
+    case '/':
         current.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
         goto reftype_target;
-    }
-
-    "." {
+    case '.':
+        /* Recognize the dot only for the and-escaping. The dot is not escaped
+         * for percent-escaping and commonly used as part of the browse-name. */
+        if(esc != UA_ESCAPING_AND) {
+            *done = true;
+            goto out;
+        }
         current.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
         goto reftype_target;
+    case '<':
+        break;
+    default:
+        *done = true;
+        goto out;
     }
 
-    // ReferenceType BrowseName with modifiers
-    "<" @begin ([^\000>] | "&>")+ @finish ">" {
-
-        // Process modifier characters
-        for(; begin < finish; begin++) {
-            if(*begin== '#')
-                current.includeSubtypes = false;
-            else if(*begin == '!')
-                current.isInverse = true;
-            else
-                break;
+    /* ReferenceType with modifiers wrapped in angle brackets */
+    begin = ++pos;
+    for(; pos < end; pos++) {
+        if((esc == UA_ESCAPING_AND || esc == UA_ESCAPING_AND_EXTENDED) && *pos == '&') {
+            pos++;
+            continue;
         }
+        if((esc == UA_ESCAPING_PERCENT || esc == UA_ESCAPING_PERCENT_EXTENDED) && *pos == '%') {
+            pos += 2;
+            continue;
+        }
+        if(*pos == '>')
+            break;
+    }
+    if(pos > end) {
+        res = UA_STATUSCODE_BADDECODINGERROR;
+        goto out;
+    }
 
-        // Try to parse a NodeId for the ReferenceType (non-standard!)
-        res = parse_nodeid(&current.referenceTypeId, begin, finish);
-        if(res == UA_STATUSCODE_GOOD)
-            goto reftype_target;
+    /* Process modifiers */
+    for(; begin < pos; begin++) {
+        if(*begin == '#')
+            current.includeSubtypes = false;
+        else if(*begin == '!')
+            current.isInverse = true;
+        else
+            break;
+    }
 
-        // Parse the the ReferenceType from its BrowseName
+    /* Try to parse a NodeId for the ReferenceType (non-standard!) */
+    res = parse_nodeid(&current.referenceTypeId, begin, pos, esc, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        /* Parse the the ReferenceType from its BrowseName (default) */
         UA_QualifiedName refqn;
-        res = parse_refpath_qn(&refqn, begin, finish);
+        res = parse_qn(&refqn, begin, pos, esc, NULL);
         res |= lookupRefType(server, &refqn, &current.referenceTypeId);
         UA_QualifiedName_clear(&refqn);
-        goto reftype_target;
+        if(res != UA_STATUSCODE_GOOD)
+            goto out;
     }
 
-    // End of input
-    "\000" { (void)pos; return UA_STATUSCODE_GOOD; }
-
-    // Unexpected input
-    * { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; } */
-
-    /* Get the TargetName component */
  reftype_target:
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    /*!re2c
-     @begin ([^</.\000] | "&<" | "&/" | "&.")+ {
-        res = parse_refpath_qn(&current.targetName, begin, pos);
-        goto add_element;
+    /* Move pos to the end of the TargetName based on the escaping */
+    begin = ++pos;
+    while(pos < end && *pos >= '0' && *pos <= '9')
+        pos++;
+    if(pos < end && *pos == ':')
+        pos++;
+    for(; pos < end; pos++) {
+        if((esc == UA_ESCAPING_AND || esc == UA_ESCAPING_AND_EXTENDED) && *pos == '&') {
+            pos++;
+            continue;
+        }
+        if((esc == UA_ESCAPING_PERCENT || esc == UA_ESCAPING_PERCENT_EXTENDED) && *pos == '%') {
+            pos += 2;
+            continue;
+        }
+        if(esc == UA_ESCAPING_PERCENT || esc == UA_ESCAPING_PERCENT_EXTENDED) {
+            if(isReservedPercentExtended(*pos))
+                break;
+        } else {
+            if(isReservedAnd(*pos))
+                break;
+        }
+    }
+    if(pos > end) {
+        res = UA_STATUSCODE_BADDECODINGERROR;
+        goto out;
     }
 
-    // No TargetName for the current element. Ungobble the last pos.
-    * { pos--; goto add_element; } */
-
-    /* Add the current element to the path and continue to the next element */
- add_element:
-    res |= relativepath_addelem(rp, &current);
+    /* Parse the TargetName */
+    res = parse_qn(&current.targetName, begin, pos, esc, NULL);
     if(res != UA_STATUSCODE_GOOD) {
         UA_RelativePathElement_clear(&current);
-        return res;
+        goto out;
     }
-    goto loop;
+
+    /* Add current to the rp */
+    res |= relativepath_addelem(rp, &current);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_RelativePathElement_clear(&current);
+
+ out:
+    /* Return the status */
+    *ppos = pos;
+    *done |= (res != UA_STATUSCODE_GOOD);
+    return res;
+}
+
+static UA_StatusCode
+parse_relativepath(UA_RelativePath *rp, const u8 **ppos, const u8 *end,
+                   UA_Server *server, UA_Escaping esc) {
+    UA_RelativePath_init(rp);
+    UA_Boolean done = false;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    do {
+        res = parse_relativepathElement(rp, ppos, end, server, esc, &done);
+    } while(!done);
+    return res;
 }
 
 UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str) {
-    UA_StatusCode res = parse_relativepath(NULL, rp, str);
+    const u8 *pos = str.data;
+    const u8 *end = pos + str.length;
+    UA_StatusCode res = parse_relativepath(rp, &pos, end, NULL, UA_ESCAPING_AND);
+    if(pos != end)
+        res = UA_STATUSCODE_BADDECODINGERROR;
     if(res != UA_STATUSCODE_GOOD)
         UA_RelativePath_clear(rp);
     return res;
@@ -404,106 +514,80 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str) {
 UA_StatusCode
 UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
                                 const UA_String str) {
-    UA_StatusCode res = parse_relativepath(server, rp, str);
+    const u8 *pos = str.data;
+    const u8 *end = pos + str.length;
+    UA_StatusCode res = parse_relativepath(rp, &pos, end, server, UA_ESCAPING_AND);
+    if(pos != end)
+        res = UA_STATUSCODE_BADDECODINGERROR;
     if(res != UA_STATUSCODE_GOOD)
         UA_RelativePath_clear(rp);
     return res;
 }
 
-UA_StatusCode
-UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
-                                const UA_String str) {
-    /* Initialize */
-    UA_SimpleAttributeOperand_init(sao);
+/* Always uses the percent-escaping */
+static UA_StatusCode
+parseAttributeOperand(UA_AttributeOperand *ao, const UA_String str, UA_NodeId defaultId) {
+    UA_AttributeOperand_init(ao);
+    if(str.length == 0)
+        return UA_STATUSCODE_GOOD;
 
-    /* Make a copy of the input. Used to de-escape the reserved characters. */
-    UA_String edit_str;
-    UA_StatusCode res = UA_String_copy(&str, &edit_str);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
+    /* Set the default NodeId */
+    ao->nodeId = defaultId;
 
-    char *pos = (char*)edit_str.data;
-    char *end = (char*)(edit_str.data + edit_str.length);
+    const u8 *pos = str.data;
+    const u8 *end = pos + str.length;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
 
-    /* Parse the TypeDefinitionId */
-    if(pos < end && *pos != '/' && *pos != '#' && *pos != '[') {
-        char *typedef_pos = pos;
-        pos = find_unescaped(pos, end, true);
-        UA_String typeString = {(size_t)(pos - typedef_pos), (UA_Byte*)typedef_pos};
-        UA_String_unescape(&typeString, true);
-        res = UA_NodeId_parse(&sao->typeDefinitionId, typeString);
+    /* Initial NodeId before the BrowsePath */
+    LexContext context;
+    memset(&context, 0, sizeof(LexContext));
+    /*!re2c // Match the grammar
+    (("nsu=" escaped_uri | "ns=" [0-9]+) ";")? nodeid_body {
+        // Find the end position of the NodeId body and parse
+        for(; pos < end; pos++) {
+            if(*pos == '%') {
+                pos += 2;
+                continue;
+            }
+            if(isReservedPercentExtended(*pos))
+                break;
+        }
+        if(pos > end) {
+            res = UA_STATUSCODE_BADDECODINGERROR;
+            goto cleanup;
+        }
+        res = parse_nodeid(&ao->nodeId, str.data, pos, UA_ESCAPING_PERCENT, NULL);
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
-    } else {
-        /* BaseEventType is the default */
-        sao->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        goto parse_path;
     }
+    * { pos = str.data; goto parse_path; } */
 
     /* Parse the BrowsePath */
-    while(pos < end && *pos == '/') {
-        UA_QualifiedName browseName;
-        UA_QualifiedName_init(&browseName);
-        char *browsename_pos = ++pos;
-
-        /* Skip namespace index and colon */
-        char *browsename_name_pos = pos;
-        if(pos < end && *pos >= '0' && *pos <= '9') {
- check_colon:
-            pos++;
-            if(pos < end) {
-                if(*pos >= '0' && *pos <= '9')
-                    goto check_colon;
-                if(*pos ==':')
-                    browsename_name_pos = ++pos;
-            }
-        }
-
-        /* Find the end of the QualifiedName */
-        pos = find_unescaped(browsename_name_pos, end, true);
-
-        /* Unescape the name element of the QualifiedName */
-        UA_String bnString = {(size_t)(pos - browsename_name_pos), (UA_Byte*)browsename_name_pos};
-        UA_String_unescape(&bnString, true);
-
-        /* Parse the QualifiedName */
-        res = parse_refpath_qn(&browseName, browsename_pos, (char*)bnString.data + bnString.length);
-        if(res != UA_STATUSCODE_GOOD)
-            goto cleanup;
-
-        /* Append to the BrowsePath */
-        res = UA_Array_append((void**)&sao->browsePath, &sao->browsePathSize,
-                              &browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_QualifiedName_clear(&browseName);
-            goto cleanup;
-        }
-    }
+ parse_path:
+    res = parse_relativepath(&ao->browsePath, &pos, end, NULL, UA_ESCAPING_PERCENT_EXTENDED);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* Parse the AttributeId */
+    ao->attributeId = UA_ATTRIBUTEID_VALUE;
     if(pos < end && *pos == '#') {
-        /* Find the first non-alphabet character */
-        char *attr_pos = ++pos;
+        const u8 *attr_pos = ++pos;
         while(pos < end && ((*pos >= 'a' && *pos <= 'z') ||
                             (*pos >= 'A' && *pos <= 'Z'))) {
             pos++;
         }
-        /* Parse the AttributeId */
-        UA_String attrString = {(size_t)(pos - attr_pos), (UA_Byte*)attr_pos};
-        sao->attributeId = UA_AttributeId_fromName(attrString);
-        if(sao->attributeId == UA_ATTRIBUTEID_INVALID) {
+        UA_String attrString = {(size_t)(pos - attr_pos), (UA_Byte*)(uintptr_t)attr_pos};
+        ao->attributeId = UA_AttributeId_fromName(attrString);
+        if(ao->attributeId == UA_ATTRIBUTEID_INVALID) {
             res = UA_STATUSCODE_BADDECODINGERROR;
             goto cleanup;
         }
-    } else {
-        /* The value attribute is the default */
-        sao->attributeId = UA_ATTRIBUTEID_VALUE;
     }
 
-    /* Check whether the IndexRange can be parsed.
-     * But just copy the string. */
+    /* Parse the IndexRange */
     if(pos < end && *pos == '[') {
-        /* Find the end character */
-        char *range_pos = ++pos;
+        const u8 *range_pos = ++pos;
         while(pos < end && *pos != ']') {
             pos++;
         }
@@ -511,15 +595,9 @@ UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
             res = UA_STATUSCODE_BADDECODINGERROR;
             goto cleanup;
         }
-        UA_String rangeString = {(size_t)(pos - range_pos), (UA_Byte*)range_pos};
-        UA_NumericRange nr;
-        memset(&nr, 0, sizeof(UA_NumericRange));
-        res = UA_NumericRange_parse(&nr, rangeString);
-        if(res != UA_STATUSCODE_GOOD)
-            goto cleanup;
-        res = UA_String_copy(&rangeString, &sao->indexRange);
-        if(nr.dimensionsSize > 0)
-            UA_free(nr.dimensions);
+        UA_String rangeString = {(size_t)(pos - range_pos), (UA_Byte*)(uintptr_t)range_pos};
+        if(rangeString.length > 0)
+            res = UA_String_copy(&rangeString, &ao->indexRange);
         pos++;
     }
 
@@ -527,9 +605,89 @@ UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
     if(pos != end)
         res = UA_STATUSCODE_BADDECODINGERROR;
 
+
  cleanup:
-    UA_String_clear(&edit_str);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_AttributeOperand_clear(ao);
+    return res;
+}
+
+UA_StatusCode
+UA_AttributeOperand_parse(UA_AttributeOperand *ao, const UA_String str) {
+    /* Objects folder is the default */
+    return parseAttributeOperand(ao, str, UA_NS0ID(OBJECTSFOLDER));
+}
+
+UA_StatusCode
+UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
+                                const UA_String str) {
+    /* Parse an AttributeOperand and convert */
+    UA_AttributeOperand ao;
+    const UA_NodeId hierarchRefs = UA_NS0ID(HIERARCHICALREFERENCES);
+    UA_StatusCode res = parseAttributeOperand(&ao, str, UA_NS0ID(BASEEVENTTYPE));
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Initialize the sao and copy over */
+    UA_SimpleAttributeOperand_init(sao);
+    sao->attributeId = ao.attributeId;
+    sao->indexRange = ao.indexRange;
+    UA_String_init(&ao.indexRange);
+    sao->typeDefinitionId = ao.nodeId;
+    UA_NodeId_init(&ao.nodeId);
+
+    if(ao.browsePath.elementsSize > 0) {
+        sao->browsePath = (UA_QualifiedName *)
+            UA_calloc(ao.browsePath.elementsSize, sizeof(UA_QualifiedName));
+        if(!sao->browsePath) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+        sao->browsePathSize = ao.browsePath.elementsSize;
+    }
+
+    for(size_t i = 0; i < ao.browsePath.elementsSize; i++) {
+        UA_RelativePathElement *e = &ao.browsePath.elements[i];
+
+        /* Must use hierarchical references (/) */
+        if(!UA_NodeId_equal(&e->referenceTypeId, &hierarchRefs)) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+
+        /* Includes subtypes and not inverse */
+        if(!e->includeSubtypes || e->isInverse) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+
+        sao->browsePath[i] = e->targetName;
+        UA_QualifiedName_init(&e->targetName);
+    }
+
+ cleanup:
+    UA_AttributeOperand_clear(&ao);
     if(res != UA_STATUSCODE_GOOD)
         UA_SimpleAttributeOperand_clear(sao);
     return res;
+}
+
+UA_StatusCode
+UA_ReadValueId_parse(UA_ReadValueId *rvi, const UA_String str) {
+    /* Parse an AttributeOperand and convert */
+    UA_AttributeOperand ao;
+    UA_StatusCode res = parseAttributeOperand(&ao, str, UA_NODEID_NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    if(ao.browsePath.elementsSize > 0) {
+        UA_AttributeOperand_clear(&ao);
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
+
+    UA_ReadValueId_init(rvi);
+    rvi->nodeId = ao.nodeId;
+    rvi->attributeId = ao.attributeId;
+    rvi->indexRange = ao.indexRange;
+    return UA_STATUSCODE_GOOD;
 }

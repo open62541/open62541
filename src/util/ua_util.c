@@ -11,15 +11,20 @@
  * unit for the generated code from UA_INLINABLE definitions. */
 #define UA_INLINABLE_IMPL 1
 
-#include <open62541/types_generated_handling.h>
+#include <open62541/types.h>
 #include <open62541/server.h>
 #include <open62541/util.h>
 #include <open62541/common.h>
+// Not used in this translation unit, but exposes symbols that are used in other translation units
+#include <open62541/server_config_default.h>
+#include <open62541/transport_generated.h>
 
 #include "ua_util_internal.h"
 #include "pcg_basic.h"
 #include "base64.h"
 #include "itoa.h"
+#include "../../deps/parse_num.h"
+#include "../../deps/libc_time.h"
 
 const char * attributeIdNames[28] = {
     "Invalid", "NodeId", "NodeClass", "BrowseName", "DisplayName", "Description",
@@ -54,6 +59,45 @@ UA_AttributeId_fromName(const UA_String name) {
     return UA_ATTRIBUTEID_INVALID;
 }
 
+static UA_DataTypeKind
+typeEquivalence(const UA_DataType *t) {
+    UA_DataTypeKind k = (UA_DataTypeKind)t->typeKind;
+    if(k == UA_DATATYPEKIND_ENUM)
+        return UA_DATATYPEKIND_INT32;
+    return k;
+}
+
+void
+adjustType(UA_Variant *value, const UA_DataType *targetType) {
+    /* If the value is empty, there is nothing we can do here */
+    const UA_DataType *type = value->type;
+    if(!type || !targetType)
+        return;
+
+    /* A string is written to a byte array. the valuerank and array dimensions
+     * are checked later */
+    if(targetType == &UA_TYPES[UA_TYPES_BYTE] &&
+       type == &UA_TYPES[UA_TYPES_BYTESTRING] &&
+       UA_Variant_isScalar(value)) {
+        UA_ByteString *str = (UA_ByteString*)value->data;
+        value->type = &UA_TYPES[UA_TYPES_BYTE];
+        value->arrayLength = str->length;
+        value->data = str->data;
+        return;
+    }
+
+    /* An enum was sent as an int32, or an opaque type as a bytestring. This
+     * is detected with the typeKind indicating the "true" datatype. */
+    UA_DataTypeKind te1 = typeEquivalence(targetType);
+    UA_DataTypeKind te2 = typeEquivalence(type);
+    if(te1 == te2 && te1 <= UA_DATATYPEKIND_ENUM) {
+        value->type = targetType;
+        return;
+    }
+
+    /* Add more possible type adjustments here. What are they? */
+}
+
 size_t
 UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {
     UA_assert(buf);
@@ -82,19 +126,12 @@ UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
     return UA_readNumberWithBase(buf, buflen, number, 10);
 }
 
-struct urlSchema {
-    const char *schema;
-};
+#define UA_SCHEMAS_SIZE 4
+#define UA_ETH_SCHEMA_INDEX 2
 
-static const struct urlSchema schemas[] = {
-    {"opc.tcp://"},
-    {"opc.udp://"},
-    {"opc.eth://"},
-    {"opc.mqtt://"}
+static const char* schemas[UA_SCHEMAS_SIZE] = {
+    "opc.tcp://", "opc.udp://", "opc.eth://", "opc.mqtt://"
 };
-
-static const unsigned scNumSchemas = sizeof(schemas) / sizeof(schemas[0]);
-static const unsigned scEthSchemaIdx = 2;
 
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
@@ -106,17 +143,17 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
 
     /* Which type of schema is this? */
     unsigned schemaType = 0;
-    for(; schemaType < scNumSchemas; schemaType++) {
+    for(; schemaType < UA_SCHEMAS_SIZE; schemaType++) {
         if(strncmp((char*)endpointUrl->data,
-                   schemas[schemaType].schema,
-                   strlen(schemas[schemaType].schema)) == 0)
+                   schemas[schemaType],
+                   strlen(schemas[schemaType])) == 0)
             break;
     }
-    if(schemaType == scNumSchemas)
+    if(schemaType == UA_SCHEMAS_SIZE)
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
 
     /* Forward the current position until the first colon or slash */
-    size_t start = strlen(schemas[schemaType].schema);
+    size_t start = strlen(schemas[schemaType]);
     size_t curr = start;
     UA_Boolean ipv6 = false;
     if(endpointUrl->length > curr && endpointUrl->data[curr] == '[') {
@@ -162,7 +199,7 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
 
         /* ETH schema */
-        if(schemaType == scEthSchemaIdx) {
+        if(schemaType == UA_ETH_SCHEMA_INDEX) {
             if(outPath != NULL) {
                 outPath->data = &endpointUrl->data[curr];
                 outPath->length = endpointUrl->length - curr;
@@ -295,6 +332,210 @@ UA_ByteString_fromBase64(UA_ByteString *bs,
     return UA_STATUSCODE_GOOD;
 }
 
+/* DateTime parsing for both JSON and XML */
+UA_StatusCode
+decodeDateTime(const UA_ByteString s, UA_DateTime *dst) {
+    /* The last character has to be 'Z'. We can omit some length checks later on
+     * because we know the atoi functions stop before the 'Z'. */
+    if(s.length == 0 || s.data[s.length-1] != 'Z')
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    struct mytm dts;
+    memset(&dts, 0, sizeof(dts));
+
+    size_t pos = 0;
+    size_t len;
+
+    /* Parse the year. The ISO standard asks for four digits. But we accept up
+     * to five with an optional plus or minus in front due to the range of the
+     * DateTime 64bit integer. But in that case we require the year and the
+     * month to be separated by a '-'. Otherwise we cannot know where the month
+     * starts. */
+    if(s.data[0] == '-' || s.data[0] == '+')
+        pos++;
+    UA_Int64 year = 0;
+    len = parseInt64((char*)&s.data[pos], 5, &year);
+    pos += len;
+    if(len != 4 && s.data[pos] != '-')
+        return UA_STATUSCODE_BADDECODINGERROR;
+    if(s.data[0] == '-')
+        year = -year;
+    dts.tm_year = (UA_Int16)year - 1900;
+    if(s.data[pos] == '-')
+        pos++;
+
+    /* Parse the month */
+    UA_UInt64 month = 0;
+    len = parseUInt64((char*)&s.data[pos], 2, &month);
+    pos += len;
+    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
+    dts.tm_mon = (UA_UInt16)month - 1;
+    if(s.data[pos] == '-')
+        pos++;
+
+    /* Parse the day and check the T between date and time */
+    UA_UInt64 day = 0;
+    len = parseUInt64((char*)&s.data[pos], 2, &day);
+    pos += len;
+    UA_CHECK(len == 2 || s.data[pos] != 'T',
+             return UA_STATUSCODE_BADDECODINGERROR);
+    dts.tm_mday = (UA_UInt16)day;
+    pos++;
+
+    /* Parse the hour */
+    UA_UInt64 hour = 0;
+    len = parseUInt64((char*)&s.data[pos], 2, &hour);
+    pos += len;
+    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
+    dts.tm_hour = (UA_UInt16)hour;
+    if(s.data[pos] == ':')
+        pos++;
+
+    /* Parse the minute */
+    UA_UInt64 min = 0;
+    len = parseUInt64((char*)&s.data[pos], 2, &min);
+    pos += len;
+    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
+    dts.tm_min = (UA_UInt16)min;
+    if(s.data[pos] == ':')
+        pos++;
+
+    /* Parse the second */
+    UA_UInt64 sec = 0;
+    len = parseUInt64((char*)&s.data[pos], 2, &sec);
+    pos += len;
+    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
+    dts.tm_sec = (UA_UInt16)sec;
+
+    /* Compute the seconds since the Unix epoch */
+    long long sinceunix = __tm_to_secs(&dts);
+
+    /* Are we within the range that can be represented? */
+    long long sinceunix_min =
+        (long long)(UA_INT64_MIN / UA_DATETIME_SEC) -
+        (long long)(UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC) -
+        (long long)1; /* manual correction due to rounding */
+    long long sinceunix_max = (long long)
+        ((UA_INT64_MAX - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC);
+    if(sinceunix < sinceunix_min || sinceunix > sinceunix_max)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Convert to DateTime. Add or subtract one extra second here to prevent
+     * underflow/overflow. This is reverted once the fractional part has been
+     * added. */
+    sinceunix -= (sinceunix > 0) ? 1 : -1;
+    UA_DateTime dt = (UA_DateTime)
+        (sinceunix + (UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC)) * UA_DATETIME_SEC;
+
+    /* Parse the fraction of the second if defined */
+    if(s.data[pos] == ',' || s.data[pos] == '.') {
+        pos++;
+        double frac = 0.0;
+        double denom = 0.1;
+        while(pos < s.length &&
+              s.data[pos] >= '0' && s.data[pos] <= '9') {
+            frac += denom * (s.data[pos] - '0');
+            denom *= 0.1;
+            pos++;
+        }
+        frac += 0.00000005; /* Correct rounding when converting to integer */
+        dt += (UA_DateTime)(frac * UA_DATETIME_SEC);
+    }
+
+    /* Remove the underflow/overflow protection (see above) */
+    if(sinceunix > 0) {
+        if(dt > UA_INT64_MAX - UA_DATETIME_SEC)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        dt += UA_DATETIME_SEC;
+    } else {
+        if(dt < UA_INT64_MIN + UA_DATETIME_SEC)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        dt -= UA_DATETIME_SEC;
+    }
+
+    /* We must be at the end of the string (ending with 'Z' as checked above) */
+    if(pos != s.length - 1)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    *dst = dt;
+    return UA_STATUSCODE_GOOD;
+}
+
+static u8
+printNum(i32 n, char *pos, u8 min_digits) {
+    char digits[10];
+    u8 len = 0;
+    /* Handle negative values */
+    if(n < 0) {
+        pos[len++] = '-';
+        n = -n;
+    }
+
+    /* Extract the digits */
+    u8 i = 0;
+    for(; i < min_digits || n > 0; i++) {
+        digits[i] = (char)((n % 10) + '0');
+        n /= 10;
+    }
+
+    /* Print in reverse order and return */
+    for(; i > 0; i--)
+        pos[len++] = digits[i-1];
+    return len;
+}
+
+#define UA_DATETIME_LENGTH 40
+
+UA_StatusCode
+encodeDateTime(const UA_DateTime dt, UA_String *output) {
+    char buffer[UA_DATETIME_LENGTH];
+    char *pos = buffer;
+
+    if(output->length > 0) {
+        if(output->length < UA_DATETIME_LENGTH)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        pos = (char*)output->data;
+    }
+
+    /* Format: -yyyy-MM-dd'T'HH:mm:ss.SSSSSSSSS'Z' is used. max 31 bytes.
+     * Note the optional minus for negative years. */
+    UA_DateTimeStruct tSt = UA_DateTime_toStruct(dt);
+    pos += printNum(tSt.year, pos, 4);
+    *(pos++) = '-';
+    pos += printNum(tSt.month, pos, 2);
+    *(pos++) = '-';
+    pos += printNum(tSt.day, pos, 2);
+    *(pos++) = 'T';
+    pos += printNum(tSt.hour, pos, 2);
+    *(pos++) = ':';
+    pos += printNum(tSt.min, pos, 2);
+    *(pos++) = ':';
+    pos += printNum(tSt.sec, pos, 2);
+    *(pos++) = '.';
+    pos += printNum(tSt.milliSec, pos, 3);
+    pos += printNum(tSt.microSec, pos, 3);
+    pos += printNum(tSt.nanoSec, pos, 3);
+
+    /* Remove trailing zeros */
+    pos--;
+    while(*pos == '0')
+        pos--;
+    if(*pos == '.')
+        pos--;
+
+    pos++;
+    *(pos++) = 'Z';
+
+    if(output->length > 0) {
+        output->length = (size_t)(pos - (char*)output->data);
+    } else {
+        UA_String str = {(size_t)(pos - buffer), (UA_Byte*)buffer};
+        return UA_String_copy(&str, output);
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Key Value Map */
 
 const UA_KeyValueMap UA_KEYVALUEMAP_NULL = {0, NULL};
@@ -417,15 +658,16 @@ UA_KeyValueMap_remove(UA_KeyValueMap *map,
         m[i] = m[s-1];
         UA_KeyValuePair_init(&m[s-1]);
     }
-    
-    /* Ignore the result. In case resize fails, keep the longer original array
-     * around. Resize never fails when reducing the size to zero. Reduce the
-     * size integer in any case. */
+
+    /* In case resize fails, keep the longer original array around. Resize never
+     * fails when reducing the size to zero. */
     UA_StatusCode res =
         UA_Array_resize((void**)&map->map, &map->mapSize, map->mapSize - 1,
                           &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    (void)res;
-    map->mapSize--;
+    /* Adjust map->mapSize only when UA_Array_resize() failed. On success, the
+     * value has already been decremented by UA_Array_resize(). */
+    if(res != UA_STATUSCODE_GOOD)
+        map->mapSize--;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -491,6 +733,11 @@ static pcg32_random_t UA_rng = PCG32_INITIALIZER;
 void
 UA_random_seed(u64 seed) {
     pcg32_srandom_r(&UA_rng, seed, (u64)UA_DateTime_now());
+}
+
+void
+UA_random_seed_deterministic(UA_UInt64 seed) {
+    pcg32_srandom_r(&UA_rng, seed, 0);
 }
 
 u32
@@ -630,76 +877,169 @@ getRefTypeBrowseName(const UA_NodeId *refTypeId, UA_String *outBN) {
 /************************/
 
 static UA_INLINE UA_Boolean
-isReserved(char c) {
-    return (c == '/' || c == '.' || c == '<' || c == '>' ||
-            c == ':' || c == '#' || c == '!' || c == '&');
-}
-
-static UA_INLINE UA_Boolean
-isReservedExtended(char c) {
-    return (isReserved(c) || c == ',' || c == '(' || c == ')' ||
-            c == '[' || c == ']' || c == ' ' || c == '\t' ||
-            c == '\n' || c == '\v' || c == '\f' || c == '\r');
-}
-
-char *
-find_unescaped(char *pos, char *end, UA_Boolean extended) {
-    while(pos < end) {
-        if(*pos == '&') {
-            pos += 2;
-            continue;
-        }
-        UA_Boolean reserved = (extended) ? isReservedExtended(*pos) : isReserved(*pos);
-        if(reserved)
-            return pos;
-        pos++;
-    }
-    return end;
-}
-
-void
-UA_String_unescape(UA_String *s, UA_Boolean extended) {
-    UA_Byte *writepos = s->data;
-    UA_Byte *end = &s->data[s->length];
-    for(UA_Byte *pos = s->data; pos < end; pos++,writepos++) {
-        UA_Boolean skip = (extended) ? isReservedExtended(*pos) : isReserved(*pos);
-        if(skip && ++pos >= end)
-            break;
-        *writepos = *pos;
-    }
-    s->length = (size_t)(writepos - s->data);
+isHex(u8 c) {
+    return ((c >= 'a' && c <= 'f') ||
+            (c >= 'A' && c <= 'F') ||
+            (c >= '0' && c <= '9'));
 }
 
 UA_StatusCode
-UA_String_append(UA_String *s, const UA_String s2) {
-    if(s2.length == 0)
+UA_String_unescape(UA_String *str, UA_Boolean copyEscape, UA_Escaping esc) {
+    if(esc == UA_ESCAPING_NONE)
         return UA_STATUSCODE_GOOD;
-    UA_Byte *buf = (UA_Byte*)UA_realloc(s->data, s->length + s2.length);
-    if(!buf)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    memcpy(buf + s->length, s2.data, s2.length);
-    s->data = buf;
-    s->length += s2.length;
+
+    /* Does the string need escaping? */
+    UA_String tmp;
+    status res = UA_STATUSCODE_GOOD;
+    u8 *pos = str->data;
+    u8 *end = str->data + str->length;
+    u8 escape_char = (esc == UA_ESCAPING_PERCENT ||
+                      esc == UA_ESCAPING_PERCENT_EXTENDED) ? '%' : '&';
+    for(; pos < end; pos++) {
+        if(*pos == escape_char)
+            goto escape;
+    }
+
     return UA_STATUSCODE_GOOD;
+
+ escape:
+    if(copyEscape) {
+        res = UA_String_copy(str, &tmp);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        pos = tmp.data;
+        end = tmp.data + tmp.length;
+    }
+
+    u8 byte = 0;
+    u8 *writepos = pos;
+
+    res = UA_STATUSCODE_BADDECODINGERROR;
+    if(esc == UA_ESCAPING_PERCENT ||
+       esc == UA_ESCAPING_PERCENT_EXTENDED) {
+        /* Percent-Escaping */
+        for(; pos < end; pos++) {
+            if(*pos == '%') {
+                if(pos + 2 >= end || !isHex(pos[1]) || !isHex(pos[2]))
+                    goto out;
+                if(pos[1] >= 'a')
+                    byte = pos[1] - ('a' - 10);
+                else if(pos[1] >= 'A')
+                    byte = pos[1] - ('A' - 10);
+                else
+                    byte = pos[1] - '0';
+                byte <<= 4;
+
+                if(pos[2] >= 'a')
+                    byte += pos[2] - ('a' - 10);
+                else if(pos[2] >= 'A')
+                    byte += pos[2] - ('A' - 10);
+                else
+                    byte += pos[2] - '0';
+
+                pos += 2;
+                *writepos++ = byte;
+                continue;
+            }
+            *writepos++ = *pos;
+        }
+    } else {
+        /* And-Escaping */
+        for(; pos < end; pos++) {
+            if(*pos == '&') {
+                pos++;
+                if(pos == end)
+                    goto out;
+            }
+            *writepos++ = *pos;
+        }
+    }
+    res = UA_STATUSCODE_GOOD;
+
+ out:
+    if(copyEscape) {
+        tmp.length = (size_t)(writepos - tmp.data);
+        if(tmp.length == 0)
+            UA_String_clear(&tmp);
+        if(res == UA_STATUSCODE_GOOD)
+            *str = tmp;
+        else
+            UA_String_clear(&tmp);
+    } else if(res == UA_STATUSCODE_GOOD) {
+        str->length = (size_t)(writepos - str->data);
+    }
+    return res;
+}
+
+static const u8 hexchars[16] =
+    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+
+size_t
+UA_String_escapedSize(const UA_String s, UA_Escaping esc) {
+    /* Find out the overhead from escaping */
+    size_t overhead = 0;
+    for(size_t j = 0; j < s.length; j++) {
+        if(esc == UA_ESCAPING_AND_EXTENDED)
+            overhead += isReservedExtended(s.data[j]);
+        else if(esc == UA_ESCAPING_AND)
+            overhead += isReservedAnd(s.data[j]);
+        else if(esc == UA_ESCAPING_PERCENT)
+            overhead += (isReservedPercent(s.data[j]) ? 2 : 0);
+        else /* if(esc == UA_ESCAPING_PERCENT_EXTENDED) */
+            overhead += (isReservedPercentExtended(s.data[j]) ? 2 : 0);
+    }
+
+    return s.length + overhead;
+}
+
+size_t
+UA_String_escapeInsert(u8 *pos, const UA_String s2, UA_Escaping esc) {
+    u8 *begin = pos;
+
+    if(esc == UA_ESCAPING_NONE) {
+        for(size_t j = 0; j < s2.length; j++)
+            *pos++ = s2.data[j];
+    } else if(esc == UA_ESCAPING_PERCENT || esc == UA_ESCAPING_PERCENT_EXTENDED) {
+        for(size_t j = 0; j < s2.length; j++) {
+            UA_Boolean reserved = (esc == UA_ESCAPING_PERCENT_EXTENDED) ?
+                isReservedPercentExtended(s2.data[j]) : isReservedPercent(s2.data[j]);
+            if(UA_LIKELY(!reserved)) {
+                *pos++ = s2.data[j];
+            } else {
+                *pos++ = '%';
+                *pos++ = hexchars[s2.data[j] >> 4];
+                *pos++ = hexchars[s2.data[j] & 0x0f];
+            }
+        }
+    } else {
+        for(size_t j = 0; j < s2.length; j++) {
+            UA_Boolean reserved = (esc == UA_ESCAPING_AND_EXTENDED) ?
+                isReservedExtended(s2.data[j]) : isReservedAnd(s2.data[j]);
+            if(reserved)
+                *pos++ = '&';
+            *pos++ = s2.data[j];
+        }
+    }
+
+    return (size_t)(pos - begin);
 }
 
 UA_StatusCode
-UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Boolean extended) {
-    /* Allocate memory for the qn name.
-     * We allocate enough space to escape every character. */
-    UA_Byte *buf = (UA_Byte*)UA_realloc(s->data, s->length + (s2.length*2));
+UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Escaping esc) {
+    if(esc == UA_ESCAPING_NONE)
+        return UA_String_append(s, s2);
+
+    /* Allocate memory for the additional escaped string */
+    size_t escapedLength = UA_String_escapedSize(s2, esc);
+    UA_Byte *buf = (UA_Byte*)
+        UA_realloc(s->data, s->length + s2.length + escapedLength);
     if(!buf)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    s->data = buf;
 
-    /* Copy + escape s2 */
-    for(size_t j = 0; j < s2.length; j++) {
-        UA_Boolean reserved = (extended) ?
-            isReservedExtended(s2.data[j]) : isReserved(s2.data[j]);
-        if(reserved)
-            s->data[s->length++] = '&';
-        s->data[s->length++] = s2.data[j];
-    }
+    /* Escape and insert at the end */
+    s->data = buf;
+    UA_String_escapeInsert(s->data + s->length, s2, esc);
+    s->length += escapedLength;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -739,9 +1079,11 @@ static const UA_NodeId hierarchicalRefs =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HIERARCHICALREFERENCES}};
 static const UA_NodeId aggregatesRefs =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_AGGREGATES}};
+static const UA_NodeId objectsFolder =
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OBJECTSFOLDER}};
 
-UA_StatusCode
-UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
+static UA_StatusCode
+printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Escaping esc) {
     UA_String tmp = UA_STRING_NULL;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < rp->elementsSize && res == UA_STATUSCODE_GOOD; i++) {
@@ -750,7 +1092,8 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
         if(UA_NodeId_equal(&hierarchicalRefs, &elm->referenceTypeId) &&
            !elm->isInverse && elm->includeSubtypes) {
             res |= UA_String_append(&tmp, UA_STRING("/"));
-        } else if(UA_NodeId_equal(&aggregatesRefs, &elm->referenceTypeId) &&
+        } else if(esc == UA_ESCAPING_AND &&
+                  UA_NodeId_equal(&aggregatesRefs, &elm->referenceTypeId) &&
                   !elm->isInverse && elm->includeSubtypes) {
             res |= UA_String_append(&tmp, UA_STRING("."));
         } else {
@@ -759,16 +1102,25 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
                 res |= UA_String_append(&tmp, UA_STRING("#"));
             if(elm->isInverse)
                 res |= UA_String_append(&tmp, UA_STRING("!"));
-            UA_Byte bnBuf[512];
-            UA_String bnBufStr = {512, bnBuf};
-            res |= getRefTypeBrowseName(&elm->referenceTypeId, &bnBufStr);
             if(res != UA_STATUSCODE_GOOD)
                 break;
-            res |= UA_String_escapeAppend(&tmp, bnBufStr, false);
+
+            UA_Byte bnBuf[512];
+            UA_String bnBufStr = {512, bnBuf};
+            res = getRefTypeBrowseName(&elm->referenceTypeId, &bnBufStr);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_String_init(&bnBufStr);
+                res = getRefTypeBrowseName(&elm->referenceTypeId, &bnBufStr);
+                if(res != UA_STATUSCODE_GOOD)
+                    break;
+            }
+            res |= UA_String_escapeAppend(&tmp, bnBufStr, esc);
             res |= UA_String_append(&tmp, UA_STRING(">"));
+            if(bnBufStr.data != bnBuf)
+                UA_String_clear(&bnBufStr);
         }
 
-        /* Print the qualified name namespace */
+        /* Print the qualified name */
         UA_QualifiedName *qn = &elm->targetName;
         if(qn->namespaceIndex > 0) {
             char nsStr[8]; /* Enough for a uint16 */
@@ -776,7 +1128,7 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
             res |= UA_String_append(&tmp, UA_STRING(nsStr));
             res |= UA_String_append(&tmp, UA_STRING(":"));
         }
-        res |= UA_String_escapeAppend(&tmp, qn->name, false);
+        res |= UA_String_escapeAppend(&tmp, qn->name, esc);
     }
 
     /* Encoding failed, clean up */
@@ -788,11 +1140,16 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
     return moveTmpToOut(&tmp, out);
 }
 
+UA_StatusCode
+UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
+    return printRelativePath(rp, out, UA_ESCAPING_AND);
+}
+
 static UA_NodeId baseEventTypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEEVENTTYPE}};
 
 UA_StatusCode
-UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
-                                UA_String *out) {
+UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao, UA_String *out) {
+    UA_RelativePathElement rpe;
     UA_String tmp = UA_STRING_NULL;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
@@ -800,47 +1157,121 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
     if(!UA_NodeId_equal(&baseEventTypeId, &sao->typeDefinitionId)) {
         UA_Byte nodeIdBuf[512];
         UA_String nodeIdBufStr = {512, nodeIdBuf};
-        res = UA_NodeId_print(&sao->typeDefinitionId, &nodeIdBufStr);
-        if(res != UA_STATUSCODE_GOOD)
-            goto cleanup;
-        res = UA_String_escapeAppend(&tmp, nodeIdBufStr, true);
-        if(res != UA_STATUSCODE_GOOD)
-            goto cleanup;
+        res |= nodeId_printEscape(&sao->typeDefinitionId, &nodeIdBufStr,
+                                  NULL, UA_ESCAPING_PERCENT);
+        res |= UA_String_append(&tmp, nodeIdBufStr);
     }
 
     /* Print the BrowsePath */
+    UA_RelativePathElement_init(&rpe);
+    rpe.includeSubtypes = true;
+    rpe.referenceTypeId = hierarchicalRefs;
+    UA_RelativePath rp = {1, &rpe};
     for(size_t i = 0; i < sao->browsePathSize; i++) {
-        res |= UA_String_append(&tmp, UA_STRING("/"));
-        UA_QualifiedName *qn = &sao->browsePath[i];
-        if(qn->namespaceIndex > 0) {
-            char nsStr[8]; /* Enough for a uint16 */
-            itoaUnsigned(qn->namespaceIndex, nsStr, 10);
-            res |= UA_String_append(&tmp, UA_STRING(nsStr));
-            res |= UA_String_append(&tmp, UA_STRING(":"));
-        }
-        res |= UA_String_escapeAppend(&tmp, qn->name, true);
-        if(res != UA_STATUSCODE_GOOD)
-            goto cleanup;
+        UA_String rpstr = UA_STRING_NULL;
+        UA_assert(rpstr.data == NULL && rpstr.length == 0); /* pacify clang scan-build */
+        rpe.targetName = sao->browsePath[i];
+        res |= printRelativePath(&rp, &rpstr, UA_ESCAPING_PERCENT);
+        res |= UA_String_append(&tmp, rpstr);
+        UA_String_clear(&rpstr);
     }
 
     /* Print the attribute name */
     if(sao->attributeId != UA_ATTRIBUTEID_VALUE) {
+        const char *attrName = UA_AttributeId_name((UA_AttributeId)sao->attributeId);
         res |= UA_String_append(&tmp, UA_STRING("#"));
-        const char *attrName= UA_AttributeId_name((UA_AttributeId)sao->attributeId);
         res |= UA_String_append(&tmp, UA_STRING((char*)(uintptr_t)attrName));
-        if(res != UA_STATUSCODE_GOOD)
-            goto cleanup;
     }
 
-    /* Print the IndexRange
-     * TODO: Validate the indexRange string */
+    /* Print the IndexRange */
     if(sao->indexRange.length > 0) {
         res |= UA_String_append(&tmp, UA_STRING("["));
         res |= UA_String_append(&tmp, sao->indexRange);
         res |= UA_String_append(&tmp, UA_STRING("]"));
     }
 
- cleanup:
+    /* Encoding failed, clean up */
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&tmp);
+        return res;
+    }
+
+    return moveTmpToOut(&tmp, out);
+}
+
+UA_StatusCode
+UA_AttributeOperand_print(const UA_AttributeOperand *ao,
+                          UA_String *out) {
+    UA_String tmp = UA_STRING_NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    /* Print the TypeDefinitionId */
+    if(!UA_NodeId_equal(&objectsFolder, &ao->nodeId)) {
+        UA_Byte nodeIdBuf[512];
+        UA_String nodeIdBufStr = {512, nodeIdBuf};
+        res |= nodeId_printEscape(&ao->nodeId, &nodeIdBufStr,
+                                  NULL, UA_ESCAPING_PERCENT_EXTENDED);
+        res |= UA_String_append(&tmp, nodeIdBufStr);
+    }
+
+    /* Print the BrowsePath */
+    UA_String rpstr = UA_STRING_NULL;
+    UA_assert(rpstr.data == NULL && rpstr.length == 0); /* pacify clang scan-build */
+    res |= printRelativePath(&ao->browsePath, &rpstr, UA_ESCAPING_PERCENT_EXTENDED);
+    res |= UA_String_append(&tmp, rpstr);
+    UA_String_clear(&rpstr);
+
+    /* Print the attribute name */
+    if(ao->attributeId != UA_ATTRIBUTEID_VALUE) {
+        const char *attrName= UA_AttributeId_name((UA_AttributeId)ao->attributeId);
+        res |= UA_String_append(&tmp, UA_STRING("#"));
+        res |= UA_String_append(&tmp, UA_STRING((char*)(uintptr_t)attrName));
+    }
+
+    /* Print the IndexRange */
+    if(ao->indexRange.length > 0) {
+        res |= UA_String_append(&tmp, UA_STRING("["));
+        res |= UA_String_append(&tmp, ao->indexRange);
+        res |= UA_String_append(&tmp, UA_STRING("]"));
+    }
+
+    /* Encoding failed, clean up */
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&tmp);
+        return res;
+    }
+
+    return moveTmpToOut(&tmp, out);
+}
+
+UA_StatusCode
+UA_ReadValueId_print(const UA_ReadValueId *rvi, UA_String *out) {
+    UA_String tmp = UA_STRING_NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    /* Print the TypeDefinitionId */
+    if(!UA_NodeId_equal(&UA_NODEID_NULL, &rvi->nodeId)) {
+        UA_Byte nodeIdBuf[512];
+        UA_String nodeIdBufStr = {512, nodeIdBuf};
+        res |= nodeId_printEscape(&rvi->nodeId, &nodeIdBufStr,
+                                  NULL, UA_ESCAPING_PERCENT);
+        res |= UA_String_append(&tmp, nodeIdBufStr);
+    }
+
+    /* Print the attribute name */
+    if(rvi->attributeId != UA_ATTRIBUTEID_VALUE) {
+        const char *attrName= UA_AttributeId_name((UA_AttributeId)rvi->attributeId);
+        res |= UA_String_append(&tmp, UA_STRING("#"));
+        res |= UA_String_append(&tmp, UA_STRING((char*)(uintptr_t)attrName));
+    }
+
+    /* Print the IndexRange */
+    if(rvi->indexRange.length > 0) {
+        res |= UA_String_append(&tmp, UA_STRING("["));
+        res |= UA_String_append(&tmp, rvi->indexRange);
+        res |= UA_String_append(&tmp, UA_STRING("]"));
+    }
+
     /* Encoding failed, clean up */
     if(res != UA_STATUSCODE_GOOD) {
         UA_String_clear(&tmp);
@@ -897,7 +1328,7 @@ void
 UA_ByteString_memZero(UA_ByteString *bs) {
 #if defined(__STDC_LIB_EXT1__)
    memset_s(bs->data, bs->length, 0, bs->length);
-#elif defined(_WIN32)
+#elif defined(UA_ARCHITECTURE_WIN32)
    SecureZeroMemory(bs->data, bs->length);
 #else
    volatile unsigned char *volatile ptr =
@@ -908,4 +1339,313 @@ UA_ByteString_memZero(UA_ByteString *bs) {
        ptr[i++] = 0;
    }
 #endif
+}
+
+UA_Boolean
+UA_TrustListDataType_contains(const UA_TrustListDataType *trustList,
+                              const UA_ByteString *certificate,
+                              UA_TrustListMasks specifiedList) {
+    if(!trustList || !certificate)
+        return false;
+
+    if(specifiedList == UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
+        for(size_t i = 0; i < trustList->trustedCertificatesSize; i++) {
+            if(UA_ByteString_equal(certificate, &trustList->trustedCertificates[i]))
+                return true;
+        }
+    }
+    if(specifiedList == UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
+        for(size_t i = 0; i < trustList->trustedCrlsSize; i++) {
+            if(UA_ByteString_equal(certificate, &trustList->trustedCrls[i]))
+                return true;
+        }
+    }
+    if(specifiedList == UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
+        for(size_t i = 0; i < trustList->issuerCertificatesSize; i++) {
+            if(UA_ByteString_equal(certificate, &trustList->issuerCertificates[i]))
+                return true;
+        }
+    }
+    if(specifiedList == UA_TRUSTLISTMASKS_ISSUERCRLS) {
+        for(size_t i = 0; i < trustList->issuerCrlsSize; i++) {
+            if(UA_ByteString_equal(certificate, &trustList->issuerCrls[i]))
+                return true;
+        }
+    }
+
+    return false;
+}
+
+UA_StatusCode
+UA_TrustListDataType_add(const UA_TrustListDataType *src, UA_TrustListDataType *dst) {
+    if(!dst)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!src) {
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
+        if(dst->trustedCertificates == NULL)
+            dst->trustedCertificates = (UA_ByteString *)UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        for(size_t i = 0; i < src->trustedCertificatesSize; i++) {
+            if(UA_TrustListDataType_contains(dst, &src->trustedCertificates[i],
+                                             UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES)) {
+                continue;
+            }
+            retval = UA_Array_appendCopy((void**)&dst->trustedCertificates, &dst->trustedCertificatesSize,
+                                      &src->trustedCertificates[i], &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(retval != UA_STATUSCODE_GOOD) {
+                return retval;
+            }
+        }
+        dst->specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    }
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
+        if(dst->trustedCrls == NULL)
+            dst->trustedCrls = (UA_ByteString *)UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        for(size_t i = 0; i < src->trustedCrlsSize; i++) {
+            if(UA_TrustListDataType_contains(dst, &src->trustedCrls[i],
+                                             UA_TRUSTLISTMASKS_TRUSTEDCRLS)) {
+                continue;
+            }
+            retval = UA_Array_appendCopy((void**)&dst->trustedCrls, &dst->trustedCrlsSize,
+                                      &src->trustedCrls[i], &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(retval != UA_STATUSCODE_GOOD) {
+                return retval;
+            }
+        }
+        dst->specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+    }
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
+        if(dst->issuerCertificates == NULL)
+            dst->issuerCertificates = (UA_ByteString *)UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        for(size_t i = 0; i < src->issuerCertificatesSize; i++) {
+            if(UA_TrustListDataType_contains(dst, &src->issuerCertificates[i],
+                                            UA_TRUSTLISTMASKS_ISSUERCERTIFICATES)) {
+                continue;
+            }
+            retval = UA_Array_appendCopy((void**)&dst->issuerCertificates, &dst->issuerCertificatesSize,
+                                      &src->issuerCertificates[i], &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(retval != UA_STATUSCODE_GOOD) {
+                return retval;
+            }
+        }
+        dst->specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
+    }
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS) {
+        if(dst->issuerCrls == NULL)
+            dst->issuerCrls = (UA_ByteString *)UA_Array_new(0, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        for(size_t i = 0; i < src->issuerCrlsSize; i++) {
+            if(UA_TrustListDataType_contains(dst, &src->issuerCrls[i],
+                                            UA_TRUSTLISTMASKS_ISSUERCRLS)) {
+                continue;
+            }
+            retval = UA_Array_appendCopy((void**)&dst->issuerCrls, &dst->issuerCrlsSize,
+                                      &src->issuerCrls[i], &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(retval != UA_STATUSCODE_GOOD) {
+                return retval;
+            }
+        }
+        dst->specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCRLS;
+    }
+
+    return retval;
+}
+
+UA_StatusCode
+UA_TrustListDataType_set(const UA_TrustListDataType *src, UA_TrustListDataType *dst) {
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
+        UA_Array_delete(dst->trustedCertificates, dst->trustedCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->trustedCertificates = NULL;
+        dst->trustedCertificatesSize = 0;
+    }
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
+        UA_Array_delete(dst->trustedCrls, dst->trustedCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->trustedCrls = NULL;
+        dst->trustedCrlsSize = 0;
+    }
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
+        UA_Array_delete(dst->issuerCertificates, dst->issuerCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->issuerCertificates = NULL;
+        dst->issuerCertificatesSize = 0;
+    }
+    if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS) {
+        UA_Array_delete(dst->issuerCrls, dst->issuerCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->issuerCrls = NULL;
+        dst->issuerCrlsSize = 0;
+    }
+    return UA_TrustListDataType_add(src, dst);
+}
+
+UA_StatusCode
+UA_TrustListDataType_remove(const UA_TrustListDataType *src, UA_TrustListDataType *dst) {
+    if(!dst)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(!src) {
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    /* remove trusted certificates */
+    if(dst->trustedCertificatesSize > 0 && src->trustedCertificatesSize > 0) {
+        UA_ByteString *newList = (UA_ByteString*)UA_calloc(dst->trustedCertificatesSize, sizeof(UA_ByteString));
+        size_t newListSize = 0;
+        size_t oldListSize = dst->trustedCertificatesSize;
+        UA_Boolean isContained = false;
+        for(size_t i = 0; i < dst->trustedCertificatesSize; i++) {
+            for(size_t j = 0; j < src->trustedCertificatesSize; j++) {
+                if(UA_ByteString_equal(&dst->trustedCertificates[i], &src->trustedCertificates[j]))
+                    isContained = true;
+            }
+            if(!isContained) {
+                UA_ByteString_copy(&dst->trustedCertificates[i], &newList[newListSize]);
+                newListSize += 1;
+            }
+            isContained = false;
+        }
+        if(newListSize < dst->trustedCertificatesSize) {
+            if(newListSize == 0) {
+                UA_free(newList);
+                newList = NULL;
+            } else {
+                retval = UA_Array_resize((void**)&newList, &oldListSize, newListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_free(newList);
+                    return retval;
+                }
+            }
+        }
+        UA_Array_delete(dst->trustedCertificates, dst->trustedCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->trustedCertificatesSize = 0;
+        dst->trustedCertificates = newList;
+        dst->trustedCertificatesSize = newListSize;
+    }
+
+    /* remove issuer certificates */
+    if(dst->issuerCertificatesSize > 0 && src->issuerCertificatesSize > 0) {
+        UA_ByteString *newList = (UA_ByteString*)UA_calloc(dst->issuerCertificatesSize, sizeof(UA_ByteString));
+        size_t newListSize = 0;
+        size_t oldListSize = dst->issuerCertificatesSize;
+        UA_Boolean isContained = false;
+        for(size_t i = 0; i < dst->issuerCertificatesSize; i++) {
+            for(size_t j = 0; j < src->issuerCertificatesSize; j++) {
+                if(UA_ByteString_equal(&dst->issuerCertificates[i], &src->issuerCertificates[j]))
+                    isContained = true;
+            }
+            if(!isContained) {
+                UA_ByteString_copy(&dst->issuerCertificates[i], &newList[newListSize]);
+                newListSize += 1;
+            }
+            isContained = false;
+        }
+        if(newListSize < dst->issuerCertificatesSize) {
+            if(newListSize == 0) {
+                UA_free(newList);
+                newList = NULL;
+            } else {
+                retval = UA_Array_resize((void**)&newList, &oldListSize, newListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_free(newList);
+                    return retval;
+                }
+            }
+        }
+        UA_Array_delete(dst->issuerCertificates, dst->issuerCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->issuerCertificatesSize = 0;
+        dst->issuerCertificates = newList;
+        dst->issuerCertificatesSize = newListSize;
+    }
+
+    /* remove trusted crls */
+    if(dst->trustedCrlsSize > 0 && src->trustedCrlsSize > 0) {
+        UA_ByteString *newList = (UA_ByteString*)UA_calloc(dst->trustedCrlsSize, sizeof(UA_ByteString));
+        size_t newListSize = 0;
+        size_t oldListSize = dst->trustedCrlsSize;
+        UA_Boolean isContained = false;
+        for(size_t i = 0; i < dst->trustedCrlsSize; i++) {
+            for(size_t j = 0; j < src->trustedCrlsSize; j++) {
+                if(UA_ByteString_equal(&dst->trustedCrls[i], &src->trustedCrls[j]))
+                    isContained = true;
+            }
+            if(!isContained) {
+                UA_ByteString_copy(&dst->trustedCrls[i], &newList[newListSize]);
+                newListSize += 1;
+            }
+            isContained = false;
+        }
+        if(newListSize < dst->trustedCrlsSize) {
+            if(newListSize == 0) {
+                UA_free(newList);
+                newList = NULL;
+            } else {
+                retval = UA_Array_resize((void**)&newList, &oldListSize, newListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_free(newList);
+                    return retval;
+                }
+            }
+        }
+        UA_Array_delete(dst->trustedCrls, dst->trustedCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->trustedCrlsSize = 0;
+        dst->trustedCrls = newList;
+        dst->trustedCrlsSize = newListSize;
+    }
+
+    /* remove issuer crls */
+    if(dst->issuerCrlsSize > 0 && src->issuerCrlsSize > 0) {
+        UA_ByteString *newList = (UA_ByteString*)UA_calloc(dst->issuerCrlsSize, sizeof(UA_ByteString));
+        size_t newListSize = 0;
+        size_t oldListSize = dst->issuerCrlsSize;
+        UA_Boolean isContained = false;
+        for(size_t i = 0; i < dst->issuerCrlsSize; i++) {
+            for(size_t j = 0; j < src->issuerCrlsSize; j++) {
+                if(UA_ByteString_equal(&dst->issuerCrls[i], &src->issuerCrls[j]))
+                    isContained = true;
+            }
+            if(!isContained) {
+                UA_ByteString_copy(&dst->issuerCrls[i], &newList[newListSize]);
+                newListSize += 1;
+            }
+            isContained = false;
+        }
+        if(newListSize < dst->issuerCrlsSize) {
+            if(newListSize == 0) {
+                UA_free(newList);
+                newList = NULL;
+            } else {
+                retval = UA_Array_resize((void**)&newList, &oldListSize, newListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_free(newList);
+                    return retval;
+                }
+            }
+        }
+        UA_Array_delete(dst->issuerCrls, dst->issuerCrlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        dst->issuerCrlsSize = 0;
+        dst->issuerCrls = newList;
+        dst->issuerCrlsSize = newListSize;
+    }
+
+    return retval;
+}
+
+UA_UInt32
+UA_TrustListDataType_getSize(const UA_TrustListDataType *trustList) {
+    UA_UInt32 size = 0;
+    for(size_t i = 0; i < trustList->trustedCertificatesSize; i++) {
+        size += (UA_UInt32)trustList->trustedCertificates[i].length;
+    }
+    for(size_t i = 0; i < trustList->trustedCrlsSize; i++) {
+        size += (UA_UInt32)trustList->trustedCrls[i].length;
+    }
+    for(size_t i = 0; i < trustList->issuerCertificatesSize; i++) {
+        size += (UA_UInt32)trustList->issuerCertificates[i].length;
+    }
+    for(size_t i = 0; i < trustList->issuerCrlsSize; i++) {
+        size += (UA_UInt32)trustList->issuerCrls[i].length;
+    }
+    return size;
 }

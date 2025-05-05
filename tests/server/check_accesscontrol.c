@@ -35,6 +35,9 @@ static void setup(void) {
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->allowNonePolicyPassword = true;
+
     /* Instatiate a new AccessControl plugin that knows username/pw */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize-1];

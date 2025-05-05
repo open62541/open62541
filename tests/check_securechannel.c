@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/transport_generated.h>
-#include <open62541/transport_generated_handling.h>
 #include <open62541/types_generated.h>
 #include <open62541/server_config_default.h>
 
@@ -454,18 +453,26 @@ START_TEST(SecureChannel_sendSymmetricMessage_invalidParameters) {
 } END_TEST
 
 static UA_StatusCode
-process_callback(void *application, UA_SecureChannel *channel,
-                 UA_MessageType messageType, UA_UInt32 requestId,
-                 UA_ByteString *message) {
-    ck_assert_ptr_ne(message, NULL);
-    ck_assert_ptr_ne(application, NULL);
-    if(message == NULL || application == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    ck_assert_uint_ne(message->length, 0);
-    ck_assert_ptr_ne(message->data, NULL);
-    int *chunks_processed = (int *)application;
-    ++*chunks_processed;
-    return UA_STATUSCODE_GOOD;
+UA_SecureChannel_processBuffer(UA_SecureChannel *channel, int *chunks_processed,
+                               const UA_ByteString buffer) {
+    UA_StatusCode res = UA_SecureChannel_loadBuffer(channel, buffer);
+    while(UA_LIKELY(res == UA_STATUSCODE_GOOD)) {
+        UA_MessageType messageType;
+        UA_UInt32 requestId = 0;
+        UA_ByteString payload = UA_BYTESTRING_NULL;
+        UA_Boolean copied = false;
+        res = UA_SecureChannel_getCompleteMessage(channel, &messageType, &requestId,
+                                                  &payload, &copied, UA_DateTime_nowMonotonic());
+        if(res != UA_STATUSCODE_GOOD || payload.length == 0)
+            break;
+        ck_assert_uint_ne(payload.length, 0);
+        ck_assert_ptr_ne(payload.data, NULL);
+        ++*chunks_processed;
+        if(copied)
+            UA_ByteString_clear(&payload);
+    }
+    res |= UA_SecureChannel_persistBuffer(channel);
+    return res;
 }
 
 START_TEST(SecureChannel_assemblePartialChunks) {
@@ -477,21 +484,18 @@ START_TEST(SecureChannel_assemblePartialChunks) {
     buffer.length = 32;
 
     UA_StatusCode retval =
-        UA_SecureChannel_processBuffer(&testChannel, &chunks_processed,
-                                       process_callback, &buffer, UA_DateTime_nowMonotonic());
+        UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, buffer);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
     ck_assert_int_eq(chunks_processed, 1);
 
     buffer.length = 16;
 
-    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed,
-                                   process_callback, &buffer, UA_DateTime_nowMonotonic());
+    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, buffer);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
     ck_assert_int_eq(chunks_processed, 1);
 
     buffer.data = &buffer.data[16];
-    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed,
-                                   process_callback, &buffer, UA_DateTime_nowMonotonic());
+    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, buffer);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
     ck_assert_int_eq(chunks_processed, 2);
 
@@ -503,23 +507,20 @@ START_TEST(SecureChannel_assemblePartialChunks) {
                              "\x10\x00\x00\x00@\x00\x00\x00\x00\x00\x00\xff\xff\xff\xff";
     buffer.length = 48;
 
-    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed,
-                                   process_callback, &buffer, UA_DateTime_nowMonotonic());
+    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, buffer);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
     ck_assert_int_eq(chunks_processed, 3);
 
     buffer.data = &buffer.data[48];
     buffer.length = 32;
 
-    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed,
-                                   process_callback, &buffer, UA_DateTime_nowMonotonic());
+    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, buffer);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
     ck_assert_int_eq(chunks_processed, 4);
 
     buffer.data = &buffer.data[32];
     buffer.length = 16;
-    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed,
-                                   process_callback, &buffer, UA_DateTime_nowMonotonic());
+    UA_SecureChannel_processBuffer(&testChannel, &chunks_processed, buffer);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected success");
     ck_assert_int_eq(chunks_processed, 5);
 } END_TEST

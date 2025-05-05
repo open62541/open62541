@@ -20,7 +20,7 @@
  */
 
 #include "ua_server_internal.h"
-#include "ua_types_encoding_binary.h"
+#include "../ua_types_encoding_binary.h"
 #include "ua_services.h"
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -74,61 +74,40 @@ attributeId2AttributeMask(UA_AttributeId id) {
 static UA_UInt32
 getUserWriteMask(UA_Server *server, const UA_Session *session,
                  const UA_NodeHead *head) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
     if(session == &server->adminSession)
         return 0xFFFFFFFF; /* the local admin user has all rights */
-    UA_UInt32 mask = head->writeMask;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_UNLOCK(&server->serviceMutex);
-    mask &= server->config.accessControl.
+    return head->writeMask & server->config.accessControl.
         getUserRightsMask(server, &server->config.accessControl,
                           session ? &session->sessionId : NULL,
                           session ? session->context : NULL,
                           &head->nodeId, head->context);
-    UA_LOCK(&server->serviceMutex);
-    return mask;
-}
-
-static UA_Byte
-getAccessLevel(UA_Server *server, const UA_Session *session,
-               const UA_VariableNode *node) {
-    if(session == &server->adminSession)
-        return 0xFF; /* the local admin user has all rights */
-    return node->accessLevel;
 }
 
 static UA_Byte
 getUserAccessLevel(UA_Server *server, const UA_Session *session,
                    const UA_VariableNode *node) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
     if(session == &server->adminSession)
         return 0xFF; /* the local admin user has all rights */
-    UA_Byte retval = node->accessLevel;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_UNLOCK(&server->serviceMutex);
-    retval &= server->config.accessControl.
+    return node->accessLevel & server->config.accessControl.
         getUserAccessLevel(server, &server->config.accessControl,
                            session ? &session->sessionId : NULL,
                            session ? session->context : NULL,
                            &node->head.nodeId, node->head.context);
-    UA_LOCK(&server->serviceMutex);
-    return retval;
 }
 
 static UA_Boolean
 getUserExecutable(UA_Server *server, const UA_Session *session,
                   const UA_MethodNode *node) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
     if(session == &server->adminSession)
         return true; /* the local admin user has all rights */
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_UNLOCK(&server->serviceMutex);
-    UA_Boolean userExecutable = node->executable;
-    userExecutable &=
-        server->config.accessControl.
+    return node->executable & server->config.accessControl.
         getUserExecutable(server, &server->config.accessControl,
                           session ? &session->sessionId : NULL,
                           session ? session->context : NULL,
                           &node->head.nodeId, node->head.context);
-    UA_LOCK(&server->serviceMutex);
-    return userExecutable;
 }
 
 /****************/
@@ -162,16 +141,14 @@ static UA_StatusCode
 readValueAttributeFromNode(UA_Server *server, UA_Session *session,
                            const UA_VariableNode *vn, UA_DataValue *v,
                            UA_NumericRange *rangeptr) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     /* Update the value by the user callback */
     if(vn->value.data.callback.onRead) {
-        UA_UNLOCK(&server->serviceMutex);
         vn->value.data.callback.onRead(server,
                                        session ? &session->sessionId : NULL,
                                        session ? session->context : NULL,
                                        &vn->head.nodeId, vn->head.context, rangeptr,
                                        &vn->value.data.value);
-        UA_LOCK(&server->serviceMutex);
         vn = (const UA_VariableNode*)
             UA_NODESTORE_GET_SELECTIVE(server, &vn->head.nodeId,
                                        UA_NODEATTRIBUTESMASK_VALUE,
@@ -202,21 +179,19 @@ readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
                                  const UA_VariableNode *vn, UA_DataValue *v,
                                  UA_TimestampsToReturn timestamps,
                                  UA_NumericRange *rangeptr) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     if(!vn->value.dataSource.read)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
                                   timestamps == UA_TIMESTAMPSTORETURN_BOTH);
     UA_DataValue v2;
     UA_DataValue_init(&v2);
-    UA_UNLOCK(&server->serviceMutex);
     UA_StatusCode retval = vn->value.dataSource.
         read(server,
              session ? &session->sessionId : NULL,
              session ? session->context : NULL,
              &vn->head.nodeId, vn->head.context,
              sourceTimeStamp, rangeptr, &v2);
-    UA_LOCK(&server->serviceMutex);
     if(v2.hasValue && v2.value.storageType == UA_VARIANT_DATA_NODELETE) {
         retval = UA_DataValue_copy(&v2, v);
         UA_DataValue_clear(&v2);
@@ -254,17 +229,21 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
             //TODO change old structure to value backend
             break;
         case UA_VALUEBACKENDTYPE_EXTERNAL:
-            if(!vn->valueBackend.backend.external.callback.notificationRead) {
+            if(vn->valueBackend.backend.external.callback.notificationRead) {
+                retval = vn->valueBackend.backend.external.callback.
+                    notificationRead(server,
+                                     session ? &session->sessionId : NULL,
+                                     session ? session->context : NULL,
+                                     &vn->head.nodeId, vn->head.context, rangeptr);
+                if(retval != UA_STATUSCODE_GOOD)
+                    break;
+            }
+
+            /* Check that a value is available */
+            if(!vn->valueBackend.backend.external.value) {
                 retval = UA_STATUSCODE_BADNOTREADABLE;
                 break;
             }
-            retval = vn->valueBackend.backend.external.callback.
-                notificationRead(server,
-                                 session ? &session->sessionId : NULL,
-                                 session ? session->context : NULL,
-                                 &vn->head.nodeId, vn->head.context, rangeptr);
-            if(retval != UA_STATUSCODE_GOOD)
-                break;
 
             /* Set the result */
             if(rangeptr)
@@ -343,15 +322,15 @@ getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
     switch(type->typeKind) {
         case UA_DATATYPEKIND_STRUCTURE:
             def->structureType = UA_STRUCTURETYPE_STRUCTURE;
-            def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+            def->baseDataType = UA_NS0ID(STRUCTURE);
             break;
         case UA_DATATYPEKIND_OPTSTRUCT:
             def->structureType = UA_STRUCTURETYPE_STRUCTUREWITHOPTIONALFIELDS;
-            def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+            def->baseDataType = UA_NS0ID(STRUCTURE);
             break;
         case UA_DATATYPEKIND_UNION:
             def->structureType = UA_STRUCTURETYPE_UNION;
-            def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UNION);
+            def->baseDataType = UA_NS0ID(UNION);
             break;
         default:
             return UA_STATUSCODE_BADENCODINGERROR;
@@ -387,11 +366,9 @@ void
 ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
              UA_TimestampsToReturn timestampsToReturn,
              const UA_ReadValueId *id, UA_DataValue *v) {
-    UA_LOG_NODEID_TRACE(&node->head.nodeId,
-                        UA_LOG_TRACE_SESSION(server->config.logging, session,
-                                             "Read attribute %"PRIi32 " of Node %.*s",
-                                             id->attributeId, (int)nodeIdStr.length,
-                                             nodeIdStr.data));
+    UA_LOG_TRACE_SESSION(server->config.logging, session,
+                         "Read attribute %"PRIi32 " of Node %N",
+                         id->attributeId, node->head.nodeId);
 
     /* Only Binary Encoding is supported */
     if(id->dataEncoding.name.length > 0 &&
@@ -486,14 +463,9 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         /* VariableTypes don't have the AccessLevel concept. Always allow
          * reading the value. */
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
-            /* The access to a value variable is granted via the AccessLevel
-             * and UserAccessLevel attributes */
-            UA_Byte accessLevel = getAccessLevel(server, session, &node->variableNode);
-            if(!(accessLevel & (UA_ACCESSLEVELMASK_READ))) {
-                retval = UA_STATUSCODE_BADNOTREADABLE;
-                break;
-            }
-            accessLevel = getUserAccessLevel(server, session, &node->variableNode);
+            /* The access to a value variable is granted via the UserAccessLevel
+             * attribute (masked with the AccessLevel attribute) */
+            UA_Byte accessLevel = getUserAccessLevel(server, session, &node->variableNode);
             if(!(accessLevel & (UA_ACCESSLEVELMASK_READ))) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
@@ -653,7 +625,7 @@ void
 Service_Read(UA_Server *server, UA_Session *session,
              const UA_ReadRequest *request, UA_ReadResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing ReadRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Check if the timestampstoreturn is valid */
     if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
@@ -674,7 +646,7 @@ Service_Read(UA_Server *server, UA_Session *session,
         return;
     }
 
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
@@ -690,10 +662,19 @@ UA_DataValue
 readWithSession(UA_Server *server, UA_Session *session,
                 const UA_ReadValueId *item,
                 UA_TimestampsToReturn timestampsToReturn) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_DataValue dv;
     UA_DataValue_init(&dv);
+
+    /* No Session defined. This can happen for example when a Subscription is
+     * detached from its Session. */
+    if(!session) {
+        dv.hasStatus = true;
+        dv.status = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return dv;
+    }
+
     Operation_Read(server, session, &timestampsToReturn, item, &dv);
     return dv;
 }
@@ -701,7 +682,7 @@ readWithSession(UA_Server *server, UA_Session *session,
 UA_StatusCode
 readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId, void *v) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Call the read service */
     UA_ReadValueId item;
@@ -738,9 +719,9 @@ readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
 UA_DataValue
 UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_DataValue dv = readWithSession(server, &server->adminSession, item, timestamps);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return dv;
 }
 
@@ -749,9 +730,9 @@ UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
 UA_StatusCode
 __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
                  const UA_AttributeId attributeId, void *v) {
-   UA_LOCK(&server->serviceMutex);
+   lockServer(server);
    UA_StatusCode retval = readWithReadValue(server, nodeId, attributeId, v);
-   UA_UNLOCK(&server->serviceMutex);
+   unlockServer(server);
    return retval;
 }
 
@@ -759,12 +740,12 @@ UA_StatusCode
 readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                    const UA_QualifiedName propertyName,
                    UA_Variant *value) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Create a BrowsePath to get the target NodeId */
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
-    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    rpe.referenceTypeId = UA_NS0ID(HASPROPERTY);
     rpe.isInverse = false;
     rpe.includeSubtypes = false;
     rpe.targetName = propertyName;
@@ -796,23 +777,15 @@ UA_StatusCode
 UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              const UA_QualifiedName propertyName,
                              UA_Variant *value) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode retval = readObjectProperty(server, objectId, propertyName, value);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retval;
 }
 
 /*****************/
 /* Type Checking */
 /*****************/
-
-static UA_DataTypeKind
-typeEquivalence(const UA_DataType *t) {
-    UA_DataTypeKind k = (UA_DataTypeKind)t->typeKind;
-    if(k == UA_DATATYPEKIND_ENUM)
-        return UA_DATATYPEKIND_INT32;
-    return k;
-}
 
 UA_Boolean
 compatibleValueDataType(UA_Server *server, const UA_DataType *dataType,
@@ -822,24 +795,15 @@ compatibleValueDataType(UA_Server *server, const UA_DataType *dataType,
 
     /* For actual values, the constraint DataType may be a subtype of the
      * DataType of the value -- subtyping in the wrong direction. E.g. UtcTime
-     * is a subtype of DateTime. But we allow it to be encoded as a DateTime
-     * value when transferred over the wire.
+     * is a subtype of DateTime. But we allow the value to be encoded as a
+     * DateTime value when transferred over the wire.
      *
-     * We do not allow "subtyping in the "wrong direction" if the received type
-     * is abstract. For example, ExtensionObjects (== "Structure" in the type
-     * hierarchy) is an abstract type. But ExtensionObject could still be
-     * transported over the network. */
-    UA_Boolean abstract = false;
-    UA_StatusCode res = readWithReadValue(server, &dataType->typeId,
-                                          UA_ATTRIBUTEID_ISABSTRACT, &abstract);
-    if(res != UA_STATUSCODE_GOOD || abstract)
-        return false;
-
-    if(isNodeInTree_singleRef(server, constraintDataType, &dataType->typeId,
-                              UA_REFERENCETYPEINDEX_HASSUBTYPE))
-        return true;
-
-    return false;
+     * Note that all structures are subtypes of ExtensionObject (== Structure in
+     * the Node hierarchy). But we usually do not encounter ExtensionObjects
+     * here. Because the values are typically unwrapped from the ExtensionObject
+     * during the decoding. */
+    return isNodeInTree_singleRef(server, constraintDataType, &dataType->typeId,
+                                  UA_REFERENCETYPEINDEX_HASSUBTYPE);
 }
 
 UA_Boolean
@@ -1156,12 +1120,12 @@ adjustValueType(UA_Server *server, UA_Variant *value,
     if(!type)
         return;
 
-    /* Unwrap ExtensionObject arrays if they all contain the same DataType */
-    unwrapEOArray(server, value);
-
     /* The target type is already achieved. No adjustment needed. */
     if(UA_NodeId_equal(&type->typeId, targetDataTypeId))
         return;
+
+    /* Unwrap ExtensionObject arrays if they all contain the same DataType */
+    unwrapEOArray(server, value);
 
     /* Find the target type */
     const UA_DataType *targetType =
@@ -1169,28 +1133,8 @@ adjustValueType(UA_Server *server, UA_Variant *value,
     if(!targetType)
         return;
 
-    /* A string is written to a byte array. the valuerank and array dimensions
-     * are checked later */
-    if(targetType == &UA_TYPES[UA_TYPES_BYTE] &&
-       type == &UA_TYPES[UA_TYPES_BYTESTRING] &&
-       UA_Variant_isScalar(value)) {
-        UA_ByteString *str = (UA_ByteString*)value->data;
-        value->type = &UA_TYPES[UA_TYPES_BYTE];
-        value->arrayLength = str->length;
-        value->data = str->data;
-        return;
-    }
-
-    /* An enum was sent as an int32, or an opaque type as a bytestring. This
-     * is detected with the typeKind indicating the "true" datatype. */
-    UA_DataTypeKind te1 = typeEquivalence(targetType);
-    UA_DataTypeKind te2 = typeEquivalence(type);
-    if(te1 == te2 && te1 <= UA_DATATYPEKIND_ENUM) {
-        value->type = targetType;
-        return;
-    }
-
-    /* Add more possible type adjustments here. What are they? */
+    /* Use the generic functionality shared by client and server */
+    adjustType(value, targetType);
 }
 
 static UA_StatusCode
@@ -1356,12 +1300,47 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
 
 static UA_StatusCode
 writeValueAttributeWithoutRange(UA_VariableNode *node, const UA_DataValue *value) {
-    UA_DataValue new_value;
-    UA_StatusCode retval = UA_DataValue_copy(value, &new_value);
+    UA_DataValue *oldValue = &node->value.data.value;
+    UA_DataValue tmpValue = *value;
+
+    /* If possible memcpy the new value over the old value without
+     * a malloc. For this the value needs to be "pointerfree". */
+    if(oldValue->hasValue && oldValue->value.type && oldValue->value.type->pointerFree &&
+       value->hasValue && value->value.type && value->value.type->pointerFree &&
+       oldValue->value.type->memSize == value->value.type->memSize) {
+        size_t oSize = 1;
+        size_t vSize = 1;
+        if(!UA_Variant_isScalar(&oldValue->value))
+            oSize = oldValue->value.arrayLength;
+        if(!UA_Variant_isScalar(&value->value))
+            vSize = value->value.arrayLength;
+
+        if(oSize == vSize &&
+           oldValue->value.arrayDimensionsSize == value->value.arrayDimensionsSize) {
+            /* Keep the old pointers, but adjust type and array length */
+            tmpValue.value = oldValue->value;
+            tmpValue.value.type = value->value.type;
+            tmpValue.value.arrayLength = value->value.arrayLength;
+
+            /* Copy the data over the old memory */
+            memcpy(tmpValue.value.data, value->value.data,
+                   oSize * oldValue->value.type->memSize);
+            if(oldValue->value.arrayDimensionsSize > 0) /* No memcpy with NULL-ptr */
+                memcpy(tmpValue.value.arrayDimensions, value->value.arrayDimensions,
+                       sizeof(UA_UInt32) * oldValue->value.arrayDimensionsSize);
+
+            /* Set the value */
+            node->value.data.value = tmpValue;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    /* Make a deep copy of the value and replace when this succeeds */
+    UA_StatusCode retval = UA_Variant_copy(&value->value, &tmpValue.value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     UA_DataValue_clear(&node->value.data.value);
-    node->value.data.value = new_value;
+    node->value.data.value = tmpValue;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1411,7 +1390,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
                         const UA_String *indexRange) {
     UA_assert(node != NULL);
     UA_assert(session != NULL);
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Parse the range */
     UA_NumericRange range;
@@ -1439,20 +1418,17 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
         if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                             node->arrayDimensionsSize, node->arrayDimensions,
                             &adjustedValue.value, rangeptr, &reason)) {
-            UA_LOG_NODEID_WARNING(&node->head.nodeId,
             if(session == &server->adminSession) {
                 /* If the value is written via the local API, log a warning */
-                UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                               "Writing the value of Node %.*s failed with the "
-                               "following reason: %s",
-                               (int)nodeIdStr.length, nodeIdStr.data, reason);
+                UA_LOG_WARNING_SESSION(server->config.logging, session,
+                               "Writing the value of Node %N failed with the "
+                               "following reason: %s", node->head.nodeId, reason);
             } else {
                 /* Don't spam the logs if writing from remote failed */
                 UA_LOG_DEBUG_SESSION(server->config.logging, session,
-                                     "Writing the value of Node %.*s failed with the "
-                                     "following reason: %s",
-                                     (int)nodeIdStr.length, nodeIdStr.data, reason);
-            });
+                                     "Writing the value of Node %N failed with the "
+                                     "following reason: %s", node->head.nodeId, reason);
+            }
             if(rangeptr && rangeptr->dimensions != NULL)
                 UA_free(rangeptr->dimensions);
             return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -1483,30 +1459,33 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
             /* Callback after writing */
             if(retval == UA_STATUSCODE_GOOD &&
                node->value.data.callback.onWrite) {
-                UA_UNLOCK(&server->serviceMutex);
                 node->value.data.callback.
                     onWrite(server, &session->sessionId, session->context,
                             &node->head.nodeId, node->head.context,
                             rangeptr, &adjustedValue);
-                UA_LOCK(&server->serviceMutex);
             }
         } else if(node->value.dataSource.write) {
             /* Write via the datasource callback */
-            UA_UNLOCK(&server->serviceMutex);
             retval = node->value.dataSource.
                 write(server, &session->sessionId, session->context,
                       &node->head.nodeId, node->head.context,
                       rangeptr, &adjustedValue);
-            UA_LOCK(&server->serviceMutex);
         }
         break;
 
     case UA_VALUEBACKENDTYPE_EXTERNAL:
+        retval = UA_STATUSCODE_GOOD;
         if(node->valueBackend.backend.external.callback.userWrite) {
             retval = node->valueBackend.backend.external.callback.
                 userWrite(server, &session->sessionId, session->context,
                           &node->head.nodeId, node->head.context,
                           rangeptr, &adjustedValue);
+        } else {
+            if(node->valueBackend.backend.external.value) {
+                UA_DataValue_clear(*node->valueBackend.backend.external.value);
+                retval = UA_DataValue_copy(&adjustedValue,
+                                           *node->valueBackend.backend.external.value);
+            }
         }
         break;
 
@@ -1522,12 +1501,10 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     if(retval == UA_STATUSCODE_GOOD &&
        node->head.nodeClass == UA_NODECLASS_VARIABLE &&
        server->config.historyDatabase.setValue) {
-        UA_UNLOCK(&server->serviceMutex);
         server->config.historyDatabase.
             setValue(server, server->config.historyDatabase.context,
                      &session->sessionId, session->context,
                      &node->head.nodeId, node->historizing, &adjustedValue);
-        UA_LOCK(&server->serviceMutex);
     }
 #endif
 
@@ -1640,11 +1617,9 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-    UA_LOG_NODEID_TRACE(&node->head.nodeId,
-                        UA_LOG_TRACE_SESSION(server->config.logging, session,
-                                             "Write attribute %"PRIi32 " of Node %.*s",
-                                             wvalue->attributeId, (int)nodeIdStr.length,
-                                             nodeIdStr.data));
+    UA_LOG_TRACE_SESSION(server->config.logging, session,
+                         "Write attribute %" PRIi32 " of Node %N",
+                         wvalue->attributeId, node->head.nodeId);
 
     const UA_VariableTypeNode *type;
 
@@ -1712,14 +1687,9 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
-            /* The access to a value variable is granted via the AccessLevel
-             * and UserAccessLevel attributes */
-            UA_Byte accessLevel = getAccessLevel(server, session, &node->variableNode);
-            if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
-                retval = UA_STATUSCODE_BADNOTWRITABLE;
-                break;
-            }
-            accessLevel = getUserAccessLevel(server, session, &node->variableNode);
+            /* The access to a value variable is granted via the UserAccessLevel
+             * attribute (masked with the AccessLevel attribute) */
+            UA_Byte accessLevel = getUserAccessLevel(server, session, &node->variableNode);
             if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
@@ -1813,7 +1783,8 @@ void
 Operation_Write(UA_Server *server, UA_Session *session, void *context,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
     UA_assert(session != NULL);
-    *result = UA_Server_editNode(server, session, &wv->nodeId,
+    *result = UA_Server_editNode(server, session, &wv->nodeId, wv->attributeId,
+                                 UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
                                  (UA_EditNodeCallback)copyAttributeIntoNode,
                                  (void*)(uintptr_t)wv);
 }
@@ -1825,7 +1796,7 @@ Service_Write(UA_Server *server, UA_Session *session,
     UA_assert(session != NULL);
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing WriteRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(server->config.maxNodesPerWrite != 0 &&
        request->nodesToWriteSize > server->config.maxNodesPerWrite) {
@@ -1845,9 +1816,9 @@ Service_Write(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Operation_Write(server, &server->adminSession, NULL, value, &res);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1856,10 +1827,10 @@ UA_StatusCode
 __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId,
                   const UA_DataType *attr_type, const void *attr) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode res = writeAttribute(server, &server->adminSession,
                                        nodeId, attributeId, attr, attr_type);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return res;
 }
 
@@ -1868,7 +1839,7 @@ UA_StatusCode
 writeAttribute(UA_Server *server, UA_Session *session,
                const UA_NodeId *nodeId, const UA_AttributeId attributeId,
                const void *attr, const UA_DataType *attr_type) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
@@ -1908,7 +1879,7 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                     const UA_HistoryReadRequest *request,
                     UA_HistoryReadResponse *response) {
     UA_assert(session != NULL);
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     if(server->config.historyDatabase.context == NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
         return;
@@ -1952,6 +1923,14 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* Check if the configured History-Backend supports the requested history type */
+    if(!readHistory) {
+        UA_LOG_INFO_SESSION(server->config.logging, session,
+                            "The configured HistoryBackend does not support the selected history-type");
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
+        return;
+    }
+
     /* Something to do? */
     if(request->nodesToReadSize == 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -1990,7 +1969,6 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                                     data, historyDataType);
         historyData[i] = data;
     }
-    UA_UNLOCK(&server->serviceMutex);
     readHistory(server, server->config.historyDatabase.context,
                 &session->sessionId, session->context,
                 &request->requestHeader,
@@ -1999,7 +1977,6 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                 request->releaseContinuationPoints,
                 request->nodesToReadSize, request->nodesToRead,
                 response, historyData);
-    UA_LOCK(&server->serviceMutex);
     UA_free(historyData);
 }
 
@@ -2008,7 +1985,7 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
                     const UA_HistoryUpdateRequest *request,
                     UA_HistoryUpdateResponse *response) {
     UA_assert(session != NULL);
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     response->resultsSize = request->historyUpdateDetailsSize;
     response->results = (UA_HistoryUpdateResult*)
@@ -2035,14 +2012,12 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
                 response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
                 continue;
             }
-            UA_UNLOCK(&server->serviceMutex);
             server->config.historyDatabase.
                 updateData(server, server->config.historyDatabase.context,
                            &session->sessionId, session->context,
                            &request->requestHeader,
                            (UA_UpdateDataDetails*)updateDetailsData,
                            &response->results[i]);
-            UA_LOCK(&server->serviceMutex);
             continue;
         }
 
@@ -2051,14 +2026,12 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
                 response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
                 continue;
             }
-            UA_UNLOCK(&server->serviceMutex);
             server->config.historyDatabase.
                 deleteRawModified(server, server->config.historyDatabase.context,
                                   &session->sessionId, session->context,
                                   &request->requestHeader,
                                   (UA_DeleteRawModifiedDetails*)updateDetailsData,
                                   &response->results[i]);
-            UA_LOCK(&server->serviceMutex);
             continue;
         }
 
@@ -2072,9 +2045,9 @@ UA_StatusCode
 UA_Server_writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
                               const UA_QualifiedName propertyName,
                               const UA_Variant value) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode retVal = writeObjectProperty(server, objectId, propertyName, value);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retVal;
 }
 
@@ -2082,10 +2055,10 @@ UA_StatusCode
 writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
                     const UA_QualifiedName propertyName,
                     const UA_Variant value) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
-    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    rpe.referenceTypeId = UA_NS0ID(HASPROPERTY);
     rpe.isInverse = false;
     rpe.includeSubtypes = false;
     rpe.targetName = propertyName;
@@ -2124,10 +2097,10 @@ UA_StatusCode UA_EXPORT
 UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId,
                                      const UA_QualifiedName propertyName,
                                      const void *value, const UA_DataType *type) {
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode retval = 
         writeObjectProperty_scalar(server, objectId, propertyName, value, type);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     return retval;
 }
 

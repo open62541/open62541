@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
     UA_ByteString certificate = loadFile(argv[2]);
     UA_ByteString privateKey  = loadFile(argv[3]);
 
-    /* Load the trustList. Load revocationList is not supported now */
+    /* Load the trustlist */
     size_t trustListSize = 0;
     if(argc > MIN_ARGS)
         trustListSize = (size_t)argc-MIN_ARGS;
@@ -38,17 +38,16 @@ int main(int argc, char* argv[]) {
     for(size_t trustListCount = 0; trustListCount < trustListSize; trustListCount++)
         trustList[trustListCount] = loadFile(argv[trustListCount+4]);
 
+    /* Revocation lists are supported, but not used for the example here */
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
     UA_Client *client = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-    UA_String_clear(&cc->clientDescription.applicationUri);
-    cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
     UA_StatusCode retval = UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
-                                         trustList, trustListSize,
-                                         revocationList, revocationListSize);
+                                                                trustList, trustListSize,
+                                                                revocationList, revocationListSize);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "Failed to set encryption." );
@@ -74,7 +73,7 @@ int main(int argc, char* argv[]) {
     UA_Variant_init(&value);
 
     /* NodeId of the variable holding the current time */
-    const UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    const UA_NodeId nodeId = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
 
     if(retval == UA_STATUSCODE_GOOD &&
