@@ -1273,8 +1273,6 @@ add_custom_target(open62541-code-generation DEPENDS open62541-generator-types
                                                     open62541-generator-namespace)
 
 # Generate Nodeset injector source files
-# TODO: Forward UA_INFORMATION_MODEL_AUTOLOAD to generate_nodesetinjector.py, so
-#       it knows which nodesets to load
 if(UA_ENABLE_NODESET_INJECTOR)
     message(STATUS "Nodesetinjector feature enabled")
     set(UA_NODESETINJECTOR_SOURCE_FILES "") # List is appended from within ua_generate_nodeset
