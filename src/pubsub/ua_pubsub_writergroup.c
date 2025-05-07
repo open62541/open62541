@@ -524,7 +524,7 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     UA_DataSetWriter *writer;
     LIST_FOREACH(writer, &wg->writers, listEntry) {
         if(writer->config.enabled)
-            UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
+            UA_DataSetWriter_setPubSubState(psm, writer, wg->head.state);
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
