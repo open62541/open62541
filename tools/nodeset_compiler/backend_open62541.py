@@ -824,7 +824,7 @@ extern UA_StatusCode %s(UA_Server *server);""" % (outfilebase))
 
         if (isinstance(node, MethodNode) or isinstance(node.parent, MethodNode)) and method_callbacks:
             writeh(generateMethodNodeCodeStub(node, outfilebase))
-            writec("\n" + generateMethodNodeCodeStubBody(node, outfilebase))
+            writec("\n" + generateMethodNodeCodeStubBody(node, outfilebase, nodeset))
 
         writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_NamespaceMapping *nsMapping) {")
 
