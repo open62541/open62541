@@ -147,6 +147,9 @@ updatePubSubConfig(UA_PubSubManager *psm,
     if(delayComponentActivation) {
         size_t cnt = 0;
         UA_PubSubConnection *pubSubConnection;
+        if(configurationParameters->enabled) {
+            UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
+        }
         TAILQ_FOREACH(pubSubConnection, &psm->connections, listEntry) {
             /* Make sure that the configuration matches the given pubsub connection parameters. */
             if(UA_String_equal(&configurationParameters->connections[cnt].name, &pubSubConnection->config.name)) {
