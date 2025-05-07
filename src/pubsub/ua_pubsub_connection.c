@@ -377,17 +377,15 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
         }
     }
 
-    /* Update Reader and WriterGroups state. This will set them to PAUSED (if
-     * they were operational) as the Connection is now non-operational. */
     UA_ReaderGroup *readerGroup;
     LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
         if(readerGroup->config.enabled)
-            UA_ReaderGroup_setPubSubState(psm, readerGroup, readerGroup->head.state);
+            UA_ReaderGroup_setPubSubState(psm, readerGroup, c->head.state);
     }
     UA_WriterGroup *writerGroup;
     LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
         if(writerGroup->config.enabled)
-            UA_WriterGroup_setPubSubState(psm, writerGroup, writerGroup->head.state);
+            UA_WriterGroup_setPubSubState(psm, writerGroup, c->head.state);
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
