@@ -160,7 +160,7 @@ START_TEST(SecureChannel_networkfail) {
     UA_Variant_init(&val);
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert(retval == UA_STATUSCODE_BADCONNECTIONCLOSED);
+    ck_assert(retval == UA_STATUSCODE_BADSECURECHANNELCLOSED);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -205,17 +205,23 @@ START_TEST(SecureChannel_cableunplugged) {
     client->connection.recv = UA_Client_recvTesting;
 
     /* Simulate network cable unplugged (no response from server) */
-    UA_Client_recvTesting_result = UA_STATUSCODE_BADINTERNALERROR;
+    pauseServer();
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    UA_Variant_clear(&val);
 
     UA_SecureChannelState scs;
     UA_Client_getState(client, &scs, NULL, NULL);
     ck_assert_int_eq(scs, UA_SECURECHANNELSTATE_CLOSED);
 
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
+    /* Simulate network cable plugged in again */
+    runServer();
+
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
     UA_Client_delete(client);
 }
 END_TEST
