@@ -454,7 +454,7 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     if(state == UA_LIFECYCLESTATE_STARTED) {
         UA_PubSubConnection *c;
         TAILQ_FOREACH(c, &psm->connections, listEntry) {
-            if(c->config.enabled == true) {
+            if(c->config.enabled) {
                 UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
             }
         }
