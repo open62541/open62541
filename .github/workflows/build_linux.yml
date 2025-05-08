@@ -135,7 +135,7 @@ jobs:
           - name: "TPM Tool Build ubuntu-24.04"
             runs_on: "ubuntu-24.04"
             cmd_deps: |
-              sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev libltdl-dev
+              sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev libltdl-dev python3-pyasn1-modules
               cd ${HOME}
               git clone https://github.com/tpm2-software/tpm2-tss.git
               cd ${HOME}/tpm2-tss
@@ -156,8 +156,7 @@ jobs:
               sudo ldconfig
               sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
               cd ${HOME}/tpm2-pkcs11/tools/
-              sudo pip3 install pyasn1_modules
-              pip3 install .
+              pip3 install --break-system-packages .
             cmd_action: build_tpm_tool
 
           - name: "Release Build"
