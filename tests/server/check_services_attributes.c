@@ -172,8 +172,9 @@ static UA_VariableNode* makeCompareSequence(void) {
         UA_NODESTORE_NEW(server, UA_NODECLASS_VARIABLE);
 
     UA_Int32 myInteger = 42;
-    UA_Variant_setScalarCopy(&node->value.data.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    node->value.data.value.hasValue = true;
+    UA_Variant_setScalarCopy(&node->valueSource.internal.value.value,
+                             &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    node->valueSource.internal.value.hasValue = true;
 
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_QualifiedName_copy(&myIntegerName, &node->head.browseName);

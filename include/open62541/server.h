@@ -1052,30 +1052,41 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
 /**
  * .. _datasource:
  *
- * Data Source Callback
- * ~~~~~~~~~~~~~~~~~~~~
- * The server has a unique way of dealing with the content of variables. Instead
- * of storing a variant attached to the variable node, the node can point to a
- * function with a local data provider. Whenever the value attribute is read,
- * the function will be called and asked to provide a UA_DataValue return value
- * that contains the value content and additional timestamps.
+ * Value Source
+ * ~~~~~~~~~~~~
  *
- * It is expected that the read callback is implemented. The write callback can
- * be set to a null-pointer. */
+ * There are two options for storing the value of a VariableNode: Internal in
+ * the VariableNode itself or external with callbacks to the application. */
 
+/* If value is NULL, the Read service is used to get the latest value before
+ * switching from an external to an internal value source. If notifications is
+ * NULL, then all onRead/onWrite notifications are disabled. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
-                                     const UA_DataSource dataSource);
+UA_Server_setVariableNode_internalValueSource(
+    UA_Server *server, const UA_NodeId nodeId, const UA_DataValue *value,
+    const UA_InternalValueSourceNotifications *notifications);
 
+/* It is expected that the read callback is implemented. Whenever the value
+ * attribute is read, the function will be called and asked to fill a
+ * UA_DataValue structure that contains the value content and additional
+ * metadata like timestamps.
+ *
+ * The write callback can be set to a null-pointer. Then writing into the value
+ * is disabled. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setVariableNode_valueCallback(UA_Server *server,
-                                        const UA_NodeId nodeId,
-                                        const UA_ValueCallback callback);
+UA_Server_setVariableNode_externalValueSource(UA_Server *server,
+                                              const UA_NodeId nodeId,
+                                              const UA_ExternalValueSource evs);
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setVariableNode_valueBackend(UA_Server *server,
-                                       const UA_NodeId nodeId,
-                                       const UA_ValueBackend valueBackend);
+/* Deprecated API */
+typedef UA_ExternalValueSource UA_DataSource;
+#define UA_Server_setVariableNode_dataSource(server, nodeId, dataSource) \
+    UA_Server_setVariableNode_externalValueSource(server, nodeId, dataSource);
+
+/* Deprecated API */
+typedef UA_InternalValueSourceNotifications UA_ValueCallback;
+#define UA_Server_setVariableNode_valueCallback(server, nodeId, callback) \
+    UA_Server_setVariableNode_internalValueSource(server, nodeId, NULL, &callback);
 
 /**
  * .. _local-monitoreditems:
@@ -1379,15 +1390,25 @@ UA_Server_addDataTypeNode(UA_Server *server,
 })
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_addDataSourceVariableNode(UA_Server *server,
-                                    const UA_NodeId requestedNewNodeId,
-                                    const UA_NodeId parentNodeId,
-                                    const UA_NodeId referenceTypeId,
-                                    const UA_QualifiedName browseName,
-                                    const UA_NodeId typeDefinition,
-                                    const UA_VariableAttributes attr,
-                                    const UA_DataSource dataSource,
-                                    void *nodeContext, UA_NodeId *outNewNodeId);
+UA_Server_addExternalValueSourceVariableNode(UA_Server *server,
+                                             const UA_NodeId requestedNewNodeId,
+                                             const UA_NodeId parentNodeId,
+                                             const UA_NodeId referenceTypeId,
+                                             const UA_QualifiedName browseName,
+                                             const UA_NodeId typeDefinition,
+                                             const UA_VariableAttributes attr,
+                                             const UA_ExternalValueSource evs,
+                                             void *nodeContext, UA_NodeId *outNewNodeId);
+
+/* Legacy API */
+#define UA_Server_addDataSourceVariableNode(server, requestedNewNodeId, parentNodeId,    \
+                                            referenceTypeId, browseName, typeDefinition, \
+                                            attr, dataSource, nodeContext, outNewNodeId) \
+    UA_Server_addExternalValueSourceVariableNode(server, requestedNewNodeId,             \
+                                                 parentNodeId, referenceTypeId,          \
+                                                 browseName, typeDefinition,             \
+                                                 attr, dataSource, nodeContext,          \
+                                                 outNewNodeId)
 
 /* VariableNodes that are "dynamic" (default for user-created variables) receive
  * and store a SourceTimestamp. For non-dynamic VariableNodes the current time
