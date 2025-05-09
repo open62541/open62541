@@ -163,6 +163,13 @@ typedef enum  {
     UA_PUBSUBCOMPONENT_DATASETREADER  = 4,
     UA_PUBSUBCOMPONENT_PUBLISHEDDATASET  = 5,
     UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET = 6,
+    UA_PUBSUBCOMPONENTTYPE_CONNECTION  = 0,
+    UA_PUBSUBCOMPONENTTYPE_WRITERGROUP  = 1,
+    UA_PUBSUBCOMPONENTTYPE_DATASETWRITER  = 2,
+    UA_PUBSUBCOMPONENTTYPE_READERGROUP  = 3,
+    UA_PUBSUBCOMPONENTTYPE_DATASETREADER  = 4,
+    UA_PUBSUBCOMPONENTTYPE_PUBLISHEDDATASET  = 5,
+    UA_PUBSUBCOMPONENTTYPE_SUBSCRIBEDDDATASET = 6,
 } UA_PubSubComponentType;
 
 /**
@@ -240,6 +247,30 @@ UA_Server_enableAllPubSubComponents(UA_Server *server);
 /* Disable all PubSubComponents */
 UA_EXPORT void
 UA_Server_disableAllPubSubComponents(UA_Server *server);
+
+/**
+ * The following methods are used to retrieve the metadata of PubSubComponents.
+ * So gar they are implemented to operate only on the components with a state
+ * machine (connection, ReaderGroup, Reder, WriterGroup, Writer). */
+
+/* Get the component-type enum from the identifier */
+UA_EXPORT UA_StatusCode
+UA_Server_getPubSubComponentType(UA_Server *server, UA_NodeId componentId,
+                                 UA_PubSubComponentType *outType);
+
+/* Get the parent of a PubSubComponent (PubSubConnections have no parent).
+ * Returns a deep copy of the parent's NodeId. */
+UA_EXPORT UA_StatusCode
+UA_Server_getPubSubComponentParent(UA_Server *server, UA_NodeId componentId,
+                                   UA_NodeId *outParent);
+
+/* Get the list of child-components. Allocates the output array. For
+ * PubSubConnections, both the ReaderGroups and WriterGroups attached to it are
+ * returned. */
+UA_EXPORT UA_StatusCode
+UA_Server_getPubSubComponentChildren(UA_Server *server, UA_NodeId componentId,
+                                     size_t *outChildrenSize,
+                                     UA_NodeId **outChildren);
 
 /**
  * PubSubConnection
