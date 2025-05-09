@@ -28,7 +28,7 @@ UA_DiscoveryManager_setState(UA_DiscoveryManager *dm,
        state == UA_LIFECYCLESTATE_STOPPED) {
         state = UA_LIFECYCLESTATE_STOPPED;
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD 
-        if(UA_DiscoveryManager_getMdnsConnectionCount() > 0)
+        if(UA_DiscoveryManager_getMdnsRecvConnectionCount() > 0 || UA_DiscoveryManager_getMdnsSendConnectionCount() > 0)
             state = UA_LIFECYCLESTATE_STOPPING;
 #endif
 
@@ -67,7 +67,7 @@ UA_DiscoveryManager_clear(struct UA_ServerComponent *sc) {
     }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_DiscoveryManager_clearMdns(dm);
+    UA_DiscoveryManager_clearMdns();
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
     return UA_STATUSCODE_GOOD;
