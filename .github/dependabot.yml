@@ -14,3 +14,7 @@ updates:
     target-branch: "master"
     schedule:
       interval: "weekly"
+  - package-ecosystem: pip
+    directory: /doc
+    schedule:
+      interval: "weekly"

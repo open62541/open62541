@@ -145,7 +145,7 @@ listenUDP(void *_) {
     pfd.events = POLLIN;
     while(true) {
         result = poll(&pfd, 1, -1); /* infinite timeout */
-        if(pfd.revents & POLLERR || pfd.revents & POLLHUP || pfd.revents & POLLNVAL)
+        if(result < 0 || pfd.revents & POLLERR || pfd.revents & POLLHUP || pfd.revents & POLLNVAL)
             break;
 
         if(pfd.revents & POLLIN) {

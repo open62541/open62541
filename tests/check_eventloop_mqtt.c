@@ -6,15 +6,34 @@
 #include <open62541/plugin/log_stdout.h>
 #include "open62541/types.h"
 #include "open62541/types_generated.h"
-
-/* The test suite requires an MQTT server listening at localhost:1883 */
+#include "open62541/util.h"
 
 #include "testing_clock.h"
+#include <stdio.h>
 #include <time.h>
 #include <stdlib.h>
 #include <check.h>
 
 unsigned int messageCount = 0;
+
+UA_String broker_hostname = {0, NULL};
+UA_UInt16 broker_port = 0;
+
+static char* get_mqtt_broker_address(void) {
+    char* broker = getenv("OPEN62541_TEST_MQTT_BROKER");
+    if (!broker) broker = "opc.mqtt://localhost:1883";
+    return broker;
+}
+
+static void setup(void) {
+    UA_String broker = UA_STRING(get_mqtt_broker_address());
+    if (UA_parseEndpointUrl(&broker, &broker_hostname, &broker_port, NULL) == UA_STATUSCODE_BADTCPENDPOINTURLINVALID) {
+        printf("Failed to parse OPEN62541_TEST_MQTT_BROKER");
+        exit(1);
+    }
+}
+
+static void teardown(void) {}
 
 static void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
@@ -45,8 +64,8 @@ START_TEST(connectSubscribePublish) {
     el->registerEventSource(el, &mcm->eventSource);
     el->start(el);
 
-    UA_UInt16 port = 1883;
-    UA_String hostname = UA_STRING("localhost");
+    UA_UInt16 port = broker_port;
+    UA_String hostname = broker_hostname;
     UA_String topic = UA_STRING("mytopic");
     UA_Boolean subscribe = true;
 
@@ -110,6 +129,7 @@ START_TEST(connectSubscribePublish) {
 int main(void) {
     Suite *s  = suite_create("Test MQTT TCP EventLoop");
     TCase *tc = tcase_create("test cases");
+    tcase_add_checked_fixture(tc, setup, teardown);
     tcase_add_test(tc, connectSubscribePublish);
     suite_add_tcase(s, tc);
 

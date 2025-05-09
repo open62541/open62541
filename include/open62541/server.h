@@ -1850,7 +1850,7 @@ typedef struct {
    UA_SessionStatistics ss;
 } UA_ServerStatistics;
 
-UA_ServerStatistics UA_EXPORT
+UA_ServerStatistics UA_EXPORT UA_THREADSAFE
 UA_Server_getStatistics(UA_Server *server);
 
 /**
