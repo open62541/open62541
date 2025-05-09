@@ -41,11 +41,6 @@ typedef struct {
         UA_Server_DataChangeNotificationCallback dataChangeCallback;
         UA_Server_EventNotificationCallback eventCallback;
     } callback;
-
-    /* For Event-MonitoredItems only. The value fields are overwritten before
-     * each callback. They can contain stray pointers between callbacks. So
-     * don't clean up the value fields. */
-    UA_KeyValueMap eventFields;
 } UA_LocalMonitoredItem;
 
 #endif /* !UA_ENABLE_SUBSCRIPTIONS */
