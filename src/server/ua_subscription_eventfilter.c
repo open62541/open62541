@@ -286,7 +286,9 @@ static UA_INLINE UA_Byte uppercase(UA_Byte in) { return in | 32; }
 
 static UA_StatusCode
 castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) {
+#if defined(UA_ENABLE_PARSING) || defined(UA_ENABLE_JSON_ENCODING)
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+#endif
     if(outType == &UA_TYPES[UA_TYPES_BOOLEAN]) {
         /* String -> Boolean
          *

@@ -1377,19 +1377,23 @@ UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_STATUS:
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_TIMESTAMP:
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_PICOSECONDS:
+            UA_assert(dsr);
             UA_NodeId_copy(&dsr->head.identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE:
+            UA_assert(dsr);
             tv = &dsr->config.subscribedDataSet.target.targetVariables[fieldindex];
             UA_NodeId_copy(&tv->targetNodeId, &o->component);
             fieldindex++;
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT:
+            UA_assert(dsr);
             tv = &dsr->config.subscribedDataSet.target.targetVariables[fieldindex];
             UA_NodeId_copy(&tv->targetNodeId, &o->component);
             fieldindex++;
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW:
+            UA_assert(dsr);
             tv = &dsr->config.subscribedDataSet.target.targetVariables[fieldindex];
             UA_NodeId_copy(&tv->targetNodeId, &o->component);
             fieldindex++;

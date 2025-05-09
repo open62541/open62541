@@ -30,19 +30,6 @@ function cpplint {
     make ${MAKEOPTS} cpplint
 }
 
-#######################
-# Build Documentation #
-#######################
-
-function build_docs {
-    mkdir -p build; cd build; rm -rf *
-    cmake -DCMAKE_BUILD_TYPE=Release \
-          -DUA_BUILD_EXAMPLES=ON \
-          -DUA_FORCE_WERROR=ON \
-          ..
-    make doc
-}
-
 #####################################
 # Build Documentation including PDF #
 #####################################
@@ -370,7 +357,7 @@ function examples_valgrind {
     python3 ../tools/certs/create_self-signed.py -c client
 
     # copy json server config
-    cp ../plugins/server_config.json5 server_config.json5
+    cp ../examples/json_config/server_json_config.json5 server_json_config.json5
 
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
@@ -425,15 +412,16 @@ function build_clang_analyzer {
           -DUA_FORCE_WERROR=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
-    scan-build-$version --status-bugs \
-          -disable-checker unix.BlockInCriticalSection \
-          -disable-checker unix.Errno \
-          --exclude ../src/util make ${MAKEOPTS}
+    scan-build-$version \
+          --status-bugs \
+          --exclude ../src/util \
+          --exclude ../tests \
+          make ${MAKEOPTS}
 }
 
-###################################################
-# Compile alle ua-schema companion specifications #
-###################################################
+########################################
+# Compile all Companion Specifications #
+########################################
 
 function build_all_companion_specs {
     mkdir -p build; cd build; rm -rf *
@@ -441,7 +429,9 @@ function build_all_companion_specs {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_FORCE_WERROR=ON \
-          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;ISA95-JOBCONTROL\;OpenSCS\;CNC\;AMB\;AutoID\;POWERLINK\;Machinery\;LADS\;PackML\;PNEM\;PLCopen\;MachineTool\;PROFINET\;MachineVision\;FDT\;CommercialKitchenEquipment\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
+          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;ISA95-JOBCONTROL\;OpenSCS\;CNC\;\
+AMB\;AutoID\;POWERLINK\;Machinery\;LADS\;PackML\;PNEM\;PLCopen\;MachineTool\;\
+PROFINET\;MachineVision\;FDT\;CommercialKitchenEquipment\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS} check_nodeset_compiler_testnodeset

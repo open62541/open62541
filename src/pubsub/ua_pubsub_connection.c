@@ -959,10 +959,7 @@ UA_Server_processPubSubConnectionReceive(UA_Server *server,
             res = UA_STATUSCODE_GOOD;
             UA_PubSubConnection_process(psm, c, packet);
         } else {
-            res = UA_STATUSCODE_BADCONNECTIONCLOSED;
-            UA_LOG_WARNING_PUBSUB(psm->logging, c,
-                                  "Cannot process a packet if the "
-                                  "PubSubConnection is not operational");
+            res = UA_STATUSCODE_BADNOTFOUND;
         }
     }
     unlockServer(server);

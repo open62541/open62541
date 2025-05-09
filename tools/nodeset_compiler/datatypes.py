@@ -8,37 +8,13 @@
 ###    Copyright 2014-2017, 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
-import logging
 import re
-from datetime import datetime
 import xml.dom.minidom as dom
-from base64 import b64decode
 
-from type_parser import BuiltinType, EnumerationType, StructMember, StructType
-
-""" __all__ = ['valueIsInternalType', 'Value', 'Boolean', 'Number', 'Integer',
-           'UInteger', 'Byte', 'SByte',
-           'Int16', 'UInt16', 'Int32', 'UInt32', 'Int64', 'UInt64', 'Float', 'Double',
-           'String', 'XmlElement', 'ByteString', 'Structure', 'ExtensionObject', 'LocalizedText',
-           'NodeId', 'ExpandedNodeId', 'DateTime', 'QualifiedName', 'StatusCode',
-           'DiagnosticInfo', 'Guid'] """
-
+import logging
 logger = logging.getLogger(__name__)
 
 namespaceMapping = {}
-
-def getXmlTextTrimmed(xmlNode):
-    if xmlNode is None or xmlNode.data is None:
-        return None
-    content = xmlNode.data
-    # Check for empty string (including newlines)
-    if not re.sub(r"[\s\n\r]", "", content).strip():
-        return None
-    return content.strip()
-
-#################
-# Builtin Types #
-#################
 
 class LocalizedText():
     def __init__(self, xmlvalue=None):
@@ -70,9 +46,6 @@ class LocalizedText():
             return "(" + self.locale + ":" + self.text + ")"
         else:
             return self.text
-
-    def isNone(self):
-        return self.text is None
 
 class NodeId():
     def __init__(self, idstring=None):
@@ -114,7 +87,7 @@ class NodeId():
             elif p[:2] == "s=":
                 self.s = p[2:]
             else:
-                raise Exception("no valid nodeid: " + idstring)
+                raise Exception("No valid NodeId: " + idstring)
 
     def gAsString(self):
         return '{:08X}-{:04X}-{:04X}-{:04X}-{:012X}'.format(*self.g)
@@ -122,8 +95,8 @@ class NodeId():
     # The parsing can be called with an optional namespace mapping dict.
     def parseXML(self, xmlvalue):
         # Expect <NodeId> or <Alias>
-        #           <Identifier> # It is unclear whether or not this is manditory. Identifier tags are used in Namespace 0.
-        #                ns=x;i=y or similar string representation of id()
+        #           <Identifier>
+        #                ns=x;i=y or similar string representation
         #           </Identifier>
         #        </NodeId> or </Alias>
         if not isinstance(xmlvalue, dom.Element):
@@ -158,9 +131,6 @@ class NodeId():
             return s + "b=" + str(self.b)
         elif self.s != None:
             return s + "s=" + str(self.s)
-
-    def isNone(self):
-        return self.i is None and self.b is None and self.s is None and self.g is None
 
     def __eq__(self, nodeId2):
         return (str(self) == str(nodeId2))
@@ -202,9 +172,5 @@ class QualifiedName():
         if len(xmlvalue.getElementsByTagName("Name")) != 0:
             self.name = xmlvalue.getElementsByTagName("Name")[0].firstChild.data
 
-
     def __str__(self):
         return "ns=" + str(self.ns) + ";" + str(self.name)
-
-    def isNone(self):
-        return self.name is None
