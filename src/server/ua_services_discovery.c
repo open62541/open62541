@@ -458,9 +458,18 @@ setCurrentEndPointsArray(UA_Server *server, const UA_String endpointUrl,
                 /* Mirror back the requested EndpointUrl and also add it to the
                  * array of discovery urls */
                 retval |= UA_String_copy(&endpointUrl, &ed->endpointUrl);
-                retval |= UA_Array_appendCopy((void**)&ed->server.discoveryUrls,
-                                              &ed->server.discoveryUrlsSize,
-                                              &endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
+
+                /* Check if the ServerUrl is already present in the DiscoveryUrl array */
+                size_t k = 0;
+                for(; k < ed->server.discoveryUrlsSize; k++) {
+                    if(UA_String_equal(&ed->endpointUrl, &ed->server.discoveryUrls[k]))
+                        break;
+                }
+                if(k == ed->server.discoveryUrlsSize) {
+                    retval |= UA_Array_appendCopy(
+                        (void **)&ed->server.discoveryUrls, &ed->server.discoveryUrlsSize,
+                        &endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
+                }
             }
             if(retval != UA_STATUSCODE_GOOD)
                 goto error;

@@ -1074,6 +1074,7 @@ verifyServerApplicationURI(const UA_Server *server) {
 UA_ServerStatistics
 UA_Server_getStatistics(UA_Server *server) {
     UA_ServerStatistics stat;
+    lockServer(server);
     stat.scs = server->secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType *sds = &server->serverDiagnosticsSummary;
     stat.ss.currentSessionCount = server->activeSessionCount;
@@ -1082,6 +1083,7 @@ UA_Server_getStatistics(UA_Server *server) {
     stat.ss.rejectedSessionCount = sds->rejectedSessionCount;
     stat.ss.sessionTimeoutCount = sds->sessionTimeoutCount;
     stat.ss.sessionAbortCount = sds->sessionAbortCount;
+    unlockServer(server);
     return stat;
 }
 
@@ -1089,7 +1091,7 @@ UA_Server_getStatistics(UA_Server *server) {
 /* Main Server Loop */
 /********************/
 
-#define UA_MAXTIMEOUT 200 /* Max timeout in ms between main-loop iterations */
+#define UA_MAXTIMEOUT 500 /* Max timeout in ms between main-loop iterations */
 
 void
 setServerLifecycleState(UA_Server *server, UA_LifecycleState state) {

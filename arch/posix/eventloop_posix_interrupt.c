@@ -82,6 +82,7 @@ activateSignal(UA_RegisteredSignal *rs) {
         return;
 
     /* Block the normal signal handling */
+    UA_RESET_ERRNO;
     sigset_t mask;
     sigemptyset(&mask);
     sigaddset(&mask, rs->signal);
@@ -96,6 +97,7 @@ activateSignal(UA_RegisteredSignal *rs) {
     }
 
     /* Create the fd */
+    UA_RESET_ERRNO;
     UA_FD newfd = signalfd(-1, &mask, 0);
     if(newfd < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -215,6 +217,7 @@ activateSignal(UA_RegisteredSignal *rs) {
     if(rs->active)
         return;
 
+    UA_RESET_ERRNO;
     void (*prev)(int);
     prev = signal(rs->signal, triggerPOSIXInterruptEvent);
     if(prev == SIG_ERR) {

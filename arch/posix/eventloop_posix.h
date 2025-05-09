@@ -17,7 +17,10 @@
 #include "../common/timer.h"
 #include "../common/eventloop_common.h"
 #include "../../deps/mp_printf.h"
-#include "../../deps/open62541_queue.h"
+
+#if !defined(__QNX__)
+# include "../deps/open62541_queue.h"
+#endif
 
 #if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
 
@@ -54,6 +57,7 @@ typedef SSIZE_T ssize_t;
 #define UA_IPV6 1
 #define UA_SOCKET SOCKET
 #define UA_INVALID_SOCKET INVALID_SOCKET
+#define UA_RESET_ERRNO do { } while(0)
 #define UA_ERRNO WSAGetLastError()
 #define UA_INTERRUPTED WSAEINTR
 #define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
@@ -201,6 +205,7 @@ typedef int SOCKET;
 #define UA_IPV6 1
 #define UA_SOCKET int
 #define UA_INVALID_SOCKET -1
+#define UA_RESET_ERRNO do { errno = 0; } while(0)
 #define UA_ERRNO errno
 #define UA_INTERRUPTED EINTR
 #define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */

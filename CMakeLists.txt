@@ -25,7 +25,6 @@ find_package(Git)
 
 include(AssignSourceGroup)
 include(GNUInstallDirs)
-include(open62541Macros)
 
 #############################
 # Compiled binaries folders #
@@ -44,7 +43,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 10)
+set(OPEN62541_VER_PATCH 11)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -386,15 +385,15 @@ mark_as_advanced(UA_ENABLE_MALLOC_SINGLETON)
 option(UA_MSVC_FORCE_STATIC_CRT "Force linking with the static C-runtime library when compiling to static library with MSVC" ON)
 mark_as_advanced(UA_MSVC_FORCE_STATIC_CRT)
 
-option(UA_FILE_NS0 "Override the NodeSet xml file used to generate namespace zero")
-mark_as_advanced(UA_FILE_NS0)
+set(UA_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset CACHE STRING "The path to the nodeset directory (e.g. from https://github.com/OPCFoundation/UA-Nodeset)")
+mark_as_advanced(UA_NODESET_DIR)
 
 # Blacklist file passed as --blacklist to the nodeset compiler. All the given nodes will be removed from the generated
 # nodeset, including all the references to and from that node. The format is a node id per line.
 # Supported formats: "i=123" (for NS0), "ns=2;s=asdf" (matches NS2 in that specific file), or recommended
 # "ns=http://opcfoundation.org/UA/DI/;i=123" namespace index independent node id
-option(UA_FILE_NS0_BLACKLIST "File containing blacklisted nodes which should not be included in the generated nodeset code.")
-mark_as_advanced(UA_FILE_NS0_BLACKLIST)
+option(UA_NS0_BLACKLIST "File containing blacklisted nodes which should not be included in the generated nodeset code")
+mark_as_advanced(UA_NS0_BLACKLIST)
 
 # Semaphores/file system may not be available on embedded devices. It can be
 # disabled with the following option
@@ -650,19 +649,18 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
         endif()
     endif()
 
-    if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
-        # IPO requires too much memory for unit tests
-        # GCC docu recommends to compile all files with the same options, therefore ignore it completely
-        if(NOT UA_BUILD_UNIT_TESTS AND NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
-            # needed to check if IPO is supported (check needs cmake > 3.9)
-            if("${CMAKE_VERSION}" VERSION_GREATER 3.9)
-                cmake_policy(SET CMP0069 NEW) # needed as long as required cmake < 3.9
-                include(CheckIPOSupported)
-                check_ipo_supported(RESULT CC_HAS_IPO) # Inter Procedural Optimization / Link Time Optimization (should be same as -flto)
-                if(CC_HAS_IPO AND NOT UA_DEBUG)
-                    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
-                endif()
-            endif()
+    if(UA_ENABLE_HARDENING)
+        check_add_cc_flag("-fhardened") # See the GCC docs on which precise flags this enables
+    endif()
+
+    # Inter Procedural Optimization / Link Time Optimization (should be same as -flto)
+    # IPO requires too much memory for unit tests
+    # GCC docu recommends to compile all files with the same options, therefore ignore it completely
+    if(NOT UA_BUILD_UNIT_TESTS AND NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+        include(CheckIPOSupported)
+        check_ipo_supported(RESULT CC_HAS_IPO)
+        if(CC_HAS_IPO)
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
         endif()
     endif()
 
@@ -1106,26 +1104,18 @@ endif()
 # Generate source files #
 #########################
 
-# Nodeset files combined into NS0 generated file
-set(UA_FILE_NODESETS) # List of nodeset-xml files to be considered in the generated information model
-set(UA_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset CACHE STRING "The path to the node-set directory (e.g. from https://github.com/OPCFoundation/UA-Nodeset)")
-
-set(UA_FILE_NS0_PRIVATE "")
-if(UA_FILE_NS0)
-    set(UA_FILE_NS0_PRIVATE "${UA_FILE_NS0}")
-endif()
+ # List of nodeset-xml files to be considered in the generated information model
+set(UA_NS0_NODESETS)
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Use the "full" schema files also for datatypes and statuscodes
     set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema CACHE INTERNAL "")
 
-    # Set the full Nodeset for NS0
-    if(NOT UA_FILE_NS0_PRIVATE)
-        set(UA_FILE_NS0_PRIVATE ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml)
-    endif()
+    # Set the full ns0 nodeset
+    list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.xml)
 
     # Check that the submodule was checked out or manually downloaded into the folder
-    if(NOT EXISTS "${UA_FILE_NS0_PRIVATE}")
+    if(NOT EXISTS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml)
         message(STATUS "Submodule update")
         execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
                         WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
@@ -1139,21 +1129,19 @@ else()
     set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema CACHE INTERNAL "")
 
     # Set the reduced Nodeset for NS0
-    if(NOT UA_FILE_NS0_PRIVATE)
-        set(UA_FILE_NS0_PRIVATE ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Reduced.xml CACHE INTERNAL "")
-    endif()
+    list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.Reduced.xml)
 
     # Set feature-specific datatypes definitions and nodesets
-    set(UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_minimal.txt
+    set(UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_minimal.txt
                           ${UA_SCHEMA_DIR}/datatypes_discovery.txt)
 
     if(UA_ENABLE_METHODCALLS)
-        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_method.txt)
+        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_method.txt)
     endif()
 
     if(UA_ENABLE_DIAGNOSTICS)
-        list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.DiagnosticsMinimal.xml)
-        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_diagnostics.txt)
+        list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.DiagnosticsMinimal.xml)
+        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_diagnostics.txt)
     endif()
 
     if(UA_ENABLE_GDS_PUSHMANAGEMENT)
@@ -1166,59 +1154,64 @@ else()
     endif()
 
     if(UA_ENABLE_SUBSCRIPTIONS)
-        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_subscriptions.txt)
+        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_subscriptions.txt)
     endif()
 
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-        list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.EventsMinimal.xml)
+        list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.EventsMinimal.xml)
     endif()
 
     if(UA_ENABLE_HISTORIZING)
-        list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.HistorizingMinimal.xml)
-        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_historizing.txt)
+        list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.HistorizingMinimal.xml)
+        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_historizing.txt)
     endif()
 
     if(UA_ENABLE_QUERY)
-        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_query.txt)
+        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_query.txt)
     endif()
 
     if(UA_ENABLE_PUBSUB)
-        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_pubsub.txt)
+        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_pubsub.txt)
         if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-            list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.PubSubMinimal.xml)
+            list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.PubSubMinimal.xml)
         endif()
     endif()
 
 	if(UA_ENABLE_DA)
-		list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_dataaccess.txt)
-        list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Part8_Subset.xml)
+		list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_dataaccess.txt)
+        list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.Part8_Subset.xml)
     endif()
 
     if(UA_ENABLE_TYPEDESCRIPTION)
-        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_typedescription.txt)
+        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_typedescription.txt)
     endif()
 endif()
 
-list(INSERT UA_FILE_NODESETS 0 "${UA_FILE_NS0_PRIVATE}")
-set(UA_FILE_NODEIDS ${UA_SCHEMA_DIR}/NodeIds.csv)
-set(UA_FILE_STATUSCODES ${UA_SCHEMA_DIR}/StatusCode.csv)
-set(UA_FILE_TYPES_BSD ${UA_SCHEMA_DIR}/Opc.Ua.Types.bsd)
+set(UA_NS0_NODEIDS ${UA_SCHEMA_DIR}/NodeIds.csv)
+set(UA_NS0_STATUSCODES ${UA_SCHEMA_DIR}/StatusCode.csv)
+set(UA_NS0_TYPES_BSD ${UA_SCHEMA_DIR}/Opc.Ua.Types.bsd)
 
 # Generate all datatypes -> reset the lists used for filtering
 if(UA_ENABLE_DATATYPES_ALL)
-    unset(UA_FILE_DATATYPES)
+    unset(UA_NS0_DATATYPES)
 endif()
+
+set(UA_NS0_NODESET_FILES "")
+foreach(f ${UA_NS0_NODESETS})
+    list(APPEND UA_NS0_NODESET_FILES ${UA_SCHEMA_DIR}/${f})
+endforeach()
+include(open62541Macros)
 
 # standard-defined data types
 ua_generate_datatypes(BUILTIN GEN_DOC NAME "types" TARGET_SUFFIX "types" NAMESPACE_IDX 0
-                      FILE_CSV "${UA_FILE_NODEIDS}"
-                      FILES_BSD "${UA_FILE_TYPES_BSD}"
-                      FILES_SELECTED ${UA_FILE_DATATYPES})
+                      FILE_CSV "${UA_NS0_NODEIDS}"
+                      FILES_BSD "${UA_NS0_TYPES_BSD}"
+                      FILES_SELECTED ${UA_NS0_DATATYPES})
 
 # transport data types
 ua_generate_datatypes(INTERNAL NAME "transport" TARGET_SUFFIX "transport" NAMESPACE_IDX 1
-                      FILE_CSV "${UA_FILE_NODEIDS}"
-                      IMPORT_BSD "TYPES#${UA_FILE_TYPES_BSD}"
+                      FILE_CSV "${UA_NS0_NODEIDS}"
+                      IMPORT_BSD "TYPES#${UA_NS0_TYPES_BSD}"
                       FILES_BSD "${PROJECT_SOURCE_DIR}/tools/schema/Custom.Opc.Ua.Transport.bsd"
                       FILES_SELECTED "${PROJECT_SOURCE_DIR}/tools/schema/datatypes_transport.txt")
 
@@ -1226,13 +1219,13 @@ ua_generate_datatypes(INTERNAL NAME "transport" TARGET_SUFFIX "transport" NAMESP
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                           ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
                    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
-                           ${UA_FILE_STATUSCODES} ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes
+                           ${UA_NS0_STATUSCODES} ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
-                           ${UA_FILE_STATUSCODES})
+                           ${UA_NS0_STATUSCODES})
 
 # Header containing defines for all NodeIds
 ua_generate_nodeid_header(NAME "nodeids" ID_PREFIX "NS0" TARGET_SUFFIX "ids-ns0"
-                          FILE_CSV "${UA_FILE_NODEIDS}")
+                          FILE_CSV "${UA_NS0_NODEIDS}")
 
 # we need a custom target to avoid that the generator is called concurrently and
 # thus overwriting files while the other thread is compiling
@@ -1262,8 +1255,8 @@ if(UA_ENABLE_AMALGAMATION)
 endif()
 
 # Generated NS0
-ua_generate_nodeset(NAME "ns0" FILE ${UA_FILE_NODESETS}
-                    INTERNAL BLACKLIST ${UA_FILE_NS0_BLACKLIST}
+ua_generate_nodeset(NAME "ns0" FILE ${UA_NS0_NODESET_FILES}
+                    INTERNAL BLACKLIST ${UA_NS0_BLACKLIST}
                     IGNORE "${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt"
                     DEPENDS_TARGET "open62541-generator-types")
 
@@ -1273,29 +1266,31 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND NOT MSVC)
                                 PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
 endif()
 
-if(UA_ENABLE_NODESET_INJECTOR)
-    message(STATUS "Nodesetinjector feature enabled")
-    cmake_minimum_required(VERSION 3.20)
-    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h
-                       ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c
-                       COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_injector/generate_nodesetinjector.py
-                       ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector)
-    add_custom_target(open62541-generator-nodesetinjector DEPENDS
-                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c
-                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h)
-    set(UA_NODESETINJECTOR_GENERATORS "")
-    set(UA_NODESETINJECTOR_SOURCE_FILES "")
-    set(UA_NODESETINJECTOR_EXAMPLE_NAMES "")
-    set(UA_NODESETINJECTOR_TEST_NAMES "")
-endif()
-
 # Group the code generation targets into one target
 add_custom_target(open62541-code-generation DEPENDS open62541-generator-types
                                                     open62541-generator-transport
                                                     open62541-generator-statuscode
                                                     open62541-generator-namespace)
+
+# Generate Nodeset injector source files
 if(UA_ENABLE_NODESET_INJECTOR)
+    message(STATUS "Nodesetinjector feature enabled")
+    set(UA_NODESETINJECTOR_SOURCE_FILES "") # List is appended from within ua_generate_nodeset
+
+    add_custom_target(open62541-generator-nodesetinjector)
     add_dependencies(open62541-code-generation open62541-generator-nodesetinjector)
+
+    add_subdirectory(tools/nodeset_injector)
+    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h
+                              ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c
+                       COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_injector/generate_nodesetinjector.py
+                                                     ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector
+                                                     ${UA_INFORMATION_MODEL_AUTOLOAD})
+
+    set_source_files_properties(${UA_NODESETINJECTOR_SOURCE_FILES} PROPERTIES GENERATED 1)
+    list(APPEND lib_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h)
+    list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c
+                            ${UA_NODESETINJECTOR_SOURCE_FILES})
 endif()
 
 #####################
@@ -1448,6 +1443,10 @@ install(TARGETS open62541
 
 set(open62541_install_tools_dir share/open62541)
 set(open62541_install_schema_dir share/open62541/schema)
+set(open62541_install_ns0_nodesets "")
+foreach(f ${UA_NS0_NODESETS})
+    list(APPEND open62541_install_ns0_nodesets "\${open62541_SCHEMA_DIR}/${f}")
+endforeach()
 
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
@@ -1558,8 +1557,7 @@ set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541
 set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-transport PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/generators")
+
 if(UA_ENABLE_NODESET_INJECTOR)
     set_target_properties(open62541-generator-nodesetinjector PROPERTIES FOLDER "open62541/generators")
-    add_subdirectory(tools/nodeset_injector)
-    set(UA_NODESETINJECTOR_GENERATORS ${UA_NODESETINJECTOR_GENERATORS})
 endif()
