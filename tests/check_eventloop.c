@@ -33,7 +33,14 @@ createEvents(UA_UInt32 events) {
 }
 
 START_TEST(benchmarkTimer) {
+#if defined(UA_ARCHITECTURE_LWIP)
+    el = UA_EventLoop_new_LWIP(NULL, NULL);
+#elif defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
     el = UA_EventLoop_new_POSIX(NULL);
+#else
+#error Add other EventLoop implementations here
+#endif
+
     createEvents(N_EVENTS);
 
     clock_t begin = clock();
