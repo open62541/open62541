@@ -260,6 +260,8 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
                         mbedtls_ctr_drbg_context *drbgContext,
                         UA_ByteString *data, int hash_id) {
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(*localPrivateKey);
+    if(!rsaContext)
+        return UA_STATUSCODE_BADINTERNALERROR;
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V21, hash_id);
     size_t keylen = rsaContext->len;
@@ -330,7 +332,7 @@ mbedtls_x509write_csrSetSubjectAltName(mbedtls_x509write_csr *ctx, const mbedtls
     size_t buflen = MBEDTLS_SAN_MAX_LEN * sandeep + sandeep;
     buf = (unsigned char *)mbedtls_calloc(1, buflen);
     if(!buf)
-        return MBEDTLS_ERR_ASN1_ALLOC_FAILED;
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     memset(buf, 0, buflen);
     pc = buf + buflen;
