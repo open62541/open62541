@@ -174,10 +174,10 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
 }
 
 void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server) {
-    /* Add a regular callback for checking timeouts and sending finished
-     * responses at a 100ms interval. */
+    /* Add a regular callback for cleanup and sending finished responses at a
+     * 1s interval. */
     addRepeatedCallback(server, (UA_ServerCallback)checkTimeouts,
-                        NULL, 100.0, &am->checkTimeoutCallbackId);
+                        NULL, 1000.0, &am->checkTimeoutCallbackId);
 }
 
 void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server) {

@@ -29,7 +29,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         INTERNAL
     )
 
-    ua_add_test(check_nodeset_compiler_adi.c
+    ua_add_test(check_nodeset_compiler_adi.c EXTRASOURCES
                 ${UA_NODESET_TESTS_DI_SOURCES}
                 ${UA_NODESET_TESTS_ADI_SOURCES}
                 ${UA_TYPES_TESTS_DI_SOURCES}
@@ -47,14 +47,14 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         INTERNAL
     )
 
-    ua_add_test(check_nodeset_compiler_plc.c
+    ua_add_test(check_nodeset_compiler_plc.c EXTRASOURCES
                 ${UA_NODESET_TESTS_DI_SOURCES}
                 ${UA_NODESET_TESTS_PLC_SOURCES}
                 ${UA_TYPES_TESTS_DI_SOURCES}
                 ${UA_TYPES_TESTS_PLC_SOURCES})
     add_dependencies(check_nodeset_compiler_plc open62541-generator-ns-tests-plc)
 
-    ua_add_test(check_client_nsMapping.c
+    ua_add_test(check_client_nsMapping.c EXTRASOURCES
             ${UA_NODESET_TESTS_DI_SOURCES}
             ${UA_NODESET_TESTS_PLC_SOURCES}
             ${UA_TYPES_TESTS_DI_SOURCES}
@@ -72,7 +72,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
             INTERNAL
     )
 
-    ua_add_test(check_nodeset_compiler_autoid.c
+    ua_add_test(check_nodeset_compiler_autoid.c EXTRASOURCES
                 ${UA_NODESET_TESTS_DI_SOURCES}
                 ${UA_NODESET_TESTS_AUTOID_SOURCES}
                 ${UA_TYPES_TESTS_DI_SOURCES}
@@ -88,7 +88,7 @@ endif()
         FILES_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testtypes.bsd"
 )
 
-ua_add_test(check_nodeset_compiler_optstructs_union.c
+ua_add_test(check_nodeset_compiler_optstructs_union.c EXTRASOURCES
             ${UA_NODESET_TESTS_DI_SOURCES}
             ${UA_NODESET_TESTS_PLC_SOURCES}
             ${UA_TYPES_TESTS_DI_SOURCES}
@@ -107,14 +107,10 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         DEPENDS "tests-di"
     )
 
-    ua_add_test(check_nodeset_compiler_testnodeset.c
+    ua_add_test(check_nodeset_compiler_testnodeset.c EXTRASOURCES
                 ${UA_NODESET_TESTS_DI_SOURCES}
                 ${UA_NODESET_TESTS_TESTNODESET_SOURCES}
                 ${UA_TYPES_TESTS_DI_SOURCES}
                 ${UA_TYPES_TESTS_TESTNODESET_SOURCES})
     add_dependencies(check_nodeset_compiler_testnodeset open62541-generator-ns-tests-testnodeset)
-endif()
-
-if(UA_ENABLE_NODESET_INJECTOR)
-    set(UA_NODESETINJECTOR_TEST_NAMES ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
 endif()
