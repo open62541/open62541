@@ -29,6 +29,12 @@
 
 #include <open62541/types.h>
 
+#ifdef _WIN32
+ #include <winsock2.h>     /* AF_INET */
+#else
+ #include <sys/socket.h>   /* AF_INET */
+#endif
+
 int musl_inet_pton(int af, const char * UA_RESTRICT s, void * UA_RESTRICT a0);
 
 #endif /* MUSL_INET_PTON_H */
