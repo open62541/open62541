@@ -2294,6 +2294,16 @@ UA_loadPubSubConfigMethodCallback(UA_Server *server,
     }
 }
 
+static void
+deletePubSubConfigMethodFinalize(void *application, void *context) {
+    UA_PubSubManager *manager = (UA_PubSubManager *) application;
+    UA_Server *server = manager->sc.server;
+    lockServer(manager->sc.server);
+    UA_PubSubManager_clear(manager);
+    unlockServer(server);
+    UA_free(context);
+}
+
 /* Callback function that will be executed when the method "PubSub configurator
  *  (delete config)" is called. */
 static UA_StatusCode
@@ -2305,8 +2315,17 @@ UA_deletePubSubConfigMethodCallback(UA_Server *server,
                                     size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_PubSubManager *psm = getPSM(server);
-    if(psm)
-        UA_PubSubManager_clear(psm);
+    if(psm) {
+        psm->sc.stop(&psm->sc);
+        UA_DelayedCallback *dc = (UA_DelayedCallback*)UA_calloc(1, sizeof(UA_DelayedCallback));
+        if(!dc)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        dc->callback = deletePubSubConfigMethodFinalize;
+        dc->application = psm;
+        dc->context = dc;
+        server->config.eventLoop->addDelayedCallback(psm->sc.server->config.eventLoop, dc);
+    }
+
     return UA_STATUSCODE_GOOD;
 }
 
