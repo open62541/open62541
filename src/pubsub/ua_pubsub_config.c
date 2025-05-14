@@ -102,7 +102,8 @@ updatePubSubConfig(UA_PubSubManager *psm,
     }
 
     /* Stop the current PSM before clearing */
-    UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
+    if(psm->sc.state != UA_LIFECYCLESTATE_STOPPED)
+        return UA_STATUSCODE_BADINVALIDSTATE;
     UA_PubSubManager_clear(psm);
 
     /* Configuration of Published DataSets: */
@@ -147,6 +148,7 @@ updatePubSubConfig(UA_PubSubManager *psm,
     if(delayComponentActivation) {
         size_t cnt = 0;
         UA_PubSubConnection *pubSubConnection;
+
         if(configurationParameters->enabled) {
             UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
         }
@@ -809,7 +811,13 @@ UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
     }
 
     res = updatePubSubConfig(psm, pubSubConfig);
-    if(res != UA_STATUSCODE_GOOD) {
+    if(res == UA_STATUSCODE_BADINVALIDSTATE) {
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+             "[UA_PubSubManager_loadPubSubConfigFromByteString] "
+             "Loading PubSub configuration failed because active PubSub configuration exists. "
+             "Stop/Delete PubSub-Server Component first.");
+        goto cleanup;
+    } else if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_loadPubSubConfigFromByteString] "
                      "Loading PubSub configuration failed");
