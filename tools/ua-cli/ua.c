@@ -25,6 +25,10 @@ static UA_ByteString privateKey;
 static UA_ByteString securityPolicyUri;
 int return_value = 0;
 
+/***********/
+/* Logging */
+/***********/
+
 /* Custom logger that prints to stderr. So the "good output" can be easily separated. */
 UA_LogLevel logLevel = UA_LOGLEVEL_ERROR;
 
@@ -72,6 +76,10 @@ cliLog(void *context, UA_LogLevel level, UA_LogCategory category,
 }
 
 UA_Logger stderrLog = {cliLog, NULL, NULL};
+
+/******************/
+/* Helper Methods */
+/******************/
 
 static void
 usage(void) {
@@ -156,6 +164,10 @@ connectClient(void) {
     if(res != UA_STATUSCODE_GOOD)
         abortWithStatus(res);
 }
+
+/******************/
+/* OPC UA Service */
+/******************/
 
 static void
 getEndpoints(int argc, char **argv, int argpos) {
@@ -624,6 +636,10 @@ explore(int argc, char **argv, int argpos) {
     UA_AttributeOperand_clear(&ao);
 }
 
+/******************/
+/* Option Parsing */
+/******************/
+
 /* Parse options beginning with --.
  * Returns the position in the argv list. */
 static int
@@ -691,6 +707,10 @@ parseOptions(int argc, char **argv, int argpos) {
 
     return argpos;
 }
+
+/****************/
+/* Main Program */
+/****************/
 
 int
 main(int argc, char **argv) {
