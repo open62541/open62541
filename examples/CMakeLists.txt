@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-project(open62541-examples C)
+project(open62541-examples C CXX)
 if(${CMAKE_VERSION} VERSION_LESS 3.12)
     cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
 endif()
@@ -48,7 +48,7 @@ endmacro()
 #############
 # Tutorials #
 #############
-
+add_example(server_cpp server.cpp)
 add_example(tutorial_datatypes tutorial_datatypes.c)
 add_example(tutorial_server_firststeps tutorial_server_firststeps.c)
 add_example(tutorial_server_variable tutorial_server_variable.c)
