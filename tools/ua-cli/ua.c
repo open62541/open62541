@@ -18,13 +18,17 @@
 static UA_Client *client = NULL;
 static UA_ClientConfig cc;
 static char *url = NULL;
-static char *service = NULL;
 static char *username = NULL;
 static char *password = NULL;
 static UA_ByteString certificate;
 static UA_ByteString privateKey;
 static UA_ByteString securityPolicyUri;
 int return_value = 0;
+
+#define MAX_TOKENS 256
+static char * tokens[MAX_TOKENS];
+size_t tokenPos = 0;
+size_t tokensSize = 0;
 
 /***********/
 /* Logging */
@@ -171,9 +175,9 @@ connectClient(void) {
 /******************/
 
 static void
-getEndpoints(int argc, char **argv, int argpos) {
+getEndpoints(void) {
     /* Validate the arguments */
-    if(argpos != argc) {
+    if(tokenPos != tokensSize) {
         fprintf(stderr, "Arguments after \"getendpoints\" could not be parsed\n");
         exit(EXIT_FAILURE);
     }
@@ -198,9 +202,9 @@ getEndpoints(int argc, char **argv, int argpos) {
 }
 
 static void
-readService(int argc, char **argv, int argpos) {
+readService(void) {
     /* Validate the arguments */
-    if(argpos != argc - 1) {
+    if(tokenPos != tokensSize - 1) {
         fprintf(stderr, "The read service takes an AttributeOperand "
                 "expression as the last argument\n");
         exit(EXIT_FAILURE);
@@ -211,7 +215,7 @@ readService(int argc, char **argv, int argpos) {
 
     /* Parse the AttributeOperand */
     UA_AttributeOperand ao;
-    UA_StatusCode res = UA_AttributeOperand_parse(&ao, UA_STRING(argv[argpos]));
+    UA_StatusCode res = UA_AttributeOperand_parse(&ao, UA_STRING(tokens[tokenPos]));
     if(res != UA_STATUSCODE_GOOD)
         abortWithStatus(res);
 
@@ -265,9 +269,9 @@ readService(int argc, char **argv, int argpos) {
 }
 
 static void
-writeService(int argc, char **argv, int argpos) {
+writeService(void) {
     /* Validate the arguments */
-    if(argpos + 1 >= argc) {
+    if(tokenPos + 1 >= tokensSize) {
         fprintf(stderr, "The Write Service takes an AttributeOperand "
                 "expression and the value as arguments\n");
         exit(EXIT_FAILURE);
@@ -275,15 +279,15 @@ writeService(int argc, char **argv, int argpos) {
 
     /* Parse the AttributeOperand */
     UA_AttributeOperand ao;
-    UA_StatusCode res = UA_AttributeOperand_parse(&ao, UA_STRING(argv[argpos++]));
+    UA_StatusCode res = UA_AttributeOperand_parse(&ao, UA_STRING(tokens[tokenPos++]));
     if(res != UA_STATUSCODE_GOOD)
         abortWithStatus(res);
 
     /* Aggregate all the remaining arguments and parse them as JSON */
     UA_String valstr = UA_STRING_NULL;
-    for(; argpos < argc; argpos++) {
-        UA_String_append(&valstr, UA_STRING(argv[argpos]));
-        if(argpos != argc - 1)
+    for(; tokenPos < tokensSize; tokenPos++) {
+        UA_String_append(&valstr, UA_STRING(tokens[tokenPos]));
+        if(tokenPos != tokensSize - 1)
             UA_String_append(&valstr, UA_STRING(" "));
     }
 
@@ -423,9 +427,9 @@ writeService(int argc, char **argv, int argpos) {
 }
 
 static void
-browseService(int argc, char **argv, int argpos) {
+browseService(void) {
     /* Validate the arguments */
-    if(argpos != argc - 1) {
+    if(tokenPos != tokensSize - 1) {
         fprintf(stderr, "The browse service takes an AttributeOperand "
                 "expression as the last argument\n");
         exit(EXIT_FAILURE);
@@ -436,7 +440,7 @@ browseService(int argc, char **argv, int argpos) {
 
     /* Parse the AttributeOperand */
     UA_AttributeOperand ao;
-    UA_StatusCode res = UA_AttributeOperand_parse(&ao, UA_STRING(argv[argpos]));
+    UA_StatusCode res = UA_AttributeOperand_parse(&ao, UA_STRING(tokens[tokenPos]));
     if(res != UA_STATUSCODE_GOOD)
         abortWithStatus(res);
 
@@ -550,26 +554,26 @@ exploreRecursive(char *pathString, size_t pos, const UA_NodeId current,
 }
 
 static void
-explore(int argc, char **argv, int argpos) {
+explore(void) {
     /* Parse the arguments */
     char *pathArg = NULL;
     size_t depth = 20;
 
-    for(; argpos < argc; argpos++) {
+    for(; tokenPos < tokensSize; tokenPos++) {
         /* AttributeOperand */
-        if(strncmp(argv[argpos], "--", 2) != 0) {
+        if(strncmp(tokens[tokenPos], "--", 2) != 0) {
             if(pathArg != NULL)
                 usage();
-            pathArg = argv[argpos];
+            pathArg = tokens[tokenPos];
             continue;
         }
 
         /* Maximum depth */
-        if(strcmp(argv[argpos], "--depth") == 0) {
-            argpos++;
-            if(argpos == argc)
+        if(strcmp(tokens[tokenPos], "--depth") == 0) {
+            tokenPos++;
+            if(tokenPos == tokensSize)
                 usage();
-            depth = (size_t)atoi(argv[argpos]);
+            depth = (size_t)atoi(tokens[tokenPos]);
             continue;
         }
 
@@ -638,6 +642,28 @@ explore(int argc, char **argv, int argpos) {
     exploreRecursive(relativepath, pos, ao.nodeId, nc, depth);
 
     UA_AttributeOperand_clear(&ao);
+}
+
+/*****************/
+/* Service Calls */
+/*****************/
+
+static void
+processInputTokens(void) {
+    char *service = tokens[tokenPos++];
+    if(strcmp(service, "getendpoints") == 0) {
+        getEndpoints();
+    } else if(strcmp(service, "read") == 0) {
+        readService();
+    } else if(strcmp(service, "browse") == 0) {
+        browseService();
+    } else if(strcmp(service, "write") == 0) {
+        writeService();
+    } else if(strcmp(service, "explore") == 0) {
+        explore();
+    } else {
+        usage(); /* Unknown service */
+    }
 }
 
 /******************/
@@ -725,10 +751,11 @@ main(int argc, char **argv) {
 
     /* Parse the options */
     int argpos = parseOptions(argc, argv, 1);
-    if(argpos > argc - 2)
+
+    /* Get the url */
+    if(argpos >= argc)
         usage();
     url = argv[argpos++];
-    service = argv[argpos++];
 
     /* Initialize the client config */
     cc.logging = &stderrLog;
@@ -760,20 +787,18 @@ main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    /* Execute the service */
-    if(strcmp(service, "getendpoints") == 0) {
-        getEndpoints(argc, argv, argpos);
-    } else if(strcmp(service, "read") == 0) {
-        readService(argc, argv, argpos);
-    } else if(strcmp(service, "browse") == 0) {
-        browseService(argc, argv, argpos);
-    } else if(strcmp(service, "write") == 0) {
-        writeService(argc, argv, argpos);
-    } else if(strcmp(service, "explore") == 0) {
-        explore(argc, argv, argpos);
-    } else {
-        usage(); /* Unknown service */
-    }
+    /* No service call */
+    if(argpos >= argc || argc - argpos > MAX_TOKENS)
+        usage();
+
+    /* Move remaining arguments to the tokens */
+    for(int i = argpos; i < argc; i++)
+        tokens[i-argpos] = argv[i];
+    tokensSize = (size_t)(argc - argpos);
+
+    /* Process the tokens */
+    tokenPos = 0;
+    processInputTokens();
 
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
