@@ -11,6 +11,9 @@
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/certificategroup_default.h>
 
+#include <readline/readline.h>
+#include <readline/history.h>
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -29,6 +32,8 @@ int return_value = 0;
 static char * tokens[MAX_TOKENS];
 size_t tokenPos = 0;
 size_t tokensSize = 0;
+
+bool shellMode = false; /* How to abort */
 
 /***********/
 /* Logging */
@@ -88,13 +93,18 @@ UA_Logger stderrLog = {cliLog, NULL, NULL};
 
 static void
 usage(void) {
-    fprintf(stderr, "Usage: ua [options] [--help] <server-url> <service>\n"
-            " <server-url>: opc.tcp://domain[:port]\n"
-            " <service> -> getendpoints: Print the endpoint descriptions of the server\n"
-            " <service> -> read   <AttributeOperand>: Read an attribute\n"
-            " <service> -> browse <AttributeOperand>: Browse the references of a node\n"
-            " <service> -> write  <AttributeOperand> <value>: Write an attribute\n"
-            " <service> -> explore <RelativePath> [--depth <int>]: Print the structure of the information model below the indicated node\n"
+    if(shellMode) {
+        fprintf(stderr, "Invalid input\n");
+        return;
+    }
+
+    fprintf(stderr, "Usage: ua [--help | <options>] opc.tcp://domain[:port] [service]\n"
+            " No service defined -> Shell taking repeated service calls\n"
+            " service -> getendpoints: Print the endpoint descriptions of the server\n"
+            " service -> read   <AttributeOperand>: Read an attribute\n"
+            " service -> browse <AttributeOperand>: Browse the references of a node\n"
+            " service -> write  <AttributeOperand> <value>: Write an attribute\n"
+            " service -> explore <RelativePath> [--depth <int>]: Print the structure of the information model below the indicated node\n"
             //" <service> -> call <method-id> <object-id> <arguments>: Call the method \n"
             " Options:\n"
             " --username: Username for the session creation\n"
@@ -146,7 +156,10 @@ printType(void *p, const UA_DataType *type) {
 
 static void
 abortWithStatus(UA_StatusCode res) {
-    fprintf(stderr, "Aborting with status code %s\n", UA_StatusCode_name(res));
+    fprintf(stderr, "Error with StatusCode %s\n", UA_StatusCode_name(res));
+    if(shellMode)
+        return;
+
     if(client) {
         UA_Client_disconnect(client);
         UA_Client_delete(client);
@@ -155,7 +168,29 @@ abortWithStatus(UA_StatusCode res) {
 }
 
 static void
+abortWithMessage(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+
+    if(shellMode)
+        return;
+
+    if(client) {
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+    }
+    exit(EXIT_FAILURE);
+}
+
+static void
 connectClient(void) {
+    UA_SecureChannelState channelState = UA_SECURECHANNELSTATE_CLOSED;
+    UA_Client_getState(client, &channelState, NULL, NULL);
+    if(channelState != UA_SECURECHANNELSTATE_CLOSED)
+        return;
+
     UA_StatusCode res;
     if(username) {
         if(!password) {
@@ -178,8 +213,8 @@ static void
 getEndpoints(void) {
     /* Validate the arguments */
     if(tokenPos != tokensSize) {
-        fprintf(stderr, "Arguments after \"getendpoints\" could not be parsed\n");
-        exit(EXIT_FAILURE);
+        abortWithMessage("Arguments after \"getendpoints\" could not be parsed\n");
+        return;
     }
 
     /* Get Endpoints */
@@ -188,8 +223,10 @@ getEndpoints(void) {
     UA_StatusCode res = UA_Client_getEndpoints(client, url,
                                                &endpointDescriptionsSize,
                                                &endpointDescriptions);
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
         abortWithStatus(res);
+        return;
+    }
 
     /* Print the results */
     UA_Variant var;
@@ -205,9 +242,9 @@ static void
 readService(void) {
     /* Validate the arguments */
     if(tokenPos != tokensSize - 1) {
-        fprintf(stderr, "The read service takes an AttributeOperand "
-                "expression as the last argument\n");
-        exit(EXIT_FAILURE);
+        abortWithMessage("The read service takes an AttributeOperand "
+                         "expression as the last argument\n");
+        return;
     }
 
     /* Connect */
@@ -216,8 +253,10 @@ readService(void) {
     /* Parse the AttributeOperand */
     UA_AttributeOperand ao;
     UA_StatusCode res = UA_AttributeOperand_parse(&ao, UA_STRING(tokens[tokenPos]));
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
         abortWithStatus(res);
+        return;
+    }
 
     /* Resolve the RelativePath */
     if(ao.browsePath.elementsSize > 0) {
@@ -233,20 +272,20 @@ readService(void) {
 
         /* Validate the response */
         if(bpr.targetsSize != 1) {
-            fprintf(stderr, "The RelativePath did resolve to %u different NodeIds\n",
-                    (unsigned)bpr.targetsSize);
-            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+            abortWithMessage("The RelativePath did resolve to %u different NodeIds\n",
+                             (unsigned)bpr.targetsSize);
+            return;
         }
 
         if(bpr.targets[0].remainingPathIndex != UA_UINT32_MAX) {
-            fprintf(stderr, "The RelativePath was not fully resolved\n");
-            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+            abortWithMessage("The RelativePath was not fully resolved\n");
+            return;
         }
 
         if(!UA_ExpandedNodeId_isLocal(&bpr.targets[0].targetId)) {
-            fprintf(stderr, "The RelativePath resolves to an ExpandedNodeId "
-                    "on a different server\n");
-            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+            abortWithMessage("The RelativePath resolves to an ExpandedNodeId "
+                             "on a different server\n");
+            return;
         }
 
         UA_NodeId_clear(&ao.nodeId);
@@ -272,16 +311,18 @@ static void
 writeService(void) {
     /* Validate the arguments */
     if(tokenPos + 1 >= tokensSize) {
-        fprintf(stderr, "The Write Service takes an AttributeOperand "
-                "expression and the value as arguments\n");
-        exit(EXIT_FAILURE);
+        abortWithMessage("The Write Service takes an AttributeOperand "
+                         "expression and the value as arguments\n");
+        return;
     }
 
     /* Parse the AttributeOperand */
     UA_AttributeOperand ao;
     UA_StatusCode res = UA_AttributeOperand_parse(&ao, UA_STRING(tokens[tokenPos++]));
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
         abortWithStatus(res);
+        return;
+    }
 
     /* Aggregate all the remaining arguments and parse them as JSON */
     UA_String valstr = UA_STRING_NULL;
@@ -292,8 +333,8 @@ writeService(void) {
     }
 
     if(valstr.length == 0) {
-        fprintf(stderr, "No value defined\n");
-        exit(EXIT_FAILURE);
+        abortWithMessage("No value defined\n");
+        return;
     }
 
     /* Detect a few basic "naked" datatypes.
@@ -347,8 +388,8 @@ writeService(void) {
         }
 
         if(!datatype) {
-            fprintf(stderr, "Data type %s unknown\n", type);
-            exit(EXIT_FAILURE);
+            abortWithMessage("Data type %s unknown\n", type);
+            return;
         }
 
         valstr.data += 2 + strlen(type);
@@ -363,8 +404,8 @@ writeService(void) {
     }
 
     if(res != UA_STATUSCODE_GOOD) {
-        fprintf(stderr, "Could not parse the value\n");
-        exit(EXIT_FAILURE);
+        abortWithMessage("Could not parse the value\n");
+        return;
     }
 
     /* Connect */
@@ -384,20 +425,20 @@ writeService(void) {
 
         /* Validate the response */
         if(bpr.targetsSize != 1) {
-            fprintf(stderr, "The RelativePath did resolve to %u different NodeIds\n",
-                    (unsigned)bpr.targetsSize);
-            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+            abortWithMessage("The RelativePath did resolve to %u different NodeIds\n",
+                             (unsigned)bpr.targetsSize);
+            return;
         }
 
         if(bpr.targets[0].remainingPathIndex != UA_UINT32_MAX) {
-            fprintf(stderr, "The RelativePath was not fully resolved\n");
-            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+            abortWithMessage("The RelativePath was not fully resolved\n");
+            return;
         }
 
         if(!UA_ExpandedNodeId_isLocal(&bpr.targets[0].targetId)) {
-            fprintf(stderr, "The RelativePath resolves to an ExpandedNodeId "
-                    "on a different server\n");
-            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+            abortWithMessage("The RelativePath resolves to an ExpandedNodeId "
+                             "on a different server\n");
+            return;
         }
 
         UA_NodeId_clear(&ao.nodeId);
@@ -430,9 +471,9 @@ static void
 browseService(void) {
     /* Validate the arguments */
     if(tokenPos != tokensSize - 1) {
-        fprintf(stderr, "The browse service takes an AttributeOperand "
-                "expression as the last argument\n");
-        exit(EXIT_FAILURE);
+        abortWithMessage("The browse service takes an AttributeOperand "
+                         "expression as the last argument\n");
+        return;
     }
 
     /* Connect */
@@ -458,20 +499,20 @@ browseService(void) {
 
         /* Validate the response */
         if(bpr.targetsSize != 1) {
-            fprintf(stderr, "The RelativePath did resolve to %u different NodeIds\n",
-                    (unsigned)bpr.targetsSize);
-            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+            abortWithMessage("The RelativePath did resolve to %u different NodeIds\n",
+                             (unsigned)bpr.targetsSize);
+            return;
         }
 
         if(bpr.targets[0].remainingPathIndex != UA_UINT32_MAX) {
-            fprintf(stderr, "The RelativePath was not fully resolved\n");
-            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+            abortWithMessage("The RelativePath was not fully resolved\n");
+            return;
         }
 
         if(!UA_ExpandedNodeId_isLocal(&bpr.targets[0].targetId)) {
-            fprintf(stderr, "The RelativePath resolves to an ExpandedNodeId "
-                    "on a different server\n");
-            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+            abortWithMessage("The RelativePath resolves to an ExpandedNodeId "
+                             "on a different server\n");
+            return;
         }
 
         UA_NodeId_clear(&ao.nodeId);
@@ -562,8 +603,10 @@ explore(void) {
     for(; tokenPos < tokensSize; tokenPos++) {
         /* AttributeOperand */
         if(strncmp(tokens[tokenPos], "--", 2) != 0) {
-            if(pathArg != NULL)
+            if(pathArg != NULL) {
                 usage();
+                return;
+            }
             pathArg = tokens[tokenPos];
             continue;
         }
@@ -571,14 +614,17 @@ explore(void) {
         /* Maximum depth */
         if(strcmp(tokens[tokenPos], "--depth") == 0) {
             tokenPos++;
-            if(tokenPos == tokensSize)
+            if(tokenPos == tokensSize) {
                 usage();
+                return;
+            }
             depth = (size_t)atoi(tokens[tokenPos]);
             continue;
         }
 
         /* Unknown */
         usage();
+        return;
     }
 
     /* Connect */
@@ -604,20 +650,20 @@ explore(void) {
 
         /* Validate the response */
         if(bpr.targetsSize != 1) {
-            fprintf(stderr, "The RelativePath did resolve to %u different NodeIds\n",
-                    (unsigned)bpr.targetsSize);
-            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+            abortWithMessage("The RelativePath did resolve to %u different NodeIds\n",
+                             (unsigned)bpr.targetsSize);
+            return;
         }
 
         if(bpr.targets[0].remainingPathIndex != UA_UINT32_MAX) {
-            fprintf(stderr, "The RelativePath was not fully resolved\n");
-            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+            abortWithMessage("The RelativePath was not fully resolved\n");
+            return;
         }
 
         if(!UA_ExpandedNodeId_isLocal(&bpr.targets[0].targetId)) {
-            fprintf(stderr, "The RelativePath resolves to an ExpandedNodeId "
-                    "on a different server\n");
-            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+            abortWithMessage("The RelativePath resolves to an ExpandedNodeId "
+                             "on a different server\n");
+            return;
         }
 
         UA_NodeId_clear(&ao.nodeId);
@@ -650,6 +696,9 @@ explore(void) {
 
 static void
 processInputTokens(void) {
+    if(tokensSize == 0)
+        return;
+
     char *service = tokens[tokenPos++];
     if(strcmp(service, "getendpoints") == 0) {
         getEndpoints();
@@ -662,6 +711,15 @@ processInputTokens(void) {
     } else if(strcmp(service, "explore") == 0) {
         explore();
     } else {
+        if(shellMode) {
+            /* Quit the shell */
+            if(strcmp(service, "q") == 0 ||
+               strcmp(service, "quit") == 0 ||
+               strcmp(service, "close") == 0) {
+                shellMode = false;
+                return;
+            }
+        }
         usage(); /* Unknown service */
     }
 }
@@ -738,6 +796,61 @@ parseOptions(int argc, char **argv, int argpos) {
     return argpos;
 }
 
+static void
+tokenize(char *line) {
+    bool in_single = false, in_double = false;
+
+    tokensSize = 0;
+    char *begin = line;
+    for(; *line; line++) {
+        /* Break tokens at spaces, skip repeated space */
+        if(isspace(*line) && !in_single && !in_double) {
+            if(begin != line) {
+                *line = '\0';
+                tokens[tokensSize++] = begin;
+            }
+            begin = line + 1;
+            continue;
+        }
+
+        /* Going in and out of strings */
+        if(*line == '\'' && !in_double) {
+            in_single = !in_single;
+            continue;
+        }
+        if(*line == '"' && !in_single) {
+            in_double = !in_double;
+            continue;
+        }
+
+        /* TODO: Proper backslash escaping */
+    }
+
+    /* Add the last token which ended the loop */
+    if(begin != line)
+        tokens[tokensSize++] = begin;
+}
+
+static void
+shellInterface(void) {
+    shellMode = true;
+
+    char *line;
+    while(shellMode && (line = readline(">>> ")) != NULL) {
+        /* Lines that don't begin with a space are added to the history */
+        if(*line && !isspace(*line))
+            add_history(line);
+
+        /* Tokenize the input and process */
+        tokenPos = 0;
+        tokenize(line);
+        processInputTokens();
+
+        /* Clean up and repeat */
+        free(line);
+    }
+}
+
 /****************/
 /* Main Program */
 /****************/
@@ -746,7 +859,7 @@ int
 main(int argc, char **argv) {
     /* Read the command line options. Set used options to NULL.
      * Service-specific options are parsed later. */
-    if(argc < 3)
+    if(argc < 2)
         usage();
 
     /* Parse the options */
@@ -787,18 +900,23 @@ main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    /* No service call */
-    if(argpos >= argc || argc - argpos > MAX_TOKENS)
+    /* Too many arguments */
+    if(argc - argpos > MAX_TOKENS)
         usage();
 
-    /* Move remaining arguments to the tokens */
-    for(int i = argpos; i < argc; i++)
-        tokens[i-argpos] = argv[i];
-    tokensSize = (size_t)(argc - argpos);
+    if(argpos >= argc) {
+        /* No service call -> Shell */
+        shellInterface();
+    } else {
+        /* Move remaining arguments to the tokens */
+        for(int i = argpos; i < argc; i++)
+            tokens[i-argpos] = argv[i];
+        tokensSize = (size_t)(argc - argpos);
 
-    /* Process the tokens */
-    tokenPos = 0;
-    processInputTokens();
+        /* Process the tokens */
+        tokenPos = 0;
+        processInputTokens();
+    }
 
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
