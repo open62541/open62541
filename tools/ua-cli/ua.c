@@ -798,32 +798,50 @@ parseOptions(int argc, char **argv, int argpos) {
 
 static void
 tokenize(char *line) {
+    /* Quotes */
     bool in_single = false, in_double = false;
 
+    /* If a token begins with [ or {, count opening
+     * and closing braces to get a json object or array */
+    unsigned braces = 0;
+
     tokensSize = 0;
+    char *pos = line; /* For backslash-escaping, pos is the write-pos */
     char *begin = line;
-    for(; *line; line++) {
+    for(; (*pos = *line); pos++, line++) {
         /* Break tokens at spaces, skip repeated space */
-        if(isspace(*line) && !in_single && !in_double) {
-            if(begin != line) {
-                *line = '\0';
-                tokens[tokensSize++] = begin;
+        if(isspace(*line)) {
+            if(!in_single && !in_double && braces == 0) {
+                if(begin != line) {
+                    *pos = '\0';
+                    tokens[tokensSize++] = begin;
+                }
+                pos = line;
+                begin = line + 1;
             }
-            begin = line + 1;
             continue;
         }
 
+        switch(*line) {
         /* Going in and out of strings */
-        if(*line == '\'' && !in_double) {
-            in_single = !in_single;
-            continue;
-        }
-        if(*line == '"' && !in_single) {
-            in_double = !in_double;
-            continue;
-        }
+        case '\'': if(!in_double) { in_single = !in_single; } break;
+        case '"':  if(!in_single) { in_double = !in_double; } break;
 
-        /* TODO: Proper backslash escaping */
+        /* Backslash escaping outside of single-quotes.
+         * Keep the backslash in the token. */
+        case '\\': if(!in_single && line[1]) { *pos = *(++line); } break;
+
+        /* Opening and closing braces */
+        case '[':
+        case '{':
+            if(!in_double && !in_single && (braces > 0 || begin == line)) { braces++; } break;
+        case ']':
+        case '}':
+            if(!in_double && !in_single && braces > 0) { braces--; } break;
+
+        /* Normal character */
+        default: break;
+        }
     }
 
     /* Add the last token which ended the loop */
