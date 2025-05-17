@@ -92,6 +92,36 @@ static UA_Logger stderrLog = {cliLog, NULL, NULL};
 /******************/
 
 static void
+abortWithStatus(UA_StatusCode res) {
+    fprintf(stderr, "Error with StatusCode %s\n", UA_StatusCode_name(res));
+    if(shellMode)
+        return;
+
+    if(client) {
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+    }
+    exit(res);
+}
+
+static void
+abortWithMessage(const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+
+    if(shellMode)
+        return;
+
+    if(client) {
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+    }
+    exit(EXIT_FAILURE);
+}
+
+static void
 usage(void) {
     if(shellMode) {
         fprintf(stderr, "Invalid input\n");
@@ -154,34 +184,158 @@ printType(void *p, const UA_DataType *type) {
     UA_ByteString_clear(&out);
 }
 
-static void
-abortWithStatus(UA_StatusCode res) {
-    fprintf(stderr, "Error with StatusCode %s\n", UA_StatusCode_name(res));
-    if(shellMode)
-        return;
+static UA_StatusCode
+parseVariant(UA_Variant *v, UA_String valstr);
 
-    if(client) {
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
+static UA_StatusCode
+parseVariantArray(UA_Variant *v, UA_String valstr, const UA_DataType *datatype) {
+    v->type = datatype;
+    bool hascomma = true;
+    while(valstr.length > 0) {
+        /* Skip space */
+        if(isspace(*valstr.data)) {
+            valstr.data++;
+            valstr.length--;
+            continue;
+        }
+
+        /* Comma (only a single comma allowed between elements) */
+        if(*valstr.data == ',') {
+            if(hascomma)
+                return UA_STATUSCODE_BADDECODINGERROR;
+            hascomma = true;
+            valstr.data++;
+            valstr.length--;
+            continue;
+        }
+
+        /* Closing bracket, only whitespace allowed after */
+        if(*valstr.data == ']') {
+            for(size_t i = 0; i < valstr.length; i++) {
+                if(!isspace(valstr.data[i]))
+                    return UA_STATUSCODE_BADDECODINGERROR;
+            }
+            return UA_STATUSCODE_GOOD;
+        }
+
+        /* Allocate memory */
+        void *data =
+            UA_realloc(v->data, (v->arrayLength + 1) * datatype->memSize);
+        if(!data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        uintptr_t elem = (uintptr_t)data + (v->arrayLength * datatype->memSize);
+
+        v->data = data;
+        v->arrayLength++;
+
+        /* Decode element */
+        size_t jsonOffset = 0;
+        UA_DecodeJsonOptions options;
+        memset(&options, 0, sizeof(UA_DecodeJsonOptions));
+        options.decodedLength = &jsonOffset;
+        UA_StatusCode res =
+            UA_decodeJson(&valstr, (void*)elem, &UA_TYPES[UA_TYPES_VARIANT], &options);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+
+        /* Move forward in the token */
+        valstr.data += jsonOffset;
+        valstr.length -= jsonOffset;
     }
-    exit(res);
+
+    /* Array does not close with ] */
+    return UA_STATUSCODE_BADDECODINGERROR;
 }
 
-static void
-abortWithMessage(const char *format, ...) {
-    va_list args;
-    va_start(args, format);
-    vfprintf(stderr, format, args);
-    va_end(args);
+static UA_StatusCode
+parseVariant(UA_Variant *v, UA_String valstr) {
+    /* Empty token */
+    if(valstr.length == 0)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
-    if(shellMode)
-        return;
-
-    if(client) {
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
+    /* Detect Boolean */
+    UA_Boolean b;
+    UA_String f = UA_STRING("false");
+    UA_String t = UA_STRING("true");
+    if(UA_String_equal(&valstr, &f)) {
+        b = false;
+        return UA_Variant_setScalarCopy(v, &b, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    } else if(UA_String_equal(&valstr, &t)) {
+        b = true;
+        return UA_Variant_setScalarCopy(v, &b, &UA_TYPES[UA_TYPES_BOOLEAN]);
     }
-    exit(EXIT_FAILURE);
+
+    /* Detect String */
+    UA_String s = UA_STRING_NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(valstr.data[0] == '\"' || valstr.data[0] == '\'') {
+        UA_StatusCode res = UA_decodeJson(&valstr, &s, &UA_TYPES[UA_TYPES_STRING], NULL);
+        res |= UA_Variant_setScalarCopy(v, &s, &UA_TYPES[UA_TYPES_STRING]);
+        return res;
+    }
+
+    /* Detect integer and float */
+    UA_Int32 i;
+    UA_Float ff;
+    if(valstr.data[0] == '.' || isdigit(valstr.data[0])) {
+        res = UA_decodeJson(&valstr, &i, &UA_TYPES[UA_TYPES_INT32], NULL);
+        if(res == UA_STATUSCODE_GOOD)
+            return UA_Variant_setScalarCopy(v, &i, &UA_TYPES[UA_TYPES_INT32]);
+        res = UA_decodeJson(&valstr, &ff, &UA_TYPES[UA_TYPES_FLOAT], NULL);
+        res |= UA_Variant_setScalarCopy(v, &ff, &UA_TYPES[UA_TYPES_FLOAT]);
+        return res;
+    }
+
+    /* Data type name in parentheses (default is Variant) */
+    const UA_DataType *datatype = &UA_TYPES[UA_TYPES_VARIANT];
+    if(valstr.data[0] == '(') {
+        char typeString[512];
+        UA_STACKARRAY(char, type, valstr.length);
+        int elem = sscanf((char*)valstr.data, "(%511[^)])", type);
+        if(elem <= 0) {
+            abortWithMessage("Wrong datatype definition\n");
+            return UA_STATUSCODE_BADDECODINGERROR;
+        }
+
+        /* Find type under the name */
+        size_t i = 0;
+        for(; i < UA_TYPES_COUNT; i++) {
+            if(strcmp(UA_TYPES[i].typeName, typeString) == 0) {
+                datatype = &UA_TYPES[i];
+                break;
+            }
+        }
+        if(i == UA_TYPES_COUNT) {
+            abortWithMessage("Data type %s unknown\n", type);
+            return UA_STATUSCODE_BADDECODINGERROR;
+        }
+
+        /* Advance beyond the datatype definition and more space */
+        size_t advance = strlen(typeString) + 2;
+        valstr.data += advance;
+        valstr.length -= advance;
+        while(valstr.length > 0 && isspace(valstr.data[0])) {
+            valstr.data++;
+            valstr.length--;
+        }
+
+        /* A value must remain */
+        if(valstr.length == 0)
+            return UA_STATUSCODE_BADDECODINGERROR;
+    }
+
+    /* Parse an array */
+    if(valstr.data[0] == '[')
+        return parseVariantArray(v, valstr, datatype);
+
+    /* Parse as JSON */
+    void *val = UA_new(datatype);
+    if(!val)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    res = UA_decodeJson(&valstr, val, datatype, NULL);
+    UA_Variant_setScalar(v, val, datatype);
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -324,7 +478,7 @@ writeService(void) {
         return;
     }
 
-    /* Aggregate all the remaining arguments and parse them as JSON */
+    /* Aggregate all the remaining arguments into a single token */
     UA_String valstr = UA_STRING_NULL;
     for(; tokenPos < tokensSize; tokenPos++) {
         UA_String_append(&valstr, UA_STRING(tokens[tokenPos]));
@@ -332,77 +486,11 @@ writeService(void) {
             UA_String_append(&valstr, UA_STRING(" "));
     }
 
-    if(valstr.length == 0) {
-        abortWithMessage("No value defined\n");
-        return;
-    }
-
-    /* Detect a few basic "naked" datatypes.
-     * Otherwise try to decode a variant */
-    UA_Boolean b;
-    UA_Int32 i;
-    UA_Float ff;
+    /* Parse the value */
     UA_Variant v;
-    UA_String s = UA_STRING_NULL;
-    UA_String f = UA_STRING("false");
-    UA_String t = UA_STRING("true");
-    if(UA_String_equal(&valstr, &f)) {
-        b = false;
-        UA_Variant_setScalar(&v, &b, &UA_TYPES[UA_TYPES_BOOLEAN]);
-        v.storageType = UA_VARIANT_DATA_NODELETE;
-    } else if(UA_String_equal(&valstr, &t)) {
-        b = true;
-        UA_Variant_setScalar(&v, &b, &UA_TYPES[UA_TYPES_BOOLEAN]);
-        v.storageType = UA_VARIANT_DATA_NODELETE;
-    } else if(valstr.data[0] == '\"') {
-        res = UA_decodeJson(&valstr, &s, &UA_TYPES[UA_TYPES_STRING], NULL);
-        UA_Variant_setScalar(&v, &s, &UA_TYPES[UA_TYPES_STRING]);
-        v.storageType = UA_VARIANT_DATA_NODELETE;
-    } else if(valstr.data[0] >= '0' && valstr.data[0] <= '9') {
-        res = UA_decodeJson(&valstr, &i, &UA_TYPES[UA_TYPES_INT32], NULL);
-        UA_Variant_setScalar(&v, &i, &UA_TYPES[UA_TYPES_INT32]);
-        if(res != UA_STATUSCODE_GOOD) {
-            res = UA_decodeJson(&valstr, &ff, &UA_TYPES[UA_TYPES_FLOAT], NULL);
-            UA_Variant_setScalar(&v, &ff, &UA_TYPES[UA_TYPES_FLOAT]);
-        }
-        v.storageType = UA_VARIANT_DATA_NODELETE;
-    } else if(valstr.data[0] == '{') {
-        /* JSON Variant */
-        res = UA_decodeJson(&valstr, &v, &UA_TYPES[UA_TYPES_VARIANT], NULL);
-    } else if(valstr.data[0] == '(') {
-        /* Data type name in parentheses */
-        UA_STACKARRAY(char, type, valstr.length);
-        int elem = sscanf((char*)valstr.data, "(%[^)])", type);
-        if(elem <= 0) {
-            fprintf(stderr, "Wrong datatype definition\n");
-            exit(EXIT_FAILURE);
-        }
-
-        /* Find type under the name */
-        const UA_DataType *datatype = NULL;
-        for(size_t i = 0; i < UA_TYPES_COUNT; i++) {
-            if(strcmp(UA_TYPES[i].typeName, type) == 0) {
-                datatype = &UA_TYPES[i];
-                break;
-            }
-        }
-
-        if(!datatype) {
-            abortWithMessage("Data type %s unknown\n", type);
-            return;
-        }
-
-        valstr.data += 2 + strlen(type);
-        valstr.length -= 2 + strlen(type);
-
-        /* Parse */
-        void *val = UA_new(datatype);
-        res = UA_decodeJson(&valstr, val, datatype, NULL);
-        UA_Variant_setScalar(&v, val, datatype);
-    } else {
-        res = UA_STATUSCODE_BADDECODINGERROR;
-    }
-
+    UA_Variant_init(&v);
+    res = parseVariant(&v, valstr);
+    UA_String_clear(&valstr);
     if(res != UA_STATUSCODE_GOOD) {
         abortWithMessage("Could not parse the value\n");
         return;
@@ -464,7 +552,6 @@ writeService(void) {
 
     UA_AttributeOperand_clear(&ao);
     UA_Variant_clear(&v);
-    UA_String_clear(&s);
 }
 
 static void
