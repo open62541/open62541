@@ -123,7 +123,7 @@ abortWithMessage(const char *format, ...) {
 static void
 usage(void) {
     if(shellMode) {
-        fprintf(stderr, "Invalid input");
+        fprintf(stderr, "Invalid input\n");
         return;
     }
 
