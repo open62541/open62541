@@ -889,15 +889,17 @@ tokenize(char *line) {
     unsigned braces = 0;
 
     tokensSize = 0;
+    char *pos = line; /* For backslash-escaping, pos is the write-pos */
     char *begin = line;
-    for(; *line; line++) {
+    for(; (*pos = *line); pos++, line++) {
         /* Break tokens at spaces, skip repeated space */
         if(isspace(*line)) {
             if(!in_single && !in_double && braces == 0) {
                 if(begin != line) {
-                    *line = '\0';
+                    *pos = '\0';
                     tokens[tokensSize++] = begin;
                 }
+                pos = line;
                 begin = line + 1;
             }
             continue;
@@ -910,7 +912,7 @@ tokenize(char *line) {
 
         /* Backslash escaping outside of single-quotes.
          * Keep the backslash in the token. */
-        case '\\': if(!in_single && line[1]) { line++; } break;
+        case '\\': if(!in_single && line[1]) { *pos = *(++line); } break;
 
         /* Opening and closing braces */
         case '[':
