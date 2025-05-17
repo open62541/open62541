@@ -684,7 +684,7 @@ static void
 explore(void) {
     /* Parse the arguments */
     char *pathArg = NULL;
-    size_t depth = 20;
+    size_t depth = 1;
 
     for(; tokenPos < tokensSize; tokenPos++) {
         /* AttributeOperand */
