@@ -800,26 +800,29 @@ tokenize(char *line) {
     char *begin = line;
     for(; *line; line++) {
         /* Break tokens at spaces, skip repeated space */
-        if(isspace(*line) && !in_single && !in_double) {
-            if(begin != line) {
-                *line = '\0';
-                tokens[tokensSize++] = begin;
+        if(isspace(*line)) {
+            if(!in_single && !in_double) {
+                if(begin != line) {
+                    *line = '\0';
+                    tokens[tokensSize++] = begin;
+                }
+                begin = line + 1;
             }
-            begin = line + 1;
             continue;
         }
 
+        switch(*line) {
         /* Going in and out of strings */
-        if(*line == '\'' && !in_double) {
-            in_single = !in_single;
-            continue;
-        }
-        if(*line == '"' && !in_single) {
-            in_double = !in_double;
-            continue;
-        }
+        case '\'': if(!in_double) { in_single = !in_single; } break;
+        case '"':  if(!in_single) { in_double = !in_double; } break;
 
-        /* TODO: Proper backslash escaping */
+        /* Backslash escaping outside of single-quotes.
+         * Keep the backslash in the token. */
+        case '\\': if(!in_single && line[1]) { line++; } break;
+
+        /* Normal character */
+        default: break;
+        }
     }
 
     /* Add the last token which ended the loop */
