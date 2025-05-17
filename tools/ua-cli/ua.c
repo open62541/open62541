@@ -881,14 +881,19 @@ parseOptions(int argc, char **argv, int argpos) {
 
 static void
 tokenize(char *line) {
+    /* Quotes */
     bool in_single = false, in_double = false;
+
+    /* If a token begins with [ or {, count opening
+     * and closing braces to get a json object or array */
+    unsigned braces = 0;
 
     tokensSize = 0;
     char *begin = line;
     for(; *line; line++) {
         /* Break tokens at spaces, skip repeated space */
         if(isspace(*line)) {
-            if(!in_single && !in_double) {
+            if(!in_single && !in_double && braces == 0) {
                 if(begin != line) {
                     *line = '\0';
                     tokens[tokensSize++] = begin;
@@ -906,6 +911,14 @@ tokenize(char *line) {
         /* Backslash escaping outside of single-quotes.
          * Keep the backslash in the token. */
         case '\\': if(!in_single && line[1]) { line++; } break;
+
+        /* Opening and closing braces */
+        case '[':
+        case '{':
+            if(!in_double && !in_single && (braces > 0 || begin == line)) { braces++; } break;
+        case ']':
+        case '}':
+            if(!in_double && !in_single && braces > 0) { braces--; } break;
 
         /* Normal character */
         default: break;
