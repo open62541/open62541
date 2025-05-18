@@ -74,7 +74,7 @@ jobs:
           - name: "Build All Companion Specifications"
             cmd_action: build_all_companion_specs
 
-        include:
+        include:          
           # Clang builds for specific Ubuntu versions
           - os: ubuntu-20.04
             build:
@@ -92,11 +92,11 @@ jobs:
             build:
               name: "Debug Build & Unit Tests (clang-18)"
               cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 && sudo sysctl -w vm.mmap_rnd_bits=28
-              cmd_action: CC=clang-18 CXX=clang++-18 unit_tests
-
+              cmd_action: CC=clang-18 CXX=clang++-18 unit_tests          
+          
           # TPM Tool Builds for specific Ubuntu versions
           - os: ubuntu-20.04
-            build: &tpm_base_config
+            build:
               name: "TPM Tool Build ubuntu-20.04"
               cmd_deps: |
                 sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
@@ -122,13 +122,35 @@ jobs:
                 cd ${HOME}/tpm2-pkcs11/tools/
                 sudo pip3 install pyasn1_modules
                 pip3 install .
-              cmd_action: build_tpm_tool
-
+              cmd_action: build_tpm_tool          
           - os: ubuntu-22.04
             build:
-              <<: *tpm_base_config
               name: "TPM Tool Build ubuntu-22.04"
-
+              cmd_deps: |
+                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-tss.git
+                cd ${HOME}/tpm2-tss
+                git checkout 3.2.3
+                ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo udevadm control --reload-rules && sudo udevadm trigger
+                sudo apt-get install -y -qq tpm2-tools opensc
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-pkcs11.git
+                cd ${HOME}/tpm2-pkcs11
+                git checkout 1.7.0
+                ./bootstrap && ./configure
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
+                cd ${HOME}/tpm2-pkcs11/tools/
+                sudo pip3 install pyasn1_modules
+                pip3 install .
+              cmd_action: build_tpm_tool          
           - os: ubuntu-24.04
             build:
               name: "TPM Tool Build ubuntu-24.04"
@@ -155,47 +177,41 @@ jobs:
                 sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
                 cd ${HOME}/tpm2-pkcs11/tools/
                 pip3 install --break-system-packages .
-              cmd_action: build_tpm_tool
-
-          # Valgrind Tests (nur für Ubuntu 24.04)
-          - os: ubuntu-24.04
-            build: &valgrind_base
-              cmd_deps: sudo apt-get install -y -qq valgrind
-              parameters: &valgrind_params
-                MBEDTLS:
-                  deps: libmbedtls-dev
-                  action: unit_tests_valgrind MBEDTLS
-                OPENSSL:
-                  deps: openssl
-                  action: unit_tests_valgrind OPENSSL
-
+              cmd_action: build_tpm_tool   
+                 
+          # Valgrind tests for specific Ubuntu versions
           - os: ubuntu-24.04
             build:
-              <<: *valgrind_base
               name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind ${valgrind_params.MBEDTLS.deps}
-              cmd_action: ${valgrind_params.MBEDTLS.action}
-
+              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+              cmd_action: unit_tests_valgrind MBEDTLS          
           - os: ubuntu-24.04
             build:
-              <<: *valgrind_base
               name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind ${valgrind_params.OPENSSL.deps}
-              cmd_action: ${valgrind_params.OPENSSL.action}
-
+              cmd_deps: sudo apt-get install -y -qq valgrind openssl
+              cmd_action: unit_tests_valgrind OPENSSL          
+          - os: ubuntu-24.04
+            build:
+              name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
+              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces
+              cmd_action: examples_valgrind MBEDTLS MDNSD          
+          - os: ubuntu-24.04
+            build:
+              name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
+              cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev
+              cmd_action: examples_valgrind OPENSSL AVAHI          
+              
           # Clang Static Analyzer Builds
           - os: ubuntu-20.04
             build:
               name: "Clang Static Analyzer (clang11)"
               cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
-              cmd_action: CC=clang-11 CXX=clang++-11 build_clang_analyzer 11
-
+              cmd_action: CC=clang-11 CXX=clang++-11 build_clang_analyzer 11          
           - os: ubuntu-22.04
             build:
               name: "Clang Static Analyzer (clang15)"
               cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 libmbedtls-dev
-              cmd_action: CC=clang-15 CXX=clang++-15 build_clang_analyzer 15
-
+              cmd_action: CC=clang-15 CXX=clang++-15 build_clang_analyzer 15          
           - os: ubuntu-24.04
             build:
               name: "Clang Static Analyzer (clang18)"
