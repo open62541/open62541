@@ -324,6 +324,10 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
             }
             UA_ByteString_clear (&strCert);
         }
+        for (i = 0; i < numCertificates; i++) {
+            free(dirlist[i]);
+        }
+        free(dirlist);
     }
 
     if (ctx->issuerListFolder.length > 0) {
@@ -359,6 +363,10 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
             }
             UA_ByteString_clear (&strCert);
         }
+        for (i = 0; i < numCertificates; i++) {
+            free(dirlist[i]);
+        }
+        free(dirlist);
     }
 
     if (ctx->revocationListFolder.length > 0) {
@@ -394,6 +402,10 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
             }
             UA_ByteString_clear (&strCert);
         }
+        for (i = 0; i < numCertificates; i++) {
+            free(dirlist[i]);
+        }
+        free(dirlist);
     }
 
     ret = UA_STATUSCODE_GOOD;
