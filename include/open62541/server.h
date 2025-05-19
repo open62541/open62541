@@ -156,6 +156,9 @@ struct UA_ServerConfig {
     UA_String *serverUrls;
     size_t serverUrlsSize;
 
+    UA_UInt32 maxSockets; /* Max number of server sockets
+                           * (default: 0 -> unbounded) */
+
     /* The following settings are specific to OPC UA with TCP transport. */
     UA_Boolean tcpEnabled;
     UA_UInt32 tcpBufSize;    /* Max length of sent and received chunks (packets)
@@ -872,7 +875,7 @@ UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeExecutable(UA_Server *server, const UA_NodeId nodeId,
                           const UA_Boolean executable) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
-                             &UA_TYPES[UA_TYPES_BOOLEAN], &executable); 
+                             &UA_TYPES[UA_TYPES_BOOLEAN], &executable);
 })
 
 /**

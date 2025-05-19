@@ -454,11 +454,16 @@ struct UA_InterruptManager {
 #if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
 
 /**
- * POSIX EventLop Implementation
+ * POSIX EventLoop Implementation
  * -----------------------------
  * The POSIX compatibility of Win32 is 'close enough'. So a joint implementation
  * is provided. The configuration paramaters must be set before starting the
  * EventLoop.
+ *
+ * **Socket configuration**
+ *
+ * 0:max-sockets [uint32]
+ *    max sockets (default: 0 -> unbounded).
  *
  * **Clock configuration (Linux and BSDs only)**
  *
