@@ -4,7 +4,7 @@
 //  ./server D:\OPC UA Server\OPCUA- open 62451\open62541-C\certs\server_cert.der D:\OPC UA Server\OPCUA- open 62451\open62541-C\certs\server_key.der [trust1.der trust2.der ...]
 //  ./server D:\OPC UA Server\OPCUA- open 62451\open62541-C\certs\server_cert.der D:\OPC UA Server\OPCUA- open 62451\open62541-C\certs\server_key.der
 
-#include <open62541/server.h>
+
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/securitypolicy_default.h>
@@ -13,6 +13,8 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <open62541/plugin/certificategroup_default.h>
+#include <open62541/server.h>
 
 /* Build Instructions (Linux)
  * - g++ server.cpp -lopen62541 -o server */
@@ -77,6 +79,27 @@ static UA_ByteString loadFile(const char *path) {
     return fileContents;
 }
 
+
+
+
+static UA_NodeId *g_counterNodeId = NULL;
+static UA_NodeId *g_eventNodeId = NULL;
+int i=123;
+static void updateCounterAndTriggerEvent(UA_Server *server, void *data) {
+    // Update the counter value
+    UA_Double newValue = ++i;
+    UA_Variant value;
+    UA_Variant_setScalar(&value, &newValue, &UA_TYPES[UA_TYPES_DOUBLE]);
+    UA_Server_writeValue(server, *g_counterNodeId, value);
+
+    // Trigger the event
+    Sleep(10000);
+    UA_Server_triggerEvent(server, *g_eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
+}
+
+
+
+
 int main(int argc, char* argv[]) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
@@ -85,6 +108,10 @@ int main(int argc, char* argv[]) {
     UA_ByteString privateKey = UA_BYTESTRING_NULL;
     size_t trustListSize = 0;
     UA_ByteString *trustList = NULL;
+    size_t issuerListSize = 0;
+    UA_ByteString *issuerList = NULL;
+    size_t revocationListSize = 0;
+    UA_ByteString *revocationList = NULL;
 
     if(argc >= 3) {
         certificate = loadFile(argv[1]);
@@ -97,10 +124,16 @@ int main(int argc, char* argv[]) {
         }
     } else {
         // Fallback: run with no security
-        certificate = UA_BYTESTRING_NULL;
-        privateKey = UA_BYTESTRING_NULL;
-        trustListSize = 0;
-        trustList = NULL;
+        // certificate = UA_BYTESTRING_NULL;
+        // privateKey = UA_BYTESTRING_NULL;
+        // trustListSize = 0;
+        // trustList = NULL;
+
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Missing arguments. Arguments are "
+                     "<server-certificate.der> <private-key.der> "
+                     "[<trustlist1.der>, ...]");
+        return EXIT_FAILURE;
     }
 
     UA_Server *server = UA_Server_new();
@@ -108,19 +141,36 @@ int main(int argc, char* argv[]) {
 
 // #ifdef UA_ENABLE_ENCRYPTION
     // UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey, trustList, trustListSize, NULL, 0, NULL, 0);
-        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey, NULL, NULL, NULL, 0, NULL, 0);
-    config->applicationDescription.applicationUri = UA_STRING_ALLOC("urn:Anexee.server.application");
-    // Accept all certificates for demo
-    config->secureChannelPKI.clear(&config->secureChannelPKI);
-    // UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
-    config->sessionPKI.clear(&config->sessionPKI);
-    // UA_CertificateGroup_AcceptAll(&config->sessionPKI);
-// #else
-//     UA_ServerConfig_setMinimal(config, 4840, &certificate);
-// #endif
+    //     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey, NULL, NULL, NULL, 0, NULL, 0);
+    // config->applicationDescription.applicationUri = UA_STRING_ALLOC("urn:Anexee.server.application");
 
+        UA_StatusCode retval =
+        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
+            &certificate, &privateKey,
+            trustList, trustListSize,
+            issuerList, issuerListSize,
+            revocationList, revocationListSize);
+
+    // Accept all certificates for demo/testing
+    //  config->secureChannelPKI.clear(&config->secureChannelPKI);
+    // config->sessionPKI.clear(&config->sessionPKI);
+    // UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
+    // UA_CertificateGroup_AcceptAll(&config->sessionPKI);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to set default security policies");
+        UA_Server_delete(server);
+        return EXIT_FAILURE;
+    }
+
+
+
+
+// ----------------
     UA_AccessControl_defaultWithLoginCallback(config, true, NULL, 2, usernamePasswordLogin, myLoginCallback, NULL);
     config->verifyRequestTimestamp = UA_RULEHANDLING_ACCEPT;
+// ----------------
+
 
     // // Set up multiple endpoints with different security policies
     // config->endpointsSize = 3;
@@ -148,6 +198,21 @@ int main(int argc, char* argv[]) {
     config->applicationDescription.applicationUri = UA_STRING_ALLOC("urn:Anexee.server.application");
     config->applicationDescription.productUri = UA_STRING_ALLOC("urn:Anexee.server");
     config->applicationDescription.applicationName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Anexee");
+    // UA_QualifiedName_clear(&nameName);
+    // UA_String_clear(&name);
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     // add a variable node to the adresspace
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -166,7 +231,7 @@ int main(int argc, char* argv[]) {
 
     // Add a second variable that changes periodically
     UA_VariableAttributes attr2 = UA_VariableAttributes_default;
-    UA_Double myDouble = 0.0;
+    UA_Double myDouble = 123456;
     UA_Variant_setScalarCopy(&attr2.value, &myDouble, &UA_TYPES[UA_TYPES_DOUBLE]);
     attr2.description = UA_LOCALIZEDTEXT_ALLOC("en-US","counter");
     attr2.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","counter");
@@ -177,13 +242,97 @@ int main(int argc, char* argv[]) {
                              parentReferenceNodeId, myDoubleName,
                              UA_NODEID_NULL, attr2, NULL, NULL);
 
+
+
+
+    UA_VariableAttributes attr3 = UA_VariableAttributes_default;
+    UA_Double minValue = 0.0;
+    UA_Variant_setScalarCopy(&attr3.value, &minValue, &UA_TYPES[UA_TYPES_DOUBLE]);
+    attr3.description = UA_LOCALIZEDTEXT_ALLOC("en-US","MIN");
+    attr3.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","MIN");
+    attr3.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_NodeId minNodeId = UA_NODEID_STRING_ALLOC(1, "MIN");
+    UA_QualifiedName minName = UA_QUALIFIEDNAME_ALLOC(1, "MIN");
+    UA_Server_addVariableNode(server, minNodeId, myDoubleNodeId,
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), minName,
+                            UA_NODEID_NULL, attr3, NULL, NULL);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     /* allocations on the heap need to be freed */
-    UA_VariableAttributes_clear(&attr);
-    UA_VariableAttributes_clear(&attr2);
-    UA_NodeId_clear(&myIntegerNodeId);
-    UA_NodeId_clear(&myDoubleNodeId);
-    UA_QualifiedName_clear(&myIntegerName);
-    UA_QualifiedName_clear(&myDoubleName);
+
+
+
+
+
+
+
+
+
+// EVENT
+
+// size_t nsIdx = UA_Server_addNamespace(server, "urn:my.events");
+
+
+
+// Create event creates a temp node that is deleted after trigger event , so one create for one trigger !!!
+
+
+/* 1) Define the custom EventType ------------------------------------- */
+UA_ObjectTypeAttributes attri = UA_ObjectTypeAttributes_default;
+attri.displayName  = UA_LOCALIZEDTEXT("en-US", "SimpleEventType");
+attri.description  = UA_LOCALIZEDTEXT("en-US", "The simple event type we created");
+
+UA_NodeId eventType;
+UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                            UA_QUALIFIEDNAME(0, "SimpleEventType"),
+                            attri, NULL, &eventType);
+
+
+/* 3) Now you can instantiate and fill the event ---------------------- */
+UA_NodeId eventNodeId;
+UA_Server_createEvent(server, eventType, &eventNodeId);
+
+UA_DateTime eventTime = UA_DateTime_now();
+UA_Server_writeObjectProperty_scalar(server, eventNodeId,
+    UA_QUALIFIEDNAME(0, "Time"), &eventTime, &UA_TYPES[UA_TYPES_DATETIME]);
+
+UA_UInt16 eventSeverity = 100;
+UA_Server_writeObjectProperty_scalar(server, eventNodeId,
+    UA_QUALIFIEDNAME(0, "Severity"), &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+
+UA_LocalizedText eventMessage = UA_LOCALIZEDTEXT("en-US", "An event has been generated.");
+UA_Server_writeObjectProperty_scalar(server, eventNodeId,
+    UA_QUALIFIEDNAME(0, "Message"), &eventMessage, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+
+UA_String eventSourceName = UA_STRING("Server");
+UA_Server_writeObjectProperty_scalar(server, eventNodeId,
+    UA_QUALIFIEDNAME(0, "SourceName"), &eventSourceName, &UA_TYPES[UA_TYPES_STRING]);
+
+/* 4) Finally, trigger the event (don’t forget the SourceNode argument) */
+
+// UA_Server_triggerEvent(server, eventNodeId,
+//         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, true);
+
+
+
+
 
     /* Create a rudimentary objectType hierarchy
      * BaseObjectType
@@ -194,6 +343,8 @@ int main(int argc, char* argv[]) {
      *      |
      *      + (V) Name
      */
+
+    
 
     // Create AnimalType
     UA_ObjectTypeAttributes animalTypeAttr = UA_ObjectTypeAttributes_default;
@@ -271,7 +422,23 @@ int main(int argc, char* argv[]) {
     UA_QualifiedName_clear(&nameName);
     UA_String_clear(&name);
 
-    UA_StatusCode retval = UA_Server_run(server, &running);
+    g_counterNodeId = &myDoubleNodeId;
+    g_eventNodeId = &eventNodeId;
+    UA_Server_addRepeatedCallback(server, updateCounterAndTriggerEvent, NULL, 10000, NULL);
+
+    retval = UA_Server_run(server, &running);
+
+    UA_VariableAttributes_clear(&attr);
+    UA_VariableAttributes_clear(&attr2);
+    UA_VariableAttributes_clear(&attr3);
+    UA_NodeId_clear(&myIntegerNodeId);
+    UA_NodeId_clear(&myDoubleNodeId);
+    UA_NodeId_clear(&minNodeId);
+    UA_QualifiedName_clear(&myIntegerName);
+    UA_QualifiedName_clear(&myDoubleName);
+    UA_QualifiedName_clear(&minName);
+
+
 
     // Clean up security policies
     for(size_t i = 0; i < config->securityPoliciesSize; i++) {
