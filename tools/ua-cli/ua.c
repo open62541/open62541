@@ -173,12 +173,7 @@ loadFile(const char *const path) {
 static void
 printType(void *p, const UA_DataType *type) {
     UA_ByteString out = UA_BYTESTRING_NULL;
-    UA_EncodeJsonOptions opts;
-    memset(&opts, 0, sizeof(UA_EncodeJsonOptions));
-    opts.prettyPrint = true;
-    opts.useReversible = true;
-    opts.stringNodeIds = true;
-    UA_StatusCode res = UA_encodeJson(p, type, &out, &opts);
+    UA_StatusCode res = UA_print(p, type, &out);
     (void)res;
     printf("%.*s\n", (int)out.length, out.data);
     UA_ByteString_clear(&out);
