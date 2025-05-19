@@ -659,18 +659,20 @@ exploreRecursive(char *pathString, size_t pos, const UA_NodeId current,
         UA_ReferenceDescription *rd = &br.references[i];
         if(!UA_ExpandedNodeId_isLocal(&rd->nodeId))
             continue;
-        char browseName[80];
-        int len = snprintf(browseName, 80, "%d:%.*s",
-                           (unsigned)rd->browseName.namespaceIndex,
-                           (int)rd->browseName.name.length,
-                           (char*)rd->browseName.name.data);
-        if(len < 0)
-            continue;
-        if(len > 80)
-            len = 80;
-        memcpy(pathString + pos, "/", 1);
-        memcpy(pathString + pos + 1, browseName, len);
-        exploreRecursive(pathString, pos + 1 + (size_t)len, rd->nodeId.nodeId, rd->nodeClass, depth-1);
+        unsigned char browseName[80];
+        UA_String bnString = {80, browseName};
+
+        UA_SimpleAttributeOperand sao;
+        UA_SimpleAttributeOperand_init(&sao);
+        sao.typeDefinitionId = UA_NS0ID(BASEEVENTTYPE); /* Prevent printing */
+        sao.browsePathSize = 1;
+        sao.browsePath = &rd->browseName;
+        sao.attributeId = UA_ATTRIBUTEID_VALUE; /* Prevent printing */
+        UA_SimpleAttributeOperand_print(&sao, &bnString);
+        memcpy(pathString + pos, browseName, bnString.length);
+
+        exploreRecursive(pathString, pos + bnString.length,
+                         rd->nodeId.nodeId, rd->nodeClass, depth-1);
     }
 
     UA_BrowseResult_clear(&br);
@@ -718,6 +720,16 @@ explore(void) {
     if(res != UA_STATUSCODE_GOOD)
         abortWithStatus(res);
 
+    /* Remove trailing slash */
+    size_t origPathElems = ao.browsePath.elementsSize;
+    if(ao.browsePath.elementsSize > 0) {
+        size_t i = ao.browsePath.elementsSize - 1;
+        UA_QualifiedName *last = &ao.browsePath.elements[i].targetName;
+        if(last->namespaceIndex == 0 &&
+           last->name.length == 0)
+            ao.browsePath.elementsSize--;
+    }
+
     /* Resolve the RelativePath */
     if(ao.browsePath.elementsSize > 0) {
         UA_BrowsePath bp;
@@ -754,18 +766,20 @@ explore(void) {
         UA_BrowsePathResult_clear(&bpr);
     }
 
+    ao.browsePath.elementsSize = origPathElems;
+
     /* Read the NodeClass of the root node */
     UA_NodeClass nc = UA_NODECLASS_UNSPECIFIED;
     res = UA_Client_readNodeClassAttribute(client, ao.nodeId, &nc);
     if(res != UA_STATUSCODE_GOOD)
         abortWithStatus(res);
 
+    /* Forward the current path, remove trailing slash */
     char relativepath[512];
-    size_t pos = 0;
-    if (pathArg) {
-        pos = strlen(pathArg);
-        memcpy(relativepath, pathArg, pos);
-    }
+    size_t pos = strlen(pathArg);
+    if(pos > 0 && pathArg[pos-1] == '/')
+        pos--;
+    memcpy(relativepath, pathArg, pos);
 
     exploreRecursive(relativepath, pos, ao.nodeId, nc, depth);
 
