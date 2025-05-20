@@ -2,14 +2,14 @@
 # https://aka.ms/yaml
 
 jobs:
-- job: 'win_vs2019'
-  displayName: 'Windows (VS2019)'
+- job: 'win_vs2022'
+  displayName: 'Windows (VS2022)'
   pool:
-    vmImage: 'windows-2019'
+    vmImage: 'windows-2022'
   variables:
-    CC_NAME: Visual Studio 16 2019
-    CC_SHORTNAME: VS2019
-    GENERATOR: Visual Studio 16 2019
+    CC_NAME: Visual Studio 17 2022
+    CC_SHORTNAME: VS2022
+    GENERATOR: Visual Studio 17 2022
     FORCE_CXX: OFF
   steps:
   - checkout: self
@@ -22,7 +22,7 @@ jobs:
 - job: 'win_msys64'
   displayName: 'Windows (msys64)'
   pool:
-    vmImage: 'windows-2019'
+    vmImage: 'windows-2022'
   variables:
     CC_NAME: MinGW Makefiles
     CC_SHORTNAME: mingw
@@ -42,7 +42,7 @@ jobs:
 - job: 'win_clang'
   displayName: 'Windows (clang)'
   pool:
-    vmImage: 'windows-2019'
+    vmImage: 'windows-2022'
   variables:
     CC_NAME: Clang
     CC_SHORTNAME: clang-mingw
