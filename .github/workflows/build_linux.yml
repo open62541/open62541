@@ -179,28 +179,6 @@ jobs:
                 pip3 install --break-system-packages .
               cmd_action: build_tpm_tool   
                  
-          # Valgrind tests for specific Ubuntu versions
-          - os: ubuntu-24.04
-            build:
-              name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
-              cmd_action: unit_tests_valgrind MBEDTLS          
-          - os: ubuntu-24.04
-            build:
-              name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind openssl
-              cmd_action: unit_tests_valgrind OPENSSL          
-          - os: ubuntu-24.04
-            build:
-              name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces
-              cmd_action: examples_valgrind MBEDTLS MDNSD          
-          - os: ubuntu-24.04
-            build:
-              name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev
-              cmd_action: examples_valgrind OPENSSL AVAHI          
-              
           # Clang Static Analyzer Builds
           - os: ubuntu-20.04
             build:
@@ -257,6 +235,64 @@ jobs:
           ETHERNET_INTERFACE: eth0
       - name: Upload coverage to Codecov
         if: matrix.build.os == '' || matrix.build.os == matrix.os
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  valgrind:
+    needs: build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/marwinglaser/ci:ubuntu-24.04
+      options: --privileged
+    services:
+      mosquitto:
+        image: eclipse-mosquitto:1.6-openssl
+    env:
+      OPEN62541_TEST_MQTT_BROKER: opc.mqtt://mosquitto:1883
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04]
+        build:
+          - name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+            cmd_action: unit_tests_valgrind MBEDTLS
+          - name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl
+            cmd_action: unit_tests_valgrind OPENSSL
+          - name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces
+            cmd_action: examples_valgrind MBEDTLS MDNSD
+          - name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev
+            cmd_action: examples_valgrind OPENSSL AVAHI
+    name: ${{ matrix.os }}-${{ matrix.build.name }}
+    steps:
+      - name: Work around disabled ipv6 on actions container networks
+        run: |
+          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+          echo "Current IPv6 status on eth0: $IPV6"
+          [ "$IPV6" = "1" ] || exit
+
+          echo 0 | sudo tee /proc/sys/net/ipv6/conf/eth0/disable_ipv6 > /dev/null
+          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+          echo "New IPv6 status on eth0: $IPV6"
+          [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev
+          ${{ matrix.build.cmd_deps }}
+      - name: ${{ matrix.build.name }}
+        shell: bash
+        run: source tools/ci/ci.sh && ${{ matrix.build.cmd_action }}
+        env:
+          ETHERNET_INTERFACE: eth0
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
