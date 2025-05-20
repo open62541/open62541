@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
-### This Source Code Form is subject to the terms of the Mozilla Public
-### License, v. 2.0. If a copy of the MPL was not distributed with this
-### file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-###    Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
-###    Copyright 2014-2017, 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
-###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+# Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
+# Copyright 2014-2017, 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+# Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
 import re
 import xml.dom.minidom as dom
@@ -15,6 +15,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 namespaceMapping = {}
+
 
 class LocalizedText():
     def __init__(self, xmlvalue=None):
@@ -47,6 +48,7 @@ class LocalizedText():
         else:
             return self.text
 
+
 class NodeId():
     def __init__(self, idstring=None):
         self.i = None
@@ -75,7 +77,7 @@ class NodeId():
                     self.ns = namespaceMapping[self.ns]
             elif p[:2] == "i=":
                 self.i = int(p[2:])
-            elif p[:2] == "o=":
+            elif p[:2] == "b=":
                 self.b = p[2:]
             elif p[:2] == "g=":
                 tmp = []
@@ -100,7 +102,7 @@ class NodeId():
         #           </Identifier>
         #        </NodeId> or </Alias>
         if not isinstance(xmlvalue, dom.Element):
-            self.text = xmlvalue # Alias
+            self.text = xmlvalue  # Alias
             return
         self.checkXML(xmlvalue)
 
@@ -143,6 +145,7 @@ class NodeId():
 
     def __hash__(self):
         return hash(str(self))
+
 
 class QualifiedName():
     def __init__(self, xmlelement=None):
