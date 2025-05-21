@@ -73,16 +73,43 @@ int main(void) {
      * (O) Objects
      *   + O Bello <DogType>
      *     + Age
-     *     + Name
      */
 
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    oAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog named Bello");
+    oAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog named Bello with only mandatory fields");
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Bello");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
                             UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "Bello"), UA_NODEID_NUMERIC(1, 10002),
                             oAttr, NULL, NULL);
+
+    /* Instatiate a dog named doge:
+     * (O) Objects
+     *   + O Bello <DogType>
+     *     + Age
+     *     + Name (optional)
+     */
+    oAttr = UA_ObjectAttributes_default;
+    oAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog named Doge with optional fields");
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Doge");
+    UA_NodeId dogeNodeId;
+    UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(1, 0),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_QUALIFIEDNAME(1, "Doge"), UA_NODEID_NUMERIC(1, 10002),
+                            &oAttr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
+                            NULL, &dogeNodeId);
+    
+    vAttr = UA_VariableAttributes_default;
+    vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This dogs Name");
+    vAttr.displayName =  UA_LOCALIZEDTEXT("en-US", "Name");
+    UA_String dogeName = UA_STRING("Doge");
+    UA_Variant_setScalar(&vAttr.value, &dogeName, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 0),
+                                dogeNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                UA_QUALIFIEDNAME(1, "Name"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, NULL);
+
+    UA_Server_addNode_finish(server, dogeNodeId);
 
     retval = UA_Server_run(server, &running);
 
