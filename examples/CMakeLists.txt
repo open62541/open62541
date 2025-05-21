@@ -49,6 +49,7 @@ endmacro()
 # Tutorials #
 #############
 add_example(server_cpp server.cpp)
+target_link_libraries(server_cpp nanomq)
 add_example(tutorial_datatypes tutorial_datatypes.c)
 add_example(tutorial_server_firststeps tutorial_server_firststeps.c)
 add_example(tutorial_server_variable tutorial_server_variable.c)

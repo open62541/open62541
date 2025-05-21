@@ -22,6 +22,7 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 
 find_package(Python3 REQUIRED)
 find_package(Git)
+find_package(nng CONFIG REQUIRED)
 
 include(AssignSourceGroup)
 include(GNUInstallDirs)

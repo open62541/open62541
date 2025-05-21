@@ -4,7 +4,14 @@
 //  ./server D:\OPC UA Server\OPCUA- open 62451\open62541-C\certs\server_cert.der D:\OPC UA Server\OPCUA- open 62451\open62541-C\certs\server_key.der [trust1.der trust2.der ...]
 //  ./server D:\OPC UA Server\OPCUA- open 62451\open62541-C\certs\server_cert.der D:\OPC UA Server\OPCUA- open 62451\open62541-C\certs\server_key.der
 
+// #include <async_mqtt/all.hpp>
+#include <nanoMQ/include/bridge.h>
+#include <nanoMQ/include/broker.h>
 
+#include <nanoMQ/include/nanomq.h>
+#include <nng/nng.h>
+#include <nanoMQ/include/nng/protocol/mqtt/mqtt.h>
+// #include <async_mqtt/asio_bind/predefined_layer/mqtts.hpp>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/securitypolicy_default.h>
@@ -15,6 +22,10 @@
 #include <stdlib.h>
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/server.h>
+
+// extern "C" {
+// #include "nanoMQ/include/nanomq.h"  // This has nanomq_cli_start and related APIs
+// }
 
 /* Build Instructions (Linux)
  * - g++ server.cpp -lopen62541 -o server */
@@ -93,8 +104,8 @@ static void updateCounterAndTriggerEvent(UA_Server *server, void *data) {
     UA_Server_writeValue(server, *g_counterNodeId, value);
 
     // Trigger the event
-    Sleep(10000);
-    UA_Server_triggerEvent(server, *g_eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
+    // Sleep(10000);
+    // UA_Server_triggerEvent(server, *g_eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
 }
 
 
@@ -139,7 +150,8 @@ int main(int argc, char* argv[]) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-// #ifdef UA_ENABLE_ENCRYPTION
+    // broker_start(argc, argv);
+    // #ifdef UA_ENABLE_ENCRYPTION
     // UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey, trustList, trustListSize, NULL, 0, NULL, 0);
     //     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey, NULL, NULL, NULL, 0, NULL, 0);
     // config->applicationDescription.applicationUri = UA_STRING_ALLOC("urn:Anexee.server.application");
@@ -325,7 +337,7 @@ UA_String eventSourceName = UA_STRING("Server");
 UA_Server_writeObjectProperty_scalar(server, eventNodeId,
     UA_QUALIFIEDNAME(0, "SourceName"), &eventSourceName, &UA_TYPES[UA_TYPES_STRING]);
 
-/* 4) Finally, trigger the event (don’t forget the SourceNode argument) */
+/* 4) Finally, trigger the event (don't forget the SourceNode argument) */
 
 // UA_Server_triggerEvent(server, eventNodeId,
 //         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, true);
@@ -455,3 +467,8 @@ UA_Server_writeObjectProperty_scalar(server, eventNodeId,
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
+
+
+
+
+// Build an OPC UA Server that dynamically updates its address space using data received via MQTT, which in turn is sourced from a database.
