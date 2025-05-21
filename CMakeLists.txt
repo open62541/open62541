@@ -183,6 +183,9 @@ else()
     endif()
 endif()
 
+option(UA_ENABLE_LWS "Includes the libwebsockets library" OFF)
+mark_as_advanced(UA_ENABLE_LWS)
+
 # security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
 set(UA_ENABLE_ENCRYPTION OFF CACHE STRING "Encryption support (LibreSSL EXPERIMENTAL)")
@@ -533,6 +536,15 @@ endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
     list(APPEND open62541_LIBRARIES ${TPM2_LIB})
+endif()
+
+if(UA_ENABLE_LWS)
+    find_package(libwebsockets REQUIRED)
+#    message(LWS Version: ${LIBWEBSOCKETS_VERSION})
+#    if(LIBWEBSOCKETS_VERSION VERSION_LESS "4.3")
+#        message(FATAL_ERROR "The version of libwebsockets is too old (required at least v4.3)")
+#    endif()
+    list(APPEND open62541_LIBRARIES ${LIBWEBSOCKETS_LIBRARIES})
 endif()
 
 if(MINGW)
@@ -1005,10 +1017,17 @@ if(UA_ARCHITECTURE_ZEPHYR)
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
 endif()
 
+if(UA_ENABLE_LWS)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/arch/lws/eventloop_lws_http.c
+         ${PROJECT_SOURCE_DIR}/arch/lws/eventloop_lws_posix.h
+         ${PROJECT_SOURCE_DIR}/arch/lws/eventloop_lws_posix.c)
+endif()
+
 if(UA_ENABLE_MQTT)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
 endif()
-     
+
 # For file based server configuration
 if(UA_ENABLE_JSON_ENCODING)
     list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_file_based.h)
@@ -1344,6 +1363,9 @@ if(UA_ENABLE_ENCRYPTION_LIBRESSL)
 endif()
 if(UA_ENABLE_NODESETLOADER)
     include_directories_private(${NODESETLOADER_PRIVATE_INCLUDES})
+endif()
+if(UA_ENABLE_LWS)
+    include_directories_private(${LIBWEBSOCKETS_INCLUDE_DIR})
 endif()
 
 # Public include directories
