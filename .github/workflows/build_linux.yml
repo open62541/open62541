@@ -252,6 +252,6 @@ jobs:
       - name: ${{ matrix.build.name }}
         if: matrix.build.os == '' || matrix.build.os == matrix.os
         shell: bash
-        run: source tools/ci/ci.sh && ${{ matrix.build.cmd_action }}
+        run: source tools/ci.sh && ${{ matrix.build.cmd_action }}
         env:
           ETHERNET_INTERFACE: eth0
