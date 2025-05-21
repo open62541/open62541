@@ -37,7 +37,7 @@ if sys.version_info[0] >= 3:
 
     string_types = str
 else:
-    string_types = basestring 
+    string_types = basestring
 
 def getNextElementNode(xmlvalue):
     if xmlvalue is None:
@@ -350,7 +350,7 @@ class Value(object):
                 else:
                     logger.error(str(parent.id) + ": Could not parse <SwitchFiled> for Union.")
                     return self
-                
+
 
             childValue = ebodypart.firstChild
             if not childValue.nodeType == ebodypart.ELEMENT_NODE:
@@ -685,7 +685,7 @@ class NodeId(Value):
                     self.ns = namespaceMapping[self.ns]
             elif p[:2] == "i=":
                 self.i = int(p[2:])
-            elif p[:2] == "o=":
+            elif p[:2] == "b=":
                 self.b = p[2:]
             elif p[:2] == "g=":
                 tmp = []
