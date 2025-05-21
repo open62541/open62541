@@ -56,7 +56,7 @@ int main(void) {
                                 UA_QUALIFIEDNAME(1, "DogType"), otAttr, NULL, NULL);
 
     vAttr = UA_VariableAttributes_default;
-    vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This mamals Age in months");
+    vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This dogs Name");
     vAttr.displayName =  UA_LOCALIZEDTEXT("en-US", "Name");
     UA_String defaultName = UA_STRING("unnamed dog");
     UA_Variant_setScalar(&vAttr.value, &defaultName, &UA_TYPES[UA_TYPES_STRING]);
