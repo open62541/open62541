@@ -460,6 +460,11 @@ UA_DataSetReader_process(UA_PubSubManager *psm,
                          UA_DataSetMessage *dataSetMsg);
 
 UA_StatusCode
+UA_DataSetReader_generateDataSetMessage(UA_Server *server,
+                                        UA_DataSetMessage *dsm,
+                                        UA_DataSetReader *dsr);
+
+UA_StatusCode
 UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                  UA_NetworkMessage *msg);
 

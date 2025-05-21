@@ -1021,6 +1021,14 @@ UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
                                         const UA_NodeId readerGroupId,
                                         UA_PubSubOffsetTable *ot);
 
+/* Similar to _computeReaderGroupOffsetTable, but only computes the offsets
+ * within the DataSetMessage for one DataSetReader. The offsets begin at zero
+ * for the DataSetMessage. */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_computeDataSetReaderOffsetTable(UA_Server *server,
+                                          const UA_NodeId dataSetReaderId,
+                                          UA_PubSubOffsetTable *ot);
+
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS
