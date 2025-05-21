@@ -925,6 +925,18 @@ UA_NetworkMessage_calcSizeBinaryInternal(PubSubEncodeCtx *ctx,
     if(p->payloadHeaderEnabled && count > 1)
         size += (size_t)(2LU * count); /* DataSetMessagesSize (uint16) */
     for(size_t i = 0; i < count; i++) {
+        /* Add the offset here and not inside UA_DataSetMessage_calcSizeBinary.
+         * We don't want the offset marking the beginning of the DataSetMessage
+         * if we compute the offsets of a single DataSetMessage (without looking
+         * at the entire NetworkMessage). */
+        if(ot) {
+            size_t pos = ot->offsetsSize;
+            if(!incrOffsetTable(ot))
+                return 0;
+            ot->offsets[pos].offset = size;
+            ot->offsets[pos].offsetType = UA_PUBSUBOFFSETTYPE_DATASETMESSAGE;
+        }
+
         /* size = ... as the original size is used as the starting point in
          * UA_DataSetMessage_calcSizeBinary */
         UA_DataSetMessage *dsm = &p->payload.dataSetPayload.dataSetMessages[i];
@@ -1632,13 +1644,6 @@ UA_DataSetMessage_calcSizeBinary(PubSubEncodeCtx *ctx,
                                  UA_DataSetMessage *p,
                                  size_t size) {
     UA_PubSubOffsetTable *ot = ctx->ot;
-    if(ot) {
-        size_t pos = ot->offsetsSize;
-        if(!incrOffsetTable(ot))
-            return 0;
-        ot->offsets[pos].offset = size;
-        ot->offsets[pos].offsetType = UA_PUBSUBOFFSETTYPE_DATASETMESSAGE;
-    }
 
     size += 1; /* byte: DataSetMessage Type + Flags */
     if(UA_DataSetMessageHeader_DataSetFlags2Enabled(&p->header))
