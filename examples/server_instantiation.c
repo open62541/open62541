@@ -48,6 +48,10 @@ int main(void) {
                               UA_QUALIFIEDNAME(1, "Age"),
                               UA_NS0ID(BASEDATAVARIABLETYPE), vAttr, NULL, NULL);
 
+    UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 10001),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
+                              UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+
     otAttr = UA_ObjectTypeAttributes_default;
     otAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog, subtype of mamal");
     otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "DogType");
