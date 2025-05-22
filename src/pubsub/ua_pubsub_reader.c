@@ -238,7 +238,7 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     if(UA_PubSubState_isEnabled(rg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
                               "Cannot add a DataSetReader while the "
-                              "ReaderGroup with realtime options is enabled");
+                              "ReaderGroup is enabled");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
