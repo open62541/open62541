@@ -460,6 +460,11 @@ UA_DataSetReader_process(UA_PubSubManager *psm,
                          UA_DataSetMessage *dataSetMsg);
 
 UA_StatusCode
+UA_DataSetReader_generateDataSetMessage(UA_Server *server,
+                                        UA_DataSetMessage *dsm,
+                                        UA_DataSetReader *dsr);
+
+UA_StatusCode
 UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                  UA_NetworkMessage *msg);
 
@@ -556,6 +561,18 @@ UA_StatusCode
 verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                                Ctx *ctx, UA_NetworkMessage *nm,
                                UA_ReaderGroup *rg);
+
+UA_StatusCode
+UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
+                                    UA_ReaderGroup *rg,
+                                    UA_ByteString buffer,
+                                    UA_NetworkMessage *nm);
+
+UA_StatusCode
+UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
+                                        UA_ReaderGroup *rg,
+                                        UA_ByteString buffer,
+                                        UA_NetworkMessage *nm);
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 
