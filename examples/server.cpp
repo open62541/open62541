@@ -5,12 +5,12 @@
 //  ./server D:\OPC UA Server\OPCUA- open 62451\open62541-C\certs\server_cert.der D:\OPC UA Server\OPCUA- open 62451\open62541-C\certs\server_key.der
 
 // #include <async_mqtt/all.hpp>
-#include <nanoMQ/include/bridge.h>
-#include <nanoMQ/include/broker.h>
+//#include <nanoMQ/include/bridge.h>
+//#include <nanoMQ/include/broker.h>
 
-#include <nanoMQ/include/nanomq.h>
-#include <nng/nng.h>
-#include <nanoMQ/include/nng/protocol/mqtt/mqtt.h>
+//#include <nanoMQ/include/nanomq.h>
+//#include <nng/nng.h>
+//#include <nanoMQ/include/nng/protocol/mqtt/mqtt.h>
 // #include <async_mqtt/asio_bind/predefined_layer/mqtts.hpp>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
@@ -22,6 +22,13 @@
 #include <stdlib.h>
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/server.h>
+
+#include <map>
+#include <vector>
+#include <string>
+#include <sstream>
+
+#include <pqxx/pqxx>
 
 // extern "C" {
 // #include "nanoMQ/include/nanomq.h"  // This has nanomq_cli_start and related APIs
@@ -107,6 +114,41 @@ static void updateCounterAndTriggerEvent(UA_Server *server, void *data) {
     // Sleep(10000);
     // UA_Server_triggerEvent(server, *g_eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
 }
+
+
+
+
+
+
+    map<string, UA_NodeId> nodeMap;
+
+    vector<string> split(const string& s, char delimiter) {
+    vector<string> tokens;
+    stringstream ss(s);
+    string item;
+    while (std::getline(ss, item, delimiter)) {
+        tokens.push_back(item);
+    }
+    return tokens;
+}
+
+
+    UA_NodeId getOrCreateFolder(UA_Server* server, const string& path, const string& name, UA_NodeId parent) {
+    if (nodeMap.count(path)) return nodeMap[path];
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", name.c_str());
+    UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, path.c_str());
+    UA_QualifiedName qName = UA_QUALIFIEDNAME_ALLOC(1, name.c_str());
+    UA_Server_addObjectNode(server, nodeId, parent, UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), qName, UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), oAttr, NULL, NULL);
+    nodeMap[path] = nodeId;
+    return nodeId;
+}
+
+
+
+
+
+
 
 
 
@@ -214,6 +256,17 @@ int main(int argc, char* argv[]) {
     // UA_String_clear(&name);
 
 
+        
+
+
+   vector<string> topics;
+   pqxx::connection c("dbname=postgres user=postgres password=payphone123@007");
+   pqxx::work txn(c);
+   pqxx::result r = txn.exec("SELECT topic FROM mqtt_topics");
+   for (auto row : r) {
+       topics.push_back(row[0].c_str());
+   }
+
 
 
 
@@ -257,24 +310,62 @@ int main(int argc, char* argv[]) {
 
 
 
-    UA_VariableAttributes attr3 = UA_VariableAttributes_default;
-    UA_Double minValue = 0.0;
-    UA_Variant_setScalarCopy(&attr3.value, &minValue, &UA_TYPES[UA_TYPES_DOUBLE]);
-    attr3.description = UA_LOCALIZEDTEXT_ALLOC("en-US","MIN");
-    attr3.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","MIN");
-    attr3.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-    UA_NodeId minNodeId = UA_NODEID_STRING_ALLOC(1, "MIN");
-    UA_QualifiedName minName = UA_QUALIFIEDNAME_ALLOC(1, "MIN");
-    UA_Server_addVariableNode(server, minNodeId, myDoubleNodeId,
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), minName,
-                            UA_NODEID_NULL, attr3, NULL, NULL);
+    //UA_VariableAttributes attr3 = UA_VariableAttributes_default;
+    //UA_Double minValue = 0.0;
+    //UA_Variant_setScalarCopy(&attr3.value, &minValue, &UA_TYPES[UA_TYPES_DOUBLE]);
+    //attr3.description = UA_LOCALIZEDTEXT_ALLOC("en-US","MIN");
+    //attr3.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","MIN");
+    //attr3.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    //UA_NodeId minNodeId = UA_NODEID_STRING_ALLOC(1, "MIN");
+    //UA_QualifiedName minName = UA_QUALIFIEDNAME_ALLOC(1, "MIN");
+    //UA_Server_addVariableNode(server, minNodeId, myDoubleNodeId,
+    //                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), minName,
+    //                        UA_NODEID_NULL, attr3, NULL, NULL);
+
+    
+//    for(const auto &topic : topics) {
+//         UA_VariableAttributes attr = UA_VariableAttributes_default;
+//         UA_Int32 value = 0;  // or whatever default
+//         UA_Variant_setScalarCopy(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+//         attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", topic.c_str());
+//         UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, topic.c_str());
+//         UA_QualifiedName nodeName = UA_QUALIFIEDNAME_ALLOC(1, topic.c_str());
+//         //UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+//         //UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
+//         UA_Server_addVariableNode(server, nodeId, myDoubleNodeId,
+//                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+//                                   nodeName, UA_NODEID_NULL, attr, NULL, NULL);
+//         // Store nodeId for later updates
+//     }
 
 
 
 
 
-
-
+// For each topic:
+for (const auto& topic : topics) {
+    auto parts = split(topic, '/');
+    std::string currentPath;
+     UA_NodeId parent = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    for (size_t i = 0; i < parts.size(); ++i) {
+        if (!currentPath.empty()) currentPath += "/";
+        currentPath += parts[i];
+        if (i < parts.size() - 1) {
+            // Create folder/object for each level except the last
+            parent = getOrCreateFolder(server, currentPath, parts[i], parent);
+        } else {
+            // Last part: create variable node as child of parent
+            UA_VariableAttributes attr = UA_VariableAttributes_default;
+            UA_Int32 value = 0;
+            UA_Variant_setScalarCopy(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+            attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", parts[i].c_str());
+            UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, currentPath.c_str());
+            UA_QualifiedName nodeName = UA_QUALIFIEDNAME_ALLOC(1, parts[i].c_str());
+            UA_Server_addVariableNode(server, nodeId, parent, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), nodeName, UA_NODEID_NULL, attr, NULL, NULL);
+            nodeMap[currentPath] = nodeId;
+        }
+    }
+}
 
 
 
@@ -442,13 +533,13 @@ UA_Server_writeObjectProperty_scalar(server, eventNodeId,
 
     UA_VariableAttributes_clear(&attr);
     UA_VariableAttributes_clear(&attr2);
-    UA_VariableAttributes_clear(&attr3);
+    //UA_VariableAttributes_clear(&attr3);
     UA_NodeId_clear(&myIntegerNodeId);
     UA_NodeId_clear(&myDoubleNodeId);
-    UA_NodeId_clear(&minNodeId);
+    //UA_NodeId_clear(&minNodeId);
     UA_QualifiedName_clear(&myIntegerName);
     UA_QualifiedName_clear(&myDoubleName);
-    UA_QualifiedName_clear(&minName);
+    //UA_QualifiedName_clear(&minName);
 
 
 
