@@ -7,61 +7,103 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - build_name: "Debug Build & Unit Tests (gcc)"
+        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
+        build:
+          - name: "Debug Build & Unit Tests (gcc)"
             cmd_action: unit_tests
-          - build_name: "Debug Build & Unit Tests (gcc, 32bit)"
+
+          - name: "Debug Build & Unit Tests (gcc, 32bit)"
             cmd_deps: |
-                sudo dpkg --add-architecture i386
-                sudo apt-get update
-                sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386 libxml2-dev:i386
+              sudo dpkg --add-architecture i386
+              sudo apt-get update
+              sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386 libxml2-dev:i386
             cmd_action: unit_tests_32
-          - build_name: "Debug Build & Unit Tests without Subscriptions (gcc)"
-            cmd_deps: ""
+
+          - name: "Debug Build & Unit Tests without Subscriptions (gcc)"
             cmd_action: unit_tests_nosub
-          - build_name: "Debug Build & Unit Tests with Diagnostics (gcc)"
-            cmd_deps: ""
+
+          - name: "Debug Build & Unit Tests with Diagnostics (gcc)"
             cmd_action: unit_tests_diag
-          - build_name: "Debug Build & Unit Tests with multithreading (gcc)"
-            cmd_deps: ""
+
+          - name: "Debug Build & Unit Tests with multithreading (gcc)"
             cmd_action: unit_tests_mt
-          - build_name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
-            cmd_deps: ""
+
+          - name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
             cmd_action: unit_tests_alarms
-          - build_name: "Debug Build & Unit Tests (clang)"
-            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11
-            cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
-          - build_name: "Debug Build & Unit Tests (tcc)"
+
+          - name: "Debug Build & Unit Tests (tcc)"
             cmd_deps: sudo apt-get install -y -qq tcc
             cmd_action: CC=tcc unit_tests
-          - build_name: "Encryption (MbedTLS) Build & Unit Tests (gcc)"
+
+          - name: "Encryption (MbedTLS) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: unit_tests_encryption MBEDTLS
-          - build_name: "PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)"
+
+          - name: "PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: unit_tests_encryption_mbedtls_pubsub
-          - build_name: "PubSub SKS Build & Unit Tests (gcc)"
+
+          - name: "PubSub SKS Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
             cmd_action: unit_tests_pubsub_sks
-          - build_name: "Encryption (OpenSSL) Build & Unit Tests (gcc)"
+
+          - name: "Encryption (OpenSSL) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq openssl
             cmd_action: unit_tests_encryption OPENSSL
-          - build_name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
+
+          - name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
-                sudo apt-get install -y -qq curl
-                curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.7.2.tar.gz --output libressl.tar.gz
-                tar -xvz -f libressl.tar.gz
-                cd libressl-3.7.2
-                ./configure
-                sudo make install
+              sudo apt-get install -y -qq curl
+              curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.9.1.tar.gz --output libressl.tar.gz
+              tar -xvz -f libressl.tar.gz
+              cd libressl-3.9.1
+              ./configure
+              sudo make install
             cmd_action: unit_tests_encryption LIBRESSL
-          - build_name: "TPM Tool Build"
-            cmd_deps: |
+
+          - name: "Release Build"
+            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            cmd_action: build_release
+
+          - name: "Amalgamation Build"
+            cmd_action: build_amalgamation
+
+          - name: "Amalgamation Build with Multithreading"
+            cmd_action: build_amalgamation_mt
+
+          - name: "Build All Companion Specifications"
+            cmd_action: build_all_companion_specs
+
+        include:          
+          # Clang builds for specific Ubuntu versions
+          - os: ubuntu-20.04
+            build:
+              name: "Debug Build & Unit Tests (clang-11)"
+              cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11
+              cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
+
+          - os: ubuntu-22.04
+            build:
+              name: "Debug Build & Unit Tests (clang-15)"
+              cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 && sudo sysctl -w vm.mmap_rnd_bits=28
+              cmd_action: CC=clang-15 CXX=clang++-15 unit_tests
+
+          - os: ubuntu-24.04
+            build:
+              name: "Debug Build & Unit Tests (clang-18)"
+              cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 && sudo sysctl -w vm.mmap_rnd_bits=28
+              cmd_action: CC=clang-18 CXX=clang++-18 unit_tests          
+          
+          # TPM Tool Builds for specific Ubuntu versions
+          - os: ubuntu-20.04
+            build:
+              name: "TPM Tool Build ubuntu-20.04"
+              cmd_deps: |
                 sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
                 cd ${HOME}
                 git clone https://github.com/tpm2-software/tpm2-tss.git
                 cd ${HOME}/tpm2-tss
-                git checkout 2.4.6
+                git checkout 3.2.3
                 ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
                 make -j$(nproc)
                 sudo make install
@@ -71,7 +113,7 @@ jobs:
                 cd ${HOME}
                 git clone https://github.com/tpm2-software/tpm2-pkcs11.git
                 cd ${HOME}/tpm2-pkcs11
-                git checkout 1.6.0
+                git checkout 1.7.0
                 ./bootstrap && ./configure
                 make -j$(nproc)
                 sudo make install
@@ -80,38 +122,106 @@ jobs:
                 cd ${HOME}/tpm2-pkcs11/tools/
                 sudo pip3 install pyasn1_modules
                 pip3 install .
-            cmd_action: build_tpm_tool
-          - build_name: "Release Build"
-            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
-            cmd_action: build_release
-          - build_name: Amalgamation Build
-            cmd_deps: ""
-            cmd_action: build_amalgamation
-          - build_name: Amalgamation Build with Multithreading
-            cmd_deps: ""
-            cmd_action: build_amalgamation_mt
-          - build_name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
-            cmd_action: unit_tests_valgrind MBEDTLS
-          - build_name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind openssl
-            cmd_action: unit_tests_valgrind OPENSSL
-          - build_name: "Valgrind Examples with MbedTLS (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces
-            cmd_action: examples_valgrind MBEDTLS
-          - build_name: "Valgrind Examples with OpenSSL (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces
-            cmd_action: examples_valgrind OPENSSL
-          - build_name: "Clang Static Analyzer"
-            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
-            cmd_action: build_clang_analyzer
-          - build_name: "Build All Companion Specifications"
-            cmd_deps: ""
-            cmd_action: build_all_companion_specs
-    name: ${{matrix.build_name}}
+              cmd_action: build_tpm_tool          
+          - os: ubuntu-22.04
+            build:
+              name: "TPM Tool Build ubuntu-22.04"
+              cmd_deps: |
+                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-tss.git
+                cd ${HOME}/tpm2-tss
+                git checkout 3.2.3
+                ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo udevadm control --reload-rules && sudo udevadm trigger
+                sudo apt-get install -y -qq tpm2-tools opensc
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-pkcs11.git
+                cd ${HOME}/tpm2-pkcs11
+                git checkout 1.7.0
+                ./bootstrap && ./configure
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
+                cd ${HOME}/tpm2-pkcs11/tools/
+                sudo pip3 install pyasn1_modules
+                pip3 install .
+              cmd_action: build_tpm_tool          
+          - os: ubuntu-24.04
+            build:
+              name: "TPM Tool Build ubuntu-24.04"
+              cmd_deps: |
+                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev libltdl-dev python3-pyasn1-modules
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-tss.git
+                cd ${HOME}/tpm2-tss
+                git checkout 4.1.3
+                ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo udevadm control --reload-rules && sudo udevadm trigger
+                sudo apt-get install -y -qq tpm2-tools python3-tpm2-pytss opensc
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-pkcs11.git
+                cd ${HOME}/tpm2-pkcs11
+                git checkout 1.9.1
+                ./bootstrap && ./configure
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
+                cd ${HOME}/tpm2-pkcs11/tools/
+                pip3 install --break-system-packages .
+              cmd_action: build_tpm_tool   
+                 
+          # Valgrind tests for specific Ubuntu versions
+          - os: ubuntu-24.04
+            build:
+              name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
+              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+              cmd_action: unit_tests_valgrind MBEDTLS          
+          - os: ubuntu-24.04
+            build:
+              name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
+              cmd_deps: sudo apt-get install -y -qq valgrind openssl
+              cmd_action: unit_tests_valgrind OPENSSL          
+          - os: ubuntu-24.04
+            build:
+              name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
+              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces
+              cmd_action: examples_valgrind MBEDTLS MDNSD          
+          - os: ubuntu-24.04
+            build:
+              name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
+              cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev
+              cmd_action: examples_valgrind OPENSSL AVAHI          
+              
+          # Clang Static Analyzer Builds
+          - os: ubuntu-20.04
+            build:
+              name: "Clang Static Analyzer (clang11)"
+              cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
+              cmd_action: CC=clang-11 CXX=clang++-11 build_clang_analyzer 11          
+          - os: ubuntu-22.04
+            build:
+              name: "Clang Static Analyzer (clang15)"
+              cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 libmbedtls-dev
+              cmd_action: CC=clang-15 CXX=clang++-15 build_clang_analyzer 15          
+          - os: ubuntu-24.04
+            build:
+              name: "Clang Static Analyzer (clang18)"
+              cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 libmbedtls-dev
+              cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18
+
+    name: ${{ matrix.os }}-${{ matrix.build.name }}
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/marwinglaser/ci:ubuntu-20.04
+      image: ghcr.io/marwinglaser/ci:${{ matrix.os }}
       options: --privileged
     services:
       mosquitto:
@@ -119,26 +229,29 @@ jobs:
     env:
       OPEN62541_TEST_MQTT_BROKER: opc.mqtt://mosquitto:1883
     steps:
-    - name: Work around disabled ipv6 on actions container networks
-      run: |
-        IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
-        echo "Current IPv6 status on eth0: $IPV6"
-        [ "$IPV6" = "1" ] || exit
+      - name: Work around disabled ipv6 on actions container networks
+        run: |
+          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+          echo "Current IPv6 status on eth0: $IPV6"
+          [ "$IPV6" = "1" ] || exit
 
-        echo 0 | sudo tee /proc/sys/net/ipv6/conf/eth0/disable_ipv6 > /dev/null
-        IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
-        echo "New IPv6 status on eth0: $IPV6"
-        [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }
-    - uses: actions/checkout@v4
-      with:
-        submodules: true
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev
-        ${{ matrix.cmd_deps }}
-    - name: ${{matrix.build_name}}
-      shell: bash
-      run: source tools/ci.sh && ${{matrix.cmd_action}}
-      env:
-        ETHERNET_INTERFACE: eth0
+          echo 0 | sudo tee /proc/sys/net/ipv6/conf/eth0/disable_ipv6 > /dev/null
+          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+          echo "New IPv6 status on eth0: $IPV6"
+          [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }      
+      - uses: actions/checkout@v4
+        if: matrix.build.os == '' || matrix.build.os == matrix.os
+        with:
+          submodules: true
+      - name: Install Dependencies
+        if: matrix.build.os == '' || matrix.build.os == matrix.os
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev
+          ${{ matrix.build.cmd_deps }}      
+      - name: ${{ matrix.build.name }}
+        if: matrix.build.os == '' || matrix.build.os == matrix.os
+        shell: bash
+        run: source tools/ci.sh && ${{ matrix.build.cmd_action }}
+        env:
+          ETHERNET_INTERFACE: eth0
