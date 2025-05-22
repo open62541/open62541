@@ -424,6 +424,7 @@ function build_clang_analyzer {
           --status-bugs \
           --exclude ../src/util \
           --exclude ../tests \
+          --exclude ../deps/nodesetLoader \
           make ${MAKEOPTS}
 }
 
