@@ -1012,6 +1012,18 @@ UA_Server_computeDataSetReaderOffsetTable(UA_Server *server,
         goto errout;
     }
 
+    /* Allocate the message */
+    res = UA_ByteString_allocBuffer(&ot->networkMessage, msgSize);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Create the ByteString of the encoded DataSetMessage */
+    ctx.ctx.pos = ot->networkMessage.data;
+    ctx.ctx.end = ot->networkMessage.data + ot->networkMessage.length;
+    res = UA_DataSetMessage_encodeBinary(&ctx, &emd, &dsm);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
     /* Pick up the component NodeIds */
     for(size_t i = 0; i < ot->offsetsSize; i++) {
         UA_PubSubOffset *o = &ot->offsets[i];
@@ -1046,6 +1058,8 @@ UA_Server_computeDataSetReaderOffsetTable(UA_Server *server,
     /* Clean up */
  errout:
     UA_DataSetMessage_clear(&dsm);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_PubSubOffsetTable_clear(ot);
     unlockServer(server);
     return res;
 }
