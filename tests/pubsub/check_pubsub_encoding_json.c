@@ -34,10 +34,10 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     m.version = 1;
     m.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     m.payloadHeaderEnabled = true;
-    m.payload.dataSetPayload.dataSetMessages = (UA_DataSetMessage*)
+    m.payload.dataSetMessages = (UA_DataSetMessage*)
         UA_calloc(1, sizeof(UA_DataSetMessage));
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
-    m.payload.dataSetPayload.dataSetMessages[0].dataSetWriterId = dsWriter1;
+    m.messageCount = 1;
+    m.dataSetWriterIds[0] = dsWriter1;
 
     /* enable messageId */
     m.messageIdEnabled = true;
@@ -54,7 +54,7 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     m.dataSetClassId.data2 = 2;
     m.dataSetClassId.data3 = 3;
 
-    UA_DataSetMessage *dsm = m.payload.dataSetPayload.dataSetMessages;
+    UA_DataSetMessage *dsm = m.payload.dataSetMessages;
 
     /* DatasetMessage */
     dsm->header.dataSetMessageValid = true;
@@ -135,15 +135,15 @@ START_TEST(UA_PubSub_EnDecode) {
     m.version = 1;
     m.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     m.payloadHeaderEnabled = true;
-    m.payload.dataSetPayload.dataSetMessages = (UA_DataSetMessage*)
+    m.payload.dataSetMessages = (UA_DataSetMessage*)
         UA_calloc(2, sizeof(UA_DataSetMessage));
-    m.payload.dataSetPayload.dataSetMessagesSize = 2;
+    m.messageCount = 2;
 
-    UA_DataSetMessage *dsm0 = &m.payload.dataSetPayload.dataSetMessages[0];
-    UA_DataSetMessage *dsm1 = &m.payload.dataSetPayload.dataSetMessages[1];
+    UA_DataSetMessage *dsm0 = &m.payload.dataSetMessages[0];
+    UA_DataSetMessage *dsm1 = &m.payload.dataSetMessages[1];
 
-    dsm0->dataSetWriterId = dsWriter1;
-    dsm1->dataSetWriterId = dsWriter2;
+    m.dataSetWriterIds[0] = dsWriter1;
+    m.dataSetWriterIds[1] = dsWriter2;
 
     dsm0->header.dataSetMessageValid = true;
     dsm0->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
@@ -200,18 +200,18 @@ START_TEST(UA_PubSub_EnDecode) {
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert_uint_eq(m2.payload.dataSetPayload.dataSetMessages[0].dataSetWriterId, dsWriter1);
-    ck_assert_uint_eq(m2.payload.dataSetPayload.dataSetMessages[1].dataSetWriterId, dsWriter2);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, fieldCountDS1);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
-    ck_assert_uint_eq((uintptr_t)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_UINT32]);
-    ck_assert_uint_eq(*(UA_UInt32 *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data, iv);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
+    ck_assert_uint_eq(m2.dataSetWriterIds[0], dsWriter1);
+    ck_assert_uint_eq(m2.dataSetWriterIds[1], dsWriter2);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, fieldCountDS1);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
+    ck_assert_uint_eq((uintptr_t)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.type, (uintptr_t)&UA_TYPES[UA_TYPES_UINT32]);
+    ck_assert_uint_eq(*(UA_UInt32 *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data, iv);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
 
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[1].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[1].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[1].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[1].data.deltaFrameFields[0].value.hasSourceTimestamp);
+    ck_assert(m.payload.dataSetMessages[1].header.dataSetMessageValid == m2.payload.dataSetMessages[1].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[1].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetMessages[1].data.deltaFrameFields[0].value.hasSourceTimestamp);
     UA_ByteString_clear(&buffer);
     UA_NetworkMessage_clear(&m);
     UA_NetworkMessage_clear(&m2);
@@ -251,29 +251,29 @@ START_TEST(UA_NetworkMessage_oneMessage_twoFields_json_decode) {
     ck_assert_int_eq(out.publisherIdEnabled, false);
 
     ck_assert_int_eq(out.payloadHeaderEnabled, true);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessagesSize, 1);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].dataSetWriterId, 62541);
+    ck_assert_int_eq(out.messageCount, 1);
+    ck_assert_int_eq(out.dataSetWriterIds[0], 62541);
 
     //dataSetMessage
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageSequenceNrEnabled, true);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageSequenceNr, 4711);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.dataSetMessageSequenceNrEnabled, true);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.dataSetMessageSequenceNr, 4711);
 
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageType, UA_DATASETMESSAGE_DATAKEYFRAME);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding, UA_FIELDENCODING_VARIANT);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.dataSetMessageType, UA_DATASETMESSAGE_DATAKEYFRAME);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.fieldEncoding, UA_FIELDENCODING_VARIANT);
 
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.picoSecondsIncluded, false);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.picoSecondsIncluded, false);
 
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.configVersionMinorVersionEnabled, true);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.configVersionMajorVersionEnabled, true);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.configVersionMinorVersion, 12345);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.configVersionMajorVersion, 1478393530);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.configVersionMinorVersionEnabled, true);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.configVersionMajorVersionEnabled, true);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.configVersionMinorVersion, 12345);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.configVersionMajorVersion, 1478393530);
 
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageSequenceNr, 4711);
-    //ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.dataSetWriterId, 62541);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue, 1);
-    ck_assert_int_eq(*((UA_UInt16*)out.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data), 42);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[1].hasValue, 1);
-    UA_DateTime *dt = (UA_DateTime*)out.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[1].value.data;
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.dataSetMessageSequenceNr, 4711);
+    //ck_assert_int_eq(out.payload.dataSetMessages[0].header.dataSetWriterId, 62541);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue, 1);
+    ck_assert_int_eq(*((UA_UInt16*)out.payload.dataSetMessages[0].data.keyFrameFields[0].value.data), 42);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].data.keyFrameFields[1].hasValue, 1);
+    UA_DateTime *dt = (UA_DateTime*)out.payload.dataSetMessages[0].data.keyFrameFields[1].value.data;
     UA_DateTimeStruct dts = UA_DateTime_toStruct(*dt);
     ck_assert_int_eq(dts.year, 2018);
     ck_assert_int_eq(dts.month, 6);
@@ -314,31 +314,31 @@ START_TEST(UA_NetworkMessage_json_decode) {
     ck_assert_int_eq(out.publisherIdEnabled, false);
 
     ck_assert_int_eq(out.payloadHeaderEnabled, true);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessagesSize, 1);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].dataSetWriterId, 62541);
+    ck_assert_int_eq(out.messageCount, 1);
+    ck_assert_int_eq(out.dataSetWriterIds[0], 62541);
 
     //dataSetMessage
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageSequenceNrEnabled, true);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageSequenceNr, 4711);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.dataSetMessageSequenceNrEnabled, true);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.dataSetMessageSequenceNr, 4711);
 
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageType, UA_DATASETMESSAGE_DATAKEYFRAME);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding, UA_FIELDENCODING_VARIANT);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.dataSetMessageType, UA_DATASETMESSAGE_DATAKEYFRAME);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.fieldEncoding, UA_FIELDENCODING_VARIANT);
 
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.picoSecondsIncluded, false);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.picoSecondsIncluded, false);
 
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.statusEnabled, true);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.status, 22);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.statusEnabled, true);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.status, 22);
 
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.configVersionMinorVersionEnabled, true);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.configVersionMajorVersionEnabled, true);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.configVersionMinorVersion, 47);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].header.configVersionMajorVersion, 47);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.configVersionMinorVersionEnabled, true);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.configVersionMajorVersionEnabled, true);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.configVersionMinorVersion, 47);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].header.configVersionMajorVersion, 47);
 
     //dataSetFields
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue, true);
-    ck_assert_int_eq(*((UA_UInt16*)out.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data), 42);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[1].hasValue, true);
-    ck_assert_int_eq(*((UA_Boolean*)out.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[1].value.data), 1);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue, true);
+    ck_assert_int_eq(*((UA_UInt16*)out.payload.dataSetMessages[0].data.keyFrameFields[0].value.data), 42);
+    ck_assert_int_eq(out.payload.dataSetMessages[0].data.keyFrameFields[1].hasValue, true);
+    ck_assert_int_eq(*((UA_Boolean*)out.payload.dataSetMessages[0].data.keyFrameFields[1].value.data), 1);
 
     UA_NetworkMessage_clear(&out);
 }
@@ -372,8 +372,8 @@ START_TEST(UA_Networkmessage_DataSetFieldsNull_json_decode) {
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.dataSetClassId.data1, 5);
-    ck_assert_int_eq(out.payload.dataSetPayload.dataSetMessages->header.dataSetMessageSequenceNr, 224);
-    ck_assert_ptr_eq(out.payload.dataSetPayload.dataSetMessages->data.keyFrameFields, NULL);
+    ck_assert_int_eq(out.payload.dataSetMessages->header.dataSetMessageSequenceNr, 224);
+    ck_assert_ptr_eq(out.payload.dataSetMessages->data.keyFrameFields, NULL);
 
     UA_NetworkMessage_clear(&out);
 }

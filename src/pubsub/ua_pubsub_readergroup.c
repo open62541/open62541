@@ -458,19 +458,14 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
         /* No payload header. The message ontains a single DataSetMessage that
          * is processed by every Reader. */
         if(!nm->payloadHeaderEnabled) {
-            UA_DataSetReader_process(psm, reader,
-                                     nm->payload.dataSetPayload.dataSetMessages);
+            UA_DataSetReader_process(psm, reader, nm->payload.dataSetMessages);
             continue;
         }
 
         /* Process only the payloads where the WriterId from the header is expected */
-        size_t count = nm->payload.dataSetPayload.dataSetMessagesSize;
-        for(size_t i = 0; i < count; i++) {
-            if(reader->config.dataSetWriterId == nm->payload.dataSetPayload.
-               dataSetMessages[i].dataSetWriterId) {
-                UA_DataSetReader_process(psm, reader,
-                                         &nm->payload.dataSetPayload.dataSetMessages[i]);
-            }
+        for(size_t i = 0; i < nm->messageCount; i++) {
+            if(reader->config.dataSetWriterId == nm->dataSetWriterIds[i])
+                UA_DataSetReader_process(psm, reader, &nm->payload.dataSetMessages[i]);
         }
     }
 
@@ -1242,9 +1237,15 @@ readerGroupGenerateNetworkMessage(UA_ReaderGroup *wg, UA_DataSetReader **dsr,
 
     /* TODO Security Header */
 
+    /* Set the DataSetWriterIds */
+    for(size_t i = 0; i < dsmCount; i++) {
+        UA_DataSetReader *d = dsr[i];
+        nm->dataSetWriterIds[i] = d->config.dataSetWriterId;
+    }
+
     /* Set the payload information from the dsm */
-    nm->payload.dataSetPayload.dataSetMessages = dsm;
-    nm->payload.dataSetPayload.dataSetMessagesSize = dsmCount;
+    nm->payload.dataSetMessages = dsm;
+    nm->messageCount = dsmCount;
 
     return UA_STATUSCODE_GOOD;
 }

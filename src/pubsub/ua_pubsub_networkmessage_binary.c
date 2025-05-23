@@ -177,15 +177,11 @@ static UA_StatusCode
 UA_PayloadHeader_encodeBinary(PubSubEncodeCtx *ctx, const UA_NetworkMessage* src) {
     if(src->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
-
-    UA_Byte count = (UA_Byte)src->payload.dataSetPayload.dataSetMessagesSize;
+    UA_Byte count = src->messageCount;
     UA_StatusCode rv = _ENCODE_BINARY(&count, BYTE);
-
-    for(UA_Byte i = 0; i < count; i++) {
-        UA_UInt16 dswId = src->payload.dataSetPayload.dataSetMessages[i].dataSetWriterId;
-        rv |= _ENCODE_BINARY(&dswId, UINT16);
+    for(UA_Byte i = 0; i < src->messageCount; i++) {
+        rv |= _ENCODE_BINARY(&src->dataSetWriterIds[i], UINT16);
     }
-
     return rv;
 }
 
@@ -278,11 +274,11 @@ UA_NetworkMessage_encodeHeaders(PubSubEncodeCtx *ctx,
 
 const UA_DataSetMessage_EncodingMetaData *
 findEncodingMetaData(const UA_NetworkMessage_EncodingOptions *eo,
-                     const UA_DataSetMessage *dsm) {
+                     UA_UInt16 dsWriterId) {
     if(!eo)
         return NULL;
     for(size_t i = 0; i < eo->metaDataSize; i++) {
-        if(eo->metaData[i].dataSetWriterId == dsm->dataSetWriterId)
+        if(eo->metaData[i].dataSetWriterId == dsWriterId)
             return &eo->metaData[i];
     }
     return NULL;
@@ -306,12 +302,13 @@ UA_NetworkMessage_encodePayload(PubSubEncodeCtx *ctx,
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
     /* Encode the length of each DataSet */
-    UA_Byte count = (UA_Byte)src->payload.dataSetPayload.dataSetMessagesSize;
+    UA_Byte count = src->messageCount;
     UA_StatusCode rv;
     if(src->payloadHeaderEnabled && count > 1) {
         for(UA_Byte i = 0; i < count; i++) {
-            UA_DataSetMessage *dsm = &src->payload.dataSetPayload.dataSetMessages[i];
-            const UA_DataSetMessage_EncodingMetaData *emd = findEncodingMetaData(&ctx->eo, dsm);
+            UA_DataSetMessage *dsm = &src->payload.dataSetMessages[i];
+            const UA_DataSetMessage_EncodingMetaData *emd =
+                findEncodingMetaData(&ctx->eo, src->dataSetWriterIds[i]);
             UA_UInt16 sz = (UA_UInt16)UA_DataSetMessage_calcSizeBinary(ctx, emd, dsm, 0);
             rv = _ENCODE_BINARY(&sz, UINT16);
             UA_CHECK_STATUS(rv, return rv);
@@ -320,8 +317,9 @@ UA_NetworkMessage_encodePayload(PubSubEncodeCtx *ctx,
 
     /* Encode the DataSets  */
     for(UA_Byte i = 0; i < count; i++) {
-        UA_DataSetMessage *dsm = &src->payload.dataSetPayload.dataSetMessages[i];
-        const UA_DataSetMessage_EncodingMetaData *emd = findEncodingMetaData(&ctx->eo, dsm);
+        UA_DataSetMessage *dsm = &src->payload.dataSetMessages[i];
+        const UA_DataSetMessage_EncodingMetaData *emd =
+            findEncodingMetaData(&ctx->eo, src->dataSetWriterIds[i]);
         rv = UA_DataSetMessage_encodeBinary(ctx, emd, dsm);
         UA_CHECK_STATUS(rv, return rv);
     }
@@ -511,20 +509,29 @@ UA_PayloadHeader_decodeBinary(PubSubDecodeCtx *ctx,
     UA_StatusCode rv = _DECODE_BINARY(&count, BYTE);
     UA_CHECK_STATUS(rv, return rv);
 
+    /* If the header is defined, then there must be more than one DataSetMessage */
     if(count == 0)
         return UA_STATUSCODE_GOOD;
 
-    nm->payload.dataSetPayload.dataSetMessages = (UA_DataSetMessage*)
-        ctxCalloc(&ctx->ctx, count, sizeof(UA_DataSetMessage));
-    if(!nm->payload.dataSetPayload.dataSetMessages)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    nm->payload.dataSetPayload.dataSetMessagesSize = count;
+    /* Limit for the inline-defined DataSetWriterIds */
+    if(count > UA_NETWORKMESSAGE_MAXMESSAGECOUNT)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
+    /* Decode the DataSetWriterIds */
     for(UA_Byte i = 0; i < count; i++) {
-        UA_UInt16 *dswId = &nm->payload.dataSetPayload.dataSetMessages[i].dataSetWriterId;
-        rv |= _DECODE_BINARY(dswId, UINT16);
+        rv |= _DECODE_BINARY(&nm->dataSetWriterIds[i], UINT16);
     }
-    return rv;
+    if(rv != UA_STATUSCODE_GOOD)
+        return rv;
+
+    /* Allocate the DataSetMessages */
+    nm->payload.dataSetMessages = (UA_DataSetMessage*)
+        ctxCalloc(&ctx->ctx, count, sizeof(UA_DataSetMessage));
+    if(!nm->payload.dataSetMessages)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    nm->messageCount = count;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -678,14 +685,14 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
 
     /* The dataset was already allocated if the header is enabled.
      * To decode the DataSetReaderIds. */
-    size_t count = nm->payload.dataSetPayload.dataSetMessagesSize;
+    UA_Byte count = nm->messageCount;
     if(!nm->payloadHeaderEnabled) {
         count = 1;
-        nm->payload.dataSetPayload.dataSetMessages = (UA_DataSetMessage *)
+        nm->payload.dataSetMessages = (UA_DataSetMessage *)
             ctxCalloc(&ctx->ctx, 1, sizeof(UA_DataSetMessage));
-        UA_CHECK_MEM(nm->payload.dataSetPayload.dataSetMessages,
+        UA_CHECK_MEM(nm->payload.dataSetMessages,
                      return UA_STATUSCODE_BADOUTOFMEMORY);
-        nm->payload.dataSetPayload.dataSetMessagesSize = 1;
+        nm->messageCount = 1;
     }
 
     /* Decode the payload sizes (for the raw encoding) */
@@ -703,9 +710,10 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
 
     /* Decode the DataSetMessages */
     for(size_t i = 0; i < count; i++) {
-        rv |= UA_DataSetMessage_decodeBinary(ctx,
-                                             &nm->payload.dataSetPayload.dataSetMessages[i],
-                                             payloadSizes[i]);
+        const UA_DataSetMessage_EncodingMetaData *emd =
+            findEncodingMetaData(&ctx->eo, nm->dataSetWriterIds[i]);
+        rv |= UA_DataSetMessage_decodeBinary(ctx, emd,
+                  &nm->payload.dataSetMessages[i], payloadSizes[i]);
     }
 
     return rv;
@@ -876,8 +884,8 @@ UA_NetworkMessage_calcSizeBinaryInternal(PubSubEncodeCtx *ctx,
     if(p->payloadHeaderEnabled) {
         if(p->networkMessageType != UA_NETWORKMESSAGE_DATASET)
             return 0; /* not implemented */
-        size += 1; /* p->payloadHeader.dataSetPayloadHeader.count */
-        size += (size_t)(2LU * p->payload.dataSetPayload.dataSetMessagesSize); /* uint16 */
+        size += 1; /* p->messageCount */
+        size += (size_t)(2LU * p->messageCount); /* uint16 */
     }
 
     if(p->timestampEnabled) {
@@ -921,7 +929,7 @@ UA_NetworkMessage_calcSizeBinaryInternal(PubSubEncodeCtx *ctx,
     if(p->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return 0; /* not implemented */
 
-    UA_Byte count = (UA_Byte)p->payload.dataSetPayload.dataSetMessagesSize;
+    UA_Byte count = p->messageCount;
     if(p->payloadHeaderEnabled && count > 1)
         size += (size_t)(2LU * count); /* DataSetMessagesSize (uint16) */
     for(size_t i = 0; i < count; i++) {
@@ -939,8 +947,9 @@ UA_NetworkMessage_calcSizeBinaryInternal(PubSubEncodeCtx *ctx,
 
         /* size = ... as the original size is used as the starting point in
          * UA_DataSetMessage_calcSizeBinary */
-        UA_DataSetMessage *dsm = &p->payload.dataSetPayload.dataSetMessages[i];
-        const UA_DataSetMessage_EncodingMetaData *emd = findEncodingMetaData(&ctx->eo, dsm);
+        UA_DataSetMessage *dsm = &p->payload.dataSetMessages[i];
+        const UA_DataSetMessage_EncodingMetaData *emd =
+            findEncodingMetaData(&ctx->eo, p->dataSetWriterIds[i]);
         size = UA_DataSetMessage_calcSizeBinary(ctx, emd, dsm, size);
         if(size == 0)
             return 0;
@@ -960,11 +969,10 @@ UA_NetworkMessage_clear(UA_NetworkMessage* p) {
     }
 
     if(p->networkMessageType == UA_NETWORKMESSAGE_DATASET) {
-        if(p->payload.dataSetPayload.dataSetMessages) {
-            UA_Byte count = (UA_Byte)p->payload.dataSetPayload.dataSetMessagesSize;
-            for(size_t i = 0; i < count; i++)
-                UA_DataSetMessage_clear(&p->payload.dataSetPayload.dataSetMessages[i]);
-            UA_free(p->payload.dataSetPayload.dataSetMessages);
+        if(p->payload.dataSetMessages) {
+            for(size_t i = 0; i < p->messageCount; i++)
+                UA_DataSetMessage_clear(&p->payload.dataSetMessages[i]);
+            UA_free(p->payload.dataSetMessages);
         }
     }
 
@@ -1454,18 +1462,19 @@ decodeRawField(PubSubDecodeCtx *ctx,
 
 static UA_StatusCode
 UA_DataSetMessage_keyFrame_decodeBinary(PubSubDecodeCtx *ctx,
+                                        const UA_DataSetMessage_EncodingMetaData *emd,
                                         UA_DataSetMessage *dsm) {
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;;
-    const UA_DataSetMessage_EncodingMetaData *emd;
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
 
     /* Part 14: The FieldCount shall be omitted if RawData field encoding is set */
     if(dsm->header.fieldEncoding != UA_FIELDENCODING_RAWDATA) {
         rv = _DECODE_BINARY(&dsm->fieldCount, UINT16);
+        UA_CHECK_STATUS(rv, return rv);
     } else {
-        emd = findEncodingMetaData(&ctx->eo, dsm);
+        if(!emd)
+            return UA_STATUSCODE_BADDECODINGERROR;
         dsm->fieldCount = emd->fieldsSize;
     }
-    UA_CHECK_STATUS(rv, return rv);
 
     if(dsm->fieldCount == 0)
         return UA_STATUSCODE_GOOD; /* Heartbeat */
@@ -1543,6 +1552,7 @@ UA_DataSetMessage_deltaFrame_decodeBinary(PubSubDecodeCtx *ctx,
 
 UA_StatusCode
 UA_DataSetMessage_decodeBinary(PubSubDecodeCtx *ctx,
+                               const UA_DataSetMessage_EncodingMetaData *em,
                                UA_DataSetMessage *dsm,
                                size_t dsmSize) {
     UA_Byte *begin = ctx->ctx.pos;
@@ -1550,7 +1560,7 @@ UA_DataSetMessage_decodeBinary(PubSubDecodeCtx *ctx,
     UA_CHECK_STATUS(rv, return rv);
     switch(dsm->header.dataSetMessageType) {
     case UA_DATASETMESSAGE_DATAKEYFRAME:
-        rv = UA_DataSetMessage_keyFrame_decodeBinary(ctx, dsm);
+        rv = UA_DataSetMessage_keyFrame_decodeBinary(ctx, em, dsm);
         break;
     case UA_DATASETMESSAGE_DATADELTAFRAME:
         rv = UA_DataSetMessage_deltaFrame_decodeBinary(ctx, dsm);
