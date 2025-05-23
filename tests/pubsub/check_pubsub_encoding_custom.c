@@ -313,8 +313,8 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarDeltaFrame) {
     UA_Variant_setScalarCopy(&dmdf.data.deltaFrameFields[0].value.value, &p, &PointType);
     dmdf.data.deltaFrameFields[0].value.hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmdf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmdf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -338,16 +338,16 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarDeltaFrame) {
     ck_assert(m.networkMessageType == m2.networkMessageType);
     ck_assert(m.timestampEnabled == m2.timestampEnabled);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &PointType);
-    ck_assert((*(Point *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).x == p.x);
-    ck_assert((*(Point *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).y == p.y);
-    ck_assert((*(Point *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).z == p.z);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert_int_eq(m.payload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &PointType);
+    ck_assert((*(Point *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).x == p.x);
+    ck_assert((*(Point *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).y == p.y);
+    ck_assert((*(Point *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).z == p.z);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
     ck_assert(m.groupHeaderEnabled == m2.groupHeaderEnabled);
     ck_assert(m.picosecondsEnabled == m2.picosecondsEnabled);
@@ -386,8 +386,8 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarKeyFrame) {
     UA_Variant_setScalarCopy(&dmkf.data.keyFrameFields[0].value, &p, &PointType);
     dmkf.data.keyFrameFields[0].hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmkf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmkf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -418,15 +418,15 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarKeyFrame) {
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.type, &PointType);
-    ck_assert((*(Point *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).x == p.x);
-    ck_assert((*(Point *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).y == p.y);
-    ck_assert((*(Point *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).z == p.z);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.type, &PointType);
+    ck_assert((*(Point *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).x == p.x);
+    ck_assert((*(Point *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).y == p.y);
+    ck_assert((*(Point *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).z == p.z);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
 
     UA_DataValue_clear(&dmkf.data.keyFrameFields[0]);
     UA_NetworkMessage_clear(&m2);
@@ -468,8 +468,8 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarExtensionObjectDeltaFrame) {
     UA_Variant_setScalarCopy(&dmdf.data.deltaFrameFields[0].value.value, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
     dmdf.data.deltaFrameFields[0].value.hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmdf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmdf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -493,16 +493,16 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarExtensionObjectDeltaFrame) {
     ck_assert(m.networkMessageType == m2.networkMessageType);
     ck_assert(m.timestampEnabled == m2.timestampEnabled);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &PointType);
-    ck_assert((*(Point *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).x == p.x);
-    ck_assert((*(Point *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).y == p.y);
-    ck_assert((*(Point *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).z == p.z);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert_int_eq(m.payload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &PointType);
+    ck_assert((*(Point *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).x == p.x);
+    ck_assert((*(Point *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).y == p.y);
+    ck_assert((*(Point *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).z == p.z);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
     ck_assert(m.groupHeaderEnabled == m2.groupHeaderEnabled);
     ck_assert(m.picosecondsEnabled == m2.picosecondsEnabled);
@@ -547,8 +547,8 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarExtensionObjectKeyFrame) {
     UA_Variant_setScalarCopy(&dmkf.data.keyFrameFields[0].value,  &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
     dmkf.data.keyFrameFields[0].hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmkf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmkf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -579,15 +579,15 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarExtensionObjectKeyFrame) {
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.type, &PointType);
-    ck_assert((*(Point *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).x == p.x);
-    ck_assert((*(Point *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).y == p.y);
-    ck_assert((*(Point *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).z == p.z);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.type, &PointType);
+    ck_assert((*(Point *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).x == p.x);
+    ck_assert((*(Point *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).y == p.y);
+    ck_assert((*(Point *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).z == p.z);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
     
     UA_DataValue_clear(&dmkf.data.keyFrameFields[0]);
     UA_NetworkMessage_clear(&m2);
@@ -624,8 +624,8 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayDeltaFrame){
     UA_Variant_setArrayCopy(&dmdf.data.deltaFrameFields[0].value.value, (void*)ps, 10, &PointType);
     dmdf.data.deltaFrameFields[0].value.hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmdf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmdf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -646,8 +646,8 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayDeltaFrame){
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     for (size_t i = 0; i < 10; i++) {
-        ck_assert(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type == &PointType);
-        Point *p2 = &((Point*)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)[i];
+        ck_assert(m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type == &PointType);
+        Point *p2 = &((Point*)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)[i];
 
         // we need to cast floats to int to avoid comparison of floats
         // which may result into false results
@@ -688,8 +688,8 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayKeyFrame){
     UA_Variant_setArrayCopy(&dmkf.data.keyFrameFields[0].value, (void*)ps, 10, &PointType);
     dmkf.data.keyFrameFields[0].hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmkf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmkf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -710,8 +710,8 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayKeyFrame){
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     for (size_t i = 0; i < 10; i++) {
-        ck_assert(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.type == &PointType);
-        Point *p2 = &((Point*)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)[i];
+        ck_assert(m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.type == &PointType);
+        Point *p2 = &((Point*)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)[i];
 
         // we need to cast floats to int to avoid comparison of floats
         // which may result into false results
@@ -756,8 +756,8 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsDeltaFrame){
     UA_Variant_setScalarCopy(&dmdf.data.deltaFrameFields[0].value.value, &o, &OptType);
     dmdf.data.deltaFrameFields[0].value.hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmdf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmdf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -781,18 +781,18 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsDeltaFrame){
     ck_assert(m.networkMessageType == m2.networkMessageType);
     ck_assert(m.timestampEnabled == m2.timestampEnabled);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &OptType);
-    ck_assert_int_eq((*(Opt *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).a, o.a);
-    ck_assert_ptr_eq((*(Opt *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).b, NULL);
-    ck_assert(*(*(Opt *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).c == *o.c);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert_int_eq(m.payload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &OptType);
+    ck_assert_int_eq((*(Opt *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).a, o.a);
+    ck_assert_ptr_eq((*(Opt *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).b, NULL);
+    ck_assert(*(*(Opt *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).c == *o.c);
     UA_String testStr = UA_STRING("Test");
-    ck_assert(UA_String_equal(((Opt *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d, &testStr));
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
+    ck_assert(UA_String_equal(((Opt *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d, &testStr));
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
     ck_assert(m.groupHeaderEnabled == m2.groupHeaderEnabled);
     ck_assert(m.picosecondsEnabled == m2.picosecondsEnabled);
@@ -835,8 +835,8 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsKeyFrame){
     UA_Variant_setScalarCopy(&dmkf.data.keyFrameFields[0].value, &o, &OptType);
     dmkf.data.keyFrameFields[0].hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmkf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmkf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -867,17 +867,17 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsKeyFrame){
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.type, &OptType);
-    ck_assert_int_eq((*(Opt *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).a, o.a);
-    ck_assert_ptr_eq((*(Opt *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).b, NULL);
-    ck_assert(*(*(Opt *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).c == *o.c);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.type, &OptType);
+    ck_assert_int_eq((*(Opt *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).a, o.a);
+    ck_assert_ptr_eq((*(Opt *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).b, NULL);
+    ck_assert(*(*(Opt *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).c == *o.c);
     UA_String testStr = UA_STRING("Test");
-    ck_assert(UA_String_equal(((Opt *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d, &testStr));
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
+    ck_assert(UA_String_equal(((Opt *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d, &testStr));
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
 
     UA_clear(&o, &OptType);
     UA_DataValue_clear(&dmkf.data.keyFrameFields[0]);
@@ -912,8 +912,8 @@ START_TEST(UA_PubSub_EnDecode_CustomUnionDeltaFrame){
     UA_Variant_setScalarCopy(&dmdf.data.deltaFrameFields[0].value.value, &u, &UniType);
     dmdf.data.deltaFrameFields[0].value.hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmdf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmdf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -937,16 +937,16 @@ START_TEST(UA_PubSub_EnDecode_CustomUnionDeltaFrame){
     ck_assert(m.networkMessageType == m2.networkMessageType);
     ck_assert(m.timestampEnabled == m2.timestampEnabled);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &UniType);
-    ck_assert_int_eq((*(Uni *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).switchField, UA_UNISWITCH_OPTIONB);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert_int_eq(m.payload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &UniType);
+    ck_assert_int_eq((*(Uni *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).switchField, UA_UNISWITCH_OPTIONB);
     UA_String testStr = UA_STRING("test string");
-    ck_assert(UA_String_equal(&((Uni *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->fields.optionB, &testStr));
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
+    ck_assert(UA_String_equal(&((Uni *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->fields.optionB, &testStr));
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
     ck_assert(m.groupHeaderEnabled == m2.groupHeaderEnabled);
     ck_assert(m.picosecondsEnabled == m2.picosecondsEnabled);
@@ -984,8 +984,8 @@ START_TEST(UA_PubSub_EnDecode_CustomUnionKeyFrame){
     UA_Variant_setScalarCopy(&dmkf.data.keyFrameFields[0].value, &u, &UniType);
     dmkf.data.keyFrameFields[0].hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmkf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmkf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1016,15 +1016,15 @@ START_TEST(UA_PubSub_EnDecode_CustomUnionKeyFrame){
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.type, &UniType);
-    ck_assert_int_eq((*(Uni *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).switchField, UA_UNISWITCH_OPTIONB);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.type, &UniType);
+    ck_assert_int_eq((*(Uni *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).switchField, UA_UNISWITCH_OPTIONB);
     UA_String testStr = UA_STRING("test string");
-    ck_assert(UA_String_equal(&((Uni *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->fields.optionB, &testStr));
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
+    ck_assert(UA_String_equal(&((Uni *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->fields.optionB, &testStr));
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
 
     UA_DataValue_clear(&dmkf.data.keyFrameFields[0]);
     UA_NetworkMessage_clear(&m2);
@@ -1058,8 +1058,8 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionNormalMemberDeltaFrame){
     UA_Variant_setScalarCopy(&dmdf.data.deltaFrameFields[0].value.value, &s, &selfContainingUnionType);
     dmdf.data.deltaFrameFields[0].value.hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmdf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmdf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1083,15 +1083,15 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionNormalMemberDeltaFrame){
     ck_assert(m.networkMessageType == m2.networkMessageType);
     ck_assert(m.timestampEnabled == m2.timestampEnabled);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &selfContainingUnionType);
-    ck_assert_int_eq((*(UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).switchField, UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
-    ck_assert(fabs(((UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->fields._double - 42.0) < 0.005);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert_int_eq(m.payload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &selfContainingUnionType);
+    ck_assert_int_eq((*(UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).switchField, UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
+    ck_assert(fabs(((UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->fields._double - 42.0) < 0.005);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
     ck_assert(m.groupHeaderEnabled == m2.groupHeaderEnabled);
     ck_assert(m.picosecondsEnabled == m2.picosecondsEnabled);
@@ -1129,8 +1129,8 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionNormalMemberKeyFrame){
     UA_Variant_setScalarCopy(&dmkf.data.keyFrameFields[0].value,  &s, &selfContainingUnionType);
     dmkf.data.keyFrameFields[0].hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmkf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmkf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1161,14 +1161,14 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionNormalMemberKeyFrame){
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.type, &selfContainingUnionType);
-    ck_assert_int_eq((*(UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).switchField, UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
-    ck_assert(fabs(((UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->fields._double - 42.0) < 0.005);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.type, &selfContainingUnionType);
+    ck_assert_int_eq((*(UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).switchField, UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
+    ck_assert(fabs(((UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->fields._double - 42.0) < 0.005);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
     
     UA_DataValue_clear(&dmkf.data.keyFrameFields[0]);
     UA_NetworkMessage_clear(&m2);
@@ -1208,8 +1208,8 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionSelfMemberDeltaFrame){
     dmdf.data.deltaFrameFields[0].value.hasValue = true;
     UA_free(s.fields.array.array);
 
-    m.payload.dataSetPayload.dataSetMessages = &dmdf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmdf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1233,18 +1233,18 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionSelfMemberDeltaFrame){
     ck_assert(m.networkMessageType == m2.networkMessageType);
     ck_assert(m.timestampEnabled == m2.timestampEnabled);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &selfContainingUnionType);
-    ck_assert((*(UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).fields.array.arraySize == 2);
-    ck_assert_int_eq((*(UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).fields.array.array[0].switchField, UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
-    ck_assert(fabs(((UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->fields.array.array[0].fields._double - 23.0) < 0.005);
-    ck_assert_int_eq((*(UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).fields.array.array[1].switchField, UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
-    ck_assert(fabs(((UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->fields.array.array[1].fields._double - 42.0) < 0.005);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert_int_eq(m.payload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &selfContainingUnionType);
+    ck_assert((*(UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).fields.array.arraySize == 2);
+    ck_assert_int_eq((*(UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).fields.array.array[0].switchField, UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
+    ck_assert(fabs(((UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->fields.array.array[0].fields._double - 23.0) < 0.005);
+    ck_assert_int_eq((*(UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).fields.array.array[1].switchField, UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
+    ck_assert(fabs(((UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->fields.array.array[1].fields._double - 42.0) < 0.005);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
     ck_assert(m.groupHeaderEnabled == m2.groupHeaderEnabled);
     ck_assert(m.picosecondsEnabled == m2.picosecondsEnabled);
@@ -1288,8 +1288,8 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionSelfMemberKeyFrame){
     dmkf.data.keyFrameFields[0].hasValue = true;
     UA_free(s.fields.array.array);
 
-    m.payload.dataSetPayload.dataSetMessages = &dmkf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmkf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1320,17 +1320,17 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionSelfMemberKeyFrame){
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.type, &selfContainingUnionType);
-    ck_assert((*(UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).fields.array.arraySize == 2);
-    ck_assert_int_eq((*(UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).fields.array.array[0].switchField, UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
-    ck_assert(fabs(((UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->fields.array.array[0].fields._double - 23.0) < 0.005);
-    ck_assert_int_eq((*(UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).fields.array.array[1].switchField, UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
-    ck_assert(fabs(((UA_SelfContainingUnion *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->fields.array.array[1].fields._double - 42.0) < 0.005);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.type, &selfContainingUnionType);
+    ck_assert((*(UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).fields.array.arraySize == 2);
+    ck_assert_int_eq((*(UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).fields.array.array[0].switchField, UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
+    ck_assert(fabs(((UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->fields.array.array[0].fields._double - 23.0) < 0.005);
+    ck_assert_int_eq((*(UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).fields.array.array[1].switchField, UA_SELFCONTAININGUNIONSWITCH_DOUBLE);
+    ck_assert(fabs(((UA_SelfContainingUnion *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->fields.array.array[1].fields._double - 42.0) < 0.005);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
 
     UA_DataValue_clear(&dmkf.data.keyFrameFields[0]);
     UA_NetworkMessage_clear(&m2);
@@ -1372,8 +1372,8 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayNotConta
     UA_Variant_setScalarCopy(&dmdf.data.deltaFrameFields[0].value.value, &oa, &ArrayOptType);
     dmdf.data.deltaFrameFields[0].value.hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmdf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmdf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1397,24 +1397,24 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayNotConta
     ck_assert(m.networkMessageType == m2.networkMessageType);
     ck_assert(m.timestampEnabled == m2.timestampEnabled);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &ArrayOptType);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert_int_eq(m.payload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &ArrayOptType);
     UA_String testStr = UA_STRING("TestDesc");
-    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).description, &testStr));
-    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).bSize, 1);
-    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).cSize, 0);
-    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).dSize, 3);
-    ck_assert_ptr_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).c, NULL);
+    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).description, &testStr));
+    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).bSize, 1);
+    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).cSize, 0);
+    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).dSize, 3);
+    ck_assert_ptr_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).c, NULL);
     UA_String testStr2 = UA_STRING("Test");
-    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).b[0], &testStr2));
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d[0] - 1.1) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d[1] - 1.2) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d[2] - 1.3) < 0.005);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
+    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).b[0], &testStr2));
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d[0] - 1.1) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d[1] - 1.2) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d[2] - 1.3) < 0.005);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
     ck_assert(m.groupHeaderEnabled == m2.groupHeaderEnabled);
     ck_assert(m.picosecondsEnabled == m2.picosecondsEnabled);
@@ -1461,8 +1461,8 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayNotConta
     UA_Variant_setScalarCopy(&dmkf.data.keyFrameFields[0].value, &oa, &ArrayOptType);
     dmkf.data.keyFrameFields[0].hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmkf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmkf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1493,23 +1493,23 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayNotConta
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.type, &ArrayOptType);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.type, &ArrayOptType);
     UA_String testStr = UA_STRING("TestDesc");
-    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).description, &testStr));
-    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).bSize, 1);
-    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).cSize, 0);
-    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).dSize, 3);
-    ck_assert_ptr_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).c, NULL);
+    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).description, &testStr));
+    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).bSize, 1);
+    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).cSize, 0);
+    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).dSize, 3);
+    ck_assert_ptr_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).c, NULL);
     UA_String testStr2 = UA_STRING("Test");
-    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).b[0], &testStr2));
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d[0] - 1.1) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d[1] - 1.2) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d[2] - 1.3) < 0.005);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
+    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).b[0], &testStr2));
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d[0] - 1.1) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d[1] - 1.2) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d[2] - 1.3) < 0.005);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
 
     UA_clear(&oa, &ArrayOptType);
     UA_DataValue_clear(&dmkf.data.keyFrameFields[0]);
@@ -1556,8 +1556,8 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayContaine
     UA_Variant_setScalarCopy(&dmdf.data.deltaFrameFields[0].value.value, &oa, &ArrayOptType);
     dmdf.data.deltaFrameFields[0].value.hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmdf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmdf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1581,28 +1581,28 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayContaine
     ck_assert(m.networkMessageType == m2.networkMessageType);
     ck_assert(m.timestampEnabled == m2.timestampEnabled);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert_int_eq(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &ArrayOptType);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert_int_eq(m.payload.dataSetMessages[0].data.deltaFrameFields[0].index, index);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.type, &ArrayOptType);
 
     UA_String testStr = UA_STRING("TestDesc");
-    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).description, &testStr));
-    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).bSize, 1);
-    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).cSize, 3);
-    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).dSize, 3);
+    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).description, &testStr));
+    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).bSize, 1);
+    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).cSize, 3);
+    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).dSize, 3);
     UA_String testStr2 = UA_STRING("Test");
-    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).b[0], &testStr2));
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->c[0] - 1.1) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->c[1] - 1.2) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->c[2] - 1.3) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d[0] - 2.1) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d[1] - 2.2) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d[2] - 2.3) < 0.005);
+    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data).b[0], &testStr2));
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->c[0] - 1.1) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->c[1] - 1.2) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->c[2] - 1.3) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d[0] - 2.1) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d[1] - 2.2) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.value.data)->d[2] - 2.3) < 0.005);
 
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
+    ck_assert(m.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp == m2.payload.dataSetMessages[0].data.deltaFrameFields[0].value.hasSourceTimestamp);
     ck_assert(m.dataSetClassIdEnabled == m2.dataSetClassIdEnabled);
     ck_assert(m.groupHeaderEnabled == m2.groupHeaderEnabled);
     ck_assert(m.picosecondsEnabled == m2.picosecondsEnabled);
@@ -1653,8 +1653,8 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayContaine
     UA_Variant_setScalarCopy(&dmkf.data.keyFrameFields[0].value, &oa, &ArrayOptType);
     dmkf.data.keyFrameFields[0].hasValue = true;
 
-    m.payload.dataSetPayload.dataSetMessages = &dmkf;
-    m.payload.dataSetPayload.dataSetMessagesSize = 1;
+    m.payload.dataSetMessages = &dmkf;
+    m.messageCount = 1;
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
@@ -1685,27 +1685,27 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayContaine
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
     ck_assert(m.payloadHeaderEnabled == m2.payloadHeaderEnabled);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetPayload.dataSetMessages[0].header.dataSetMessageValid);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetPayload.dataSetMessages[0].header.fieldEncoding);
-    ck_assert_int_eq(m2.payload.dataSetPayload.dataSetMessages[0].fieldCount, 1);
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
-    ck_assert_ptr_eq(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.type, &ArrayOptType);
+    ck_assert(m.payload.dataSetMessages[0].header.dataSetMessageValid == m2.payload.dataSetMessages[0].header.dataSetMessageValid);
+    ck_assert(m.payload.dataSetMessages[0].header.fieldEncoding == m2.payload.dataSetMessages[0].header.fieldEncoding);
+    ck_assert_int_eq(m2.payload.dataSetMessages[0].fieldCount, 1);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasValue);
+    ck_assert_ptr_eq(m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.type, &ArrayOptType);
 
     UA_String testStr = UA_STRING("TestDesc");
-    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).description,  &testStr));
-    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).bSize, 1);
-    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).cSize, 3);
-    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).dSize, 3);
+    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).description,  &testStr));
+    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).bSize, 1);
+    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).cSize, 3);
+    ck_assert_uint_eq((*(OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).dSize, 3);
     UA_String testStr2 = UA_STRING("Test");
-    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data).b[0], &testStr2));
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->c[0] - 1.1) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->c[1] - 1.2) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->c[2] - 1.3) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d[0] - 2.1) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d[1] - 2.2) < 0.005);
-    ck_assert(fabs(((OptArray *)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d[2] - 2.3) < 0.005);
+    ck_assert(UA_String_equal(&(*(OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data).b[0], &testStr2));
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->c[0] - 1.1) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->c[1] - 1.2) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->c[2] - 1.3) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d[0] - 2.1) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d[1] - 2.2) < 0.005);
+    ck_assert(fabs(((OptArray *)m2.payload.dataSetMessages[0].data.keyFrameFields[0].value.data)->d[2] - 2.3) < 0.005);
 
-    ck_assert(m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
+    ck_assert(m.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp == m2.payload.dataSetMessages[0].data.keyFrameFields[0].hasSourceTimestamp);
 
     UA_clear(&oa, &ArrayOptType);
     UA_DataValue_clear(&dmkf.data.keyFrameFields[0]);

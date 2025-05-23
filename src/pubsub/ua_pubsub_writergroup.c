@@ -623,13 +623,13 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
     nm.version = 1;
     nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     nm.payloadHeaderEnabled = true;
-    nm.payload.dataSetPayload.dataSetMessages = dsm;
-    nm.payload.dataSetPayload.dataSetMessagesSize = dsmCount;
+    nm.payload.dataSetMessages = dsm;
+    nm.messageCount = dsmCount;
     nm.publisherIdEnabled = true;
     nm.publisherId = connection->config.publisherId;
 
     for(size_t i = 0; i < dsmCount; i++)
-        nm.payload.dataSetPayload.dataSetMessages[i].dataSetWriterId = writerIds[i];
+        nm.dataSetWriterIds[i] = writerIds[i];
 
     PubSubEncodeJsonCtx ctx;
     memset(&ctx, 0, sizeof(PubSubEncodeJsonCtx));
@@ -776,11 +776,11 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     nm->groupHeader.writerGroupId = wg->config.writerGroupId;
     /* number of the NetworkMessage inside a PublishingInterval */
     nm->groupHeader.networkMessageNumber = 1;
-    nm->payload.dataSetPayload.dataSetMessages = dsm;
-    nm->payload.dataSetPayload.dataSetMessagesSize = dsmCount;
+    nm->payload.dataSetMessages = dsm;
+    nm->messageCount = dsmCount;
 
     for(size_t i = 0; i < dsmCount; i++)
-        nm->payload.dataSetPayload.dataSetMessages[i].dataSetWriterId = writerIds[i];
+        nm->dataSetWriterIds[i] = writerIds[i];
 
     return UA_STATUSCODE_GOOD;
 }
@@ -822,7 +822,12 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
 
     /* Compute the message size. Add the overhead for the security signature.
      * There is no padding and the encryption incurs no size overhead. */
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&nm, &ctx.eo);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinaryInternal(&ctx, &nm);
+    if(msgSize == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Add the overhead for the security signature.
+     * There is no padding and the encryption incurs no size overhead. */
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
         msgSize += sp->symmetricModule.cryptoModule.
