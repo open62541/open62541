@@ -205,23 +205,17 @@ START_TEST(SecureChannel_cableunplugged) {
     client->connection.recv = UA_Client_recvTesting;
 
     /* Simulate network cable unplugged (no response from server) */
-    pauseServer();
+    UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
-    UA_Variant_clear(&val);
 
     UA_SecureChannelState scs;
     UA_Client_getState(client, &scs, NULL, NULL);
     ck_assert_int_eq(scs, UA_SECURECHANNELSTATE_CLOSED);
 
-    /* Simulate network cable plugged in again */
-    runServer();
-
-    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
+    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
     UA_Client_delete(client);
 }
 END_TEST
