@@ -22,13 +22,23 @@
 #include <stdlib.h>
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/server.h>
-
+#include <iostream>
 #include <map>
 #include <vector>
 #include <string>
 #include <sstream>
 
 #include <pqxx/pqxx>
+
+#include <async_mqtt/all.hpp>
+#include <async_mqtt/asio_bind/predefined_layer/mqtts.hpp>
+#include <async_mqtt/asio_bind/predefined_layer/ws.hpp> 
+#include <async_mqtt/asio_bind/predefined_layer/wss.hpp>
+#include <boost/asio.hpp>
+#include <thread>
+
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
 
 // extern "C" {
 // #include "nanoMQ/include/nanomq.h"  // This has nanomq_cli_start and related APIs
@@ -38,6 +48,8 @@
  * - g++ server.cpp -lopen62541 -o server */
 
 using namespace std;
+namespace as = boost::asio;
+namespace am = async_mqtt;
 
 UA_Boolean running = true;
 
@@ -144,9 +156,91 @@ static void updateCounterAndTriggerEvent(UA_Server *server, void *data) {
     return nodeId;
 }
 
+using client_t = am::client<am::protocol_version::v5, am::protocol::mqtt>;
 
+void mqtt_subscribe_and_update(UA_Server* server, const std::vector<std::string>& topics) {
+    as::io_context ioc;
+    auto amcl = client_t{ioc.get_executor()};
 
+    // Spawn a coroutine for the MQTT logic
+    as::co_spawn(
+        ioc,
+        [&amcl, &topics, server]() -> as::awaitable<void> {
+            try {
+                // Connect to broker
+                co_await amcl.async_underlying_handshake("216.48.184.131", "15579", as::use_awaitable);
+                std::cerr << "Connected" << std::endl;
 
+                // Start MQTT session with username/password
+                auto connack_opt = co_await amcl.async_start(
+                    am::v5::connect_packet{
+                        true,   // clean_start
+                        0x1234, // keep_alive
+                        "",     // Client Identifier
+                        std::nullopt, // no will
+                        "portal",   // username
+                        "dt0Unw7QRh" // password
+                    },
+                    as::use_awaitable
+                );
+                if (!connack_opt) {
+                    std::cerr << "Failed to connect to MQTT broker" << std::endl;
+                    co_return;
+                }
+
+                // Subscribe to all topics
+                std::vector<am::topic_subopts> sub_entry;
+                for (const auto& topic : topics) {
+                    sub_entry.push_back({topic, am::qos::at_most_once});
+                }
+                auto suback_opt = co_await amcl.async_subscribe(
+                    am::v5::subscribe_packet{
+                        *amcl.acquire_unique_packet_id(),
+                        am::force_move(sub_entry)
+                    },
+                    as::use_awaitable
+                );
+                if (!suback_opt) {
+                    std::cerr << "Failed to subscribe" << std::endl;
+                    co_return;
+                }
+
+                // Receive loop
+                while (true) {
+                    auto pv_opt = co_await amcl.async_recv(as::use_awaitable);
+                    if (!pv_opt) break;
+                    pv_opt->visit(
+                        am::overload{
+                            [&](client_t::publish_packet& p) {
+                                std::string topic = p.topic();
+                                std::string payload = p.payload();
+                                // Update your OPC UA node here using topic/payload
+                                auto it = nodeMap.find(topic);
+                                if (it != nodeMap.end()) {
+                                    if (!payload.empty() && std::all_of(payload.begin(), payload.end(), ::isdigit)) {
+                                        UA_Int32 value = std::stoi(payload);
+                                        UA_Variant var;
+                                        UA_Variant_setScalar(&var, &value, &UA_TYPES[UA_TYPES_INT32]);
+                                        UA_Server_writeValue(server, it->second, var);
+                                    } else {
+                                        std::cerr << "Invalid payload for stoi: " << payload << std::endl;
+                                    }
+                                }
+                            },
+                            [](auto&) {}
+                        }
+                    );
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "MQTT error: " << e.what() << std::endl;
+            }
+            co_return;
+        },
+        as::detached
+    );
+
+    ioc.run();
+}
 
 
 
@@ -370,9 +464,12 @@ for (const auto& topic : topics) {
 
 
 
+thread mqtt_thread(mqtt_subscribe_and_update, server, topics);
+mqtt_thread.detach();
 
-
-
+//  for (const auto& topic : topics) {
+//       cli.async_subscribe(topic, async_mqtt::qos::at_most_once, [](auto){});
+//   }
 
 
 
@@ -397,16 +494,16 @@ for (const auto& topic : topics) {
 
 /* 1) Define the custom EventType ------------------------------------- */
 UA_ObjectTypeAttributes attri = UA_ObjectTypeAttributes_default;
-attri.displayName  = UA_LOCALIZEDTEXT("en-US", "SimpleEventType");
-attri.description  = UA_LOCALIZEDTEXT("en-US", "The simple event type we created");
+attri.displayName =
+    UA_LOCALIZEDTEXT(const_cast<char *>("en-US"), const_cast<char *>("SimpleEventType"));
+attri.description = UA_LOCALIZEDTEXT(
+    const_cast<char *>("en-US"), const_cast<char *>("The simple event type we created"));
 
 UA_NodeId eventType;
-UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                            UA_QUALIFIEDNAME(0, "SimpleEventType"),
-                            attri, NULL, &eventType);
-
+UA_Server_addObjectTypeNode(
+    server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
+    UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+    UA_QUALIFIEDNAME(0, const_cast<char *>("SimpleEventType")), attri, NULL, &eventType);
 
 /* 3) Now you can instantiate and fill the event ---------------------- */
 UA_NodeId eventNodeId;
@@ -414,19 +511,25 @@ UA_Server_createEvent(server, eventType, &eventNodeId);
 
 UA_DateTime eventTime = UA_DateTime_now();
 UA_Server_writeObjectProperty_scalar(server, eventNodeId,
-    UA_QUALIFIEDNAME(0, "Time"), &eventTime, &UA_TYPES[UA_TYPES_DATETIME]);
+                                     UA_QUALIFIEDNAME(0, const_cast<char *>("Time")),
+                                     &eventTime, &UA_TYPES[UA_TYPES_DATETIME]);
 
 UA_UInt16 eventSeverity = 100;
 UA_Server_writeObjectProperty_scalar(server, eventNodeId,
-    UA_QUALIFIEDNAME(0, "Severity"), &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+                                     UA_QUALIFIEDNAME(0, const_cast<char *>("Severity")),
+                                     &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
 
-UA_LocalizedText eventMessage = UA_LOCALIZEDTEXT("en-US", "An event has been generated.");
+UA_LocalizedText eventMessage = UA_LOCALIZEDTEXT(
+    const_cast<char *>("en-US"), const_cast<char *>("An event has been generated."));
 UA_Server_writeObjectProperty_scalar(server, eventNodeId,
-    UA_QUALIFIEDNAME(0, "Message"), &eventMessage, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+                                     UA_QUALIFIEDNAME(0, const_cast<char *>("Message")),
+                                     &eventMessage, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
 
-UA_String eventSourceName = UA_STRING("Server");
-UA_Server_writeObjectProperty_scalar(server, eventNodeId,
-    UA_QUALIFIEDNAME(0, "SourceName"), &eventSourceName, &UA_TYPES[UA_TYPES_STRING]);
+UA_String eventSourceName = UA_STRING(const_cast<char *>("Server"));
+UA_Server_writeObjectProperty_scalar(
+    server, eventNodeId, UA_QUALIFIEDNAME(0, const_cast<char *>("SourceName")),
+    &eventSourceName, &UA_TYPES[UA_TYPES_STRING]);
+
 
 /* 4) Finally, trigger the event (don't forget the SourceNode argument) */
 

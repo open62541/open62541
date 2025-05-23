@@ -22,8 +22,6 @@ set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 
 find_package(Python3 REQUIRED)
 find_package(Git)
-find_package(nng CONFIG REQUIRED)
-
 include(AssignSourceGroup)
 include(GNUInstallDirs)
 
@@ -1576,3 +1574,7 @@ set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/gen
 if(UA_ENABLE_NODESET_INJECTOR)
     set_target_properties(open62541-generator-nodesetinjector PROPERTIES FOLDER "open62541/generators")
 endif()
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)

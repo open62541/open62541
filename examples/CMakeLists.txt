@@ -1,55 +1,53 @@
 cmake_minimum_required(VERSION 3.13)
 project(open62541-examples C CXX)
+
 if(${CMAKE_VERSION} VERSION_LESS 3.12)
     cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
 endif()
 
 # The examples folder can be built standalone.
-# First install open62541 system-wide using `make install`.
-# Then copy this folder to any other location and call CMake directly:
-#
-# cd ./open62541_examples
-# mkdir build && cd build
-# cmake ..
-# make -j
+# First install open62541 system-wide using `make install` or vcpkg.
+# Then build examples anywhere by pointing to the source directory.
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    # Examples are built standalone. Find installed open62541
+    # Standalone build: Find installed open62541 package
     find_package(open62541 REQUIRED)
 
-    # Define empty function. We don't need it in standalone
+    # Empty dummy function for grouping sources (used in open62541 build only)
     function(assign_source_group)
-    endfunction(assign_source_group)
+    endfunction()
 endif()
 
-#####################
-# CMake Definitions #
-#####################
-
-# Required for common.h header file used in examples
+# Use modern include directories scoped to targets when possible.
+# But for examples, common.h is in the source directory, so add globally:
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 
+# Set output directories for all build types
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/examples)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin/examples)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin/examples)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${CMAKE_BINARY_DIR}/bin/examples)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${CMAKE_BINARY_DIR}/bin/examples)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELWITHDEBINFO ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_MINSIZEREL ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
 
+# C++20 standard for C++ examples
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Macro to add example executables with proper properties
 macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
-    add_executable(${EXAMPLE_NAME} ${STATIC_OBJECTS}
-                   ${EXAMPLE_SOURCE} ${ARGN} ${PROJECT_SOURCE_DIR}/common.h)
-    target_link_libraries(${EXAMPLE_NAME} open62541::open62541)
+    add_executable(${EXAMPLE_NAME} ${EXAMPLE_SOURCE} ${PROJECT_SOURCE_DIR}/common.h)
+    target_link_libraries(${EXAMPLE_NAME} PRIVATE open62541::open62541)
     assign_source_group(${EXAMPLE_SOURCE})
-    set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
     set_target_properties(${EXAMPLE_NAME} PROPERTIES
-                          VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+        FOLDER "open62541/examples"
+        VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+    )
 endmacro()
 
-#############
-# Tutorials #
-#############
+# Add examples
 add_example(server_cpp server.cpp)
-# target_link_libraries(server_cpp nanomq)
+# target_link_libraries(server_cpp PRIVATE nanomq) # Uncomment if nanomq is used
+
 add_example(tutorial_datatypes tutorial_datatypes.c)
 add_example(tutorial_server_firststeps tutorial_server_firststeps.c)
 add_example(tutorial_server_variable tutorial_server_variable.c)
@@ -64,7 +62,7 @@ endif()
 
 if(UA_ENABLE_METHODCALLS)
     add_example(tutorial_server_method tutorial_server_method.c)
-    if (UA_MULTITHREADING GREATER_EQUAL 100)
+    if(UA_MULTITHREADING GREATER_EQUAL 100)
         add_example(tutorial_server_method_async tutorial_server_method_async.c)
     endif()
 endif()
@@ -80,10 +78,7 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
     add_example(tutorial_server_events tutorial_server_events.c)
 endif()
 
-##################
-# Example Client #
-##################
-
+# Client examples
 add_example(client client.c)
 add_example(client_connect client_connect.c)
 add_example(client_async client_async.c)
@@ -101,10 +96,7 @@ if(UA_ENABLE_SUBSCRIPTIONS)
     add_example(client_subscription_loop client_subscription_loop.c)
 endif()
 
-####################
-# Feature Examples #
-####################
-
+# Feature examples
 add_example(ci_server ci_server.c)
 add_example(server_settimestamp server_settimestamp.c)
 add_example(server_mainloop server_mainloop.c)
@@ -132,22 +124,26 @@ if(UA_ENABLE_HISTORIZING)
     add_example(tutorial_server_historicaldata_circular tutorial_server_historicaldata_circular.c)
 endif()
 
+# Encryption examples
 if(UA_ENABLE_ENCRYPTION OR
    UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS" OR
    UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
     add_example(server_encryption encryption/server_encryption.c)
     add_example(server_encryption_filestore encryption/server_encryption_filestore.c)
     add_example(client_encryption encryption/client_encryption.c)
+
     target_include_directories(server_encryption PRIVATE "${PROJECT_SOURCE_DIR}/examples")
     target_include_directories(client_encryption PRIVATE "${PROJECT_SOURCE_DIR}/examples")
+
     if(UA_ENABLE_TPM2_KEYSTORE)
         add_example(server_encryption_tpm_keystore encryption/server_encryption_tpm_keystore.c)
         add_example(client_encryption_tpm_keystore encryption/client_encryption_tpm_keystore.c)
-        target_link_libraries(server_encryption_tpm_keystore tpm2_pkcs11 ssl crypto)
-        target_link_libraries(client_encryption_tpm_keystore tpm2_pkcs11 ssl crypto)
+        target_link_libraries(server_encryption_tpm_keystore PRIVATE tpm2_pkcs11 ssl crypto)
+        target_link_libraries(client_encryption_tpm_keystore PRIVATE tpm2_pkcs11 ssl crypto)
     endif()
 endif()
 
+# Access control examples
 if(UA_ENABLE_NODEMANAGEMENT)
     add_example(access_control_server access_control/server_access_control.c)
     add_example(access_control_client access_control/client_access_control.c)
@@ -158,6 +154,7 @@ if(UA_ENABLE_NODEMANAGEMENT)
     endif()
 endif()
 
+# Discovery examples
 if(UA_ENABLE_DISCOVERY_MULTICAST)
     add_example(discovery_server_lds discovery/server_lds.c)
     add_example(discovery_server_register discovery/server_register.c)
@@ -167,10 +164,7 @@ endif()
 
 add_subdirectory(nodeset)
 
-####################
-#  Example PubSub  #
-####################
-
+# PubSub examples
 if(UA_ENABLE_PUBSUB)
     add_example(tutorial_pubsub_connection pubsub/tutorial_pubsub_connection.c)
     add_example(tutorial_pubsub_publish pubsub/tutorial_pubsub_publish.c)
@@ -182,32 +176,29 @@ if(UA_ENABLE_PUBSUB)
     add_example(server_pubsub_publish_rt_offsets pubsub_realtime/server_pubsub_publish_rt_offsets.c)
     add_example(server_pubsub_subscribe_rt_offsets pubsub_realtime/server_pubsub_subscribe_rt_offsets.c)
 
-    ## Apple does not implement timer functions required by one of the examples
-    ## And apple does not implement librt posix extension
     if(UA_ARCHITECTURE_POSIX AND NOT APPLE)
-        add_example(server_pubsub_publish_rt_state_machine
-                    pubsub_realtime/server_pubsub_publish_rt_state_machine.c)
-        target_link_libraries(server_pubsub_publish_rt_state_machine "rt")
-        add_example(server_pubsub_subscribe_rt_state_machine
-                    pubsub_realtime/server_pubsub_subscribe_rt_state_machine.c)
-        target_link_libraries(server_pubsub_subscribe_rt_state_machine "rt")
+        add_example(server_pubsub_publish_rt_state_machine pubsub_realtime/server_pubsub_publish_rt_state_machine.c)
+        target_link_libraries(server_pubsub_publish_rt_state_machine PRIVATE rt)
+        add_example(server_pubsub_subscribe_rt_state_machine pubsub_realtime/server_pubsub_subscribe_rt_state_machine.c)
+        target_link_libraries(server_pubsub_subscribe_rt_state_machine PRIVATE rt)
     endif()
 
     if(UA_ENABLE_ENCRYPTION_MBEDTLS)
         add_example(pubsub_publish_encrypted pubsub/pubsub_publish_encrypted.c)
         add_example(pubsub_subscribe_encrypted pubsub/pubsub_subscribe_encrypted.c)
+
         if(UA_ENABLE_TPM2_SECURITY)
             add_example(pubsub_publish_encrypted_tpm pubsub/pubsub_publish_encrypted_tpm.c)
             add_example(pubsub_subscribe_encrypted_tpm pubsub/pubsub_subscribe_encrypted_tpm.c)
         endif()
+
         if(UA_ENABLE_TPM2_KEYSTORE)
-            add_example(pubsub_publish_encrypted_tpm_keystore
-                        pubsub/pubsub_publish_encrypted_tpm_keystore.c)
-            add_example(pubsub_subscribe_encrypted_tpm_keystore
-                        pubsub/pubsub_subscribe_encrypted_tpm_keystore.c)
-            target_link_libraries(pubsub_publish_encrypted_tpm_keystore tpm2_pkcs11 ssl crypto)
-            target_link_libraries(pubsub_subscribe_encrypted_tpm_keystore tpm2_pkcs11 ssl crypto)
+            add_example(pubsub_publish_encrypted_tpm_keystore pubsub/pubsub_publish_encrypted_tpm_keystore.c)
+            add_example(pubsub_subscribe_encrypted_tpm_keystore pubsub/pubsub_subscribe_encrypted_tpm_keystore.c)
+            target_link_libraries(pubsub_publish_encrypted_tpm_keystore PRIVATE tpm2_pkcs11 ssl crypto)
+            target_link_libraries(pubsub_subscribe_encrypted_tpm_keystore PRIVATE tpm2_pkcs11 ssl crypto)
         endif()
+
         if(UA_ENABLE_PUBSUB_SKS)
             add_subdirectory(pubsub/sks)
         endif()
@@ -222,14 +213,10 @@ if(UA_ENABLE_PUBSUB)
         add_example(server_pubsub_file_configuration pubsub/server_pubsub_file_configuration.c)
     endif()
 
-    add_example(server_pubsub_subscribe_custom_monitoring
-                pubsub/server_pubsub_subscribe_custom_monitoring.c)
+    add_example(server_pubsub_subscribe_custom_monitoring pubsub/server_pubsub_subscribe_custom_monitoring.c)
 endif()
 
-###########################
-# Nodeser Loader Examples #
-###########################
-
+# Nodeset loader examples
 if(UA_ENABLE_NODESETLOADER)
     add_subdirectory(nodeset_loader)
 endif()
