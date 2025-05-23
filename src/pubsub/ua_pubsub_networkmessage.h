@@ -49,7 +49,7 @@ getFieldMetaData(const UA_DataSetMessage_EncodingMetaData *emd,
 
 const UA_DataSetMessage_EncodingMetaData *
 findEncodingMetaData(const UA_NetworkMessage_EncodingOptions *eo,
-                     const UA_DataSetMessage *dsm);
+                     UA_UInt16 dsWriterId);
 
 /******************/
 /* DataSetMessage */
@@ -70,6 +70,7 @@ UA_DataSetMessage_encodeBinary(PubSubEncodeCtx *ctx,
 
 UA_StatusCode
 UA_DataSetMessage_decodeBinary(PubSubDecodeCtx *ctx,
+                               const UA_DataSetMessage_EncodingMetaData *em,
                                UA_DataSetMessage *dsm,
                                size_t dsmSize);
 

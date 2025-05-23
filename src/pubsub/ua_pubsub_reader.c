@@ -87,10 +87,8 @@ UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     }
 
     if(msg->payloadHeaderEnabled) {
-        size_t totalDataSets = msg->payload.dataSetPayload.dataSetMessagesSize;
-        for(size_t i = 0; i < totalDataSets; i++) {
-            UA_UInt32 dswId = msg->payload.dataSetPayload.dataSetMessages[i].dataSetWriterId;
-            if(dsr->config.dataSetWriterId == dswId)
+        for(size_t i = 0; i < msg->messageCount; i++) {
+            if(dsr->config.dataSetWriterId == msg->dataSetWriterIds[i])
                 return UA_STATUSCODE_GOOD;
         }
         UA_LOG_DEBUG_PUBSUB(psm->logging, dsr,
@@ -873,8 +871,6 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server,
     /* Support only for UADP configuration
      * TODO: JSON encoding if UA_DataSetReader_generateDataSetMessage used other
      * that RT configuration */
-
-    dsm->dataSetWriterId = dsr->config.dataSetWriterId;
 
     UA_ExtensionObject *settings = &dsr->config.messageSettings;
     if(settings->content.decoded.type != &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE])

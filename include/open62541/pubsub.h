@@ -81,7 +81,6 @@ typedef struct {
 } UA_DataSetMessage_DeltaFrameField;
 
 typedef struct {
-    UA_UInt16 dataSetWriterId; /* Goes into the payload header */
     UA_DataSetMessageHeader header;
     UA_UInt16 fieldCount;
     union { /* Array of fields (cf. header->dataSetMessageType) */
@@ -134,6 +133,8 @@ typedef struct {
     UA_Byte messageNonce[UA_NETWORKMESSAGE_MAX_NONCE_LENGTH];
 } UA_NetworkMessageSecurityHeader;
 
+#define UA_NETWORKMESSAGE_MAXMESSAGECOUNT 32
+
 typedef struct {
     UA_Byte version;
 
@@ -144,7 +145,17 @@ typedef struct {
     UA_Boolean groupHeaderEnabled;
     UA_NetworkMessageGroupHeader groupHeader;
 
+    /* The DataSetWriterIds correspond to the DataSetMessages in the payload. If
+     * the payload header is not present for DataSetMessages, the Subscriber
+     * must know the number and size of DataSetMessages from the DataSetReader
+     * configuration.
+     *
+     * We define an upper bound for the number of DataSetMessages, so that the
+     * DataSetWriterIds can be parsed as part of the headers without allocating
+     * memory. */
     UA_Boolean payloadHeaderEnabled;
+    UA_Byte messageCount;
+    UA_UInt16 dataSetWriterIds[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
 
     /* Fields defined via the Extended1Flags */
     UA_Boolean dataSetClassIdEnabled;
@@ -166,18 +177,16 @@ typedef struct {
     UA_UInt16 promotedFieldsSize;
     UA_Variant *promotedFields; /* BaseDataType */
 
-    UA_NetworkMessageType networkMessageType;
-
     /* For Json NetworkMessage */
     UA_Boolean messageIdEnabled;
     UA_String messageId;
 
+    /* TODO: Add support for Discovery Messages */
+    UA_NetworkMessageType networkMessageType;
     union {
-        struct {
-            size_t dataSetMessagesSize; /* Goes into the payload header */
-            UA_DataSetMessage *dataSetMessages;
-        } dataSetPayload;
-        /* TODO: Add support for Discovery Messages */
+        /* The DataSetMessages are an array of messageCount length.
+         * Can be NULL if only the headers have been decoded. */
+        UA_DataSetMessage *dataSetMessages;
     } payload;
 
     UA_ByteString securityFooter;
@@ -230,7 +239,7 @@ UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage *p,
 
 UA_EXPORT UA_StatusCode
 UA_NetworkMessage_decodeBinary(const UA_ByteString *src,
-                               UA_NetworkMessage* dst,
+                               UA_NetworkMessage *dst,
                                const UA_NetworkMessage_EncodingOptions *eo,
                                const UA_DecodeBinaryOptions *bo);
 
