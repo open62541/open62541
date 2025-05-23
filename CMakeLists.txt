@@ -1256,9 +1256,10 @@ ua_generate_nodeset(NAME "ns0" FILE ${UA_FILE_NODESETS}
 if(UA_ENABLE_NODESET_INJECTOR)
     message(STATUS "Nodesetinjector feature enabled")
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h
-                       ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c
+                              ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c
                        COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_injector/generate_nodesetinjector.py
-                       ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector)
+                                                     ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector
+                                                     ${UA_INFORMATION_MODEL_AUTOLOAD})
     add_custom_target(open62541-generator-nodesetinjector DEPENDS
                       ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c
                       ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h)
