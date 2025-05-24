@@ -214,16 +214,32 @@ void mqtt_subscribe_and_update(UA_Server* server, const std::vector<std::string>
                             [&](client_t::publish_packet& p) {
                                 std::string topic = p.topic();
                                 std::string payload = p.payload();
-                                // Update your OPC UA node here using topic/payload
                                 auto it = nodeMap.find(topic);
                                 if (it != nodeMap.end()) {
-                                    if (!payload.empty() && std::all_of(payload.begin(), payload.end(), ::isdigit)) {
-                                        UA_Int32 value = std::stoi(payload);
-                                        UA_Variant var;
-                                        UA_Variant_setScalar(&var, &value, &UA_TYPES[UA_TYPES_INT32]);
-                                        UA_Server_writeValue(server, it->second, var);
-                                    } else {
-                                        std::cerr << "Invalid payload for stoi: " << payload << std::endl;
+                                    try {
+                                        auto j = json::parse(payload);
+                                        if (j.contains("Data") && j["Data"].is_array() && !j["Data"].empty()) {
+                                            if (j["Data"][0]["Value"].is_number()) {
+                                                double value = j["Data"][0]["Value"].get<double>();
+                                                UA_Variant var;
+                                                UA_Variant_setScalar(&var, &value, &UA_TYPES[UA_TYPES_DOUBLE]);
+                                                UA_Server_writeValue(server, it->second, var);
+                                            } else if (j["Data"][0]["Value"].is_boolean()) {
+                                                UA_Boolean value = j["Data"][0]["Value"].get<bool>();
+                                                UA_Variant var;
+                                                UA_Variant_setScalar(&var, &value, &UA_TYPES[UA_TYPES_BOOLEAN]);
+                                                UA_Server_writeValue(server, it->second, var);
+                                            } else if (j["Data"][0]["Value"].is_string()) {
+                                                std::string strValue = j["Data"][0]["Value"].get<std::string>();
+                                                UA_String value = UA_STRING_ALLOC(strValue.c_str());
+                                                UA_Variant var;
+                                                UA_Variant_setScalar(&var, &value, &UA_TYPES[UA_TYPES_STRING]);
+                                                UA_Server_writeValue(server, it->second, var);
+                                                UA_String_clear(&value);
+                                            }
+                                        }
+                                    } catch (const std::exception& e) {
+                                        std::cerr << "JSON parse error: " << e.what() << std::endl;
                                     }
                                 }
                             },
@@ -284,7 +300,7 @@ int main(int argc, char* argv[]) {
     }
 
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig *   config = UA_Server_getConfig(server);
 
     // broker_start(argc, argv);
     // #ifdef UA_ENABLE_ENCRYPTION
@@ -298,6 +314,13 @@ int main(int argc, char* argv[]) {
             trustList, trustListSize,
             issuerList, issuerListSize,
             revocationList, revocationListSize);
+
+    config->applicationDescription.applicationUri = UA_STRING_ALLOC("urn:Anexee.server.application");
+    config->applicationDescription.productUri = UA_STRING_ALLOC("urn:Anexee.server");
+    config->applicationDescription.applicationName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Anexee");
+
+    UA_String_clear(&config->endpoints[0].endpointUrl);
+    config->endpoints[0].endpointUrl = UA_STRING_ALLOC("opc.tcp://0.0.0.0:4840");
 
     // Accept all certificates for demo/testing
     //  config->secureChannelPKI.clear(&config->secureChannelPKI);
@@ -343,9 +366,7 @@ int main(int argc, char* argv[]) {
     // config->endpoints[2].securityPolicyUri = UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
 
     // Add server description
-    config->applicationDescription.applicationUri = UA_STRING_ALLOC("urn:Anexee.server.application");
-    config->applicationDescription.productUri = UA_STRING_ALLOC("urn:Anexee.server");
-    config->applicationDescription.applicationName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Anexee");
+
     // UA_QualifiedName_clear(&nameName);
     // UA_String_clear(&name);
 

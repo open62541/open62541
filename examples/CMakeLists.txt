@@ -13,6 +13,9 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     # Standalone build: Find installed open62541 package
     find_package(open62541 REQUIRED)
 
+    find_package(nlohmann_json CONFIG REQUIRED)
+    target_link_libraries(your_target PRIVATE nlohmann_json::nlohmann_json)
+    
     # Empty dummy function for grouping sources (used in open62541 build only)
     function(assign_source_group)
     endfunction()
