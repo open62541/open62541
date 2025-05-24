@@ -933,9 +933,9 @@ initNS0(UA_Server *server) {
     }
 
     /* NamespaceArray */
-    UA_DataSource namespaceDataSource = {readNamespaces, writeNamespaces};
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_NAMESPACEARRAY),
-                                         namespaceDataSource);
+    UA_ExternalValueSource namespaceDataSource = {readNamespaces, writeNamespaces};
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_NAMESPACEARRAY),
+                                                  namespaceDataSource);
     retVal |= writeValueRankAttribute(server, UA_NS0ID(SERVER_NAMESPACEARRAY), 1);
 
     /* ServerArray */
@@ -945,58 +945,58 @@ initNS0(UA_Server *server) {
     retVal |= writeValueRankAttribute(server, UA_NS0ID(SERVER_SERVERARRAY), 1);
 
     /* ServerStatus */
-    UA_DataSource serverStatus = {readStatus, writeStatus};
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERSTATUS), serverStatus);
+    UA_ExternalValueSource serverStatus = {readStatus, writeStatus};
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS), serverStatus);
 
     /* StartTime will be sampled in UA_Server_run_startup()*/
 
     /* CurrentTime */
-    UA_DataSource currentTime = {readCurrentTime, NULL};
+    UA_ExternalValueSource currentTime = {readCurrentTime, NULL};
     UA_NodeId currTime = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
-    retVal |= setVariableNode_dataSource(server, currTime, currentTime);
+    retVal |= setVariableNode_externalValueSource(server, currTime, currentTime);
     retVal |= writeMinimumSamplingIntervalAttribute(server, currTime, 100.0);
 
     /* State */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERSTATUS_STATE),
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_STATE),
                                          serverStatus);
 
     /* BuildInfo */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO),
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO),
                                          serverStatus);
 
     /* BuildInfo - ProductUri */
-    retVal |= setVariableNode_dataSource(server,
+    retVal |= setVariableNode_externalValueSource(server,
                                          UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_PRODUCTURI),
                                          serverStatus);
 
     /* BuildInfo - ManufacturerName */
-    retVal |= setVariableNode_dataSource(server,
+    retVal |= setVariableNode_externalValueSource(server,
                                          UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_MANUFACTURERNAME),
                                          serverStatus);
 
     /* BuildInfo - ProductName */
-    retVal |= setVariableNode_dataSource(server,
+    retVal |= setVariableNode_externalValueSource(server,
                                          UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME),
                                          serverStatus);
 
     /* BuildInfo - SoftwareVersion */
-    retVal |= setVariableNode_dataSource(server,
+    retVal |= setVariableNode_externalValueSource(server,
                                          UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_SOFTWAREVERSION),
                                          serverStatus);
 
     /* BuildInfo - BuildNumber */
-    retVal |= setVariableNode_dataSource(server,
+    retVal |= setVariableNode_externalValueSource(server,
                                          UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_BUILDNUMBER),
                                          serverStatus);
 
     /* BuildInfo - BuildDate */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_BUILDDATE),
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_BUILDDATE),
                                          serverStatus);
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO
 
     /* SecondsTillShutdown */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN),
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN),
                                          serverStatus);
 
     /* ShutDownReason */
@@ -1006,8 +1006,8 @@ initNS0(UA_Server *server) {
                                &shutdownReason, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
 
     /* ServiceLevel */
-    UA_DataSource serviceLevel = {readServiceLevel, NULL};
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVICELEVEL), serviceLevel);
+    UA_ExternalValueSource serviceLevel = {readServiceLevel, NULL};
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVICELEVEL), serviceLevel);
 
     /* ServerDiagnostics - EnabledFlag */
 #ifdef UA_ENABLE_DIAGNOSTICS
@@ -1030,8 +1030,8 @@ initNS0(UA_Server *server) {
                                         UA_ACCESSLEVELMASK_READ);
 
     /* Auditing */
-    UA_DataSource auditing = {readAuditing, NULL};
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_AUDITING), auditing);
+    UA_ExternalValueSource auditing = {readAuditing, NULL};
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_AUDITING), auditing);
 
     /* Redundancy Support */
     UA_RedundancySupport redundancySupport = UA_REDUNDANCYSUPPORT_NONE;
@@ -1089,35 +1089,35 @@ initNS0(UA_Server *server) {
                                &maxHistoryContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* ServerCapabilities - MinSupportedSampleRate */
-    UA_DataSource samplingInterval = {readMinSamplingInterval, NULL};
-    retVal |= setVariableNode_dataSource(server,
+    UA_ExternalValueSource samplingInterval = {readMinSamplingInterval, NULL};
+    retVal |= setVariableNode_externalValueSource(server,
                                          UA_NS0ID(SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE),
                                          samplingInterval);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerRead */
-    UA_DataSource operationLimitRead = {readOperationLimits, NULL};
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREAD), operationLimitRead);
+    UA_ExternalValueSource operationLimitRead = {readOperationLimits, NULL};
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREAD), operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - maxNodesPerWrite */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERWRITE), operationLimitRead);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERWRITE), operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerMethodCall */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERMETHODCALL), operationLimitRead);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERMETHODCALL), operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerBrowse */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERBROWSE), operationLimitRead);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERBROWSE), operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerRegisterNodes */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREGISTERNODES), operationLimitRead);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREGISTERNODES), operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerTranslateBrowsePathsToNodeIds */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERTRANSLATEBROWSEPATHSTONODEIDS), operationLimitRead);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERTRANSLATEBROWSEPATHSTONODEIDS), operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerNodeManagement */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERNODEMANAGEMENT), operationLimitRead);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERNODEMANAGEMENT), operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - MaxMonitoredItemsPerCall */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL), operationLimitRead);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL), operationLimitRead);
 
     /* Remove unused operation limit components */
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYREADDATA), true);
@@ -1143,58 +1143,58 @@ initNS0(UA_Server *server) {
 
 #ifdef UA_ENABLE_DIAGNOSTICS
     /* ServerDiagnostics - ServerDiagnosticsSummary */
-    UA_DataSource serverDiagSummary = {readDiagnostics, NULL};
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), serverDiagSummary);
+    UA_ExternalValueSource serverDiagSummary = {readDiagnostics, NULL};
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), serverDiagSummary);
 
     /* ServerDiagnostics - ServerDiagnosticsSummary - ServerViewCount */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SERVERVIEWCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SERVERVIEWCOUNT), serverDiagSummary);
 
     /* ServerDiagnostics - ServerDiagnosticsSummary - CurrentSessionCount */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSESSIONCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSESSIONCOUNT), serverDiagSummary);
 
     /* ServerDiagnostics - ServerDiagnosticsSummary - CumulatedSessionCount */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSESSIONCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSESSIONCOUNT), serverDiagSummary);
 
     /* ServerDiagnostics - ServerDiagnosticsSummary - SecurityRejectedSessionCount */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDSESSIONCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDSESSIONCOUNT), serverDiagSummary);
 
     /* ServerDiagnostics - ServerDiagnosticsSummary - RejectedSessionCount */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDSESSIONCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDSESSIONCOUNT), serverDiagSummary);
 
     /* ServerDiagnostics - ServerDiagnosticsSummary - SessionTimeoutCount */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONTIMEOUTCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONTIMEOUTCOUNT), serverDiagSummary);
 
     /* ServerDiagnostics - ServerDiagnosticsSummary - SessionAbortCount */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONABORTCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONABORTCOUNT), serverDiagSummary);
 
     /* ServerDiagnostics - ServerDiagnosticsSummary - CurrentSubscriptionCount */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSUBSCRIPTIONCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSUBSCRIPTIONCOUNT), serverDiagSummary);
 
     /* ServerDiagnostics - ServerDiagnosticsSummary - CumulatedSubscriptionCount */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSUBSCRIPTIONCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSUBSCRIPTIONCOUNT), serverDiagSummary);
 
     /* ServerDiagnostics - ServerDiagnosticsSummary - PublishingIntervalCount */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_PUBLISHINGINTERVALCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_PUBLISHINGINTERVALCOUNT), serverDiagSummary);
 
     /* ServerDiagnostics - ServerDiagnosticsSummary - SecurityRejectedRequestsCount */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDREQUESTSCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDREQUESTSCOUNT), serverDiagSummary);
 
     /* ServerDiagnostics - ServerDiagnosticsSummary - RejectedRequestsCount */
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDREQUESTSCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDREQUESTSCOUNT), serverDiagSummary);
 
     /* ServerDiagnostics - SubscriptionDiagnosticsArray */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_DataSource serverSubDiagSummary = {readSubscriptionDiagnosticsArray, NULL};
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), serverSubDiagSummary);
+    UA_ExternalValueSource serverSubDiagSummary = {readSubscriptionDiagnosticsArray, NULL};
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), serverSubDiagSummary);
 #endif
 
     /* ServerDiagnostics - SessionDiagnosticsSummary - SessionDiagnosticsArray */
-    UA_DataSource sessionDiagSummary = {readSessionDiagnosticsArray, NULL};
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONDIAGNOSTICSARRAY), sessionDiagSummary);
+    UA_ExternalValueSource sessionDiagSummary = {readSessionDiagnosticsArray, NULL};
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONDIAGNOSTICSARRAY), sessionDiagSummary);
 
     /* ServerDiagnostics - SessionDiagnosticsSummary - SessionSecurityDiagnosticsArray */
-    UA_DataSource sessionSecDiagSummary = {readSessionSecurityDiagnostics, NULL};
-    retVal |= setVariableNode_dataSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONSECURITYDIAGNOSTICSARRAY), sessionSecDiagSummary);
+    UA_ExternalValueSource sessionSecDiagSummary = {readSessionSecurityDiagnostics, NULL};
+    retVal |= setVariableNode_externalValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONSECURITYDIAGNOSTICSARRAY), sessionSecDiagSummary);
 
 #else
     /* Removing these NodeIds make Server Object to be non-complaint with UA
