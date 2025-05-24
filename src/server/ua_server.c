@@ -1160,6 +1160,11 @@ UA_Server_run_startup(UA_Server *server) {
                        config->logging, UA_LOGCATEGORY_SERVER,
                        "An EventLoop must be configured");
 
+    /* Set up the EventLoop parameters */
+    UA_UInt32 maxSockets = config->maxSockets;
+    UA_KeyValueMap_setScalar(&el->params, UA_QUALIFIEDNAME(0, "max-sockets"),
+                             (void *)&maxSockets, &UA_TYPES[UA_TYPES_UINT32]);
+
     if(el->state != UA_EVENTLOOPSTATE_STARTED) {
         retVal = el->start(el);
         UA_CHECK_STATUS(retVal, return retVal); /* Errors are logged internally */

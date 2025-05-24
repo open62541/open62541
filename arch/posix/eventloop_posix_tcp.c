@@ -68,6 +68,21 @@ TCP_checkStopped(UA_POSIXConnectionManager *pcm) {
     }
 }
 
+static UA_Boolean maxSocketsLimitReached = false;
+
+static void *
+addListenSockets(void *application, UA_RegisteredFD *rfd) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)application;
+    int optval;
+    socklen_t optlen = sizeof(optval);
+
+    if(UA_getsockopt(rfd->fd, SOL_SOCKET, SO_ACCEPTCONN, &optval, &optlen) == 0 && optval) {
+        UA_EventLoopPOSIX_registerFD(el, rfd);
+    }
+
+    return NULL;
+}
+
 static void
 TCP_delayedClose(void *application, void *context) {
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
@@ -93,6 +108,12 @@ TCP_delayedClose(void *application, void *context) {
     ZIP_REMOVE(UA_FDTree, &pcm->fds, &conn->rfd);
     UA_assert(pcm->fdsSize > 0);
     pcm->fdsSize--;
+
+    /* Resuming listen sockets in the socket list when socket space becomes available */
+    if(maxSocketsLimitReached) {
+        ZIP_ITER(UA_FDTree, &pcm->fds, addListenSockets, el);
+        maxSocketsLimitReached = false;
+    }
 
     /* Signal closing to the application */
     conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
@@ -231,6 +252,19 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
                         &UA_KEYVALUEMAP_NULL, response);
 }
 
+static void *
+removeListenSockets(void *application, UA_RegisteredFD *rfd) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)application;
+    int optval;
+    socklen_t optlen = sizeof(optval);
+
+    if(UA_getsockopt(rfd->fd, SOL_SOCKET, SO_ACCEPTCONN, &optval, &optlen) == 0 && optval) {
+        UA_EventLoopPOSIX_deregisterFD(el, rfd);
+    }
+
+    return NULL;
+}
+
 /* Gets called when a new connection opens or if the listenSocket is closed */
 static void
 TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
@@ -328,6 +362,17 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     /* Register internally in the EventSource */
     ZIP_INSERT(UA_FDTree, &pcm->fds, &newConn->rfd);
     pcm->fdsSize++;
+
+    /* Verify whether the maximum socket limit has been exceeded.
+     * If true, remove listen sockets from the socket list to stop
+     * accepting additional connection requests */
+    const UA_UInt32 *maxSockets = (const UA_UInt32 *)UA_KeyValueMap_getScalar(
+        &el->eventLoop.params, UA_QUALIFIEDNAME(0, "max-sockets"),
+        &UA_TYPES[UA_TYPES_UINT32]);
+    if(maxSockets && *maxSockets != 0 && pcm->fdsSize >= (size_t)*maxSockets) {
+        ZIP_ITER(UA_FDTree, &pcm->fds, removeListenSockets, el);
+        maxSocketsLimitReached = true;
+    }
 
     /* Forward the remote hostname to the application */
     UA_KeyValuePair kvp;

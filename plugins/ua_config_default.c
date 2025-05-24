@@ -355,6 +355,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
     conf->shutdownDelay = 0.0;
 
+    conf->maxSockets = 0;
+
     /* Server Description */
     UA_BuildInfo_clear(&conf->buildInfo);
     conf->buildInfo.productUri = UA_STRING_ALLOC(PRODUCT_URI);
