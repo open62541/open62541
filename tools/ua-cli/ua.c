@@ -616,8 +616,11 @@ explore(int argc, char **argv, int argpos) {
         abortWithStatus(res);
 
     char relativepath[512];
-    size_t pos = strlen(pathArg);
-    memcpy(relativepath, pathArg, pos);
+    size_t pos = 0;
+    if (pathArg) {
+        pos = strlen(pathArg);
+        memcpy(relativepath, pathArg, pos);
+    }
 
     exploreRecursive(relativepath, pos, ao.nodeId, nc, depth);
 
