@@ -116,7 +116,7 @@ UA_Client_Subscriptions_create_async(UA_Client *client,
     void *subscriptionContext,
     UA_Client_StatusChangeNotificationCallback statusChangeCallback,
     UA_Client_DeleteSubscriptionCallback deleteCallback,
-    UA_ClientAsyncCreateSubscriptionCallback callback,
+    UA_ClientAsyncCreateSubscriptionCallback createCallback,
     void *userdata, UA_UInt32 *requestId);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
@@ -127,7 +127,7 @@ UA_Client_Subscriptions_createEx_async(UA_Client *client,
     UA_Client_DeleteSubscriptionCallback deleteCallback,
     UA_Client_DataItemsNotificationCallback dataChangeCallback,
     UA_Client_EventsNotificationCallback eventNotificationCallback,
-    UA_ClientAsyncServiceCallback callback,
+    UA_ClientAsyncCreateSubscriptionCallback createCallback,
     void *userdata, UA_UInt32 *requestId);
 
 UA_ModifySubscriptionResponse UA_EXPORT UA_THREADSAFE

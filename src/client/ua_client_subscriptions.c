@@ -173,7 +173,7 @@ UA_Client_Subscriptions_createEx_async(UA_Client *client,
                                        UA_Client_DeleteSubscriptionCallback deleteCallback,
                                        UA_Client_DataItemsNotificationCallback dataChangeNotificationCallback,
                                        UA_Client_EventsNotificationCallback eventsNotificationCallback,
-                                       UA_ClientAsyncServiceCallback createCallback,
+                                       UA_ClientAsyncCreateSubscriptionCallback createCallback,
                                        void *userdata,
                                        UA_UInt32 *requestId) {
     CustomCallback *cc = (CustomCallback *)UA_calloc(1, sizeof(CustomCallback));
