@@ -21,7 +21,7 @@
    fun:allocate_stack
    fun:pthread_create@@GLIBC_2.34
    ...
-   fun:setup*
+   fun:*setup*
    fun:srunner_run_setup
    ...
    fun:srunner_run_tagged
