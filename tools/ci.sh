@@ -405,8 +405,9 @@ function examples_valgrind {
 ##############################
 
 function build_clang_analyzer {
+    local version=$1
     mkdir -p build; cd build; rm -rf *
-    scan-build-11 cmake -DCMAKE_BUILD_TYPE=Debug \
+    scan-build-$version cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
@@ -419,7 +420,11 @@ function build_clang_analyzer {
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_FORCE_WERROR=ON \
           ..
-    scan-build-11 --status-bugs make ${MAKEOPTS}
+    scan-build-$version \
+          --status-bugs \
+          --exclude ../src/util \
+          --exclude ../tests \
+          make ${MAKEOPTS}
 }
 
 ###################################################
