@@ -524,12 +524,6 @@ UA_PayloadHeader_decodeBinary(PubSubDecodeCtx *ctx,
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
 
-    /* Allocate the DataSetMessages */
-    nm->payload.dataSetMessages = (UA_DataSetMessage*)
-        ctxCalloc(&ctx->ctx, count, sizeof(UA_DataSetMessage));
-    if(!nm->payload.dataSetMessages)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
     nm->messageCount = count;
     return UA_STATUSCODE_GOOD;
 }
@@ -683,17 +677,14 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
     if(nm->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
-    /* The dataset was already allocated if the header is enabled.
-     * To decode the DataSetReaderIds. */
-    UA_Byte count = nm->messageCount;
-    if(!nm->payloadHeaderEnabled) {
-        count = 1;
-        nm->payload.dataSetMessages = (UA_DataSetMessage *)
-            ctxCalloc(&ctx->ctx, 1, sizeof(UA_DataSetMessage));
-        UA_CHECK_MEM(nm->payload.dataSetMessages,
-                     return UA_STATUSCODE_BADOUTOFMEMORY);
+    /* Allocate the DataSetMessages */
+    if(!nm->payloadHeaderEnabled)
         nm->messageCount = 1;
-    }
+    UA_Byte count = nm->messageCount;
+    nm->payload.dataSetMessages = (UA_DataSetMessage*)
+        ctxCalloc(&ctx->ctx, count, sizeof(UA_DataSetMessage));
+    UA_CHECK_MEM(nm->payload.dataSetMessages,
+                 return UA_STATUSCODE_BADOUTOFMEMORY);
 
     /* Decode the payload sizes */
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
