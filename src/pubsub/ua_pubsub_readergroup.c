@@ -1274,13 +1274,6 @@ UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
     size_t fieldindex = 0;
     UA_FieldTargetDataType *tv = NULL;
 
-    UA_NetworkMessage networkMessage;
-    memset(&networkMessage, 0, sizeof(UA_NetworkMessage));
-
-    UA_STACKARRAY(UA_DataSetMessage, dsmStore, rg->readersCount);
-    UA_STACKARRAY(UA_DataSetReader *, dsrStore, rg->readersCount);
-    memset(dsmStore, 0, sizeof(UA_DataSetMessage) * rg->readersCount);
-
     /* Prepare the encoding context */
     PubSubEncodeCtx ctx;
     memset(&ctx, 0, sizeof(PubSubEncodeCtx));
@@ -1300,9 +1293,20 @@ UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
         i++;
     }
 
+    UA_NetworkMessage networkMessage;
+    memset(&networkMessage, 0, sizeof(UA_NetworkMessage));
+
+    UA_DataSetMessage dsmStore[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
+    UA_DataSetReader *dsrStore[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
+    memset(dsmStore, 0, sizeof(UA_DataSetMessage) * UA_NETWORKMESSAGE_MAXMESSAGECOUNT);
+
     size_t dsmCount = 0;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
+        if(dsmCount >= UA_NETWORKMESSAGE_MAXMESSAGECOUNT) {
+            res = UA_STATUSCODE_BADENCODINGERROR;
+            goto cleanup;
+        }
         dsrStore[dsmCount] = dsr;
         res = UA_DataSetReader_generateDataSetMessage(server, &dsmStore[dsmCount], dsr);
         dsmCount++;
