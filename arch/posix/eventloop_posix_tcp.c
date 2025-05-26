@@ -68,6 +68,21 @@ TCP_checkStopped(UA_POSIXConnectionManager *pcm) {
     }
 }
 
+static UA_Boolean maxSocketsLimitReached = false;
+
+static void *
+addListenSockets(void *application, UA_RegisteredFD *rfd) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)application;
+    int optval;
+    socklen_t optlen = sizeof(optval);
+
+    if(UA_getsockopt(rfd->fd, SOL_SOCKET, SO_ACCEPTCONN, &optval, &optlen) == 0 && optval) {
+        UA_EventLoopPOSIX_registerFD(el, rfd);
+    }
+
+    return NULL;
+}
+
 static void
 TCP_delayedClose(void *application, void *context) {
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
@@ -114,6 +129,12 @@ TCP_delayedClose(void *application, void *context) {
     }
 
     UA_free(conn);
+
+    /* Resuming listen sockets in the socket list when socket space becomes available */
+    if(el->maxSocketsLimitReached) {
+        ZIP_ITER(UA_FDTree, &pcm->fds, addListenSockets, application);
+        el->maxSocketsLimitReached = false;
+    }
 
     /* Check if this was the last connection for a closing ConnectionManager */
     TCP_checkStopped(pcm);
@@ -231,6 +252,19 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
                         &UA_KEYVALUEMAP_NULL, response);
 }
 
+static void *
+removeListenSockets(void *application, UA_RegisteredFD *rfd) {
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)application;
+    int optval;
+    socklen_t optlen = sizeof(optval);
+
+    if(UA_getsockopt(rfd->fd, SOL_SOCKET, SO_ACCEPTCONN, &optval, &optlen) == 0 && optval) {
+        UA_EventLoopPOSIX_deregisterFD(el, rfd);
+    }
+
+    return NULL;
+}
+
 /* Gets called when a new connection opens or if the listenSocket is closed */
 static void
 TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
@@ -329,6 +363,17 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     ZIP_INSERT(UA_FDTree, &pcm->fds, &newConn->rfd);
     pcm->fdsSize++;
 
+    /* Verify whether the maximum socket limit has been exceeded.
+     * If true, remove listen sockets from the socket list to stop
+     * accepting additional connection requests */
+    const UA_UInt32 *maxSockets = (const UA_UInt32 *)UA_KeyValueMap_getScalar(
+        &cm->eventSource.params, UA_QUALIFIEDNAME(0, "max-sockets"),
+        &UA_TYPES[UA_TYPES_UINT32]);
+    if(maxSockets && *maxSockets != 0 && pcm->fdsSize >= (size_t)*maxSockets) {
+        ZIP_ITER(UA_FDTree, &pcm->fds, removeListenSockets, el);
+        maxSocketsLimitReached = true;
+    }
+
     /* Forward the remote hostname to the application */
     UA_KeyValuePair kvp;
     kvp.key = UA_QUALIFIEDNAME(0, "remote-address");
@@ -354,6 +399,16 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
                          UA_Boolean validate, UA_Boolean reuseaddr) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
+
+    /* Check that the maximum number of sockets has not been exceeded */
+    const UA_UInt32 *maxSockets = (const UA_UInt32 *)UA_KeyValueMap_getScalar(
+        &pcm->cm.eventSource.params, UA_QUALIFIEDNAME(0, "max-sockets"),
+        &UA_TYPES[UA_TYPES_UINT32]);
+    if(maxSockets && *maxSockets != 0 && pcm->fdsSize >= (size_t)*maxSockets) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "TCP\t| Unable to establish connection: no available sockets");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* Translate INADDR_ANY to IPv4/IPv6 address */
     UA_RESET_ERRNO;
@@ -735,16 +790,18 @@ TCP_openPassiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *
         reuseaddr = *reuseaddrTmp;
 
     /* Undefined or empty addresses array -> listen on all interfaces */
+    UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
     if(addrsSize == 0) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP\t| Listening on all interfaces");
-        return TCP_registerListenSockets(pcm, NULL, *port, application,
-                                         context, connectionCallback, validate, reuseaddr);
+        if(TCP_registerListenSockets(pcm, NULL, *port, application,
+                                     context, connectionCallback, validate, reuseaddr) == UA_STATUSCODE_GOOD)
+            retval = UA_STATUSCODE_GOOD;
+        return retval;
     }
 
     /* Iterate over the configured hostnames */
     UA_String *hostStrings = (UA_String*)addrs->data;
-    UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
     for(size_t i = 0; i < addrsSize; i++) {
         char hostname[512];
         if(hostStrings[i].length >= sizeof(hostname))
@@ -766,6 +823,16 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
                          UA_Boolean validate) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
+
+    /* Check that the maximum number of sockets has not been exceeded */
+    const UA_UInt32 *maxSockets = (const UA_UInt32 *)UA_KeyValueMap_getScalar(
+        &pcm->cm.eventSource.params, UA_QUALIFIEDNAME(0, "max-sockets"),
+        &UA_TYPES[UA_TYPES_UINT32]);
+    if(maxSockets && *maxSockets != 0 && pcm->fdsSize >= (size_t)*maxSockets) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "TCP\t| Unable to establish connection: no available sockets");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* Get the connection parameters */
     char hostname[UA_MAXHOSTNAME_LENGTH];
