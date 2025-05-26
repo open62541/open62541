@@ -510,6 +510,11 @@ UA_PayloadHeader_decodeBinary(PubSubDecodeCtx *ctx,
     UA_StatusCode rv = _DECODE_BINARY(&count, BYTE);
     UA_CHECK_STATUS(rv, return rv);
 
+    /* The NetworkMessage shall contain at least one DataSetMessage if the
+     * NetworkMessage type is DataSetMessage payload. */
+    if(count == 0)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     /* Limit for the inline-defined DataSetWriterIds */
     if(count > UA_NETWORKMESSAGE_MAXMESSAGECOUNT)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -656,6 +661,18 @@ UA_NetworkMessage_decodeHeaders(PubSubDecodeCtx *ctx,
     if(nm->payloadHeaderEnabled) {
         rv = UA_PayloadHeader_decodeBinary(ctx, nm);
         UA_CHECK_STATUS(rv, return rv);
+    } else {
+        /* If no PayloadHeader is defined, then assume the EncodingOptions
+         * reflect the DataSetMessages */
+        nm->messageCount = ctx->eo.metaDataSize;
+        for(size_t i = 0; i < nm->messageCount; i++)
+            nm->dataSetWriterIds[i] = ctx->eo.metaData[i].dataSetWriterId;
+
+        /* No Metadata configured. Assume one DataSetMessage. The NetworkMessage
+         * shall contain at least one DataSetMessage if the NetworkMessage type
+         * is DataSetMessage payload. */
+        if(nm->messageCount == 0)
+            nm->messageCount = 1;
     }
 
     rv = UA_ExtendedNetworkMessageHeader_decodeBinary(ctx, nm);
@@ -674,32 +691,46 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
     if(nm->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
+    UA_assert(nm->messageCount > 0 &&
+              nm->messageCount <= UA_NETWORKMESSAGE_MAXMESSAGECOUNT);
+
     /* Allocate the DataSetMessages */
-    if(!nm->payloadHeaderEnabled)
-        nm->messageCount = 1;
-    UA_Byte count = nm->messageCount;
     nm->payload.dataSetMessages = (UA_DataSetMessage*)
-        ctxCalloc(&ctx->ctx, count, sizeof(UA_DataSetMessage));
+        ctxCalloc(&ctx->ctx, nm->messageCount, sizeof(UA_DataSetMessage));
     UA_CHECK_MEM(nm->payload.dataSetMessages,
                  return UA_STATUSCODE_BADOUTOFMEMORY);
 
-    /* Decode the payload sizes */
+    /* Get the payload sizes */
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    if(count > 1 && nm->payloadHeaderEnabled) {
-        for(size_t i = 0; i < count; i++) {
-            rv |= _DECODE_BINARY(&nm->dataSetMessageSizes[i], UINT16);
-            if(nm->dataSetMessageSizes[i] == 0)
-                return UA_STATUSCODE_BADDECODINGERROR;
+    if(nm->messageCount == 1) {
+        /* Not contained in the message, but can be inferred from the
+         * remaining message length */
+        UA_UInt16 size = (UA_UInt16)(ctx->ctx.end - ctx->ctx.pos);
+        nm->dataSetMessageSizes[0] = size;
+    } else {
+        if(nm->payloadHeaderEnabled) {
+            /* Decode from the message */
+            for(size_t i = 0; i < nm->messageCount; i++) {
+                rv |= _DECODE_BINARY(&nm->dataSetMessageSizes[i], UINT16);
+                if(nm->dataSetMessageSizes[i] == 0)
+                    return UA_STATUSCODE_BADDECODINGERROR;
+            }
+            UA_CHECK_STATUS(rv, return rv);
+        } else {
+            /* If no PayloadHeader is defined, then assume the EncodingOptions
+             * reflect the DataSetMessages */
+            for(size_t i = 0; i < nm->messageCount; i++)
+                nm->dataSetMessageSizes[i] = ctx->eo.metaData[i].configuredSize;
         }
     }
-    UA_CHECK_STATUS(rv, return rv);
 
     /* Decode the DataSetMessages */
-    for(size_t i = 0; i < count; i++) {
+    for(size_t i = 0; i < nm->messageCount; i++) {
         const UA_DataSetMessage_EncodingMetaData *emd =
             findEncodingMetaData(&ctx->eo, nm->dataSetWriterIds[i]);
         rv |= UA_DataSetMessage_decodeBinary(ctx, emd,
-                  &nm->payload.dataSetMessages[i], nm->dataSetMessageSizes[i]);
+                                             &nm->payload.dataSetMessages[i],
+                                             nm->dataSetMessageSizes[i]);
     }
 
     return rv;
@@ -1560,8 +1591,11 @@ UA_DataSetMessage_decodeBinary(PubSubDecodeCtx *ctx,
     /* If the message could not be decoded (e.g. no metadata for the raw
      * encoding), but technically the message is not fauly, jump to the next
      * dsm. */
-    if(!dsm->header.dataSetMessageValid)
+    if(!dsm->header.dataSetMessageValid) {
+        if(dsmSize == 0) /* Only possible if the size is known */
+            return UA_STATUSCODE_BADDECODINGERROR;
         ctx->ctx.pos = begin + dsmSize;
+    }
     return rv;
 }
 
