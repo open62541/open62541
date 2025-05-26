@@ -1238,15 +1238,18 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
 
     UA_LOCK_ASSERT(&client->clientMutex);
 
+    if(!numItems || !min)
+        return;
+
     /* if we have a data change callback in the subscription use that */
-    if (sub->dataChangeCallback && numItems) {
+    if(sub->dataChangeCallback) {
         UA_DataItemsNotification *items = (UA_DataItemsNotification *)
             UA_calloc(numItems, sizeof(UA_DataItemsNotification));
-        if (items) {
-            for (j = 0; j < numItems; ++j, min++) {
+        if(items) {
+            for(j = 0; j < numItems; ++j, min++) {
                 /* Find the MonitoredItem */
                 UA_Client_MonitoredItem *mon = findMonitoredItem(client, sub, 0, min->clientHandle);
-                if (mon) {
+                if(mon) {
                     items[j].monitoredItemId = mon->monitoredItemId;
                     items[j].context = mon->context;
                 }
@@ -1259,7 +1262,7 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
     }
 
     /* call the individual data change callbacks for each monitored item */
-    for(j = 0; j < numItems; ++j) {
+    for(j = 0; j < numItems; ++j, min++) {
         /* Find the MonitoredItem */
         UA_Client_MonitoredItem *mon = findMonitoredItem(client, sub, 0, min->clientHandle);
         if(mon && mon->handler.dataChangeCallback) {
@@ -1276,24 +1279,27 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
     void *subC = sub->context;
     UA_UInt32 subId = sub->subscriptionId;
     size_t j, numEvents = eventNotificationList->eventsSize;
-    UA_EventFieldList *eventFieldList = eventNotificationList->events;
+    UA_EventFieldList *efl = eventNotificationList->events;
 
     UA_LOCK_ASSERT(&client->clientMutex);
 
+    if(!numEvents || !efl)
+        return;
+
     /* if we have an event callback in the subscription use that */
-    if (sub->eventsCallback && numEvents) {
+    if(sub->eventsCallback) {
         UA_EventsNotification *events = (UA_EventsNotification *)
             UA_calloc(numEvents, sizeof(UA_EventsNotification));
-        if (events) {
-            for (j = 0; j < numEvents; ++j, eventFieldList++) {
+        if(events) {
+            for(j = 0; j < numEvents; ++j, efl++) {
                 /* Find the MonitoredItem */
-                UA_Client_MonitoredItem *mon = findMonitoredItem(client, sub, 0, eventFieldList->clientHandle);
-                if (mon) {
+                UA_Client_MonitoredItem *mon = findMonitoredItem(client, sub, 0, efl->clientHandle);
+                if(mon) {
                     events[j].monitoredItemId = mon->monitoredItemId;
                     events[j].context = mon->context;
                 }
-                events[j].eventFieldsSize = eventFieldList->eventFieldsSize;
-                events[j].eventFields = eventFieldList->eventFields;
+                events[j].eventFieldsSize = efl->eventFieldsSize;
+                events[j].eventFields = efl->eventFields;
             }
             sub->eventsCallback(client, subId, subC, numEvents, events);
             UA_free(events);
@@ -1301,15 +1307,14 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
         return;
     }
 
-    for(j = 0; j < numEvents; ++j) {
+    for(j = 0; j < numEvents; ++j, efl++) {
         /* Find the MonitoredItem */
-        UA_Client_MonitoredItem *mon = findMonitoredItem(client, sub, 1, eventFieldList->clientHandle);;
-        if (mon && mon->handler.eventCallback) {
+        UA_Client_MonitoredItem *mon = findMonitoredItem(client, sub, 1, efl->clientHandle);;
+        if(mon && mon->handler.eventCallback) {
             void *monC = mon->context;
             UA_UInt32 monId = mon->monitoredItemId;
             mon->handler.eventCallback(client, subId, subC, monId, monC,
-                                       eventFieldList->eventFieldsSize,
-                                       eventFieldList->eventFields);
+                                       efl->eventFieldsSize, efl->eventFields);
         }
     }
 }
