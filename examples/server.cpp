@@ -53,6 +53,7 @@ namespace am = async_mqtt;
 
 UA_Boolean running = true;
 
+
 // Define user credentials
 static UA_UsernamePasswordLogin usernamePasswordLogin[2] = {
     {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password1")},
@@ -77,14 +78,18 @@ myLoginCallback(const UA_String *username, const UA_ByteString *password,
     for(size_t i = 0; i < usernamePasswordLoginSize; i++) {
         if(UA_String_equal(username, &usernamePasswordLogin[i].username) &&
            UA_ByteString_equal(password, &usernamePasswordLogin[i].password)) {
+            // Grant admin access to user1
+            if(UA_String_equal(username, &usernamePasswordLogin[0].username)) {
+                *sessionContext = (void*)1; // Mark as admin
+            }
             return UA_STATUSCODE_GOOD;
         }
     }
-    // Log failed login attempt
     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Login failed for user: %.*s",
                    (int)username->length, username->data);
     return UA_STATUSCODE_BADUSERACCESSDENIED;
 }
+
 
 static void
 stopHandler(int sign) {
@@ -156,16 +161,126 @@ static void updateCounterAndTriggerEvent(UA_Server *server, void *data) {
     return nodeId;
 }
 
+as::io_context ioc;
 using client_t = am::client<am::protocol_version::v5, am::protocol::mqtt>;
+client_t amcl{ioc.get_executor()};
+
+
+
+thread_local bool is_internal_write = false;
+
+
+// To publish from any thread:
+void
+publish_to_mqtt(const std::string &topic, const std::string &payload) {
+    as::post(ioc, [topic, payload]() {
+        as::co_spawn(
+            ioc,
+            [topic, payload]() -> as::awaitable<void> {
+                try {
+                    co_await amcl.async_publish(topic, payload, am::qos::at_most_once);
+                } catch(const std::exception &e) {
+                    std::cerr << "MQTT publish error: " << e.what() << std::endl;
+                }
+                co_return;
+            },
+            as::detached);
+    });
+};
+
+//  mqtt_publish_safe(ioc, amcl, "your/topic", "your_payload");
+
+// Write callback for OPC UA node value changes
+static void writeCallback(
+    UA_Server *server,
+    const UA_NodeId *sessionId, void *sessionContext,
+    const UA_NodeId *nodeId, void *nodeContext,
+    const UA_NumericRange *range, const UA_DataValue *data
+) {
+    if (is_internal_write) return;  // 🔒 Prevent feedback loop
+
+    // Find the topic for this node
+    std::string topic;
+    for (const auto& pair : nodeMap) {
+        if (UA_NodeId_equal(&pair.second, nodeId)) {
+            topic = pair.first;
+            break;
+        }
+    }
+    if (topic.empty()) return; // Not a topic node
+
+    // Only proceed if there is a value to write
+    if (data && data->hasValue) {
+        json payload;
+        payload["Data"] = json::array();
+        json dataPoint;
+
+        // Handle different types
+        if (UA_Variant_hasScalarType(&data->value, &UA_TYPES[UA_TYPES_DOUBLE])) {
+            double value = *(UA_Double*)data->value.data;
+            dataPoint["Value"] = value;
+        } else if (UA_Variant_hasScalarType(&data->value, &UA_TYPES[UA_TYPES_INT32])) {
+            int value = *(UA_Int32*)data->value.data;
+            dataPoint["Value"] = value;
+        } else if (UA_Variant_hasScalarType(&data->value, &UA_TYPES[UA_TYPES_BOOLEAN])) {
+            bool value = *(UA_Boolean*)data->value.data;
+            dataPoint["Value"] = value;
+        } else if (UA_Variant_hasScalarType(&data->value, &UA_TYPES[UA_TYPES_STRING])) {
+            UA_String* str = (UA_String*)data->value.data;
+            dataPoint["Value"] = std::string((char*)str->data, str->length);
+        } else {
+            return;
+        }
+
+
+
+    
+         payload["Data"].push_back(dataPoint);
+    
+        auto now = std::chrono::system_clock::now();
+        auto in_time_t = std::chrono::system_clock::to_time_t(now);
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                    now.time_since_epoch()) %
+                1000;
+
+        std::ostringstream oss;
+        oss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%dT%H:%M:%S")
+            << "." << std::setfill('0') << std::setw(3) << ms.count()
+            << "+05:30";  // Or dynamically detect timezone if needed
+        dataPoint["TimeStamp"] = oss.str();
+
+         payload["TimeStamp"].push_back(dataPoint);
+
+
+
+            // TODO --------------------------------------------------------------
+
+                //     // Hardcoded or lookup-based metadata
+                //     dataPoint["TagId"] = 194;           // Replace with actual lookup if dynamic
+                //     dataPoint["TagType"] = "INFO_INST"; // Replace with tag-specific type
+                //     dataPoint["Source"] = 2;
+                //     dataPoint["DatapointId"] = 194;
+                //     dataPoint["InfoId"] = 1001;
+                //     dataPoint["Quality"] = 1;
+                //     dataPoint["UpdateType"] = 1;
+
+                // NEED TO ADD ALL OF THIS DYNAMICALLY
+
+                
+            // ---------------------------------------------------------------------
+
+        publish_to_mqtt(topic, payload.dump());
+    }
+}
+
+
+
 
 void mqtt_subscribe_and_update(UA_Server* server, const std::vector<std::string>& topics) {
-    as::io_context ioc;
-    auto amcl = client_t{ioc.get_executor()};
-
-    // Spawn a coroutine for the MQTT logic
+    // Use global ioc and amcl
     as::co_spawn(
         ioc,
-        [&amcl, &topics, server]() -> as::awaitable<void> {
+        [&topics, server]() -> as::awaitable<void> {
             try {
                 // Connect to broker
                 co_await amcl.async_underlying_handshake("216.48.184.131", "15579", as::use_awaitable);
@@ -223,18 +338,24 @@ void mqtt_subscribe_and_update(UA_Server* server, const std::vector<std::string>
                                                 double value = j["Data"][0]["Value"].get<double>();
                                                 UA_Variant var;
                                                 UA_Variant_setScalar(&var, &value, &UA_TYPES[UA_TYPES_DOUBLE]);
+                                                is_internal_write = true;
                                                 UA_Server_writeValue(server, it->second, var);
+                                                is_internal_write = false;
                                             } else if (j["Data"][0]["Value"].is_boolean()) {
                                                 UA_Boolean value = j["Data"][0]["Value"].get<bool>();
                                                 UA_Variant var;
                                                 UA_Variant_setScalar(&var, &value, &UA_TYPES[UA_TYPES_BOOLEAN]);
+                                                is_internal_write = true;
                                                 UA_Server_writeValue(server, it->second, var);
+                                                is_internal_write = false;
                                             } else if (j["Data"][0]["Value"].is_string()) {
                                                 std::string strValue = j["Data"][0]["Value"].get<std::string>();
                                                 UA_String value = UA_STRING_ALLOC(strValue.c_str());
                                                 UA_Variant var;
                                                 UA_Variant_setScalar(&var, &value, &UA_TYPES[UA_TYPES_STRING]);
+                                                is_internal_write = true;
                                                 UA_Server_writeValue(server, it->second, var);
+                                                is_internal_write = false;
                                                 UA_String_clear(&value);
                                             }
                                         }
@@ -254,9 +375,16 @@ void mqtt_subscribe_and_update(UA_Server* server, const std::vector<std::string>
         },
         as::detached
     );
-
-    ioc.run();
 }
+
+
+
+
+
+
+
+
+
 
 
 
@@ -300,7 +428,7 @@ int main(int argc, char* argv[]) {
     }
 
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig *   config = UA_Server_getConfig(server);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
 
     // broker_start(argc, argv);
     // #ifdef UA_ENABLE_ENCRYPTION
@@ -308,25 +436,21 @@ int main(int argc, char* argv[]) {
     //     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey, NULL, NULL, NULL, 0, NULL, 0);
     // config->applicationDescription.applicationUri = UA_STRING_ALLOC("urn:Anexee.server.application");
 
-        UA_StatusCode retval =
-        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
-            &certificate, &privateKey,
-            trustList, trustListSize,
-            issuerList, issuerListSize,
-            revocationList, revocationListSize);
-
-    config->applicationDescription.applicationUri = UA_STRING_ALLOC("urn:Anexee.server.application");
-    config->applicationDescription.productUri = UA_STRING_ALLOC("urn:Anexee.server");
-    config->applicationDescription.applicationName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Anexee");
+    UA_StatusCode retval =
+    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
+        &certificate, &privateKey,
+        trustList, trustListSize,
+        issuerList, issuerListSize,
+        revocationList, revocationListSize);
 
     UA_String_clear(&config->endpoints[0].endpointUrl);
     config->endpoints[0].endpointUrl = UA_STRING_ALLOC("opc.tcp://0.0.0.0:4840");
 
     // Accept all certificates for demo/testing
-    //  config->secureChannelPKI.clear(&config->secureChannelPKI);
-    // config->sessionPKI.clear(&config->sessionPKI);
-    // UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
-    // UA_CertificateGroup_AcceptAll(&config->sessionPKI);
+    config->secureChannelPKI.clear(&config->secureChannelPKI);
+    config->sessionPKI.clear(&config->sessionPKI);
+    UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config->sessionPKI);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to set default security policies");
@@ -335,12 +459,14 @@ int main(int argc, char* argv[]) {
     }
 
 
+    config->applicationDescription.applicationUri = UA_STRING_ALLOC("urn:Anexee.server.application");
+    config->applicationDescription.productUri = UA_STRING_ALLOC("urn:Anexee.server");
+    config->applicationDescription.applicationName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Anexee");
+
 
 
 // ----------------
     UA_AccessControl_defaultWithLoginCallback(config, true, NULL, 2, usernamePasswordLogin, myLoginCallback, NULL);
-    config->verifyRequestTimestamp = UA_RULEHANDLING_ACCEPT;
-// ----------------
 
 
     // // Set up multiple endpoints with different security policies
@@ -396,62 +522,65 @@ int main(int argc, char* argv[]) {
 
     // add a variable node to the adresspace
     UA_VariableAttributes attr = UA_VariableAttributes_default;
-    UA_Int32 myInteger = 42;
-    UA_Variant_setScalarCopy(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    attr.description = UA_LOCALIZEDTEXT_ALLOC("en-US","the answer");
-    attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","the answer");
-    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-    UA_NodeId myIntegerNodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
-    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME_ALLOC(1, "the answer");
-    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
-    UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
-                              parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NULL, attr, NULL, NULL);
+        UA_Int32 myInteger = 42;
+        UA_Variant_setScalarCopy(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+        attr.description = UA_LOCALIZEDTEXT_ALLOC("en-US","the answer");
+        attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","the answer");
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        UA_NodeId myIntegerNodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
+        UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME_ALLOC(1, "the answer");
+        UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+        UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
+        UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                                parentReferenceNodeId, myIntegerName,
+                                UA_NODEID_NULL, attr, NULL, NULL);
 
     // Add a second variable that changes periodically
     UA_VariableAttributes attr2 = UA_VariableAttributes_default;
-    UA_Double myDouble = 123456;
-    UA_Variant_setScalarCopy(&attr2.value, &myDouble, &UA_TYPES[UA_TYPES_DOUBLE]);
-    attr2.description = UA_LOCALIZEDTEXT_ALLOC("en-US","counter");
-    attr2.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","counter");
-    attr2.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-    UA_NodeId myDoubleNodeId = UA_NODEID_STRING_ALLOC(1, "counter");
-    UA_QualifiedName myDoubleName = UA_QUALIFIEDNAME_ALLOC(1, "counter");
-    UA_Server_addVariableNode(server, myDoubleNodeId, parentNodeId,
-                             parentReferenceNodeId, myDoubleName,
-                             UA_NODEID_NULL, attr2, NULL, NULL);
+        UA_Double myDouble = 123456;
+        UA_Variant_setScalarCopy(&attr2.value, &myDouble, &UA_TYPES[UA_TYPES_DOUBLE]);
+        attr2.description = UA_LOCALIZEDTEXT_ALLOC("en-US","counter");
+        attr2.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","counter");
+        attr2.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        UA_NodeId myDoubleNodeId = UA_NODEID_STRING_ALLOC(1, "counter");
+        UA_QualifiedName myDoubleName = UA_QUALIFIEDNAME_ALLOC(1, "counter");
+        UA_Server_addVariableNode(server, myDoubleNodeId, parentNodeId,
+                                parentReferenceNodeId, myDoubleName,
+                                UA_NODEID_NULL, attr2, NULL, NULL);
 
 
 
-
-    //UA_VariableAttributes attr3 = UA_VariableAttributes_default;
-    //UA_Double minValue = 0.0;
-    //UA_Variant_setScalarCopy(&attr3.value, &minValue, &UA_TYPES[UA_TYPES_DOUBLE]);
-    //attr3.description = UA_LOCALIZEDTEXT_ALLOC("en-US","MIN");
-    //attr3.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","MIN");
-    //attr3.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-    //UA_NodeId minNodeId = UA_NODEID_STRING_ALLOC(1, "MIN");
-    //UA_QualifiedName minName = UA_QUALIFIEDNAME_ALLOC(1, "MIN");
-    //UA_Server_addVariableNode(server, minNodeId, myDoubleNodeId,
-    //                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), minName,
-    //                        UA_NODEID_NULL, attr3, NULL, NULL);
 
     
-//    for(const auto &topic : topics) {
-//         UA_VariableAttributes attr = UA_VariableAttributes_default;
-//         UA_Int32 value = 0;  // or whatever default
-//         UA_Variant_setScalarCopy(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
-//         attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", topic.c_str());
-//         UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, topic.c_str());
-//         UA_QualifiedName nodeName = UA_QUALIFIEDNAME_ALLOC(1, topic.c_str());
-//         //UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
-//         //UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
-//         UA_Server_addVariableNode(server, nodeId, myDoubleNodeId,
-//                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-//                                   nodeName, UA_NODEID_NULL, attr, NULL, NULL);
-//         // Store nodeId for later updates
-//     }
+    
+    
+    //UA_VariableAttributes attr3 = UA_VariableAttributes_default;
+        //UA_Double minValue = 0.0;
+        //UA_Variant_setScalarCopy(&attr3.value, &minValue, &UA_TYPES[UA_TYPES_DOUBLE]);
+        //attr3.description = UA_LOCALIZEDTEXT_ALLOC("en-US","MIN");
+        //attr3.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","MIN");
+        //attr3.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        //UA_NodeId minNodeId = UA_NODEID_STRING_ALLOC(1, "MIN");
+        //UA_QualifiedName minName = UA_QUALIFIEDNAME_ALLOC(1, "MIN");
+        //UA_Server_addVariableNode(server, minNodeId, myDoubleNodeId,
+        //                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), minName,
+        //                        UA_NODEID_NULL, attr3, NULL, NULL);
+
+        
+    //for(const auto &topic : topics) {
+    //         UA_VariableAttributes attr = UA_VariableAttributes_default;
+    //         UA_Int32 value = 0;  // or whatever default
+    //         UA_Variant_setScalarCopy(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    //         attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", topic.c_str());
+    //         UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, topic.c_str());
+    //         UA_QualifiedName nodeName = UA_QUALIFIEDNAME_ALLOC(1, topic.c_str());
+    //         //UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    //         //UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
+    //         UA_Server_addVariableNode(server, nodeId, myDoubleNodeId,
+    //                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+    //                                   nodeName, UA_NODEID_NULL, attr, NULL, NULL);
+    //         // Store nodeId for later updates
+    //     }
 
 
 
@@ -474,32 +603,29 @@ for (const auto& topic : topics) {
             UA_Int32 value = 0;
             UA_Variant_setScalarCopy(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
             attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", parts[i].c_str());
+            attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
             UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, currentPath.c_str());
             UA_QualifiedName nodeName = UA_QUALIFIEDNAME_ALLOC(1, parts[i].c_str());
             UA_Server_addVariableNode(server, nodeId, parent, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), nodeName, UA_NODEID_NULL, attr, NULL, NULL);
             nodeMap[currentPath] = nodeId;
+
+            UA_ValueCallback callback;
+            callback.onWrite = writeCallback;
+            callback.onRead = NULL;
+            UA_Server_setVariableNode_valueCallback(server, nodeId, callback);
         }
     }
 }
 
 
 
-
-thread mqtt_thread(mqtt_subscribe_and_update, server, topics);
-mqtt_thread.detach();
-
-//  for (const auto& topic : topics) {
-//       cli.async_subscribe(topic, async_mqtt::qos::at_most_once, [](auto){});
-//   }
-
-
-
     /* allocations on the heap need to be freed */
 
-
-
-
-
+std::thread mqtt_thread([&]() {
+    mqtt_subscribe_and_update(server, topics);  
+    ioc.run();
+});
+mqtt_thread.detach();
 
 
 
@@ -575,62 +701,64 @@ UA_Server_writeObjectProperty_scalar(
 
     // Create AnimalType
     UA_ObjectTypeAttributes animalTypeAttr = UA_ObjectTypeAttributes_default;
-    animalTypeAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "AnimalType");
-    animalTypeAttr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "A base type for all animals");
-    UA_NodeId animalTypeId = UA_NODEID_STRING_ALLOC(1, "AnimalType");
-    UA_QualifiedName animalTypeName = UA_QUALIFIEDNAME_ALLOC(1, "AnimalType");
-    UA_Server_addObjectTypeNode(server, animalTypeId,
-                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                               animalTypeName, animalTypeAttr, NULL, NULL);
+        animalTypeAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "AnimalType");
+        animalTypeAttr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "A base type for all animals");
+        UA_NodeId animalTypeId = UA_NODEID_STRING_ALLOC(1, "AnimalType");
+        UA_QualifiedName animalTypeName = UA_QUALIFIEDNAME_ALLOC(1, "AnimalType");
+        UA_Server_addObjectTypeNode(server, animalTypeId,
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                animalTypeName, animalTypeAttr, NULL, NULL);
 
     // Add Age variable to AnimalType
     UA_VariableAttributes ageAttr = UA_VariableAttributes_default;
-    UA_Int32 age = 0;
-    UA_Variant_setScalarCopy(&ageAttr.value, &age, &UA_TYPES[UA_TYPES_INT32]);
-    ageAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Age");
-    ageAttr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "The age of the animal");
-    ageAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-    UA_NodeId ageNodeId = UA_NODEID_STRING_ALLOC(1, "AnimalType.Age");
-    UA_QualifiedName ageName = UA_QUALIFIEDNAME_ALLOC(1, "Age");
-    UA_Server_addVariableNode(server, ageNodeId, animalTypeId,
-                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                             ageName, UA_NODEID_NULL, ageAttr, NULL, NULL);
+        UA_Int32 age = 0;
+        UA_Variant_setScalarCopy(&ageAttr.value, &age, &UA_TYPES[UA_TYPES_INT32]);
+        ageAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Age");
+        ageAttr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "The age of the animal");
+        ageAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        UA_NodeId ageNodeId = UA_NODEID_STRING_ALLOC(1, "AnimalType.Age");
+        UA_QualifiedName ageName = UA_QUALIFIEDNAME_ALLOC(1, "Age");
+        UA_Server_addVariableNode(server, ageNodeId, animalTypeId,
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                ageName, UA_NODEID_NULL, ageAttr, NULL, NULL);
 
-    // Create DogType
-    UA_ObjectTypeAttributes dogTypeAttr = UA_ObjectTypeAttributes_default;
-    dogTypeAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "DogType");
-    dogTypeAttr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "A type for dogs");
-    UA_NodeId dogTypeId = UA_NODEID_STRING_ALLOC(1, "DogType");
-    UA_QualifiedName dogTypeName = UA_QUALIFIEDNAME_ALLOC(1, "DogType");
-    UA_Server_addObjectTypeNode(server, dogTypeId, animalTypeId,
-                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
-                               dogTypeName, dogTypeAttr, NULL, NULL);
+        // Create DogType
+        UA_ObjectTypeAttributes dogTypeAttr = UA_ObjectTypeAttributes_default;
+        dogTypeAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "DogType");
+        dogTypeAttr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "A type for dogs");
+        UA_NodeId dogTypeId = UA_NODEID_STRING_ALLOC(1, "DogType");
+        UA_QualifiedName dogTypeName = UA_QUALIFIEDNAME_ALLOC(1, "DogType");
+        UA_Server_addObjectTypeNode(server, dogTypeId, animalTypeId,
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                dogTypeName, dogTypeAttr, NULL, NULL);
 
-    // Add Name variable to DogType
-    UA_VariableAttributes nameAttr = UA_VariableAttributes_default;
-    UA_String name = UA_STRING_ALLOC("Unknown");
-    UA_Variant_setScalarCopy(&nameAttr.value, &name, &UA_TYPES[UA_TYPES_STRING]);
-    nameAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Name");
-    nameAttr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "The name of the dog");
-    nameAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-    UA_NodeId nameNodeId = UA_NODEID_STRING_ALLOC(1, "DogType.Name");
-    UA_QualifiedName nameName = UA_QUALIFIEDNAME_ALLOC(1, "Name");
-    UA_Server_addVariableNode(server, nameNodeId, dogTypeId,
-                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                             nameName, UA_NODEID_NULL, nameAttr, NULL, NULL);
+        // Add Name variable to DogType
+        UA_VariableAttributes nameAttr = UA_VariableAttributes_default;
+        UA_String name = UA_STRING_ALLOC("Unknown");
+        UA_Variant_setScalarCopy(&nameAttr.value, &name, &UA_TYPES[UA_TYPES_STRING]);
+        nameAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Name");
+        nameAttr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "The name of the dog");
+        nameAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        UA_NodeId nameNodeId = UA_NODEID_STRING_ALLOC(1, "DogType.Name");
+        UA_QualifiedName nameName = UA_QUALIFIEDNAME_ALLOC(1, "Name");
+        UA_Server_addVariableNode(server, nameNodeId, dogTypeId,
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                nameName, UA_NODEID_NULL, nameAttr, NULL, NULL);
 
-    // Create an instance of DogType
-    UA_ObjectAttributes dogInstanceAttr = UA_ObjectAttributes_default;
-    dogInstanceAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "MyDog");
-    dogInstanceAttr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "An instance of a dog");
-    UA_NodeId dogInstanceId = UA_NODEID_STRING_ALLOC(1, "MyDog");
-    UA_QualifiedName dogInstanceName = UA_QUALIFIEDNAME_ALLOC(1, "MyDog");
-    UA_Server_addObjectNode(server, dogInstanceId,
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                           dogInstanceName, dogTypeId, dogInstanceAttr, NULL, NULL);
+        // Create an instance of DogType
+        UA_ObjectAttributes dogInstanceAttr = UA_ObjectAttributes_default;
+        dogInstanceAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "MyDog");
+        dogInstanceAttr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "An instance of a dog");
+        UA_NodeId dogInstanceId = UA_NODEID_STRING_ALLOC(1, "MyDog");
+        UA_QualifiedName dogInstanceName = UA_QUALIFIEDNAME_ALLOC(1, "MyDog");
+        UA_Server_addObjectNode(server, dogInstanceId,
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                            dogInstanceName, dogTypeId, dogInstanceAttr, NULL, NULL);
 
+   
+   
     // Clean up allocated resources
     UA_ObjectTypeAttributes_clear(&animalTypeAttr);
     UA_ObjectTypeAttributes_clear(&dogTypeAttr);
@@ -648,6 +776,11 @@ UA_Server_writeObjectProperty_scalar(
     UA_QualifiedName_clear(&ageName);
     UA_QualifiedName_clear(&nameName);
     UA_String_clear(&name);
+
+
+
+
+
 
     g_counterNodeId = &myDoubleNodeId;
     g_eventNodeId = &eventNodeId;
@@ -680,6 +813,8 @@ UA_Server_writeObjectProperty_scalar(
     UA_ByteString_clear(&privateKey);
 
     UA_Server_delete(server);
+
+
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
