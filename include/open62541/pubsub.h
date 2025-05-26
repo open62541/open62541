@@ -244,6 +244,14 @@ UA_NetworkMessage_decodeBinary(const UA_ByteString *src,
                                const UA_NetworkMessage_EncodingOptions *eo,
                                const UA_DecodeBinaryOptions *bo);
 
+/* Decode only the headers before the payload */
+UA_EXPORT UA_StatusCode
+UA_NetworkMessage_decodeBinaryHeaders(const UA_ByteString *src,
+                                      UA_NetworkMessage *dst,
+                                      const UA_NetworkMessage_EncodingOptions *eo,
+                                      const UA_DecodeBinaryOptions *bo,
+                                      size_t *payloadOffset);
+
 #ifdef UA_ENABLE_JSON_ENCODING
 
 /* The output buffer is allocated to the required size if initially empty.
