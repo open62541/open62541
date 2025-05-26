@@ -505,13 +505,10 @@ UA_PayloadHeader_decodeBinary(PubSubDecodeCtx *ctx,
     if(nm->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
+    /* Decode the MessageCount */
     UA_Byte count;
     UA_StatusCode rv = _DECODE_BINARY(&count, BYTE);
     UA_CHECK_STATUS(rv, return rv);
-
-    /* If the header is defined, then there must be more than one DataSetMessage */
-    if(count == 0)
-        return UA_STATUSCODE_GOOD;
 
     /* Limit for the inline-defined DataSetWriterIds */
     if(count > UA_NETWORKMESSAGE_MAXMESSAGECOUNT)
@@ -521,9 +518,9 @@ UA_PayloadHeader_decodeBinary(PubSubDecodeCtx *ctx,
     for(UA_Byte i = 0; i < count; i++) {
         rv |= _DECODE_BINARY(&nm->dataSetWriterIds[i], UINT16);
     }
-    if(rv != UA_STATUSCODE_GOOD)
-        return rv;
+    UA_CHECK_STATUS(rv, return rv);
 
+    /* Set the MessageCount */
     nm->messageCount = count;
     return UA_STATUSCODE_GOOD;
 }
