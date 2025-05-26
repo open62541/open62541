@@ -986,6 +986,9 @@ UA_Server_computeDataSetReaderOffsetTable(UA_Server *server,
         return res;
     }
 
+    /* Reset the OffsetTable */
+    memset(ot, 0, sizeof(UA_PubSubOffsetTable));
+
     /* Prepare the encoding context */
     UA_DataSetMessage_EncodingMetaData emd;
     memset(&emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData));
