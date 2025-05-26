@@ -695,14 +695,12 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
         nm->messageCount = 1;
     }
 
-    /* Decode the payload sizes (for the raw encoding) */
+    /* Decode the payload sizes */
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    UA_STACKARRAY(UA_UInt16, payloadSizes, count);
-    memset(payloadSizes, 0, sizeof(UA_UInt16) * count);
-    if(count > 1) {
+    if(count > 1 && nm->payloadHeaderEnabled) {
         for(size_t i = 0; i < count; i++) {
-            rv |= _DECODE_BINARY(&payloadSizes[i], UINT16);
-            if(payloadSizes[i] == 0)
+            rv |= _DECODE_BINARY(&nm->dataSetMessageSizes[i], UINT16);
+            if(nm->dataSetMessageSizes[i] == 0)
                 return UA_STATUSCODE_BADDECODINGERROR;
         }
     }
@@ -713,7 +711,7 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
         const UA_DataSetMessage_EncodingMetaData *emd =
             findEncodingMetaData(&ctx->eo, nm->dataSetWriterIds[i]);
         rv |= UA_DataSetMessage_decodeBinary(ctx, emd,
-                  &nm->payload.dataSetMessages[i], payloadSizes[i]);
+                  &nm->payload.dataSetMessages[i], nm->dataSetMessageSizes[i]);
     }
 
     return rv;
