@@ -8,6 +8,7 @@
 #include <open62541/plugin/certificategroup_default.h>
 
 #include "server/ua_server_internal.h"
+#include "client/ua_client_internal.h"
 #include "../encryption/certificates.h"
 
 #include <fcntl.h>
