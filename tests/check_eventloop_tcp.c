@@ -54,6 +54,11 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 START_TEST(listenTCP) {
     UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
+    /* Set up the TCP EventLoop parameters */
+    UA_UInt32 maxSockets = 2; /* Max number of server sockets (default: 0 -> unbounded) */
+    UA_KeyValueMap_setScalar(&cm->eventSource.params, UA_QUALIFIEDNAME(0, "max-sockets"),
+                             (void *)&maxSockets, &UA_TYPES[UA_TYPES_UINT32]);
+
     el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
     el->registerEventSource(el, &cm->eventSource);
     el->start(el);
@@ -73,9 +78,16 @@ START_TEST(listenTCP) {
 
     ck_assert_uint_eq(connCount, 0);
 
-    cm->openConnection(cm, &paramsMap, NULL, NULL, connectionCallback);
+    UA_StatusCode retval = cm->openConnection(cm, &paramsMap, NULL, NULL, connectionCallback);
 
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(connCount > 0);
+
+    port = 4841;
+    /* This should fail because the maximum number of sockets has been reached */
+    retval = cm->openConnection(cm, &paramsMap, NULL, NULL, connectionCallback);
+
+    ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
 
     for(size_t i = 0; i < 10; i++) {
         UA_DateTime next = el->run(el, 1);
@@ -126,6 +138,11 @@ START_TEST(connectTCP) {
 
     size_t listenSockets = connCount;
 
+    /* Set up the TCP EventLoop parameters */
+    UA_UInt32 maxSockets = listenSockets + 1; /* Max number of server sockets (default: 0 -> unbounded) */
+    UA_KeyValueMap_setScalar(&cm->eventSource.params, UA_QUALIFIEDNAME(0, "max-sockets"),
+                             (void *)&maxSockets, &UA_TYPES[UA_TYPES_UINT32]);
+
     /* Open a client connection */
     clientId = 0;
     listen = false;
@@ -154,6 +171,15 @@ START_TEST(connectTCP) {
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }
     ck_assert(received);
+
+    /* Open a second client connection.
+     * This should fail because the maximum number of sockets has been reached */
+    retval = cm->openConnection(cm, &paramsMap, NULL, (void*)0x01, connectionCallback);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 2; i++) {
+        UA_DateTime next = el->run(el, 1);
+        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
+    }
 
     /* Close the connection */
     retval = cm->closeConnection(cm, clientId);
