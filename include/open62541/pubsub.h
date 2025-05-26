@@ -170,17 +170,11 @@ typedef struct {
     UA_String messageId;
 
     /* They PayloadHeader contains the number of DataSetMessages and the
-     * DataSetWriterId for each of them.
+     * DataSetWriterId for each of them. If the PayloadHeader is disabled, then
+     * the information is taken from the UA_NetworkMessage_EncodingOptions
+     * during decoding (see below) which must then be accurate.
      *
-     * If the PayloadHeader is enabled AND there is more than one
-     * DataSetMessage, then the payload begins with the messages sizes (the
-     * array is decoded, but not used during encoding).
-     *
-     * If the payload header is not present for DataSetMessages, the Subscriber
-     * must know the number and size of DataSetMessages from the DataSetReader
-     * configuration.
-     *
-     * We define an upper bound for the number of DataSetMessages, so that the
+     * There is an upper bound for the number of DataSetMessages, so that the
      * DataSetWriterIds can be parsed as part of the headers without allocating
      * memory. */
     UA_Boolean payloadHeaderEnabled;
