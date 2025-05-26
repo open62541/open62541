@@ -805,6 +805,41 @@ cleanup:
     return rv;
 }
 
+UA_StatusCode
+UA_NetworkMessage_decodeBinaryHeaders(const UA_ByteString *src,
+                                      UA_NetworkMessage *dst,
+                                      const UA_NetworkMessage_EncodingOptions *eo,
+                                      const UA_DecodeBinaryOptions *bo,
+                                      size_t *payloadOffset) {
+    /* Initialize the decoding context */
+    PubSubDecodeCtx ctx;
+    memset(&ctx, 0, sizeof(PubSubDecodeCtx));
+    ctx.ctx.pos = src->data;
+    ctx.ctx.end = &src->data[src->length];
+    ctx.ctx.depth = 0;
+    if(eo)
+        ctx.eo = *eo;
+    if(bo)
+        ctx.ctx.opts = *bo;
+
+    /* Initialize the NetworkMessage */
+    memset(dst, 0, sizeof(UA_NetworkMessage));
+
+    /* Decode the headers */
+    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(&ctx, dst);
+    if(rv != UA_STATUSCODE_GOOD) {
+        if(!ctx.ctx.opts.calloc)
+            UA_NetworkMessage_clear(dst);
+        return rv;
+    }
+
+    /* Set the offset */
+    if(payloadOffset)
+        *payloadOffset = (size_t)(ctx.ctx.pos - src->data);
+
+    return rv;
+}
+
 static UA_Boolean
 incrOffsetTable(UA_PubSubOffsetTable *ot) {
     UA_PubSubOffset *tmpOffsets = (UA_PubSubOffset *)
