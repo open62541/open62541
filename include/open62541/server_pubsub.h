@@ -1015,15 +1015,19 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
                                         const UA_NodeId writerGroupId,
                                         UA_PubSubOffsetTable *ot);
 
-/* Compute the offset table for a ReaderGroup */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
-                                        const UA_NodeId readerGroupId,
-                                        UA_PubSubOffsetTable *ot);
+/**
+ * For ReaderGroups we cannot compute the offset table up front, because it is
+ * not ensured that all Readers end up with their DataSetMessage in the same
+ * NetworkMessage. Furthermore the ReaderGroup might receive messages from
+ * multiple different publishers.
+ *
+ * Instead the offset tables are computed beforehand for each DataSetReader. At
+ * runtime, use UA_NetworkMessage_decodeBinaryHeaders to decode the
+ * NetworkMessage headers. The information therein (e.g. the MessageCount and
+ * and the DataSetWriterIds) can then be used to iterate over the
+ * DataSetMessages in the payload with their respective offset tables. */
 
-/* Similar to _computeReaderGroupOffsetTable, but only computes the offsets
- * within the DataSetMessage for one DataSetReader. The offsets begin at zero
- * for the DataSetMessage. */
+/* The offsets begin at zero for the DataSetMessage */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_computeDataSetReaderOffsetTable(UA_Server *server,
                                           const UA_NodeId dataSetReaderId,

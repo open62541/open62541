@@ -190,22 +190,7 @@ int main(int argc, char **argv) {
     addDataSetReader(server);
 
     /* Print the Offset Table */
-    printf("ReaderGroup Offset Table\n");
     UA_PubSubOffsetTable ot;
-    UA_Server_computeReaderGroupOffsetTable(server, readerGroupIdentifier, &ot);
-    for(size_t i = 0; i < ot.offsetsSize; i++) {
-        UA_String out = UA_STRING_NULL;
-        UA_NodeId_print(&ot.offsets[i].component, &out);
-        printf("%u:\tOffset %u\tOffsetType %u\tComponent %.*s\n",
-               (unsigned)i, (unsigned)ot.offsets[i].offset,
-               (unsigned)ot.offsets[i].offsetType,
-               (int)out.length, out.data);
-        UA_String_clear(&out);
-    }
-
-    UA_PubSubOffsetTable_clear(&ot);
-
-    printf("\nDataSetReader Offset Table\n");
     UA_Server_computeDataSetReaderOffsetTable(server, readerIdentifier, &ot);
     for(size_t i = 0; i < ot.offsetsSize; i++) {
         UA_String out = UA_STRING_NULL;
