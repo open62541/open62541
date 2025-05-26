@@ -869,6 +869,14 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
 static void
 sendNetworkMessage(UA_PubSubManager *psm, UA_WriterGroup *wg, UA_PubSubConnection *connection,
                    UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount) {
+    if(dsmCount >= UA_NETWORKMESSAGE_MAXMESSAGECOUNT) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                            "More DataSetMessages than allowed in "
+                            "UA_NETWORKMESSAGE_MAXMESSAGECOUNT");
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);
+        return;
+    }
+
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     switch(wg->config.encodingMimeType) {
     case UA_PUBSUB_ENCODING_UADP:
