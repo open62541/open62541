@@ -145,18 +145,6 @@ typedef struct {
     UA_Boolean groupHeaderEnabled;
     UA_NetworkMessageGroupHeader groupHeader;
 
-    /* The DataSetWriterIds correspond to the DataSetMessages in the payload. If
-     * the payload header is not present for DataSetMessages, the Subscriber
-     * must know the number and size of DataSetMessages from the DataSetReader
-     * configuration.
-     *
-     * We define an upper bound for the number of DataSetMessages, so that the
-     * DataSetWriterIds can be parsed as part of the headers without allocating
-     * memory. */
-    UA_Boolean payloadHeaderEnabled;
-    UA_Byte messageCount;
-    UA_UInt16 dataSetWriterIds[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
-
     /* Fields defined via the Extended1Flags */
     UA_Boolean dataSetClassIdEnabled;
     UA_Guid dataSetClassId;
@@ -180,6 +168,25 @@ typedef struct {
     /* For Json NetworkMessage */
     UA_Boolean messageIdEnabled;
     UA_String messageId;
+
+    /* They PayloadHeader contains the number of DataSetMessages and the
+     * DataSetWriterId for each of them.
+     *
+     * If the PayloadHeader is enabled AND there is more than one
+     * DataSetMessage, then the payload begins with the messages sizes (the
+     * array is decoded, but not used during encoding).
+     *
+     * If the payload header is not present for DataSetMessages, the Subscriber
+     * must know the number and size of DataSetMessages from the DataSetReader
+     * configuration.
+     *
+     * We define an upper bound for the number of DataSetMessages, so that the
+     * DataSetWriterIds can be parsed as part of the headers without allocating
+     * memory. */
+    UA_Boolean payloadHeaderEnabled;
+    UA_Byte messageCount;
+    UA_UInt16 dataSetWriterIds[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
+    UA_UInt16 dataSetMessageSizes[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
 
     /* TODO: Add support for Discovery Messages */
     UA_NetworkMessageType networkMessageType;
