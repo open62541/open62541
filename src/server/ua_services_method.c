@@ -350,6 +350,13 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
         goto cleanup;
     }
 
+    /* Check the NodeClass */
+    if(method->head.nodeClass != UA_NODECLASS_METHOD ||
+       object->head.nodeClass != UA_NODECLASS_OBJECT) {
+        opResult->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
+        goto cleanup;
+    }
+
     /* <-- Async method call --> */
 
     /* No AsyncResponse allocated so far */
