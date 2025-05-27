@@ -664,7 +664,7 @@ UA_NetworkMessage_decodeHeaders(PubSubDecodeCtx *ctx,
     } else {
         /* If no PayloadHeader is defined, then assume the EncodingOptions
          * reflect the DataSetMessages */
-        nm->messageCount = ctx->eo.metaDataSize;
+        nm->messageCount = (UA_Byte)ctx->eo.metaDataSize;
         for(size_t i = 0; i < nm->messageCount; i++)
             nm->dataSetWriterIds[i] = ctx->eo.metaData[i].dataSetWriterId;
 
@@ -1316,7 +1316,7 @@ UA_DataSetMessage_keyFrame_raw_encodeBinary(PubSubEncodeCtx *ctx,
     UA_UInt32 *arrayDims = v->arrayDimensions;
     size_t arrayDimsSize = v->arrayDimensionsSize;
     if(!arrayDims) {
-        tmpDim = v->arrayLength;
+        tmpDim = (UA_UInt32)v->arrayLength;
         arrayDims = &tmpDim;
         arrayDimsSize = 1;
     }
@@ -1526,7 +1526,7 @@ UA_DataSetMessage_keyFrame_decodeBinary(PubSubDecodeCtx *ctx,
     } else {
         if(!emd)
             return UA_STATUSCODE_BADDECODINGERROR;
-        dsm->fieldCount = emd->fieldsSize;
+        dsm->fieldCount = (UA_UInt16)emd->fieldsSize;
     }
 
     if(dsm->fieldCount == 0)
@@ -1669,7 +1669,7 @@ UA_DataSetMessage_raw_calcSizeBinary(const UA_Variant *v, const UA_FieldMetaData
     UA_UInt32 *arrayDims = v->arrayDimensions;
     size_t arrayDimsSize = v->arrayDimensionsSize;
     if(!arrayDims) {
-        tmpDim = v->arrayLength;
+        tmpDim = (UA_UInt32)v->arrayLength;
         arrayDims = &tmpDim;
         arrayDimsSize = 1;
     }
