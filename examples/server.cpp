@@ -35,7 +35,16 @@
 #include <async_mqtt/asio_bind/predefined_layer/ws.hpp> 
 #include <async_mqtt/asio_bind/predefined_layer/wss.hpp>
 #include <boost/asio.hpp>
+
+#include <boost/beast/core.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/beast/version.hpp>
+#include <boost/asio/connect.hpp>
+#include <boost/asio/ip/tcp.hpp>
+
 #include <thread>
+#include <future>
+
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
@@ -49,8 +58,9 @@ using json = nlohmann::json;
 
 using namespace std;
 namespace as = boost::asio;
-namespace am = async_mqtt;
-
+namespace am = async_mqtt;       
+namespace beast = boost::beast;
+using tcp = boost::asio::ip::tcp;  
 UA_Boolean running = true;
 
 
@@ -188,7 +198,6 @@ publish_to_mqtt(const std::string &topic, const std::string &payload) {
     });
 };
 
-//  mqtt_publish_safe(ioc, amcl, "your/topic", "your_payload");
 
 // Write callback for OPC UA node value changes
 static void writeCallback(
@@ -266,7 +275,7 @@ static void writeCallback(
 
                 // NEED TO ADD ALL OF THIS DYNAMICALLY
 
-                
+
             // ---------------------------------------------------------------------
 
         publish_to_mqtt(topic, payload.dump());
@@ -378,9 +387,140 @@ void mqtt_subscribe_and_update(UA_Server* server, const std::vector<std::string>
 }
 
 
+json getBearerToken() {
+    try {
+        std::string host = "164.52.221.177";
+        std::string port = "5128";
+        std::string target = "/api/Login";
+        int version = 11;
+
+        // JSON body
+        std::string json_body = R"({
+        "Username":"ajay.sharma@techondater.co.in",
+        "password":"VvvQVRdH7JheYR7lLgbPCp4fcNEslXnKqhR59bdFMK8="
+        })";
+
+        // Set up I/O context and resolver
+        // as::io_context ioc;
+        tcp::resolver resolver(ioc);
+        beast::tcp_stream stream(ioc);
+
+        // Resolve domain name
+        auto const results = resolver.resolve(host, port);
+
+        // Connect to host
+        stream.connect(results);
+
+        // Create HTTP POST request
+        beast::http::request<beast::http::string_body> req{beast::http::verb::post, target, version};
+        req.set(beast::http::field::host, host);
+        req.set(beast::http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+        req.set(beast::http::field::content_type, "application/json");
+        req.body() = json_body;
+        req.prepare_payload();
+
+        // Send request
+        beast::http::write(stream, req);
+
+        // Read response
+        beast::flat_buffer buffer;
+        beast::http::response<beast::http::string_body> res;
+        beast::http::read(stream, buffer, res);
+
+        json result = json::parse(res.body());
+        // UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, res.body().c_str());
+
+        // Gracefully close the connection
+        beast::error_code ec;
+        stream.socket().shutdown(tcp::socket::shutdown_both, ec);
+        if (ec && ec != beast::errc::not_connected)
+            throw beast::system_error{ec};
+
+        return result;
+    } catch (const std::exception &e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return json{};
+    }
+}
 
 
 
+json getTopicList(string bearerToken) {
+
+try{
+    std::string host = "164.52.221.177";
+    std::string port = "5128";
+    std::string target = "/api/GetTopicList";
+    int version = 11;
+
+    // JSON body
+    std::string json_body = R"(
+    {
+   
+        "orgId": 0,
+        "roleId": "",
+        "userId": 0,
+        "moduleId": 0,
+        "userType": "",
+        "requestDateTime": "2024-12-26T08:16:05.629Z",
+        "ipAddress": "",
+        "originName": "",
+        "filterModel": {
+            
+            "customValue": "all"
+        },
+
+        "data": {
+            "isLogging" : true
+        }
+    }
+    )";
+
+    // Set up I/O context and connection
+    tcp::resolver resolver(ioc);
+    beast::tcp_stream stream(ioc);
+
+    // Resolve and connect
+    auto const results = resolver.resolve(host, port);
+    stream.connect(results);
+
+    // Build HTTP POST request
+    beast::http::request<beast::http::string_body> req{beast::http::verb::post, target, version};
+    req.set(beast::http::field::host, host);
+    req.set(beast::http::field::user_agent, BOOST_BEAST_VERSION_STRING);
+    req.set(beast::http::field::content_type, "application/json");
+
+    // Set Bearer Authorization header
+    req.set(beast::http::field::authorization, "Bearer " + bearerToken);
+
+    req.body() = json_body;
+    req.prepare_payload();
+
+    // Send request
+    beast::http::write(stream, req);
+
+    // Get response
+    beast::flat_buffer buffer;
+    beast::http::response<beast::http::string_body> res;
+    beast::http::read(stream, buffer, res);
+
+    
+    // Output response
+
+    // UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, res.body().c_str());
+    json result = json::parse(res.body());
+    // Shutdown connection
+    beast::error_code ec;
+    stream.socket().shutdown(tcp::socket::shutdown_both, ec);
+
+    return result;
+
+    } catch (const std::exception &e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return json{};
+    }
+    
+}
 
 
 
@@ -427,6 +567,7 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
+
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
@@ -436,21 +577,28 @@ int main(int argc, char* argv[]) {
     //     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey, NULL, NULL, NULL, 0, NULL, 0);
     // config->applicationDescription.applicationUri = UA_STRING_ALLOC("urn:Anexee.server.application");
 
-    UA_StatusCode retval =
+    // UA_StatusCode retval =
+    // UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
+    //     &certificate, &privateKey,
+    //     trustList, trustListSize,
+    //     issuerList, issuerListSize,
+    //     revocationList, revocationListSize);
+
+        UA_StatusCode retval =
     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
         &certificate, &privateKey,
         trustList, trustListSize,
-        issuerList, issuerListSize,
-        revocationList, revocationListSize);
+        NULL, 0,
+        NULL, 0);
 
     UA_String_clear(&config->endpoints[0].endpointUrl);
     config->endpoints[0].endpointUrl = UA_STRING_ALLOC("opc.tcp://0.0.0.0:4840");
 
     // Accept all certificates for demo/testing
-    config->secureChannelPKI.clear(&config->secureChannelPKI);
-    config->sessionPKI.clear(&config->sessionPKI);
-    UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
-    UA_CertificateGroup_AcceptAll(&config->sessionPKI);
+    // config->secureChannelPKI.clear(&config->secureChannelPKI);
+    // config->sessionPKI.clear(&config->sessionPKI);
+    // UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
+    // UA_CertificateGroup_AcceptAll(&config->sessionPKI);
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to set default security policies");
@@ -627,6 +775,28 @@ std::thread mqtt_thread([&]() {
 });
 mqtt_thread.detach();
 
+// string bearerToken = getBearerToken();
+// json topicList = getTopicList(bearerToken);
+
+
+
+auto futureToken = std::async(std::launch::async, getBearerToken);
+string BearerToken = "";
+json token = futureToken.get();
+        // Extract access_token
+if (token.contains("access_token")) {
+   BearerToken = token["access_token"].get<std::string>();
+}
+
+  // waits here until getBearerToken finishes
+
+if (!BearerToken.empty()) {
+    auto futureResponse = std::async(std::launch::async, getTopicList, BearerToken);
+    json response = futureResponse.get();  // wait again
+}
+else{
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "BearerToken is empty");
+}
 
 
 
