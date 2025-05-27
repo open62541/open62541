@@ -702,17 +702,18 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
 
     /* Get the payload sizes */
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
+    UA_UInt16 dataSetMessageSizes[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
     if(nm->messageCount == 1) {
         /* Not contained in the message, but can be inferred from the
          * remaining message length */
         UA_UInt16 size = (UA_UInt16)(ctx->ctx.end - ctx->ctx.pos);
-        nm->dataSetMessageSizes[0] = size;
+        dataSetMessageSizes[0] = size;
     } else {
         if(nm->payloadHeaderEnabled) {
             /* Decode from the message */
             for(size_t i = 0; i < nm->messageCount; i++) {
-                rv |= _DECODE_BINARY(&nm->dataSetMessageSizes[i], UINT16);
-                if(nm->dataSetMessageSizes[i] == 0)
+                rv |= _DECODE_BINARY(&dataSetMessageSizes[i], UINT16);
+                if(dataSetMessageSizes[i] == 0)
                     return UA_STATUSCODE_BADDECODINGERROR;
             }
             UA_CHECK_STATUS(rv, return rv);
@@ -720,7 +721,7 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
             /* If no PayloadHeader is defined, then assume the EncodingOptions
              * reflect the DataSetMessages */
             for(size_t i = 0; i < nm->messageCount; i++)
-                nm->dataSetMessageSizes[i] = ctx->eo.metaData[i].configuredSize;
+                dataSetMessageSizes[i] = ctx->eo.metaData[i].configuredSize;
         }
     }
 
@@ -730,7 +731,7 @@ UA_NetworkMessage_decodePayload(PubSubDecodeCtx *ctx,
             findEncodingMetaData(&ctx->eo, nm->dataSetWriterIds[i]);
         rv |= UA_DataSetMessage_decodeBinary(ctx, emd,
                                              &nm->payload.dataSetMessages[i],
-                                             nm->dataSetMessageSizes[i]);
+                                             dataSetMessageSizes[i]);
     }
 
     return rv;
