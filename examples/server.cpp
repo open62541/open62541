@@ -148,6 +148,20 @@ static void updateCounterAndTriggerEvent(UA_Server *server, void *data) {
 
 
     map<string, UA_NodeId> nodeMap;
+    struct TopicInfo {
+        int tagId;
+        string name;
+        string tagType;
+        double rangeMin;
+        double rangeMax;
+        // int source;
+        // int infoId;
+        // int quality;
+        // int updateType;
+    };
+
+
+    unordered_map<string, TopicInfo> topicMap;
 
     vector<string> split(const string& s, char delimiter) {
     vector<string> tokens;
@@ -221,8 +235,7 @@ static void writeCallback(
     // Only proceed if there is a value to write
     if (data && data->hasValue) {
         json payload;
-        payload["Data"] = json::array();
-        json dataPoint;
+        json dataPoint = json::object();  // Create empty object to maintain order
 
         // Handle different types
         if (UA_Variant_hasScalarType(&data->value, &UA_TYPES[UA_TYPES_DOUBLE])) {
@@ -241,11 +254,11 @@ static void writeCallback(
             return;
         }
 
+        // Add metadata to the same dataPoint
+        dataPoint["TagId"] = topicMap[topic].tagId;
+        dataPoint["TagType"] = topicMap[topic].tagType;
+        dataPoint["DatapointId"] = topicMap[topic].tagId;
 
-
-    
-         payload["Data"].push_back(dataPoint);
-    
         auto now = std::chrono::system_clock::now();
         auto in_time_t = std::chrono::system_clock::to_time_t(now);
         auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -258,9 +271,21 @@ static void writeCallback(
             << "+05:30";  // Or dynamically detect timezone if needed
         dataPoint["TimeStamp"] = oss.str();
 
-         payload["TimeStamp"].push_back(dataPoint);
+        // dataPoint["TagId"] = topicMap[topic].tagId;
+        // payload["TagId"].push_back(dataPoint);
+        // dataPoint["TagType"] = topicMap[topic].tagType;
+        // payload["TagType"].push_back(dataPoint);
+
+        // // dataPoint["Name"] = topicMap[topic].name;
+        // // payload["Name"].push_back(dataPoint);
+
+        // dataPoint["DatapointId"] = topicMap[topic].tagId;
+        // payload["DatapointId"].push_back(dataPoint);
 
 
+        //  payload["TimeStamp"].push_back(dataPoint);
+
+        // source , infoId , quality , updateType
 
             // TODO --------------------------------------------------------------
 
@@ -277,6 +302,7 @@ static void writeCallback(
 
 
             // ---------------------------------------------------------------------
+        payload["Data"] = json::array({dataPoint});
 
         publish_to_mqtt(topic, payload.dump());
     }
@@ -428,7 +454,7 @@ json getBearerToken() {
         beast::http::read(stream, buffer, res);
 
         json result = json::parse(res.body());
-        // UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, res.body().c_str());
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, res.body().c_str());
 
         // Gracefully close the connection
         beast::error_code ec;
@@ -507,7 +533,7 @@ try{
     
     // Output response
 
-    // UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, res.body().c_str());
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, res.body().c_str());
     json result = json::parse(res.body());
     // Shutdown connection
     beast::error_code ec;
@@ -765,21 +791,6 @@ for (const auto& topic : topics) {
     }
 }
 
-
-
-    /* allocations on the heap need to be freed */
-
-std::thread mqtt_thread([&]() {
-    mqtt_subscribe_and_update(server, topics);  
-    ioc.run();
-});
-mqtt_thread.detach();
-
-// string bearerToken = getBearerToken();
-// json topicList = getTopicList(bearerToken);
-
-
-
 auto futureToken = std::async(std::launch::async, getBearerToken);
 string BearerToken = "";
 json token = futureToken.get();
@@ -792,11 +803,46 @@ if (token.contains("access_token")) {
 
 if (!BearerToken.empty()) {
     auto futureResponse = std::async(std::launch::async, getTopicList, BearerToken);
-    json response = futureResponse.get();  // wait again
+    json response = futureResponse.get();
+    
+    // Process and store only essential data
+    if (response.contains("data") && response["data"].is_array()) {
+        for (const auto& item : response["data"]) {
+            if (item.contains("namespace")) {
+                string ns = item["namespace"].get<string>();
+                topicMap[ns] = {
+                    item["tagId"].get<int>(),
+                    item["name"].get<string>(),
+                    item["tagType"].get<string>(),
+                    item["rangeMin"].get<double>(),
+                    item["rangeMax"].get<double>(),
+                    // item["source"].get<int>(),
+                    // item["infoId"].get<int>(),
+                    // item["quality"].get<int>(),
+                    // item["updateType"].get<int>()
+                };
+            }
+        }
+    }
 }
 else{
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "BearerToken is empty");
 }
+
+
+    /* allocations on the heap need to be freed */
+mqtt_subscribe_and_update(server, topics);
+std::thread mqtt_thread([&]() {
+    ioc.run();
+});
+mqtt_thread.detach();
+
+// string bearerToken = getBearerToken();
+// json topicList = getTopicList(bearerToken);
+
+
+
+
 
 
 
