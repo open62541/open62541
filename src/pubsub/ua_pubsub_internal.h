@@ -274,13 +274,6 @@ UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                    UA_PubSubState targetState);
 
-/* Also used by the ReaderGroup ... */
-UA_StatusCode
-UA_PubSubConnection_decodeNetworkMessage(UA_PubSubManager *psm,
-                                         UA_PubSubConnection *connection,
-                                         UA_ByteString buffer,
-                                         UA_NetworkMessage *nm);
-
 /**********************************************/
 /*              DataSetWriter                 */
 /**********************************************/
