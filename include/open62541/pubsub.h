@@ -139,6 +139,7 @@ typedef struct {
     UA_Byte version;
 
     /* Fields defined via the UADPFlags */
+
     UA_Boolean publisherIdEnabled;
     UA_PublisherId publisherId;
 
@@ -146,6 +147,7 @@ typedef struct {
     UA_NetworkMessageGroupHeader groupHeader;
 
     /* Fields defined via the Extended1Flags */
+
     UA_Boolean dataSetClassIdEnabled;
     UA_Guid dataSetClassId;
 
@@ -159,6 +161,7 @@ typedef struct {
     UA_UInt16 picoseconds;
 
     /* Fields defined via the Extended2Flags */
+
     UA_Boolean chunkMessage;
 
     UA_Boolean promotedFieldsEnabled;
@@ -169,10 +172,14 @@ typedef struct {
     UA_Boolean messageIdEnabled;
     UA_String messageId;
 
-    /* They PayloadHeader contains the number of DataSetMessages and the
+    /* The PayloadHeader contains the number of DataSetMessages and the
      * DataSetWriterId for each of them. If the PayloadHeader is disabled, then
-     * the information is taken from the UA_NetworkMessage_EncodingOptions
-     * during decoding (see below) which must then be accurate.
+     * the number of DataSetMessages is determined as follows:
+     *
+     * - If the UA_NetworkMessage_EncodingOptions contain metadata, they define
+     *   the number and the order of the DataSetMessages.
+     * - Otherwise we assume exactly one DataSetMessage which takes up all of the
+     *   remaining NetworkMessage length.
      *
      * There is an upper bound for the number of DataSetMessages, so that the
      * DataSetWriterIds can be parsed as part of the headers without allocating
