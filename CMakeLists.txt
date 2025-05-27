@@ -808,10 +808,7 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_internal.h
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.h)
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
 
 if(UA_ENABLE_ENCRYPTION AND UA_ARCHITECTURE_WIN32)
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/tr_dirent.h)
@@ -846,19 +843,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_monitoreditem.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
-                # pubsub
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_binary.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_connection.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_dataset.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writer.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writergroup.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_reader.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_readergroup.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_securitygroup.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
@@ -903,6 +887,25 @@ if(UA_ENABLE_JSON_ENCODING)
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json_105.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
+endif()
+
+if(UA_ENABLE_PUBSUB)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_internal.h
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.h)
+
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_binary.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_connection.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_dataset.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writer.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writergroup.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_reader.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_readergroup.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_securitygroup.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c)
 endif()
 
 if(UA_ENABLE_XML_ENCODING)
