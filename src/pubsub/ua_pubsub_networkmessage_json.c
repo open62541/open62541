@@ -498,7 +498,7 @@ NetworkMessage_decodeJsonInternal(PubSubDecodeJsonCtx *ctx,
         UA_calloc(messageCount, sizeof(UA_DataSetMessage));
     if(!dst->payload.dataSetMessages)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    dst->messageCount = messageCount;
+    dst->messageCount = (UA_Byte)messageCount;
 
     /* Network Message */
     UA_String messageType;
