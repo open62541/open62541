@@ -187,7 +187,6 @@ typedef struct {
     UA_Boolean payloadHeaderEnabled;
     UA_Byte messageCount;
     UA_UInt16 dataSetWriterIds[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
-    UA_UInt16 dataSetMessageSizes[UA_NETWORKMESSAGE_MAXMESSAGECOUNT];
 
     /* TODO: Add support for Discovery Messages */
     UA_NetworkMessageType networkMessageType;
