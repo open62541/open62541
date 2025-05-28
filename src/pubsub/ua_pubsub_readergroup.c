@@ -544,6 +544,7 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_ENABLE_JSON_ENCODING
 UA_StatusCode
 UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
                                         UA_ReaderGroup *rg,
@@ -574,6 +575,7 @@ UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
     /* Decode */
     return UA_NetworkMessage_decodeJson(&buffer, nm, &eo, &jo);
 }
+#endif
 
 /******************************/
 /* Decrypt the NetworkMessage */

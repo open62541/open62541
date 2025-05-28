@@ -561,11 +561,13 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
                                     UA_ByteString buffer,
                                     UA_NetworkMessage *nm);
 
+#ifdef UA_ENABLE_JSON_ENCODING
 UA_StatusCode
 UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
                                         UA_ReaderGroup *rg,
                                         UA_ByteString buffer,
                                         UA_NetworkMessage *nm);
+#endif
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 
