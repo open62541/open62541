@@ -266,6 +266,7 @@ def generateCommonVariableCode(node, nodeset):
     code.append("attr.dataType = %s;" % generateNodeIdCode(node.dataType))
 
     if node.value:
+        code.append("#ifdef UA_ENABLE_XML_ENCODING")
         xmlenc = [makeCLiteral(line) for line in node.value.toxml().splitlines()]
         line_lengths = [len(line.lstrip()) for line in node.value.toxml().splitlines()] # length without the C escaping
         xmlLength = sum(line_lengths)
@@ -299,7 +300,9 @@ def generateCommonVariableCode(node, nodeset):
                 code.append(f"    memcpy(xmlValue.data + {pos}, buf_{i}, {piece_lengths[i]});")
                 pos += piece_lengths[i]
             code.append(f"}}")
+            codeCleanup.append("#ifdef UA_ENABLE_XML_ENCODING")
             codeCleanup.append("UA_String_clear(&xmlValue);")
+            codeCleanup.append("#endif /* UA_ENABLE_XML_ENCODING */")
 
         code.append("""UA_DecodeXmlOptions opts;
 memset(&opts, 0, sizeof(UA_DecodeXmlOptions));
@@ -307,7 +310,11 @@ opts.unwrapped = true;
 opts.namespaceMapping = nsMapping;
 opts.customTypes = UA_Server_getConfig(server)->customDataTypes;
 retVal |= UA_decodeXml(&xmlValue, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opts);""")
+        code.append("#endif /* UA_ENABLE_XML_ENCODING */")
+
+        codeCleanup.append("#ifdef UA_ENABLE_XML_ENCODING")
         codeCleanup.append("UA_Variant_clear(&attr.value);")
+        codeCleanup.append("#endif /* UA_ENABLE_XML_ENCODING */")
 
     return [code, codeCleanup, codeGlobal]
 

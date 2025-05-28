@@ -865,19 +865,6 @@ if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c)
 endif()
 
-if(UA_ENABLE_PARSING)
-    if(NOT UA_ENABLE_JSON_ENCODING)
-        message(FATAL_ERROR "Parsing features require JSON to be enabled")
-    endif()
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c)
-    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-        list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.h)
-        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.c
-                                ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_lex.c
-                                ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_grammar.c)
-    endif()
-endif()
-
 if(UA_ENABLE_JSON_ENCODING)
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.h
@@ -885,8 +872,19 @@ if(UA_ENABLE_JSON_ENCODING)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c
-                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json_105.c
-                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
+                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json_105.c)
+
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c)
+    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+        list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.h)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.c
+                ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_lex.c
+                ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_grammar.c)
+    endif()
+
+    if(UA_ENABLE_PUBSUB)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
+    endif ()
 endif()
 
 if(UA_ENABLE_PUBSUB)
@@ -917,6 +915,8 @@ if(UA_ENABLE_XML_ENCODING)
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/yxml.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
+else()
+    message(WARNING "UA_ENABLE_XML_ENCODING is not enabled. Value attributes will not be extracted from XML.")
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
