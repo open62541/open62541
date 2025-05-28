@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-### This Source Code Form is subject to the terms of the Mozilla Public
-### License, v. 2.0. If a copy of the MPL was not distributed with this
-### file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-###    Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
-###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
-###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+# Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
+# Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+# Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
 
 import sys
@@ -39,6 +39,7 @@ if sys.version_info[0] >= 3:
 else:
     string_types = basestring
 
+
 def getNextElementNode(xmlvalue):
     if xmlvalue is None:
         return None
@@ -47,12 +48,14 @@ def getNextElementNode(xmlvalue):
         xmlvalue = xmlvalue.nextSibling
     return xmlvalue
 
+
 def valueIsInternalType(valueTypeString):
     return valueTypeString.lower() in ['boolean', 'number', 'int32', 'uint32', 'int16', 'uint16',
-                   'int64', 'uint64', 'byte', 'sbyte', 'float', 'double',
-                   'string', 'bytestring', 'localizedtext', 'statuscode',
-                   'diagnosticinfo', 'nodeid', 'guid', 'datetime',
-                   'qualifiedname', 'expandednodeid', 'xmlelement', 'integer', 'uinteger']
+                                       'int64', 'uint64', 'byte', 'sbyte', 'float', 'double',
+                                       'string', 'bytestring', 'localizedtext', 'statuscode',
+                                       'diagnosticinfo', 'nodeid', 'guid', 'datetime',
+                                       'qualifiedname', 'expandednodeid', 'xmlelement', 'integer', 'uinteger']
+
 
 class Value(object):
     def __init__(self):
@@ -126,7 +129,8 @@ class Value(object):
         elif stringName == 'xmlelement':
             t = XmlElement()
         else:
-            logger.debug("No class representing stringName " + stringName + " was found. Cannot create builtinType.")
+            logger.debug("No class representing stringName " + stringName +
+                         " was found. Cannot create builtinType.")
             return None
         t.encodingRule = encodingRule
         return t
@@ -140,7 +144,7 @@ class Value(object):
         global namespaceMapping
         self.checkXML(xmlvalue)
         if not "value" in xmlvalue.localName.lower():
-            logger.error("Expected <Value> , but found " + xmlvalue.localName + \
+            logger.error("Expected <Value> , but found " + xmlvalue.localName +
                          " instead. Value will not be parsed.")
             return
 
@@ -221,15 +225,16 @@ class Value(object):
                 if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
                     ebodypart = getNextElementNode(ebodypart)
                 if ebodypart is None:
-                    logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found nothing.")
+                    logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " +
+                                 str(parentDataTypeNode.browseName) + " but found nothing.")
                     return extobj
 
                 parentName = parentDataTypeNode.browseName.name
                 if parentDataTypeNode.symbolicName is not None and parentDataTypeNode.symbolicName.value is not None:
                     parentName = parentDataTypeNode.symbolicName.value
                 if not ebodypart.localName == "OptionSet" and not ebodypart.localName == parentName:
-                    logger.error(   str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found " +
-                                    str(ebodypart.localName) + " instead.")
+                    logger.error(str(parent.id) + ": Expected ExtensionObject to hold a variable of type " + str(parentDataTypeNode.browseName) + " but found " +
+                                 str(ebodypart.localName) + " instead.")
                     return extobj
                 extobj.alias = ebodypart.localName
 
@@ -237,7 +242,8 @@ class Value(object):
                 if not ebodypart.nodeType == ebodypart.ELEMENT_NODE:
                     ebodypart = getNextElementNode(ebodypart)
                 if ebodypart is None:
-                    logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is empty/invalid.")
+                    logger.error(str(parent.id) + ": Description of dataType " +
+                                 str(parentDataTypeNode.browseName) + " in ExtensionObject is empty/invalid.")
                     return extobj
 
                 extobj.value = []
@@ -247,12 +253,12 @@ class Value(object):
                 if ebodypart.localName == "EncodingMask":
                     ebodypart = getNextElementNode(ebodypart)
                     # No optional fields are set.
-                    if(ebodypart is None):
+                    if (ebodypart is None):
                         members = []
 
                 # The SwitchField must be checked. ebodypart could be None if only optional fields are included
                 # in the ExtensionObject and none of them is set.
-                if(ebodypart is not None):
+                if (ebodypart is not None):
                     if ebodypart.localName == "SwitchField":
                         # The switch field is the index of the available union fields starting with 1
                         data = int(ebodypart.firstChild.data)
@@ -263,7 +269,6 @@ class Value(object):
                             members = []
                             members.append(enc.members[data-1])
                             ebodypart = getNextElementNode(ebodypart)
-
 
                 for e in members:
                     # ebodypart can be None if the field is not set, although the field is not optional.
@@ -303,28 +308,33 @@ class Value(object):
                                 for el in ebodypart.childNodes:
                                     if not el.nodeType == el.ELEMENT_NODE:
                                         continue
-                                    structure.__parseXMLSingleValue(el, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
+                                    structure.__parseXMLSingleValue(
+                                        el, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
                                     values.append(structure.value)
                                     structure.value = []
                                 structure.value = values
                             else:
-                                structure.__parseXMLSingleValue(ebodypart, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
+                                structure.__parseXMLSingleValue(
+                                    ebodypart, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
                             extobj.value.append(structure)
                         elif isinstance(e.member_type, EnumerationType):
                             t = self.getTypeByString("Int32", None)
                             t.parseXML(ebodypart)
                             extobj.value.append(t)
                         else:
-                            logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is not a BuildinType, StructType or EnumerationType.")
+                            logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) +
+                                         " in ExtensionObject is not a BuildinType, StructType or EnumerationType.")
                             return extobj
                     else:
-                            logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is not a StructMember.")
-                            return extobj
+                        logger.error(str(parent.id) + ": Description of dataType " +
+                                     str(parentDataTypeNode.browseName) + " in ExtensionObject is not a StructMember.")
+                        return extobj
 
                     ebodypart = getNextElementNode(ebodypart)
 
             except Exception as ex:
-                logger.error(str(parent.id) + ": Could not parse <Body> for ExtensionObject. {}".format(ex))
+                logger.error(str(parent.id) +
+                             ": Could not parse <Body> for ExtensionObject. {}".format(ex))
 
         elif valueIsInternalType(xmlvalue.localName):
             t = self.getTypeByString(xmlvalue.localName, None)
@@ -351,50 +361,51 @@ class Value(object):
                     logger.error(str(parent.id) + ": Could not parse <SwitchFiled> for Union.")
                     return self
 
-
             childValue = ebodypart.firstChild
             if not childValue.nodeType == ebodypart.ELEMENT_NODE:
                 childValue = getNextElementNode(childValue)
             for e in members:
-                    if isinstance(e, StructMember):
-                        self.encodingRule.append(e)
-                        if isinstance(e.member_type, BuiltinType):
-                            if e.is_array:
-                                values = []
-                                for el in childValue.childNodes:
-                                    if not el.nodeType == el.ELEMENT_NODE:
-                                        continue
-                                    t = self.getTypeByString(e.member_type.name, None)
-                                    t.parseXML(el)
-                                    values.append(t)
-                                self.value.append(values)
-                            else:
+                if isinstance(e, StructMember):
+                    self.encodingRule.append(e)
+                    if isinstance(e.member_type, BuiltinType):
+                        if e.is_array:
+                            values = []
+                            for el in childValue.childNodes:
+                                if not el.nodeType == el.ELEMENT_NODE:
+                                    continue
                                 t = self.getTypeByString(e.member_type.name, None)
-                                t.alias = e.name
-                                if childValue is not None:
-                                    t.parseXML(childValue)
-                                    self.value.append(t)
-                                else:
-                                    if not e.is_optional:
-                                        self.value.append(t)
-                        elif isinstance(e.member_type, StructType):
-                            structure = Structure()
-                            structure.alias = e.name
-                            structure.value = []
-                            if not len(childValue.childNodes) == 0:
-                                structure.__parseXMLSingleValue(childValue, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
-                            self.value.append(structure)
-                            return structure
-                        elif isinstance(e.member_type, EnumerationType):
-                            t = self.getTypeByString("Int32", None)
-                            t.parseXML(childValue)
-                            t.alias = e.name
-                            self.value.append(t)
+                                t.parseXML(el)
+                                values.append(t)
+                            self.value.append(values)
                         else:
-                            logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) + " in ExtensionObject is not a BuildinType, EnumerationType or StructMember.")
-                            return self
+                            t = self.getTypeByString(e.member_type.name, None)
+                            t.alias = e.name
+                            if childValue is not None:
+                                t.parseXML(childValue)
+                                self.value.append(t)
+                            else:
+                                if not e.is_optional:
+                                    self.value.append(t)
+                    elif isinstance(e.member_type, StructType):
+                        structure = Structure()
+                        structure.alias = e.name
+                        structure.value = []
+                        if not len(childValue.childNodes) == 0:
+                            structure.__parseXMLSingleValue(
+                                childValue, parentDataTypeNode, parent, parser, alias=None, encodingPart=e.member_type)
+                        self.value.append(structure)
+                        return structure
+                    elif isinstance(e.member_type, EnumerationType):
+                        t = self.getTypeByString("Int32", None)
+                        t.parseXML(childValue)
+                        t.alias = e.name
+                        self.value.append(t)
+                    else:
+                        logger.error(str(parent.id) + ": Description of dataType " + str(parentDataTypeNode.browseName) +
+                                     " in ExtensionObject is not a BuildinType, EnumerationType or StructMember.")
+                        return self
 
-                        childValue = getNextElementNode(childValue)
+                    childValue = getNextElementNode(childValue)
             return self
 
         return extobj
@@ -442,6 +453,7 @@ class Boolean(Value):
             else:
                 self.value = "true"
 
+
 class Number(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
@@ -455,11 +467,13 @@ class Number(Value):
         val = getXmlTextTrimmed(xmlvalue.firstChild)
         self.value = val if val is not None else 0
 
+
 class Integer(Number):
     def __init__(self, xmlelement=None):
         Number.__init__(self)
         if xmlelement:
             self.parseXML(xmlelement)
+
 
 class UInteger(Number):
     def __init__(self, xmlelement=None):
@@ -467,11 +481,13 @@ class UInteger(Number):
         if xmlelement:
             self.parseXML(xmlelement)
 
+
 class Byte(UInteger):
     def __init__(self, xmlelement=None):
         UInteger.__init__(self)
         if xmlelement:
             self.parseXML(xmlelement)
+
 
 class SByte(Integer):
     def __init__(self, xmlelement=None):
@@ -479,17 +495,20 @@ class SByte(Integer):
         if xmlelement:
             self.parseXML(xmlelement)
 
+
 class Int16(Integer):
     def __init__(self, xmlelement=None):
         Integer.__init__(self)
         if xmlelement:
             self.parseXML(xmlelement)
 
+
 class UInt16(UInteger):
     def __init__(self, xmlelement=None):
         UInteger.__init__(self)
         if xmlelement:
             self.parseXML(xmlelement)
+
 
 class Int32(Integer):
     def __init__(self, xmlelement=None):
@@ -519,11 +538,13 @@ class Int32(Integer):
         except:
             return False
 
+
 class UInt32(UInteger):
     def __init__(self, xmlelement=None):
         UInteger.__init__(self)
         if xmlelement:
             self.parseXML(xmlelement)
+
 
 class Int64(Integer):
     def __init__(self, xmlelement=None):
@@ -531,11 +552,13 @@ class Int64(Integer):
         if xmlelement:
             self.parseXML(xmlelement)
 
+
 class UInt64(UInteger):
     def __init__(self, xmlelement=None):
         UInteger.__init__(self)
         if xmlelement:
             self.parseXML(xmlelement)
+
 
 class Float(Number):
     def __init__(self, xmlelement=None):
@@ -550,11 +573,13 @@ class Float(Number):
         val = getXmlTextTrimmed(xmlvalue.firstChild)
         self.value = val if val is not None else 0.0
 
+
 class Double(Float):
     def __init__(self, xmlelement=None):
         Float.__init__(self)
         if xmlelement:
             self.parseXML(xmlelement)
+
 
 class String(Value):
     def __init__(self, xmlelement=None):
@@ -582,6 +607,7 @@ class XmlElement(String):
     def __init__(self, xmlelement=None):
         String.__init__(self, xmlelement)
 
+
 class ByteString(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
@@ -597,6 +623,7 @@ class ByteString(Value):
         else:
             self.value = b64decode(xmlvalue.firstChild.data)
 
+
 class ExtensionObject(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
@@ -608,6 +635,7 @@ class ExtensionObject(Value):
 
     def __str__(self):
         return "'ExtensionObject'"
+
 
 class Structure(Value):
     def __init__(self, xmlelement=None):
@@ -621,6 +649,7 @@ class Structure(Value):
     def __str__(self):
         return "'Structure'"
 
+
 class LocalizedText(Value):
     def __init__(self, xmlvalue=None):
         Value.__init__(self)
@@ -630,20 +659,19 @@ class LocalizedText(Value):
             self.parseXML(xmlvalue)
 
     def parseXML(self, xmlvalue):
-        # Expect <LocalizedText> or <AliasName>
-        #          <Locale>xx_XX</Locale>
-        #          <Text>TextText</Text>
+        # Expect <LocalizedText Locale=""> or <AliasName>
+        #          Text
         #        <LocalizedText> or </AliasName>
         if not isinstance(xmlvalue, dom.Element):
             self.text = xmlvalue
             return
         self.checkXML(xmlvalue)
-        tmp = xmlvalue.getElementsByTagName("Locale")
-        if len(tmp) > 0 and tmp[0].firstChild != None:
-            self.locale = tmp[0].firstChild.data.strip(' \t\n\r')
-        tmp = xmlvalue.getElementsByTagName("Text")
-        if len(tmp) > 0 and tmp[0].firstChild != None:
-            self.text = tmp[0].firstChild.data.strip(' \t\n\r')
+        tmp = xmlvalue.getAttribute("Locale")
+        if tmp != "":
+            self.locale = tmp
+        tmp = xmlvalue.firstChild
+        if tmp and tmp.nodeType == dom.Element.TEXT_NODE:
+            self.text = tmp.data.strip(' \t\n\r')
 
     def __str__(self):
         if self.locale is None and self.text is None:
@@ -655,6 +683,7 @@ class LocalizedText(Value):
 
     def isNone(self):
         return self.text is None
+
 
 class NodeId(Value):
     def __init__(self, idstring=None):
@@ -681,7 +710,7 @@ class NodeId(Value):
         for p in idparts:
             if p[:2] == "ns":
                 self.ns = int(p[3:])
-                if(len(namespaceMapping.values()) > 0):
+                if (len(namespaceMapping.values()) > 0):
                     self.ns = namespaceMapping[self.ns]
             elif p[:2] == "i=":
                 self.i = int(p[2:])
@@ -700,7 +729,7 @@ class NodeId(Value):
                 raise Exception("no valid nodeid: " + idstring)
 
     def gAsString(self):
-        return '{:08X}-{:04X}-{:04X}-{:04X}-{:012X}'.format(*self.g);
+        return '{:08X}-{:04X}-{:04X}-{:04X}-{:012X}'.format(*self.g)
 
     # The parsing can be called with an optional namespace mapping dict.
     def parseXML(self, xmlvalue):
@@ -710,7 +739,7 @@ class NodeId(Value):
         #           </Identifier>
         #        </NodeId> or </Alias>
         if not isinstance(xmlvalue, dom.Element):
-            self.text = xmlvalue # Alias
+            self.text = xmlvalue  # Alias
             return
         self.checkXML(xmlvalue)
 
@@ -757,6 +786,7 @@ class NodeId(Value):
     def __hash__(self):
         return hash(str(self))
 
+
 class ExpandedNodeId(Value):
     def __init__(self, xmlelement=None):
         Value.__init__(self)
@@ -766,6 +796,7 @@ class ExpandedNodeId(Value):
     def parseXML(self, xmlvalue):
         self.checkXML(xmlvalue)
         logger.debug("Not implemented", LOG_LEVEL_ERR)
+
 
 class DateTime(Value):
     def __init__(self, xmlelement=None):
@@ -797,9 +828,10 @@ class DateTime(Value):
                 try:
                     self.value = datetime.strptime(timestr, "%Y-%m-%d")
                 except Exception:
-                    logger.error("Timestring format is illegible. Expected 2001-01-30T21:22:23 or 2001-01-30, but got " + \
+                    logger.error("Timestring format is illegible. Expected 2001-01-30T21:22:23 or 2001-01-30, but got " +
                                  timestr + " instead. Time will be defaultet to now()")
                     self.value = datetime(2001, 1, 1)
+
 
 class QualifiedName(Value):
     def __init__(self, xmlelement=None):
@@ -830,16 +862,17 @@ class QualifiedName(Value):
         if len(xmlvalue.getElementsByTagName("Name")) != 0:
             self.name = xmlvalue.getElementsByTagName("Name")[0].firstChild.data
 
-
     def __str__(self):
         return "ns=" + str(self.ns) + ";" + str(self.name)
 
     def isNone(self):
         return self.name is None
 
+
 class StatusCode(UInt32):
     def __init__(self, xmlelement=None):
         UInt32.__init__(self, xmlelement)
+
 
 class DiagnosticInfo(Value):
     def __init__(self, xmlelement=None):
@@ -850,6 +883,7 @@ class DiagnosticInfo(Value):
     def parseXML(self, xmlvalue):
         self.checkXML(xmlvalue)
         logger.warn("Not implemented")
+
 
 class Guid(Value):
     def __init__(self, xmlelement=None):
@@ -871,7 +905,8 @@ class Guid(Value):
             val = getXmlTextTrimmed(xmlvalue.firstChild)    # no 'String' like 'DataSetFieldId'
 
         if val is None:
-            self.value = ['00000000', '0000', '0000', '0000', '000000000000']  # Catch XML <Guid /> by setting the value to a default
+            # Catch XML <Guid /> by setting the value to a default
+            self.value = ['00000000', '0000', '0000', '0000', '000000000000']
         else:
             self.value = val
             self.value = self.value.replace("{", "")
@@ -882,10 +917,10 @@ class Guid(Value):
                 try:
                     tmp.append(int("0x" + g, 16))
                 except Exception:
-                    logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
+                    logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " +
                                  unicode(xmlvalue.firstChild.data))
                     self.value = ['00000000', '0000', '0000', '0000', '000000000000']
             if len(tmp) != 5:
-                logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
+                logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " +
                              unicode(xmlvalue.firstChild.data))
                 self.value = ['00000000', '0000', '0000', '0000', '000000000000']
