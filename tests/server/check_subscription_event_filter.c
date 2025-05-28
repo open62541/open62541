@@ -276,6 +276,25 @@ addMonitoredItem(UA_Client_EventNotificationCallback handler, UA_EventFilter *fi
                                                 &monitoredItemId, handler, NULL);
 }
 
+static UA_ModifyMonitoredItemsResponse
+modifyMonitoredItem(UA_EventFilter *filter, bool discardOldest) {
+    UA_ModifyMonitoredItemsRequest modifyRequest;
+    UA_ModifyMonitoredItemsRequest_init(&modifyRequest);
+    modifyRequest.subscriptionId = subscriptionId;
+    modifyRequest.itemsToModifySize = 1;
+    modifyRequest.itemsToModify = UA_MonitoredItemModifyRequest_new();
+    modifyRequest.itemsToModify->monitoredItemId = monitoredItemId;
+    modifyRequest.itemsToModify->requestedParameters.queueSize = 1;
+    modifyRequest.itemsToModify->requestedParameters.discardOldest = true;
+    UA_ExtensionObject_setValueNoDelete(&modifyRequest.itemsToModify->requestedParameters.filter,
+                                        filter, &UA_TYPES[UA_TYPES_EVENTFILTER]);
+
+    const UA_ModifyMonitoredItemsResponse response = UA_Client_MonitoredItems_modify(client, modifyRequest);
+    UA_ModifyMonitoredItemsRequest_clear(&modifyRequest);
+    return response;
+}
+
+
 static UA_StatusCode
 eventSetup(UA_NodeId *eventNodeId) {
     UA_StatusCode retval;
@@ -482,18 +501,33 @@ START_TEST(selectFilterValidation) {
     filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "FOOBAR");
     UA_MonitoredItemCreateResult createResult;
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
-    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    ck_assert_int_eq(createResult.filterResult.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert(createResult.filterResult.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
+    UA_EventFilterResult *eventFilterResult = (UA_EventFilterResult *)createResult.filterResult.content.decoded.data;
+    ck_assert_uint_eq(eventFilterResult->selectClauseResultsSize, 1);
+    ck_assert_uint_eq(eventFilterResult->selectClauseResults[0], UA_STATUSCODE_BADNODEIDUNKNOWN);
     UA_QualifiedName_clear(&filter.selectClauses->browsePath[0]);
     UA_MonitoredItemCreateResult_clear(&createResult);
 
     filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "xx");
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
-    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    ck_assert_int_eq(createResult.filterResult.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert(createResult.filterResult.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
+    eventFilterResult = (UA_EventFilterResult *)createResult.filterResult.content.decoded.data;
+    ck_assert_uint_eq(eventFilterResult->selectClauseResultsSize, 1);
+    ck_assert_uint_eq(eventFilterResult->selectClauseResults[0], UA_STATUSCODE_BADNODEIDUNKNOWN);
     UA_MonitoredItemCreateResult_clear(&createResult);
 
     UA_QualifiedName_clear(&filter.selectClauses->browsePath[0]);
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
-    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADBROWSENAMEINVALID);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    ck_assert_int_eq(createResult.filterResult.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert(createResult.filterResult.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
+    eventFilterResult = (UA_EventFilterResult *)createResult.filterResult.content.decoded.data;
+    ck_assert_uint_eq(eventFilterResult->selectClauseResultsSize, 1);
+    ck_assert_uint_eq(eventFilterResult->selectClauseResults[0], UA_STATUSCODE_BADBROWSENAMEINVALID);
     UA_MonitoredItemCreateResult_clear(&createResult);
     UA_EventFilter_clear(&filter);
 } END_TEST
@@ -630,7 +664,12 @@ START_TEST(ofTypeOperatorValidation_failure) {
 
     /*  add a monitored item (with filter) */
     UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
-    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADFILTEROPERANDINVALID);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    ck_assert_int_eq(createResult.filterResult.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert(createResult.filterResult.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
+    UA_EventFilterResult *eventFilterResult = (UA_EventFilterResult *)createResult.filterResult.content.decoded.data;
+    ck_assert_uint_eq(eventFilterResult->whereClauseResult.elementResultsSize, 1);
+    ck_assert_uint_eq(eventFilterResult->whereClauseResult.elementResults[0].statusCode, UA_STATUSCODE_BADFILTEROPERANDINVALID);
     UA_MonitoredItemCreateResult_clear(&createResult);
     UA_EventFilter_clear(&filter);
 } END_TEST
@@ -839,6 +878,50 @@ START_TEST(inListOperatorValidation) {
     UA_EventFilter_clear(&filter);
 } END_TEST
 
+START_TEST(modifySelectFilterValidation) {
+    /* setup event filter */
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    filter.selectClausesSize = 1;
+    filter.selectClauses = UA_SimpleAttributeOperand_new();
+    filter.selectClauses->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    filter.selectClauses->browsePathSize = 1;
+    filter.selectClauses->browsePath = UA_QualifiedName_new();
+    filter.selectClauses->attributeId = UA_ATTRIBUTEID_VALUE;
+
+    /* Set up a valid monitored item */
+    filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(createResult.filterResult.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
+    monitoredItemId = createResult.monitoredItemId;
+    UA_QualifiedName_clear(&filter.selectClauses->browsePath[0]);
+
+    /* Attempt to update the monitored item's event filter with a different valid filter */
+    filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Time");
+    UA_ModifyMonitoredItemsResponse modifyResult = modifyMonitoredItem(&filter, true);
+    ck_assert_uint_eq(modifyResult.resultsSize, 1);
+    ck_assert_uint_eq(modifyResult.results->statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(modifyResult.results->filterResult.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResult);
+    UA_QualifiedName_clear(&filter.selectClauses->browsePath[0]);
+
+    /* Attempt to update the monitored item's event filter with an invalid event field */
+    filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "IDONOTEXIST");
+    modifyResult = modifyMonitoredItem(&filter, true);
+    ck_assert_uint_eq(modifyResult.resultsSize, 1);
+    ck_assert_uint_eq(modifyResult.results->statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+
+    /* Expect an EventFilterResult with a bad status code for the first select clause result */
+    ck_assert_int_eq(modifyResult.results->filterResult.encoding, UA_EXTENSIONOBJECT_DECODED);
+    ck_assert(modifyResult.results->filterResult.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
+    UA_EventFilterResult *eventFilterResult = (UA_EventFilterResult *)modifyResult.results->filterResult.content.decoded.data;
+    ck_assert_uint_eq(eventFilterResult->selectClauseResultsSize, 1);
+    ck_assert_uint_eq(eventFilterResult->selectClauseResults[0], UA_STATUSCODE_BADNODEIDUNKNOWN);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResult);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Server Subscription Event Filters");
     TCase *tc_server = tcase_create("Basic Event Filters");
@@ -853,6 +936,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, orderedCompareOperatorValidation);
     tcase_add_test(tc_server, betweenOperatorValidation);
     tcase_add_test(tc_server, inListOperatorValidation);
+    tcase_add_test(tc_server, modifySelectFilterValidation);
     suite_add_tcase(s, tc_server);
     return s;
 }
