@@ -196,8 +196,8 @@ newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
 
     /* Reader Group */
     UA_ReaderGroupConfig readerGroupConfig;
-    memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
-    readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
+    memset(&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
+    readerGroupConfig.name = UA_STRING("ReaderGroup Test");
 
     /* Reader Group Encryption settings */
     readerGroupConfig.securityMode = mode;
@@ -211,8 +211,8 @@ newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
 
     /* Data Set Reader */
     /* Parameters to filter received NetworkMessage */
-    memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
-    readerConfig.name             = UA_STRING ("DataSetReader Test");
+    memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
+    readerConfig.name             = UA_STRING("DataSetReader Test");
     UA_UInt16 publisherIdentifier = PUBLISHER_ID;
     readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
     readerConfig.publisherId.id.uint16 = publisherIdentifier;
@@ -221,17 +221,17 @@ newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
     /* Setting up Meta data configuration in DataSetReader */
     UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
     /* FilltestMetadata function in subscriber implementation */
-    UA_DataSetMetaDataType_init (pMetaData);
-    pMetaData->name       = UA_STRING ("DataSet Test");
+    UA_DataSetMetaDataType_init(pMetaData);
+    pMetaData->name       = UA_STRING("DataSet Test");
     /* Static definition of number of fields size to 1 to create one
        targetVariable */
     pMetaData->fieldsSize = 1;
-    pMetaData->fields     = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
-                                                             &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    pMetaData->fields     = (UA_FieldMetaData*)
+        UA_Array_new(pMetaData->fieldsSize, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
     /* Unsigned Integer DataType */
-    UA_FieldMetaData_init (&pMetaData->fields[0]);
-    UA_NodeId_copy (&UA_TYPES[UA_TYPES_INT32].typeId,
-                    &pMetaData->fields[0].dataType);
+    UA_FieldMetaData_init(&pMetaData->fields[0]);
+    UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT32].typeId,
+                   &pMetaData->fields[0].dataType);
     pMetaData->fields[0].builtInType = UA_NS0ID_INT32;
     pMetaData->fields[0].valueRank   = -1; /* scalar */
     retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
@@ -345,8 +345,9 @@ START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
     UA_NetworkMessage msg;
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
-    UA_StatusCode rv =
-        UA_PubSubConnection_decodeNetworkMessage(psm, connection, buffer, &msg);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
+
+    UA_StatusCode rv = UA_ReaderGroup_decodeNetworkMessage(psm, rg, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_GOOD);
 
     const char *msg_dec_exp = MSG_HEADER MSG_PAYLOAD_DEC;
@@ -382,8 +383,9 @@ START_TEST(InvalidSignature) {
     UA_NetworkMessage msg;
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
-    UA_StatusCode rv =
-        UA_PubSubConnection_decodeNetworkMessage(psm, connection, buffer, &msg);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
+
+    UA_StatusCode rv = UA_ReaderGroup_decodeNetworkMessage(psm, rg, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     UA_NetworkMessage_clear(&msg);
@@ -412,8 +414,9 @@ START_TEST(InvalidSecurityModeInsufficientSig) {
     UA_NetworkMessage msg;
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
-    UA_StatusCode rv =
-        UA_PubSubConnection_decodeNetworkMessage(psm, connection, buffer, &msg);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
+
+    UA_StatusCode rv = UA_ReaderGroup_decodeNetworkMessage(psm, rg, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
 
     UA_NetworkMessage_clear(&msg);
@@ -442,8 +445,9 @@ START_TEST(InvalidSecurityModeRejectedSig) {
     UA_NetworkMessage msg;
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
-    UA_StatusCode rv =
-        UA_PubSubConnection_decodeNetworkMessage(psm, connection, buffer, &msg);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
+
+    UA_StatusCode rv = UA_ReaderGroup_decodeNetworkMessage(psm, rg, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEREJECTED);
 
     UA_NetworkMessage_clear(&msg);
