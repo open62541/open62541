@@ -272,8 +272,8 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 checkEventFilterParam(UA_Server *server, UA_Session *session,
                       const UA_MonitoredItem *mon,
-                      UA_MonitoringParameters *params,
-                      UA_MonitoredItemCreateResult *result) {
+                      const UA_MonitoringParameters *params,
+                      UA_ExtensionObject *filterResult) {
     /* Is an Event MonitoredItem? */
     if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
         return UA_STATUSCODE_GOOD;
@@ -329,7 +329,7 @@ checkEventFilterParam(UA_Server *server, UA_Session *session,
             tmp_efr.whereClauseResult.elementResultsSize = cf->elementsSize;
             tmp_efr.whereClauseResult.elementResults = whereRes;
             UA_EventFilterResult_copy(&tmp_efr, efr);
-            UA_ExtensionObject_setValue(&result->filterResult, efr,
+            UA_ExtensionObject_setValue(filterResult, efr,
                                         &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
         }
     }
@@ -481,8 +481,13 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     result->statusCode |= checkAdjustMonitoredItemParams(server, session, newMon,
                                                          valueType, &newMon->parameters);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    result->statusCode |= checkEventFilterParam(server, session, newMon,
-                                                &newMon->parameters, result);
+    const UA_StatusCode eventFilterStatus = checkEventFilterParam(server, session, newMon,
+                                                                  &newMon->parameters,
+                                                                  &result->filterResult);
+
+    if(eventFilterStatus != UA_STATUSCODE_GOOD) {
+        result->statusCode = UA_STATUSCODE_BADEVENTFILTERINVALID;
+    }
 #endif
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SUBSCRIPTION(server->config.logging, cmc->sub,
@@ -624,6 +629,17 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
         UA_MonitoringParameters_clear(&params);
         return;
     }
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    const UA_StatusCode eventFilterStatus = checkEventFilterParam(server, session, mon,
+                                                                  &request->requestedParameters,
+                                                                  &result->filterResult);
+    if(eventFilterStatus != UA_STATUSCODE_GOOD) {
+        result->statusCode = UA_STATUSCODE_BADEVENTFILTERINVALID;
+        UA_MonitoringParameters_clear(&params);
+        return;
+    }
+#endif
 
     /* Store the old sampling interval */
     UA_Double oldSamplingInterval = mon->parameters.samplingInterval;
