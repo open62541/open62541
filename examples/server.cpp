@@ -71,14 +71,14 @@ static UA_UsernamePasswordLogin usernamePasswordLogin[2] = {
 };
 
 // Custom access control
-static UA_ByteString
-getPassword(const UA_String *userName, void *userContext) {
-    if(UA_String_equal(userName, &usernamePasswordLogin[0].username))
-        return usernamePasswordLogin[0].password;
-    if(UA_String_equal(userName, &usernamePasswordLogin[1].username))
-        return usernamePasswordLogin[1].password;
-    return UA_BYTESTRING_NULL;
-}
+// static UA_ByteString
+// getPassword(const UA_String *userName, void *userContext) {
+//     if(UA_String_equal(userName, &usernamePasswordLogin[0].username))
+//         return usernamePasswordLogin[0].password;
+//     if(UA_String_equal(userName, &usernamePasswordLogin[1].username))
+//         return usernamePasswordLogin[1].password;
+//     return UA_BYTESTRING_NULL;
+// }
 
 static UA_StatusCode
 myLoginCallback(const UA_String *username, const UA_ByteString *password,
@@ -364,6 +364,7 @@ void mqtt_subscribe_and_update(UA_Server* server, const std::vector<std::string>
                             [&](client_t::publish_packet& p) {
                                 std::string topic = p.topic();
                                 std::string payload = p.payload();
+                                // std::cout << "Received payload: " << payload << std::endl;
                                 auto it = nodeMap.find(topic);
                                 if (it != nodeMap.end()) {
                                     try {

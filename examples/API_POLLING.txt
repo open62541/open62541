@@ -1,0 +1,322 @@
+
+
+Global Variables ->
+std::mutex addressSpaceMutex;
+std::unordered_set<std::string> currentTopics;
+bool addressSpaceUpdateNeeded = false;
+
+
+
+
+
+
+FUNCTION->
+void checkForApiUpdates(UA_Server* server) {
+    while (running) {
+        try {
+            // Get new token
+            json token = getBearerToken();
+            string BearerToken = "";
+            if (token.contains("access_token")) {
+                BearerToken = token["access_token"].get<std::string>();
+            }
+
+            if (!BearerToken.empty()) {
+                // Get updated topic list
+                json response = getTopicList(BearerToken);
+                
+                if (response.contains("data") && response["data"].is_array()) {
+                    std::unordered_set<std::string> newTopics;
+                    std::unordered_map<std::string, TopicInfo> newTopicMap;
+                    
+                    // Process new topics
+                    for (const auto& item : response["data"]) {
+                        if (item.contains("namespace")) {
+                            string ns = item["namespace"].get<string>();
+                            newTopics.insert(ns);
+                            newTopicMap[ns] = {
+                                item["tagId"].get<int>(),
+                                item["name"].get<string>(),
+                                item["tagType"].get<string>(),
+                                item["rangeMin"].get<double>(),
+                                item["rangeMax"].get<double>()
+                            };
+                        }
+                    }
+
+                    // Check for changes
+                    std::lock_guard<std::mutex> lock(addressSpaceMutex);
+                    if (newTopics != currentTopics) {
+                        // Update address space
+                        for (const auto& topic : newTopics) {
+                            if (currentTopics.find(topic) == currentTopics.end()) {
+                                // New topic - add to address space
+                                auto parts = split(topic, '/');
+                                std::string currentPath;
+                                UA_NodeId parent = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+                                
+                                for (size_t i = 0; i < parts.size(); ++i) {
+                                    if (!currentPath.empty()) currentPath += "/";
+                                    currentPath += parts[i];
+                                    if (i < parts.size() - 1) {
+                                        parent = getOrCreateFolder(server, currentPath, parts[i], parent);
+                                    } else {
+                                        UA_VariableAttributes attr = UA_VariableAttributes_default;
+                                        UA_Int32 value = 0;
+                                        UA_Variant_setScalarCopy(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+                                        attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", parts[i].c_str());
+                                        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+                                        UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, currentPath.c_str());
+                                        UA_QualifiedName nodeName = UA_QUALIFIEDNAME_ALLOC(1, parts[i].c_str());
+                                        UA_Server_addVariableNode(server, nodeId, parent, 
+                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), 
+                                            nodeName, UA_NODEID_NULL, attr, NULL, NULL);
+                                        nodeMap[currentPath] = nodeId;
+
+                                        UA_ValueCallback callback;
+                                        callback.onWrite = writeCallback;
+                                        callback.onRead = NULL;
+                                        UA_Server_setVariableNode_valueCallback(server, nodeId, callback);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Remove deleted topics
+                        for (const auto& topic : currentTopics) {
+                            if (newTopics.find(topic) == newTopics.end()) {
+                                // Topic was deleted - remove from address space
+                                if (nodeMap.find(topic) != nodeMap.end()) {
+                                    UA_Server_deleteNode(server, nodeMap[topic], true);
+                                    nodeMap.erase(topic);
+                                }
+                            }
+                        }
+
+                        // Update current state
+                        currentTopics = newTopics;
+                        topicMap = newTopicMap;
+                    }
+                }
+            }
+        } catch (const std::exception& e) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, 
+                "Error checking for API updates: %s", e.what());
+        }
+
+        // Sleep for 30 seconds before next check
+        std::this_thread::sleep_for(std::chrono::seconds(30));
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+IN MAIN ->
+
+std::thread apiUpdateThread(checkForApiUpdates, server);
+apiUpdateThread.detach();
+
+
+
+
+
+
+
+
+
+
+This solution provides several benefits:
+Minimal Overhead:
+Uses a separate thread to avoid blocking the main server
+Only updates when changes are detected
+Uses mutex to prevent concurrent modifications
+30-second polling interval to avoid excessive API calls
+Efficient Updates:
+Only adds/removes nodes that have changed
+Maintains existing nodes without modification
+Preserves the hierarchical structure
+Thread Safety:
+Uses mutex to protect shared resources
+Safely handles concurrent access to the address space
+Error Handling:
+Catches and logs exceptions
+Continues running even if an update fails
+Maintains server stability
+To use this solution:
+Add the new global variables at the top of your file
+Add the checkForApiUpdates function
+Start the update thread in main()
+The server will now automatically:
+Check for API updates every 30 seconds
+Add new topics to the address space
+Remove deleted topics
+Update the topic map with new information
+Maintain thread safety throughout the process
+You can adjust the polling interval (30 seconds) based on your needs. A shorter interval will make updates more responsive but increase API load, while a longer interval will reduce overhead but make updates less frequent.
+
+---------------------------------------------------------
+
+
+First, add a function to handle new topic discovery:
+
+void handleNewTopic(UA_Server* server, const std::string& topic, const json& data) {
+    std::lock_guard<std::mutex> lock(addressSpaceMutex);
+    
+    // Check if topic already exists
+    if (currentTopics.find(topic) != currentTopics.end()) {
+        return; // Topic already exists
+    }
+
+    // Add to current topics
+    currentTopics.insert(topic);
+
+    // Create topic info
+    TopicInfo info;
+    if (data.contains("Data") && data["Data"].is_array() && !data["Data"].empty()) {
+        const auto& dataPoint = data["Data"][0];
+        info.tagId = dataPoint.contains("TagId") ? dataPoint["TagId"].get<int>() : 0;
+        info.name = dataPoint.contains("Name") ? dataPoint["Name"].get<std::string>() : topic;
+        info.tagType = dataPoint.contains("TagType") ? dataPoint["TagType"].get<std::string>() : "Unknown";
+        info.rangeMin = dataPoint.contains("RangeMin") ? dataPoint["RangeMin"].get<double>() : 0.0;
+        info.rangeMax = dataPoint.contains("RangeMax") ? dataPoint["RangeMax"].get<double>() : 100.0;
+    }
+    topicMap[topic] = info;
+
+    // Create address space nodes
+    auto parts = split(topic, '/');
+    std::string currentPath;
+    UA_NodeId parent = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    
+    for (size_t i = 0; i < parts.size(); ++i) {
+        if (!currentPath.empty()) currentPath += "/";
+        currentPath += parts[i];
+        if (i < parts.size() - 1) {
+            parent = getOrCreateFolder(server, currentPath, parts[i], parent);
+        } else {
+            UA_VariableAttributes attr = UA_VariableAttributes_default;
+            UA_Int32 value = 0;
+            UA_Variant_setScalarCopy(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+            attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", parts[i].c_str());
+            attr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", info.name.c_str());
+            attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+            
+            // Set range if available
+            if (info.rangeMin != 0.0 || info.rangeMax != 100.0) {
+                UA_Range range;
+                range.min = info.rangeMin;
+                range.max = info.rangeMax;
+                attr.valueRank = 1;
+                attr.arrayDimensionsSize = 1;
+                attr.arrayDimensions = (UA_UInt32*)UA_malloc(sizeof(UA_UInt32));
+                attr.arrayDimensions[0] = 2;
+                attr.valueRange = range;
+            }
+
+            UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, currentPath.c_str());
+            UA_QualifiedName nodeName = UA_QUALIFIEDNAME_ALLOC(1, parts[i].c_str());
+            UA_Server_addVariableNode(server, nodeId, parent, 
+                UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), 
+                nodeName, UA_NODEID_NULL, attr, NULL, NULL);
+            nodeMap[currentPath] = nodeId;
+
+            UA_ValueCallback callback;
+            callback.onWrite = writeCallback;
+            callback.onRead = NULL;
+            UA_Server_setVariableNode_valueCallback(server, nodeId, callback);
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+Then modify your MQTT subscription handler to use this function:
+
+
+// In your MQTT subscription handler:
+if (j.contains("Data") && j["Data"].is_array() && !j["Data"].empty()) {
+    // Handle new topic discovery
+    if (currentTopics.find(topic) == currentTopics.end()) {
+        handleNewTopic(server, topic, j);
+    }
+
+    // Update value if node exists
+    auto it = nodeMap.find(topic);
+    if (it != nodeMap.end()) {
+        // Your existing value update code...
+    }
+}
+
+
+
+This approach provides several benefits:
+Real-time Updates:
+New topics are discovered immediately when they appear
+Values are updated in real-time
+No polling delay
+Efficient Resource Usage:
+Only processes topics when they actually appear
+No need for periodic API calls
+Reduces network traffic
+Dynamic Address Space:
+Address space grows automatically as new topics appear
+Maintains hierarchical structure
+Preserves topic metadata
+Thread Safety:
+Uses mutex to protect shared resources
+Safe concurrent access to address space
+Prevents race conditions
+To use this solution:
+Add the handleNewTopic function to your code
+Modify your MQTT subscription handler to call it
+
+
+
+Make sure you have the necessary global variables:
+
+   std::mutex addressSpaceMutex;
+   std::unordered_set<std::string> currentTopics;
+
+
+
+
+
+
+
+
+
+Apply to API POLLING....
+The server will now:
+Automatically discover new topics as they appear
+Create corresponding OPC UA nodes
+Update values in real-time
+Maintain the hierarchical structure
+Handle metadata and ranges
+This approach is more efficient than polling the API because:
+It only processes changes when they actually occur
+It reduces network traffic
+It provides immediate updates
+It maintains a consistent state between MQTT and OPC UA
+You can still keep the API polling as a backup mechanism if needed, but the MQTT-based approach should be more efficient for most use cases.
