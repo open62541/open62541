@@ -1263,14 +1263,17 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if(config->certificateVerification.clear)
-        config->certificateVerification.clear(&config->certificateVerification);
-    retval = UA_CertificateVerification_Trustlist(&config->certificateVerification,
-                                                  trustList, trustListSize,
-                                                  NULL, 0,
-                                                  revocationList, revocationListSize);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    if(trustListSize || revocationListSize) {
+        retval = UA_CertificateVerification_Trustlist(&config->certificateVerification,
+                                                      trustList, trustListSize,
+                                                      NULL, 0,
+                                                      revocationList, revocationListSize);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    } else {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+            "Empty trustlist and revocationlist passed, leaving the previously configured certificate verification in place");
+    }
 
     /* Populate SecurityPolicies */
     UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
