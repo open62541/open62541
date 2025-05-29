@@ -450,7 +450,7 @@ mark_as_advanced(UA_BUILD_OSS_FUZZ)
 
 # Android platform message
 if(ANDROID_NDK_TOOLCHAIN_INCLUDED)
-	MESSAGE("Platform is ${CMAKE_SYSTEM_NAME}")
+    MESSAGE("Platform is ${CMAKE_SYSTEM_NAME}")
 endif()
 
 ##########################
@@ -745,22 +745,22 @@ file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 configure_file(include/open62541/config.h.in ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h)
 
 if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
-  include(GenerateExportHeader)
+    include(GenerateExportHeader)
     set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
-    
+
     # create a "fake" empty library to generate the export header macros
     if (APPLE)
-    	add_library(libmdnsd INTERFACE ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
+        add_library(mdnsd INTERFACE ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
     else()
-    	add_library(libmdnsd ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
+        add_library(mdnsd ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
     endif()
-    
-    set_property(TARGET libmdnsd PROPERTY LINKER_LANGUAGE C)
-    set_property(TARGET libmdnsd PROPERTY DEFINE_SYMBOL "MDNSD_DYNAMIC_LINKING_EXPORT")
+
+    set_property(TARGET mdnsd PROPERTY LINKER_LANGUAGE C)
+    set_property(TARGET mdnsd PROPERTY DEFINE_SYMBOL "MDNSD_DYNAMIC_LINKING_EXPORT")
     configure_file("deps/mdnsd/libmdnsd/mdnsd_config_extra.in"
                    "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config_extra")
     file(READ "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config_extra" MDNSD_CONFIG_EXTRA)
-    generate_export_header(libmdnsd EXPORT_FILE_NAME "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h"
+    generate_export_header(mdnsd EXPORT_FILE_NAME "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h"
                            BASE_NAME MDNSD DEFINE_NO_DEPRECATED CUSTOM_CONTENT_FROM_VARIABLE MDNSD_CONFIG_EXTRA)
 endif()
 
@@ -808,10 +808,7 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_internal.h
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.h)
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
 
 if(UA_ENABLE_ENCRYPTION AND UA_ARCHITECTURE_WIN32)
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/tr_dirent.h)
@@ -846,19 +843,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_monitoreditem.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
-                # pubsub
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_binary.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_connection.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_dataset.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writer.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writergroup.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_reader.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_readergroup.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_securitygroup.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
@@ -903,6 +887,25 @@ if(UA_ENABLE_JSON_ENCODING)
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json_105.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
+endif()
+
+if(UA_ENABLE_PUBSUB)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_internal.h
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.h)
+
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_binary.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_connection.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_dataset.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writer.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writergroup.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_reader.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_readergroup.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_securitygroup.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c)
 endif()
 
 if(UA_ENABLE_XML_ENCODING)
@@ -1008,7 +1011,7 @@ endif()
 if(UA_ENABLE_MQTT)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
 endif()
-     
+
 # For file based server configuration
 if(UA_ENABLE_JSON_ENCODING)
     list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_file_based.h)
@@ -1177,8 +1180,8 @@ else()
         endif()
     endif()
 
-	if(UA_ENABLE_DA)
-		list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_dataaccess.txt)
+    if(UA_ENABLE_DA)
+        list(APPEND UA_NS0_DATATYPES ${UA_SCHEMA_DIR}/datatypes_dataaccess.txt)
         list(APPEND UA_NS0_NODESETS Opc.Ua.NodeSet2.Part8_Subset.xml)
     endif()
 

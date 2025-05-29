@@ -304,7 +304,6 @@ addDataSetReader(UA_Server *server) {
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-    readerConfig.expectedEncoding = UA_PUBSUB_RT_RAW;
     readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
 
     UA_UadpDataSetReaderMessageDataType *dataSetReaderMessage =

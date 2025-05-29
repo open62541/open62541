@@ -54,7 +54,6 @@ flushPipe(int fd) {
 
 static void
 pcapCloseConnection(PCAPConnectionManager *pcm, PCAPConnection *c) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     c->connectionCallback(&pcm->cm, (uintptr_t)c->clientPort, c->application,
                             &c->context, UA_CONNECTIONSTATE_CLOSING,
                             NULL, UA_BYTESTRING_NULL);
@@ -132,7 +131,6 @@ processPacket(PCAPConnectionManager *pcm, const u_char *data, size_t dataLen) {
 static void
 pcapActivityCallback(UA_EventSource *es, UA_RegisteredFD *rfd, short event) {
     PCAPConnectionManager *pcm = (PCAPConnectionManager*)es;
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
 
     /* Re-arm the self-pipe by reading all waiting data */
     flushPipe(rfd->fd);
@@ -162,7 +160,6 @@ static UA_StatusCode
 pcapOpenConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     PCAPConnectionManager *pcm = (PCAPConnectionManager*)cm;
 
     /* Find a unused connection slot */

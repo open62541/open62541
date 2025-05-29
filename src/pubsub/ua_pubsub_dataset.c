@@ -114,109 +114,112 @@ UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig) {
 /* The fieldMetaData variable has to be cleaned up external in case of an error */
 static UA_StatusCode
 generateFieldMetaData(UA_PubSubManager *psm, UA_PublishedDataSet *pds,
-                      UA_DataSetField *field, UA_FieldMetaData *fieldMetaData) {
+                      UA_DataSetField *field) {
     if(field->config.dataSetFieldType != UA_PUBSUB_DATASETFIELD_VARIABLE)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
+    UA_FieldMetaData *fmd = &field->fieldMetaData;
     const UA_DataSetVariableConfig *var = &field->config.field.variable;
 
-    /* Set the field identifier */
-    if(!UA_Guid_equal(&var->dataSetFieldId, &UA_GUID_NULL)) {
-        fieldMetaData->dataSetFieldId = var->dataSetFieldId;
-    } else {
-        fieldMetaData->dataSetFieldId = UA_PubSubManager_generateUniqueGuid(psm);
-    }
-
-    /* Set the description */
-    UA_LocalizedText_copy(&var->description, &fieldMetaData->description);
-
-    /* Set the name */
-    UA_StatusCode res = UA_String_copy(&var->fieldNameAlias, &fieldMetaData->name);
+    /* Name */
+    UA_StatusCode res = UA_String_copy(&var->fieldNameAlias, &fmd->name);
     UA_CHECK_STATUS(res, return res);
 
-    /* Set the Array Dimensions */
-    const UA_PublishedVariableDataType *pp = &var->publishParameters;
+    /* Description */
+    res = UA_LocalizedText_copy(&var->description, &fmd->description);
+    UA_CHECK_STATUS(res, return res);
+
+    /* FieldFlags */
+    if(var->promotedField)
+        fmd->fieldFlags = UA_DATASETFIELDFLAGS_PROMOTEDFIELD;
+    else
+        fmd->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
+
+    /* DataType */
+    res = readWithReadValue(psm->sc.server, &var->publishParameters.publishedVariable,
+                            UA_ATTRIBUTEID_DATATYPE, &fmd->dataType);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, pds,
+                            "PubSub meta data generation: Reading the DataType failed");
+        return res;
+    }
+
+    /* BuiltinType */
+    const UA_DataType *type =
+        UA_findDataTypeWithCustom(&fmd->dataType,
+                                  psm->sc.server->config.customDataTypes);
+    if(!type) {
+        /* (1) Abstract types always have the built-in type Variant since they
+         * can result in different concrete types in a DataSetMessage. */
+        fmd->builtInType = UA_DATATYPEKIND_VARIANT;
+    } else if(type->typeKind == UA_DATATYPEKIND_ENUM) {
+        /* (2) Enumeration DataTypes are encoded as Int32. */
+        fmd->builtInType = UA_DATATYPEKIND_INT32;
+    } else if(type->typeKind == UA_DATATYPEKIND_STRUCTURE ||
+              type->typeKind == UA_DATATYPEKIND_OPTSTRUCT ||
+              type->typeKind == UA_DATATYPEKIND_UNION) {
+        /* (3) Structure and Union DataTypes are encoded as ExtensionObject. */
+        fmd->builtInType = UA_DATATYPEKIND_EXTENSIONOBJECT;
+    } else if(type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO) {
+        /* (4) DataTypes derived from built-in types have the BuiltInType of the
+         * corresponding base DataType. */
+        fmd->builtInType = type->typeKind;
+    } else {
+        /* (5) OptionSet DataTypes are either encoded as one of the concrete
+           UInteger DataTypes or as an instance of an OptionSetType in an
+           ExtensionObject. */
+        fmd->builtInType = UA_DATATYPEKIND_EXTENSIONOBJECT;
+    }
+
+    fmd->builtInType++; /* Go from UA_DataTypeKind to the builtin type index from Part 6 */
+
+    /* ValueRank */
+    res = readWithReadValue(psm->sc.server, &var->publishParameters.publishedVariable,
+                            UA_ATTRIBUTEID_VALUERANK, &fmd->valueRank);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, pds,
+                            "PubSub meta data generation: Reading the ValueRank failed");
+        return res;
+    }
+
+    /* ArrayDimensions */
     UA_Variant value;
     UA_Variant_init(&value);
-    res = readWithReadValue(psm->sc.server, &pp->publishedVariable,
+    res = readWithReadValue(psm->sc.server, &var->publishParameters.publishedVariable,
                             UA_ATTRIBUTEID_ARRAYDIMENSIONS, &value);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, pds,
-                              "PubSub meta data generation: Reading the array dimensions failed");
+        UA_LOG_ERROR_PUBSUB(psm->logging, pds,
+                            "PubSub meta data generation: Reading the ArrayDimensions failed");
         return res;
     }
-
-    if(value.arrayDimensionsSize > 0) {
-        fieldMetaData->arrayDimensions = (UA_UInt32 *)
-            UA_calloc(value.arrayDimensionsSize, sizeof(UA_UInt32));
-        if(!fieldMetaData->arrayDimensions)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    fieldMetaData->arrayDimensionsSize = value.arrayDimensionsSize;
-
+    fmd->arrayDimensions = (UA_UInt32*)value.data;
+    fmd->arrayDimensionsSize = value.arrayLength;
+    value.data = NULL;
+    value.arrayLength = 0;
     UA_Variant_clear(&value);
 
-    /* Set the DataType */
-    res = readWithReadValue(psm->sc.server, &pp->publishedVariable,
-                            UA_ATTRIBUTEID_DATATYPE, &fieldMetaData->dataType);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, pds,
-                              "PubSub meta data generation: Reading the datatype failed");
-        return res;
-    }
-
-    if(!UA_NodeId_isNull(&fieldMetaData->dataType)) {
-        const UA_DataType *currentDataType =
-            UA_findDataTypeWithCustom(&fieldMetaData->dataType,
-                                      psm->sc.server->config.customDataTypes);
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-        UA_LOG_DEBUG_PUBSUB(psm->logging, pds,
-                            "MetaData creation: Found DataType %s",
-                            currentDataType->typeName);
-#endif
-        /* Check if the datatype is a builtInType, if yes set the builtinType. */
-        if(currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
-            fieldMetaData->builtInType = (UA_Byte)currentDataType->typeId.identifier.numeric;
-        /* set the maxStringLength attribute */
-        if(field->config.field.variable.maxStringLength != 0){
-            if(currentDataType->typeKind == UA_DATATYPEKIND_BYTESTRING ||
-            currentDataType->typeKind == UA_DATATYPEKIND_STRING ||
-            currentDataType->typeKind == UA_DATATYPEKIND_LOCALIZEDTEXT) {
-                fieldMetaData->maxStringLength = field->config.field.variable.maxStringLength;
-            } else {
-                UA_LOG_WARNING_PUBSUB(psm->logging, pds,
-                                      "PubSub meta data generation: MaxStringLength with incompatible DataType configured.");
-            }
+    /* MaxStringLength */
+    if(field->config.field.variable.maxStringLength > 0) {
+        if(fmd->builtInType - 1 == UA_DATATYPEKIND_BYTESTRING ||
+           fmd->builtInType - 1 == UA_DATATYPEKIND_STRING) {
+            fmd->maxStringLength = field->config.field.variable.maxStringLength;
+        } else {
+            UA_LOG_ERROR_PUBSUB(psm->logging, pds,
+                                "PubSub meta data generation: MaxStringLength with "
+                                "incompatible DataType configured");
         }
+    }
+
+    /* DataSetFieldId */
+    if(!UA_Guid_equal(&var->dataSetFieldId, &UA_GUID_NULL)) {
+        fmd->dataSetFieldId = var->dataSetFieldId;
     } else {
-        UA_LOG_WARNING_PUBSUB(psm->logging, pds,
-                              "PubSub meta data generation: DataType is UA_NODEID_NULL");
+        fmd->dataSetFieldId = UA_PubSubManager_generateUniqueGuid(psm);
     }
-
-    /* Set the ValueRank */
-    UA_Int32 valueRank;
-    res = readWithReadValue(psm->sc.server, &pp->publishedVariable,
-                            UA_ATTRIBUTEID_VALUERANK, &valueRank);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, pds,
-                              "PubSub meta data generation: Reading the value rank failed");
-        return res;
-    }
-    fieldMetaData->valueRank = valueRank;
-
-    /* PromotedField? */
-    if(var->promotedField)
-        fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_PROMOTEDFIELD;
-    else
-        fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
 
     /* Properties */
-    fieldMetaData->properties = NULL;
-    fieldMetaData->propertiesSize = 0;
-
-    //TODO collect the following fields*/
-    //fieldMetaData.builtInType
-    //fieldMetaData.maxStringLength
+    fmd->properties = NULL;
+    fmd->propertiesSize = 0;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -266,40 +269,34 @@ UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
 
     result.result = UA_NodeId_copy(&currDS->head.identifier, &newField->publishedDataSet);
     if(result.result != UA_STATUSCODE_GOOD) {
-        UA_DataSetFieldConfig_clear(&newField->config);
+        UA_DataSetField_clear(newField);
         UA_free(newField);
         return result;
     }
 
     /* Initialize the field metadata. Also generates a FieldId, if not given in config */
-    UA_FieldMetaData fmd;
-    UA_FieldMetaData_init(&fmd);
-    result.result = generateFieldMetaData(psm, currDS, newField, &fmd);
+    result.result = generateFieldMetaData(psm, currDS, newField);
     if(result.result != UA_STATUSCODE_GOOD) {
-        UA_FieldMetaData_clear(&fmd);
-        UA_DataSetFieldConfig_clear(&newField->config);
-        UA_NodeId_clear(&newField->publishedDataSet);
+        UA_DataSetField_clear(newField);
         UA_free(newField);
         return result;
     }
 
     /* Append to the metadata fields array. Point of last return. */
     result.result = UA_Array_appendCopy((void**)&currDS->dataSetMetaData.fields,
-                                    &currDS->dataSetMetaData.fieldsSize,
-                                    &fmd, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+                                        &currDS->dataSetMetaData.fieldsSize,
+                                        &newField->fieldMetaData,
+                                        &UA_TYPES[UA_TYPES_FIELDMETADATA]);
     if(result.result != UA_STATUSCODE_GOOD) {
-        UA_FieldMetaData_clear(&fmd);
-        UA_DataSetFieldConfig_clear(&newField->config);
-        UA_NodeId_clear(&newField->publishedDataSet);
+        UA_DataSetField_clear(newField);
         UA_free(newField);
         return result;
     }
 
     /* Copy the identifier from the metadata. Cannot fail with a guid NodeId. */
-    newField->identifier = UA_NODEID_GUID(1, fmd.dataSetFieldId);
+    newField->identifier = UA_NODEID_GUID(1, newField->fieldMetaData.dataSetFieldId);
     if(fieldIdentifier)
         UA_NodeId_copy(&newField->identifier, fieldIdentifier);
-    UA_FieldMetaData_clear(&fmd);
 
     /* Register the field. The order of DataSetFields should be the same in both
      * creating and publishing. So adding DataSetFields at the the end of the
@@ -310,14 +307,6 @@ UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
     if(newField->config.field.variable.promotedField)
         currDS->promotedFieldsCount++;
 
-    /* The values of the metadata are "borrowed" in a mirrored structure in the
-     * pds. Reset them after resizing the array. */
-    size_t counter = 0;
-    UA_DataSetField *dsf;
-    TAILQ_FOREACH(dsf, &currDS->fields, listEntry) {
-        dsf->fieldMetaData = currDS->dataSetMetaData.fields[counter++];
-    }
-
     /* Update major version of parent published data set */
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
     currDS->dataSetMetaData.configurationVersion.majorVersion =
@@ -327,6 +316,7 @@ UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
         currDS->dataSetMetaData.configurationVersion.majorVersion;
     result.configurationVersion.minorVersion =
         currDS->dataSetMetaData.configurationVersion.minorVersion;
+
     return result;
 }
 
@@ -357,62 +347,42 @@ UA_DataSetField_remove(UA_PubSubManager *psm, UA_DataSetField *currentField) {
     /* Reduce the counters before the config is cleaned up */
     if(currentField->config.field.variable.promotedField)
         pds->promotedFieldsCount--;
+
+    /* Remove field from DataSetMetaData */
+    pds->dataSetMetaData.fieldsSize--;
+    if(pds->dataSetMetaData.fieldsSize == 0) {
+        UA_FieldMetaData_delete(pds->dataSetMetaData.fields);
+        pds->dataSetMetaData.fields = NULL;
+    } else {
+        /* Clear entry and move later fields to fill the gap */
+        size_t i = 0;
+        for(; i < pds->dataSetMetaData.fieldsSize + 1; i++) {
+            if(UA_Guid_equal(&currentField->fieldMetaData.dataSetFieldId,
+                             &pds->dataSetMetaData.fields[i].dataSetFieldId))
+                break;
+        }
+        UA_FieldMetaData_clear(&pds->dataSetMetaData.fields[i]);
+        for(; i < pds->dataSetMetaData.fieldsSize; i++) {
+            pds->dataSetMetaData.fields[i] = pds->dataSetMetaData.fields[i+1];
+        }
+    }
+
+    /* Remove */
     pds->fieldSize--;
+    TAILQ_REMOVE(&pds->fields, currentField, listEntry);
+    UA_DataSetField_clear(currentField);
+    UA_free(currentField);
 
     /* Update major version of PublishedDataSet */
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
     pds->dataSetMetaData.configurationVersion.majorVersion =
         UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
 
-    /* Clean up */
-    currentField->fieldMetaData.arrayDimensions = NULL;
-    currentField->fieldMetaData.properties = NULL;
-    currentField->fieldMetaData.name = UA_STRING_NULL;
-    currentField->fieldMetaData.description.locale = UA_STRING_NULL;
-    currentField->fieldMetaData.description.text = UA_STRING_NULL;
-    UA_DataSetField_clear(currentField);
-
-    /* Remove */
-    TAILQ_REMOVE(&pds->fields, currentField, listEntry);
-    UA_free(currentField);
-
-    /* Regenerate DataSetMetaData */
-    pds->dataSetMetaData.fieldsSize--;
-    if(pds->dataSetMetaData.fieldsSize > 0) {
-        for(size_t i = 0; i < pds->dataSetMetaData.fieldsSize+1; i++) {
-            UA_FieldMetaData_clear(&pds->dataSetMetaData.fields[i]);
-        }
-        UA_free(pds->dataSetMetaData.fields);
-        UA_FieldMetaData *fieldMetaData = (UA_FieldMetaData *)
-            UA_calloc(pds->dataSetMetaData.fieldsSize, sizeof(UA_FieldMetaData));
-        if(!fieldMetaData) {
-            result.result =  UA_STATUSCODE_BADOUTOFMEMORY;
-            return result;
-        }
-        UA_DataSetField *tmpDSF;
-        size_t counter = 0;
-        TAILQ_FOREACH(tmpDSF, &pds->fields, listEntry) {
-            result.result = generateFieldMetaData(psm, pds, tmpDSF, &fieldMetaData[counter]);
-            if(result.result != UA_STATUSCODE_GOOD) {
-                UA_FieldMetaData_clear(&fieldMetaData[counter]);
-                UA_LOG_WARNING_PUBSUB(psm->logging, pds,
-                                      "PubSub MetaData regeneration failed "
-                                      "after removing a field!");
-                break;
-            }
-            /* The contents of the metadata is shared between the PDS and its fields */
-            tmpDSF->fieldMetaData = fieldMetaData[counter++];
-        }
-        pds->dataSetMetaData.fields = fieldMetaData;
-    } else {
-        UA_FieldMetaData_delete(pds->dataSetMetaData.fields);
-        pds->dataSetMetaData.fields = NULL;
-    }
-
     result.configurationVersion.majorVersion =
         pds->dataSetMetaData.configurationVersion.majorVersion;
     result.configurationVersion.minorVersion =
         pds->dataSetMetaData.configurationVersion.minorVersion;
+
     return result;
 }
 
@@ -636,15 +606,6 @@ UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds) {
     /* Clean up the PublishedDataSet */
     UA_DataSetField *field, *tmpField;
     TAILQ_FOREACH_SAFE(field, &pds->fields, listEntry, tmpField) {
-        /* Code in this block is a duplication of similar code in UA_DataSetField_remove, but
-         * this is intentional. We don't want to call UA_DataSetField_remove here as that
-         * function regenerates DataSetMetaData, which is not necessary if we want to
-         * clear the whole PDS anyway. */
-        field->fieldMetaData.arrayDimensions = NULL;
-        field->fieldMetaData.properties = NULL;
-        field->fieldMetaData.name = UA_STRING_NULL;
-        field->fieldMetaData.description.locale = UA_STRING_NULL;
-        field->fieldMetaData.description.text = UA_STRING_NULL;
         UA_DataSetField_clear(field);
         TAILQ_REMOVE(&pds->fields, field, listEntry);
         UA_free(field);

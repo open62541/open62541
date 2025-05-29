@@ -678,14 +678,6 @@ UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId);
  * on the Subscriber side. DataSetReader must be linked with a
  * SubscribedDataSet and be contained within a ReaderGroup. */
 
-typedef enum {
-    UA_PUBSUB_RT_UNKNOWN = 0,
-    UA_PUBSUB_RT_VARIANT = 1,
-    UA_PUBSUB_RT_DATA_VALUE = 2,
-    UA_PUBSUB_RT_RAW = 4,
-} UA_PubSubRtEncoding;
-
-/* Parameters for PubSub DataSetReader Configuration */
 typedef struct {
     UA_String name;
     UA_PublisherId publisherId;
@@ -707,7 +699,6 @@ typedef struct {
     } subscribedDataSet;
     /* non std. fields */
     UA_String linkedStandaloneSubscribedDataSetName;
-    UA_PubSubRtEncoding expectedEncoding;
 
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
 } UA_DataSetReaderConfig;
@@ -1024,11 +1015,23 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
                                         const UA_NodeId writerGroupId,
                                         UA_PubSubOffsetTable *ot);
 
-/* Compute the offset table for a ReaderGroup */
+/**
+ * For ReaderGroups we cannot compute the offset table up front, because it is
+ * not ensured that all Readers end up with their DataSetMessage in the same
+ * NetworkMessage. Furthermore the ReaderGroup might receive messages from
+ * multiple different publishers.
+ *
+ * Instead the offset tables are computed beforehand for each DataSetReader. At
+ * runtime, use UA_NetworkMessage_decodeBinaryHeaders to decode the
+ * NetworkMessage headers. The information therein (e.g. the MessageCount and
+ * and the DataSetWriterIds) can then be used to iterate over the
+ * DataSetMessages in the payload with their respective offset tables. */
+
+/* The offsets begin at zero for the DataSetMessage */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
-                                        const UA_NodeId readerGroupId,
-                                        UA_PubSubOffsetTable *ot);
+UA_Server_computeDataSetReaderOffsetTable(UA_Server *server,
+                                          const UA_NodeId dataSetReaderId,
+                                          UA_PubSubOffsetTable *ot);
 
 #endif /* UA_ENABLE_PUBSUB */
 

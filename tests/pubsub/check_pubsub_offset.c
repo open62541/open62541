@@ -254,7 +254,6 @@ addDataSetReader(UA_Server *server) {
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-    readerConfig.expectedEncoding = UA_PUBSUB_RT_RAW;
     readerConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE];
     UA_UadpDataSetReaderMessageDataType *dataSetReaderMessage = UA_UadpDataSetReaderMessageDataType_new();
     dataSetReaderMessage->networkMessageContentMask = (UA_UadpNetworkMessageContentMask)
@@ -284,7 +283,9 @@ START_TEST(SubscriberOffsets) {
 
     /* Print the Offset Table */
     UA_PubSubOffsetTable ot;
-    UA_Server_computeReaderGroupOffsetTable(server, readerGroupIdentifier, &ot);
+    UA_StatusCode res =
+        UA_Server_computeDataSetReaderOffsetTable(server, readerIdentifier, &ot);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     for(size_t i = 0; i < ot.offsetsSize; i++) {
         UA_String out = UA_STRING_NULL;
         UA_NodeId_print(&ot.offsets[i].component, &out);

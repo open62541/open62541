@@ -65,18 +65,18 @@ encodeNetworkMessage(const UA_ByteString *buf, UA_ByteString *out) {
     options.useReversible = true;
 
     UA_NetworkMessage msg;
-    UA_StatusCode retval = UA_NetworkMessage_decodeBinary(buf, &msg, NULL);
+    UA_StatusCode retval = UA_NetworkMessage_decodeBinary(buf, &msg, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    size_t jsonLength = UA_NetworkMessage_calcSizeJson(&msg, &options);
+    size_t jsonLength = UA_NetworkMessage_calcSizeJson(&msg, NULL, &options);
     retval = UA_ByteString_allocBuffer(out, jsonLength);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(&msg);
         return retval;
     }
 
-    retval = UA_NetworkMessage_encodeJson(&msg, out, &options);
+    retval = UA_NetworkMessage_encodeJson(&msg, out, NULL, &options);
     UA_NetworkMessage_clear(&msg);
     if(retval != UA_STATUSCODE_GOOD)
         UA_ByteString_clear(out);
@@ -87,18 +87,18 @@ encodeNetworkMessage(const UA_ByteString *buf, UA_ByteString *out) {
 static UA_StatusCode
 decodeNetworkMessage(const UA_ByteString *buf, UA_ByteString *out) {
     UA_NetworkMessage msg;
-    UA_StatusCode retval = UA_NetworkMessage_decodeJson(buf, &msg, NULL);
+    UA_StatusCode retval = UA_NetworkMessage_decodeJson(buf, &msg, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    size_t binLength = UA_NetworkMessage_calcSizeBinary(&msg);
+    size_t binLength = UA_NetworkMessage_calcSizeBinary(&msg, NULL);
     retval = UA_ByteString_allocBuffer(out, binLength);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(&msg);
         return retval;
     }
 
-    retval = UA_NetworkMessage_encodeBinary(&msg, out);
+    retval = UA_NetworkMessage_encodeBinary(&msg, out, NULL);
     UA_NetworkMessage_clear(&msg);
     if(retval != UA_STATUSCODE_GOOD)
         UA_ByteString_clear(out);
