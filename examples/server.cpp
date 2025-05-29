@@ -597,6 +597,7 @@ int main(int argc, char* argv[]) {
 
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
+    size_t nsIdx = UA_Server_addNamespace(server, "urn:my.properties");
 
     // broker_start(argc, argv);
     // #ifdef UA_ENABLE_ENCRYPTION
@@ -675,13 +676,13 @@ int main(int argc, char* argv[]) {
         
 
 
-   vector<string> topics;
-   pqxx::connection c("dbname=postgres user=postgres password=payphone123@007");
-   pqxx::work txn(c);
-   pqxx::result r = txn.exec("SELECT topic FROM mqtt_topics");
-   for (auto row : r) {
-       topics.push_back(row[0].c_str());
-   }
+
+//    pqxx::connection c("dbname=postgres user=postgres password=payphone123@007");
+//    pqxx::work txn(c);
+//    pqxx::result r = txn.exec("SELECT topic FROM mqtt_topics");
+//    for (auto row : r) {
+//        topics.push_back(row[0].c_str());
+//    }
 
 
 
@@ -761,36 +762,36 @@ int main(int argc, char* argv[]) {
 
 
 
-// For each topic:
-for (const auto& topic : topics) {
-    auto parts = split(topic, '/');
-    std::string currentPath;
-     UA_NodeId parent = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    for (size_t i = 0; i < parts.size(); ++i) {
-        if (!currentPath.empty()) currentPath += "/";
-        currentPath += parts[i];
-        if (i < parts.size() - 1) {
-            // Create folder/object for each level except the last
-            parent = getOrCreateFolder(server, currentPath, parts[i], parent);
-        } else {
-            // Last part: create variable node as child of parent
-            UA_VariableAttributes attr = UA_VariableAttributes_default;
-            UA_Int32 value = 0;
-            UA_Variant_setScalarCopy(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
-            attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", parts[i].c_str());
-            attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-            UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, currentPath.c_str());
-            UA_QualifiedName nodeName = UA_QUALIFIEDNAME_ALLOC(1, parts[i].c_str());
-            UA_Server_addVariableNode(server, nodeId, parent, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), nodeName, UA_NODEID_NULL, attr, NULL, NULL);
-            nodeMap[currentPath] = nodeId;
+// // For each topic:
+// for (const auto& topic : topics) {
+//     auto parts = split(topic, '/');
+//     std::string currentPath;
+//      UA_NodeId parent = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+//     for (size_t i = 0; i < parts.size(); ++i) {
+//         if (!currentPath.empty()) currentPath += "/";
+//         currentPath += parts[i];
+//         if (i < parts.size() - 1) {
+//             // Create folder/object for each level except the last
+//             parent = getOrCreateFolder(server, currentPath, parts[i], parent);
+//         } else {
+//             // Last part: create variable node as child of parent
+//             UA_VariableAttributes attr = UA_VariableAttributes_default;
+//             UA_Int32 value = 0;
+//             UA_Variant_setScalarCopy(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+//             attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", parts[i].c_str());
+//             attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+//             UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, currentPath.c_str());
+//             UA_QualifiedName nodeName = UA_QUALIFIEDNAME_ALLOC(1, parts[i].c_str());
+//             UA_Server_addVariableNode(server, nodeId, parent, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), nodeName, UA_NODEID_NULL, attr, NULL, NULL);
+//             nodeMap[currentPath] = nodeId;
 
-            UA_ValueCallback callback;
-            callback.onWrite = writeCallback;
-            callback.onRead = NULL;
-            UA_Server_setVariableNode_valueCallback(server, nodeId, callback);
-        }
-    }
-}
+//             UA_ValueCallback callback;
+//             callback.onWrite = writeCallback;
+//             callback.onRead = NULL;
+//             UA_Server_setVariableNode_valueCallback(server, nodeId, callback);
+//         }
+//     }
+// }
 
 auto futureToken = std::async(std::launch::async, getBearerToken);
 string BearerToken = "";
@@ -802,37 +803,270 @@ if (token.contains("access_token")) {
 
   // waits here until getBearerToken finishes
 
+// if (!BearerToken.empty()) { 
+//     auto futureResponse = std::async(std::launch::async, getTopicList, BearerToken);
+//     json response = futureResponse.get();
+    
+    // Process and store API and create Address space.
+
+vector<string> topics;
 if (!BearerToken.empty()) {
     auto futureResponse = std::async(std::launch::async, getTopicList, BearerToken);
     json response = futureResponse.get();
     
-    // Process and store only essential data
     if (response.contains("data") && response["data"].is_array()) {
         for (const auto& item : response["data"]) {
             if (item.contains("namespace")) {
                 string ns = item["namespace"].get<string>();
+                topics.push_back(ns);
+                
+                // Create address space for this topic
+                auto parts = split(ns, '/');
+                std::string currentPath;
+                UA_NodeId parent = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+                
+                for (size_t i = 0; i < parts.size(); ++i) {
+                    if (!currentPath.empty()) currentPath += "/";
+                    currentPath += parts[i];
+                    if (i < parts.size() - 1) {
+                        parent = getOrCreateFolder(server, currentPath, parts[i], parent);
+                    } else {
+                        UA_VariableAttributes attr = UA_VariableAttributes_default;
+                        UA_Int32 value = 0;
+                        UA_Variant_setScalarCopy(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+                        attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", parts[i].c_str());
+                        attr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", item["name"].get<string>().c_str());
+                        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+                    
+
+
+                        // Set range if available
+                        // if (item.contains("rangeMin") && item.contains("rangeMax")) {
+                        //     UA_Range range;
+                        //     range.min = item["rangeMin"].get<double>();
+                        //     range.max = item["rangeMax"].get<double>();
+                        //     attr.valueRank = 1;
+                        //     attr.arrayDimensionsSize = 1;
+                        //     attr.arrayDimensions = (UA_UInt32*)UA_malloc(sizeof(UA_UInt32));
+                        //     attr.arrayDimensions[0] = 2;
+                        //     attr.valueRange = range;
+                        // }
+
+                        // UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(1, currentPath.c_str());
+                        UA_NodeId nodeId = UA_NODEID_NUMERIC(1, item["tagId"].get<int>());
+                        UA_QualifiedName nodeName = UA_QUALIFIEDNAME_ALLOC(1, parts[i].c_str());
+                        UA_Server_addVariableNode(server, nodeId, parent, 
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), 
+                            nodeName, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),  // Use proper type
+                            attr, NULL, NULL);
+
+                        UA_Range range;
+                        range.low = item["rangeMin"].get<double>();
+                        range.high = item["rangeMax"].get<double>();
+                        UA_Variant rangeVariant;
+                        UA_Variant_init(&rangeVariant);
+                        UA_Variant_setScalar(&rangeVariant, &range, &UA_TYPES[UA_TYPES_RANGE]);
+
+                        
+
+                            
+                        // Create attributes for the range property
+                        UA_VariableAttributes rangeAttr = UA_VariableAttributes_default;
+                        rangeAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "EURange");
+                        rangeAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
+                        rangeAttr.value = rangeVariant;
+
+                        UA_NodeId rangeNodeId = UA_NODEID_NUMERIC(2, item["tagId"].get<int>() * 1000  + 1);  // Unique ID for range
+                        UA_QualifiedName rangeName = UA_QUALIFIEDNAME_ALLOC(0, "EURange");
+                        UA_Server_addVariableNode(server, rangeNodeId, nodeId,
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            rangeName, UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                            rangeAttr, NULL, NULL);
+
+
+                        
+
+                        // After adding the EURange property, add the alarm limits
+                        UA_Double alarmHiHi = item["alarmHiHi"].get<double>();
+                        UA_Double alarmHi = item["alarmHi"].get<double>();
+                        UA_Double alarmLo = item["alarmLo"].get<double>();
+                        UA_Double alarmLoLo = item["alarmLoLo"].get<double>();
+
+                        // Add each alarm limit as a property
+                        auto addAlarmProperty = [&](const char* name, UA_Double value, UA_NodeId parentId, int offset) {
+                            UA_VariableAttributes alarmAttr = UA_VariableAttributes_default;
+                            UA_Variant alarmVariant;
+                            UA_Variant_init(&alarmVariant);
+                            UA_Variant_setScalar(&alarmVariant, &value, &UA_TYPES[UA_TYPES_DOUBLE]);
+                            
+                            alarmAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", name);
+                            alarmAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
+                            alarmAttr.value = alarmVariant;
+                            
+                            UA_NodeId alarmNodeId = UA_NODEID_NUMERIC(2, item["tagId"].get<int>() * 1000 + offset);
+                            UA_QualifiedName alarmName = UA_QUALIFIEDNAME_ALLOC(0, name);
+                            UA_Server_addVariableNode(server, alarmNodeId, parentId,
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                alarmName, UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                                alarmAttr, NULL, NULL);
+
+
+                            // clean up
+                            // UA_Variant_clear(&alarmVariant);
+                        };
+
+                        addAlarmProperty("AlarmHiHi", alarmHiHi, nodeId, 2);
+                        addAlarmProperty("AlarmHi", alarmHi, nodeId, 3);
+                        addAlarmProperty("AlarmLo", alarmLo, nodeId, 4);
+                        addAlarmProperty("AlarmLoLo", alarmLoLo, nodeId, 5);
+
+
+
+                        // Create the engineering unit property
+                        UA_String unit = UA_STRING_ALLOC(item["measurmentUnitType"].get<string>().c_str());
+
+                        UA_Variant unitVariant;
+                        UA_Variant_init(&unitVariant);
+                        UA_Variant_setScalar(&unitVariant, &unit, &UA_TYPES[UA_TYPES_STRING]);
+
+                        UA_VariableAttributes unitAttr = UA_VariableAttributes_default;
+                        unitAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Engineering Unit");
+                        unitAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
+                        UA_Variant_copy(&unitVariant, &unitAttr.value);  
+
+                        UA_NodeId unitNodeId = UA_NODEID_NUMERIC(2, item["tagId"].get<int>() * 1000 + 6);  // Use a different offset
+                        UA_QualifiedName unitName = UA_QUALIFIEDNAME_ALLOC(0, "EngineeringUnit");
+                        UA_Server_addVariableNode(server, unitNodeId, nodeId,
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            unitName, UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                            unitAttr, NULL, NULL);
+
+
+                        // DeadBand
+                        if (item.contains("deadband")) {
+                        UA_Double deadBand = item["deadband"].get<double>();
+                        UA_Variant deadBandVariant;
+                        UA_Variant_init(&deadBandVariant);
+                        UA_Variant_setScalar(&deadBandVariant, &deadBand, &UA_TYPES[UA_TYPES_DOUBLE]);
+
+                        UA_VariableAttributes deadBandAttr = UA_VariableAttributes_default;
+                        deadBandAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "DeadBand");
+                        deadBandAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
+                        UA_Variant_copy(&deadBandVariant, &deadBandAttr.value); 
+
+                        UA_NodeId deadBandNodeId = UA_NODEID_NUMERIC(2, item["tagId"].get<int>() * 1000 + 7);  // Use a different offset
+                        UA_QualifiedName deadBandName = UA_QUALIFIEDNAME_ALLOC(0, "DeadBand");
+                        UA_Server_addVariableNode(server, deadBandNodeId, nodeId,
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            deadBandName, UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                            deadBandAttr, NULL, NULL);
+                        }
+
+                        // Precision Type
+                        if (item.contains("precisionType")) {
+                        UA_String precision = UA_STRING_ALLOC(item["precisionType"].get<string>().c_str());
+
+                        UA_Variant precisionVariant;
+                        UA_Variant_init(&precisionVariant);
+                        UA_Variant_setScalar(&precisionVariant, &precision, &UA_TYPES[UA_TYPES_STRING]);
+
+                        UA_VariableAttributes precisionAttr = UA_VariableAttributes_default;
+                        precisionAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Precision Type");
+                        precisionAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
+                        UA_Variant_copy(&precisionVariant, &precisionAttr.value);  
+
+                        UA_NodeId precisionNodeId = UA_NODEID_NUMERIC(2, item["tagId"].get<int>() * 1000 + 8);  // Use a different offset
+                        UA_QualifiedName precisionName = UA_QUALIFIEDNAME_ALLOC(0, "Precision");
+                        UA_Server_addVariableNode(server, precisionNodeId, nodeId,
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            precisionName, UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                            precisionAttr, NULL, NULL);
+                        }
+
+                        // Parameter Group
+                        if (item.contains("parameterGroup")) {
+                        UA_String parameterGroup = UA_STRING_ALLOC(item["parameterGroup"].get<string>().c_str());
+
+                        UA_Variant parameterGroupVariant;
+                        UA_Variant_init(&parameterGroupVariant);
+                        UA_Variant_setScalar(&parameterGroupVariant, &parameterGroup, &UA_TYPES[UA_TYPES_STRING]);
+
+                        UA_VariableAttributes parameterGroupAttr = UA_VariableAttributes_default;
+                        parameterGroupAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Parameter Group");    
+                        parameterGroupAttr.accessLevel = UA_ACCESSLEVELMASK_READ;       
+                        UA_Variant_copy(&parameterGroupVariant, &parameterGroupAttr.value);  
+
+                        UA_NodeId parameterGroupNodeId = UA_NODEID_NUMERIC(2, item["tagId"].get<int>() * 1000 + 9);  // Use a different offset
+                        UA_QualifiedName parameterGroupName = UA_QUALIFIEDNAME_ALLOC(0, "Parameter Group");
+                        UA_Server_addVariableNode(server, parameterGroupNodeId, nodeId, 
+                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                        parameterGroupName, UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                        parameterGroupAttr, NULL, NULL);
+                        }
+
+                        //tagType
+                        if (item.contains("tagType")) {
+                        UA_String tagType = UA_STRING_ALLOC(item["tagType"].get<string>().c_str());
+
+                        UA_Variant tagTypeVariant;
+                        UA_Variant_init(&tagTypeVariant);
+                        UA_Variant_setScalar(&tagTypeVariant, &tagType, &UA_TYPES[UA_TYPES_STRING]);
+
+                        UA_VariableAttributes tagTypeAttr = UA_VariableAttributes_default;
+                        tagTypeAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "Tag Type");
+                        tagTypeAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
+                        UA_Variant_copy(&tagTypeVariant, &tagTypeAttr.value);  
+
+                        UA_NodeId tagTypeId = UA_NODEID_NUMERIC(2, item["tagId"].get<int>() * 1000 + 10);  // Use a different offset
+                        UA_QualifiedName tagTypeName = UA_QUALIFIEDNAME_ALLOC(0, "TagType");
+                        UA_Server_addVariableNode(server, tagTypeId, nodeId,
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            tagTypeName, UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                            tagTypeAttr, NULL, NULL);
+                        }
+
+
+                        nodeMap[currentPath] = nodeId;
+
+                        UA_ValueCallback callback;
+                        callback.onWrite = writeCallback;
+                        callback.onRead = NULL;
+                        UA_Server_setVariableNode_valueCallback(server, nodeId, callback);
+                    }   
+                }
+
+                // Store topic info
                 topicMap[ns] = {
                     item["tagId"].get<int>(),
                     item["name"].get<string>(),
                     item["tagType"].get<string>(),
                     item["rangeMin"].get<double>(),
-                    item["rangeMax"].get<double>(),
-                    // item["source"].get<int>(),
-                    // item["infoId"].get<int>(),
-                    // item["quality"].get<int>(),
-                    // item["updateType"].get<int>()
+                    item["rangeMax"].get<double>()
                 };
+                
+
             }
         }
+
+                        //         // Clean up
+                        // UA_String_clear(&unit);
+                        // UA_Double_clear(&alarmHiHi);
+                        // UA_Double_clear(&alarmHi);
+                        // UA_Double_clear(&alarmLo);
+                        // UA_Double_clear(&alarmLoLo);
+                        // UA_Variant_clear(&unitVariant);
+                        // UA_Variant_clear(&rangeVariant);
+
     }
-}
-else{
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "BearerToken is empty");
+        // TODO:
+         // FIX IT WHEN CREATING THE ADDRESS SPACE AGAIN OTHERWISE IT WILL SUBSCRIBE TO THE TOPICS AGAIN
+        mqtt_subscribe_and_update(server, topics);
 }
 
 
-    /* allocations on the heap need to be freed */
-mqtt_subscribe_and_update(server, topics);
+
+
+
 std::thread mqtt_thread([&]() {
     ioc.run();
 });
