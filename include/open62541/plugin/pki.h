@@ -27,6 +27,8 @@ _UA_BEGIN_DECLS
  *
  * Usually, implementations of the certificate verification plugin provide an
  * initialization method that takes a trust-list and a revocation-list as input.
+ * This initialization method should call the ``clear`` method if valid, before
+ * attempting to initialize it with new values.
  * The lifecycle of the plugin is attached to a server or client config. The
  * ``clear`` method is called automatically when the config is destroyed. */
 
