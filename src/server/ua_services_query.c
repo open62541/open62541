@@ -22,4 +22,46 @@ void Service_QueryNext(UA_Server *server, UA_Session *session,
     response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
+UA_StatusCode
+UA_Server_query(UA_Server *server,
+                size_t nodeTypesSize,
+                UA_NodeTypeDescription *nodeTypes,
+                UA_ContentFilter filter,
+                size_t *outQueryDataSetsSize,
+                UA_QueryDataSet **outQueryDataSets) {
+    /* Validate the input */
+    if(!server || !nodeTypes || !outQueryDataSets || !outQueryDataSetsSize)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Prepare the request/response pair */
+    UA_QueryFirstRequest req;
+    UA_QueryFirstRequest_init(&req);
+    UA_QueryFirstResponse resp;
+    UA_QueryFirstResponse_init(&resp);
+    req.nodeTypesSize = nodeTypesSize;
+    req.nodeTypes = nodeTypes;
+    req.filter = filter;
+
+    /* Call the query service */
+    lockServer(server);
+    Service_QueryFirst(server, &server->adminSession, &req, &resp);
+    unlockServer(server);
+
+    /* The query failed */
+    UA_StatusCode res = resp.responseHeader.serviceResult;
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_QueryFirstResponse_clear(&resp);
+        return res;
+    }
+
+    /* Move the result to the ouput */
+    *outQueryDataSets = resp.queryDataSets;
+    *outQueryDataSetsSize = resp.queryDataSetsSize;
+    resp.queryDataSets = NULL;
+    resp.queryDataSetsSize = 0;
+    UA_QueryFirstResponse_clear(&resp);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 #endif /* UA_ENABLE_QUERY */

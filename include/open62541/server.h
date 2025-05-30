@@ -934,6 +934,20 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle);
 
+/**
+ * Query
+ * -----
+ * The Query service requests data from instances of TypeDefinitionNodes subject
+ * to restrictions specified by the filter. */
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_query(UA_Server *server,
+                size_t nodeTypesSize,
+                UA_NodeTypeDescription *nodeTypes,
+                UA_ContentFilter filter,
+                size_t *outQueryDataSetsSize,
+                UA_QueryDataSet **outQueryDataSets);
+
 #ifdef UA_ENABLE_DISCOVERY
 
 /**
