@@ -131,7 +131,14 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
                              const UA_UnregisterNodesRequest *request,
                              UA_UnregisterNodesResponse *response);
 
-/** Query Service Set (not implemented) **/
+/** Query Service Set **/
+void Service_QueryFirst(UA_Server *server, UA_Session *session,
+                        const UA_QueryFirstRequest *request,
+                        UA_QueryFirstResponse *response);
+
+void Service_QueryNext(UA_Server *server, UA_Session *session,
+                       const UA_QueryNextRequest *request,
+                       UA_QueryNextResponse *response);
 
 /** Attribute Service Set **/
 void Service_Read(UA_Server *server, UA_Session *session,

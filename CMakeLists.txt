@@ -312,7 +312,7 @@ if(UA_ENABLE_COVERAGE)
     find_package(codecov REQUIRED)
 endif()
 
-option(UA_ENABLE_QUERY "Enable query support in the client (most servers don't support it)" OFF)
+option(UA_ENABLE_QUERY "Enable query support (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_QUERY)
 
 option(UA_FORCE_32BIT "Force compilation as 32-bit executable" OFF)
@@ -863,6 +863,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_monitoreditem.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_query.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c

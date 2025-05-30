@@ -303,6 +303,10 @@ typedef union {
 #ifdef UA_ENABLE_METHODCALLS
     UA_CallRequest callRequest;
 #endif
+#ifdef UA_ENABLE_QUERY
+    UA_QueryFirstRequest queryFirstRequest;
+    UA_QueryNextRequest queryNextRequest;
+#endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_CreateMonitoredItemsRequest createMonitoredItemsRequest;
     UA_DeleteMonitoredItemsRequest deleteMonitoredItemsRequest;
@@ -349,6 +353,10 @@ typedef union {
 #endif
 #ifdef UA_ENABLE_METHODCALLS
     UA_CallResponse callResponse;
+#endif
+#ifdef UA_ENABLE_QUERY
+    UA_QueryFirstResponse queryFirstResponse;
+    UA_QueryNextResponse queryNextResponse;
 #endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_CreateMonitoredItemsResponse createMonitoredItemsResponse;
