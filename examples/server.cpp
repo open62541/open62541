@@ -45,6 +45,10 @@
 #include <thread>
 #include <future>
 
+#include <open62541/plugin/historydata/history_data_backend_memory.h>
+#include <open62541/plugin/historydata/history_data_gathering_default.h>
+#include <open62541/plugin/historydata/history_database_default.h>
+#include <open62541/plugin/historydata/history_data_backend.h>
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
@@ -63,6 +67,7 @@ namespace beast = boost::beast;
 using tcp = boost::asio::ip::tcp;  
 UA_Boolean running = true;
 
+static UA_HistoryDataGathering *g_gathering = NULL;
 
 // Define user credentials
 static UA_UsernamePasswordLogin usernamePasswordLogin[2] = {
@@ -259,17 +264,19 @@ static void writeCallback(
         dataPoint["TagType"] = topicMap[topic].tagType;
         dataPoint["DatapointId"] = topicMap[topic].tagId;
 
-        auto now = std::chrono::system_clock::now();
-        auto in_time_t = std::chrono::system_clock::to_time_t(now);
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    now.time_since_epoch()) %
-                1000;
+        // auto now = std::chrono::system_clock::now();
+        // auto in_time_t = std::chrono::system_clock::to_time_t(now);
+        // auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        //             now.time_since_epoch()) %
+        //         1000;
 
-        std::ostringstream oss;
-        oss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%dT%H:%M:%S")
-            << "." << std::setfill('0') << std::setw(3) << ms.count()
-            << "+05:30";  // Or dynamically detect timezone if needed
-        dataPoint["TimeStamp"] = oss.str();
+        // std::ostringstream oss;
+        // oss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%dT%H:%M:%S")
+        //     << "." << std::setfill('0') << std::setw(3) << ms.count()
+        //     << "+05:30";  // Or dynamically detect timezone if needed
+        // dataPoint["TimeStamp"] = oss.str();
+        dataPoint["TimeStamp"] = UA_DateTime_now();
+
 
         // dataPoint["TagId"] = topicMap[topic].tagId;
         // payload["TagId"].push_back(dataPoint);
@@ -641,6 +648,14 @@ int main(int argc, char* argv[]) {
 
 
 
+
+    // Add historizing configuration
+    g_gathering = (UA_HistoryDataGathering*)UA_malloc(sizeof(UA_HistoryDataGathering));
+    *g_gathering = UA_HistoryDataGathering_Default(1);
+    config->historyDatabase = UA_HistoryDatabase_default(*g_gathering);
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Historizing configuration initialized");
+
 // ----------------
     UA_AccessControl_defaultWithLoginCallback(config, true, NULL, 2, usernamePasswordLogin, myLoginCallback, NULL);
 
@@ -702,7 +717,8 @@ int main(int argc, char* argv[]) {
         UA_Variant_setScalarCopy(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
         attr.description = UA_LOCALIZEDTEXT_ALLOC("en-US","the answer");
         attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","the answer");
-        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD;
+        attr.historizing = true;
         UA_NodeId myIntegerNodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
         UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME_ALLOC(1, "the answer");
         UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
@@ -717,7 +733,9 @@ int main(int argc, char* argv[]) {
         UA_Variant_setScalarCopy(&attr2.value, &myDouble, &UA_TYPES[UA_TYPES_DOUBLE]);
         attr2.description = UA_LOCALIZEDTEXT_ALLOC("en-US","counter");
         attr2.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US","counter");
-        attr2.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+        attr2.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD;
+        attr2.historizing = true;
+
         UA_NodeId myDoubleNodeId = UA_NODEID_STRING_ALLOC(1, "counter");
         UA_QualifiedName myDoubleName = UA_QUALIFIEDNAME_ALLOC(1, "counter");
         UA_Server_addVariableNode(server, myDoubleNodeId, parentNodeId,
@@ -836,8 +854,9 @@ if (!BearerToken.empty()) {
                         UA_Variant_setScalarCopy(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
                         attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", parts[i].c_str());
                         attr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", item["name"].get<string>().c_str());
-                        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
-                    
+                        attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD;
+                        attr.historizing = true;
+
 
 
                         // Set range if available
@@ -1032,6 +1051,42 @@ if (!BearerToken.empty()) {
                         callback.onWrite = writeCallback;
                         callback.onRead = NULL;
                         UA_Server_setVariableNode_valueCallback(server, nodeId, callback);
+
+                        // After creating each variable node, add this:
+                        UA_HistorizingNodeIdSettings setting;
+                        setting.historizingBackend = UA_HistoryDataBackend_Memory(200, 1000);
+                        setting.maxHistoryDataResponseSize = 1000;
+                        setting.historizingUpdateStrategy = UA_HISTORIZINGUPDATESTRATEGY_VALUESET;
+                        // setting.pollingInterval = 1000;  
+                        
+                        // Register the node for historizing using the global gathering context
+                        UA_StatusCode ret = g_gathering->registerNodeId(server, g_gathering->context, &nodeId, setting);
+                        // UA_StatusCode retv = g_gathering->startPoll(server, g_gathering->context, &nodeId);
+                        // UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "startPoll %s", UA_StatusCode_name(retv));
+                        // if(ret == UA_STATUSCODE_GOOD) {
+                        //     if(nodeId.identifierType == UA_NODEIDTYPE_STRING) {
+                        //         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                        //                     "Node registered for historizing: %.*s", 
+                        //                     (int)nodeId.identifier.string.length, 
+                        //                     nodeId.identifier.string.data);
+                        //     } else if(nodeId.identifierType == UA_NODEIDTYPE_NUMERIC) {
+                        //         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                        //                     "Node registered for historizing: %u", 
+                        //                     nodeId.identifier.numeric);
+                        //     }
+                        // } else {
+                        //     UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                        //                 "Failed to register node for historizing: %s", 
+                        //                 UA_StatusCode_name(ret));
+                        // }
+
+                        const UA_HistorizingNodeIdSettings* currentSettings = 
+                            g_gathering->getHistorizingSetting(server, g_gathering->context, &nodeId);
+                        if(currentSettings) {
+                            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                                        "Node historizing settings verified - Update Strategy: %d", 
+                                        currentSettings->historizingUpdateStrategy);
+                        }
                     }   
                 }
 

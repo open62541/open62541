@@ -1407,6 +1407,8 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     /* Created an editable version. The data is not touched. Only the variant
      * "container". */
     UA_DataValue adjustedValue = *value;
+    adjustedValue.hasSourceTimestamp = true;
+    adjustedValue.sourceTimestamp = UA_DateTime_now();
 
     /* Type checking. May change the type of adjustedValue */
     const char *reason;
