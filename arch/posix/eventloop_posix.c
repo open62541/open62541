@@ -991,8 +991,8 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     if(events == -1) {
         if(errno == EINTR) {
             /* We will retry, only log the error */
-            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                           "Timeout during poll");
+            UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                         "Timeout during poll");
             return UA_STATUSCODE_GOOD;
         }
         UA_LOG_SOCKET_ERRNO_WRAP(
