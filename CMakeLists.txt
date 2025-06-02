@@ -926,6 +926,8 @@ if(UA_ENABLE_XML_ENCODING)
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/yxml.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
+else()
+    message(WARNING "UA_ENABLE_XML_ENCODING is not enabled. Value attributes will not be extracted from XML.")
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
