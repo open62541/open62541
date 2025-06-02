@@ -29,14 +29,6 @@
 #include "../deps/parse_num.h"
 #include "../deps/base64.h"
 
-#ifndef UA_ENABLE_PARSING
-#error UA_ENABLE_PARSING required for JSON encoding
-#endif
-
-#ifndef UA_ENABLE_TYPEDESCRIPTION
-#error UA_ENABLE_TYPEDESCRIPTION required for JSON encoding
-#endif
-
 /* vs2008 does not have INFINITY and NAN defined */
 #ifndef INFINITY
 # define INFINITY ((UA_Double)(DBL_MAX+DBL_MAX))
