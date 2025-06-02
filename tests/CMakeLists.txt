@@ -251,6 +251,10 @@ if(UA_ENABLE_METHODCALLS)
     ua_add_test(server/check_services_call.c)
 endif()
 
+if(UA_ENABLE_QUERY)
+    ua_add_test(server/check_services_query.c)
+endif()
+
 if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_services_subscriptions.c)
     ua_add_test(server/check_monitoreditem_filter.c)
