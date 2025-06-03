@@ -1036,7 +1036,7 @@ discovery_createMultiConnections(UA_Server *server, UA_DiscoveryManager *dm,
                 inet_ntop(AF_INET, &((struct sockaddr_in *)addr)->sin_addr, sourceAddr,
                           sizeof(sourceAddr));
 
-#else
+#elif defined(UA_HAS_GETIFADDR)
     struct ifaddrs *ifaddr;
     getifaddrs(&ifaddr);
     struct ifaddrs *ifa = NULL;
@@ -1068,7 +1068,7 @@ discovery_createMultiConnections(UA_Server *server, UA_DiscoveryManager *dm,
         }
 #ifdef _WIN32
     }
-#else
+#elif defined(UA_HAS_GETIFADDR)
     freeifaddrs(ifaddr);
 #endif
 }
@@ -1140,9 +1140,7 @@ discovery_createMulticastSocket(UA_DiscoveryManager *dm) {
     /* Open the send connection */
     listen = false;
     if(UA_DiscoveryManager_getMdnsSendConnectionCount() == 0) {
-		const UA_String *addrs = (const UA_String *)UA_KeyValueMap_getScalar(
-            &kvm, UA_QUALIFIEDNAME(0, "interface"), &UA_TYPES[UA_TYPES_STRING]);
-        if(!addrs) {
+        if(dm->sc.server->config.mdnsSendToAllInterfaces) {
             discovery_createMultiConnections(dm->sc.server, dm, params, kvm);
         } else {
             res = dm->cm->openConnection(dm->cm, &kvm, dm->sc.server, dm,
