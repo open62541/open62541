@@ -437,13 +437,9 @@ function(ua_generate_nodeset)
             if(NOT TARGET ${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}-autoinjection)
                 add_dependencies(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX} open62541-generator-nodesetinjector)
                 add_custom_target(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}-autoinjection
-                                  COMMAND ${Python3_EXECUTABLE} ${open62541_TOOLS_DIR}/nodeset_injector/generate_nodesetinjector_content.py
-                                  ${CMAKE_BINARY_DIR}/src_generated/open62541/nodesetinjector
-                                  "namespace${FILE_SUFFIX}"
                                   DEPENDS
                                   ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c
-                                  ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h
-                                  )
+                                  ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
                 set_source_files_properties(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}-autoinjection PROPERTIES SYMBOLIC "true")
                 add_dependencies(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX} ${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}-autoinjection)
 
