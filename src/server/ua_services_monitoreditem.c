@@ -212,71 +212,70 @@ checkEventFilterParam(UA_Server *server, UA_Session *session,
 }
 #endif
 
+static UA_StatusCode
+checkAdjustDataChangeFilter(UA_Server *server, UA_Session *session,
+                            const UA_MonitoredItem *mon,
+                            const UA_DataType *valueType,
+                            UA_MonitoringParameters *params) {
+    /* No filter */
+    if(params->filter.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
+        return UA_STATUSCODE_GOOD;
+
+    /* If the filter ExtensionObject has a body, then it must be a
+     * DataChangeFilter */
+    if(!UA_ExtensionObject_hasDecodedType(&params->filter,
+                                          &UA_TYPES[UA_TYPES_DATACHANGEFILTER]))
+        return UA_STATUSCODE_BADFILTERNOTALLOWED;
+
+    UA_DataChangeFilter *filter = (UA_DataChangeFilter *)
+        params->filter.content.decoded.data;
+
+    switch(filter->deadbandType) {
+    case UA_DEADBANDTYPE_NONE:
+        break;
+    case UA_DEADBANDTYPE_ABSOLUTE:
+        if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
+           !valueType || !UA_DataType_isNumeric(valueType))
+            return UA_STATUSCODE_BADFILTERNOTALLOWED;
+        break;
+#ifdef UA_ENABLE_DA
+    case UA_DEADBANDTYPE_PERCENT:
+        if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
+           !valueType || !UA_DataType_isNumeric(valueType))
+            return UA_STATUSCODE_BADFILTERNOTALLOWED;
+        /* If percentage deadband is supported, look up the range values
+         * and precompute as if it was an absolute deadband. */
+        return setAbsoluteFromPercentageDeadband(server, session, mon, filter);
+#endif
+    default:
+        return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Verify and adjust the parameters of a MonitoredItem */
 static UA_StatusCode
 checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                                const UA_MonitoredItem *mon,
-                               const UA_DataType* valueType,
+                               const UA_DataType *valueType,
                                UA_MonitoringParameters *params,
                                UA_ExtensionObject *filterResult) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Check the filter */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
         /* Event MonitoredItems need a filter */
 #ifndef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         return UA_STATUSCODE_BADNOTSUPPORTED;
 #else
-        UA_StatusCode res = checkEventFilterParam(server, session, mon,
-                                                  params, filterResult);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
+        res = checkEventFilterParam(server, session, mon, params, filterResult);
 #endif
     } else {
-        /* DataChange MonitoredItem. Can be "no filter" which defaults to
-         * triggering on Status and Value. */
-        if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED &&
-           params->filter.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE &&
-           params->filter.encoding != UA_EXTENSIONOBJECT_ENCODED_NOBODY)
-            return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
-
-        /* If the filter ExtensionObject has a body, then it must be a
-         * DataChangeFilter */
-        if(params->filter.encoding != UA_EXTENSIONOBJECT_ENCODED_NOBODY &&
-           params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_DATACHANGEFILTER])
-            return UA_STATUSCODE_BADFILTERNOTALLOWED;
-
-        /* Check the deadband and adjust if necessary. */
-        if(params->filter.content.decoded.type == &UA_TYPES[UA_TYPES_DATACHANGEFILTER]) {
-            UA_DataChangeFilter *filter = (UA_DataChangeFilter *)
-                params->filter.content.decoded.data;
-            switch(filter->deadbandType) {
-            case UA_DEADBANDTYPE_NONE:
-                break;
-            case UA_DEADBANDTYPE_ABSOLUTE:
-                if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
-                   !valueType || !UA_DataType_isNumeric(valueType))
-                    return UA_STATUSCODE_BADFILTERNOTALLOWED;
-                break;
-#ifdef UA_ENABLE_DA
-            case UA_DEADBANDTYPE_PERCENT: {
-                if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_VALUE ||
-                   !valueType || !UA_DataType_isNumeric(valueType))
-                    return UA_STATUSCODE_BADFILTERNOTALLOWED;
-                /* If percentage deadband is supported, look up the range values
-                 * and precompute as if it was an absolute deadband. */
-                UA_StatusCode res =
-                    setAbsoluteFromPercentageDeadband(server, session, mon, filter);
-                if(res != UA_STATUSCODE_GOOD)
-                    return res;
-                break;
-            }
-#endif
-            default:
-                return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
-            }
-        }
+        res = checkAdjustDataChangeFilter(server, session, mon, valueType, params);
     }
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Read the minimum sampling interval for the variable. The sampling
      * interval of the MonitoredItem must not be less than that. */
@@ -296,7 +295,6 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
             UA_NODESTORE_RELEASE(server, node);
         }
     }
-        
 
     /* A negative number indicates that the sampling interval is the publishing
      * interval of the Subscription. Note that the sampling interval selected
@@ -413,6 +411,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
 
     /* Adding an Event MonitoredItem */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    UA_EventFilter *ef = NULL;
     if(request->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
         /* If the 'SubscribeToEvents' bit of EventNotifier attribute is
          * zero, then the object cannot be subscribed to monitor events */
@@ -431,13 +430,33 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
             UA_DataValue_clear(&v);
             return;
         }
+
+        /* Event MonitoredItems need an EventFilter */
+        const UA_ExtensionObject *filter = &request->requestedParameters.filter;
+        if(!UA_ExtensionObject_hasDecodedType(filter, &UA_TYPES[UA_TYPES_EVENTFILTER])) {
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                         "Filter is not of EventFilter data type");
+            UA_DataValue_clear(&v);
+            result->statusCode = UA_STATUSCODE_BADINVALIDARGUMENT;
+            return;
+        }
+
+        ef = (UA_EventFilter*)filter->content.decoded.data;
+        if(ef->selectClausesSize == 0) {
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                         "EventFilter needs to select at least one field");
+            UA_DataValue_clear(&v);
+            result->statusCode = UA_STATUSCODE_BADINVALIDARGUMENT;
+            return;
+        }
     }
 #endif
 
     const UA_DataType *valueType = v.value.type;
     UA_DataValue_clear(&v);
 
-    /* Allocate the MonitoredItem */
+    /* Allocate the MonitoredItem or take the localMon from context.
+     * Clean up newMon upon error from here on. */
     UA_MonitoredItem *newMon = NULL;
     if(cmc->localMon) {
         newMon = &cmc->localMon->monitoredItem;
@@ -473,6 +492,32 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     /* Initialize the value status so the first sample always passes the filter */
     newMon->lastValue.hasStatus = true;
     newMon->lastValue.status = ~(UA_StatusCode)0;
+
+    /* Create the string names for the event fields */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    if(request->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        UA_assert(ef != NULL);
+        newMon->eventFields.map = (UA_KeyValuePair*)
+            UA_calloc(ef->selectClausesSize, sizeof(UA_KeyValuePair));
+        if(!newMon->eventFields.map) {
+            UA_MonitoredItem_delete(server, newMon);
+            result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
+        newMon->eventFields.mapSize = ef->selectClausesSize;
+
+        for(size_t i = 0; i < ef->selectClausesSize; i++) {
+            result->statusCode |=
+                UA_SimpleAttributeOperand_print(&ef->selectClauses[i],
+                                                &newMon->eventFields.map[i].key.name);
+        }
+        if(result->statusCode != UA_STATUSCODE_GOOD) {
+            UA_MonitoredItem_delete(server, newMon);
+            return;
+        }
+    }
+#endif
+
 
     /* Register the Monitoreditem in the server and subscription */
     UA_Server_registerMonitoredItem(server, newMon);
@@ -607,24 +652,6 @@ UA_Server_createEventMonitoredItemEx(UA_Server *server,
         return result;
     }
 
-    const UA_ExtensionObject *filter = &item.requestedParameters.filter;
-    if((filter->encoding != UA_EXTENSIONOBJECT_DECODED &&
-        filter->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
-       filter->content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER]) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Filter is not of EventFilter data type");
-        result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
-        return result;
-    }
-
-    UA_EventFilter *ef = (UA_EventFilter*)filter->content.decoded.data;
-    if(ef->selectClausesSize == 0) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Event filter must define at least one select clause");
-        result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
-        return result;
-    }
-
     /* Pre-allocate the local MonitoredItem structure */
     UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*)
         UA_calloc(1, sizeof(UA_LocalMonitoredItem));
@@ -634,29 +661,6 @@ UA_Server_createEventMonitoredItemEx(UA_Server *server,
     }
     localMon->context = monitoredItemContext;
     localMon->callback.eventCallback = callback;
-
-    /* Create the string names for the event fields */
-    localMon->eventFields.map = (UA_KeyValuePair*)
-        UA_calloc(ef->selectClausesSize, sizeof(UA_KeyValuePair));
-    if(!localMon->eventFields.map) {
-        UA_free(localMon);
-        result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-        return result;
-    }
-    localMon->eventFields.mapSize = ef->selectClausesSize;
-
-#ifdef UA_ENABLE_PARSING
-    for(size_t i = 0; i < ef->selectClausesSize; i++) {
-        result.statusCode |=
-            UA_SimpleAttributeOperand_print(&ef->selectClauses[i],
-                                            &localMon->eventFields.map[i].key.name);
-    }
-    if(result.statusCode != UA_STATUSCODE_GOOD) {
-        UA_KeyValueMap_clear(&localMon->eventFields);
-        UA_free(localMon);
-        return result;
-    }
-#endif
 
     /* Call the service */
     struct createMonContext cmc;
@@ -669,10 +673,8 @@ UA_Server_createEventMonitoredItemEx(UA_Server *server,
     unlockServer(server);
 
     /* If the service failed, clean up the local MonitoredItem structure */
-    if(result.statusCode != UA_STATUSCODE_GOOD && cmc.localMon) {
-        UA_KeyValueMap_clear(&localMon->eventFields);
+    if(result.statusCode != UA_STATUSCODE_GOOD && cmc.localMon)
         UA_free(localMon);
-    }
     return result;
 }
 

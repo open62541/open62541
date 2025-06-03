@@ -664,16 +664,17 @@ UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
         switch(mon->itemToMonitor.attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         case UA_ATTRIBUTEID_EVENTNOTIFIER:
-            /* Set the fields in the key-value map */
-            UA_assert(n->data.event.eventFieldsSize == localMon->eventFields.mapSize);
-            for(size_t i = 0; i < localMon->eventFields.mapSize; i++) {
-                localMon->eventFields.map[i].value = n->data.event.eventFields[i];
+            /* Set the fields in the key-value map. This is a shallow copy and
+             * the values must not be accessed after the callback. */
+            UA_assert(n->data.event.eventFieldsSize == mon->eventFields.mapSize);
+            for(size_t i = 0; i < mon->eventFields.mapSize; i++) {
+                mon->eventFields.map[i].value = n->data.event.eventFields[i];
             }
 
             /* Call the callback */
             localMon->callback.
-                eventCallback(server, mon->monitoredItemId, localMon->context,
-                              localMon->eventFields);
+                eventCallback(server, mon->monitoredItemId,
+                              localMon->context, mon->eventFields);
             break;
 #endif
         default:
@@ -983,7 +984,7 @@ UA_Session_ensurePublishQueueSpace(UA_Server* server, UA_Session* session) {
         UA_LOG_DEBUG_SESSION(server->config.logging, session,
                              "Sending out a publish response triggered by too many publish requests");
 
-        /* Send the response. This response has no related subscription id */
+        /* Send the response. This response as no related subscription id */
         UA_PublishResponse *response = &pre->response;
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS;
         sendResponse(server, session->channel, pre->requestId,
@@ -1057,6 +1058,19 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
 
 static const UA_NodeId eventQueueOverflowEventType =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE}};
+static const UA_NodeId serverNodeId =
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_SERVER}};
+
+static UA_Variant *
+getEventFieldByName(UA_MonitoredItem *mon, UA_EventFieldList *efl,
+                    UA_String name) {
+    UA_assert(mon->eventFields.mapSize == efl->eventFieldsSize);
+    for(size_t i = 0; i < mon->eventFields.mapSize; i++) {
+        if(UA_String_equal(&name, &mon->eventFields.map[i].key.name))
+            return &efl->eventFields[i];
+    }
+    return NULL;
+}
 
 /* The specification states in Part 4 5.12.1.5 that an EventQueueOverflowEvent
  * "is generated when the first Event has to be discarded [...] without
@@ -1081,33 +1095,104 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
             return UA_STATUSCODE_GOOD;
     }
 
-    /* A Notification is inserted into the queue which includes only the
-     * NodeId of the OverflowEventType. */
+    /* Mon defines at least one field. This is checked during the MonitoredItem
+     * creation. */
+    UA_assert(mon->eventFields.mapSize > 0);
 
-    /* Prepare the EventFields first. So we are sure to succeed when the
-     * Notification was allocated. */
+    /* Allocate the EventFields */
     UA_EventFieldList efl;
     efl.clientHandle = mon->parameters.clientHandle;
-    efl.eventFields = UA_Variant_new();
+    efl.eventFields = (UA_Variant*)
+        UA_calloc(mon->eventFields.mapSize, sizeof(UA_Variant));
     if(!efl.eventFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_StatusCode ret =
-        UA_Variant_setScalarCopy(efl.eventFields, &eventQueueOverflowEventType,
-                                 &UA_TYPES[UA_TYPES_NODEID]);
-    if(ret != UA_STATUSCODE_GOOD) {
-        UA_Variant_delete(efl.eventFields);
-        return ret;
+    efl.eventFieldsSize = mon->eventFields.mapSize;
+
+    /* We set the mandatory fields only */
+
+    /* EventId */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_Variant *field = getEventFieldByName(mon, &efl, UA_STRING("/EventId"));
+    if(field) {
+        UA_ByteString bs;
+        res |= generateEventId(&bs);
+        res |= UA_Variant_setScalarCopy(field, &bs, &UA_TYPES[UA_TYPES_BYTESTRING]);
     }
-    efl.eventFieldsSize = 1;
+
+    /* EventType */
+    field = getEventFieldByName(mon, &efl, UA_STRING("/EventType"));
+    if(field)
+        res |= UA_Variant_setScalarCopy(field, &eventQueueOverflowEventType,
+                                        &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* SourceNode (the SourceNode Property shall be assigned to the NodeId of
+     * the Server Object) */
+    field = getEventFieldByName(mon, &efl, UA_STRING("/SourceNode"));
+    if(field)
+        res |= UA_Variant_setScalarCopy(field, &serverNodeId,
+                                        &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* SourceName (the SourceName for Events of this type shall be
+     * "Internal/EventQueueOverflow") */
+    field = getEventFieldByName(mon, &efl, UA_STRING("/SourceName"));
+    if(field) {
+        UA_String sourceName = UA_STRING("Internal/EventQueueOverflow");
+        res |= UA_Variant_setScalarCopy(field, &sourceName,
+                                        &UA_TYPES[UA_TYPES_STRING]);
+    }
+
+    /* Time */
+    UA_DateTime eventTime = 0;
+    field = getEventFieldByName(mon, &efl, UA_STRING("/Time"));
+    if(field) {
+        UA_EventLoop *el = server->config.eventLoop;
+        eventTime = el->dateTime_now(el);
+        res |= UA_Variant_setScalarCopy(field, &eventTime,
+                                        &UA_TYPES[UA_TYPES_DATETIME]);
+    }
+
+    /* ReceiveTime */
+    field = getEventFieldByName(mon, &efl, UA_STRING("/ReceiveTime"));
+    if(field) {
+        if(eventTime == 0) {
+            UA_EventLoop *el = server->config.eventLoop;
+            eventTime = el->dateTime_now(el);
+        }
+        res |= UA_Variant_setScalarCopy(field, &eventTime,
+                                        &UA_TYPES[UA_TYPES_DATETIME]);
+    }
+
+    /* Message (if the event does not have a description, it shall return the
+     * string part of the BrowseName of the Node associated with the Event) */
+    field = getEventFieldByName(mon, &efl, UA_STRING("/Message"));
+    if(field) {
+        UA_String message = UA_STRING_NULL;
+        res |= UA_Variant_setScalarCopy(field, &message,
+                                        &UA_TYPES[UA_TYPES_STRING]);
+    }
+
+    /* Severity (values are from 1-1000, we use 500 for "medium severity") */
+    field = getEventFieldByName(mon, &efl, UA_STRING("/Severity"));
+    if(field) {
+        UA_UInt16 severity = 500;
+        res |= UA_Variant_setScalarCopy(field, &severity,
+                                        &UA_TYPES[UA_TYPES_UINT16]);
+    }
+
+    /* Check for errors during the preparation of the event fields */
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_EventFieldList_clear(&efl);
+        return res;
+    }
 
     /* Allocate the notification */
     UA_Notification *overflowNotification = UA_Notification_new();
     if(!overflowNotification) {
-        UA_Variant_delete(efl.eventFields);
+        UA_EventFieldList_clear(&efl);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    /* Set the notification fields */
+    /* Set the notification members */
     overflowNotification->isOverflowEvent = true;
     overflowNotification->mon = mon;
     overflowNotification->data.event = efl;
@@ -1379,7 +1464,22 @@ UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
 
 static void
 delayedFreeMonitoredItem(void *app, void *context) {
-    UA_free(context);
+    UA_MonitoredItem *mon = (UA_MonitoredItem*)context;
+
+    /* Remove the settings */
+    UA_ReadValueId_clear(&mon->itemToMonitor);
+    UA_MonitoringParameters_clear(&mon->parameters);
+
+    /* Remove the last samples */
+    UA_DataValue_clear(&mon->lastValue);
+
+    /* If this is a local MonitoredItem, clean up additional values */
+    for(size_t i = 0; i < mon->eventFields.mapSize; i++) {
+        UA_Variant_init(&mon->eventFields.map[i].value);
+    }
+    UA_KeyValueMap_clear(&mon->eventFields);
+
+    UA_free(mon);
 }
 
 void
@@ -1404,21 +1504,6 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     UA_Notification *notification, *notification_tmp;
     TAILQ_FOREACH_SAFE(notification, &mon->queue, monEntry, notification_tmp) {
         UA_Notification_delete(notification);
-    }
-
-    /* Remove the settings */
-    UA_ReadValueId_clear(&mon->itemToMonitor);
-    UA_MonitoringParameters_clear(&mon->parameters);
-
-    /* Remove the last samples */
-    UA_DataValue_clear(&mon->lastValue);
-
-    /* If this is a local MonitoredItem, clean up additional values */
-    if(mon->subscription == server->adminSubscription) {
-        UA_LocalMonitoredItem *lm = (UA_LocalMonitoredItem*)mon;
-        for(size_t i = 0; i < lm->eventFields.mapSize; i++)
-            UA_Variant_init(&lm->eventFields.map[i].value);
-        UA_KeyValueMap_clear(&lm->eventFields);
     }
 
     /* Add a delayed callback to remove the MonitoredItem when the current jobs
