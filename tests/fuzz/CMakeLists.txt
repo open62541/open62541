@@ -33,15 +33,15 @@ if(NOT UA_BUILD_OSS_FUZZ)
     endif()
 
     # oss-fuzz builds already include these flags
-    if (CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 5.0)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O1 -fsanitize=address")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1 -fsanitize=address")
-    elseif (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 10.0)
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link")
-    else()
+    elseif(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=fuzzer-no-link")
     endif()
 
     if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
@@ -91,6 +91,10 @@ add_fuzzer(fuzz_base64_decode fuzz_base64_decode.cc)
 if(UA_ENABLE_JSON_ENCODING)
     add_fuzzer(fuzz_json_decode fuzz_json_decode.cc)
     add_fuzzer(fuzz_json_decode_encode fuzz_json_decode_encode.cc)
+endif()
+
+if(UA_ENABLE_XML_ENCODING)
+    add_fuzzer(fuzz_xml_decode_encode fuzz_xml_decode_encode.cc)
 endif()
 
 # Run fuzzer on existing corpus to avoid regression

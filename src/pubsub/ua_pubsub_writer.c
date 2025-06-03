@@ -82,7 +82,14 @@ UA_DataSetWriter_unfreezeConfiguration(UA_DataSetWriter *dsw) {
 UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                                 UA_PubSubState targetState) {
+    /* Callback to modify the WriterGroup config and change the targetState
+     * before the state machine executes */
     UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.beforeStateChangeCallback) {
+        server->config.pubSubConfig.
+            beforeStateChangeCallback(server, dsw->head.identifier, &targetState);
+    }
+
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = dsw->head.state;
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
@@ -228,16 +235,18 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         dsw->connectedDataSet = NULL;
     }
 
-    /* Add the new writer to the group. Add to the end of the linked list to
-     * ensure the order in the generated NetworkMessage is as expected. */
-    UA_DataSetWriter *after = LIST_FIRST(&wg->writers);
-    if(!after) {
-        LIST_INSERT_HEAD(&wg->writers, dsw, listEntry);
-    } else {
-        while(LIST_NEXT(after, listEntry))
-            after = LIST_NEXT(after, listEntry);
-        LIST_INSERT_AFTER(after, dsw, listEntry);
+    /* Add the new writer to the group in order of the DataSetWriterId. */
+    UA_DataSetWriter *elm, *prev = NULL;
+    LIST_FOREACH(elm, &wg->writers, listEntry) {
+        /* TODO: Issue an error if the DataSetWriterId is not unique */
+        if(dsw->config.dataSetWriterId < elm->config.dataSetWriterId)
+            break;
+        prev = elm;
     }
+    if(prev)
+        LIST_INSERT_AFTER(prev, dsw, listEntry);
+    else
+        LIST_INSERT_HEAD(&wg->writers, dsw, listEntry);
     wg->writersCount++;
 
     /* Add to the information model */
@@ -253,6 +262,19 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
                 dsw->linkedWriterGroup->head.logIdString,
                 dsw->head.identifier);
     dsw->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+
+    /* Notify the application that a new Writer was created.
+     * This may internally adjust the config */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, dsw->head.identifier,
+                                       UA_PUBSUBCOMPONENT_DATASETWRITER, false);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_DataSetWriter_remove(psm, dsw);
+            return res;
+        }
+    }
 
     UA_LOG_INFO_PUBSUB(psm->logging, dsw,
                        "DataSetWriter created (State: %s)",
@@ -273,9 +295,19 @@ UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
     /* Check if the WriterGroup is enabled. Disallow removal in that case. */
     if(UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                              "Removal of DataSetWriter not possible while "
-                              "the WriterGroup with realtime options is enabled");
+                              "Removal of the DataSetWriter not possible while "
+                              "the WriterGroup is enabled");
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Check with the application if we can remove */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, dsw->head.identifier,
+                                       UA_PUBSUBCOMPONENT_DATASETWRITER, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
     /* Disable and signal to the application */
@@ -313,59 +345,6 @@ UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
 /*               PublishValues handling                  */
 /*********************************************************/
 
-/* Compare two variants. Internally used for value change detection. */
-static UA_Boolean
-valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue) {
-    if(!oldValue || !newValue)
-        return false;
-
-    size_t oldValueEncodingSize = UA_calcSizeBinary(oldValue, &UA_TYPES[UA_TYPES_VARIANT], NULL);
-    size_t newValueEncodingSize = UA_calcSizeBinary(newValue, &UA_TYPES[UA_TYPES_VARIANT], NULL);
-    if(oldValueEncodingSize == 0 || newValueEncodingSize == 0)
-        return false;
-
-    if(oldValueEncodingSize != newValueEncodingSize)
-        return true;
-
-    UA_ByteString oldValueEncoding = UA_BYTESTRING_NULL;
-    UA_StatusCode res = UA_ByteString_allocBuffer(&oldValueEncoding, oldValueEncodingSize);
-    if(res != UA_STATUSCODE_GOOD)
-        return false;
-
-    UA_ByteString newValueEncoding = UA_BYTESTRING_NULL;
-    res = UA_ByteString_allocBuffer(&newValueEncoding, newValueEncodingSize);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_ByteString_clear(&oldValueEncoding);
-        return false;
-    }
-
-    UA_Byte *bufPosOldValue = oldValueEncoding.data;
-    const UA_Byte *bufEndOldValue = &oldValueEncoding.data[oldValueEncoding.length];
-    UA_Byte *bufPosNewValue = newValueEncoding.data;
-    const UA_Byte *bufEndNewValue = &newValueEncoding.data[newValueEncoding.length];
-
-    UA_Boolean compareResult = false; /* default */
-
-    res = UA_encodeBinaryInternal(oldValue, &UA_TYPES[UA_TYPES_VARIANT],
-                                  &bufPosOldValue, &bufEndOldValue, NULL, NULL, NULL);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    res = UA_encodeBinaryInternal(newValue, &UA_TYPES[UA_TYPES_VARIANT],
-                                  &bufPosNewValue, &bufEndNewValue, NULL, NULL, NULL);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    oldValueEncoding.length = (uintptr_t)bufPosOldValue - (uintptr_t)oldValueEncoding.data;
-    newValueEncoding.length = (uintptr_t)bufPosNewValue - (uintptr_t)newValueEncoding.data;
-    compareResult = !UA_ByteString_equal(&oldValueEncoding, &newValueEncoding);
-
- cleanup:
-    UA_ByteString_clear(&oldValueEncoding);
-    UA_ByteString_clear(&newValueEncoding);
-    return compareResult;
-}
-
 static UA_StatusCode
 UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
                                                UA_DataSetMessage *dataSetMessage,
@@ -377,34 +356,18 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
     /* Prepare DataSetMessageContent */
     dataSetMessage->header.dataSetMessageValid = true;
     dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
-    dataSetMessage->data.keyFrameData.fieldCount = pds->fieldSize;
-    dataSetMessage->data.keyFrameData.dataSetFields = (UA_DataValue *)
+    dataSetMessage->fieldCount = pds->fieldSize;
+    dataSetMessage->data.keyFrameFields = (UA_DataValue *)
             UA_Array_new(pds->fieldSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    dataSetMessage->data.keyFrameData.dataSetMetaDataType = &pds->dataSetMetaData;
-    if(!dataSetMessage->data.keyFrameData.dataSetFields)
+    if(!dataSetMessage->data.keyFrameFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-
-#ifdef UA_ENABLE_JSON_ENCODING
-    dataSetMessage->data.keyFrameData.fieldNames = (UA_String *)
-        UA_Array_new(pds->fieldSize, &UA_TYPES[UA_TYPES_STRING]);
-    if(!dataSetMessage->data.keyFrameData.fieldNames) {
-        UA_DataSetMessage_clear(dataSetMessage);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-#endif
 
     /* Loop over the fields */
     size_t counter = 0;
     UA_DataSetField *dsf;
     TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
-#ifdef UA_ENABLE_JSON_ENCODING
-        /* Set the field name alias */
-        UA_String_copy(&dsf->config.field.variable.fieldNameAlias,
-                       &dataSetMessage->data.keyFrameData.fieldNames[counter]);
-#endif
-
         /* Sample the value */
-        UA_DataValue *dfv = &dataSetMessage->data.keyFrameData.dataSetFields[counter];
+        UA_DataValue *dfv = &dataSetMessage->data.keyFrameFields[counter];
         UA_PubSubDataSetField_sampleValue(psm, dsf, dfv);
 
         /* Deactivate statuscode? */
@@ -462,9 +425,9 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
 
         /* Check if the value has changed */
         UA_DataSetWriterSample *ls = &dsw->lastSamples[counter];
-        if(valueChangedVariant(&ls->value.value, &value.value)) {
+        if(!UA_Variant_equal(&ls->value.value, &value.value)) {
             /* increase fieldCount for current delta message */
-            dsm->data.deltaFrameData.fieldCount++;
+            dsm->fieldCount++;
             ls->valueChanged = true;
 
             /* Update last stored sample */
@@ -484,8 +447,8 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
     if(!deltaFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    dsm->data.deltaFrameData.deltaFrameFields = deltaFields;
-    dsm->data.deltaFrameData.fieldCount = counter;
+    dsm->fieldCount = counter;
+    dsm->data.deltaFrameFields = deltaFields;
 
     size_t currentDeltaField = 0;
     for(size_t i = 0; i < pds->fieldSize; i++) {
@@ -494,8 +457,8 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
 
         UA_DataSetMessage_DeltaFrameField *dff = &deltaFields[currentDeltaField];
 
-        dff->fieldIndex = (UA_UInt16) i;
-        UA_DataValue_copy(&dsw->lastSamples[i].value, &dff->fieldValue);
+        dff->index = (UA_UInt16)i;
+        UA_DataValue_copy(&dsw->lastSamples[i].value, &dff->value);
 
         /* Reset the changed flag */
         dsw->lastSamples[i].valueChanged = false;
@@ -503,21 +466,21 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
         /* Deactivate statuscode? */
         if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
-            dff->fieldValue.hasStatus = false;
+            dff->value.hasStatus = false;
 
         /* Deactivate timestamps? */
         if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0)
-            dff->fieldValue.hasSourceTimestamp = false;
+            dff->value.hasSourceTimestamp = false;
         if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0)
-            dff->fieldValue.hasServerPicoseconds = false;
+            dff->value.hasServerPicoseconds = false;
         if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0)
-            dff->fieldValue.hasServerTimestamp = false;
+            dff->value.hasServerTimestamp = false;
         if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
-            dff->fieldValue.hasServerPicoseconds = false;
+            dff->value.hasServerPicoseconds = false;
 
         currentDeltaField++;
     }
@@ -582,9 +545,6 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
             dsm->dataSetOffset = 0;
             // dsm->configuredSize = 0;
         }
-
-        /* setting configured size in the dataSetMessage to add padding later on */
-        dataSetMessage->configuredSize = dsm->configuredSize;
 
         /* Std: 'The DataSetMessageContentMask defines the flags for the content
          * of the DataSetMessage header.' */
@@ -679,7 +639,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
         /* Prepare DataSetMessageContent for the heartbeat message */
         dataSetMessage->header.dataSetMessageValid = true;
         dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
-        dataSetMessage->data.keyFrameData.fieldCount = 0;
+        dataSetMessage->fieldCount = 0;
         return UA_STATUSCODE_GOOD;
     }
 
@@ -821,6 +781,53 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
     UA_StatusCode res = (dsw) ?
         UA_DataSetWriter_remove(psm, dsw) : UA_STATUSCODE_BADNOTFOUND;
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_updateDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
+                                    const UA_DataSetWriterConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
+    if(!dsw) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(UA_PubSubState_isEnabled(dsw->head.state)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, dsw,
+                            "The DataSetWriter must be disabled to update the config");
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Make checks for a heartbeat */
+    if(!dsw->connectedDataSet && config->keyFrameCount != 1) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, dsw,
+                            "Adding DataSetWriter failed: DataSet can be null only for "
+                            "a heartbeat in which case KeyFrameCount shall be 1");
+        unlockServer(server);
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    /* Copy the config into the dsw */
+    UA_DataSetWriterConfig newConfig;
+    UA_StatusCode res = UA_DataSetWriterConfig_copy(config, &newConfig);
+    if(res == UA_STATUSCODE_GOOD) {
+        UA_DataSetWriterConfig_clear(&dsw->config);
+        dsw->config = newConfig;
+    }
+
+    /* Call the state-machine. This can move the connection state from _ERROR to
+     * _DISABLED. */
+    UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
+
     unlockServer(server);
     return res;
 }

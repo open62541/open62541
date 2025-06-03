@@ -17,11 +17,14 @@
 #include <check.h>
 #include <stdlib.h>
 
-//#define TEST_MQTT_SERVER "opc.mqtt://test.mosquitto.org:1883"
-#define TEST_MQTT_SERVER "opc.mqtt://localhost:1883"
-
 UA_Server *server = NULL;
 UA_ServerConfig *config = NULL;
+
+static char* get_mqtt_broker_address(void) {
+    char* broker = getenv("OPEN62541_TEST_MQTT_BROKER");
+    if (!broker) broker = "opc.mqtt://localhost:1883";
+    return broker;
+}
 
 static void setup(void) {
     server = UA_Server_newForUnitTest();
@@ -40,7 +43,7 @@ START_TEST(AddConnectionsWithMinimalValidConfiguration){
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("Mqtt Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl =
-        {UA_STRING_NULL, UA_STRING(TEST_MQTT_SERVER)};
+        {UA_STRING_NULL, UA_STRING(get_mqtt_broker_address())};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
@@ -62,7 +65,7 @@ START_TEST(AddRemoveAddConnectionWithMinimalValidConfiguration){
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("Mqtt Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl =
-        {UA_STRING_NULL, UA_STRING(TEST_MQTT_SERVER)};
+        {UA_STRING_NULL, UA_STRING(get_mqtt_broker_address())};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
@@ -91,7 +94,7 @@ START_TEST(AddConnectionWithInvalidAddress) {
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("MQTT Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl =
-        {UA_STRING_NULL, UA_STRING("opc.mqtt://127.0..1:1883/")};
+        {UA_STRING_NULL, UA_STRING(get_mqtt_broker_address())};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
@@ -112,7 +115,7 @@ START_TEST(AddConnectionWithUnknownTransportURL){
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("MQTT Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl =
-        {UA_STRING_NULL, UA_STRING(TEST_MQTT_SERVER)};
+        {UA_STRING_NULL, UA_STRING(get_mqtt_broker_address())};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
@@ -134,7 +137,7 @@ START_TEST(AddConnectionWithNullConfig){
 START_TEST(AddSingleConnectionWithMaximalConfiguration){
     UA_PubSubManager *psm = getPSM(server);
     UA_NetworkAddressUrlDataType networkAddressUrlData =
-        {UA_STRING("127.0.0.1"), UA_STRING(TEST_MQTT_SERVER)};
+        {UA_STRING("127.0.0.1"), UA_STRING(get_mqtt_broker_address())};
     UA_Variant address;
     UA_Variant_setScalar(&address, &networkAddressUrlData, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     UA_KeyValuePair connectionOptions[3];
@@ -167,7 +170,7 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
 
 START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     UA_NetworkAddressUrlDataType networkAddressUrlData =
-        {UA_STRING("127.0.0.1"), UA_STRING(TEST_MQTT_SERVER)};
+        {UA_STRING("127.0.0.1"), UA_STRING(get_mqtt_broker_address())};
     UA_Variant address;
     UA_Variant_setScalar(&address, &networkAddressUrlData, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     UA_KeyValuePair connectionOptions[3];

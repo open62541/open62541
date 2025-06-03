@@ -21,6 +21,12 @@ typedef struct {
 #define Opt_binary_encoding_id          3
 #define Uni_binary_encoding_id          4
 
+/* The xml encoding id's for the datatypes */
+#define Point_xml_encoding_id        1 + 10
+#define Measurement_xml_encoding_id  2 + 10
+#define Opt_xml_encoding_id          3 + 10
+#define Uni_xml_encoding_id          4 + 10
+
 static UA_DataTypeMember Point_members[3];
 static UA_DataType PointType;
 
@@ -96,6 +102,7 @@ static void setupCustomTypes(void) {
         { 1, UA_NODEIDTYPE_NUMERIC, { Point_binary_encoding_id } }, /* .binaryEncodingId, the numeric
                                                                         identifier used on the wire (the
                                                                         namespaceindex is from .typeId) */
+        { 1, UA_NODEIDTYPE_NUMERIC, { Point_xml_encoding_id } }, /* .xmlEncodingId */
         sizeof(Point),                      /* .memSize */
         UA_DATATYPEKIND_STRUCTURE,          /* .typeKind */
         true,                               /* .pointerFree */
@@ -127,6 +134,7 @@ static void setupCustomTypes(void) {
         { 1, UA_NODEIDTYPE_NUMERIC, { Measurement_binary_encoding_id } }, /* .binaryEncodingId, the numeric
                                                                               identifier used on the wire (the
                                                                               namespaceindex is from .typeId) */
+        { 1, UA_NODEIDTYPE_NUMERIC, { Measurement_xml_encoding_id } }, /* .xmlEncodingId */
         sizeof(Measurements),                   /* .memSize */
         UA_DATATYPEKIND_STRUCTURE,              /* .typeKind */
         false,                                  /* .pointerFree */
@@ -169,6 +177,7 @@ static void setupCustomTypes(void) {
         { 1, UA_NODEIDTYPE_NUMERIC, { Opt_binary_encoding_id } }, /* .binaryEncodingId, the numeric
                                                                       identifier used on the wire (the
                                                                       namespaceindex is from .typeId) */
+        { 1, UA_NODEIDTYPE_NUMERIC, { Opt_xml_encoding_id } }, /* .xmlEncodingId */
         sizeof(Opt),                        /* .memSize */
         UA_DATATYPEKIND_OPTSTRUCT,          /* .typeKind */
         false,                              /* .pointerFree */
@@ -200,6 +209,7 @@ static void setupCustomTypes(void) {
         { 1, UA_NODEIDTYPE_NUMERIC, { Uni_binary_encoding_id } }, /* .binaryEncodingId, the numeric
                                                                       identifier used on the wire (the
                                                                       namespaceindex is from .typeId) */
+        { 1, UA_NODEIDTYPE_NUMERIC, { Uni_xml_encoding_id } }, /* .xmlEncodingId */
         sizeof(Uni),                            /* .memSize */
         UA_DATATYPEKIND_UNION,                  /* .typeKind */
         false,                                  /* .pointerFree */

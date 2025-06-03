@@ -40,6 +40,7 @@ static UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, con
 UA_UInt32 valueStore[PUBSUB_CONFIG_FIELD_COUNT];
 UA_DataValue dvStore[PUBSUB_CONFIG_FIELD_COUNT];
 UA_DataValue *dvPointers[PUBSUB_CONFIG_FIELD_COUNT];
+UA_NodeId publishVariables[PUBSUB_CONFIG_FIELD_COUNT];
 
 static void
 valueUpdateCallback(UA_Server *server, void *data) {
@@ -109,6 +110,29 @@ writerGroupStateMachine(UA_Server *server, const UA_NodeId componentId,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Intercept the creation of a new WriterGroup and update the config. We set the
+ * custom state machine to control our own timer interrupts for the
+ * WriterGroup. */
+static UA_StatusCode
+testComponentLifecycleCallback(UA_Server *server, const UA_NodeId id,
+                               const UA_PubSubComponentType componentType,
+                               UA_Boolean remove) {
+    if(remove)
+        return UA_STATUSCODE_GOOD;
+    if(componentType != UA_PUBSUBCOMPONENT_WRITERGROUP)
+        return UA_STATUSCODE_GOOD;
+
+    printf("XXX Set the custom state machine for the new WriterGroup\n");
+
+    UA_WriterGroupConfig c;
+    UA_Server_getWriterGroupConfig(server, id, &c);
+    c.customStateMachine = writerGroupStateMachine;
+    UA_Server_updateWriterGroupConfig(server, id, &c);
+    UA_WriterGroupConfig_clear(&c);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 int main(void) {
     /* Prepare the values */
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
@@ -127,6 +151,10 @@ int main(void) {
 
     /* Initialize the server */
     server = UA_Server_new();
+
+    /* Set the PubSub-Component lifecycle callback */
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->pubSubConfig.componentLifecycleCallback = testComponentLifecycleCallback;
 
     /* Add a PubSubConnection */
     UA_PubSubConnectionConfig connectionConfig;
@@ -152,8 +180,27 @@ int main(void) {
     /* Add DataSetFields with static value source to PDS */
     UA_DataSetFieldConfig dsfConfig;
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
-        /* TODO: Point to a variable in the information model */
+        /* Create the variable */
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed UInt32");
+        vAttr.dataType    = UA_TYPES[UA_TYPES_UINT32].typeId;
+        UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
+                                  UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
+                                  vAttr, NULL, &publishVariables[i]);
+
+        /* Set the value backend of the above create node to 'external value source' */
+        UA_ValueBackend valueBackend;
+        memset(&valueBackend, 0, sizeof(UA_ValueBackend));
+        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+        valueBackend.backend.external.value = &dvPointers[i];
+        UA_Server_setVariableNode_valueBackend(server, publishVariables[i], valueBackend);
+
+        /* Add the DataSetField */
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
+        dsfConfig.field.variable.publishParameters.publishedVariable = publishVariables[i];
+        dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 
@@ -164,7 +211,6 @@ int main(void) {
     writerGroupConfig.publishingInterval = PUBSUB_CONFIG_PUBLISH_CYCLE_MS;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    writerGroupConfig.customStateMachine = writerGroupStateMachine;
 
     /* Change message settings of writerGroup to send PublisherId, WriterGroupId
      * in GroupHeader and DataSetWriterId in PayloadHeader of NetworkMessage */
@@ -187,7 +233,8 @@ int main(void) {
     memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 62541;
-    dataSetWriterConfig.keyFrameCount = 10;
+    /* Currently, delta-frames are not supported together with raw data
+     * dataSetWriterConfig.keyFrameCount = 10; */
     dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
 
     UA_UadpDataSetWriterMessageDataType uadpDataSetWriterMessageDataType;

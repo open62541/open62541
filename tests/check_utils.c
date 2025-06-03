@@ -761,6 +761,25 @@ START_TEST(qualifiedNameNsIndex) {
     UA_String_clear(&str);
 } END_TEST
 
+START_TEST(format_string) {
+    UA_NodeId test = UA_NODEID_NUMERIC(1,1);
+    UA_String testStr = UA_STRING("banana");
+    UA_String out = UA_STRING_NULL;
+
+    UA_StatusCode res = UA_String_format(&out, "test %N %S", test, testStr);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_String expected = UA_STRING("test ns=1;i=1 banana");
+    ck_assert(UA_String_equal(&out, &expected));
+
+    UA_String_clear(&out);
+
+    UA_Byte buf[4];
+    UA_String shortOut = {4, buf};
+    res = UA_String_format(&shortOut, "test %N %S", test, testStr);
+    ck_assert_uint_ne(res, UA_STATUSCODE_GOOD);
+} END_TEST
+
 static Suite* testSuite_Utils(void) {
     Suite *s = suite_create("Utils");
     TCase *tc_endpointUrl_split = tcase_create("EndpointUrl_split");
@@ -807,6 +826,10 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc5, qualifiedNameNsUri);
     tcase_add_test(tc5, qualifiedNameNsIndex);
     suite_add_tcase(s, tc5);
+
+    TCase *tc6 = tcase_create("test string format");
+    tcase_add_test(tc6, format_string);
+    suite_add_tcase(s, tc6);
 
     return s;
 }

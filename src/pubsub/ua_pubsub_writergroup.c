@@ -78,17 +78,88 @@ UA_WriterGroup_removePublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) 
     if(wg->publishCallbackId == 0)
         return;
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
-    el->removeTimer(el, wg->publishCallbackId);
+    if(UA_LIKELY(el != NULL))
+        el->removeTimer(el, wg->publishCallbackId);
     wg->publishCallbackId = 0;
+}
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+static UA_StatusCode
+writerGroupAttachSKSKeystorage(UA_PubSubManager *psm, UA_WriterGroup *wg) {
+    /* No SecurityGroup defined */
+    if(UA_String_isEmpty(&wg->config.securityGroupId) || !wg->config.securityPolicy)
+        return UA_STATUSCODE_GOOD;
+
+    /* KeyStorage already connected */
+    if(wg->keyStorage)
+        return UA_STATUSCODE_GOOD;
+
+    /* Does the key storage already exist? */
+    wg->keyStorage = UA_PubSubKeyStorage_find(psm, wg->config.securityGroupId);
+    if(wg->keyStorage) {
+        wg->keyStorage->referenceCount++; /* Increase the ref count */
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Create a new key storage */
+    wg->keyStorage = (UA_PubSubKeyStorage *)UA_calloc(1, sizeof(UA_PubSubKeyStorage));
+    if(!wg->keyStorage)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Initialize the KeyStorage */
+    UA_StatusCode res =
+        UA_PubSubKeyStorage_init(psm, wg->keyStorage, &wg->config.securityGroupId,
+                                 wg->config.securityPolicy, 0, 0);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_PubSubKeyStorage_delete(psm, wg->keyStorage);
+        wg->keyStorage = NULL;
+        return res;
+    }
+
+    wg->keyStorage->referenceCount++; /* Increase the ref count */
+    return UA_STATUSCODE_GOOD;
+}
+#endif
+
+static UA_StatusCode
+validateWriterGroupConfig(UA_PubSubManager *psm, UA_PubSubComponentHead *logHead,
+                          const UA_WriterGroupConfig *config) {
+    const UA_ExtensionObject *ms = &config->messageSettings;
+    if(ms->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
+        return UA_STATUSCODE_GOOD;
+
+    if(config->encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
+        if(!UA_ExtensionObject_hasDecodedType(ms,
+                &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE])) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
+                                  "WriTerGroupConfig MessageSettings need to be "
+                                  "of type JSONWriterGroupMessageDataType");
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
+    } else if(config->encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+        if(!UA_ExtensionObject_hasDecodedType(ms,
+                &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
+                                  "WriTerGroupConfig MessageSettings need to be "
+                                  "of type UADPWriterGroupMessageDataType");
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+        }
+    } else {
+        UA_LOG_WARNING_PUBSUB(psm->logging, (UA_PubSubConnection*)logHead,
+                              "Wrong encoding MIME-type");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
-                      const UA_WriterGroupConfig *writerGroupConfig,
+                      const UA_WriterGroupConfig *config,
                       UA_NodeId *writerGroupIdentifier) {
     /* Delete the reserved IDs if the related session no longer exists. */
     UA_PubSubManager_freeIds(psm);
-    if(!writerGroupConfig)
+    if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Search the connection by the given connectionIdentifier */
@@ -97,126 +168,106 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
         return UA_STATUSCODE_BADNOTFOUND;
 
     /* Validate messageSettings type */
-    const UA_ExtensionObject *ms = &writerGroupConfig->messageSettings;
-    if(ms->content.decoded.type) {
-        if(writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_JSON &&
-           (ms->encoding != UA_EXTENSIONOBJECT_DECODED ||
-            ms->content.decoded.type != &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE])) {
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        }
-
-        if(writerGroupConfig->encodingMimeType == UA_PUBSUB_ENCODING_UADP &&
-           (ms->encoding != UA_EXTENSIONOBJECT_DECODED ||
-            ms->content.decoded.type != &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
-            return UA_STATUSCODE_BADTYPEMISMATCH;
-        }
-    }
+    UA_StatusCode res = validateWriterGroupConfig(psm, &c->head, config);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Allocate new WriterGroup */
-    UA_WriterGroup *newWriterGroup = (UA_WriterGroup*)UA_calloc(1, sizeof(UA_WriterGroup));
-    if(!newWriterGroup)
+    UA_WriterGroup *wg = (UA_WriterGroup*)UA_calloc(1, sizeof(UA_WriterGroup));
+    if(!wg)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    newWriterGroup->head.componentType = UA_PUBSUBCOMPONENT_WRITERGROUP;
-    newWriterGroup->linkedConnection = c;
+    wg->head.componentType = UA_PUBSUBCOMPONENT_WRITERGROUP;
+    wg->linkedConnection = c;
 
     /* Deep copy of the config */
-    UA_WriterGroupConfig *newConfig = &newWriterGroup->config;
-    UA_StatusCode res = UA_WriterGroupConfig_copy(writerGroupConfig, newConfig);
+    res = UA_WriterGroupConfig_copy(config, &wg->config);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_free(newWriterGroup);
+        UA_free(wg);
         return res;
     }
 
-    /* Create the datatype value if not present */
-    if(!newConfig->messageSettings.content.decoded.type) {
-        UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
-        newConfig->messageSettings.content.decoded.data = wgm;
-        newConfig->messageSettings.content.decoded.type =
-            &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-        newConfig->messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-    }
-
     /* Attach to the connection */
-    LIST_INSERT_HEAD(&c->writerGroups, newWriterGroup, listEntry);
+    LIST_INSERT_HEAD(&c->writerGroups, wg, listEntry);
     c->writerGroupsSize++;
 
     /* Add representation / create unique identifier */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    res = addWriterGroupRepresentation(psm->sc.server, newWriterGroup);
+    res = addWriterGroupRepresentation(psm->sc.server, wg);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_WriterGroup_remove(psm, newWriterGroup);
+        UA_WriterGroup_remove(psm, wg);
         return res;
     }
 #else
-    UA_PubSubManager_generateUniqueNodeId(psm, &newWriterGroup->head.identifier);
+    UA_PubSubManager_generateUniqueNodeId(psm, &wg->head.identifier);
 #endif
 
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "%SWriterGroup %N\t| ",
-                c->head.logIdString, newWriterGroup->head.identifier);
-    newWriterGroup->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
-
-    UA_LOG_INFO_PUBSUB(psm->logging, newWriterGroup,
-                       "WriterGroup created (State: %s)",
-                       UA_PubSubState_name(newWriterGroup->head.state));
+                c->head.logIdString, wg->head.identifier);
+    wg->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
     /* Validate the connection settings */
-    res = UA_WriterGroup_connect(psm, newWriterGroup, true);
+    res = UA_WriterGroup_connect(psm, wg, true);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(psm->logging, newWriterGroup,
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
                             "Could not validate the connection parameters");
-        UA_WriterGroup_remove(psm, newWriterGroup);
+        UA_WriterGroup_remove(psm, wg);
         return res;
     }
 
 #ifdef UA_ENABLE_PUBSUB_SKS
-    if(writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        if(!UA_String_isEmpty(&writerGroupConfig->securityGroupId) &&
-           writerGroupConfig->securityPolicy) {
-            /* Does the key storage already exist? */
-            newWriterGroup->keyStorage =
-                UA_PubSubKeyStorage_find(psm, writerGroupConfig->securityGroupId);
+    if(config->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+       config->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+        res = writerGroupAttachSKSKeystorage(psm, wg);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Attaching the SKS KeyStorage failed");
+            UA_WriterGroup_remove(psm, wg);
+            return res;
+        }
+    }
+#endif
 
-            if(!newWriterGroup->keyStorage) {
-                /* Create a new key storage */
-                newWriterGroup->keyStorage = (UA_PubSubKeyStorage *)
-                    UA_calloc(1, sizeof(UA_PubSubKeyStorage));
-                if(!newWriterGroup->keyStorage) {
-                    UA_WriterGroup_remove(psm, newWriterGroup);
-                    return UA_STATUSCODE_BADOUTOFMEMORY;
-                }
-                res = UA_PubSubKeyStorage_init(psm, newWriterGroup->keyStorage,
-                                               &writerGroupConfig->securityGroupId,
-                                               writerGroupConfig->securityPolicy, 0, 0);
-                if(res != UA_STATUSCODE_GOOD) {
-                    UA_WriterGroup_remove(psm, newWriterGroup);
-                    return res;
-                }
-            }
-
-            /* Increase the ref count */
-            newWriterGroup->keyStorage->referenceCount++;
+    /* Notify the application that a new WriterGroup was created.
+     * This may internally adjust the config */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, wg->head.identifier,
+                                       UA_PUBSUBCOMPONENT_WRITERGROUP, false);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_WriterGroup_remove(psm, wg);
+            return res;
         }
     }
 
-#endif
+    UA_LOG_INFO_PUBSUB(psm->logging, wg, "WriterGroup created (State: %s)",
+                       UA_PubSubState_name(wg->head.state));
 
-    /* Trigger the connection */
+    /* Trigger the connection as it might open a connection for the WG */
     UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(writerGroupIdentifier)
-        UA_NodeId_copy(&newWriterGroup->head.identifier, writerGroupIdentifier);
+        UA_NodeId_copy(&wg->head.identifier, writerGroupIdentifier);
 
     return UA_STATUSCODE_GOOD;
 }
 
-void
+UA_StatusCode
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+
+    /* Check with the application if we can remove */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, wg->head.identifier,
+                                       UA_PUBSUBCOMPONENT_WRITERGROUP, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
     UA_PubSubConnection *connection = wg->linkedConnection;
     UA_assert(connection);
@@ -264,6 +315,8 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 
     /* Update the connection state */
     UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -359,11 +412,18 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Callback to modify the WriterGroup config and change the targetState
+     * before the state machine executes */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.beforeStateChangeCallback) {
+        server->config.pubSubConfig.
+            beforeStateChangeCallback(server, wg->head.identifier, &targetState);
+    }
+
     /* Are we doing a top-level state update or recursively? */
     UA_Boolean isTransient = wg->head.transientState;
     wg->head.transientState = true;
 
-    UA_Server *server = psm->sc.server;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = wg->head.state;
     UA_PubSubConnection *connection = wg->linkedConnection;
@@ -514,24 +574,21 @@ encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
 }
 
 static UA_StatusCode
-encodeNetworkMessage(UA_WriterGroup *wg, UA_NetworkMessage *nm,
-                     UA_ByteString *buf) {
-    UA_Byte *bufPos = buf->data;
-    UA_Byte *bufEnd = &buf->data[buf->length];
-
-    UA_Byte *networkMessageStart = bufPos;
-    UA_StatusCode rv = UA_NetworkMessage_encodeHeaders(nm, &bufPos, bufEnd);
+encodeNetworkMessage(UA_WriterGroup *wg, PubSubEncodeCtx *ctx,
+                     UA_NetworkMessage *nm, UA_ByteString *buf) {
+    UA_Byte *networkMessageStart = buf->data;
+    UA_StatusCode rv = UA_NetworkMessage_encodeHeaders(ctx, nm);
     UA_CHECK_STATUS(rv, return rv);
 
-    UA_Byte *payloadStart = bufPos;
-    rv = UA_NetworkMessage_encodePayload(nm, &bufPos, bufEnd);
+    UA_Byte *payloadStart = ctx->ctx.pos;
+    rv = UA_NetworkMessage_encodePayload(ctx, nm);
     UA_CHECK_STATUS(rv, return rv);
 
-    rv = UA_NetworkMessage_encodeFooters(nm, &bufPos, bufEnd);
+    rv = UA_NetworkMessage_encodeFooters(ctx, nm);
     UA_CHECK_STATUS(rv, return rv);
 
     /* Encrypt and Sign the message */
-    UA_Byte *footerEnd = bufPos;
+    UA_Byte *footerEnd = ctx->ctx.pos;
     return encryptAndSign(wg, nm, networkMessageStart, payloadStart, footerEnd);
 }
 
@@ -566,16 +623,36 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
     nm.version = 1;
     nm.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     nm.payloadHeaderEnabled = true;
-    nm.payload.dataSetPayload.dataSetMessages = dsm;
-    nm.payload.dataSetPayload.dataSetMessagesSize = dsmCount;
+    nm.payload.dataSetMessages = dsm;
+    nm.messageCount = dsmCount;
     nm.publisherIdEnabled = true;
     nm.publisherId = connection->config.publisherId;
 
     for(size_t i = 0; i < dsmCount; i++)
-        nm.payload.dataSetPayload.dataSetMessages[i].dataSetWriterId = writerIds[i];
+        nm.dataSetWriterIds[i] = writerIds[i];
+
+    PubSubEncodeJsonCtx ctx;
+    memset(&ctx, 0, sizeof(PubSubEncodeJsonCtx));
+
+    /* Prepare the metadata to encode the DataSetMessages */
+    size_t i = 0;
+    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, wg->writersCount);
+    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * wg->writersCount);
+    ctx.eo.metaData = emd;
+    ctx.eo.metaDataSize = wg->writersCount;
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        emd[i].dataSetWriterId = dsw->config.dataSetWriterId;
+        UA_PublishedDataSet *pds = dsw->connectedDataSet;
+        if(pds) {
+            emd[i].fields = pds->dataSetMetaData.fields;
+            emd[i].fieldsSize = pds->dataSetMetaData.fieldsSize;
+        }
+        i++;
+    }
 
     /* Compute the message length */
-    size_t msgSize = UA_NetworkMessage_calcSizeJsonInternal(&nm, NULL, NULL, 0, true);
+    size_t msgSize = UA_NetworkMessage_calcSizeJson(&nm, &ctx.eo, NULL);
 
     UA_ConnectionManager *cm = connection->cm;
     if(!cm)
@@ -596,14 +673,14 @@ sendNetworkMessageJson(UA_PubSubManager *psm, UA_PubSubConnection *connection, U
     UA_CHECK_STATUS(res, return res);
 
     /* Encode the message */
-    UA_Byte *bufPos = buf.data;
-    const UA_Byte *bufEnd = &buf.data[msgSize];
-    res = UA_NetworkMessage_encodeJsonInternal(&nm, &bufPos, &bufEnd, NULL, NULL, 0, true);
+    ctx.ctx.pos = buf.data;
+    ctx.ctx.end = &buf.data[msgSize];
+    res = UA_NetworkMessage_encodeJsonInternal(&ctx, &nm);
     if(res != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, sendChannel, &buf);
         return res;
     }
-    UA_assert(bufPos == bufEnd);
+    UA_assert(ctx.ctx.pos == ctx.ctx.end);
 
     /* Send the prepared messages */
     sendNetworkMessageBuffer(psm, wg, connection, sendChannel, &buf);
@@ -617,11 +694,16 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                        UA_ExtensionObject *messageSettings,
                        UA_ExtensionObject *transportSettings,
                        UA_NetworkMessage *nm) {
-    if(messageSettings->content.decoded.type !=
-       &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])
-        return UA_STATUSCODE_BADINTERNALERROR;
-    UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType*)
-            messageSettings->content.decoded.data;
+    UA_UadpWriterGroupMessageDataType tmpWgm;
+    UA_UadpWriterGroupMessageDataType *wgm;
+    if(UA_ExtensionObject_hasDecodedType(messageSettings,
+           &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])) {
+        wgm = (UA_UadpWriterGroupMessageDataType*)messageSettings->content.decoded.data;
+    } else {
+        /* Use default settings */
+        UA_UadpWriterGroupMessageDataType_init(&tmpWgm);
+        wgm = &tmpWgm;
+    }
 
     nm->publisherIdEnabled =
         ((u64)wgm->networkMessageContentMask &
@@ -694,11 +776,11 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     nm->groupHeader.writerGroupId = wg->config.writerGroupId;
     /* number of the NetworkMessage inside a PublishingInterval */
     nm->groupHeader.networkMessageNumber = 1;
-    nm->payload.dataSetPayload.dataSetMessages = dsm;
-    nm->payload.dataSetPayload.dataSetMessagesSize = dsmCount;
+    nm->payload.dataSetMessages = dsm;
+    nm->messageCount = dsmCount;
 
     for(size_t i = 0; i < dsmCount; i++)
-        nm->payload.dataSetPayload.dataSetMessages[i].dataSetWriterId = writerIds[i];
+        nm->dataSetWriterIds[i] = writerIds[i];
 
     return UA_STATUSCODE_GOOD;
 }
@@ -717,9 +799,35 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
                                &wg->config.transportSettings, &nm);
     UA_CHECK_STATUS(rv, return rv);
 
+    PubSubEncodeCtx ctx;
+    memset(&ctx, 0, sizeof(PubSubEncodeCtx));
+
+    /* Prepare the metadata with information from the readers to decode the
+     * DataSetMessages */
+    size_t i = 0;
+    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, wg->writersCount);
+    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * wg->writersCount);
+    ctx.eo.metaData = emd;
+    ctx.eo.metaDataSize = wg->writersCount;
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        emd[i].dataSetWriterId = dsw->config.dataSetWriterId;
+        UA_PublishedDataSet *pds = dsw->connectedDataSet;
+        if(pds) {
+            emd[i].fields = pds->dataSetMetaData.fields;
+            emd[i].fieldsSize = pds->dataSetMetaData.fieldsSize;
+        }
+        i++;
+    }
+
     /* Compute the message size. Add the overhead for the security signature.
      * There is no padding and the encryption incurs no size overhead. */
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&nm);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinaryInternal(&ctx, &nm);
+    if(msgSize == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Add the overhead for the security signature.
+     * There is no padding and the encryption incurs no size overhead. */
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
         msgSize += sp->symmetricModule.cryptoModule.
@@ -745,7 +853,9 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
     UA_CHECK_STATUS(rv, return rv);
 
     /* Encode and encrypt the message */
-    rv = encodeNetworkMessage(wg, &nm, &buf);
+    ctx.ctx.pos = buf.data;
+    ctx.ctx.end = &buf.data[buf.length];
+    rv = encodeNetworkMessage(wg, &ctx, &nm, &buf);
     if(rv != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, sendChannel, &buf);
         return rv;
@@ -759,6 +869,14 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
 static void
 sendNetworkMessage(UA_PubSubManager *psm, UA_WriterGroup *wg, UA_PubSubConnection *connection,
                    UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount) {
+    if(dsmCount >= UA_NETWORKMESSAGE_MAXMESSAGECOUNT) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                            "More DataSetMessages than allowed in "
+                            "UA_NETWORKMESSAGE_MAXMESSAGECOUNT");
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);
+        return;
+    }
+
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     switch(wg->config.encodingMimeType) {
     case UA_PUBSUB_ENCODING_UADP:
@@ -1346,6 +1464,87 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
 }
 
 UA_StatusCode
+UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
+                                  const UA_WriterGroupConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    if(!wg) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(UA_PubSubState_isEnabled(wg->head.state)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                            "The WriterGroup must be disabled to update the config");
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Validate the new configuration */
+    UA_StatusCode res = validateWriterGroupConfig(psm, &wg->head, config);
+    if(res != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return res;
+    }
+
+    /* Store the old configuration */
+    UA_WriterGroupConfig oldConfig = wg->config;
+    memset(&wg->config, 0, sizeof(UA_WriterGroupConfig));
+
+    /* Deep copy the new config */
+    res = UA_WriterGroupConfig_copy(config, &wg->config);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Validate the connection settings */
+    res = UA_WriterGroup_connect(psm, wg, true);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                            "Could not validate the connection parameters");
+        goto errout;
+    }
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    if(!UA_String_equal(&wg->config.securityGroupId, &oldConfig.securityGroupId) ||
+       wg->config.securityMode != oldConfig.securityMode) {
+        /* Detach keystorage and reattach if needed */
+        if(wg->keyStorage) {
+            UA_PubSubKeyStorage_detachKeyStorage(psm, wg->keyStorage);
+            wg->keyStorage = NULL;
+        }
+        if(wg->config.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
+           wg->config.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+            res = writerGroupAttachSKSKeystorage(psm, wg);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                                    "Attaching the SKS KeyStorage failed");
+                goto errout;
+            }
+        }
+    }
+#endif
+
+    /* Call the state-machine. This can move the wg state from _ERROR to
+     * _DISABLED. */
+    UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
+
+    /* Clean up and return */
+    UA_WriterGroupConfig_clear(&oldConfig);
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+
+ errout:
+    UA_WriterGroupConfig_clear(&wg->config);
+    wg->config = oldConfig; /* Restore the old config */
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
 UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
                                         const UA_NodeId writerGroupId,
                                         UA_PubSubOffsetTable *ot) {
@@ -1368,10 +1567,30 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     memset(&networkMessage, 0, sizeof(networkMessage));
     memset(ot, 0, sizeof(UA_PubSubOffsetTable));
 
+    /* Prepare the metadata encode the DataSetMessages */
+    PubSubEncodeCtx ctx;
+    memset(&ctx, 0, sizeof(PubSubEncodeCtx));
+    ctx.ot = ot;
+
+    size_t i = 0;
+    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, wg->writersCount);
+    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * wg->writersCount);
+    ctx.eo.metaData = emd;
+    ctx.eo.metaDataSize = wg->writersCount;
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        emd[i].dataSetWriterId = dsw->config.dataSetWriterId;
+        UA_PublishedDataSet *pds = dsw->connectedDataSet;
+        if(pds) {
+            emd[i].fields = pds->dataSetMetaData.fields;
+            emd[i].fieldsSize = pds->dataSetMetaData.fieldsSize;
+        }
+        i++;
+    }
+
     /* Validate the DataSetWriters and generate their DataSetMessage */
     size_t msgSize;
     size_t dsmCount = 0;
-    UA_DataSetWriter *dsw;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
     UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
@@ -1393,14 +1612,14 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
 
     /* Compute the message length and generate the old format offset-table (done
      * inside calcSizeBinary) */
-    msgSize = UA_NetworkMessage_calcSizeBinaryWithOffsetTable(&networkMessage, ot);
+    msgSize = UA_NetworkMessage_calcSizeBinaryInternal(&ctx, &networkMessage);
     if(msgSize == 0) {
         res = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
 
     /* Create the encoded network message */
-    res = UA_NetworkMessage_encodeBinary(&networkMessage, &ot->networkMessage);
+    res = UA_NetworkMessage_encodeBinary(&networkMessage, &ot->networkMessage, &ctx.eo);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
@@ -1413,7 +1632,7 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
         case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_TIMESTAMP:
         case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_PICOSECONDS:
         case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_GROUPVERSION:
-            UA_NodeId_copy(&wg->head.identifier, &o->component);
+            res |= UA_NodeId_copy(&wg->head.identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE:
             dsw = (dsw == NULL) ? LIST_FIRST(&wg->writers) : LIST_NEXT(dsw, listEntry);
@@ -1423,22 +1642,26 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_STATUS:
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_TIMESTAMP:
         case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_PICOSECONDS:
-            UA_NodeId_copy(&dsw->head.identifier, &o->component);
+            UA_assert(dsw);
+            res |= UA_NodeId_copy(&dsw->head.identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE:
+            UA_assert(dsw && dsw->connectedDataSet);
             field = (field == NULL) ?
                 TAILQ_FIRST(&dsw->connectedDataSet->fields) : TAILQ_NEXT(field, listEntry);
-            UA_NodeId_copy(&field->identifier, &o->component);
+            res |= UA_NodeId_copy(&field->identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT:
+            UA_assert(dsw && dsw->connectedDataSet);
             field = (field == NULL) ?
                 TAILQ_FIRST(&dsw->connectedDataSet->fields) : TAILQ_NEXT(field, listEntry);
-            UA_NodeId_copy(&field->identifier, &o->component);
+            res |= UA_NodeId_copy(&field->identifier, &o->component);
             break;
         case UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW:
+            UA_assert(dsw && dsw->connectedDataSet);
             field = (field == NULL) ?
                 TAILQ_FIRST(&dsw->connectedDataSet->fields) : TAILQ_NEXT(field, listEntry);
-            UA_NodeId_copy(&field->identifier, &o->component);
+            res |= UA_NodeId_copy(&field->identifier, &o->component);
             break;
         default:
             break;
@@ -1447,6 +1670,9 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
 
     /* Clean up */
  cleanup:
+    if(res != UA_STATUSCODE_GOOD)
+        UA_PubSubOffsetTable_clear(ot);
+
     for(size_t i = 0; i < dsmCount; i++) {
         UA_DataSetMessage_clear(&dsmStore[i]);
     }

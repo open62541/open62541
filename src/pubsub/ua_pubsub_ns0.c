@@ -2463,18 +2463,12 @@ initPubSubNS0(UA_Server *server) {
     return retVal;
 }
 
+/* Remove the Metadata nodes of the DSR and reference the Metadata nodes of the
+ * SDS instead */
 UA_StatusCode
 connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId sdsId) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-
-    UA_NodeId dataSetMetaDataOnDsrId =
-        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
-                            UA_NS0ID(HASPROPERTY), dsrId);
-    UA_NodeId subscribedDataSetOnDsrId =
-        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
-                            UA_NS0ID(HASCOMPONENT), dsrId);
     UA_NodeId dataSetMetaDataOnSdsId =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
                             UA_NS0ID(HASPROPERTY), sdsId);
@@ -2482,23 +2476,45 @@ connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId sdsI
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
                             UA_NS0ID(HASCOMPONENT), sdsId);
 
-    if(UA_NodeId_isNull(&dataSetMetaDataOnDsrId) ||
-       UA_NodeId_isNull(&subscribedDataSetOnDsrId) ||
-       UA_NodeId_isNull(&dataSetMetaDataOnSdsId) ||
+    if(UA_NodeId_isNull(&dataSetMetaDataOnSdsId) ||
        UA_NodeId_isNull(&subscribedDataSetOnSdsId))
         return UA_STATUSCODE_BADNOTFOUND;
+
+    UA_NodeId dataSetMetaDataOnDsrId =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                            UA_NS0ID(HASPROPERTY), dsrId);
+    UA_NodeId subscribedDataSetOnDsrId =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
+                            UA_NS0ID(HASCOMPONENT), dsrId);
 
     UA_NODESTORE_REMOVE(server, &dataSetMetaDataOnDsrId);
     UA_NODESTORE_REMOVE(server, &subscribedDataSetOnDsrId);
 
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     retVal |= addRef(server, dsrId, UA_NS0ID(HASPROPERTY),
-                     UA_NODEID_NUMERIC(dataSetMetaDataOnSdsId.namespaceIndex,
-                                       dataSetMetaDataOnSdsId.identifier.numeric), true);
+                     dataSetMetaDataOnSdsId, true);
     retVal |= addRef(server, dsrId, UA_NS0ID(HASPROPERTY),
-                     UA_NODEID_NUMERIC(subscribedDataSetOnSdsId.namespaceIndex,
-                                       subscribedDataSetOnSdsId.identifier.numeric), true);
-
+                     subscribedDataSetOnSdsId, true);
     return retVal;
+}
+
+/* Remove the references to the SDS */
+void
+disconnectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    UA_NodeId dataSetMetaDataOnDsrId =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                            UA_NS0ID(HASPROPERTY), dsrId);
+    UA_NodeId subscribedDataSetOnDsrId =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
+                            UA_NS0ID(HASCOMPONENT), dsrId);
+
+    deleteReference(server, dsrId, UA_NS0ID(HASPROPERTY), true,
+                    UA_NODEID2EXPANDEDNODEID(dataSetMetaDataOnDsrId), true);
+
+    deleteReference(server, dsrId, UA_NS0ID(HASCOMPONENT), true,
+                    UA_NODEID2EXPANDEDNODEID(subscribedDataSetOnDsrId), true);
 }
 
 #endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL */

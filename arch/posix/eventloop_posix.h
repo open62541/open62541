@@ -17,7 +17,10 @@
 #include "../common/timer.h"
 #include "../common/eventloop_common.h"
 #include "../../deps/mp_printf.h"
-#include "../../deps/open62541_queue.h"
+
+#if !defined(__QNX__)
+# include "../deps/open62541_queue.h"
+#endif
 
 #if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
 
@@ -54,6 +57,7 @@ typedef SSIZE_T ssize_t;
 #define UA_IPV6 1
 #define UA_SOCKET SOCKET
 #define UA_INVALID_SOCKET INVALID_SOCKET
+#define UA_RESET_ERRNO do { } while(0)
 #define UA_ERRNO WSAGetLastError()
 #define UA_INTERRUPTED WSAEINTR
 #define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
@@ -175,12 +179,12 @@ _UA_END_DECLS
 /*---------------------*/
 
 #include <sys/socket.h>
+#include <sys/select.h>
+#include <sys/ioctl.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <netdb.h>
-#include <sys/ioctl.h>
-#include <sys/select.h>
 #include <net/if.h>
 #include <poll.h>
 #include <fcntl.h>
@@ -201,6 +205,7 @@ typedef int SOCKET;
 #define UA_IPV6 1
 #define UA_SOCKET int
 #define UA_INVALID_SOCKET -1
+#define UA_RESET_ERRNO do { errno = 0; } while(0)
 #define UA_ERRNO errno
 #define UA_INTERRUPTED EINTR
 #define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
@@ -260,17 +265,18 @@ typedef int SOCKET;
 /*---------------------------*/
 
 #include <dirent.h>
-#include <errno.h>
-#include <fcntl.h>
 #include <libgen.h>
-#include <linux/limits.h>
+#include <limits.h>
 #include <stdio.h>
-#include <sys/inotify.h>
+#ifndef __APPLE__
+# include <sys/inotify.h>
+#endif /* !__APPLE__ */
 #include <sys/stat.h>
-#include <unistd.h>
 
 #ifndef __ANDROID__
+#ifndef __APPLE__
 #include <bits/stdio_lim.h>
+#endif /* !__APPLE__ */
 #endif /* !__ANDROID__ */
 
 #define UA_STAT stat
@@ -465,6 +471,8 @@ UA_EventLoopPOSIX_setReusable(UA_FD sockfd);
  * https://stackoverflow.com/a/3333565 */
 #if defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
 int UA_EventLoopPOSIX_pipe(SOCKET fds[2]);
+#elif defined(__QNX__)
+int UA_EventLoopPOSIX_pipe(int fds[2]);
 #else
 # define UA_EventLoopPOSIX_pipe(fds) pipe2(fds, O_NONBLOCK)
 #endif

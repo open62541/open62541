@@ -235,6 +235,10 @@ UA_INLINABLE(UA_String
  * - %S - UA_String (not wrapped in quotation marks in the output)
  * - %N - UA_NodeId (using UA_NodeId_print)
  *
+ * Example usage:
+ *   UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 4711);
+ *   UA_String_format(outString, "Test %N", nodeId);
+ *
  * The output is written to the output string in the first argument. Memory of
  * sufficient length is allocated when the output string initially has zero
  * length.
@@ -244,10 +248,16 @@ UA_INLINABLE(UA_String
  * If the length is too short, then UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED is
  * reported. Also in that case the string is printed as much as possible. */
 UA_EXPORT UA_StatusCode
-UA_String_printf(UA_String *str, const char *format, ...);
+UA_String_format(UA_String *str, const char *format, ...);
 
 UA_EXPORT UA_StatusCode
-UA_String_vprintf(UA_String *str, const char *format, va_list args);
+UA_String_vformat(UA_String *str, const char *format, va_list args);
+
+/* Old API */
+#define UA_String_printf(str, format, ...) \
+    UA_String_format(str, format, __VA_ARGS__)
+#define UA_String_vprintf(str, format, args) \
+    UA_String_vformat(str, format, args)
 
 /**
  * .. _datetime:
@@ -612,6 +622,12 @@ UA_INLINABLE(UA_ExpandedNodeId
 #endif
 
 /** The following functions are shorthand for creating ExpandedNodeIds. */
+
+UA_INLINABLE(UA_ExpandedNodeId
+             UA_NODEID2EXPANDEDNODEID(UA_NodeId nodeId), {
+    UA_ExpandedNodeId id; id.nodeId = nodeId;
+    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
+})
 
 UA_INLINABLE(UA_ExpandedNodeId
              UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier), {
@@ -1037,6 +1053,10 @@ UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo,
                                 void * UA_RESTRICT p,
                                 const UA_DataType *type);
 
+UA_Boolean UA_EXPORT
+UA_ExtensionObject_hasDecodedType(const UA_ExtensionObject *eo,
+                                  const UA_DataType *type);
+
 /**
  * .. _datavalue:
  *
@@ -1181,7 +1201,7 @@ struct UA_DataType {
 #endif
     UA_NodeId typeId;           /* The nodeid of the type */
     UA_NodeId binaryEncodingId; /* NodeId of datatype when encoded as binary */
-    //UA_NodeId xmlEncodingId;  /* NodeId of datatype when encoded as XML */
+    UA_NodeId xmlEncodingId;    /* NodeId of datatype when encoded as XML */
     UA_UInt32 memSize     : 16; /* Size of the struct in memory */
     UA_UInt32 typeKind    : 6;  /* Dispatch index for the handling routines */
     UA_UInt32 pointerFree : 1;  /* The type (and its members) contains no
@@ -1364,27 +1384,30 @@ struct UA_NamespaceMapping {
 };
 
 /* If the index is unknown, returns (UINT16_MAX - index) */
-UA_UInt16
+UA_EXPORT UA_UInt16
 UA_NamespaceMapping_local2Remote(const UA_NamespaceMapping *nm,
                                  UA_UInt16 localIndex);
 
-UA_UInt16
+UA_EXPORT UA_UInt16
 UA_NamespaceMapping_remote2Local(const UA_NamespaceMapping *nm,
                                  UA_UInt16 remoteIndex);
 
 /* Returns an error if the namespace uri was not found.
  * The pointer to the index argument needs to be non-NULL. */
-UA_StatusCode
+UA_EXPORT UA_StatusCode
 UA_NamespaceMapping_uri2Index(const UA_NamespaceMapping *nm,
                               UA_String uri, UA_UInt16 *index);
 
 /* Upon success, the uri string gets set. The string is not copied and must not
  * outlive the namespace mapping structure. */
-UA_StatusCode
+UA_EXPORT UA_StatusCode
 UA_NamespaceMapping_index2Uri(const UA_NamespaceMapping *nm,
                               UA_UInt16 index, UA_String *uri);
 
-void
+UA_EXPORT void
+UA_NamespaceMapping_clear(UA_NamespaceMapping *nm);
+
+UA_EXPORT void
 UA_NamespaceMapping_delete(UA_NamespaceMapping *nm);
 
 /**
@@ -1548,8 +1571,13 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
 
 #ifdef UA_ENABLE_XML_ENCODING
 
+/* The structure with the encoding options may be extended in the future.
+ * Zero-out the entire structure initially to ensure code-compatibility when
+ * more fields are added in a later release. */
 typedef struct {
-    UA_Boolean prettyPrint;   /* Add newlines and spaces for legibility */
+    UA_NamespaceMapping *namespaceMapping;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
 } UA_EncodeXmlOptions;
 
 /* Returns the number of bytes the value src takes in xml encoding. Returns
@@ -1573,6 +1601,12 @@ UA_encodeXml(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
  * Zero-out the entire structure initially to ensure code-compatibility when
  * more fields are added in a later release. */
 typedef struct {
+    UA_Boolean unwrapped; /* The value xxx is not wrapped in an XML element - as
+                           * in <Type>xxx</Type> */
+
+    UA_NamespaceMapping *namespaceMapping;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
     const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
                                           * datatype definitions */
 } UA_DecodeXmlOptions;

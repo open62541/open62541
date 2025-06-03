@@ -890,9 +890,14 @@ UA_Server_updateCertificate(UA_Server *server,
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
     }
 
-    /* The server currently only supports the DefaultApplicationGroup */
     UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup)) {
+    UA_NodeId certGroupId = certificateGroupId;
+    if(UA_NodeId_isNull(&certGroupId)) {
+        /* Use default value if argument is empty */
+        certGroupId = defaultApplicationGroup;
+    }
+    /* The server currently only supports the DefaultApplicationGroup */
+    if(!UA_NodeId_equal(&certGroupId, &defaultApplicationGroup)) {
         unlockServer(server);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -967,9 +972,14 @@ UA_Server_createSigningRequest(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    /* The server currently only supports the DefaultApplicationGroup */
     UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup))
+    UA_NodeId certGroupId = certificateGroupId;
+    if(UA_NodeId_isNull(&certGroupId)) {
+        /* Use default value if argument is empty */
+        certGroupId = defaultApplicationGroup;
+    }
+    /* The server currently only supports the DefaultApplicationGroup */
+    if(!UA_NodeId_equal(&certGroupId, &defaultApplicationGroup))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* The server currently only supports RSA CertificateType */
@@ -1002,7 +1012,7 @@ UA_Server_createSigningRequest(UA_Server *server,
             continue;
 
         if(UA_NodeId_equal(&certificateTypeId, &sp->certificateTypeId) &&
-           UA_NodeId_equal(&certificateGroupId, &sp->certificateGroupId)) {
+           UA_NodeId_equal(&certGroupId, &sp->certificateGroupId)) {
             retval = sp->createSigningRequest(sp, subjectName, nonce,
                                               &UA_KEYVALUEMAP_NULL, csr, newPrivateKey);
             if(retval != UA_STATUSCODE_GOOD)
@@ -1064,6 +1074,7 @@ verifyServerApplicationURI(const UA_Server *server) {
 UA_ServerStatistics
 UA_Server_getStatistics(UA_Server *server) {
     UA_ServerStatistics stat;
+    lockServer(server);
     stat.scs = server->secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType *sds = &server->serverDiagnosticsSummary;
     stat.ss.currentSessionCount = server->activeSessionCount;
@@ -1072,6 +1083,7 @@ UA_Server_getStatistics(UA_Server *server) {
     stat.ss.rejectedSessionCount = sds->rejectedSessionCount;
     stat.ss.sessionTimeoutCount = sds->sessionTimeoutCount;
     stat.ss.sessionAbortCount = sds->sessionAbortCount;
+    unlockServer(server);
     return stat;
 }
 
@@ -1079,7 +1091,7 @@ UA_Server_getStatistics(UA_Server *server) {
 /* Main Server Loop */
 /********************/
 
-#define UA_MAXTIMEOUT 200 /* Max timeout in ms between main-loop iterations */
+#define UA_MAXTIMEOUT 500 /* Max timeout in ms between main-loop iterations */
 
 void
 setServerLifecycleState(UA_Server *server, UA_LifecycleState state) {
@@ -1319,6 +1331,12 @@ UA_Server_run_shutdown(UA_Server *server) {
         unlockServer(server);
         return UA_STATUSCODE_GOOD;
     }
+
+    /* Unlock and do one "normal" iteration. This allows threads waiting for the
+     * server lock to proceed before the server lock is destroyed. */
+    unlockServer(server);
+    UA_Server_run_iterate(server, true);
+    lockServer(server);
 
     /* Iterate the EventLoop until the server is stopped */
     UA_StatusCode res = UA_STATUSCODE_GOOD;

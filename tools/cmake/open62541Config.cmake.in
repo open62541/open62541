@@ -1,8 +1,12 @@
 @PACKAGE_INIT@
 include("${CMAKE_CURRENT_LIST_DIR}/open62541Targets.cmake")
 
-set_and_check(open62541_TOOLS_DIR @PACKAGE_open62541_install_tools_dir@ CACHE PATH "Path to the directory that contains the tooling of the stack")
-set_and_check(UA_SCHEMA_DIR @PACKAGE_open62541_install_schema_dir@ CACHE PATH "Path to the directory that contains the schema files")
+set_and_check(open62541_TOOLS_DIR @PACKAGE_open62541_install_tools_dir@
+              CACHE PATH "Path to the directory that contains the tooling of the stack")
+set_and_check(open62541_SCHEMA_DIR @PACKAGE_open62541_install_schema_dir@
+              CACHE PATH "Path to the directory that contains the ns0 schema files")
+set_and_check(open62541_NS0_NODESETS @open62541_install_ns0_nodesets@
+              CACHE PATH "List of xml files that define namespace zero for the current build")
 
 # Macros for datatype generation, nodeset compiler, etc.
 include("${CMAKE_CURRENT_LIST_DIR}/open62541Macros.cmake")

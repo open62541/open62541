@@ -16,7 +16,7 @@ example_args = {
         "server_encryption":"server_cert.der server_key.der client_cert.der",
         "server_loglevel":"--loglevel=1",
         "ci_server":"4840 server_cert.der server_key.der client_cert.der",
-        "server_file_based_config":"server_config.json5"
+        "server_file_based_config":"server_json_config.json5"
         }
 
 server_needed_examples = {
@@ -41,8 +41,10 @@ server_needed_examples = {
         "pubsub_subscribe_encrypted_sks":"server_pubsub_central_sks server_cert.der server_key.der --enableUnencrypted --enableAnonymous",
         "pubsub_subscribe_standalone_dataset":"tutorial_pubsub_publish",
         "server_pubsub_subscribe_custom_monitoring":"server_pubsub_publish_on_demand",
-        "server_pubsub_publish_rt":"server_pubsub_publish_rt",
-        "server_pubsub_subscribe_rt":"server_pubsub_subscribe_rt",
+        "server_pubsub_publish_rt_offsets":"server_pubsub_publish_rt_offsets",
+        "server_pubsub_publish_rt_state_machine":"server_pubsub_publish_rt_state_machine",
+        "server_pubsub_subscribe_rt_offsets":"server_pubsub_subscribe_rt_offsets",
+        "server_pubsub_subscribe_rt_state_machine":"server_pubsub_subscribe_rt_state_machine",
         "tutorial_client_events":"tutorial_server_events",
         "tutorial_client_firststeps":"tutorial_server_firststeps",
         "tutorial_pubsub_connection":"tutorial_pubsub_subscribe",

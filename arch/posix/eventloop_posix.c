@@ -963,12 +963,20 @@ UA_StatusCode
 UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     UA_assert(listenTimeout >= 0);
 
+    /* If there is a positive timeout, wait at least one millisecond, the
+     * minimum for blocking epoll_wait. This prevents a busy-loop, as the
+     * open62541 library allows even smaller timeouts, which can result in a
+     * zero timeout due to rounding to an integer here. */
+    int timeout = (int)(listenTimeout / UA_DATETIME_MSEC);
+    if(timeout == 0 && listenTimeout > 0)
+        timeout = 1;
+
     /* Poll the registered sockets */
     struct epoll_event epoll_events[64];
-    int epollfd = el->epollfd;
     UA_UNLOCK(&el->elMutex);
-    int events = epoll_wait(epollfd, epoll_events, 64,
-                            (int)(listenTimeout / UA_DATETIME_MSEC));
+    int events = epoll_wait(el->epollfd, epoll_events, 64, timeout);
+    UA_LOCK(&el->elMutex);
+
     /* TODO: Replace with pwait2 for higher-precision timeouts once this is
      * available in the standard library.
      *
@@ -978,14 +986,13 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
      * };
      * int events = epoll_pwait2(epollfd, epoll_events, 64,
      *                        precisionTimeout, NULL); */
-    UA_LOCK(&el->elMutex);
 
     /* Handle error conditions */
     if(events == -1) {
         if(errno == EINTR) {
             /* We will retry, only log the error */
-            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                           "Timeout during poll");
+            UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                         "Timeout during poll");
             return UA_STATUSCODE_GOOD;
         }
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -1061,6 +1068,19 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     UA_EventLoopPOSIX_setNoSigPipe(fds[1]);
     UA_EventLoopPOSIX_setReusable(fds[1]);
     UA_EventLoopPOSIX_setNonBlocking(fds[1]);
+    return err;
+}
+#elif defined(__QNX__)
+int UA_EventLoopPOSIX_pipe(int fds[2]) {
+    int err = pipe(fds); 
+    if(err == -1) {
+      return err;
+    }
+
+    err = fcntl(fds[0], F_SETFL, O_NONBLOCK);
+    if(err == -1) {
+      return err;
+    }
     return err;
 }
 #endif

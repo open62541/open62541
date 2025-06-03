@@ -17,8 +17,6 @@
 #include "mdnsd/libmdnsd/sdtxt.h"
 #endif
 
-#include "../deps/mp_printf.h"
-
 #ifdef UA_ARCHITECTURE_WIN32
 /* inet_ntoa is deprecated on MSVC but used for compatibility */
 # define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -359,11 +357,10 @@ setSrv(UA_DiscoveryManager *dm, const struct resource *r,
      * to a domain name. If this cannot be done then LDS shall report an
      * error. */
 
+    /* cut off last dot */
     size_t srvNameLen = strlen(r->known.srv.name);
     if(srvNameLen > 0 && r->known.srv.name[srvNameLen - 1] == '.')
-        /* cut off last dot */
         srvNameLen--;
-    /* opc.tcp://[servername]:[port][path] */
     char *newUrl = (char*)UA_malloc(10 + srvNameLen + 8 + 1);
     if (!newUrl) {
         UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
@@ -371,14 +368,13 @@ setSrv(UA_DiscoveryManager *dm, const struct resource *r,
         return;
     }
 
-    mp_snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d",
-                (int)srvNameLen, r->known.srv.name, r->known.srv.port);
+    /* opc.tcp://[servername]:[port][path] */
+    UA_String_format(&entry->serverOnNetwork.discoveryUrl, "opc.tcp://%.*s:%d",
+                     (int)srvNameLen, r->known.srv.name, r->known.srv.port);
 
-    entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
     UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
                 "Multicast DNS: found server: %S",
                 entry->serverOnNetwork.discoveryUrl);
-    UA_free(newUrl);
 
     if(entry->pathTmp) {
         mdns_append_path_to_url(&entry->serverOnNetwork.discoveryUrl, entry->pathTmp);
@@ -1333,35 +1329,29 @@ UA_Discovery_multicastConflict(char *name, int type, void *arg) {
 
 /* Create a service domain with the format [servername]-[hostname]._opcua-tcp._tcp.local. */
 static void
-createFullServiceDomain(char *outServiceDomain, size_t maxLen,
+createFullServiceDomain(UA_String *outServiceDomain,
                         UA_String servername, UA_String hostname) {
-    maxLen -= 24; /* the length we have remaining before the opc ua postfix and
-                   * the trailing zero */
-
     /* Can we use hostname and servername with full length? */
-    if(hostname.length + servername.length + 1 > maxLen) {
-        if(servername.length + 2 > maxLen) {
-            servername.length = maxLen;
+    if(hostname.length + servername.length + 1 > outServiceDomain->length) {
+        if(servername.length + 2 > outServiceDomain->length) {
+            servername.length = outServiceDomain->length;
             hostname.length = 0;
         } else {
-            hostname.length = maxLen - servername.length - 1;
+            hostname.length = outServiceDomain->length - servername.length - 1;
         }
     }
 
-    size_t offset = 0;
     if(hostname.length > 0) {
-        mp_snprintf(outServiceDomain, maxLen + 1, "%S-%S", servername, hostname);
-        offset = servername.length + hostname.length + 1;
-        //replace all dots with minus. Otherwise mDNS is not valid
+        UA_String_format(outServiceDomain, "%S-%S._opcua-tcp._tcp.local.", servername, hostname);
+        /* Replace all dots with minus. Otherwise mDNS is not valid */
+        size_t offset = servername.length + hostname.length + 1;
         for(size_t i = servername.length+1; i < offset; i++) {
-            if(outServiceDomain[i] == '.')
-                outServiceDomain[i] = '-';
+            if(outServiceDomain->data[i] == '.')
+                outServiceDomain->data[i] = '-';
         }
     } else {
-        mp_snprintf(outServiceDomain, maxLen + 1, "%S", servername);
-        offset = servername.length;
+        UA_String_format(outServiceDomain, "%S._opcua-tcp._tcp.local.", servername);
     }
-    mp_snprintf(&outServiceDomain[offset], 24, "._opcua-tcp._tcp.local.");
 }
 
 /* Check if mDNS already has an entry for given hostname and port combination */
@@ -1450,32 +1440,33 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     }
 
     /* [servername]-[hostname]._opcua-tcp._tcp.local. */
-    char fullServiceDomain[63+24];
-    createFullServiceDomain(fullServiceDomain, 63+24, servername, hostname);
+    char fullServiceDomainBuf[63+24];
+    UA_String fullServiceDomain = {63+24, (UA_Byte*)fullServiceDomainBuf};
+    createFullServiceDomain(&fullServiceDomain, servername, hostname);
 
-    UA_Boolean exists = UA_Discovery_recordExists(fullServiceDomain,
+    UA_Boolean exists = UA_Discovery_recordExists(dm, fullServiceDomainBuf,
                                                   port, protocol);
     if(exists == true)
         return UA_STATUSCODE_GOOD;
 
     UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                "Multicast DNS: add record for domain: %s", fullServiceDomain);
+                "Multicast DNS: add record for domain: %S", fullServiceDomain);
 
     if(isSelf && mdnsPrivateData.selfMdnsRecord.length == 0) {
-        mdnsPrivateData.selfMdnsRecord = UA_STRING_ALLOC(fullServiceDomain);
+        mdnsPrivateData.selfMdnsRecord = UA_STRING_ALLOC(fullServiceDomainBuf);
         if(!mdnsPrivateData.selfMdnsRecord.data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     UA_String serverName = {
         UA_MIN(63, servername.length + hostname.length + 1),
-        (UA_Byte*) fullServiceDomain};
+        (UA_Byte*) fullServiceDomainBuf};
 
     struct serverOnNetwork *listEntry;
     /* The servername is servername + hostname. It is the same which we get
      * through mDNS and therefore we need to match servername */
     UA_StatusCode retval =
-        UA_DiscoveryManager_addEntryToServersOnNetwork(dm, fullServiceDomain,
+        UA_DiscoveryManager_addEntryToServersOnNetwork(dm, fullServiceDomainBuf,
                                                        serverName, &listEntry);
     if(retval != UA_STATUSCODE_GOOD &&
        retval != UA_STATUSCODE_BADALREADYEXISTS)
@@ -1502,17 +1493,15 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
         }
 
         listEntry->txtSet = true;
-
-        const size_t newUrlSize = 10 + hostname.length + 8 + path.length + 1;
-        UA_STACKARRAY(char, newUrl, newUrlSize);
-        memset(newUrl, 0, newUrlSize);
-        if(path.length > 0) {
-            mp_snprintf(newUrl, newUrlSize, "opc.tcp://%S:%d/%S", hostname, port, path);
-        } else {
-            mp_snprintf(newUrl, newUrlSize, "opc.tcp://%S:%d", hostname, port);
-        }
-        listEntry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
         listEntry->srvSet = true;
+
+        if(path.length > 0) {
+            UA_String_format(&listEntry->serverOnNetwork.discoveryUrl,
+                             "opc.tcp://%S:%d/%S", hostname, port, path);
+        } else {
+            UA_String_format(&listEntry->serverOnNetwork.discoveryUrl,
+                             "opc.tcp://%S:%d", hostname, port);
+        }
     }
 
     /* _services._dns-sd._udp.local. PTR _opcua-tcp._tcp.local */
@@ -1522,28 +1511,28 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     /* _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local. */
     mdns_record_t *r =
         mdns_find_record(mdnsPrivateData.mdnsDaemon, QTYPE_PTR,
-                         "_opcua-tcp._tcp.local.", fullServiceDomain);
+                         "_opcua-tcp._tcp.local.", fullServiceDomainBuf);
     if(!r) {
         r = mdnsd_shared(mdnsPrivateData.mdnsDaemon, "_opcua-tcp._tcp.local.",
                          QTYPE_PTR, 600);
-        mdnsd_set_host(mdnsPrivateData.mdnsDaemon, r, fullServiceDomain);
+        mdnsd_set_host(mdnsPrivateData.mdnsDaemon, r, fullServiceDomainBuf);
     }
 
-    /* The first 63 characters of the hostname (or less) */
+    /* The first 63 characters of the hostname (or less) and ".local." */
     size_t maxHostnameLen = UA_MIN(hostname.length, 63);
     char localDomain[71];
     memcpy(localDomain, hostname.data, maxHostnameLen);
     strcpy(localDomain + maxHostnameLen, ".local.");
 
-    /* [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname]. */
-    r = mdnsd_unique(mdnsPrivateData.mdnsDaemon, fullServiceDomain,
+    /* [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].local. */
+    r = mdnsd_unique(mdnsPrivateData.mdnsDaemon, fullServiceDomainBuf,
                      QTYPE_SRV, 600, UA_Discovery_multicastConflict, dm);
     mdnsd_set_srv(mdnsPrivateData.mdnsDaemon, r, 0, 0, port, localDomain);
 
     /* A/AAAA record for all ip addresses.
      * [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
-     * [hostname]. A [ip]. */
-    mdns_set_address_record(dm, fullServiceDomain, localDomain);
+     * [hostname].local. A [ip]. */
+    mdns_set_address_record(dm, fullServiceDomainBuf, localDomain);
 
     /* TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,... */
     UA_STACKARRAY(char, pathChars, path.length + 1);
@@ -1551,7 +1540,7 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
         if(path.length > 0)
             memcpy(pathChars, path.data, path.length);
         pathChars[path.length] = 0;
-        mdns_create_txt(dm, fullServiceDomain, pathChars, capabilites,
+        mdns_create_txt(dm, fullServiceDomainBuf, pathChars, capabilites,
                         capabilitiesSize, UA_Discovery_multicastConflict);
     }
 
@@ -1574,29 +1563,31 @@ UA_Discovery_removeRecord(UA_DiscoveryManager *dm, const UA_String servername,
     }
 
     /* [servername]-[hostname]._opcua-tcp._tcp.local. */
-    char fullServiceDomain[63 + 24];
-    createFullServiceDomain(fullServiceDomain, 63+24, servername, hostname);
+    char fullServiceDomainBuf[63 + 24];
+    UA_String fullServiceDomain = {63+24, (UA_Byte*)fullServiceDomainBuf};
+    createFullServiceDomain(&fullServiceDomain, servername, hostname);
 
     UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                "Multicast DNS: remove record for domain: %s",
+                "Multicast DNS: remove record for domain: %S",
                 fullServiceDomain);
 
     UA_String serverName =
-        {UA_MIN(63, servername.length + hostname.length + 1), (UA_Byte*)fullServiceDomain};
+        {UA_MIN(63, servername.length + hostname.length + 1),
+         (UA_Byte*)fullServiceDomainBuf};
 
     UA_StatusCode retval =
-        UA_DiscoveryManager_removeEntryFromServersOnNetwork(dm, fullServiceDomain, serverName);
+        UA_DiscoveryManager_removeEntryFromServersOnNetwork(dm, fullServiceDomainBuf, serverName);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* _opcua-tcp._tcp.local. PTR [servername]-[hostname]._opcua-tcp._tcp.local. */
     mdns_record_t *r =
         mdns_find_record(mdnsPrivateData.mdnsDaemon, QTYPE_PTR,
-                         "_opcua-tcp._tcp.local.", fullServiceDomain);
+                         "_opcua-tcp._tcp.local.", fullServiceDomainBuf);
     if(!r) {
         UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                        "Multicast DNS: could not remove record. "
-                       "PTR Record not found for domain: %s", fullServiceDomain);
+                       "PTR Record not found for domain: %s", fullServiceDomainBuf);
         return UA_STATUSCODE_BADNOTHINGTODO;
     }
     mdnsd_done(mdnsPrivateData.mdnsDaemon, r);
@@ -1606,11 +1597,11 @@ UA_Discovery_removeRecord(UA_DiscoveryManager *dm, const UA_String servername,
      * [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
      * and A record: [servername]-[hostname]._opcua-tcp._tcp.local. A [ip] */
     mdns_record_t *r2 =
-        mdnsd_get_published(mdnsPrivateData.mdnsDaemon, fullServiceDomain);
+        mdnsd_get_published(mdnsPrivateData.mdnsDaemon, fullServiceDomainBuf);
     if(!r2) {
         UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                        "Multicast DNS: could not remove record. Record not "
-                       "found for domain: %s", fullServiceDomain);
+                       "found for domain: %s", fullServiceDomainBuf);
         return UA_STATUSCODE_BADNOTHINGTODO;
     }
 

@@ -31,32 +31,6 @@ UA_Server *server;
 UA_DataSetReaderConfig readerConfig;
 UA_NodeId connectionIdentifier, readerGroupIdentifier, readerIdentifier;
 
-/* Define MetaData for TargetVariables */
-static void
-fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
-    if(pMetaData == NULL)
-        return;
-
-    UA_DataSetMetaDataType_init (pMetaData);
-    pMetaData->name = UA_STRING ("DataSet 1");
-
-    /* Static definition of number of fields size to PUBSUB_CONFIG_FIELD_COUNT
-     * to create targetVariables */
-    pMetaData->fieldsSize = PUBSUB_CONFIG_FIELD_COUNT;
-    pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
-                         &UA_TYPES[UA_TYPES_FIELDMETADATA]);
-
-    for(size_t i = 0; i < pMetaData->fieldsSize; i++) {
-        /* UInt32 DataType */
-        UA_FieldMetaData_init (&pMetaData->fields[i]);
-        UA_NodeId_copy(&UA_TYPES[UA_TYPES_UINT32].typeId,
-                       &pMetaData->fields[i].dataType);
-        pMetaData->fields[i].builtInType = UA_NS0ID_UINT32;
-        pMetaData->fields[i].name =  UA_STRING ("UInt32 varibale");
-        pMetaData->fields[i].valueRank = -1; /* scalar */
-    }
-}
-
 /* Add new connection to the server */
 static void
 addPubSubConnection(UA_Server *server) {
@@ -143,39 +117,44 @@ addSubscribedVariables (UA_Server *server) {
 static void
 addDataSetReader(UA_Server *server) {
     memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
-    readerConfig.name = UA_STRING("DataSet Reader 1");
-    /* Parameters to filter which DataSetMessage has to be processed
-     * by the DataSetReader */
-    /* The following parameters are used to show that the data published by
-     * tutorial_pubsub_publish.c is being subscribed and is being updated in
-     * the information model */
-    UA_UInt16 publisherIdentifier = 2234;
+    readerConfig.name = UA_STRING_ALLOC("DataSet Reader 1");
     readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
-    readerConfig.publisherId.id.uint16 = publisherIdentifier;
+    readerConfig.publisherId.id.uint16 = 2234;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-    readerConfig.expectedEncoding = UA_PUBSUB_RT_RAW;
-    readerConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE];
+    readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
+
     UA_UadpDataSetReaderMessageDataType *dataSetReaderMessage = UA_UadpDataSetReaderMessageDataType_new();
     dataSetReaderMessage->networkMessageContentMask = (UA_UadpNetworkMessageContentMask)
         (UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID | UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
          UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER | UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
          UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
     dataSetReaderMessage->dataSetMessageContentMask = UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER;
-    readerConfig.messageSettings.content.decoded.data = dataSetReaderMessage;
 
-    readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
+    UA_ExtensionObject_setValue(&readerConfig.messageSettings, dataSetReaderMessage,
+                                &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]);
 
     /* Setting up Meta data configuration in DataSetReader */
-    fillTestDataSetMetaData(&readerConfig.dataSetMetaData);
+    UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
+    pMetaData->name = UA_STRING_ALLOC("DataSet 1");
+
+    /* Static definition of number of fields size to PUBSUB_CONFIG_FIELD_COUNT
+     * to create targetVariables */
+    pMetaData->fieldsSize = PUBSUB_CONFIG_FIELD_COUNT;
+    pMetaData->fields = (UA_FieldMetaData*)
+        UA_Array_new(pMetaData->fieldsSize, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    for(size_t i = 0; i < pMetaData->fieldsSize; i++) {
+        UA_FieldMetaData_init (&pMetaData->fields[i]);
+        UA_NodeId_copy(&UA_TYPES[UA_TYPES_UINT32].typeId, &pMetaData->fields[i].dataType);
+        pMetaData->fields[i].builtInType = UA_NS0ID_UINT32; /* UInt32 DataType */
+        pMetaData->fields[i].name = UA_STRING_ALLOC("UInt32 varibale");
+        pMetaData->fields[i].valueRank = -1; /* scalar */
+    }
 
     addSubscribedVariables(server);
     UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig, &readerIdentifier);
-
     UA_DataSetReaderConfig_clear(&readerConfig);
-    UA_free(readerConfig.dataSetMetaData.fields);
-    UA_UadpDataSetReaderMessageDataType_delete(dataSetReaderMessage);
 }
 
 int main(int argc, char **argv) {
@@ -212,7 +191,7 @@ int main(int argc, char **argv) {
 
     /* Print the Offset Table */
     UA_PubSubOffsetTable ot;
-    UA_Server_computeReaderGroupOffsetTable(server, readerGroupIdentifier, &ot);
+    UA_Server_computeDataSetReaderOffsetTable(server, readerIdentifier, &ot);
     for(size_t i = 0; i < ot.offsetsSize; i++) {
         UA_String out = UA_STRING_NULL;
         UA_NodeId_print(&ot.offsets[i].component, &out);

@@ -43,15 +43,6 @@ macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
     set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
     set_target_properties(${EXAMPLE_NAME} PROPERTIES
                           VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-
-    if(UA_ENABLE_NODESET_INJECTOR)
-        set(UA_NODESETINJECTOR_EXAMPLE_NAMES ${EXAMPLE_NAME} ${UA_NODESETINJECTOR_EXAMPLE_NAMES})
-        # If the nodeset injector is activated, the target must be built twice.
-        # Otherwise, it may result in the nodesets not being inserted.
-        add_custom_command(TARGET ${EXAMPLE_NAME} POST_BUILD
-                           COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}
-                                                    --target ${EXAMPLE_NAME})
-    endif()
 endmacro()
 
 #############
@@ -190,7 +181,9 @@ if(UA_ENABLE_PUBSUB)
     add_example(server_pubsub_publish_rt_offsets pubsub_realtime/server_pubsub_publish_rt_offsets.c)
     add_example(server_pubsub_subscribe_rt_offsets pubsub_realtime/server_pubsub_subscribe_rt_offsets.c)
 
-    if(UA_ARCHITECTURE_POSIX)
+    ## Apple does not implement timer functions required by one of the examples
+    ## And apple does not implement librt posix extension
+    if(UA_ARCHITECTURE_POSIX AND NOT APPLE)
         add_example(server_pubsub_publish_rt_state_machine
                     pubsub_realtime/server_pubsub_publish_rt_state_machine.c)
         target_link_libraries(server_pubsub_publish_rt_state_machine "rt")
@@ -241,7 +234,5 @@ if(UA_ENABLE_NODESETLOADER)
 endif()
 
 if(UA_ENABLE_NODESET_INJECTOR)
-    set(UA_NODESETINJECTOR_GENERATORS ${UA_NODESETINJECTOR_GENERATORS} PARENT_SCOPE)
     set(UA_NODESETINJECTOR_SOURCE_FILES ${UA_NODESETINJECTOR_SOURCE_FILES} PARENT_SCOPE)
-    set(UA_NODESETINJECTOR_EXAMPLE_NAMES ${UA_NODESETINJECTOR_EXAMPLE_NAMES} PARENT_SCOPE)
 endif()

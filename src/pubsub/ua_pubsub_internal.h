@@ -132,16 +132,6 @@ UA_PubSubState_isEnabled(UA_PubSubState state) {
 
 /* All PubSubComponents share the same header structure */
 
-typedef enum  {
-    UA_PUBSUBCOMPONENT_CONNECTION  = 0,
-    UA_PUBSUBCOMPONENT_WRITERGROUP  = 1,
-    UA_PUBSUBCOMPONENT_DATASETWRITER  = 2,
-    UA_PUBSUBCOMPONENT_READERGROUP  = 3,
-    UA_PUBSUBCOMPONENT_DATASETREADER  = 4,
-    UA_PUBSUBCOMPONENT_PUBLISHEDDATASET  = 5,
-    UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET = 6,
-} UA_PubSubComponentType;
-
 typedef struct {
     UA_NodeId identifier;
     UA_PubSubComponentType componentType;
@@ -269,10 +259,6 @@ typedef struct UA_PubSubConnection {
     UA_DelayedCallback dc; /* For delayed freeing */
 } UA_PubSubConnection;
 
-UA_StatusCode
-UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
-                               UA_PubSubConnectionConfig *dst);
-
 UA_PubSubConnection *
 UA_PubSubConnection_find(UA_PubSubManager *psm, const UA_NodeId id);
 
@@ -281,22 +267,12 @@ UA_PubSubConnection_create(UA_PubSubManager *psm,
                            const UA_PubSubConnectionConfig *connectionConfig,
                            UA_NodeId *connectionIdentifier);
 
-void
-UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
-
-void
+UA_StatusCode
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c);
 
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                    UA_PubSubState targetState);
-
-/* Also used by the ReaderGroup ... */
-UA_StatusCode
-UA_PubSubConnection_decodeNetworkMessage(UA_PubSubManager *psm,
-                                         UA_PubSubConnection *connection,
-                                         UA_ByteString buffer,
-                                         UA_NetworkMessage *nm);
 
 /**********************************************/
 /*              DataSetWriter                 */
@@ -387,7 +363,7 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
                       const UA_WriterGroupConfig *writerGroupConfig,
                       UA_NodeId *writerGroupIdentifier);
 
-void
+UA_StatusCode
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
 /* Exposed so we can change the publish interval without having to stop */
@@ -477,6 +453,11 @@ UA_DataSetReader_process(UA_PubSubManager *psm,
                          UA_DataSetMessage *dataSetMsg);
 
 UA_StatusCode
+UA_DataSetReader_generateDataSetMessage(UA_Server *server,
+                                        UA_DataSetMessage *dsm,
+                                        UA_DataSetReader *dsr);
+
+UA_StatusCode
 UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                  UA_NetworkMessage *msg);
 
@@ -532,7 +513,7 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
                       const UA_ReaderGroupConfig *rgc,
                       UA_NodeId *readerGroupId);
 
-void
+UA_StatusCode
 UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg);
 
 UA_StatusCode
@@ -573,6 +554,18 @@ UA_StatusCode
 verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                                Ctx *ctx, UA_NetworkMessage *nm,
                                UA_ReaderGroup *rg);
+
+UA_StatusCode
+UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
+                                    UA_ReaderGroup *rg,
+                                    UA_ByteString buffer,
+                                    UA_NetworkMessage *nm);
+
+UA_StatusCode
+UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
+                                        UA_ReaderGroup *rg,
+                                        UA_ByteString buffer,
+                                        UA_NetworkMessage *nm);
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 
@@ -724,6 +717,9 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
 
 UA_StatusCode
 connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId sdsId);
+
+void
+disconnectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId);
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 UA_StatusCode

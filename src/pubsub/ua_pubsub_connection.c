@@ -29,82 +29,6 @@ static void
 UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
 
 UA_StatusCode
-UA_PubSubConnection_decodeNetworkMessage(UA_PubSubManager *psm,
-                                         UA_PubSubConnection *connection,
-                                         UA_ByteString buffer,
-                                         UA_NetworkMessage *nm) {
-#ifdef UA_DEBUG_DUMP_PKGS
-    UA_dump_hex_pkg(buffer->data, buffer->length);
-#endif
-
-    /* Set up the decoding context */
-    Ctx ctx;
-    ctx.pos = buffer.data;
-    ctx.end = buffer.data + buffer.length;
-    ctx.depth = 0;
-    memset(&ctx.opts, 0, sizeof(UA_DecodeBinaryOptions));
-    ctx.opts.customTypes = psm->sc.server->config.customDataTypes;
-
-    /* Decode the headers */
-    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(&ctx, nm);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, connection,
-                              "PubSub receive. decoding headers failed");
-        UA_NetworkMessage_clear(nm);
-        return rv;
-    }
-
-    /* Choose a correct readergroup for decrypt/verify this message
-     * (there could be multiple) */
-    UA_Boolean processed = false;
-    UA_ReaderGroup *rg;
-    LIST_FOREACH(rg, &connection->readerGroups, listEntry) {
-        UA_DataSetReader *reader;
-        LIST_FOREACH(reader, &rg->readers, listEntry) {
-            UA_StatusCode res = UA_DataSetReader_checkIdentifier(psm, reader, nm);
-            if(res != UA_STATUSCODE_GOOD)
-                continue;
-            processed = true;
-            rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx, nm, rg);
-            if(rv != UA_STATUSCODE_GOOD) {
-                UA_NetworkMessage_clear(nm);
-                return rv;
-            }
-
-            /* break out of all loops when first verify & decrypt was successful */
-            goto loops_exit;
-        }
-    }
-
-loops_exit:
-    if(!processed) {
-        UA_DateTime nowM = UA_DateTime_nowMonotonic();
-        if(connection->silenceErrorUntil < nowM) {
-            UA_LOG_WARNING_PUBSUB(psm->logging, connection,
-                                  "Could not decode the received NetworkMessage "
-                                  "-- No matching ReaderGroup");
-            connection->silenceErrorUntil = nowM + (UA_DateTime)(10.0 * UA_DATETIME_SEC);
-        }
-        UA_NetworkMessage_clear(nm);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    rv = UA_NetworkMessage_decodePayload(&ctx, nm);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_NetworkMessage_clear(nm);
-        return rv;
-    }
-
-    rv = UA_NetworkMessage_decodeFooters(&ctx, nm);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_NetworkMessage_clear(nm);
-        return rv;
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
 UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
                                UA_PubSubConnectionConfig *dst) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -123,8 +47,7 @@ UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
 }
 
 UA_PubSubConnection *
-UA_PubSubConnection_find(UA_PubSubManager *psm,
-                         const UA_NodeId id) {
+UA_PubSubConnection_find(UA_PubSubManager *psm, const UA_NodeId id) {
     if(!psm)
         return NULL;
     UA_PubSubConnection *c;
@@ -188,6 +111,19 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
     mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %N\t| ", c->head.identifier);
     c->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
+    /* Notify the application that a new Connection was created.
+     * This may internally adjust the config */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, c->head.identifier,
+                                       UA_PUBSUBCOMPONENT_CONNECTION, false);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_PubSubConnection_delete(psm, c);
+            return res;
+        }
+    }
+
     UA_LOG_INFO_PUBSUB(psm->logging, c, "Connection created (State: %s)",
                        UA_PubSubState_name(c->head.state));
 
@@ -212,9 +148,19 @@ delayedPubSubConnection_delete(void *application, void *context) {
 /* Clean up the PubSubConnection. If no EventLoop connection is attached we can
  * immediately free. Otherwise we close the EventLoop connections and free in
  * the connection callback. */
-void
+UA_StatusCode
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+
+    /* Check with the application if we can remove */
+    UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.componentLifecycleCallback) {
+        UA_StatusCode res = server->config.pubSubConfig.
+            componentLifecycleCallback(server, c->head.identifier,
+                                       UA_PUBSUBCOMPONENT_CONNECTION, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
     /* Disable (and disconnect) and set the deleteFlag. This prevents a
      * reconnect and triggers the deletion when the last open socket is
@@ -245,7 +191,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
 
     /* Not all sockets are closed. This method will be called again */
     if(c->sendChannel != 0 || c->recvChannelsSize > 0)
-        return;
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* The WriterGroups / ReaderGroups are not deleted. Try again in the next
      * iteration of the event loop.*/
@@ -255,7 +201,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
         c->dc.application = psm;
         c->dc.context = c;
         el->addDelayedCallback(el, &c->dc);
-        return;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Remove from the information model */
@@ -272,6 +218,8 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     UA_PubSubConnectionConfig_clear(&c->config);
     UA_PubSubComponentHead_clear(&c->head);
     UA_free(c);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -279,37 +227,39 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             const UA_ByteString msg) {
     UA_LOG_TRACE_PUBSUB(psm->logging, c, "Processing a received buffer");
 
-    /* Process RT ReaderGroups */
-    UA_Boolean processed = false;
-    UA_ReaderGroup *rg = LIST_FIRST(&c->readerGroups);
-    /* Any interested ReaderGroups? */
-    if(!rg)
-        goto finish;
+#ifdef UA_DEBUG_DUMP_PKGS
+    UA_dump_hex_pkg(msg.data, msg.length);
+#endif
 
-    /* Decode the received message for the non-RT ReaderGroups */
-    UA_StatusCode res;
+    UA_Boolean processed = false;
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
-    if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
-        res = UA_PubSubConnection_decodeNetworkMessage(psm, c, msg, &nm);
-    } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
+
+    /* Decode the NetworkMessage with the first matching ReaderGroup */
+    UA_ReaderGroup *rg;
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+        if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
+           rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
+            continue;
+        if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+            res = UA_ReaderGroup_decodeNetworkMessage(psm, rg, msg, &nm);
+        } else {
 #ifdef UA_ENABLE_JSON_ENCODING
-        res = UA_NetworkMessage_decodeJson(&msg, &nm, NULL);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_PUBSUB(psm->logging, c,
-                                  "Decoding the JSON network message failed");
-        }
+            res = UA_ReaderGroup_decodeNetworkMessageJSON(psm, rg, msg, &nm);
 #else
-        res = UA_STATUSCODE_BADNOTSUPPORTED;
-        UA_LOG_WARNING_PUBSUB(psm->logging, c,
-                              "JSON support is not activated");
+            res = UA_STATUSCODE_BADNOTSUPPORTED;
+            UA_LOG_WARNING_PUBSUB(psm->logging, c, "JSON support is not activated");
 #endif
+        }
+        if(res == UA_STATUSCODE_GOOD)
+            break;
     }
 
     if(res != UA_STATUSCODE_GOOD)
-        return;
+        goto finish;
 
-    /* Process the received message for the non-RT ReaderGroups */
+    /* Process the received message for all ReaderGroups */
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
         if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
            rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
@@ -323,8 +273,10 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
         UA_DateTime nowM = UA_DateTime_nowMonotonic();
         if(c->silenceErrorUntil < nowM) {
             UA_LOG_WARNING_PUBSUB(psm->logging, c,
-                                  "Message received that could not be processed. "
-                                  "Check PublisherID, WriterGroupID and DatasetWriterID.");
+                                  "Message received that could not be processed "
+                                  "with StatusCode %s. Check PublisherId, "
+                                  "WriterGroupId and DatasetWriterId",
+                                  UA_StatusCode_name(res));
             c->silenceErrorUntil = nowM + (UA_DateTime)(10.0 * UA_DATETIME_SEC);
         }
     }
@@ -339,13 +291,19 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Are we doing a top-level state update or recursively? */
-    UA_Boolean isTransient = c->head.transientState;
-    c->head.transientState = true;
-
+    /* Callback to modify the WriterGroup config and change the targetState
+     * before the state machine executes */
     UA_Server *server = psm->sc.server;
+    if(server->config.pubSubConfig.beforeStateChangeCallback) {
+        server->config.pubSubConfig.
+            beforeStateChangeCallback(server, c->head.identifier, &targetState);
+    }
+
+    /* Are we doing a top-level state update or recursively? */
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = c->head.state;
+    UA_Boolean isTransient = c->head.transientState;
+    c->head.transientState = true;
 
     /* Custom state machine */
     if(c->config.customStateMachine) {
@@ -929,12 +887,66 @@ UA_Server_processPubSubConnectionReceive(UA_Server *server,
             res = UA_STATUSCODE_GOOD;
             UA_PubSubConnection_process(psm, c, packet);
         } else {
-            res = UA_STATUSCODE_BADCONNECTIONCLOSED;
-            UA_LOG_WARNING_PUBSUB(psm->logging, c,
-                                  "Cannot process a packet if the "
-                                  "PubSubConnection is not operational");
+            res = UA_STATUSCODE_BADNOTFOUND;
         }
     }
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_updatePubSubConnectionConfig(UA_Server *server,
+                                       const UA_NodeId connectionId,
+                                       const UA_PubSubConnectionConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    /* Find the connection */
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
+    if(!c) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    /* Verify the connection is disabled */
+    if(UA_PubSubState_isEnabled(c->head.state)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c,
+                            "The PubSubConnection must be disabled to update the config");
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Store the old config */
+    UA_PubSubConnectionConfig oldConfig = c->config;
+    memset(&c->config, 0, sizeof(UA_PubSubConnectionConfig));
+
+    /* Copy the connection config */
+    UA_StatusCode res = UA_PubSubConnectionConfig_copy(config, &c->config);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Validate-connect to check the parameters */
+    res = UA_PubSubConnection_connect(psm, c, true);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "The connection parameters did not validate");
+        goto errout;
+    }
+
+    /* Call the state-machine. This can move the connection state from _ERROR to
+     * _DISABLED. */
+    UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
+
+    UA_PubSubConnectionConfig_clear(&oldConfig);
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+
+ errout:
+    /* Restore the old config */
+    UA_PubSubConnectionConfig_clear(&c->config);
+    c->config = oldConfig;
     unlockServer(server);
     return res;
 }
