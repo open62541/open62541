@@ -1321,8 +1321,8 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     if(keySuccess != UA_STATUSCODE_GOOD)
         return keySuccess;
 
-    retval = securityPolicies_addAll(sp, &config->securityPoliciesSize,
-                                     localCertificate, decryptedPrivateKey, config->logging);
+    securityPolicies_addAll(sp, &config->securityPoliciesSize,
+                            localCertificate, decryptedPrivateKey, config->logging);
 
     /* Set the same certificate also for authentication.
      * Can be overridden with a different certificate. */
