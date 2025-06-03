@@ -1,0 +1,74 @@
+name: Windows Build & Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: msvc
+            cc_name: "Visual Studio 17 2022"
+            cc_shortname: msvc
+            generator: "Visual Studio 17 2022"
+            arch: "x64"
+          - compiler: mingw
+            cc_name: "MinGW Makefiles" 
+            cc_shortname: mingw
+            generator: "Ninja"
+          - compiler: clang-mingw
+            cc_name: "Clang"
+            cc_shortname: clang-mingw
+            generator: "Ninja"
+    runs-on: windows-latest
+    env:
+      CC_NAME: ${{ matrix.cc_name }}
+      CC_SHORTNAME: ${{ matrix.cc_shortname }}
+      GENERATOR: ${{ matrix.generator }}
+      ARCH: ${{ matrix.arch }}
+      FORCE_CXX: OFF
+      MSYS2_ROOT: C:\msys64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      
+      - name: Setup MSYS2 for MinGW builds
+        if: matrix.cc_shortname == 'mingw' || matrix.cc_shortname == 'clang-mingw'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-check
+            mingw-w64-x86_64-clang
+          path-type: minimal
+          pacboy: >-
+            mbedtls:p
+      
+      - name: Install Requirements
+        shell: pwsh
+        run: ./tools/ci/azure-devops/win/install.ps1
+      
+      - name: Build & Test Unit Tests
+        shell: pwsh
+        run: |
+          Write-Host -ForegroundColor Green "`n### Building and Testing with ${{ matrix.compiler }} ###`n"
+          if ("${{ matrix.cc_shortname }}" -eq "mingw" -or "${{ matrix.cc_shortname }}" -eq "clang-mingw") {
+            $env:PATH = "C:\msys64\mingw64\bin;$env:PATH"
+          }
+          ./tools/ci/azure-devops/win/build.ps1
+      
+      - name: Upload Test Results (if available)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.cc_shortname }}
+          path: |
+            build/Testing/
+            build/**/*.xml
+            build/**/*.log
+          retention-days: 7
