@@ -1360,7 +1360,7 @@ UA_DataSetMessage_keyFrame_encodeBinary(PubSubEncodeCtx *ctx,
         return UA_STATUSCODE_GOOD;
 
     /* Part 14: The FieldCount shall be omitted if RawData field encoding is set */
-    UA_StatusCode rv;
+    UA_StatusCode rv = UA_STATUSCODE_BADINTERNALERROR;
     if(src->header.fieldEncoding != UA_FIELDENCODING_RAWDATA) {
         rv = _ENCODE_BINARY(&src->fieldCount, UINT16);
         UA_CHECK_STATUS(rv, return rv);
