@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-### This Source Code Form is subject to the terms of the Mozilla Public
-### License, v. 2.0. If a copy of the MPL was not distributed with this
-### file, You can obtain one at http://mozilla.org/MPL/2.0/.
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-###    Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
-###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
-###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
+# Copyright 2014-2015 (c) TU-Dresden (Author: Chris Iatrou)
+# Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+# Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
 
 import sys
@@ -24,6 +24,7 @@ if sys.version_info[0] >= 3:
     # strings are already parsed to unicode
     def unicode(s):
         return s
+
 
 class Reference(object):
     # all either nodeids or strings with an alias
@@ -54,11 +55,13 @@ class Reference(object):
     def __hash__(self):
         return hash(str(self))
 
+
 def RefOrAlias(s):
     try:
         return NodeId(s)
     except Exception:
         return s
+
 
 class Node(object):
     def __init__(self):
@@ -69,7 +72,7 @@ class Node(object):
         self.symbolicName = None
         self.writeMask = None
         self.userWriteMask = None
-        self.references = dict() # using dict because it retains insertion order
+        self.references = dict()  # using dict because it retains insertion order
         self.hidden = False
         self.modelUri = None
         self.parent = None
@@ -113,9 +116,9 @@ class Node(object):
                 if x.localName == "BrowseName":
                     self.browseName = QualifiedName(x.firstChild.data)
                 elif x.localName == "DisplayName":
-                    self.displayName = LocalizedText(x.firstChild.data)
+                    self.displayName = LocalizedText(x)
                 elif x.localName == "Description":
-                    self.description = LocalizedText(x.firstChild.data)
+                    self.description = LocalizedText(x)
                 elif x.localName == "WriteMask":
                     self.writeMask = int(unicode(x.firstChild.data))
                 elif x.localName == "UserWriteMask":
@@ -187,6 +190,7 @@ class Node(object):
         self.references = new_refs
         self.namespaceMapping = nsMapping
 
+
 class ReferenceTypeNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
@@ -202,14 +206,15 @@ class ReferenceTypeNode(Node):
             if at == "Symmetric":
                 self.symmetric = "false" not in av.lower()
             elif at == "InverseName":
-                self.inverseName = str(av)
+                self.inverseName = LocalizedText(av)
             elif at == "IsAbstract":
                 self.isAbstract = "false" not in av.lower()
 
         for x in xmlelement.childNodes:
             if x.nodeType == x.ELEMENT_NODE:
                 if x.localName == "InverseName" and x.firstChild:
-                    self.inverseName = str(unicode(x.firstChild.data))
+                    self.inverseName = LocalizedText(x)
+
 
 class ObjectNode(Node):
     def __init__(self, xmlelement=None):
@@ -223,6 +228,7 @@ class ObjectNode(Node):
         for (at, av) in xmlelement.attributes.items():
             if at == "EventNotifier":
                 self.eventNotifier = int(av)
+
 
 class VariableNode(Node):
     def __init__(self, xmlelement=None):
@@ -253,7 +259,7 @@ class VariableNode(Node):
                 self.minimumSamplingInterval = float(av)
             elif at == "DataType":
                 self.dataType = RefOrAlias(av)
-            elif  at == "ArrayDimensions":
+            elif at == "ArrayDimensions":
                 self.arrayDimensions = av.split(",")
             elif at == "Historizing":
                 self.historizing = "false" not in av.lower()
@@ -268,7 +274,7 @@ class VariableNode(Node):
             elif x.localName == "ValueRank":
                 self.valueRank = int(unicode(x.firstChild.data))
             elif x.localName == "ArrayDimensions" and len(self.arrayDimensions) == 0:
-                elements = x.getElementsByTagName("ListOfUInt32");
+                elements = x.getElementsByTagName("ListOfUInt32")
                 if len(elements):
                     for idx, v in enumerate(elements[0].getElementsByTagName("UInt32")):
                         self.arrayDimensions.append(v.firstChild.data)
@@ -287,7 +293,7 @@ class VariableNode(Node):
             return False
 
         if self.xmlValueDef is None:
-            #logger.warn("Variable " + self.browseName() + "/" + str(self.id()) + " is not initialized. No memory will be allocated.")
+            # logger.warn("Variable " + self.browseName() + "/" + str(self.id()) + " is not initialized. No memory will be allocated.")
             return False
 
         self.value = Value()
@@ -314,6 +320,7 @@ class VariableTypeNode(VariableNode):
             if x.localName == "IsAbstract":
                 self.isAbstract = "false" not in av.lower()
 
+
 class MethodNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
@@ -333,6 +340,7 @@ class MethodNode(Node):
             if at == "MethodDeclarationId":
                 self.methodDeclaration = str(av)
 
+
 class ObjectTypeNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
@@ -345,6 +353,7 @@ class ObjectTypeNode(Node):
         for (at, av) in xmlelement.attributes.items():
             if at == "IsAbstract":
                 self.isAbstract = "false" not in av.lower()
+
 
 class DataTypeNode(Node):
     """ DataTypeNode is a subtype of Node describing DataType nodes.
@@ -379,7 +388,7 @@ class DataTypeNode(Node):
         self.__baseTypeEncoding__ = []
         self.__encodable__ = None
         self.__definition__ = []
-        self.__isEnum__     = False
+        self.__isEnum__ = False
         self.__isOptionSet__ = False
         if xmlelement:
             DataTypeNode.parseXML(self, xmlelement)
@@ -422,7 +431,6 @@ class DataTypeNode(Node):
         else:
             return self.__baseTypeEncoding__
 
-
     def buildEncoding(self, nodeset, indent=0, force=False, namespaceMapping=None):
         """ buildEncoding() determines the structure and aliases used for variables
             of this DataType.
@@ -462,29 +470,29 @@ class DataTypeNode(Node):
 
         prefix = " " + "|" * indent + "+"
 
-        if force==True:
+        if force == True:
             self.__encodable__ = None
 
         if self.__encodable__ is not None and self.__encodable__:
             if self.isEncodable():
                 logger.debug(prefix + str(self.__baseTypeEncoding__) + " (already analyzed)")
             else:
-                logger.debug( prefix + str(self.__baseTypeEncoding__) + "(already analyzed, not encodable!)")
+                logger.debug(prefix + str(self.__baseTypeEncoding__) +
+                             "(already analyzed, not encodable!)")
             return self.__baseTypeEncoding__
 
         self.__encodable__ = True
 
-        if indent==0:
+        if indent == 0:
             logger.debug("Parsing DataType " + str(self.browseName) + " (" + str(self.id) + ")")
 
         if valueIsInternalType(self.browseName.name):
             self.__baseTypeEncoding__ = [self.browseName.name]
             self.__encodable__ = True
-            logger.debug( prefix + str(self.browseName) + "*")
+            logger.debug(prefix + str(self.browseName) + "*")
             logger.debug("Encodable as: " + str(self.__baseTypeEncoding__))
             logger.debug("")
             return self.__baseTypeEncoding__
-
 
         # Check if there is a supertype available
         parentType = None
@@ -500,29 +508,32 @@ class DataTypeNode(Node):
 
         if self.__xmlDefinition__ is None:
             if parentType is not None:
-                logger.debug( prefix + "Attempting definition using supertype " + str(targetNode.browseName) + " for DataType " + " " + str(self.browseName))
+                logger.debug(prefix + "Attempting definition using supertype " +
+                             str(targetNode.browseName) + " for DataType " + " " + str(self.browseName))
                 subenc = targetNode.buildEncoding(nodeset=nodeset, indent=indent+1,
                                                   namespaceMapping=namespaceMapping)
                 if not targetNode.isEncodable():
                     self.__encodable__ = True
                 else:
-                    self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName.name, subenc, None , 'false']
+                    self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + \
+                        [self.browseName.name, subenc, None, 'false']
             if len(self.__baseTypeEncoding__) == 0:
-                logger.debug(prefix + "No viable definition for " + str(self.browseName) + " " + str(self.id) + " found.")
+                logger.debug(prefix + "No viable definition for " +
+                             str(self.browseName) + " " + str(self.id) + " found.")
                 self.__encodable__ = True
 
-            if indent==0:
+            if indent == 0:
                 if not self.__encodable__:
                     logger.debug("Not encodable (partial): " + str(self.__baseTypeEncoding__))
                 else:
                     logger.debug("Encodable as: " + str(self.__baseTypeEncoding__))
-                logger.debug( "")
+                logger.debug("")
 
             return self.__baseTypeEncoding__
 
         isEnum = False
         # An option set is at the same time also an enum, at least for the encoding below
-        isOptionSet = parentType is not None and parentType.id.ns == 0 and parentType.id.i==12755
+        isOptionSet = parentType is not None and parentType.id.ns == 0 and parentType.id.i == 12755
 
         # We need to store the definition as ordered data, but cannot use orderedDict
         # for backward compatibility with Python 2.6 and 3.4
@@ -532,14 +543,14 @@ class DataTypeNode(Node):
         # An XML Definition is provided and will be parsed... now
         for x in self.__xmlDefinition__.childNodes:
             if x.nodeType == x.ELEMENT_NODE:
-                fname  = ""
+                fname = ""
                 fdtype = ""
                 enumVal = ""
                 valueRank = None
-                #symbolicName = None
+                # symbolicName = None
                 arrayDimensions = None
                 isOptional = ""
-                for at,av in x.attributes.items():
+                for at, av in x.attributes.items():
                     if at == "DataType":
                         fdtype = str(av)
                         if fdtype in nodeset.aliases:
@@ -587,13 +598,15 @@ class DataTypeNode(Node):
                     # but must still ensure that the dtnode is itself validly encodable
                     typeDict.append([fname, dtnode])
                     fdtype = str(dtnode.browseName.name)
-                    logger.debug( prefix + fname + " : " + fdtype + " -> " + str(dtnode.id))
+                    logger.debug(prefix + fname + " : " + fdtype + " -> " + str(dtnode.id))
                     subenc = dtnode.buildEncoding(nodeset=nodeset, indent=indent+1,
                                                   namespaceMapping=namespaceMapping)
                     if isOptional:
-                        self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc, valueRank, 'true']]
+                        self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + \
+                            [[fname, subenc, valueRank, 'true']]
                     else:
-                        self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [[fname, subenc, valueRank, 'false']]
+                        self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + \
+                            [[fname, subenc, valueRank, 'false']]
                     if not dtnode.isEncodable():
                         # If we inherit an encoding from an unencodable node, this node is
                         # also not encodable
@@ -613,7 +626,8 @@ class DataTypeNode(Node):
             if not parentType.isEncodable():
                 self.__encodable__ = True
             else:
-                self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + [self.browseName.name, subenc, None]
+                self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + \
+                    [self.browseName.name, subenc, None]
                 self.__definition__ = enumDict
             return self.__baseTypeEncoding__
 
@@ -621,18 +635,20 @@ class DataTypeNode(Node):
             self.__baseTypeEncoding__ = self.__baseTypeEncoding__ + ['Int32']
             self.__definition__ = enumDict
             self.__isEnum__ = True
-            logger.debug( prefix+"Int32* -> enumeration with dictionary " + str(enumDict) + " encodable " + str(self.__encodable__))
+            logger.debug(prefix+"Int32* -> enumeration with dictionary " +
+                         str(enumDict) + " encodable " + str(self.__encodable__))
             return self.__baseTypeEncoding__
 
-        if indent==0:
+        if indent == 0:
             if not self.__encodable__:
-                logger.debug( "Not encodable (partial): " + str(self.__baseTypeEncoding__))
+                logger.debug("Not encodable (partial): " + str(self.__baseTypeEncoding__))
             else:
-                logger.debug( "Encodable as: " + str(self.__baseTypeEncoding__))
+                logger.debug("Encodable as: " + str(self.__baseTypeEncoding__))
                 self.__isEnum__ = False
-            logger.debug( "")
+            logger.debug("")
         self.__definition__ = typeDict
         return self.__baseTypeEncoding__
+
 
 class ViewNode(Node):
     def __init__(self, xmlelement=None):
