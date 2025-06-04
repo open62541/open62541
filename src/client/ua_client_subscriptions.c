@@ -1525,13 +1525,6 @@ void
 __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
-    if(client->sessionState < UA_SESSIONSTATE_ACTIVATED)
-        return;
-
-    /* Is the lack of responses the client's fault? */
-    if(client->currentlyOutStandingPublishRequests == 0)
-        return;
-
     UA_EventLoop *el = client->config.eventLoop;
     UA_DateTime nowm = el->dateTime_nowMonotonic(el);
 
