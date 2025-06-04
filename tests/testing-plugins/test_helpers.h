@@ -77,6 +77,10 @@ UA_Client * UA_Client_newForUnitTest(void) {
     config->eventLoop->dateTime_now = UA_DateTime_now_fake;
     config->eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
     config->tcpReuseAddr = true;
+
+    /* Increase the timeouts (needed for valgrind CI tests) */
+    config->timeout = 10 * 60 * 1000;
+
     return client;
 }
 
