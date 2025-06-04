@@ -47,7 +47,7 @@ logCategoryNames[UA_LOGCATEGORIES] =
 /* Protect crosstalk during logging via global lock. Use a spinlock as we cannot
  * statically initialize a global lock across all platforms. */
 #if UA_MULTITHREADING >= 100
-void *logSpinLock = NULL;
+static void *logSpinLock = NULL;
 static UA_INLINE void spinLock(void) {
     while(UA_atomic_cmpxchg(&logSpinLock, NULL, (void*)0x1) != NULL) {}
 }

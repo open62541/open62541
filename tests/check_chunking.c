@@ -10,10 +10,10 @@
 #include <stdlib.h>
 #include <check.h>
 
-UA_ByteString *buffers;
-size_t bufIndex;
-size_t counter;
-size_t dataCount;
+static UA_ByteString *buffers;
+static size_t bufIndex;
+static size_t counter;
+static size_t dataCount;
 
 static UA_StatusCode
 sendChunkMockUp(void *_, UA_Byte **bufPos, const UA_Byte **bufEnd) {
