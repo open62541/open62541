@@ -197,7 +197,7 @@ UA_String_append(UA_String *s, const UA_String s2) {
 }
 
 UA_StatusCode
-UA_String_printf(UA_String *str, const char *format, ...) {
+UA_String_format(UA_String *str, const char *format, ...) {
     va_list args;
     va_start(args, format);
     UA_StatusCode ret = UA_String_vprintf(str, format, args);
@@ -206,36 +206,49 @@ UA_String_printf(UA_String *str, const char *format, ...) {
 }
 
 UA_StatusCode
-UA_String_vprintf(UA_String *str, const char *format, va_list args) {
+UA_String_vformat(UA_String *str, const char *format, va_list args) {
+    /* Store a copy of the arguments for the second pass. va_list cannot be
+     * iterated twice. */
+    va_list args2;
+    va_copy(args2, args);
+
     /* Encode initially */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     int out = mp_vsnprintf((char*)str->data, str->length, format, args);
-    if(out < 0)
-        return UA_STATUSCODE_BADENCODINGERROR;
+    if(out < 0) {
+        res = UA_STATUSCODE_BADENCODINGERROR;
+        goto errout;
+    }
 
     /* Output length zero */
     if(out == 0) {
         str->length = 0;
         if(str->data == NULL)
             str->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
-        return UA_STATUSCODE_GOOD;
+        goto errout;
     }
 
     /* Encode into existing buffer. mp_snprintf adds a trailing \0. So out must
      * be truly smaller than str->length for success. */
     if(str->length > 0) {
-        if((size_t)out >= str->length)
-            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-        str->length = (size_t)out;
-        return UA_STATUSCODE_GOOD;
+        if((size_t)out < str->length) {
+            str->length = (size_t)out;
+        } else {
+            res = UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        }
+        goto errout;
     }
 
     /* Allocate and encode again (+1 length for the trailing \0) */
-    UA_StatusCode res = UA_ByteString_allocBuffer(str, (size_t)out + 1);
+    res = UA_ByteString_allocBuffer(str, (size_t)out + 1);
     if(res != UA_STATUSCODE_GOOD)
-        return res;
-    mp_vsnprintf((char*)str->data, str->length, format, args);
+        goto errout;
+    mp_vsnprintf((char*)str->data, str->length, format, args2);
     str->length--;
-    return UA_STATUSCODE_GOOD;
+
+ errout:
+    va_end(args2);
+    return res;
 }
 
 /* QualifiedName */
@@ -309,7 +322,8 @@ UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
     }
 
     /* Print the name */
-    memcpy(pos, qn->name.data, qn->name.length);
+    if(UA_LIKELY(qn->name.data != NULL))
+        memcpy(pos, qn->name.data, qn->name.length);
 
     UA_assert(output->length == (size_t)((UA_Byte*)pos + qn->name.length - output->data));
     return UA_STATUSCODE_GOOD;
@@ -336,9 +350,9 @@ UA_DateTime_toStruct(UA_DateTime t) {
         frac += UA_DATETIME_SEC;
     }
 
-    struct mytm ts;
-    memset(&ts, 0, sizeof(struct mytm));
-    __secs_to_tm(secSinceUnixEpoch, &ts);
+    struct musl_tm ts;
+    memset(&ts, 0, sizeof(struct musl_tm));
+    musl_secs_to_tm(secSinceUnixEpoch, &ts);
 
     UA_DateTimeStruct dateTimeStruct;
     dateTimeStruct.year   = (i16)(ts.tm_year + 1900);
@@ -356,15 +370,15 @@ UA_DateTime_toStruct(UA_DateTime t) {
 UA_DateTime
 UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
     /* Seconds since the Unix epoch */
-    struct mytm tm;
-    memset(&tm, 0, sizeof(struct mytm));
+    struct musl_tm tm;
+    memset(&tm, 0, sizeof(struct musl_tm));
     tm.tm_year = ts.year - 1900;
     tm.tm_mon = ts.month - 1;
     tm.tm_mday = ts.day;
     tm.tm_hour = ts.hour;
     tm.tm_min = ts.min;
     tm.tm_sec = ts.sec;
-    long long sec_epoch = __tm_to_secs(&tm);
+    long long sec_epoch = musl_tm_to_secs(&tm);
 
     UA_DateTime t = UA_DATETIME_UNIX_EPOCH;
     t += sec_epoch * UA_DATETIME_SEC;
