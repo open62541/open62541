@@ -18,13 +18,12 @@ UA_AsyncOperation_delete(UA_AsyncOperation *ar) {
 }
 
 static void
-UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
-                                  UA_AsyncResponse *ar) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_LOCK_ASSERT(&am->queueLock);
+sendAsyncResponse(UA_Server *server, UA_AsyncManager *am,
+                  UA_AsyncResponse *ar) {
+    UA_assert(ar->opCountdown == 0);
 
     /* Get the session */
-    UA_Session* session = getSessionById(server, &ar->sessionId);
+    UA_Session *session = getSessionById(server, &ar->sessionId);
     if(!session) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Async Service: Session %N no longer exists", ar->sessionId);
@@ -48,9 +47,9 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     responseHeader->requestHandle = ar->requestHandle;
 
     /* Send the Response */
-    UA_StatusCode res =
-        sendResponse(server, channel, ar->requestId,
-                     (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
+    UA_StatusCode res = sendResponse(server, channel, ar->requestId,
+                                     (UA_Response*)&ar->response,
+                                     &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "Async Response for Req# %" PRIu32 " failed "
@@ -58,6 +57,28 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
                                UA_StatusCode_name(res));
     }
     UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
+}
+
+static void
+UA_AsyncManager_sendAsyncResponses(void *s, void *a) {
+    UA_Server *server = (UA_Server*)s;
+    UA_AsyncManager *am = (UA_AsyncManager*)a;
+
+    UA_LOCK(&server->serviceMutex);
+    UA_LOCK(&am->queueLock);
+
+    /* Send out ready responses */
+    UA_AsyncResponse *ar, *temp;
+    TAILQ_FOREACH_SAFE(ar, &am->asyncResponses, pointers, temp) {
+        if(ar->opCountdown == 0)
+            sendAsyncResponse(server, am, ar);
+    }
+
+    /* Reset the delayed callback */
+    am->dc.callback = NULL;
+
+    UA_UNLOCK(&am->queueLock);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 /* Integrate operation result in the AsyncResponse and send out the response if
@@ -85,8 +106,37 @@ integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
     /* Done with all operations -> send the response */
     UA_Boolean done = (ar->opCountdown == 0);
     if(done)
-        UA_AsyncManager_sendAsyncResponse(am, server, ar);
+        sendAsyncResponse(server, am, ar);
     return done;
+}
+
+static void
+integrateResult(UA_Server *server, UA_AsyncManager *am,
+                UA_AsyncOperation *ao) {
+    /* Get the async response */
+    UA_AsyncResponse *ar = ao->parent;
+    ar->opCountdown -= 1;
+
+    /* Move the UA_CallMethodResult to UA_CallResponse */
+    ar->response.callResponse.results[ao->index] = ao->response;
+    UA_CallMethodResult_init(&ao->response);
+    UA_AsyncOperation_delete(ao);
+
+    /* Reduce the number of overall outstanding async ops */
+    am->opsCount--;
+
+    /* Trigger the main server thread to send out responses */
+    if(ar->opCountdown == 0 && am->dc.callback == NULL) {
+        UA_EventLoop *el = server->config.eventLoop;
+
+        am->dc.callback = UA_AsyncManager_sendAsyncResponses;
+        am->dc.application = server;
+        am->dc.context = am;
+        el->addDelayedCallback(el, &am->dc);
+
+        /* Wake up the EventLoop */
+        el->cancel(el);
+    }
 }
 
 /* Process all operations in the result queue -> move content over to the
@@ -134,9 +184,9 @@ checkTimeouts(UA_Server *server, void *_) {
             break;
 
         /* Mark as timed out and put it into the result queue */
-        op->response.statusCode = UA_STATUSCODE_BADTIMEOUT;
         TAILQ_REMOVE(&am->dispatchedQueue, op, pointers);
-        TAILQ_INSERT_TAIL(&am->resultQueue, op, pointers);
+        op->response.statusCode = UA_STATUSCODE_BADTIMEOUT;
+        integrateResult(server, am, op);
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Operation was removed due to a timeout");
     }
@@ -148,9 +198,9 @@ checkTimeouts(UA_Server *server, void *_) {
             break;
 
         /* Mark as timed out and put it into the result queue */
-        op->response.statusCode = UA_STATUSCODE_BADTIMEOUT;
         TAILQ_REMOVE(&am->newQueue, op, pointers);
-        TAILQ_INSERT_TAIL(&am->resultQueue, op, pointers);
+        op->response.statusCode = UA_STATUSCODE_BADTIMEOUT;
+        integrateResult(server, am, op);
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Operation was removed due to a timeout");
     }
@@ -159,7 +209,7 @@ checkTimeouts(UA_Server *server, void *_) {
 
     /* Integrate async results and send out complete responses */
     lockServer(server);
-    processAsyncResults(server);
+    UA_AsyncManager_sendAsyncResponses(server, am);
     unlockServer(server);
 }
 
@@ -184,6 +234,10 @@ void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server) {
     /* Add a regular callback for checking timeouts and sending finished
      * responses at a 100ms interval. */
     removeCallback(server, am->checkTimeoutCallbackId);
+    if(am->dc.callback) {
+        UA_EventLoop *el = server->config.eventLoop;
+        el->removeDelayedCallback(el, &am->dc);
+    }
 }
 
 void
@@ -370,14 +424,16 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
         ao->response.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    /* Move to the result queue */
+    /* Remove from the dispatch queue */
     TAILQ_REMOVE(&am->dispatchedQueue, ao, pointers);
-    TAILQ_INSERT_TAIL(&am->resultQueue, ao, pointers);
-
-    UA_UNLOCK(&am->queueLock);
 
     UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
-                 "Set the result from the worker thread");
+                 "Return result in the server thread with %" PRIu32 " ops remaining",
+                 op->parent->opCountdown);
+
+    integrateResult(server, am, op);
+
+    UA_UNLOCK(&am->queueLock);
 }
 
 /******************/
@@ -454,9 +510,9 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
             continue;
 
         /* Set status and put it into the result queue */
-        op->response.statusCode = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
         TAILQ_REMOVE(&am->dispatchedQueue, op, pointers);
-        TAILQ_INSERT_TAIL(&am->resultQueue, op, pointers);
+        op->response.statusCode = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
+        integrateResult(server, am, op);
 
         /* Also set the status of the overall response */
         op->parent->response.callResponse.responseHeader.
@@ -470,10 +526,11 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
             continue;
 
         /* Mark as timed out and put it into the result queue */
-        op->response.statusCode = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
         TAILQ_REMOVE(&am->newQueue, op, pointers);
-        TAILQ_INSERT_TAIL(&am->resultQueue, op, pointers);
+        op->response.statusCode = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
+        integrateResult(server, am, op);
 
+        /* Also set the status of the overall response */
         op->parent->response.callResponse.responseHeader.
             serviceResult = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
     }

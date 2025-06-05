@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
-  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
+ *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
  * based on
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
@@ -42,7 +42,7 @@ struct UA_AsyncResponse {
     UA_UInt32 requestId;
     UA_NodeId sessionId;
     UA_UInt32 requestHandle;
-    UA_DateTime    timeout;
+    UA_DateTime timeout;
     UA_AsyncOperationType operationType;
     union {
         UA_CallResponse callResponse;
@@ -74,6 +74,8 @@ typedef struct {
     size_t opsCount; /* How many operations are transient (in one of the three queues)? */
 
     UA_UInt64 checkTimeoutCallbackId; /* Registered repeated callbacks */
+
+    UA_DelayedCallback dc; /* Delayed callback to have the main thread send out responses */
 } UA_AsyncManager;
 
 void UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server);
