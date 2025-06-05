@@ -335,9 +335,7 @@ UA_ByteString_fromBase64(UA_ByteString *bs,
 /* DateTime parsing for both JSON and XML */
 UA_StatusCode
 decodeDateTime(const UA_ByteString s, UA_DateTime *dst) {
-    /* The last character has to be 'Z'. We can omit some length checks later on
-     * because we know the atoi functions stop before the 'Z'. */
-    if(s.length == 0 || s.data[s.length-1] != 'Z')
+    if(s.length == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     struct musl_tm dts;
@@ -442,6 +440,26 @@ decodeDateTime(const UA_ByteString s, UA_DateTime *dst) {
         dt += (UA_DateTime)(frac * UA_DATETIME_SEC);
     }
 
+    /* Time zone handling */
+    int tzSign = 0;
+    UA_UInt64 tzHour = 0, tzMin = 0;
+    if(s.data[pos] == 'Z') {
+        pos++;
+    } else if(s.data[pos] == '+' || s.data[pos] == '-') {
+        tzSign = (s.data[pos] == '-') ? -1 : 1;
+        pos++;
+        len = parseUInt64((char*)&s.data[pos], 2, &tzHour);
+        pos += len;
+        if(s.data[pos] == ':')
+            pos++;
+        len = parseUInt64((char*)&s.data[pos], 2, &tzMin);
+        pos += len;
+        UA_Int64 offsetSeconds = (UA_Int64)(tzHour * 3600 + tzMin * 60) * tzSign;
+        dt -= (UA_DateTime)(offsetSeconds * UA_DATETIME_SEC);
+    } else {
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
+
     /* Remove the underflow/overflow protection (see above) */
     if(sinceunix > 0) {
         if(dt > UA_INT64_MAX - UA_DATETIME_SEC)
@@ -453,8 +471,8 @@ decodeDateTime(const UA_ByteString s, UA_DateTime *dst) {
         dt -= UA_DATETIME_SEC;
     }
 
-    /* We must be at the end of the string (ending with 'Z' as checked above) */
-    if(pos != s.length - 1)
+    /* We must be at the end of the string */
+    if(pos != s.length)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     *dst = dt;
