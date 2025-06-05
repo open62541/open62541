@@ -81,35 +81,6 @@ UA_AsyncManager_sendAsyncResponses(void *s, void *a) {
     UA_UNLOCK(&server->serviceMutex);
 }
 
-/* Integrate operation result in the AsyncResponse and send out the response if
- * it is ready. */
-static UA_Boolean
-integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
-                         UA_AsyncOperation *ao) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_LOCK_ASSERT(&am->queueLock);
-
-    /* Grab the open request, so we can continue to construct the response */
-    UA_AsyncResponse *ar = ao->parent;
-
-    /* Reduce the number of open results */
-    ar->opCountdown -= 1;
-
-    UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
-                 "Return result in the server thread with %" PRIu32 " remaining",
-                 ar->opCountdown);
-
-    /* Move the UA_CallMethodResult to UA_CallResponse */
-    ar->response.callResponse.results[ao->index] = ao->response;
-    UA_CallMethodResult_init(&ao->response);
-
-    /* Done with all operations -> send the response */
-    UA_Boolean done = (ar->opCountdown == 0);
-    if(done)
-        sendAsyncResponse(server, am, ar);
-    return done;
-}
-
 static void
 integrateResult(UA_Server *server, UA_AsyncManager *am,
                 UA_AsyncOperation *ao) {
@@ -137,30 +108,6 @@ integrateResult(UA_Server *server, UA_AsyncManager *am,
         /* Wake up the EventLoop */
         el->cancel(el);
     }
-}
-
-/* Process all operations in the result queue -> move content over to the
- * AsyncResponse. This is only done by the server thread. Returns the nmber of
- * completed async sesponses. */
-static UA_UInt32
-processAsyncResults(UA_Server *server) {
-    UA_AsyncManager *am = &server->asyncManager;
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    UA_UInt32 count = 0;
-    UA_AsyncOperation *ao;
-    UA_LOCK(&am->queueLock);
-    while((ao = TAILQ_FIRST(&am->resultQueue))) {
-        TAILQ_REMOVE(&am->resultQueue, ao, pointers);
-        if(integrateOperationResult(am, server, ao))
-            count++;
-        UA_AsyncOperation_delete(ao);
-        /* Pacify clang-analyzer */
-        UA_assert(TAILQ_FIRST(&am->resultQueue) != ao);
-        am->opsCount--;
-    }
-    UA_UNLOCK(&am->queueLock);
-    return count;
 }
 
 /* Check if any operations have timed out */
@@ -219,7 +166,6 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
     TAILQ_INIT(&am->asyncResponses);
     TAILQ_INIT(&am->newQueue);
     TAILQ_INIT(&am->dispatchedQueue);
-    TAILQ_INIT(&am->resultQueue);
     UA_LOCK_INIT(&am->queueLock);
 }
 
@@ -252,10 +198,6 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
     }
     TAILQ_FOREACH_SAFE(ar, &am->dispatchedQueue, pointers, ar_tmp) {
         TAILQ_REMOVE(&am->dispatchedQueue, ar, pointers);
-        UA_AsyncOperation_delete(ar);
-    }
-    TAILQ_FOREACH_SAFE(ar, &am->resultQueue, pointers, ar_tmp) {
-        TAILQ_REMOVE(&am->resultQueue, ar, pointers);
         UA_AsyncOperation_delete(ar);
     }
     UA_UNLOCK(&am->queueLock);
@@ -503,6 +445,7 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
     UA_LOCK(&am->queueLock);
 
     /* Loop over the queue of dispatched ops */
+    UA_UInt32 count = 0;
     UA_AsyncOperation *op = NULL, *op_tmp = NULL;
     TAILQ_FOREACH_SAFE(op, &am->dispatchedQueue, pointers, op_tmp) {
         if(op->parent->requestHandle != requestHandle ||
@@ -513,6 +456,7 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
         TAILQ_REMOVE(&am->dispatchedQueue, op, pointers);
         op->response.statusCode = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
         integrateResult(server, am, op);
+        count++;
 
         /* Also set the status of the overall response */
         op->parent->response.callResponse.responseHeader.
@@ -529,6 +473,7 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
         TAILQ_REMOVE(&am->newQueue, op, pointers);
         op->response.statusCode = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
         integrateResult(server, am, op);
+        count++;
 
         /* Also set the status of the overall response */
         op->parent->response.callResponse.responseHeader.
@@ -536,9 +481,7 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
     }
 
     UA_UNLOCK(&am->queueLock);
-
-    /* Process messages that have all ops completed */
-    return processAsyncResults(server);
+    return count;
 }
 
 #endif

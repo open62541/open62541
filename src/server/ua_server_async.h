@@ -70,7 +70,6 @@ typedef struct {
     UA_AsyncOperationQueue dispatchedQueue; /* Operations taken by a worker. When a result is
                                              * returned, we search for the op here to see if it
                                              * is still "alive" (not timed out). */
-    UA_AsyncOperationQueue resultQueue;     /* Results to be integrated */
     size_t opsCount; /* How many operations are transient (in one of the three queues)? */
 
     UA_UInt64 checkTimeoutCallbackId; /* Registered repeated callbacks */
