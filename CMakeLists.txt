@@ -67,7 +67,7 @@ MESSAGE(STATUS "open62541 Version: ${OPEN62541_VERSION}")
 # Architecture #
 ################
 
-set(UA_ARCHITECTURES "none" "posix" "win32" "zephyr")
+set(UA_ARCHITECTURES "none" "posix" "win32" "zephyr" "freertos-lwip" "posix-lwip")
 set(UA_ARCHITECTURE "" CACHE STRING "Architecture to build open62541 for")
 SET_PROPERTY(CACHE UA_ARCHITECTURE PROPERTY STRINGS "" ${UA_ARCHITECTURES})
 
@@ -86,6 +86,12 @@ elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
     set(UA_ARCHITECTURE_WIN32 1)
 elseif("${UA_ARCHITECTURE}" STREQUAL "zephyr")
     set(UA_ARCHITECTURE_ZEPHYR 1)
+elseif("${UA_ARCHITECTURE}" STREQUAL "freertos-lwip")
+    set(UA_ARCHITECTURE_LWIP 1)
+    set(UA_ARCHITECTURE_FREERTOS 1)
+elseif("${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
+    set(UA_ARCHITECTURE_LWIP 1)
+    set(UA_ARCHITECTURE_POSIX 1)
 endif()
 
 #################
@@ -545,6 +551,20 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
     pkg_search_module(AVAHI REQUIRED avahi-client avahi-common)
     include_directories(${AVAHI_INCLUDE_DIRS})
     list(APPEND open62541_LIBRARIES "${AVAHI_LIBRARIES}")
+endif()
+
+if(UA_ARCHITECTURE_LWIP)
+    # Assume lwip is provided as a library.
+    # Directly include the source files here if required.
+    #
+    # Example settings (POSIX Port):
+    # LWIP_INCLUDE_DIRS ../lwip/contrib/ports/unix/port/include;
+    #                   ../lwip/contrib/ports/unix/posixlib;
+    #                   ../lwip/contrib/ports/unix/posixlib/include;
+    #                   ../lwip/src/include
+    # LWIP_LIBRARIES    ../lwip/contrib/ports/unix/lib/build/liblwip.so
+    find_package(LWIP REQUIRED)
+    list(APPEND open62541_LIBRARIES ${LWIP_LIBRARIES})
 endif()
 
 #####################
@@ -1019,6 +1039,36 @@ if(UA_ARCHITECTURE_ZEPHYR)
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
 endif()
 
+if(UA_ARCHITECTURE_LWIP)
+    list(APPEND plugin_sources
+            ${PROJECT_SOURCE_DIR}/arch/common/timer.h
+            ${PROJECT_SOURCE_DIR}/arch/common/timer.c
+            ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
+            ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
+            ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip.h
+            ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip.c
+            ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip_tcp.c
+            ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip_udp.c)
+endif()
+
+if(UA_ARCHITECTURE_LWIP AND UA_ARCHITECTURE_POSIX)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c)
+endif()
+
+if(UA_ARCHITECTURE_FREERTOS)
+    # Assume the FreeRTOS POSIX "Simulator".
+    # Change this to directly include the source files if required.
+    set(FREERTOS_KERNEL_PATH "~/software/FreeRTOSv202411.00/FreeRTOS/Source" CACHE STRING "")
+    set(FREERTOS_PORT_PATH "~/software/FreeRTOSv202411.00/FreeRTOS/Demo/Posix_GCC" CACHE STRING "")
+    include(arch/freertos/freertos.cmake)
+    include_directories(${FREERTOS_PORT_PATH} "${FREERTOS_KERNEL_PATH}/include")
+    include_directories("${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/Posix")
+    add_compile_definitions(projCOVERAGE_TEST=0)
+    add_compile_definitions(projENABLE_TRACING=0)
+    list(APPEND open62541_LIBRARIES freertos_config freertos_kernel)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/freertos/clock_freertos.c)
+endif()
+
 if(UA_ENABLE_MQTT)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
 endif()
@@ -1347,6 +1397,9 @@ endfunction()
 
 include_directories_private("${PROJECT_SOURCE_DIR}/deps")
 
+if(UA_ARCHITECTURE_LWIP)
+    include_directories_private(${LWIP_INCLUDE_DIRS})
+endif()
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     include_directories_private(${MBEDTLS_INCLUDE_DIRS})
 endif()

@@ -12,7 +12,11 @@
 #include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
+#ifdef UA_ARCHITECTURE_LWIP
+#include "../arch/lwip/eventloop_lwip.h"
+#else
 #include "../arch/posix/eventloop_posix.h"
+#endif
 #include "test_helpers.h"
 #include "testing_clock.h"
 
@@ -475,7 +479,7 @@ START_TEST(Test_error_case) {
     UA_PubSubConnection *tmpConnection;
     TAILQ_FOREACH(tmpConnection, &psm->connections, listEntry) {
        if(UA_NodeId_equal(&tmpConnection->head.identifier, &ConnId_1)) {
-            shutdown((int)tmpConnection->sendChannel, UA_SHUT_RDWR);
+            UA_shutdown((int)tmpConnection->sendChannel, UA_SHUT_RDWR);
        }
     }
 
