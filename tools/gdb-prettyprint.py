@@ -5,6 +5,7 @@
 
 import base64
 import gdb
+import gdb.printing
 
 def findType(name):
     tt = None
