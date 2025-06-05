@@ -220,7 +220,6 @@ UA_AsyncManager_createAsyncResponse(UA_AsyncManager *am, UA_Server *server,
 
     UA_EventLoop *el = server->config.eventLoop;
 
-    am->asyncResponsesCount += 1;
     newentry->requestId = requestId;
     newentry->requestHandle = requestHandle;
     newentry->timeout = el->dateTime_nowMonotonic(el);
@@ -237,7 +236,6 @@ UA_AsyncManager_createAsyncResponse(UA_AsyncManager *am, UA_Server *server,
 void
 UA_AsyncManager_removeAsyncResponse(UA_AsyncManager *am, UA_AsyncResponse *ar) {
     TAILQ_REMOVE(&am->asyncResponses, ar, pointers);
-    am->asyncResponsesCount -= 1;
     UA_CallResponse_clear(&ar->response.callResponse);
     UA_NodeId_clear(&ar->sessionId);
     UA_free(ar);

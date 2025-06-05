@@ -56,9 +56,7 @@ struct UA_AsyncResponse {
 typedef TAILQ_HEAD(UA_AsyncOperationQueue, UA_AsyncOperation) UA_AsyncOperationQueue;
 
 typedef struct {
-    /* Requests / Responses */
     TAILQ_HEAD(, UA_AsyncResponse) asyncResponses;
-    size_t asyncResponsesCount;
 
     /* Operations for the workers. The queues are all FIFO: Put in at the tail,
      * take out at the head.*/
