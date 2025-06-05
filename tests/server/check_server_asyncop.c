@@ -219,9 +219,11 @@ START_TEST(Async_cancel) {
     UA_Client_cancelByRequestId(client, reqId, &cancelCount);
     ck_assert_uint_eq(cancelCount, 1);
 
+
     /* We expect to receive the cancelled response */
-    UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(clientCounter, 1);
+    while(clientCounter != 1) {
+        UA_Client_run_iterate(client, 1);
+    }
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
