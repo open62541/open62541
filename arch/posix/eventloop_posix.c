@@ -29,13 +29,10 @@ UA_EventLoopPOSIX_nextTimer(UA_EventLoop *public_el) {
 }
 
 static UA_StatusCode
-UA_EventLoopPOSIX_addTimer(UA_EventLoop *public_el,
-                                    UA_Callback cb,
-                                    void *application, void *data,
-                                    UA_Double interval_ms,
-                                    UA_DateTime *baseTime,
-                                    UA_TimerPolicy timerPolicy,
-                                    UA_UInt64 *callbackId) {
+UA_EventLoopPOSIX_addTimer(UA_EventLoop *public_el, UA_Callback cb,
+                           void *application, void *data, UA_Double interval_ms,
+                           UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
+                           UA_UInt64 *callbackId) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     return UA_Timer_add(&el->timer, cb, application, data, interval_ms,
                         public_el->dateTime_nowMonotonic(public_el),
