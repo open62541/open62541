@@ -170,7 +170,7 @@ writeJsonArrElm(CtxJson *ctx, const void *value,
 status
 writeJsonObjElm(CtxJson *ctx, const char *key,
                 const void *value, const UA_DataType *type) {
-    ret = writeJsonKey(ctx, key);
+    status ret = writeJsonKey(ctx, key);
     return ret | encodeJsonJumpTable[type->typeKind](ctx, value, type);
 }
 
