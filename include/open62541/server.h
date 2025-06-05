@@ -270,6 +270,7 @@ struct UA_ServerConfig {
     UA_MdnsDiscoveryConfiguration mdnsConfig;
 #  ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
     UA_String mdnsInterfaceIP;
+    UA_Boolean mdnsSendToAllInterfaces; /* If true, the server will send on all interfaces */
 #   if !defined(UA_HAS_GETIFADDR)
     size_t mdnsIpAddressListSize;
     UA_UInt32 *mdnsIpAddressList;
