@@ -1067,7 +1067,15 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_internalValueSource(UA_Server *server,
     const UA_NodeId nodeId, const UA_DataValue *value,
-    const UA_InternalValueSourceNotifications *notifications);
+    const UA_ValueSourceNotifications *notifications);
+
+/* For the external value, no initial copy is made. The node "just" points to
+ * the provided double-pointer. Otherwise identical to the internal data
+ * source. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setVariableNode_externalValueSource(UA_Server *server,
+    const UA_NodeId nodeId, UA_DataValue **value,
+    const UA_ValueSourceNotifications *notifications);
 
 /* It is expected that the read callback is implemented. Whenever the value
  * attribute is read, the function will be called and asked to fill a
@@ -1086,7 +1094,7 @@ typedef UA_CallbackValueSource UA_DataSource;
     UA_Server_setVariableNode_callbackValueSource(server, nodeId, dataSource);
 
 /* Deprecated API */
-typedef UA_InternalValueSourceNotifications UA_ValueCallback;
+typedef UA_ValueSourceNotifications UA_ValueCallback;
 #define UA_Server_setVariableNode_valueCallback(server, nodeId, callback) \
     UA_Server_setVariableNode_internalValueSource(server, nodeId, NULL, &callback);
 
