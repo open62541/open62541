@@ -139,6 +139,16 @@ UA_StatusCode_equalTop(UA_StatusCode s1, UA_StatusCode s2) {
 }
 
 UA_String
+UA_STRING(char *chars) {
+    UA_String s = {0, NULL};
+    if(!chars)
+        return s;
+    s.length = strlen(chars);
+    s.data = (UA_Byte*)chars;
+    return s;
+}
+
+UA_String
 UA_String_fromChars(const char *src) {
     UA_String s; s.length = 0; s.data = NULL;
     if(!src)
