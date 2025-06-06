@@ -671,6 +671,31 @@ START_TEST(ReadSingleAttributeDataTypeDefinitionWithoutTimestamp) {
     UA_DataValue_clear(&resp);
 } END_TEST
 
+UA_DataValue staticVal;
+UA_DataValue *staticValPtr;
+
+START_TEST(ReadSingleAttributeValueWithExternalSource) {
+    UA_DataValue_init(&staticVal);
+    UA_UInt32 v = 42;
+    UA_Variant_setScalar(&staticVal.value, &v, &UA_TYPES[UA_TYPES_UINT32]);
+    staticVal.hasValue = true;
+    staticValPtr = &staticVal;
+
+    UA_StatusCode res =
+        UA_Server_setVariableNode_externalValueSource(server,
+                                                      UA_NODEID_STRING(1, "the.answer"),
+                                                      &staticValPtr, NULL);
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+
+    ck_assert(UA_DataValue_equal(&staticVal, &resp));
+    UA_DataValue_clear(&resp);
+} END_TEST
+
 /* Tests for writeValue method */
 
 START_TEST(WriteSingleAttributeNodeId) {
@@ -1243,6 +1268,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDataTypeDefinitionWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithExternalSource);
 
     suite_add_tcase(s, tc_readSingleAttributes);
 

@@ -176,6 +176,32 @@ readInternalValueAttribute(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
+readExternalValueAttribute(UA_Server *server, UA_Session *session,
+                           const UA_VariableNode *vn, UA_DataValue *v,
+                           UA_NumericRange *rangeptr) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* Update the value by the user callback */
+    if(vn->valueSource.internal.notifications.onRead)
+        vn->valueSource.internal.notifications.
+            onRead(server, session ? &session->sessionId : NULL,
+                   session ? session->context : NULL, &vn->head.nodeId,
+                   vn->head.context, rangeptr, *vn->valueSource.external.value);
+
+    /* Reload the value pointer */
+    const UA_DataValue *val = (const UA_DataValue*)
+        UA_atomic_load((void**)vn->valueSource.external.value);
+
+    /* Set the result */
+    if(rangeptr) {
+        *v = *val; /* Copy timestamps */
+        UA_Variant_init(&v->value);
+        return UA_Variant_copyRange(&val->value, &v->value, *rangeptr);
+    }
+    return UA_DataValue_copy(val, v);
+}
+
+static UA_StatusCode
 readCallbackValueAttribute(UA_Server *server, UA_Session *session,
                            const UA_VariableNode *vn, UA_DataValue *v,
                            UA_TimestampsToReturn timestamps,
@@ -225,11 +251,12 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
     case UA_VALUESOURCETYPE_INTERNAL:
         retval = readInternalValueAttribute(server, session, vn, v, rangeptr);
         break;
-
+    case UA_VALUESOURCETYPE_EXTERNAL:
+        retval = readExternalValueAttribute(server, session, vn, v, rangeptr);
+        break;
     case UA_VALUESOURCETYPE_CALLBACK:
         retval = readCallbackValueAttribute(server, session, vn, v, timestamps, rangeptr);
         break;
-
     default:
         retval = UA_STATUSCODE_BADINTERNALERROR;
         break;
@@ -1414,9 +1441,12 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
 
     /* Write into the different value source backends. */
     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED; /* default */
-    UA_DataValue *oldValue = &node->valueSource.internal.value;
     switch(node->valueSourceType) {
-    case UA_VALUESOURCETYPE_INTERNAL:
+    case UA_VALUESOURCETYPE_EXTERNAL:
+    case UA_VALUESOURCETYPE_INTERNAL: {
+        UA_DataValue *oldValue = (node->valueSourceType == UA_VALUESOURCETYPE_INTERNAL) ?
+            &node->valueSource.internal.value :
+            (UA_DataValue*)UA_atomic_load((void**)node->valueSource.external.value);
         retval = writeInternalValueAttribute(oldValue, &adjustedValue, rangeptr);
         if(retval == UA_STATUSCODE_GOOD &&
            node->valueSource.internal.notifications.onWrite)
@@ -1424,6 +1454,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
                 onWrite(server, &session->sessionId, session->context,
                         &node->head.nodeId, node->head.context, rangeptr, &adjustedValue);
         break;
+    }
     case UA_VALUESOURCETYPE_CALLBACK:
         if(node->valueSource.callback.write)
             retval = node->valueSource.callback.
