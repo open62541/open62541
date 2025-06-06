@@ -48,6 +48,7 @@ _UA_BEGIN_DECLS
  * Boolean
  * ^^^^^^^
  * A two-state logical value (true or false). */
+
 typedef bool UA_Boolean;
 #define UA_TRUE true UA_INTERNAL_DEPRECATED
 #define UA_FALSE false UA_INTERNAL_DEPRECATED
@@ -56,6 +57,7 @@ typedef bool UA_Boolean;
  * SByte
  * ^^^^^
  * An integer value between -128 and 127. */
+
 typedef int8_t UA_SByte;
 #define UA_SBYTE_MIN (-128)
 #define UA_SBYTE_MAX 127
@@ -64,6 +66,7 @@ typedef int8_t UA_SByte;
  * Byte
  * ^^^^
  * An integer value between 0 and 255. */
+
 typedef uint8_t UA_Byte;
 #define UA_BYTE_MIN 0
 #define UA_BYTE_MAX 255
@@ -72,6 +75,7 @@ typedef uint8_t UA_Byte;
  * Int16
  * ^^^^^
  * An integer value between -32 768 and 32 767. */
+
 typedef int16_t UA_Int16;
 #define UA_INT16_MIN (-32768)
 #define UA_INT16_MAX 32767
@@ -80,6 +84,7 @@ typedef int16_t UA_Int16;
  * UInt16
  * ^^^^^^
  * An integer value between 0 and 65 535. */
+
 typedef uint16_t UA_UInt16;
 #define UA_UINT16_MIN 0
 #define UA_UINT16_MAX 65535
@@ -88,6 +93,7 @@ typedef uint16_t UA_UInt16;
  * Int32
  * ^^^^^
  * An integer value between -2 147 483 648 and 2 147 483 647. */
+
 typedef int32_t UA_Int32;
 #define UA_INT32_MIN ((int32_t)-2147483648LL)
 #define UA_INT32_MAX 2147483647L
@@ -96,6 +102,7 @@ typedef int32_t UA_Int32;
  * UInt32
  * ^^^^^^
  * An integer value between 0 and 4 294 967 295. */
+
 typedef uint32_t UA_UInt32;
 #define UA_UINT32_MIN 0
 #define UA_UINT32_MAX 4294967295UL
@@ -105,6 +112,7 @@ typedef uint32_t UA_UInt32;
  * ^^^^^
  * An integer value between -9 223 372 036 854 775 808 and
  * 9 223 372 036 854 775 807. */
+
 typedef int64_t UA_Int64;
 #define UA_INT64_MAX (int64_t)9223372036854775807LL
 #define UA_INT64_MIN ((int64_t)-UA_INT64_MAX-1LL)
@@ -113,6 +121,7 @@ typedef int64_t UA_Int64;
  * UInt64
  * ^^^^^^
  * An integer value between 0 and 18 446 744 073 709 551 615. */
+
 typedef uint64_t UA_UInt64;
 #define UA_UINT64_MIN 0
 #define UA_UINT64_MAX (uint64_t)18446744073709551615ULL
@@ -121,6 +130,7 @@ typedef uint64_t UA_UInt64;
  * Float
  * ^^^^^
  * An IEEE single precision (32 bit) floating point value. */
+
 typedef float UA_Float;
 #define UA_FLOAT_MIN FLT_MIN
 #define UA_FLOAT_MAX FLT_MAX
@@ -129,6 +139,7 @@ typedef float UA_Float;
  * Double
  * ^^^^^^
  * An IEEE double precision (64 bit) floating point value. */
+
 typedef double UA_Double;
 #define UA_DOUBLE_MIN DBL_MIN
 #define UA_DOUBLE_MAX DBL_MAX
