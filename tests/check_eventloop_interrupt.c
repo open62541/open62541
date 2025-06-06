@@ -19,7 +19,7 @@
 #define TESTSIG SIGINT
 #endif
 
-unsigned counter = 0;
+static unsigned counter = 0;
 
 static void
 interruptCallback(UA_InterruptManager *im,
