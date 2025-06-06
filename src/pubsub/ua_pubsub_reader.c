@@ -386,6 +386,7 @@ UA_StatusCode
 UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
                             UA_DataSetReaderConfig *dst) {
     memset(dst, 0, sizeof(UA_DataSetReaderConfig));
+    memcpy(dst, src, sizeof(UA_DataSetReaderConfig));
     dst->writerGroupId = src->writerGroupId;
     dst->dataSetWriterId = src->dataSetWriterId;
     dst->dataSetFieldContentMask = src->dataSetFieldContentMask;
