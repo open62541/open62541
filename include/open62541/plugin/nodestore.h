@@ -425,13 +425,16 @@ struct UA_NodeHead {
  *
  * VariableNode
  * ------------
- * Variables store values as well as contraints for possible values.
- * There are two options for storing the value: Internal in the VariableNode
- * data structure itself or external with callbacks to the application. */
+ * Variables store values as well as contraints for possible values. There are
+ * two options for storing the value: Internal in the VariableNode data
+ * structure itself, external with a double-pointer (to switch to an updated
+ * value with an atomic pointer-replacing operation) or with a callback
+ * registered by the application. */
 
 typedef enum {
     UA_VALUESOURCETYPE_INTERNAL = 0,
-    UA_VALUESOURCETYPE_CALLBACK = 1
+    UA_VALUESOURCETYPE_EXTERNAL = 1,
+    UA_VALUESOURCETYPE_CALLBACK = 2
 } UA_ValueSourceType;
 
 typedef struct {
@@ -470,7 +473,7 @@ typedef struct {
                     void *sessionContext, const UA_NodeId *nodeId,
                     void *nodeContext, const UA_NumericRange *range,
                     const UA_DataValue *data);
-} UA_InternalValueSourceNotifications;
+} UA_ValueSourceNotifications;
 
 typedef struct {
     /* Copies the data from the source into the provided value.
@@ -547,8 +550,12 @@ typedef struct {
     union {                                                             \
         struct {                                                        \
             UA_DataValue value;                                         \
-            UA_InternalValueSourceNotifications notifications;          \
+            UA_ValueSourceNotifications notifications;                  \
         } internal;                                                     \
+        struct {                                                        \
+            UA_DataValue **value; /* double-pointer */                  \
+            UA_ValueSourceNotifications notifications;                  \
+        } external;                                                     \
         UA_CallbackValueSource callback;                                \
     } valueSource;
 

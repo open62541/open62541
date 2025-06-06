@@ -2278,7 +2278,7 @@ setTwoStateVariableCallbacks(UA_Server *server, const UA_NodeId* condition,
                                                            &twoStateVariableIdNodeId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Id Property of TwoStateVariable not found",);
 
-    UA_InternalValueSourceNotifications callback;
+    UA_ValueSourceNotifications callback;
     callback.onRead = NULL;
     callback.onWrite = afterWriteCallbackEnabledStateChange;
     retval = setVariableNode_internalValueSource(server, twoStateVariableIdNodeId,
@@ -2363,7 +2363,7 @@ setConditionVariableCallbacks(UA_Server *server, const UA_NodeId *condition,
         browseSimplifiedBrowsePath(server, *condition, 1, &conditionVariableName[0]);
     if(bpr.statusCode != UA_STATUSCODE_GOOD)
         return bpr.statusCode;
-    UA_InternalValueSourceNotifications callback ;
+    UA_ValueSourceNotifications callback ;
     callback.onRead = NULL;
     callback.onWrite = afterWriteCallbackQualityChange;
     retval = setVariableNode_internalValueSource(server, bpr.targets[0].targetId.nodeId,

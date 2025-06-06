@@ -665,9 +665,10 @@ copyChild(UA_Server *server, UA_Session *session,
          * to keep it here. */
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE ||
            node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
-            if(node->variableNode.valueSourceType == UA_VALUESOURCETYPE_INTERNAL) {
+            if(node->variableNode.valueSourceType == UA_VALUESOURCETYPE_INTERNAL ||
+               node->variableNode.valueSourceType == UA_VALUESOURCETYPE_EXTERNAL) {
                 memset(&node->variableNode.valueSource.internal.notifications, 0,
-                       sizeof(UA_InternalValueSourceNotifications));
+                       sizeof(UA_ValueSourceNotifications));
             } else {
                 memset(&node->variableNode.valueSource.callback, 0,
                        sizeof(UA_CallbackValueSource));
@@ -2356,7 +2357,7 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
 
 struct SetInternalValueContext {
     const UA_DataValue *value;
-    const UA_InternalValueSourceNotifications *notifications;
+    const UA_ValueSourceNotifications *notifications;
 };
 
 static UA_StatusCode
@@ -2397,7 +2398,7 @@ setInternalValueSourceCB(UA_Server *server, UA_Session *session,
         vn->valueSource.internal.notifications = *ivc->notifications;
     else
         memset(&vn->valueSource.internal.notifications, 0,
-               sizeof(UA_InternalValueSourceNotifications));
+               sizeof(UA_ValueSourceNotifications));
 
     return UA_STATUSCODE_GOOD;
 }
@@ -2405,7 +2406,7 @@ setInternalValueSourceCB(UA_Server *server, UA_Session *session,
 UA_StatusCode
 setVariableNode_internalValueSource(UA_Server *server, const UA_NodeId nodeId,
                                     const UA_DataValue *value,
-                                    const UA_InternalValueSourceNotifications *notifications) {
+                                    const UA_ValueSourceNotifications *notifications) {
     struct SetInternalValueContext ctx;
     ctx.value = value;
     ctx.notifications = notifications;
@@ -2418,9 +2419,62 @@ setVariableNode_internalValueSource(UA_Server *server, const UA_NodeId nodeId,
 UA_StatusCode
 UA_Server_setVariableNode_internalValueSource(UA_Server *server, const UA_NodeId nodeId,
                                               const UA_DataValue *value,
-                                              const UA_InternalValueSourceNotifications *notifications) {
+                                              const UA_ValueSourceNotifications *notifications) {
     lockServer(server);
     UA_StatusCode res = setVariableNode_internalValueSource(server, nodeId, value, notifications);
+    unlockServer(server);
+    return res;
+}
+
+/*****************************/
+/* Set External Value Source */
+/*****************************/
+
+struct SetExternalValueContext {
+    UA_DataValue **value;
+    const UA_ValueSourceNotifications *notifications;
+};
+
+static UA_StatusCode
+setExternalValueSourceCB(UA_Server *server, UA_Session *session,
+                         UA_VariableNode *vn, const void *ctx) {
+    const struct SetExternalValueContext *evc =
+        (const struct SetExternalValueContext*)ctx;
+
+    /* Check the node class */
+    if(vn->head.nodeClass != UA_NODECLASS_VARIABLE)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+
+    /* Clean the previous internal value */
+    if(vn->valueSourceType == UA_VALUESOURCETYPE_INTERNAL && evc->value)
+        UA_DataValue_clear(&vn->valueSource.internal.value);
+
+    /* Set the value */
+    vn->valueSourceType = UA_VALUESOURCETYPE_EXTERNAL;
+    vn->valueSource.external.value = evc->value;
+    if(evc->notifications)
+        vn->valueSource.external.notifications = *evc->notifications;
+    else
+        memset(&vn->valueSource.external.notifications, 0,
+               sizeof(UA_ValueSourceNotifications));
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setVariableNode_externalValueSource(UA_Server *server, const UA_NodeId nodeId,
+                                              UA_DataValue **value,
+                                              const UA_ValueSourceNotifications *notifications) {
+    if(!server || !value || !*value)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    struct SetExternalValueContext ctx;
+    ctx.value = value;
+    ctx.notifications = notifications;
+    UA_StatusCode res = UA_Server_editNode(server, &server->adminSession, &nodeId,
+                                           UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
+                                           UA_BROWSEDIRECTION_INVALID,
+                                           (UA_EditNodeCallback)setExternalValueSourceCB, &ctx);
     unlockServer(server);
     return res;
 }

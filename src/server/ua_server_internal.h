@@ -489,7 +489,7 @@ setVariableNode_callbackValueSource(UA_Server *server, const UA_NodeId nodeId,
 UA_StatusCode
 setVariableNode_internalValueSource(UA_Server *server, const UA_NodeId nodeId,
                                     const UA_DataValue *value,
-                                    const UA_InternalValueSourceNotifications *notifications);
+                                    const UA_ValueSourceNotifications *notifications);
 
 UA_StatusCode
 setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
