@@ -1271,90 +1271,87 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-writeInternalValueAttribute(UA_VariableNode *node, const UA_DataValue *value) {
-    UA_DataValue *oldValue = &node->valueSource.internal.value;
-    UA_DataValue tmpValue = *value;
+writeInternalValueAttribute(UA_DataValue *oldValue,
+                            const UA_DataValue *value,
+                            const UA_NumericRange *rangeptr) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(rangeptr) {
+        /* Value on both sides? */
+        if(value->status != oldValue->status || !value->hasValue || !oldValue->hasValue)
+            return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
-    /* If possible memcpy the new value over the old value without
-     * a malloc. For this the value needs to be "pointerfree". */
-    if(oldValue->hasValue && oldValue->value.type &&
-       oldValue->value.type->pointerFree && value->hasValue &&
-       value->value.type && value->value.type->pointerFree &&
-       oldValue->value.type->memSize == value->value.type->memSize) {
-        size_t oSize = 1;
-        size_t vSize = 1;
-        if(!UA_Variant_isScalar(&oldValue->value))
-            oSize = oldValue->value.arrayLength;
-        if(!UA_Variant_isScalar(&value->value))
-            vSize = value->value.arrayLength;
-
-        if(oSize == vSize &&
-           oldValue->value.arrayDimensionsSize == value->value.arrayDimensionsSize) {
-            /* Keep the old pointers, but adjust type and array length */
-            tmpValue.value = oldValue->value;
-            tmpValue.value.type = value->value.type;
-            tmpValue.value.arrayLength = value->value.arrayLength;
-
-            /* Copy the data over the old memory */
-            memcpy(tmpValue.value.data, value->value.data,
-                   oSize * oldValue->value.type->memSize);
-            if(oldValue->value.arrayDimensionsSize > 0) /* No memcpy with NULL-ptr */
-                memcpy(tmpValue.value.arrayDimensions, value->value.arrayDimensions,
-                       sizeof(UA_UInt32) * oldValue->value.arrayDimensionsSize);
-
-            /* Set the value */
-            node->valueSource.internal.value = tmpValue;
-            return UA_STATUSCODE_GOOD;
+        /* Make scalar a one-entry array for range matching */
+        UA_Variant editableValue;
+        const UA_Variant *v = &value->value;
+        if(UA_Variant_isScalar(&value->value)) {
+            editableValue = value->value;
+            editableValue.arrayLength = 1;
+            v = &editableValue;
         }
+
+        /* Check that the type is an exact match and not only "compatible" */
+        if(!oldValue->value.type || !v->type ||
+           !UA_NodeId_equal(&oldValue->value.type->typeId, &v->type->typeId))
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+
+        /* Write the value */
+        retval = UA_Variant_setRangeCopy(&oldValue->value, v->data,
+                                         v->arrayLength, *rangeptr);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+
+        /* Write the status and timestamps */
+        oldValue->hasStatus = value->hasStatus;
+        oldValue->status = value->status;
+        oldValue->hasSourceTimestamp = value->hasSourceTimestamp;
+        oldValue->sourceTimestamp = value->sourceTimestamp;
+        oldValue->hasSourcePicoseconds = value->hasSourcePicoseconds;
+        oldValue->sourcePicoseconds = value->sourcePicoseconds;
+    } else {
+        UA_DataValue tmpValue = *value;
+
+        /* If possible memcpy the new value over the old value without
+         * a malloc. For this the value needs to be "pointerfree". */
+        if(oldValue->hasValue && oldValue->value.type &&
+           oldValue->value.type->pointerFree && value->hasValue &&
+           value->value.type && value->value.type->pointerFree &&
+           oldValue->value.type->memSize == value->value.type->memSize) {
+            size_t oSize = 1;
+            size_t vSize = 1;
+            if(!UA_Variant_isScalar(&oldValue->value))
+                oSize = oldValue->value.arrayLength;
+            if(!UA_Variant_isScalar(&value->value))
+                vSize = value->value.arrayLength;
+
+            if(oSize == vSize &&
+               oldValue->value.arrayDimensionsSize == value->value.arrayDimensionsSize) {
+                /* Keep the old pointers, but adjust type and array length */
+                tmpValue.value = oldValue->value;
+                tmpValue.value.type = value->value.type;
+                tmpValue.value.arrayLength = value->value.arrayLength;
+
+                /* Copy the data over the old memory */
+                memcpy(tmpValue.value.data, value->value.data,
+                       oSize * oldValue->value.type->memSize);
+                if(oldValue->value.arrayDimensionsSize > 0) /* No memcpy with NULL-ptr */
+                    memcpy(tmpValue.value.arrayDimensions, value->value.arrayDimensions,
+                           sizeof(UA_UInt32) * oldValue->value.arrayDimensionsSize);
+
+                /* Set the value */
+                *oldValue = tmpValue;
+                return UA_STATUSCODE_GOOD;
+            }
+        }
+
+        /* Make a deep copy of the value and replace when this succeeds */
+        retval = UA_Variant_copy(&value->value, &tmpValue.value);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        UA_DataValue_clear(oldValue);
+        *oldValue = tmpValue;
     }
 
-    /* Make a deep copy of the value and replace when this succeeds */
-    UA_StatusCode retval = UA_Variant_copy(&value->value, &tmpValue.value);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    UA_DataValue_clear(&node->valueSource.internal.value);
-    node->valueSource.internal.value = tmpValue;
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-writeInternalValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
-                                     const UA_NumericRange *rangeptr) {
-    /* Value on both sides? */
-    if(value->status != node->valueSource.internal.value.status ||
-       !value->hasValue || !node->valueSource.internal.value.hasValue)
-        return UA_STATUSCODE_BADINDEXRANGEINVALID;
-
-    /* Make scalar a one-entry array for range matching */
-    UA_Variant editableValue;
-    const UA_Variant *v = &value->value;
-    if(UA_Variant_isScalar(&value->value)) {
-        editableValue = value->value;
-        editableValue.arrayLength = 1;
-        v = &editableValue;
-    }
-
-    /* Check that the type is an exact match and not only "compatible" */
-    if(!node->valueSource.internal.value.value.type || !v->type ||
-       !UA_NodeId_equal(&node->valueSource.internal.value.value.type->typeId,
-                        &v->type->typeId))
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    /* Write the value */
-    UA_StatusCode retval =
-        UA_Variant_setRangeCopy(&node->valueSource.internal.value.value,
-                                v->data, v->arrayLength, *rangeptr);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Write the status and timestamps */
-    node->valueSource.internal.value.hasStatus = value->hasStatus;
-    node->valueSource.internal.value.status = value->status;
-    node->valueSource.internal.value.hasSourceTimestamp = value->hasSourceTimestamp;
-    node->valueSource.internal.value.sourceTimestamp = value->sourceTimestamp;
-    node->valueSource.internal.value.hasSourcePicoseconds = value->hasSourcePicoseconds;
-    node->valueSource.internal.value.sourcePicoseconds = value->sourcePicoseconds;
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 static UA_StatusCode
@@ -1417,30 +1414,22 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
 
     /* Write into the different value source backends. */
     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED; /* default */
+    UA_DataValue *oldValue = &node->valueSource.internal.value;
     switch(node->valueSourceType) {
     case UA_VALUESOURCETYPE_INTERNAL:
-        if(!rangeptr)
-            retval = writeInternalValueAttribute(node, &adjustedValue);
-        else
-            retval = writeInternalValueAttributeWithRange(node, &adjustedValue, rangeptr);
-
-        /* Notification callback after writing */
+        retval = writeInternalValueAttribute(oldValue, &adjustedValue, rangeptr);
         if(retval == UA_STATUSCODE_GOOD &&
            node->valueSource.internal.notifications.onWrite)
             node->valueSource.internal.notifications.
                 onWrite(server, &session->sessionId, session->context,
-                        &node->head.nodeId, node->head.context,
-                        rangeptr, &adjustedValue);
+                        &node->head.nodeId, node->head.context, rangeptr, &adjustedValue);
         break;
-
     case UA_VALUESOURCETYPE_CALLBACK:
         if(node->valueSource.callback.write)
             retval = node->valueSource.callback.
                 write(server, &session->sessionId, session->context,
-                      &node->head.nodeId, node->head.context,
-                      rangeptr, &adjustedValue);
+                      &node->head.nodeId, node->head.context, rangeptr, &adjustedValue);
         break;
-
     default:
         retval = UA_STATUSCODE_BADINTERNALERROR;
         break;
