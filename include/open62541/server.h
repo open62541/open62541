@@ -1029,7 +1029,7 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
  * user-defined code can happen.
  *
  * - Custom node constructors and destructors
- * - Linking VariableNodes with an external data source
+ * - Linking VariableNodes with a data source
  * - MethodNode callbacks */
 
 void UA_EXPORT
@@ -1056,12 +1056,12 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
  * ~~~~~~~~~~~~
  *
  * There are two options for storing the value of a VariableNode: Internal in
- * the VariableNode itself or external with callbacks to the application. See
+ * the VariableNode itself or with callbacks to the application. See
  * the section on :ref:`variable-node` for details. */
 
 /* Set the internal value source. Both the value argument and the notifications
  * argument can be NULL. If value is NULL, the Read service is used to get the
- * latest value before switching from an external to an internal value source.
+ * latest value before switching from a callback to an internal value source.
  * If notifications is NULL, then all onRead/onWrite notifications are
  * disabled. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
@@ -1077,13 +1077,13 @@ UA_Server_setVariableNode_internalValueSource(UA_Server *server,
  * The write callback can be set to a null-pointer. Then writing into the value
  * is disabled. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setVariableNode_externalValueSource(UA_Server *server,
-    const UA_NodeId nodeId, const UA_ExternalValueSource evs);
+UA_Server_setVariableNode_callbackValueSource(UA_Server *server,
+    const UA_NodeId nodeId, const UA_CallbackValueSource evs);
 
 /* Deprecated API */
-typedef UA_ExternalValueSource UA_DataSource;
+typedef UA_CallbackValueSource UA_DataSource;
 #define UA_Server_setVariableNode_dataSource(server, nodeId, dataSource) \
-    UA_Server_setVariableNode_externalValueSource(server, nodeId, dataSource);
+    UA_Server_setVariableNode_callbackValueSource(server, nodeId, dataSource);
 
 /* Deprecated API */
 typedef UA_InternalValueSourceNotifications UA_ValueCallback;
@@ -1392,21 +1392,21 @@ UA_Server_addDataTypeNode(UA_Server *server,
 })
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_addExternalValueSourceVariableNode(UA_Server *server,
+UA_Server_addCallbackValueSourceVariableNode(UA_Server *server,
                                              const UA_NodeId requestedNewNodeId,
                                              const UA_NodeId parentNodeId,
                                              const UA_NodeId referenceTypeId,
                                              const UA_QualifiedName browseName,
                                              const UA_NodeId typeDefinition,
                                              const UA_VariableAttributes attr,
-                                             const UA_ExternalValueSource evs,
+                                             const UA_CallbackValueSource evs,
                                              void *nodeContext, UA_NodeId *outNewNodeId);
 
 /* Legacy API */
 #define UA_Server_addDataSourceVariableNode(server, requestedNewNodeId, parentNodeId,    \
                                             referenceTypeId, browseName, typeDefinition, \
                                             attr, dataSource, nodeContext, outNewNodeId) \
-    UA_Server_addExternalValueSourceVariableNode(server, requestedNewNodeId,             \
+    UA_Server_addCallbackValueSourceVariableNode(server, requestedNewNodeId,             \
                                                  parentNodeId, referenceTypeId,          \
                                                  browseName, typeDefinition,             \
                                                  attr, dataSource, nodeContext,          \

@@ -268,11 +268,11 @@ WriteCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContex
 }
 
 static UA_StatusCode
-setVariableValueSource(UA_Server *server, const UA_ExternalValueSource evs,
+setVariableValueSource(UA_Server *server, const UA_CallbackValueSource evs,
                        UA_NodeId node, UA_NodePropertyContext *context){
     UA_LOCK_ASSERT(&server->serviceMutex);
     setNodeContext(server, node, context);
-    return setVariableNode_externalValueSource(server, node, evs);
+    return setVariableNode_callbackValueSource(server, node, evs);
 }
 
 static UA_StatusCode
@@ -675,7 +675,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     connectionPublisherIdContext->parentClassifier = UA_NS0ID_PUBSUBCONNECTIONTYPE;
     connectionPublisherIdContext->elementClassiefier = UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID;
 
-    UA_ExternalValueSource valueCallback;
+    UA_CallbackValueSource valueCallback;
     valueCallback.read = ReadCallback;
     valueCallback.write = NULL;
     retVal |= setVariableValueSource(server, valueCallback, publisherIdNode,
@@ -866,7 +866,7 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     dataSetReaderPublisherIdContext->parentNodeId = dataSetReader->head.identifier;
     dataSetReaderPublisherIdContext->parentClassifier = UA_NS0ID_DATASETREADERTYPE;
     dataSetReaderPublisherIdContext->elementClassiefier = UA_NS0ID_DATASETREADERTYPE_PUBLISHERID;
-    UA_ExternalValueSource valueCallback;
+    UA_CallbackValueSource valueCallback;
     valueCallback.read = ReadCallback;
     valueCallback.write = NULL;
     retVal |= setVariableValueSource(server, valueCallback, publisherIdNode,
@@ -1000,7 +1000,7 @@ addPublishedDataItemsRepresentation(UA_Server *server,
                      NULL, &publishedDataSet->head.identifier);
     UA_CHECK_STATUS(retVal, return retVal);
 
-    UA_ExternalValueSource valueCallback;
+    UA_CallbackValueSource valueCallback;
     valueCallback.read = ReadCallback;
     valueCallback.write = NULL;
     //ToDo: Need to move the browse name from namespaceindex 0 to 1
@@ -1212,7 +1212,7 @@ addSubscribedDataSetRepresentation(UA_Server *server,
     isConnectedNodeContext->parentClassifier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE;
     isConnectedNodeContext->elementClassiefier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED;
 
-    UA_ExternalValueSource valueCallback;
+    UA_CallbackValueSource valueCallback;
     valueCallback.read = ReadCallback;
     valueCallback.write = NULL;
     ret |= setVariableValueSource(server, valueCallback, connectedId, isConnectedNodeContext);
@@ -1341,7 +1341,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     publishingIntervalContext->parentNodeId = writerGroup->head.identifier;
     publishingIntervalContext->parentClassifier = UA_NS0ID_WRITERGROUPTYPE;
     publishingIntervalContext->elementClassiefier = UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL;
-    UA_ExternalValueSource valueCallback;
+    UA_CallbackValueSource valueCallback;
     valueCallback.read = ReadCallback;
     valueCallback.write = WriteCallback;
     retVal |= setVariableValueSource(server, valueCallback,
@@ -1355,10 +1355,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     stateContext->parentNodeId = writerGroup->head.identifier;
     stateContext->parentClassifier = UA_NS0ID_WRITERGROUPTYPE;
     stateContext->elementClassiefier = UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE;
-    UA_ExternalValueSource stateExternalValueSource;
-    stateExternalValueSource.read = ReadCallback;
-    stateExternalValueSource.write = NULL;
-    retVal |= setVariableValueSource(server, stateExternalValueSource,
+    UA_CallbackValueSource stateCallbackValueSource;
+    stateCallbackValueSource.read = ReadCallback;
+    stateCallbackValueSource.write = NULL;
+    retVal |= setVariableValueSource(server, stateCallbackValueSource,
                                      stateIdNode, stateContext);
 
     UA_NodeId priorityNode =
@@ -1397,10 +1397,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
                             UA_NS0ID(HASPROPERTY), messageSettingsId);
     if(!UA_NodeId_isNull(&contentMaskId)) {
         /* Set the callback */
-        UA_ExternalValueSource ds;
+        UA_CallbackValueSource ds;
         ds.read = readContentMask;
         ds.write = writeContentMask;
-        setVariableNode_externalValueSource(server, contentMaskId, ds);
+        setVariableNode_callbackValueSource(server, contentMaskId, ds);
         setNodeContext(server, contentMaskId, writerGroup);
 
         /* Make writable */
@@ -1413,10 +1413,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), messageSettingsId);
     if(!UA_NodeId_isNull(&groupVersionId)) {
         /* Set the callback */
-        UA_ExternalValueSource ds;
+        UA_CallbackValueSource ds;
         ds.read = readGroupVersion;
         ds.write = NULL;
-        setVariableNode_externalValueSource(server, groupVersionId, ds);
+        setVariableNode_callbackValueSource(server, groupVersionId, ds);
         setNodeContext(server, groupVersionId, writerGroup);
 
         /* Read only */
@@ -1579,10 +1579,10 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
     stateContext->parentNodeId = readerGroup->head.identifier;
     stateContext->parentClassifier = UA_NS0ID_READERGROUPTYPE;
     stateContext->elementClassiefier = UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE;
-    UA_ExternalValueSource stateExternalValueSource;
-    stateExternalValueSource.read = ReadCallback;
-    stateExternalValueSource.write = NULL;
-    retVal |= setVariableValueSource(server, stateExternalValueSource,
+    UA_CallbackValueSource stateCallbackValueSource;
+    stateCallbackValueSource.read = ReadCallback;
+    stateCallbackValueSource.write = NULL;
+    retVal |= setVariableValueSource(server, stateCallbackValueSource,
                                      stateIdNode, stateContext);
 
     if(server->config.pubSubConfig.enableInformationModelMethods) {
@@ -1653,7 +1653,7 @@ updateSecurityGroupProperties(UA_Server *server, UA_NodeId *securityGroupNodeId,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /*AddExternalValueSource*/
+    /*AddCallbackValueSource*/
     UA_Variant_setScalar(&value, &config->securityPolicyUri, &UA_TYPES[UA_TYPES_STRING]);
     retval = writeObjectProperty(server, *securityGroupNodeId,
                                  UA_QUALIFIEDNAME(0, "SecurityPolicyUri"), value);
@@ -1792,7 +1792,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     dataSetWriterIdContext->parentNodeId = dataSetWriter->head.identifier;
     dataSetWriterIdContext->parentClassifier = UA_NS0ID_DATASETWRITERTYPE;
     dataSetWriterIdContext->elementClassiefier = UA_NS0ID_DATASETWRITERTYPE_DATASETWRITERID;
-    UA_ExternalValueSource valueCallback;
+    UA_CallbackValueSource valueCallback;
     valueCallback.read = ReadCallback;
     valueCallback.write = NULL;
     retVal |= setVariableValueSource(server, valueCallback,
