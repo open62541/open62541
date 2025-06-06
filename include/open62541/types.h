@@ -200,43 +200,32 @@ UA_EXPORT UA_Boolean UA_StatusCode_equalTop(UA_StatusCode s1, UA_StatusCode s2);
  * String
  * ^^^^^^
  * A sequence of Unicode characters. Strings are just an array of UA_Byte. */
+
 typedef struct {
     size_t length; /* The length of the string */
     UA_Byte *data; /* The content (not null-terminated) */
 } UA_String;
 
-/* Copies the content on the heap. Returns a null-string when alloc fails */
-UA_String UA_EXPORT
-UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-UA_Boolean UA_EXPORT
-UA_String_isEmpty(const UA_String *s);
-
-UA_StatusCode UA_EXPORT
-UA_String_append(UA_String *s, const UA_String s2);
-
 UA_EXPORT extern const UA_String UA_STRING_NULL;
+UA_EXPORT UA_Boolean UA_String_isEmpty(const UA_String *s);
 
-/**
- * ``UA_STRING`` returns a string pointing to the original char-array.
- * ``UA_STRING_ALLOC`` is shorthand for ``UA_String_fromChars`` and makes a copy
- * of the char-array. */
-UA_INLINABLE(UA_String
-             UA_STRING(char *chars), {
-    UA_String s;
-    memset(&s, 0, sizeof(s));
-    if(!chars)
-        return s;
-    s.length = strlen(chars); s.data = (UA_Byte*)chars;
-    return s;
-})
+/* Returns a string pointing to the original char-array */
+UA_EXPORT UA_String UA_STRING(char *chars);
 
+/* Returns a string-copy of the char-array. Returns a null-string when
+ * alloc fails. */
+UA_EXPORT UA_String UA_String_fromChars(const char *src);
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
 
-/* Define strings at compile time (in ROM) */
+/* Define string variable at compile time (in ROM) */
 #define UA_STRING_STATIC(CHARS) {sizeof(CHARS)-1, (UA_Byte*)CHARS}
 
-/* The following methods implement the C standard's printf/vprintf.
+/* Uses realloc to append to the string in the first argument */
+UA_EXPORT UA_StatusCode
+UA_String_append(UA_String *s, const UA_String s2);
+
+/**
+ * The following methods implement the C standard's printf/vprintf.
  *
  * In addition to the format specifiers from the C standard, the following can
  * be used also:
@@ -256,6 +245,7 @@ UA_INLINABLE(UA_String
  * string is used as buffer for encoding and its length is adjusted accordingly.
  * If the length is too short, then UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED is
  * reported. Also in that case the string is printed as much as possible. */
+
 UA_EXPORT UA_StatusCode
 UA_String_format(UA_String *str, const char *format, ...);
 
@@ -263,7 +253,7 @@ UA_EXPORT UA_StatusCode
 UA_String_vformat(UA_String *str, const char *format, va_list args);
 
 /* Old API */
-#define UA_String_printf(str, format, ...) \
+#define UA_String_printf(str, format, ...)   \
     UA_String_format(str, format, __VA_ARGS__)
 #define UA_String_vprintf(str, format, args) \
     UA_String_vformat(str, format, args)
