@@ -162,9 +162,11 @@ struct UA_EventLoop {
     /* Timer Callbacks
      * ~~~~~~~~~~~~~~~
      * Timer callbacks are executed at a defined time or regularly with a
-     * periodic interval. */
+     * periodic interval. Timers are always defined against the monotonic
+     * clock. */
 
     /* Time of the next timer. Returns the UA_DATETIME_MAX if no timer is
+     * registered. Returns dateTime_nowMonotonic() if a delayed callback is
      * registered. */
     UA_DateTime (*nextTimer)(UA_EventLoop *el);
 
