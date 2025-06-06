@@ -195,12 +195,12 @@ int main(void) {
                                   UA_NS0ID(BASEDATAVARIABLETYPE),
                                   vAttr, NULL, &publishVariables[i]);
 
-        /* Set the node's external value source */
-        UA_ExternalValueSource evs;
-        memset(&evs, 0, sizeof(UA_ExternalValueSource));
+        /* Set the node's callback value source */
+        UA_CallbackValueSource evs;
+        memset(&evs, 0, sizeof(UA_CallbackValueSource));
         evs.read = readCallback;
         UA_Server_setNodeContext(server, publishVariables[i], &dvStore[i]);
-        UA_Server_setVariableNode_externalValueSource(server, publishVariables[i], evs);
+        UA_Server_setVariableNode_callbackValueSource(server, publishVariables[i], evs);
 
         /* Add the DataSetField */
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));

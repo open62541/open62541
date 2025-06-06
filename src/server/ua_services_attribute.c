@@ -176,19 +176,19 @@ readInternalValueAttribute(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-readExternalValueAttribute(UA_Server *server, UA_Session *session,
+readCallbackValueAttribute(UA_Server *server, UA_Session *session,
                            const UA_VariableNode *vn, UA_DataValue *v,
                            UA_TimestampsToReturn timestamps,
                            UA_NumericRange *rangeptr) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    if(!vn->valueSource.external.read)
+    if(!vn->valueSource.callback.read)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
                                   timestamps == UA_TIMESTAMPSTORETURN_BOTH);
     UA_DataValue v2;
     UA_DataValue_init(&v2);
-    UA_StatusCode retval = vn->valueSource.external.
+    UA_StatusCode retval = vn->valueSource.callback.
         read(server,
              session ? &session->sessionId : NULL,
              session ? session->context : NULL,
@@ -226,8 +226,8 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
         retval = readInternalValueAttribute(server, session, vn, v, rangeptr);
         break;
 
-    case UA_VALUESOURCETYPE_EXTERNAL:
-        retval = readExternalValueAttribute(server, session, vn, v, timestamps, rangeptr);
+    case UA_VALUESOURCETYPE_CALLBACK:
+        retval = readCallbackValueAttribute(server, session, vn, v, timestamps, rangeptr);
         break;
 
     default:
@@ -1433,9 +1433,9 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
                         rangeptr, &adjustedValue);
         break;
 
-    case UA_VALUESOURCETYPE_EXTERNAL:
-        if(node->valueSource.external.write)
-            retval = node->valueSource.external.
+    case UA_VALUESOURCETYPE_CALLBACK:
+        if(node->valueSource.callback.write)
+            retval = node->valueSource.callback.
                 write(server, &session->sessionId, session->context,
                       &node->head.nodeId, node->head.context,
                       rangeptr, &adjustedValue);
