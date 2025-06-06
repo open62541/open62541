@@ -118,6 +118,26 @@ UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
 /* Builtin Types */
 /*****************/
 
+UA_Boolean
+UA_StatusCode_isBad(UA_StatusCode code) {
+    return ((code >> 30) >= 0x02);
+}
+
+UA_Boolean
+UA_StatusCode_isUncertain(UA_StatusCode code) {
+    return (((code >> 30) == 0x01) && ((code >> 30) < 0x02));
+}
+
+UA_Boolean
+UA_StatusCode_isGood(UA_StatusCode code) {
+    return ((code >> 30) == 0x00);
+}
+
+UA_Boolean
+UA_StatusCode_equalTop(UA_StatusCode s1, UA_StatusCode s2) {
+    return ((s1 & 0xFFFF0000) == (s2 & 0xFFFF0000));
+}
+
 UA_String
 UA_String_fromChars(const char *src) {
     UA_String s; s.length = 0; s.data = NULL;
