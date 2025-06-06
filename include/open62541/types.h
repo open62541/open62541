@@ -151,6 +151,7 @@ typedef double UA_Double;
  *   uncertain for reasons indicated by the SubCode.
  * - A StatusCode with severity Bad means that the value is not usable for
  *   reasons indicated by the SubCode. */
+
 typedef uint32_t UA_StatusCode;
 
 /* Returns the human-readable name of the StatusCode. If no matching StatusCode
@@ -161,31 +162,28 @@ typedef uint32_t UA_StatusCode;
 UA_EXPORT const char *
 UA_StatusCode_name(UA_StatusCode code);
 
-/* Extracts the severity from a StatusCode. See Part 4, Section 7.34 for
- * details. */
-UA_INLINABLE(UA_Boolean
-             UA_StatusCode_isBad(UA_StatusCode code), {
-    return ((code >> 30) >= 0x02);
-})
+/**
+ * The following methods extract the severity from a StatusCode. See Part 4,
+ * Section 7.34 for details. */
 
-UA_INLINABLE(UA_Boolean
-             UA_StatusCode_isUncertain(UA_StatusCode code), {
-    return ((code >> 30) == 0x01);
-})
+/* (code >> 30) >= 0x02 */
+UA_EXPORT UA_Boolean
+UA_StatusCode_isBad(UA_StatusCode code);
 
-UA_INLINABLE(UA_Boolean
-             UA_StatusCode_isGood(UA_StatusCode code), {
-    return ((code >> 30) == 0x00);
-})
+/* ((code >> 30) == 0x01) && ((code >> 30) < 0x02) */
+UA_EXPORT UA_Boolean
+UA_StatusCode_isUncertain(UA_StatusCode code);
 
-/* Compares the top 16 bits of two StatusCodes for equality. This should only
- * be used when processing user-defined StatusCodes e.g when processing a ReadResponse.
- * As a convention, the lower bits of StatusCodes should not be used internally, meaning
- * can compare them without the use of this function. */
-UA_INLINABLE(UA_Boolean
-             UA_StatusCode_isEqualTop(UA_StatusCode s1, UA_StatusCode s2), {
-    return ((s1 & 0xFFFF0000) == (s2 & 0xFFFF0000));
-})
+/* (code >> 30) == 0x00 */
+UA_EXPORT UA_Boolean
+UA_StatusCode_isGood(UA_StatusCode code);
+
+/* Compares the top 16 bits of two StatusCodes for equality. This should only be
+ * used when processing user-defined StatusCodes e.g when processing a
+ * ReadResponse. As a convention, the lower bits of StatusCodes should not be
+ * used internally. */
+UA_EXPORT UA_Boolean UA_StatusCode_equalTop(UA_StatusCode s1, UA_StatusCode s2);
+#define UA_StatusCode_isEqualTop(s1, s2) UA_StatusCode_equalTop(s1, s2)
 
 /**
  * String
