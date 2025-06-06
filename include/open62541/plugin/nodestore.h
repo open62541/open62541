@@ -431,7 +431,7 @@ struct UA_NodeHead {
 
 typedef enum {
     UA_VALUESOURCETYPE_INTERNAL = 0,
-    UA_VALUESOURCETYPE_EXTERNAL = 1
+    UA_VALUESOURCETYPE_CALLBACK = 1
 } UA_ValueSourceType;
 
 typedef struct {
@@ -533,7 +533,7 @@ typedef struct {
                            void *sessionContext, const UA_NodeId *nodeId,
                            void *nodeContext, const UA_NumericRange *range,
                            const UA_DataValue *value);
-} UA_ExternalValueSource;
+} UA_CallbackValueSource;
 
 #define UA_NODE_VARIABLEATTRIBUTES                                      \
     /* Constraints on possible values */                                \
@@ -549,7 +549,7 @@ typedef struct {
             UA_DataValue value;                                         \
             UA_InternalValueSourceNotifications notifications;          \
         } internal;                                                     \
-        UA_ExternalValueSource external;                                \
+        UA_CallbackValueSource callback;                                \
     } valueSource;
 
 typedef struct {

@@ -669,8 +669,8 @@ copyChild(UA_Server *server, UA_Session *session,
                 memset(&node->variableNode.valueSource.internal.notifications, 0,
                        sizeof(UA_InternalValueSourceNotifications));
             } else {
-                memset(&node->variableNode.valueSource.external, 0,
-                       sizeof(UA_ExternalValueSource));
+                memset(&node->variableNode.valueSource.callback, 0,
+                       sizeof(UA_CallbackValueSource));
 
             }
             node->variableNode.valueSourceType = UA_VALUESOURCETYPE_INTERNAL;
@@ -1866,7 +1866,7 @@ deleteChildrenCallback(void *context, UA_ReferenceTarget *t) {
 
 /* The processNodeLayer function searches all children's of the head node and
  * adds the children node to the RefTree if all incoming references sources are
- * contained in the RefTree (No external references to this node --> node can be
+ * contained in the RefTree (No callback references to this node --> node can be
  * deleted) */
 static UA_StatusCode
 autoDeleteChildren(UA_Server *server, UA_Session *session, RefTree *refTree,
@@ -1908,7 +1908,7 @@ buildDeleteNodeSet(UA_Server *server, UA_Session *session,
         return res;
 
     /* Find out which hierarchical children should also be deleted. We know
-     * there are no "external" ExpandedNodeId in the RefTree. */
+     * there are no "callback" ExpandedNodeId in the RefTree. */
     size_t pos = 0;
     while(pos < refTree->size) {
         const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[pos].nodeId);
@@ -2426,13 +2426,13 @@ UA_Server_setVariableNode_internalValueSource(UA_Server *server, const UA_NodeId
 }
 
 /*****************************/
-/* Set External Value Source */
+/* Set Callback Value Source */
 /*****************************/
 
 static UA_StatusCode
-setExternalValueSourceCB(UA_Server *server, UA_Session *session,
+setCallbackValueSourceCB(UA_Server *server, UA_Session *session,
                          UA_VariableNode *vn, const void *ctx) {
-    const UA_ExternalValueSource *evs = (const UA_ExternalValueSource*)ctx;
+    const UA_CallbackValueSource *evs = (const UA_CallbackValueSource*)ctx;
 
     /* Check the node class */
     if(vn->head.nodeClass != UA_NODECLASS_VARIABLE)
@@ -2443,40 +2443,40 @@ setExternalValueSourceCB(UA_Server *server, UA_Session *session,
         UA_DataValue_clear(&vn->valueSource.internal.value);
 
     /* Replace the value source */
-    vn->valueSource.external = *evs;
-    vn->valueSourceType = UA_VALUESOURCETYPE_EXTERNAL;
+    vn->valueSource.callback = *evs;
+    vn->valueSourceType = UA_VALUESOURCETYPE_CALLBACK;
 
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-setVariableNode_externalValueSource(UA_Server *server, const UA_NodeId nodeId,
-                                    const UA_ExternalValueSource evs) {
+setVariableNode_callbackValueSource(UA_Server *server, const UA_NodeId nodeId,
+                                    const UA_CallbackValueSource evs) {
     return UA_Server_editNode(server, &server->adminSession, &nodeId,
                               UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
                               UA_BROWSEDIRECTION_INVALID,
-                              (UA_EditNodeCallback)setExternalValueSourceCB, (void*)(uintptr_t)&evs);
+                              (UA_EditNodeCallback)setCallbackValueSourceCB, (void*)(uintptr_t)&evs);
 }
 
 UA_StatusCode
-UA_Server_setVariableNode_externalValueSource(UA_Server *server,
+UA_Server_setVariableNode_callbackValueSource(UA_Server *server,
                                               const UA_NodeId nodeId,
-                                              const UA_ExternalValueSource evs) {
+                                              const UA_CallbackValueSource evs) {
     lockServer(server);
-    UA_StatusCode res = setVariableNode_externalValueSource(server, nodeId, evs);
+    UA_StatusCode res = setVariableNode_callbackValueSource(server, nodeId, evs);
     unlockServer(server);
     return res;
 }
 
 UA_StatusCode
-UA_Server_addExternalValueSourceVariableNode(UA_Server *server,
+UA_Server_addCallbackValueSourceVariableNode(UA_Server *server,
                                              const UA_NodeId requestedNewNodeId,
                                              const UA_NodeId parentNodeId,
                                              const UA_NodeId referenceTypeId,
                                              const UA_QualifiedName browseName,
                                              const UA_NodeId typeDefinition,
                                              const UA_VariableAttributes attr,
-                                             const UA_ExternalValueSource evs,
+                                             const UA_CallbackValueSource evs,
                                              void *nodeContext, UA_NodeId *outNewNodeId) {
     UA_AddNodesItem item;
     UA_AddNodesItem_init(&item);
@@ -2504,7 +2504,7 @@ UA_Server_addExternalValueSourceVariableNode(UA_Server *server,
         goto cleanup;
 
     /* Set the value source */
-    retval = setVariableNode_externalValueSource(server, *outNewNodeId, evs);
+    retval = setVariableNode_callbackValueSource(server, *outNewNodeId, evs);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 

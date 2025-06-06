@@ -483,8 +483,8 @@ addRefWithSession(UA_Server *server, UA_Session *session, const UA_NodeId *sourc
                   UA_Boolean forward);
 
 UA_StatusCode
-setVariableNode_externalValueSource(UA_Server *server, const UA_NodeId nodeId,
-                                    const UA_ExternalValueSource evs);
+setVariableNode_callbackValueSource(UA_Server *server, const UA_NodeId nodeId,
+                                    const UA_CallbackValueSource evs);
 
 UA_StatusCode
 setVariableNode_internalValueSource(UA_Server *server, const UA_NodeId nodeId,
