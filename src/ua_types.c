@@ -366,6 +366,16 @@ UA_QualifiedName_print(const UA_QualifiedName *qn, UA_String *output) {
 }
 
 /* DateTime */
+UA_Int64
+UA_DateTime_toUnixTime(UA_DateTime date) {
+    return (date - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC;
+}
+
+UA_DateTime
+UA_DateTime_fromUnixTime(UA_Int64 unixDate) {
+    return (unixDate * UA_DATETIME_SEC) + UA_DATETIME_UNIX_EPOCH;
+}
+
 UA_DateTimeStruct
 UA_DateTime_toStruct(UA_DateTime t) {
     /* Divide, then subtract -> avoid underflow. Also, negative numbers are
