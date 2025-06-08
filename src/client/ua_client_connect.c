@@ -1670,7 +1670,7 @@ static void
 delayedNetworkCallback(void *application, void *context) {
     UA_Client *client = (UA_Client*)application;
     client->channel.unprocessedDelayed.callback = NULL;
-    if(client->channel.state == UA_SECURECHANNELSTATE_CONNECTED)
+    if(client->channel.state >= UA_SECURECHANNELSTATE_CONNECTING)
         __Client_networkCallback(client->channel.connectionManager,
                                  client->channel.connectionId,
                                  client, &context,
