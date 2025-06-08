@@ -621,6 +621,15 @@ UA_Guid_print(const UA_Guid *guid, UA_String *output) {
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_ENABLE_PARSING
+UA_Guid
+UA_GUID(const char *chars) {
+    UA_Guid guid;
+    UA_Guid_parse(&guid, UA_STRING((char*)(uintptr_t)chars));
+    return guid;
+}
+#endif
+
 /* ByteString */
 UA_StatusCode
 UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
