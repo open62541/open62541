@@ -319,7 +319,8 @@ typedef struct UA_DateTimeStruct {
 UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime t);
 UA_DateTime UA_EXPORT UA_DateTime_fromStruct(UA_DateTimeStruct ts);
 
-/* The C99 standard (7.23.1) says: "The range and precision of times
+/**
+ * The C99 standard (7.23.1) says: "The range and precision of times
  * representable in clock_t and time_t are implementation-defined." On most
  * systems, time_t is a 4 or 8 byte integer counting seconds since the UTC Unix
  * epoch. The following methods are used for conversion. */
@@ -327,15 +328,13 @@ UA_DateTime UA_EXPORT UA_DateTime_fromStruct(UA_DateTimeStruct ts);
 /* Datetime of 1 Jan 1970 00:00 */
 #define UA_DATETIME_UNIX_EPOCH (11644473600LL * UA_DATETIME_SEC)
 
-UA_INLINABLE(UA_Int64
-             UA_DateTime_toUnixTime(UA_DateTime date), {
-    return (date - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC;
-})
+/* (date - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC */
+UA_EXPORT UA_Int64
+UA_DateTime_toUnixTime(UA_DateTime date);
 
-UA_INLINABLE(UA_DateTime
-             UA_DateTime_fromUnixTime(UA_Int64 unixDate), {
-    return (unixDate * UA_DATETIME_SEC) + UA_DATETIME_UNIX_EPOCH;
-})
+/* (unixDate * UA_DATETIME_SEC) + UA_DATETIME_UNIX_EPOCH */
+UA_EXPORT UA_DateTime
+UA_DateTime_fromUnixTime(UA_Int64 unixDate);
 
 /**
  * Guid
