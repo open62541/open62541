@@ -143,7 +143,8 @@ struct UA_EventLoop {
      * A timed callback is executed only once. */
 
     /* Time of the next cyclic callback. Returns the max DateTime if no cyclic
-     * callback is registered. */
+     * callback is registered. Returns the current monotonic time if a delayed
+     * callback is registered for immediate execution. */
     UA_DateTime (*nextCyclicTime)(UA_EventLoop *el);
 
     /* The execution interval is in ms. Returns the callbackId if the pointer is
