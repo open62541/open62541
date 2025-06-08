@@ -365,12 +365,8 @@ UA_Guid_print(const UA_Guid *guid, UA_String *output);
 UA_StatusCode UA_EXPORT
 UA_Guid_parse(UA_Guid *guid, const UA_String str);
 
-UA_INLINABLE(UA_Guid
-             UA_GUID(const char *chars), {
-    UA_Guid guid;
-    UA_Guid_parse(&guid, UA_STRING((char*)(uintptr_t)chars));
-    return guid;
-})
+/* Shorthand, returns UA_GUID_NULL upon failure to parse */
+UA_EXPORT UA_Guid UA_GUID(const char *chars);
 #endif
 
 /**
