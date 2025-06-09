@@ -139,8 +139,9 @@ struct UA_EventLoop {
 
     /* Timed Callbacks
      * ~~~~~~~~~~~~~~~
-     * Cyclic callbacks are executed regularly with an interval.
-     * A timed callback is executed only once. */
+     * Cyclic callbacks are executed regularly with an interval. A timed
+     * callback is executed only once. The timer subsystem always uses the
+     * monotonic clock. */
 
     /* Time of the next cyclic callback. Returns the max DateTime if no cyclic
      * callback is registered. Returns the current monotonic time if a delayed
