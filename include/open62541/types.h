@@ -434,6 +434,29 @@ typedef struct {
 
 UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
 
+UA_EXPORT UA_NodeId
+UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier);
+
+UA_EXPORT UA_NodeId
+UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars);
+
+UA_EXPORT UA_NodeId
+UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars);
+
+UA_EXPORT UA_NodeId
+UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid);
+
+UA_EXPORT UA_NodeId
+UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars);
+
+UA_EXPORT UA_NodeId
+UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex,
+                           const char *chars);
+
+/* Shorthand for standard-defined NodeIds in Namespace 0.
+ * See the generated nodeids.h for the full list. */
+#define UA_NS0ID(ID) UA_NODEID_NUMERIC(0, UA_NS0ID_##ID)
+
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
 /* Print the NodeId in the human-readable format defined in Part 6.
@@ -485,81 +508,9 @@ UA_StatusCode UA_EXPORT
 UA_NodeId_parseEx(UA_NodeId *id, const UA_String str,
                   const UA_NamespaceMapping *nsMapping);
 
-UA_INLINABLE(UA_NodeId
-             UA_NODEID(const char *chars), {
-    UA_NodeId id;
-    UA_NodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
-    return id;
-})
+/* Shorthand, returns UA_NODEID_NULL when parsing fails */
+UA_EXPORT UA_NodeId UA_NODEID(const char *chars);
 #endif
-
-/** The following methods are a shorthand for creating NodeIds. */
-UA_INLINABLE(UA_NodeId
-             UA_NODEID_NUMERIC(UA_UInt16 nsIndex,
-                               UA_UInt32 identifier), {
-    UA_NodeId id;
-    memset(&id, 0, sizeof(UA_NodeId));
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_NUMERIC;
-    id.identifier.numeric = identifier;
-    return id;
-})
-
-/* Shorthand for standard-defined NodeIds in Namespace 0.
- * See the generated nodeids.h for the full list. */
-#define UA_NS0ID(ID) UA_NODEID_NUMERIC(0, UA_NS0ID_##ID)
-
-UA_INLINABLE(UA_NodeId
-             UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars), {
-    UA_NodeId id;
-    memset(&id, 0, sizeof(UA_NodeId));
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_STRING;
-    id.identifier.string = UA_STRING(chars);
-    return id;
-})
-
-UA_INLINABLE(UA_NodeId
-             UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex,
-                                    const char *chars), {
-    UA_NodeId id;
-    memset(&id, 0, sizeof(UA_NodeId));
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_STRING;
-    id.identifier.string = UA_STRING_ALLOC(chars);
-    return id;
-})
-
-UA_INLINABLE(UA_NodeId
-             UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid), {
-    UA_NodeId id;
-    memset(&id, 0, sizeof(UA_NodeId));
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_GUID;
-    id.identifier.guid = guid;
-    return id;
-})
-
-UA_INLINABLE(UA_NodeId
-             UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars), {
-    UA_NodeId id;
-    memset(&id, 0, sizeof(UA_NodeId));
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.byteString = UA_BYTESTRING(chars);
-    return id;
-})
-
-UA_INLINABLE(UA_NodeId
-             UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex,
-                                        const char *chars), {
-    UA_NodeId id;
-    memset(&id, 0, sizeof(UA_NodeId));
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.byteString = UA_BYTESTRING_ALLOC(chars);
-    return id;
-})
 
 /* Total ordering of NodeId */
 UA_Order UA_EXPORT
@@ -581,6 +532,31 @@ typedef struct {
 } UA_ExpandedNodeId;
 
 UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
+
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier);
+
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars);
+
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars);
+
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid);
+
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars);
+
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars);
+
+UA_EXPORT UA_ExpandedNodeId UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId);
+#define UA_NODEID2EXPANDEDNODEID(n) UA_EXPANDEDNODEID_NODEID(n)
+
+/* Shorthand for standard-defined NodeIds in Namespace 0.
+ * See the generated nodeids.h for the full list. */
+#define UA_NS0EXID(ID) UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_##ID)
 
 /* Print the ExpandedNodeId in the humand-readable format defined in Part 6,
  * 5.3.1.11:
@@ -619,67 +595,10 @@ UA_ExpandedNodeId_parseEx(UA_ExpandedNodeId *id, const UA_String str,
                           const UA_NamespaceMapping *nsMapping,
                           size_t serverUrisSize, const UA_String *serverUris);
 
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID(const char *chars), {
-    UA_ExpandedNodeId id;
-    UA_ExpandedNodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
-    return id;
-})
+/* Shorthand, returns UA_EXPANDEDNODEID_NULL when parsing fails */
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID(const char *chars);
 #endif
-
-/** The following functions are shorthand for creating ExpandedNodeIds. */
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_NODEID2EXPANDEDNODEID(UA_NodeId nodeId), {
-    UA_ExpandedNodeId id; id.nodeId = nodeId;
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_NUMERIC(nsIndex, identifier);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-/* Shorthand for standard-defined NodeIds in Namespace 0.
- * See the generated nodeids.h for the full list. */
-#define UA_NS0EXID(ID) UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_##ID)
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_STRING(nsIndex, chars);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_STRING_ALLOC(nsIndex, chars);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_GUID(nsIndex, guid);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING(nsIndex, chars);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId), {
-    UA_ExpandedNodeId id; memset(&id, 0, sizeof(UA_ExpandedNodeId));
-    id.nodeId = nodeId; return id;
-})
 
 /* Does the ExpandedNodeId point to a local node? That is, are namespaceUri and
  * serverIndex empty? */
