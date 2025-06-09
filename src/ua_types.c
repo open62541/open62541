@@ -701,6 +701,68 @@ UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
     return nodeIdOrder(n1, n2, NULL);
 }
 
+UA_NodeId
+UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
+    UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_NUMERIC;
+    id.identifier.numeric = identifier;
+    return id;
+}
+
+UA_NodeId
+UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars) {
+    UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_STRING;
+    id.identifier.string = UA_STRING(chars);
+    return id;
+}
+
+UA_NodeId
+UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex,
+                       const char *chars) {
+    UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_STRING;
+    id.identifier.string = UA_STRING_ALLOC(chars);
+    return id;
+}
+
+UA_NodeId
+UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
+    UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_GUID;
+    id.identifier.guid = guid;
+    return id;
+}
+
+UA_NodeId
+UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
+    UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    id.identifier.byteString = UA_BYTESTRING(chars);
+    return id;
+}
+
+UA_NodeId
+UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex,
+                           const char *chars) {
+    UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    id.identifier.byteString = UA_BYTESTRING_ALLOC(chars);
+    return id;
+}
+
 /* sdbm-hash (http://www.cse.yorku.ca/~oz/hash.html) */
 u32
 UA_ByteString_hash(u32 initialHashValue,
@@ -873,6 +935,14 @@ UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
     return UA_NodeId_printEx(id, output, NULL);
 }
 
+#ifdef UA_ENABLE_PARSING
+UA_NodeId UA_NODEID(const char *chars) {
+    UA_NodeId id;
+    UA_NodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
+    return id;
+}
+#endif
+
 /* ExpandedNodeId */
 static void
 ExpandedNodeId_clear(UA_ExpandedNodeId *p, const UA_DataType *_) {
@@ -888,6 +958,71 @@ ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst,
     dst->serverIndex = src->serverIndex;
     return retval;
 }
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = UA_NODEID_NUMERIC(nsIndex, identifier);
+    return id;
+}
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = UA_NODEID_STRING(nsIndex, chars);
+    return id;
+}
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = UA_NODEID_STRING_ALLOC(nsIndex, chars);
+    return id;
+}
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = UA_NODEID_GUID(nsIndex, guid);
+    return id;
+}
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = UA_NODEID_BYTESTRING(nsIndex, chars);
+    return id;
+}
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
+    return id;
+}
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = nodeId;
+    return id;
+}
+
+#ifdef UA_ENABLE_PARSING
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID(const char *chars) {
+    UA_ExpandedNodeId id;
+    UA_ExpandedNodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
+    return id;
+}
+#endif
 
 UA_Boolean
 UA_ExpandedNodeId_isLocal(const UA_ExpandedNodeId *n) {
