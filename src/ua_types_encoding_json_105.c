@@ -30,14 +30,6 @@
 #include "../deps/base64.h"
 #include "../deps/libc_time.h"
 
-#ifndef UA_ENABLE_PARSING
-#error UA_ENABLE_PARSING required for JSON encoding
-#endif
-
-#ifndef UA_ENABLE_TYPEDESCRIPTION
-#error UA_ENABLE_TYPEDESCRIPTION required for JSON encoding
-#endif
-
 #if defined(_MSC_VER)
 # pragma warning(disable: 4756)
 # pragma warning(disable: 4056)
@@ -174,7 +166,8 @@ writeJsonArrElm(CtxJson *ctx, const void *value,
 status
 writeJsonObjElm(CtxJson *ctx, const char *key,
                 const void *value, const UA_DataType *type) {
-    return writeJsonKey(ctx, key) | encodeJsonJumpTable[type->typeKind](ctx, value, type);
+    status ret = writeJsonKey(ctx, key);
+    return ret | encodeJsonJumpTable[type->typeKind](ctx, value, type);
 }
 
 /* Keys for JSON */
