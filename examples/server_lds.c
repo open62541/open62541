@@ -35,7 +35,7 @@ int main(void) {
 
     // Enable the mDNS announce and response functionality
     config->mdnsEnabled = true;
-
+    config->allowAllCertificateUris = true;
     config->mdnsConfig.mdnsServerName = UA_String_fromChars("LDS");
 
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv

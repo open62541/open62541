@@ -159,10 +159,10 @@ endif()
 
 # Discovery examples
 if(UA_ENABLE_DISCOVERY_MULTICAST)
-    add_example(discovery_server_lds discovery/server_lds.c)
-    add_example(discovery_server_register discovery/server_register.c)
-    add_example(discovery_client_find_servers discovery/client_find_servers.c)
-    add_example(discovery_server_multicast discovery/server_multicast.c)
+    add_example(discovery_server_lds server_lds.c)
+    add_example(discovery_server_register server_register.c)
+    add_example(discovery_client_find_servers client_find_servers.c)
+    add_example(discovery_server_multicast server_multicast.c)
 endif()
 
 add_subdirectory(nodeset)

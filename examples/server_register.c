@@ -17,7 +17,7 @@
 #include <signal.h>
 #include <stdlib.h>
 
-#define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
+#define DISCOVERY_SERVER_ENDPOINT "opc.tcp://Asce:4840"
 
 UA_Boolean running = true;
 

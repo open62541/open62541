@@ -42,8 +42,12 @@
 #include <boost/asio/connect.hpp>
 #include <boost/asio/ip/tcp.hpp>
 
+#include <chrono>
 #include <thread>
 #include <future>
+
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
 
 #include <open62541/plugin/historydata/history_data_backend_memory.h>
 #include <open62541/plugin/historydata/history_data_gathering_default.h>
@@ -620,14 +624,18 @@ int main(int argc, char* argv[]) {
     //     revocationList, revocationListSize);
 
         UA_StatusCode retval =
-    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
+    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 53531,
         &certificate, &privateKey,
         trustList, trustListSize,
         NULL, 0,
         NULL, 0);
 
-    UA_String_clear(&config->endpoints[0].endpointUrl);
-    config->endpoints[0].endpointUrl = UA_STRING_ALLOC("opc.tcp://0.0.0.0:4840");
+    if(retval == UA_STATUSCODE_GOOD) {
+        for(size_t i = 0; i < config->endpointsSize; i++) {
+            UA_String_clear(&config->endpoints[i].endpointUrl);
+            config->endpoints[i].endpointUrl = UA_STRING_ALLOC("opc.tcp://0.0.0.0:53531");
+        }
+    }
 
     // Accept all certificates for demo/testing
     // config->secureChannelPKI.clear(&config->secureChannelPKI);
@@ -1292,7 +1300,45 @@ UA_Server_writeObjectProperty_scalar(
     g_eventNodeId = &eventNodeId;
     UA_Server_addRepeatedCallback(server, updateCounterAndTriggerEvent, NULL, 10000, NULL);
 
-    retval = UA_Server_run(server, &running);
+    UA_Server_run_startup(server);
+        // Register server with LDS now that it's running
+
+            // register server
+        UA_ClientConfig cc;
+        
+
+        memset(&cc, 0, sizeof(UA_ClientConfig));
+        UA_ClientConfig_setDefault(&cc);
+        UA_String discoveryUrl = UA_STRING_ALLOC("opc.tcp://Asce:4840");
+
+
+    UA_StatusCode result =
+        UA_Server_registerDiscovery(server, &cc,
+                                    discoveryUrl, UA_STRING_NULL);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "Could not create periodic job for server register. StatusCode %s",
+                     UA_StatusCode_name(result));
+        UA_Server_delete(server);
+        return EXIT_FAILURE;
+    }
+
+    while(running)
+        UA_Server_run_iterate(server, true);
+
+        // Unregister from LDS before shutdown
+            // Unregister the server from the discovery server.
+        memset(&cc, 0, sizeof(UA_ClientConfig));    
+        UA_ClientConfig_setDefault(&cc);
+        UA_StatusCode res = UA_Server_deregisterDiscovery(server, &cc,
+                                           discoveryUrl);
+        if(res != UA_STATUSCODE_GOOD)
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                         "Could not unregister from discovery server. StatusCode %s",
+                         UA_StatusCode_name(res));
+        else
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Unregistered from discovery server.");
+
 
     UA_VariableAttributes_clear(&attr);
     UA_VariableAttributes_clear(&attr2);

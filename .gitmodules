@@ -13,3 +13,6 @@
 	path = deps/nodesetLoader
 	url = https://github.com/open62541/nodesetLoader
 	branch = master
+[submodule "include/mingw-std-threads"]
+	path = include/mingw-std-threads
+	url = https://github.com/meganz/mingw-std-threads.git
