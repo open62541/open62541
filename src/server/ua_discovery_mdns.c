@@ -703,13 +703,14 @@ UA_DiscoveryManager_clearServerOnNetwork(UA_DiscoveryManager *dm) {
 }
 
 UA_ServerOnNetwork*
-UA_DiscoveryManager_getServerOnNetworkList(void) {
+UA_DiscoveryManager_getServerOnNetworkList(UA_DiscoveryManager *dm) {
     serverOnNetwork* entry = LIST_FIRST(&mdnsPrivateData.serverOnNetwork);
     return entry ? &entry->serverOnNetwork : NULL;
 }
 
 UA_ServerOnNetwork*
-UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_ServerOnNetwork *current) {
+UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_DiscoveryManager *dm,
+                                   UA_ServerOnNetwork *current) {
     serverOnNetwork *entry = NULL;
     LIST_FOREACH(entry, &mdnsPrivateData.serverOnNetwork, pointers) {
         if(&entry->serverOnNetwork == current) {
@@ -1014,10 +1015,12 @@ isAddressValid(struct ifaddrs *ifa) {
 
 static void
 discovery_createMultiConnections(UA_Server *server, UA_DiscoveryManager *dm,
-                                 UA_KeyValuePair params[], UA_KeyValueMap kvm) {
+                                 UA_KeyValueMap *kvm) {
     char sourceAddr[NI_MAXHOST];
-    kvm.mapSize++;
-    params[5].key = UA_QUALIFIEDNAME(0, "interface");
+    if(kvm->mapSize == 5) {
+        kvm->mapSize++;
+        kvm->map[5].key = UA_QUALIFIEDNAME(0, "interface");
+    }
 #ifdef _WIN32
     ULONG outBufLen = ADDR_BUFFER_SIZE;
     UA_STACKARRAY(char, addrBuf, ADDR_BUFFER_SIZE);
@@ -1048,10 +1051,10 @@ discovery_createMultiConnections(UA_Server *server, UA_DiscoveryManager *dm,
                         sourceAddr, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
 #endif
                 UA_String additionlconnection = UA_String_fromChars(sourceAddr);
-                UA_Variant_setScalar(&params[5].value, &additionlconnection,
+                UA_Variant_setScalar(&kvm->map[5].value, &additionlconnection,
                                      &UA_TYPES[UA_TYPES_STRING]);
                 UA_StatusCode res = dm->cm->openConnection(
-                    dm->cm, &kvm, server, dm, MulticastDiscoverySendCallback);
+                    dm->cm, kvm, server, dm, MulticastDiscoverySendCallback);
                 if(res == UA_STATUSCODE_GOOD)
 					UA_LOG_INFO(
                         dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
@@ -1137,7 +1140,7 @@ discovery_createMulticastSocket(UA_DiscoveryManager *dm) {
     listen = false;
     if(UA_DiscoveryManager_getMdnsSendConnectionCount() == 0) {
         if(dm->sc.server->config.mdnsSendToAllInterfaces) {
-            discovery_createMultiConnections(dm->sc.server, dm, params, kvm);
+            discovery_createMultiConnections(dm->sc.server, dm, &kvm);
         } else {
             res = dm->cm->openConnection(dm->cm, &kvm, dm->sc.server, dm,
                                      MulticastDiscoverySendCallback);
@@ -1219,7 +1222,7 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
 }
 
 void
-UA_DiscoveryManager_clearMdns(void) {
+UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm) {
     /* Clean up the serverOnNetwork list */
     serverOnNetwork *son, *son_tmp;
     LIST_FOREACH_SAFE(son, &mdnsPrivateData.serverOnNetwork, pointers, son_tmp) {
@@ -1356,7 +1359,7 @@ createFullServiceDomain(UA_String *outServiceDomain,
 
 /* Check if mDNS already has an entry for given hostname and port combination */
 static UA_Boolean
-UA_Discovery_recordExists(const char* fullServiceDomain,
+UA_Discovery_recordExists(UA_DiscoveryManager *dm, const char *fullServiceDomain,
                           unsigned short port, const UA_DiscoveryProtocol protocol) {
     // [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname].
     mdns_record_t *r  = mdnsd_get_published(mdnsPrivateData.mdnsDaemon, fullServiceDomain);
@@ -1385,7 +1388,7 @@ discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg) {
 
     /* Skip, if we already know about this server */
     UA_Boolean exists =
-        UA_Discovery_recordExists(a->rdname, 0, UA_DISCOVERY_TCP);
+        UA_Discovery_recordExists(dm, a->rdname, 0, UA_DISCOVERY_TCP);
     if(exists == true)
         return 0;
 

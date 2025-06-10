@@ -94,7 +94,7 @@ void UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm);
 void UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm);
 
 void
-UA_DiscoveryManager_clearMdns(void);
+UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm);
 
 UA_UInt32
 UA_DiscoveryManager_getMdnsRecvConnectionCount(void);
@@ -112,10 +112,11 @@ UA_DateTime
 UA_DiscoveryManager_getServerOnNetworkCounterResetTime(UA_DiscoveryManager *dm);
 
 UA_ServerOnNetwork*
-UA_DiscoveryManager_getServerOnNetworkList(void);
+UA_DiscoveryManager_getServerOnNetworkList(UA_DiscoveryManager *dm);
 
 UA_ServerOnNetwork*
-UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_ServerOnNetwork *current);
+UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_DiscoveryManager *dm,
+                                  UA_ServerOnNetwork *current);
 
 UA_StatusCode
 UA_DiscoveryManager_clearServerOnNetwork(UA_DiscoveryManager *dm);
