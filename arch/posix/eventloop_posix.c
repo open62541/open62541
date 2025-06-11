@@ -22,6 +22,9 @@
 static UA_DateTime
 UA_EventLoopPOSIX_nextTimer(UA_EventLoop *public_el) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    if(el->delayedHead1 >= (UA_DelayedCallback*)0x01 ||
+       el->delayedHead2 >= (UA_DelayedCallback*)0x01)
+        el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
     return UA_Timer_next(&el->timer);
 }
 

@@ -75,7 +75,7 @@ class NodeId():
                     self.ns = namespaceMapping[self.ns]
             elif p[:2] == "i=":
                 self.i = int(p[2:])
-            elif p[:2] == "o=":
+            elif p[:2] == "b=":
                 self.b = p[2:]
             elif p[:2] == "g=":
                 tmp = []

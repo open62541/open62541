@@ -26,7 +26,7 @@ static void setup(void) {
     privateKey.data = KEY_DER_DATA;
 
     server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
-                                                          NULL, 0,
+                                                          &certificate, 1,
                                                           NULL, 0,
                                                           NULL, 0);
     ck_assert(server != NULL);
