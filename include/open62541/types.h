@@ -942,6 +942,7 @@ UA_ExtensionObject_hasDecodedType(const UA_ExtensionObject *eo,
  * DataValue
  * ^^^^^^^^^
  * A data value with an associated status code and timestamps. */
+
 typedef struct {
     UA_Variant    value;
     UA_DateTime   sourceTimestamp;
@@ -959,15 +960,11 @@ typedef struct {
 
 /* Copy the DataValue, but use only a subset of the (multidimensional) array of
  * of the variant of the source DataValue. Returns an error code if the variant
- * of the DataValue is not an array or if the indicated range does not fit.
- *
- * @param src The source DataValue
- * @param dst The target DataValue
- * @param range The range of the variant of the DataValue to copy
- * @return Returns UA_STATUSCODE_GOOD or an error code */
+ * of the DataValue is not an array or if the indicated range does not fit. */
 UA_StatusCode UA_EXPORT
-UA_DataValue_copyVariantRange(const UA_DataValue *src, UA_DataValue * UA_RESTRICT dst,
-                              const UA_NumericRange range);
+UA_DataValue_copyRange(const UA_DataValue *src, UA_DataValue *dst,
+                       const UA_NumericRange range);
+#define UA_DataValue_copyVariantRange(s,d,r) UA_DataValue_copyRange(s,d,r)
 
 /**
  * DiagnosticInfo

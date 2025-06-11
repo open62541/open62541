@@ -159,15 +159,9 @@ readInternalValueAttribute(UA_Server *server, UA_Session *session,
     }
 
     /* Set the result */
-    UA_StatusCode retval;
-    if(!rangeptr) {
-        retval = UA_DataValue_copy(&vn->valueSource.internal.value, v);
-    } else {
-        *v = vn->valueSource.internal.value; /* Copy timestamps */
-        UA_Variant_init(&v->value);
-        retval = UA_Variant_copyRange(&vn->valueSource.internal.value.value,
-                                      &v->value, *rangeptr);
-    }
+    UA_StatusCode retval = (!rangeptr) ?
+        UA_DataValue_copy(&vn->valueSource.internal.value, v) :
+        UA_DataValue_copyRange(&vn->valueSource.internal.value, v, *rangeptr);
 
     /* Clean up */
     if(vn->valueSource.internal.notifications.onRead)
@@ -193,12 +187,7 @@ readExternalValueAttribute(UA_Server *server, UA_Session *session,
         UA_atomic_load((void**)vn->valueSource.external.value);
 
     /* Set the result */
-    if(rangeptr) {
-        *v = *val; /* Copy timestamps */
-        UA_Variant_init(&v->value);
-        return UA_Variant_copyRange(&val->value, &v->value, *rangeptr);
-    }
-    return UA_DataValue_copy(val, v);
+    return (!rangeptr) ? UA_DataValue_copy(val, v) : UA_DataValue_copyRange(val, v, *rangeptr);
 }
 
 static UA_StatusCode
