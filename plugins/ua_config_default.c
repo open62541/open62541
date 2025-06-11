@@ -118,11 +118,9 @@ interruptServer(UA_InterruptManager *im, uintptr_t interruptHandle,
     UA_UInt32 secondsTillShutdown = (UA_UInt32)(config->shutdownDelay / 1000.0);
     UA_Variant val;
     UA_Variant_setScalar(&val, &secondsTillShutdown, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Server_writeValue(ic->server,
-              UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN), val);
+    UA_Server_writeValue(ic->server, UA_NS0ID(SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN), val);
     UA_Server_addTimedCallback(ic->server, shutdownServer, ic, UA_DateTime_nowMonotonic() +
-                               (UA_DateTime)(config->shutdownDelay * UA_DATETIME_MSEC),
-                               NULL);
+                               (UA_DateTime)(config->shutdownDelay * UA_DATETIME_MSEC), NULL);
 
     /* Notify the application that the server is stopping */
     if(config->notifyLifecycleState)
