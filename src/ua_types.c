@@ -1795,6 +1795,10 @@ UA_new(const UA_DataType *type) {
     return p;
 }
 
+void UA_init(void *p, const UA_DataType *type) {
+    memset(p, 0, type->memSize);
+}
+
 static UA_StatusCode
 copyByte(const u8 *src, u8 *dst, const UA_DataType *_) {
     *dst = *src;
@@ -2511,6 +2515,11 @@ UA_orderSignature orderJumpTable[UA_DATATYPEKINDS] = {
 
 UA_Order UA_order(const void *p1, const void *p2, const UA_DataType *type) {
     return orderJumpTable[type->typeKind](p1, p2, type);
+}
+
+UA_Boolean
+UA_equal(const void *p1, const void *p2, const UA_DataType *type) {
+    return (UA_order(p1, p2, type) == UA_ORDER_EQ);
 }
 
 /******************/
