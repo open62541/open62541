@@ -1741,8 +1741,8 @@ DataValue_copy(UA_DataValue const *src, UA_DataValue *dst,
 }
 
 UA_StatusCode
-UA_DataValue_copyVariantRange(const UA_DataValue *src, UA_DataValue * UA_RESTRICT dst,
-                              const UA_NumericRange range) {
+UA_DataValue_copyRange(const UA_DataValue *src, UA_DataValue * UA_RESTRICT dst,
+                       const UA_NumericRange range) {
     memcpy(dst, src, sizeof(UA_DataValue));
     UA_Variant_init(&dst->value);
     UA_StatusCode retval = UA_Variant_copyRange(&src->value, &dst->value, range);
