@@ -1079,7 +1079,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         return retval;
     }
 
-    if(trustListSize > 0 && revocationListSize > 0) {
+    if(trustListSize > 0) {
         UA_TrustListDataType list;
         UA_TrustListDataType_init(&list);
         list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
@@ -1102,15 +1102,17 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
             list.issuerCertificatesSize = issuerListSize;
         }
 
-        list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
-        retval = UA_Array_copy(revocationList, revocationListSize,
-                               (void**)&list.trustedCrls,
-                               &UA_TYPES[UA_TYPES_BYTESTRING]);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_TrustListDataType_clear(&list);
-            return retval;
+        if(revocationListSize > 0) {
+            list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+            retval = UA_Array_copy(revocationList, revocationListSize,
+                                   (void**)&list.trustedCrls,
+                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_TrustListDataType_clear(&list);
+                return retval;
+            }
+            list.trustedCrlsSize = revocationListSize;
         }
-        list.trustedCrlsSize = revocationListSize;
 
         /* Set up the parameters */
         UA_KeyValuePair params[2];
@@ -1146,15 +1148,18 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     } else {
-        UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "Empty trustlist and revocationlist passed, leaving the "
-                       "previously configured certificate verification in place");
+        UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_USERLAND,
+                       "Empty trustlist passed. Leaving the previously "
+                       "configured certificate verification in place");
     }
 
     retval = UA_ServerConfig_addAllSecurityPolicies(conf, certificate, privateKey);
 
+    /* Reinitialize AccessControl to take the changed SecurityPolicies into account
+     * TODO: This looses username/pw during the reinitialization */
     if(retval == UA_STATUSCODE_GOOD)
         retval = UA_AccessControl_default(conf, true, NULL, 0, NULL);
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clear(conf);
         return retval;
@@ -1186,65 +1191,77 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
         return retval;
     }
 
-    UA_TrustListDataType list;
-    UA_TrustListDataType_init(&list);
     if(trustListSize > 0) {
+        UA_TrustListDataType list;
+        UA_TrustListDataType_init(&list);
         list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
-        retval =
-            UA_Array_copy(trustList, trustListSize,
-                          (void**)&list.trustedCertificates, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        retval = UA_Array_copy(trustList, trustListSize,
+                               (void**)&list.trustedCertificates,
+                               &UA_TYPES[UA_TYPES_BYTESTRING]);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
         list.trustedCertificatesSize = trustListSize;
-    }
-    if(issuerListSize > 0) {
-        list.specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
-        retval =
-            UA_Array_copy(issuerList, issuerListSize,
-                          (void**)&list.issuerCertificates, &UA_TYPES[UA_TYPES_BYTESTRING]);
-        if(retval != UA_STATUSCODE_GOOD)
+
+        if(issuerListSize > 0) {
+            list.specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
+            retval = UA_Array_copy(issuerList, issuerListSize,
+                                   (void**)&list.issuerCertificates,
+                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_TrustListDataType_clear(&list);
+                return retval;
+            }
+            list.issuerCertificatesSize = issuerListSize;
+        }
+
+        if(revocationListSize > 0) {
+            list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+            retval = UA_Array_copy(revocationList, revocationListSize,
+                                   (void**)&list.trustedCrls,
+                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_TrustListDataType_clear(&list);
+                return retval;
+            }
+            list.trustedCrlsSize = revocationListSize;
+        }
+
+        /* Set up the parameters */
+        UA_KeyValuePair params[2];
+        size_t paramsSize = 2;
+
+        params[0].key = UA_QUALIFIEDNAME(0, "max-trust-listsize");
+        UA_Variant_setScalar(&params[0].value, &conf->maxTrustListSize, &UA_TYPES[UA_TYPES_UINT32]);
+        params[1].key = UA_QUALIFIEDNAME(0, "max-rejected-listsize");
+        UA_Variant_setScalar(&params[1].value, &conf->maxRejectedListSize, &UA_TYPES[UA_TYPES_UINT32]);
+
+        UA_KeyValueMap paramsMap;
+        paramsMap.map = params;
+        paramsMap.mapSize = paramsSize;
+
+        UA_NodeId defaultApplicationGroup =
+            UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+        retval = UA_CertificateGroup_Memorystore(&conf->secureChannelPKI, &defaultApplicationGroup,
+                                                 &list, conf->logging, &paramsMap);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_TrustListDataType_clear(&list);
             return retval;
-        list.issuerCertificatesSize = issuerListSize;
-    }
-    if(revocationListSize > 0) {
-        list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
-        retval =
-            UA_Array_copy(revocationList, revocationListSize,
-                          (void**)&list.trustedCrls, &UA_TYPES[UA_TYPES_BYTESTRING]);
-        if(retval != UA_STATUSCODE_GOOD)
+        }
+
+        UA_NodeId defaultUserTokenGroup =
+            UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
+        retval = UA_CertificateGroup_Memorystore(&conf->sessionPKI, &defaultUserTokenGroup,
+                                                 &list, conf->logging, &paramsMap);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_TrustListDataType_clear(&list);
             return retval;
-        list.trustedCrlsSize = revocationListSize;
-    }
-
-    /* Set up the parameters */
-    UA_KeyValuePair params[2];
-    size_t paramsSize = 2;
-
-    params[0].key = UA_QUALIFIEDNAME(0, "max-trust-listsize");
-    UA_Variant_setScalar(&params[0].value, &conf->maxTrustListSize, &UA_TYPES[UA_TYPES_UINT32]);
-    params[1].key = UA_QUALIFIEDNAME(0, "max-rejected-listsize");
-    UA_Variant_setScalar(&params[1].value, &conf->maxRejectedListSize, &UA_TYPES[UA_TYPES_UINT32]);
-
-    UA_KeyValueMap paramsMap;
-    paramsMap.map = params;
-    paramsMap.mapSize = paramsSize;
-
-    UA_NodeId defaultApplicationGroup =
-           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    retval = UA_CertificateGroup_Memorystore(&conf->secureChannelPKI, &defaultApplicationGroup, &list, conf->logging, &paramsMap);
-    if(retval != UA_STATUSCODE_GOOD) {
+        }
         UA_TrustListDataType_clear(&list);
-        return retval;
+    } else {
+        UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_USERLAND,
+                       "Empty trustlist passed. Leaving the previously "
+                       "configured certificate verification in place");
     }
-
-    UA_NodeId defaultUserTokenGroup =
-            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
-    retval = UA_CertificateGroup_Memorystore(&conf->sessionPKI, &defaultUserTokenGroup, &list, conf->logging, &paramsMap);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_TrustListDataType_clear(&list);
-        return retval;
-    }
-    UA_TrustListDataType_clear(&list);
 
     retval = UA_ServerConfig_addAllSecureSecurityPolicies(conf, certificate, privateKey);
 
@@ -1600,19 +1617,20 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
     paramsMap.mapSize = paramsSize;
 
     UA_NodeId defaultApplicationGroup =
-            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    retval = UA_CertificateGroup_Filestore(&conf->secureChannelPKI, &defaultApplicationGroup, storePath, conf->logging, &paramsMap);
+            UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    retval = UA_CertificateGroup_Filestore(&conf->secureChannelPKI, &defaultApplicationGroup,
+                                           storePath, conf->logging, &paramsMap);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     UA_NodeId defaultUserTokenGroup =
-            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
-    retval = UA_CertificateGroup_Filestore(&conf->sessionPKI, &defaultUserTokenGroup, storePath, conf->logging, &paramsMap);
+            UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
+    retval = UA_CertificateGroup_Filestore(&conf->sessionPKI, &defaultUserTokenGroup,
+                                           storePath, conf->logging, &paramsMap);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = UA_ServerConfig_addSecurityPolicies_Filestore(conf, certificate,
-                                                           privateKey, storePath);
+    retval = UA_ServerConfig_addSecurityPolicies_Filestore(conf, certificate, privateKey, storePath);
 
     if(retval == UA_STATUSCODE_GOOD) {
         retval = UA_AccessControl_default(conf, true, NULL, 0, NULL);
@@ -1813,7 +1831,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if(trustListSize > 0 && revocationListSize > 0) {
+    if(trustListSize > 0) {
         UA_TrustListDataType list;
         UA_TrustListDataType_init(&list);
         list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
@@ -1824,15 +1842,17 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
             return retval;
         list.trustedCertificatesSize = trustListSize;
 
-        list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
-        retval = UA_Array_copy(revocationList, revocationListSize,
-                               (void**)&list.trustedCrls,
-                               &UA_TYPES[UA_TYPES_BYTESTRING]);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_TrustListDataType_clear(&list);
-            return retval;
+        if(revocationListSize > 0) {
+            list.specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+            retval = UA_Array_copy(revocationList, revocationListSize,
+                                   (void**)&list.trustedCrls,
+                                   &UA_TYPES[UA_TYPES_BYTESTRING]);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_TrustListDataType_clear(&list);
+                return retval;
+            }
+            list.trustedCrlsSize = revocationListSize;
         }
-        list.trustedCrlsSize = revocationListSize;
 
         /* Set up the parameters */
         UA_KeyValuePair params[2];
@@ -1861,8 +1881,8 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
             return retval;
     } else {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "Empty trustlist and revocationlist passed, leaving the "
-                       "previously configured certificate verification in place");
+                       "Empty trustlist passed. Leaving the previously "
+                       "configured certificate verification in place");
     }
 
     /* Load the private key and convert to the DER format. Use an empty password
