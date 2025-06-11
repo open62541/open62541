@@ -374,6 +374,7 @@ UA_EXPORT UA_Guid UA_GUID(const char *chars);
  * ByteString
  * ^^^^^^^^^^
  * A sequence of octets. */
+
 typedef UA_String UA_ByteString;
 
 UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
@@ -405,6 +406,7 @@ UA_ByteString_hash(UA_UInt32 initialHashValue,
  * XmlElement
  * ^^^^^^^^^^
  * An XML element. */
+
 typedef UA_String UA_XmlElement;
 
 /**
@@ -413,6 +415,7 @@ typedef UA_String UA_XmlElement;
  * NodeId
  * ^^^^^^
  * An identifier for a node in the address space of an OPC UA Server. */
+
 enum UA_NodeIdType {
     UA_NODEIDTYPE_NUMERIC    = 0, /* In the binary encoding, this can also
                                    * become 1 or 2 (two-byte and four-byte
@@ -526,6 +529,7 @@ UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
  * ExpandedNodeId
  * ^^^^^^^^^^^^^^
  * A NodeId that allows the namespace URI to be specified instead of an index. */
+
 typedef struct {
     UA_NodeId nodeId;
     UA_String namespaceUri;
@@ -623,6 +627,7 @@ UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n);
  * QualifiedName
  * ^^^^^^^^^^^^^
  * A name qualified by a namespace. */
+
 typedef struct {
     UA_UInt16 namespaceIndex;
     UA_String name;
@@ -725,7 +730,6 @@ UA_EXPORT UA_NumericRange UA_NUMERICRANGE(const char *s);
  *
  * Variant
  * ^^^^^^^
- *
  * Variants may contain values of any type together with a description of the
  * content. See the section on :ref:`generic-types` on how types are described.
  * The standard mandates that variants contain built-in data types only. If the
@@ -754,6 +758,7 @@ UA_EXPORT UA_NumericRange UA_NUMERICRANGE(const char *s);
  *
  * Variants can also be *empty*. Then, the pointer to the type description is
  * ``NULL``. */
+
 /* Forward declaration. See the section on Generic Type Handling */
 struct UA_DataType;
 typedef struct UA_DataType UA_DataType;
@@ -841,7 +846,6 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
  *
  * ExtensionObject
  * ^^^^^^^^^^^^^^^
- *
  * ExtensionObjects may contain scalars of any data type. Even those that are
  * unknown to the receiver. See the section on :ref:`generic-types` on how types
  * are described. If the received data type is unknown, the encoded string and
@@ -931,6 +935,7 @@ UA_DataValue_copyRange(const UA_DataValue *src, UA_DataValue *dst,
  * ^^^^^^^^^^^^^^
  * A structure that contains detailed error and diagnostic information
  * associated with a StatusCode. */
+
 typedef struct UA_DiagnosticInfo {
     UA_Boolean    hasSymbolicId          : 1;
     UA_Boolean    hasNamespaceUri        : 1;
@@ -953,7 +958,6 @@ typedef struct UA_DiagnosticInfo {
  *
  * Generic Type Handling
  * ---------------------
- *
  * All information about a (builtin/structured) data type is stored in a
  * ``UA_DataType``. The array ``UA_TYPES`` contains the description of all
  * standard-defined types. This type description is used for the following
@@ -1281,8 +1285,7 @@ UA_decodeBinary(const UA_ByteString *inBuf,
  *
  * These extensions are not intended to be used for the OPC UA protocol on the
  * network. They were rather added to allow more convenient configuration file
- * formats that also include data in the OPC UA type system.
- */
+ * formats that also include data in the OPC UA type system. */
 
 #ifdef UA_ENABLE_JSON_ENCODING
 
@@ -1462,7 +1465,6 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type);
  *
  * Generated Data Type Definitions
  * -------------------------------
- *
  * The following standard-defined datatypes are auto-generated from XML files
  * that are part of the OPC UA standard. All datatypes are built up from the 25
  * builtin-in datatypes from the :ref:`types` section.
