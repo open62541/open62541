@@ -208,6 +208,7 @@ typedef struct {
 
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 UA_EXPORT UA_Boolean UA_String_isEmpty(const UA_String *s);
+#define UA_String_isNull(s) UA_String_isEmpty(s)
 
 /* Returns a string pointing to the original char-array */
 UA_EXPORT UA_String UA_STRING(char *chars);
@@ -797,82 +798,42 @@ UA_EXPORT UA_Boolean
 UA_Variant_hasArrayType(const UA_Variant *v, const UA_DataType *type);
 
 /* Set the variant to a scalar value that already resides in memory. The value
- * takes on the lifecycle of the variant and is deleted with it.
- *
- * @param v The variant
- * @param p A pointer to the value data
- * @param type The datatype of the value in question */
+ * will be cleared together with the variant. */
 void UA_EXPORT
-UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p,
-                     const UA_DataType *type);
+UA_Variant_setScalar(UA_Variant *v, void *value, const UA_DataType *type);
 
-/* Set the variant to a scalar value that is copied from an existing variable.
- * @param v The variant
- * @param p A pointer to the value data
- * @param type The datatype of the value
- * @return Indicates whether the operation succeeded or returns an error code */
+/* Set the variant to a deep-copy of the provided scalar value */
 UA_StatusCode UA_EXPORT
-UA_Variant_setScalarCopy(UA_Variant *v, const void * UA_RESTRICT p,
-                         const UA_DataType *type);
+UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type);
 
-/* Set the variant to an array that already resides in memory. The array takes
- * on the lifecycle of the variant and is deleted with it.
- *
- * @param v The variant
- * @param array A pointer to the array data
- * @param arraySize The size of the array
- * @param type The datatype of the array */
+/* Set the variant to an existing array value. The array is cleared together
+ * with the variant. */
 void UA_EXPORT
-UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array,
-                    size_t arraySize, const UA_DataType *type);
+UA_Variant_setArray(UA_Variant *v, void *array, size_t arraySize,
+                    const UA_DataType *type);
 
-/* Set the variant to an array that is copied from an existing array.
- *
- * @param v The variant
- * @param array A pointer to the array data
- * @param arraySize The size of the array
- * @param type The datatype of the array
- * @return Indicates whether the operation succeeded or returns an error code */
+/* Set the variant to a deep-copy of the provided array */
 UA_StatusCode UA_EXPORT
-UA_Variant_setArrayCopy(UA_Variant *v, const void * UA_RESTRICT array,
-                        size_t arraySize, const UA_DataType *type);
+UA_Variant_setArrayCopy(UA_Variant *v, const void *array, size_t arraySize,
+                        const UA_DataType *type);
 
 /* Copy the variant, but use only a subset of the (multidimensional) array into
  * a variant. Returns an error code if the variant is not an array or if the
- * indicated range does not fit.
- *
- * @param src The source variant
- * @param dst The target variant
- * @param range The range of the copied data
- * @return Returns UA_STATUSCODE_GOOD or an error code */
+ * indicated range does not fit. */
 UA_StatusCode UA_EXPORT
-UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
+UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
                      const UA_NumericRange range);
 
 /* Insert a range of data into an existing variant. The data array cannot be
  * reused afterwards if it contains types without a fixed size (e.g. strings)
- * since the members are moved into the variant and take on its lifecycle.
- *
- * @param v The variant
- * @param dataArray The data array. The type must match the variant
- * @param dataArraySize The length of the data array. This is checked to match
- *        the range size.
- * @param range The range of where the new data is inserted
- * @return Returns UA_STATUSCODE_GOOD or an error code */
+ * since the members are moved into the variant and take on its lifecycle. */
 UA_StatusCode UA_EXPORT
-UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array,
+UA_Variant_setRange(UA_Variant *v, void *array,
                     size_t arraySize, const UA_NumericRange range);
 
-/* Deep-copy a range of data into an existing variant.
- *
- * @param v The variant
- * @param dataArray The data array. The type must match the variant
- * @param dataArraySize The length of the data array. This is checked to match
- *        the range size.
- * @param range The range of where the new data is inserted
- * @return Returns UA_STATUSCODE_GOOD or an error code */
+/* Deep-copy a range of data into the variant */
 UA_StatusCode UA_EXPORT
-UA_Variant_setRangeCopy(UA_Variant *v, const void * UA_RESTRICT array,
+UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
                         size_t arraySize, const UA_NumericRange range);
 
 /**
@@ -885,6 +846,7 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void * UA_RESTRICT array,
  * unknown to the receiver. See the section on :ref:`generic-types` on how types
  * are described. If the received data type is unknown, the encoded string and
  * target NodeId is stored instead of the decoded value. */
+
 typedef enum {
     UA_EXTENSIONOBJECT_ENCODED_NOBODY     = 0,
     UA_EXTENSIONOBJECT_ENCODED_BYTESTRING = 1,
@@ -912,26 +874,24 @@ typedef struct {
 /* Initialize the ExtensionObject and set the "decoded" value to the given
  * pointer. The value will be deleted when the ExtensionObject is cleared. */
 void UA_EXPORT
-UA_ExtensionObject_setValue(UA_ExtensionObject *eo,
-                            void * UA_RESTRICT p,
+UA_ExtensionObject_setValue(UA_ExtensionObject *eo, void *p,
                             const UA_DataType *type);
 
 /* Initialize the ExtensionObject and set the "decoded" value to the given
  * pointer. The value will *not* be deleted when the ExtensionObject is
  * cleared. */
 void UA_EXPORT
-UA_ExtensionObject_setValueNoDelete(UA_ExtensionObject *eo,
-                                    void * UA_RESTRICT p,
+UA_ExtensionObject_setValueNoDelete(UA_ExtensionObject *eo, void *p,
                                     const UA_DataType *type);
 
 /* Initialize the ExtensionObject and set the "decoded" value to a fresh copy of
  * the given value pointer. The value will be deleted when the ExtensionObject
  * is cleared. */
 UA_StatusCode UA_EXPORT
-UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo,
-                                void * UA_RESTRICT p,
+UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo, void *p,
                                 const UA_DataType *type);
 
+/* Returns true if the ExtensionObject contains a decoded value of the type */
 UA_Boolean UA_EXPORT
 UA_ExtensionObject_hasDecodedType(const UA_ExtensionObject *eo,
                                   const UA_DataType *type);
@@ -1143,7 +1103,7 @@ UA_EXPORT void * UA_new(const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
 UA_EXPORT void UA_init(void *p, const UA_DataType *type);
 
 /* Copies the content of two variables. The pointer is _init'ed internally. If
- * copying fails, then dst is _clear'ed internally to prevent memory leaks. */
+ * copying fails, then dst is cleared internally to prevent memory leaks. */
 UA_StatusCode UA_EXPORT
 UA_copy(const void *src, void *dst, const UA_DataType *type);
 
@@ -1345,19 +1305,16 @@ typedef struct {
     UA_Boolean stringNodeIds; /* String encoding for NodeIds, like "ns=1;i=42" */
 } UA_EncodeJsonOptions;
 
-/* Returns the number of bytes the value src takes in json encoding. Returns
+/* Returns the number of bytes the value src takes in JSON encoding. Returns
  * zero if an error occurs. */
 UA_EXPORT size_t
 UA_calcSizeJson(const void *src, const UA_DataType *type,
                 const UA_EncodeJsonOptions *options);
 
-/* Encodes the scalar value described by type to json encoding.
- *
- * @param src The value. Must not be NULL.
- * @param type The value type. Must not be NULL.
- * @param outBuf Pointer to ByteString containing the result if the encoding
- *        was successful
- * @return Returns a statuscode whether encoding succeeded. */
+/* Encodes the scalar value described by type to JSON encoding. If the outBuf
+ * already contains memory, this is used (if sufficient) and outBuf->length is
+ * adjusted down. Otherwise sufficient memory is allocated. The options can be
+ * NULL. */
 UA_StatusCode UA_EXPORT
 UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
               const UA_EncodeJsonOptions *options);
@@ -1382,16 +1339,9 @@ typedef struct {
                             * first JSON element in the input string. */
 } UA_DecodeJsonOptions;
 
-/* Decodes a scalar value described by type from json encoding.
- *
- * @param src The buffer with the json encoded value. Must not be NULL.
- * @param dst The target value. Must not be NULL. The target is assumed to have
- *        size type->memSize. The value is reset to zero before decoding. If
- *        decoding fails, members are deleted and the value is reset (zeroed)
- *        again.
- * @param type The value type. Must not be NULL.
- * @param options The options struct for decoding.
- * @return Returns a statuscode whether decoding succeeded. */
+/* Decodes a scalar value described by type from JSON encoding. The dst value is
+ * _init'ed initially. It gets cleared internally when an error occurs. The
+ * options can be NULL. */
 UA_StatusCode UA_EXPORT
 UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
               const UA_DecodeJsonOptions *options);
@@ -1407,8 +1357,7 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
  *
  * These extensions are not intended to be used for the OPC UA protocol on the
  * network. They were rather added to allow more convenient configuration file
- * formats that also include data in the OPC UA type system.
- */
+ * formats that also include data in the OPC UA type system. */
 
 #ifdef UA_ENABLE_XML_ENCODING
 
@@ -1427,13 +1376,10 @@ UA_EXPORT size_t
 UA_calcSizeXml(const void *src, const UA_DataType *type,
                const UA_EncodeXmlOptions *options);
 
-/* Encodes the scalar value described by type to xml encoding.
- *
- * @param src The value. Must not be NULL.
- * @param type The value type. Must not be NULL.
- * @param outBuf Pointer to ByteString containing the result if the encoding
- *        was successful
- * @return Returns a statuscode whether encoding succeeded. */
+/* Encodes the scalar value described by type to XML encoding. If the outBuf
+ * already contains memory, this is used (if sufficient) and outBuf->length is
+ * adjusted down. Otherwise sufficient memory is allocated. The options can be
+ * NULL. */
 UA_StatusCode UA_EXPORT
 UA_encodeXml(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
              const UA_EncodeXmlOptions *options);
@@ -1452,16 +1398,9 @@ typedef struct {
                                           * datatype definitions */
 } UA_DecodeXmlOptions;
 
-/* Decodes a scalar value described by type from xml encoding.
- *
- * @param src The buffer with the xml encoded value. Must not be NULL.
- * @param dst The target value. Must not be NULL. The target is assumed to have
- *        size type->memSize. The value is reset to zero before decoding. If
- *        decoding fails, members are deleted and the value is reset (zeroed)
- *        again.
- * @param type The value type. Must not be NULL.
- * @param options The options struct for decoding, currently unused
- * @return Returns a statuscode whether decoding succeeded. */
+/* Decodes a scalar value described by type from XML encoding. The dst value is
+ * _init'ed initially. It gets cleared internally when an error occurs. The
+ * options can be NULL. */
 UA_StatusCode UA_EXPORT
 UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
              const UA_DecodeXmlOptions *options);
@@ -1481,75 +1420,40 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
  * has length 0 and the data pointer is ``NULL``. An array of length 0 also has
  * length 0 but a data pointer ``UA_EMPTY_ARRAY_SENTINEL``. */
 
-/* Allocates and initializes an array of variables of a specific type
- *
- * @param size The requested array length
- * @param type The datatype description
- * @return Returns the memory location of the variable or NULL if no memory
- *         could be allocated */
+/* Allocates and initializes an array of the given type */
 void UA_EXPORT *
 UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
 
-/* Allocates and copies an array
- *
- * @param src The memory location of the source array
- * @param size The size of the array
- * @param dst The location of the pointer to the new array
- * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY */
+/* Makes a deep-copy of an array. On success, the dst argument is set to point
+ * to the allocated memory. */
 UA_StatusCode UA_EXPORT
 UA_Array_copy(const void *src, size_t size, void **dst,
               const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /* Resizes (and reallocates) an array. The last entries are initialized to zero
  * if the array length is increased. If the array length is decreased, the last
- * entries are removed if the size is decreased.
+ * entries are cleared if the size is decreased.
  *
- * @param p Double pointer to the array memory. Can be overwritten by the result
- *          of a realloc.
- * @param size The current size of the array. Overwritten in case of success.
- * @param newSize The new size of the array
- * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The
- *         original array is left untouched in the failure case. */
+ * The double-pointer to the array and the size-pointer are overwritten upon
+ * success. The array remains untouched in case of an internal error. */
 UA_StatusCode UA_EXPORT
 UA_Array_resize(void **p, size_t *size, size_t newSize,
                 const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-/* Append the given element at the end of the array. The content is moved
- * (shallow copy) and the original memory is _init'ed if appending is
- * successful.
- *
- * @param p Double pointer to the array memory. Can be overwritten by the result
- *          of a realloc.
- * @param size The current size of the array. Overwritten in case of success.
- * @param newElem The element to be appended. The memory is reset upon success.
- * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The
- *         original array is left untouched in the failure case. */
+/* Append a scalar value at the end of the array. The content is moved (shallow
+ * copy) and the original value location is _init'ed if appending is successful.
+ * Otherwise similar to UA_Array_resize. */
 UA_StatusCode UA_EXPORT
 UA_Array_append(void **p, size_t *size, void *newElem,
                 const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-/* Append a copy of the given element at the end of the array.
- *
- * @param p Double pointer to the array memory. Can be overwritten by the result
- *          of a realloc.
- * @param size The current size of the array. Overwritten in case of success.
- * @param newElem The element to be appended.
- * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The
- *         original array is left untouched in the failure case. */
-
+/* Append a copy of the given element at the end of the array. The memory of the
+ * newValue argument is not written. Otherwise similar to UA_Array_append. */
 UA_StatusCode UA_EXPORT
 UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
                     const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-/* Deletes an array.
- *
- * @param p The memory location of the array
- * @param size The size of the array
- * @param type The datatype of the array members */
+/* Deletes an array by calling _clear on the element and freeing the memory */
 void UA_EXPORT
 UA_Array_delete(void *p, size_t size, const UA_DataType *type);
 
