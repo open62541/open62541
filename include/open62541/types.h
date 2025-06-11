@@ -627,30 +627,18 @@ typedef struct {
     UA_String name;
 } UA_QualifiedName;
 
-UA_INLINABLE(UA_Boolean
-             UA_QualifiedName_isNull(const UA_QualifiedName *q), {
-    return (q->namespaceIndex == 0 && q->name.length == 0);
-})
+UA_EXPORT UA_QualifiedName
+UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars);
+
+UA_EXPORT UA_QualifiedName
+UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars);
+
+UA_EXPORT UA_Boolean
+UA_QualifiedName_isNull(const UA_QualifiedName *q);
 
 /* Returns a non-cryptographic hash for QualifiedName */
 UA_UInt32 UA_EXPORT
 UA_QualifiedName_hash(const UA_QualifiedName *q);
-
-UA_INLINABLE(UA_QualifiedName
-             UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars), {
-    UA_QualifiedName qn;
-    qn.namespaceIndex = nsIndex;
-    qn.name = UA_STRING(chars);
-    return qn;
-})
-
-UA_INLINABLE(UA_QualifiedName
-             UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars), {
-    UA_QualifiedName qn;
-    qn.namespaceIndex = nsIndex;
-    qn.name = UA_STRING_ALLOC(chars);
-    return qn;
-})
 
 /* Print the human-readable QualifiedName format. QualifiedNames can be printed
  * with either the integer NamespaceIndex or using the NamespaceUri.

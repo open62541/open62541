@@ -283,6 +283,27 @@ UA_String_vformat(UA_String *str, const char *format, va_list args) {
 }
 
 /* QualifiedName */
+UA_Boolean
+UA_QualifiedName_isNull(const UA_QualifiedName *q) {
+    return (q->namespaceIndex == 0 && q->name.length == 0);
+}
+
+UA_QualifiedName
+UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
+    UA_QualifiedName qn;
+    qn.namespaceIndex = nsIndex;
+    qn.name = UA_STRING(chars);
+    return qn;
+}
+
+UA_QualifiedName
+UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+    UA_QualifiedName qn;
+    qn.namespaceIndex = nsIndex;
+    qn.name = UA_STRING_ALLOC(chars);
+    return qn;
+}
+
 static UA_StatusCode
 QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst,
                    const UA_DataType *_) {
