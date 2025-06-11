@@ -702,6 +702,7 @@ UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text);
  * with a string encoding, such as "1:2,0:3,5". The colon separates min/max
  * index and the comma separates dimensions. A single value indicates a range
  * with a single element (min==max). */
+
 typedef struct {
     UA_UInt32 min;
     UA_UInt32 max;
@@ -715,13 +716,8 @@ typedef struct  {
 UA_StatusCode UA_EXPORT
 UA_NumericRange_parse(UA_NumericRange *range, const UA_String str);
 
-UA_INLINABLE(UA_NumericRange
-             UA_NUMERICRANGE(const char *s), {
-    UA_NumericRange nr;
-    memset(&nr, 0, sizeof(nr)); 
-    UA_NumericRange_parse(&nr, UA_STRING((char*)(uintptr_t)s));
-    return nr;
-})
+/* Returns an empty NumericRange if parsing fails */
+UA_EXPORT UA_NumericRange UA_NUMERICRANGE(const char *s);
 
 /**
  * .. _variant:
