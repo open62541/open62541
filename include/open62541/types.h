@@ -776,46 +776,25 @@ typedef struct {
 } UA_Variant;
 
 /* Returns true if the variant has no value defined (contains neither an array
- * nor a scalar value).
- *
- * @param v The variant
- * @return Is the variant empty */
-UA_INLINABLE(UA_Boolean
-             UA_Variant_isEmpty(const UA_Variant *v), {
-    return v->type == NULL;
-})
+ * nor a scalar value) */
+UA_EXPORT UA_Boolean UA_Variant_isEmpty(const UA_Variant *v);
+#define UA_Variant_isNull(v) UA_Variant_isEmpty(v)
 
-/* Returns true if the variant contains a scalar value. Note that empty variants
- * contain an array of length -1 (undefined).
- *
- * @param v The variant
- * @return Does the variant contain a scalar value */
-UA_INLINABLE(UA_Boolean
-             UA_Variant_isScalar(const UA_Variant *v), {
-    return (v->arrayLength == 0 && v->data > UA_EMPTY_ARRAY_SENTINEL);
-})
+/* Returns true if the variant contains a scalar value */
+UA_EXPORT UA_Boolean
+UA_Variant_isScalar(const UA_Variant *v);
 
-/* Returns true if the variant contains a scalar value of the given type.
- *
- * @param v The variant
- * @param type The data type
- * @return Does the variant contain a scalar value of the given type */
-UA_INLINABLE(UA_Boolean
-             UA_Variant_hasScalarType(const UA_Variant *v,
-                                      const UA_DataType *type), {
-    return UA_Variant_isScalar(v) && type == v->type;
-})
+/* Returns true if the variant contains a scalar value of the given type */
+UA_EXPORT UA_Boolean
+UA_Variant_hasScalarType(const UA_Variant *v, const UA_DataType *type);
 
-/* Returns true if the variant contains an array of the given type.
- *
- * @param v The variant
- * @param type The data type
- * @return Does the variant contain an array of the given type */
-UA_INLINABLE(UA_Boolean
-             UA_Variant_hasArrayType(const UA_Variant *v,
-                                     const UA_DataType *type), {
-    return (!UA_Variant_isScalar(v)) && type == v->type;
-})
+/* Returns true if the variant contains an array */
+UA_EXPORT UA_Boolean
+UA_Variant_isArray(const UA_Variant *v);
+
+/* Returns true if the variant contains an array of the given type */
+UA_EXPORT UA_Boolean
+UA_Variant_hasArrayType(const UA_Variant *v, const UA_DataType *type);
 
 /* Set the variant to a scalar value that already resides in memory. The value
  * takes on the lifecycle of the variant and is deleted with it.
