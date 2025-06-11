@@ -1931,7 +1931,7 @@ DECODE_JSON(DateTime) {
     GET_TOKEN;
 
     UA_ByteString input = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
-    UA_StatusCode res = decodeDateTime(input, dst);
+    UA_StatusCode res = UA_DateTime_parse(dst, input);
     if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
         ctx->index++;
     return res;

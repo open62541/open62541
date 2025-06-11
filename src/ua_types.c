@@ -18,6 +18,7 @@
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 
+#include "parse_num.h"
 #include "util/ua_util_internal.h"
 #include "../deps/itoa.h"
 #include "../deps/base64.h"
@@ -386,6 +387,152 @@ UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
     t += ts.microSec * UA_DATETIME_USEC;
     t += ts.nanoSec / 100;
     return t;
+}
+
+UA_StatusCode
+UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
+    if(str.length == 0)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    struct musl_tm dts;
+    memset(&dts, 0, sizeof(dts));
+
+    size_t pos = 0;
+    size_t len;
+
+    /* Parse the year. The ISO standard asks for four digits. But we accept up
+     * to five with an optional plus or minus in front due to the range of the
+     * DateTime 64bit integer. But in that case we require the year and the
+     * month to be separated by a '-'. Otherwise we cannot know where the month
+     * starts. */
+    if(str.data[0] == '-' || str.data[0] == '+')
+        pos++;
+    UA_Int64 year = 0;
+    len = parseInt64((char*)&str.data[pos], 5, &year);
+    pos += len;
+    if(len != 4 && str.data[pos] != '-')
+        return UA_STATUSCODE_BADDECODINGERROR;
+    if(str.data[0] == '-')
+        year = -year;
+    dts.tm_year = (UA_Int16)year - 1900;
+    if(str.data[pos] == '-')
+        pos++;
+
+    /* Parse the month */
+    UA_UInt64 month = 0;
+    len = parseUInt64((char*)&str.data[pos], 2, &month);
+    pos += len;
+    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
+    dts.tm_mon = (UA_UInt16)month - 1;
+    if(str.data[pos] == '-')
+        pos++;
+
+    /* Parse the day and check the T between date and time */
+    UA_UInt64 day = 0;
+    len = parseUInt64((char*)&str.data[pos], 2, &day);
+    pos += len;
+    UA_CHECK(len == 2 || str.data[pos] != 'T',
+             return UA_STATUSCODE_BADDECODINGERROR);
+    dts.tm_mday = (UA_UInt16)day;
+    pos++;
+
+    /* Parse the hour */
+    UA_UInt64 hour = 0;
+    len = parseUInt64((char*)&str.data[pos], 2, &hour);
+    pos += len;
+    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
+    dts.tm_hour = (UA_UInt16)hour;
+    if(str.data[pos] == ':')
+        pos++;
+
+    /* Parse the minute */
+    UA_UInt64 min = 0;
+    len = parseUInt64((char*)&str.data[pos], 2, &min);
+    pos += len;
+    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
+    dts.tm_min = (UA_UInt16)min;
+    if(str.data[pos] == ':')
+        pos++;
+
+    /* Parse the second */
+    UA_UInt64 sec = 0;
+    len = parseUInt64((char*)&str.data[pos], 2, &sec);
+    pos += len;
+    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
+    dts.tm_sec = (UA_UInt16)sec;
+
+    /* Compute the seconds since the Unix epoch */
+    long long sinceunix = musl_tm_to_secs(&dts);
+
+    /* Are we within the range that can be represented? */
+    long long sinceunix_min =
+        (long long)(UA_INT64_MIN / UA_DATETIME_SEC) -
+        (long long)(UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC) -
+        (long long)1; /* manual correction due to rounding */
+    long long sinceunix_max = (long long)
+        ((UA_INT64_MAX - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC);
+    if(sinceunix < sinceunix_min || sinceunix > sinceunix_max)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Convert to DateTime. Add or subtract one extra second here to prevent
+     * underflow/overflow. This is reverted once the fractional part has been
+     * added. */
+    sinceunix -= (sinceunix > 0) ? 1 : -1;
+    UA_DateTime dt = (UA_DateTime)
+        (sinceunix + (UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC)) * UA_DATETIME_SEC;
+
+    /* Parse the fraction of the second if defined */
+    if(str.data[pos] == ',' || str.data[pos] == '.') {
+        pos++;
+        double frac = 0.0;
+        double denom = 0.1;
+        while(pos < str.length &&
+              str.data[pos] >= '0' && str.data[pos] <= '9') {
+            frac += denom * (str.data[pos] - '0');
+            denom *= 0.1;
+            pos++;
+        }
+        frac += 0.00000005; /* Correct rounding when converting to integer */
+        dt += (UA_DateTime)(frac * UA_DATETIME_SEC);
+    }
+
+    /* Time zone handling */
+    int tzSign = 0;
+    UA_UInt64 tzHour = 0, tzMin = 0;
+    if(str.data[pos] == 'Z') {
+        pos++;
+    } else if(str.data[pos] == '+' || str.data[pos] == '-') {
+        tzSign = (str.data[pos] == '-') ? -1 : 1;
+        pos++;
+        len = parseUInt64((char*)&str.data[pos], 2, &tzHour);
+        pos += len;
+        if(str.data[pos] == ':')
+            pos++;
+        len = parseUInt64((char*)&str.data[pos], 2, &tzMin);
+        pos += len;
+        UA_Int64 offsetSeconds = (UA_Int64)(tzHour * 3600 + tzMin * 60) * tzSign;
+        dt -= (UA_DateTime)(offsetSeconds * UA_DATETIME_SEC);
+    } else {
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
+
+    /* Remove the underflow/overflow protection (see above) */
+    if(sinceunix > 0) {
+        if(dt > UA_INT64_MAX - UA_DATETIME_SEC)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        dt += UA_DATETIME_SEC;
+    } else {
+        if(dt < UA_INT64_MIN + UA_DATETIME_SEC)
+            return UA_STATUSCODE_BADDECODINGERROR;
+        dt -= UA_DATETIME_SEC;
+    }
+
+    /* We must be at the end of the string */
+    if(pos != str.length)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    *dst = dt;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Guid */
