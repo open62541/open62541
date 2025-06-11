@@ -324,8 +324,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         if(im) {
             conf->eventLoop->registerEventSource(conf->eventLoop, &im->eventSource);
         } else {
-            UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_USERLAND,
-                           "Cannot create the Interrupt Manager (only relevant if used)");
+            UA_LOG_ERROR(conf->logging, UA_LOGCATEGORY_USERLAND,
+                         "Cannot create the Interrupt Manager (only relevant if used)");
         }
 #endif
 #ifdef UA_ENABLE_MQTT
@@ -1007,9 +1007,9 @@ addAllServerSecurityPolicies(UA_ServerConfig *config,
         UA_ByteString_clear(&keyPassword);
     }
     if(keySuccess != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
-                       "Could not decrypt the private key with status code %s",
-                       UA_StatusCode_name(keySuccess));
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_USERLAND,
+                     "Could not decrypt the private key with status code %s",
+                     UA_StatusCode_name(keySuccess));
         return keySuccess;
     }
 
@@ -1146,9 +1146,9 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     } else {
-        UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_USERLAND,
-                       "Empty trustlist passed. Leaving the previously "
-                       "configured certificate verification in place");
+        UA_LOG_ERROR(conf->logging, UA_LOGCATEGORY_USERLAND,
+                     "Empty trustlist passed. Leaving the previously "
+                     "configured certificate verification in place");
     }
 
     retval = UA_ServerConfig_addAllSecurityPolicies(conf, certificate, privateKey);
@@ -1256,9 +1256,9 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
         }
         UA_TrustListDataType_clear(&list);
     } else {
-        UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_USERLAND,
-                       "Empty trustlist passed. Leaving the previously "
-                       "configured certificate verification in place");
+        UA_LOG_ERROR(conf->logging, UA_LOGCATEGORY_USERLAND,
+                     "Empty trustlist passed. Leaving the previously "
+                     "configured certificate verification in place");
     }
 
     retval = UA_ServerConfig_addAllSecureSecurityPolicies(conf, certificate, privateKey);
@@ -1878,9 +1878,9 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     } else {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "Empty trustlist passed. Leaving the previously "
-                       "configured certificate verification in place");
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Empty trustlist passed. Leaving the previously "
+                     "configured certificate verification in place");
     }
 
     /* Load the private key and convert to the DER format. Use an empty password
@@ -1925,8 +1925,8 @@ UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
                                       UA_ByteString certificateAuth,
                                       UA_ByteString privateKeyAuth) {
 #ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
-    UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
-                   "Certificate authentication with LibreSSL as crypto backend is not supported.");
+    UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_USERLAND,
+                 "Certificate authentication with LibreSSL as crypto backend is not supported.");
     return UA_STATUSCODE_BADNOTIMPLEMENTED;
 #endif
 
