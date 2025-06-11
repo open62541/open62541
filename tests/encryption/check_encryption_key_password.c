@@ -140,7 +140,6 @@ START_TEST(encryption_connect_pem) {
                                                   trustList, trustListSize,
                                                   revocationList, revocationListSize);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss");
