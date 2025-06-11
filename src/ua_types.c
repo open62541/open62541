@@ -1240,6 +1240,32 @@ UA_ExtensionObject_hasDecodedType(const UA_ExtensionObject *eo,
 }
 
 /* Variant */
+UA_Boolean
+UA_Variant_isEmpty(const UA_Variant *v) {
+    return v->type == NULL;
+}
+
+UA_Boolean
+UA_Variant_isScalar(const UA_Variant *v) {
+    return (v->type != NULL && v->arrayLength == 0 &&
+            v->data > UA_EMPTY_ARRAY_SENTINEL);
+}
+
+UA_Boolean
+UA_Variant_hasScalarType(const UA_Variant *v, const UA_DataType *type) {
+    return UA_Variant_isScalar(v) && type == v->type;
+}
+
+UA_Boolean
+UA_Variant_isArray(const UA_Variant *v) {
+    return (v->type != NULL && !UA_Variant_isScalar(v));
+}
+
+UA_Boolean
+UA_Variant_hasArrayType(const UA_Variant *v, const UA_DataType *type) {
+    return (!UA_Variant_isScalar(v)) && type == v->type;
+}
+
 static void
 Variant_clear(UA_Variant *p, const UA_DataType *_) {
     /* The content is "borrowed" */
