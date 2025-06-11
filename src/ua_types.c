@@ -1667,6 +1667,22 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void * UA_RESTRICT array,
 }
 
 /* LocalizedText */
+UA_LocalizedText
+UA_LOCALIZEDTEXT(char *locale, char *text) {
+    UA_LocalizedText lt;
+    lt.locale = UA_STRING(locale);
+    lt.text = UA_STRING(text);
+    return lt;
+}
+
+UA_LocalizedText
+UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
+    UA_LocalizedText lt;
+    lt.locale = UA_STRING_ALLOC(locale);
+    lt.text = UA_STRING_ALLOC(text);
+    return lt;
+}
+
 static void
 LocalizedText_clear(UA_LocalizedText *p, const UA_DataType *_) {
     String_clear(&p->locale, NULL);

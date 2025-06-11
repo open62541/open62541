@@ -680,26 +680,17 @@ UA_QualifiedName_parseEx(UA_QualifiedName *qn, const UA_String str,
  * LocalizedText
  * ^^^^^^^^^^^^^
  * Human readable text with an optional locale identifier. */
+
 typedef struct {
     UA_String locale;
     UA_String text;
 } UA_LocalizedText;
 
-UA_INLINABLE(UA_LocalizedText
-             UA_LOCALIZEDTEXT(char *locale, char *text), {
-    UA_LocalizedText lt;
-    lt.locale = UA_STRING(locale);
-    lt.text = UA_STRING(text);
-    return lt;
-})
+UA_EXPORT UA_LocalizedText
+UA_LOCALIZEDTEXT(char *locale, char *text);
 
-UA_INLINABLE(UA_LocalizedText
-             UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text), {
-    UA_LocalizedText lt;
-    lt.locale = UA_STRING_ALLOC(locale);
-    lt.text = UA_STRING_ALLOC(text);
-    return lt;
-})
+UA_EXPORT UA_LocalizedText
+UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text);
 
 /**
  * .. _numericrange:
