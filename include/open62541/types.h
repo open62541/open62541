@@ -1129,67 +1129,38 @@ UA_DataType_isNumeric(const UA_DataType *type);
 const UA_DataType UA_EXPORT *
 UA_findDataType(const UA_NodeId *typeId);
 
-/*
- * Add custom data types to the search scope of UA_findDataType. */
-
+/* Add custom data types to the search scope of UA_findDataType. */
 const UA_DataType UA_EXPORT *
 UA_findDataTypeWithCustom(const UA_NodeId *typeId,
                           const UA_DataTypeArray *customTypes);
 
 /** The following functions are used for generic handling of data types. */
 
-/* Allocates and initializes a variable of type dataType
- *
- * @param type The datatype description
- * @return Returns the memory location of the variable or NULL if no
- *         memory could be allocated */
-void UA_EXPORT * UA_new(const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
+/* Allocates and initializes a variable of type dataType */
+UA_EXPORT void * UA_new(const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
 
-/* Initializes a variable to default values
- *
- * @param p The memory location of the variable
- * @param type The datatype description */
-UA_INLINABLE(void
-             UA_init(void *p, const UA_DataType *type), {
-    memset(p, 0, type->memSize);
-})
+/* Initializes a variable to default null values */
+UA_EXPORT void UA_init(void *p, const UA_DataType *type);
 
-/* Copies the content of two variables. If copying fails (e.g. because no memory
- * was available for an array), then dst is emptied and initialized to prevent
- * memory leaks.
- *
- * @param src The memory location of the source variable
- * @param dst The memory location of the destination variable
- * @param type The datatype description
- * @return Indicates whether the operation succeeded or returns an error code */
+/* Copies the content of two variables. The pointer is _init'ed internally. If
+ * copying fails, then dst is _clear'ed internally to prevent memory leaks. */
 UA_StatusCode UA_EXPORT
 UA_copy(const void *src, void *dst, const UA_DataType *type);
 
-/* Deletes the dynamically allocated content of a variable (e.g. deallocates all
- * arrays in the variable). Also initializes the variable to default values.
- * Afterwards, the variable can be safely deleted without causing memory leaks.
- *
- * @param p The memory location of the variable
- * @param type The datatype description of the variable */
+/* Deletes the dynamically allocated content of a value (e.g. deallocates all
+ * arrays in the variable). At last the entire value is _init'ed. */
 void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
 
-/* Frees a variable and all of its content.
- *
- * @param p The memory location of the variable
- * @param type The datatype description of the variable */
+/* Calls UA_clear and then UA_free on the memory */
 void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 
 /* Pretty-print the value from the datatype. The output is pretty-printed JSON5.
  * Note that this format is non-standard and should not be sent over the
  * network. It can however be read by our own JSON decoding.
  *
- * @param p The memory location of the variable
- * @param type The datatype description of the variable
- * @param output A string that is used for the pretty-printed output. If the
- *        memory for string is already allocated, we try to use the existing
- *        string (the length is adjusted). If the string is empty, memory
- *        is allocated for it.
- * @return Indicates whether the operation succeeded */
+ * If the memory for string is already allocated, we try to use the existing
+ * string (the length is adjusted down). If the string is empty, memory is
+ * allocated for it. */
 #ifdef UA_ENABLE_JSON_ENCODING
 UA_StatusCode UA_EXPORT
 UA_print(const void *p, const UA_DataType *type, UA_String *output);
@@ -1209,19 +1180,13 @@ UA_print(const void *p, const UA_DataType *type, UA_String *output);
  *
  * When members of different types are permitted (in Variants and
  * ExtensionObjects), the memory address in the "UA_DataType*" pointer
- * determines which variable is smaller.
- *
- * @param p1 The memory location of the first value
- * @param p2 The memory location of the first value
- * @param type The datatype description of both values */
+ * determines which variable is smaller. */
 UA_Order UA_EXPORT
 UA_order(const void *p1, const void *p2, const UA_DataType *type);
 
-/* Compare if two values have identical content. */
-UA_INLINABLE(UA_Boolean
-             UA_equal(const void *p1, const void *p2, const UA_DataType *type), {
-    return (UA_order(p1, p2, type) == UA_ORDER_EQ);
-})
+/* Compare if two values are identical */
+UA_EXPORT UA_Boolean
+UA_equal(const void *p1, const void *p2, const UA_DataType *type);
 
 /**
  * Namespace Mapping
