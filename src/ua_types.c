@@ -2782,6 +2782,14 @@ UA_NumericRange_parse(UA_NumericRange *range, const UA_String str) {
     return retval;
 }
 
+UA_NumericRange
+UA_NUMERICRANGE(const char *s) {
+    UA_NumericRange nr;
+    memset(&nr, 0, sizeof(nr));
+    UA_NumericRange_parse(&nr, UA_STRING((char*)(uintptr_t)s));
+    return nr;
+}
+
 /*********************/
 /* Namespace Mapping */
 /*********************/
