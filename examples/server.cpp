@@ -630,13 +630,17 @@ int main(int argc, char* argv[]) {
         NULL, 0,
         NULL, 0);
 
-    if(retval == UA_STATUSCODE_GOOD) {
-        for(size_t i = 0; i < config->endpointsSize; i++) {
-            UA_String_clear(&config->endpoints[i].endpointUrl);
-            config->endpoints[i].endpointUrl = UA_STRING_ALLOC("opc.tcp://0.0.0.0:53531");
-        }
-    }
+    // if(retval == UA_STATUSCODE_GOOD) {
+    //     for(size_t i = 0; i < config->endpointsSize; i++) {
+    //         UA_String_clear(&config->endpoints[i].endpointUrl);
+    //         config->endpoints[i].endpointUrl = UA_STRING_ALLOC("opc.tcp://0.0.0.0:53531");
+    //     }
+    // }
 
+        UA_String_clear(&config->endpoints[0].endpointUrl);
+        config->endpoints[0].endpointUrl = UA_STRING_ALLOC("opc.tcp://0.0.0.0:53531");
+
+        
     // Accept all certificates for demo/testing
     // config->secureChannelPKI.clear(&config->secureChannelPKI);
     // config->sessionPKI.clear(&config->sessionPKI);
@@ -667,6 +671,19 @@ int main(int argc, char* argv[]) {
 // ----------------
     UA_AccessControl_defaultWithLoginCallback(config, true, NULL, 2, usernamePasswordLogin, myLoginCallback, NULL);
 
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Server Endpoint %zu: %.*s", i, (int)ep->endpointUrl.length, ep->endpointUrl.data);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "  Server SecurityPolicy: %.*s", (int)ep->securityPolicyUri.length, ep->securityPolicyUri.data);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "  Server SecurityMode: %d", ep->securityMode);
+        for(size_t j = 0; j < ep->userIdentityTokensSize; j++) {
+            UA_UserTokenPolicy *pol = &ep->userIdentityTokens[j];
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "    Server TokenType: %d, PolicyId: %.*s, SecurityPolicyUri: %.*s",
+                pol->tokenType,
+                (int)pol->policyId.length, pol->policyId.data,
+                (int)pol->securityPolicyUri.length, pol->securityPolicyUri.data);
+        }
+    }
 
     // // Set up multiple endpoints with different security policies
     // config->endpointsSize = 3;
@@ -1305,33 +1322,92 @@ UA_Server_writeObjectProperty_scalar(
 
             // register server
         UA_ClientConfig cc;
-        
-
         memset(&cc, 0, sizeof(UA_ClientConfig));
         UA_ClientConfig_setDefault(&cc);
-        UA_String discoveryUrl = UA_STRING_ALLOC("opc.tcp://Asce:4840");
+        // UA_ClientConfig_setDefaultEncryption(&cc,certificate,privateKey,NULL,0,NULL,0);
+        UA_ClientConfig_setAuthenticationCert(&cc, certificate, privateKey);
+
+        cc.endpoint.securityMode = UA_MESSAGESECURITYMODE_NONE;
+        cc.endpoint.userIdentityTokensSize = 1;
+        cc.endpoint.userIdentityTokens = (UA_UserTokenPolicy *) UA_Array_new(1, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+        UA_UserTokenPolicy_init(&cc.endpoint.userIdentityTokens[0]);
+        cc.endpoint.userIdentityTokens[0].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
+        cc.endpoint.userIdentityTokens[0].policyId = UA_String_fromChars("open62541-anonymous-policy");
+        UA_ByteString_clear(&cc.securityPolicyUri);
+        cc.endpoint.userIdentityTokens[0].securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#None");
+        cc.endpoint.transportProfileUri =
+    UA_String_fromChars("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+
+        for(size_t j = 0; j < cc.endpoint.userIdentityTokensSize; j++) {
+            UA_UserTokenPolicy *pol = &cc.endpoint.userIdentityTokens[j];
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Registration Client TokenType: %d, PolicyId: %.*s, SecurityPolicyUri: %.*s",
+                pol->tokenType,
+                (int)pol->policyId.length, pol->policyId.data,
+                (int)pol->securityPolicyUri.length, pol->securityPolicyUri.data);
+        }
 
 
-    UA_StatusCode result =
-        UA_Server_registerDiscovery(server, &cc,
-                                    discoveryUrl, UA_STRING_NULL);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "Could not create periodic job for server register. StatusCode %s",
-                     UA_StatusCode_name(result));
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
+
+
+
+
+
+
+
+
+
+
+
+        const char *discoveryUrlStr = "opc.tcp://Asce:48060";
+        UA_String discoveryUrl = UA_String_fromChars(discoveryUrlStr);
+
+       
+
+
+
+
+
+
+
+
+
+
+
+
+        UA_StatusCode result = UA_Server_registerDiscovery(server, &cc, discoveryUrl, UA_STRING_NULL);
+        if(result != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                         "Could not create periodic job for server register. StatusCode %s",
+                         UA_StatusCode_name(result));
+            UA_Server_delete(server);
+            return EXIT_FAILURE;
+        }
 
     while(running)
         UA_Server_run_iterate(server, true);
-
         // Unregister from LDS before shutdown
-            // Unregister the server from the discovery server.
-        memset(&cc, 0, sizeof(UA_ClientConfig));    
+        memset(&cc, 0, sizeof(UA_ClientConfig));
         UA_ClientConfig_setDefault(&cc);
-        UA_StatusCode res = UA_Server_deregisterDiscovery(server, &cc,
-                                           discoveryUrl);
+
+        cc.endpoint.securityMode = UA_MESSAGESECURITYMODE_NONE;
+        
+        cc.endpoint.userIdentityTokensSize = 1;
+        cc.endpoint.userIdentityTokens = (UA_UserTokenPolicy *) UA_Array_new(1, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+        UA_UserTokenPolicy_init(&cc.endpoint.userIdentityTokens[0]);
+        cc.endpoint.userIdentityTokens[0].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
+        cc.endpoint.userIdentityTokens[0].policyId = UA_String_fromChars("open62541-anonymous-policy");
+        UA_ByteString_clear(&cc.securityPolicyUri);
+        cc.endpoint.userIdentityTokens[0].securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#None");
+
+        for(size_t j = 0; j < cc.endpoint.userIdentityTokensSize; j++) {
+            UA_UserTokenPolicy *pol = &cc.endpoint.userIdentityTokens[j];
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Deregistration Client TokenType: %d, PolicyId: %.*s, SecurityPolicyUri: %.*s",
+                pol->tokenType,
+                (int)pol->policyId.length, pol->policyId.data,
+                (int)pol->securityPolicyUri.length, pol->securityPolicyUri.data);
+        }
+
+        UA_StatusCode res = UA_Server_deregisterDiscovery(server, &cc, discoveryUrl);
         if(res != UA_STATUSCODE_GOOD)
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                          "Could not unregister from discovery server. StatusCode %s",
@@ -1367,7 +1443,7 @@ UA_Server_writeObjectProperty_scalar(
     UA_Server_delete(server);
 
 
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return result == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 
