@@ -918,7 +918,7 @@ DECODE_XML(DateTime) {
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
     UA_String str = {length, (UA_Byte*)(uintptr_t)data};
-    return decodeDateTime(str, dst);
+    return UA_DateTime_parse(dst, str);
 }
 
 /* Find the child with the given name and return its content.

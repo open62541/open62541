@@ -292,6 +292,18 @@ UA_Int64 UA_EXPORT UA_DateTime_localTimeUtcOffset(void);
  * not absolute time. */
 UA_DateTime UA_EXPORT UA_DateTime_nowMonotonic(void);
 
+/* Parse the humand-readable DateTime format */
+UA_StatusCode UA_EXPORT
+UA_DateTime_parse(UA_DateTime *dst, const UA_String str);
+
+UA_INLINABLE(UA_DateTime
+             UA_DATETIME(const char *chars), {
+    UA_DateTime dst;
+    UA_DateTime_parse(&dst, UA_STRING((char*)(uintptr_t)chars));
+    return dst;
+})
+
+
 /* Represents a Datetime as a structure */
 typedef struct UA_DateTimeStruct {
     UA_UInt16 nanoSec;
