@@ -133,8 +133,67 @@ static UA_ByteString loadFile(const char *path) {
     return fileContents;
 }
 
+#ifdef _WIN32
+static size_t
+loadCertsFromDirectory(const char *dirPath, UA_ByteString **certs) {
+    char searchPath[512];
+    snprintf(searchPath, sizeof(searchPath), "%s\\*.der", dirPath);
 
+    WIN32_FIND_DATAA findData;
+    HANDLE hFind = FindFirstFileA(searchPath, &findData);
 
+    if (hFind == INVALID_HANDLE_VALUE) {
+        return 0;
+    }
+
+    std::vector<std::string> derFiles;
+    do {
+        derFiles.push_back(findData.cFileName);
+    } while (FindNextFileA(hFind, &findData) != 0);
+    FindClose(hFind);
+
+    size_t count = derFiles.size();
+    if (count == 0) {
+        return 0;
+    }
+
+    *certs = (UA_ByteString*)UA_malloc(sizeof(UA_ByteString) * count);
+    for (size_t i = 0; i < count; ++i) {
+        char fullpath[512];
+        snprintf(fullpath, sizeof(fullpath), "%s\\%s", dirPath, derFiles[i].c_str());
+        (*certs)[i] = loadFile(fullpath);
+    }
+
+    return count;
+}
+#else
+/* Load all .der files from a directory */
+static size_t
+loadCertsFromDirectory(const char *dirPath, UA_ByteString **certs) {
+    DIR *dir = opendir(dirPath);
+    if(!dir) return 0;
+
+    struct dirent *entry;
+    std::vector<std::string> derFiles;
+    while((entry = readdir(dir)) != NULL) {
+        if(strstr(entry->d_name, ".der"))
+            derFiles.push_back(entry->d_name);
+    }
+    
+    size_t count = derFiles.size();
+    if(count > 0) {
+        *certs = (UA_ByteString*)UA_malloc(sizeof(UA_ByteString) * count);
+        for(size_t i = 0; i < count; i++) {
+            char fullpath[512];
+            snprintf(fullpath, sizeof(fullpath), "%s/%s", dirPath, derFiles[i].c_str());
+            (*certs)[i] = loadFile(fullpath);
+        }
+    }
+    
+    closedir(dir);
+    return count;
+}
+#endif
 
 static UA_NodeId *g_counterNodeId = NULL;
 static UA_NodeId *g_eventNodeId = NULL;
@@ -573,38 +632,25 @@ int main(int argc, char* argv[]) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_ByteString certificate = UA_BYTESTRING_NULL;
-    UA_ByteString privateKey = UA_BYTESTRING_NULL;
-    size_t trustListSize = 0;
-    UA_ByteString *trustList = NULL;
-    size_t issuerListSize = 0;
-    UA_ByteString *issuerList = NULL;
-    size_t revocationListSize = 0;
-    UA_ByteString *revocationList = NULL;
-
-    if(argc >= 3) {
-        certificate = loadFile(argv[1]);
-        privateKey = loadFile(argv[2]);
-        trustListSize = (size_t)argc-3;
-        if(trustListSize > 0) {
-            trustList = (UA_ByteString*)UA_malloc(sizeof(UA_ByteString)*trustListSize);
-            for(size_t i = 0; i < trustListSize; i++)
-                trustList[i] = loadFile(argv[i+3]);
-        }
-    } else {
-        // Fallback: run with no security
-        // certificate = UA_BYTESTRING_NULL;
-        // privateKey = UA_BYTESTRING_NULL;
-        // trustListSize = 0;
-        // trustList = NULL;
-
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Missing arguments. Arguments are "
-                     "<server-certificate.der> <private-key.der> "
-                     "[<trustlist1.der>, ...]");
+    UA_ByteString certificate = loadFile("certs/own/certs/server_cert.der");
+    UA_ByteString privateKey  = loadFile("certs/own/certs/server_key.der");
+    
+    if(certificate.length == 0 || privateKey.length == 0) {
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Could not load server certificate or key from certs/own/");
         return EXIT_FAILURE;
     }
 
+    UA_ByteString *trustList = NULL;
+    size_t trustListSize = loadCertsFromDirectory("certs/trusted/certs", &trustList);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Loaded %zu trusted certificate(s).", trustListSize);
+    
+    UA_ByteString *issuerList = NULL;
+    size_t issuerListSize = loadCertsFromDirectory("certs/issuers/certs", &issuerList);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Loaded %zu issuer certificate(s).", issuerListSize);
+
+    size_t revocationListSize = 0;
+    UA_ByteString *revocationList = NULL;
 
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -627,32 +673,24 @@ int main(int argc, char* argv[]) {
     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 53531,
         &certificate, &privateKey,
         trustList, trustListSize,
-        NULL, 0,
-        NULL, 0);
+        issuerList, issuerListSize,
+        revocationList, revocationListSize);
 
-    // if(retval == UA_STATUSCODE_GOOD) {
-    //     for(size_t i = 0; i < config->endpointsSize; i++) {
-    //         UA_String_clear(&config->endpoints[i].endpointUrl);
-    //         config->endpoints[i].endpointUrl = UA_STRING_ALLOC("opc.tcp://0.0.0.0:53531");
-    //     }
+    // if(retval != UA_STATUSCODE_GOOD) {
+    //     UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to set default security policies");
+    //     goto cleanup;
     // }
-
-        UA_String_clear(&config->endpoints[0].endpointUrl);
-        config->endpoints[0].endpointUrl = UA_STRING_ALLOC("opc.tcp://0.0.0.0:53531");
-
+        
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        UA_String_clear(&config->endpoints[i].endpointUrl);
+        config->endpoints[i].endpointUrl = UA_STRING_ALLOC("opc.tcp://0.0.0.0:53531");
+    }
         
     // Accept all certificates for demo/testing
-    // config->secureChannelPKI.clear(&config->secureChannelPKI);
-    // config->sessionPKI.clear(&config->sessionPKI);
-    // UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
-    // UA_CertificateGroup_AcceptAll(&config->sessionPKI);
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to set default security policies");
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
+    //config->secureChannelPKI.clear(&config->secureChannelPKI);
+    //config->sessionPKI.clear(&config->sessionPKI);
+    //UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
+    //UA_CertificateGroup_AcceptAll(&config->sessionPKI);
 
     config->applicationDescription.applicationUri = UA_STRING_ALLOC("urn:Anexee.server.application");
     config->applicationDescription.productUri = UA_STRING_ALLOC("urn:Anexee.server");
@@ -1432,13 +1470,21 @@ UA_Server_writeObjectProperty_scalar(
     for(size_t i = 0; i < config->securityPoliciesSize; i++) {
         config->securityPolicies[i].clear(&config->securityPolicies[i]);
     }
+
+    UA_ByteString_clear(&certificate);
+    UA_ByteString_clear(&privateKey);
+
     if(trustList) {
         for(size_t i = 0; i < trustListSize; i++)
             UA_ByteString_clear(&trustList[i]);
         UA_free(trustList);
     }
-    UA_ByteString_clear(&certificate);
-    UA_ByteString_clear(&privateKey);
+    
+    if(issuerList) {
+        for(size_t i = 0; i < issuerListSize; i++)
+            UA_ByteString_clear(&issuerList[i]);
+        UA_free(issuerList);
+    }
 
     UA_Server_delete(server);
 
