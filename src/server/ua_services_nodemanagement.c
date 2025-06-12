@@ -419,9 +419,11 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
         UA_DataValue_init(&v);
         retval = readValueAttribute(server, session, (const UA_VariableNode*)vt, &v);
         if(retval == UA_STATUSCODE_GOOD && v.hasValue) {
-            retval = writeAttribute(server, session, &node->head.nodeId,
-                                    UA_ATTRIBUTEID_VALUE, &v.value,
-                                    &UA_TYPES[UA_TYPES_VARIANT]);
+            if (v.value.type->typeKind != UA_DATATYPEKIND_EXTENSIONOBJECT) {
+                retval = writeAttribute(server, session, &node->head.nodeId,
+                                        UA_ATTRIBUTEID_VALUE, &v.value,
+                                        &UA_TYPES[UA_TYPES_VARIANT]);
+            }
         }
         UA_DataValue_clear(&v);
 
