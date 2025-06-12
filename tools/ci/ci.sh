@@ -176,6 +176,22 @@ function unit_tests {
     fi
 }
 
+function unit_tests_lwip {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DUA_ARCHITECTURE="posix-lwip" \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=ON \
+          -DUA_ENABLE_PUBSUB=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_FORCE_WERROR=ON \
+          ..
+    make ${MAKEOPTS}
+    set_capabilities
+    make test ARGS="-V"
+}
+
 function unit_tests_32 {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
