@@ -83,6 +83,15 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
                     anonymous_policy.length) != 0)) {
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         }
+
+        /* Call the login callback with anonymous user to handle
+         * the case when user is changed during an active session */
+        if(context->loginCallback) {
+            if(context->loginCallback(NULL, NULL, 0, 0, sessionContext,
+                                      context->loginContext) != UA_STATUSCODE_GOOD) {
+                return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+            }
+        }
     } else if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
         /* Username and password */
         const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
