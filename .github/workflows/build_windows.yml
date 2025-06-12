@@ -1,0 +1,74 @@
+name: Windows Build & Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [msvc, mingw, clang-mingw]
+    runs-on: windows-latest
+    env:
+      CC_SHORTNAME: ${{ matrix.compiler }}
+      MSYS2_ROOT: C:\msys64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw") {
+              Write-Host -ForegroundColor Green "`n### Installing msys64 ###`n"
+              choco install -y msys2 --no-progress --params="/InstallDir:$env:MSYS2_ROOT /NoPath"
+              if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+                  Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
+                  exit $LASTEXITCODE
+              }
+              & C:\msys64\usr\bin\mkdir -p /var/cache/pacman/pkg
+              & C:\msys64\usr\bin\pacman -Syu --noconfirm
+              & C:\msys64\usr\bin\pacman --noconfirm --needed -S mingw-w64-x86_64-mbedtls
+              if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+                  Write-Host -ForegroundColor Red "`n`n*** Install of mbedTLS failed. Exiting ... ***"
+                  exit $LASTEXITCODE
+              }
+              & C:\msys64\usr\bin\pacman --noconfirm --needed -S mingw-w64-x86_64-check
+              if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+                  Write-Host -ForegroundColor Red "`n`n*** Install of check failed. Exiting ... ***"
+                  exit $LASTEXITCODE
+              }
+          } else {
+              Write-Host -ForegroundColor Green "`n### Installing mbedtls via vcpkg ###`n"
+              vcpkg install mbedtls:x64-windows-static
+              if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+                  Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
+                  exit $LASTEXITCODE
+              }
+              Write-Host -ForegroundColor Green "`n### Installing libcheck via vcpkg ###`n"
+              vcpkg install check:x64-windows-static
+              if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+                  Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
+                  exit $LASTEXITCODE
+              }
+          }
+      - name: Configure & Build
+        shell: pwsh
+        run: |
+          mkdir build
+          cd build
+          if ($env:CC_SHORTNAME -eq "msvc") {
+            cmake -G "Visual Studio 17 2022" -A x64 ..
+            cmake --build . --config Release
+          } elseif ($env:CC_SHORTNAME -eq "mingw") {
+            cmake -G "MinGW Makefiles" ..
+            cmake --build .
+          } elseif ($env:CC_SHORTNAME -eq "clang-mingw") {
+            cmake -G "MinGW Makefiles" -DCMAKE_C_COMPILER=clang.exe -DCMAKE_CXX_COMPILER=clang++.exe ..
+            cmake --build .
+          }
+      - name: Run Tests
+        shell: pwsh
+        run: |
+          cd build
+          ctest --output-on-failure
