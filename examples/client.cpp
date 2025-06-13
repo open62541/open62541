@@ -8,11 +8,14 @@
 #include <iostream>
 #include <iomanip>
 
-using namespace std;
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
+
+
+using namespace std;
+
+//--------------------------------------------------------------------------------------------------------------------------
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static UA_Boolean running = true;
@@ -50,6 +53,9 @@ static void handler_NodeValueChanged(UA_Client *client, UA_UInt32 subId, void *s
 
 #endif
 
+
+//--------------------------------------------------------------------------------------------------------------------------
+
 static UA_StatusCode
 nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {
     if(isInverse)
@@ -60,6 +66,9 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
          << childId.namespaceIndex << ", " << childId.identifier.numeric << endl;
     return UA_STATUSCODE_GOOD;
 }
+
+//--------------------------------------------------------------------------------------------------------------------------
+
 
 UA_MonitoredItemCreateRequest monRequest;
 UA_MonitoredItemCreateResult monResponse;
@@ -172,6 +181,9 @@ MonitorItem(UA_Client *client, UA_CreateSubscriptionResponse response, const cha
         UA_String_clear(&nodeIdStr);
     }
 }
+
+
+//--------------------------------------------------------------------------------------------------------------------------
 
 
 
