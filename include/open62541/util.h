@@ -44,6 +44,7 @@ typedef struct {
  */
 #ifdef UA_ENABLE_PARSING
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+#ifdef UA_ENABLE_JSON_ENCODING
 
 typedef struct {
     const UA_Logger *logger;
@@ -53,6 +54,7 @@ UA_EXPORT UA_StatusCode
 UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
                      UA_EventFilterParserOptions *options);
 
+#endif
 #endif
 #endif
 

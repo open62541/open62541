@@ -108,8 +108,7 @@ START_TEST(Client_connect_certificate) {
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     cc->securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
 
-    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
-                                         NULL, 0, NULL, 0);
+    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey, NULL, 0, NULL, 0);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
     UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
@@ -123,45 +122,47 @@ START_TEST(Client_connect_certificate) {
 END_TEST
 
 START_TEST(Client_connect_invalid_certificate) {
-        /* Load client certificate and private key for the SecureChannel */
-        UA_ByteString certificate;
-        certificate.length = CLIENT_CERT_DER_LENGTH;
-        certificate.data = CLIENT_CERT_DER_DATA;
+    /* Load client certificate and private key for the SecureChannel */
+    UA_ByteString certificate;
+    certificate.length = CLIENT_CERT_DER_LENGTH;
+    certificate.data = CLIENT_CERT_DER_DATA;
 
-        UA_ByteString privateKey;
-        privateKey.length = CLIENT_KEY_DER_LENGTH;
-        privateKey.data = CLIENT_KEY_DER_DATA;
+    UA_ByteString privateKey;
+    privateKey.length = CLIENT_KEY_DER_LENGTH;
+    privateKey.data = CLIENT_KEY_DER_DATA;
 
-        /* Load client certificate and private key for authentication */
-        UA_ByteString certificateAuth;
-        certificateAuth.length = CLIENT_CERT_DER_LENGTH;
-        certificateAuth.data = CLIENT_CERT_DER_DATA;
+    /* Load client certificate and private key for authentication
+     * This needs to be CLIENT_CERT_AUTH_DER_DATA, but we provoke a failure. */
+    UA_ByteString certificateAuth;
+    certificateAuth.length = CLIENT_CERT_DER_LENGTH;
+    certificateAuth.data = CLIENT_CERT_DER_DATA;
 
-        UA_ByteString privateKeyAuth;
-        privateKeyAuth.length = CLIENT_KEY_DER_LENGTH;
-        privateKeyAuth.data = CLIENT_KEY_DER_DATA;
+    UA_ByteString privateKeyAuth;
+    privateKeyAuth.length = CLIENT_KEY_DER_LENGTH;
+    privateKeyAuth.data = CLIENT_KEY_DER_DATA;
 
-        UA_Client *client = UA_Client_newForUnitTest();
-        UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
 
-        /* Set securityMode and securityPolicyUri */
-        cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-        cc->securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
+    /* Set securityMode and securityPolicyUri */
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    cc->securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
 
-        UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
-                                             NULL, 0, NULL, 0);
-        UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+    /* Also sets the authentication SecurityPolicies */
+    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey, NULL, 0, NULL, 0);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
-        UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
-        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    /* Overrides the authentication SecurityPolicies */
+    UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
 
-        /* openssl v.3 returns a different exit code than other versions. */
-        //ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEUNTRUSTED);
-        ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    /* openssl v.3 returns a different exit code than other versions. */
+    //ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEUNTRUSTED);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
 
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-    }
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
 END_TEST
 
 static Suite* testSuite_Client(void) {

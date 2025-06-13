@@ -2278,10 +2278,11 @@ setTwoStateVariableCallbacks(UA_Server *server, const UA_NodeId* condition,
                                                            &twoStateVariableIdNodeId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Id Property of TwoStateVariable not found",);
 
-    UA_ValueCallback callback;
+    UA_ValueSourceNotifications callback;
     callback.onRead = NULL;
     callback.onWrite = afterWriteCallbackEnabledStateChange;
-    retval = setVariableNode_valueCallback(server, twoStateVariableIdNodeId, callback);
+    retval = setVariableNode_internalValueSource(server, twoStateVariableIdNodeId,
+                                                 NULL, &callback);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EnabledState Callback failed",
                                    UA_NodeId_clear(&twoStateVariableIdNodeId););
 
@@ -2297,7 +2298,8 @@ setTwoStateVariableCallbacks(UA_Server *server, const UA_NodeId* condition,
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Id Property of TwoStateVariable not found",);
 
         callback.onWrite = afterWriteCallbackAckedStateChange;
-        retval = setVariableNode_valueCallback(server, twoStateVariableIdNodeId, callback);
+        retval = setVariableNode_internalValueSource(server, twoStateVariableIdNodeId,
+                                                     NULL, &callback);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set AckedState Callback failed",
                                        UA_NodeId_clear(&twoStateVariableIdNodeId););
 
@@ -2317,7 +2319,8 @@ setTwoStateVariableCallbacks(UA_Server *server, const UA_NodeId* condition,
                                        "Adding HasComponent Reference to Confirm Method failed",
                                        UA_NodeId_clear(&twoStateVariableIdNodeId););
 
-        retval = setVariableNode_valueCallback(server, twoStateVariableIdNodeId, callback);
+        retval = setVariableNode_internalValueSource(server, twoStateVariableIdNodeId,
+                                                     NULL, &callback);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding ConfirmedState/Id callback failed",
                                        UA_NodeId_clear(&twoStateVariableIdNodeId););
 #endif /* CONDITIONOPTIONALFIELDS_SUPPORT */
@@ -2333,8 +2336,8 @@ setTwoStateVariableCallbacks(UA_Server *server, const UA_NodeId* condition,
             CONDITION_ASSERT_RETURN_RETVAL(retval, "Id Property of TwoStateVariable not found",);
 
             callback.onWrite = afterWriteCallbackActiveStateChange;
-            retval = setVariableNode_valueCallback(server, twoStateVariableIdNodeId,
-                                                             callback);
+            retval = setVariableNode_internalValueSource(server, twoStateVariableIdNodeId,
+                                                         NULL, &callback);
             CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ActiveState Callback failed",
                                            UA_NodeId_clear(&twoStateVariableIdNodeId););
         }
@@ -2360,11 +2363,11 @@ setConditionVariableCallbacks(UA_Server *server, const UA_NodeId *condition,
         browseSimplifiedBrowsePath(server, *condition, 1, &conditionVariableName[0]);
     if(bpr.statusCode != UA_STATUSCODE_GOOD)
         return bpr.statusCode;
-    UA_ValueCallback callback ;
+    UA_ValueSourceNotifications callback ;
     callback.onRead = NULL;
     callback.onWrite = afterWriteCallbackQualityChange;
-    retval = setVariableNode_valueCallback(server, bpr.targets[0].targetId.nodeId,
-                                           callback);
+    retval = setVariableNode_internalValueSource(server, bpr.targets[0].targetId.nodeId,
+                                                 NULL, &callback);
     UA_BrowsePathResult_clear(&bpr);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -2373,8 +2376,8 @@ setConditionVariableCallbacks(UA_Server *server, const UA_NodeId *condition,
     if(bpr.statusCode != UA_STATUSCODE_GOOD)
         return bpr.statusCode;
     callback.onWrite = afterWriteCallbackSeverityChange;
-    retval = setVariableNode_valueCallback(server, bpr.targets[0].targetId.nodeId,
-                                           callback);
+    retval = setVariableNode_internalValueSource(server, bpr.targets[0].targetId.nodeId,
+                                                 NULL, &callback);
     UA_BrowsePathResult_clear(&bpr);
     return retval;
 }

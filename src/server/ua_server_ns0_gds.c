@@ -1150,7 +1150,10 @@ applyChangesToServer(UA_Server *server) {
             UA_EndpointDescription *ed = &server->config.endpoints[j];
             UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
                                 &server->config.endpoints[j].securityPolicyUri);
-            UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+            if(!sp) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
 
             if(!UA_NodeId_equal(&sp->certificateTypeId, &certTypeId))
                 continue;

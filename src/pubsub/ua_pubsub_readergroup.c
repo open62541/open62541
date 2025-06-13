@@ -458,24 +458,124 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
         /* No payload header. The message ontains a single DataSetMessage that
          * is processed by every Reader. */
         if(!nm->payloadHeaderEnabled) {
-            UA_DataSetReader_process(psm, reader,
-                                     nm->payload.dataSetPayload.dataSetMessages);
+            UA_DataSetReader_process(psm, reader, nm->payload.dataSetMessages);
             continue;
         }
 
         /* Process only the payloads where the WriterId from the header is expected */
-        size_t count = nm->payload.dataSetPayload.dataSetMessagesSize;
-        for(size_t i = 0; i < count; i++) {
-            if(reader->config.dataSetWriterId == nm->payload.dataSetPayload.
-               dataSetMessages[i].dataSetWriterId) {
-                UA_DataSetReader_process(psm, reader,
-                                         &nm->payload.dataSetPayload.dataSetMessages[i]);
-            }
+        for(size_t i = 0; i < nm->messageCount; i++) {
+            if(reader->config.dataSetWriterId == nm->dataSetWriterIds[i])
+                UA_DataSetReader_process(psm, reader, &nm->payload.dataSetMessages[i]);
         }
     }
 
     return processed;
 }
+
+UA_StatusCode
+UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
+                                    UA_ReaderGroup *rg,
+                                    UA_ByteString buffer,
+                                    UA_NetworkMessage *nm) {
+    /* Set up the decoding context */
+    PubSubDecodeCtx ctx;
+    memset(&ctx, 0, sizeof(PubSubDecodeCtx));
+    ctx.ctx.pos = buffer.data;
+    ctx.ctx.end = buffer.data + buffer.length;
+    ctx.ctx.opts.customTypes = psm->sc.server->config.customDataTypes;
+
+    /* Decode the headers. This sets the number of DataSetMessages and retrieves
+     * the DataSetWriterIds. Those get matched to the readers below. */
+    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(&ctx, nm);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, rg,
+                              "PubSub receive. decoding headers failed");
+        UA_NetworkMessage_clear(nm);
+        return rv;
+    }
+
+    /* Find a matching reader. Otherwise skip for this ReaderGroup */
+    UA_DataSetReader *dsr;
+    LIST_FOREACH(dsr, &rg->readers, listEntry) {
+        rv = UA_DataSetReader_checkIdentifier(psm, dsr, nm);
+        if(rv == UA_STATUSCODE_GOOD)
+            break;
+    }
+
+    if(!dsr) {
+        UA_NetworkMessage_clear(nm);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    /* Decrypt */
+    rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx.ctx, nm, rg);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_NetworkMessage_clear(nm);
+        return rv;
+    }
+
+    /* Prepare the metadata with information from the readers to decode the
+     * DataSetMessages */
+    size_t i = 0;
+    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, rg->readersCount);
+    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * rg->readersCount);
+    ctx.eo.metaData = emd;
+    ctx.eo.metaDataSize = rg->readersCount;
+    LIST_FOREACH(dsr, &rg->readers, listEntry) {
+        emd[i].dataSetWriterId = dsr->config.dataSetWriterId;
+        emd[i].fields = dsr->config.dataSetMetaData.fields;
+        emd[i].fieldsSize = dsr->config.dataSetMetaData.fieldsSize;
+        i++;
+    }
+
+    /* Decode the payload */
+    rv = UA_NetworkMessage_decodePayload(&ctx, nm);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_NetworkMessage_clear(nm);
+        return rv;
+    }
+
+    rv = UA_NetworkMessage_decodeFooters(&ctx, nm);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_NetworkMessage_clear(nm);
+        return rv;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+#ifdef UA_ENABLE_JSON_ENCODING
+UA_StatusCode
+UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
+                                        UA_ReaderGroup *rg,
+                                        UA_ByteString buffer,
+                                        UA_NetworkMessage *nm) {
+    /* Set up the decoding options */
+    UA_DecodeJsonOptions jo;
+    memset(&jo, 0, sizeof(jo));
+    jo.customTypes = psm->sc.server->config.customDataTypes;
+
+    /* Prepare the metadata with information from the readers to decode the
+     * DataSetMessages */
+    UA_NetworkMessage_EncodingOptions eo;
+    size_t i = 0;
+    UA_STACKARRAY(UA_DataSetMessage_EncodingMetaData, emd, rg->readersCount);
+    memset(emd, 0, sizeof(UA_DataSetMessage_EncodingMetaData) * rg->readersCount);
+    eo.metaData = emd;
+    eo.metaDataSize = rg->readersCount;
+
+    UA_DataSetReader *dsr;
+    LIST_FOREACH(dsr, &rg->readers, listEntry) {
+        emd[i].dataSetWriterId = dsr->config.dataSetWriterId;
+        emd[i].fields = dsr->config.dataSetMetaData.fields;
+        emd[i].fieldsSize = dsr->config.dataSetMetaData.fieldsSize;
+        i++;
+    }
+
+    /* Decode */
+    return UA_NetworkMessage_decodeJson(&buffer, nm, &eo, &jo);
+}
+#endif
 
 /******************************/
 /* Decrypt the NetworkMessage */
@@ -739,10 +839,10 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
     if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
-        res = UA_PubSubConnection_decodeNetworkMessage(psm, rg->linkedConnection, msg, &nm);
+        res = UA_ReaderGroup_decodeNetworkMessage(psm, rg, msg, &nm);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
-        res = UA_NetworkMessage_decodeJson(&msg, &nm, NULL);
+        res = UA_ReaderGroup_decodeNetworkMessageJSON(psm, rg, msg, &nm);
 #else
         res = UA_STATUSCODE_BADNOTSUPPORTED;
 #endif
@@ -1086,327 +1186,6 @@ UA_Server_updateReaderGroupConfig(UA_Server *server, const UA_NodeId rgId,
     rg->config = oldConfig;
     unlockServer(server);
     return retval;
-}
-
-static UA_StatusCode
-UA_PubSubDataSetReader_generateKeyFrameMessage(UA_Server *server,
-                                               UA_DataSetMessage *dsm,
-                                               UA_DataSetReader *dsr) {
-    /* Prepare DataSetMessageContent */
-    UA_TargetVariablesDataType *tv = &dsr->config.subscribedDataSet.target;
-    dsm->header.dataSetMessageValid = true;
-    dsm->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
-    dsm->data.keyFrameData.fieldCount = (UA_UInt16) tv->targetVariablesSize;
-    dsm->data.keyFrameData.dataSetFields = (UA_DataValue *)
-            UA_Array_new(tv->targetVariablesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    if(!dsm->data.keyFrameData.dataSetFields)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    dsm->data.keyFrameData.dataSetMetaDataType =
-        &dsr->config.dataSetMetaData;
-
-     for(size_t counter = 0; counter < tv->targetVariablesSize; counter++) {
-        /* Read the value and set the source in the reader config */
-        UA_DataValue *dfv = &dsm->data.keyFrameData.dataSetFields[counter];
-        UA_FieldTargetDataType *ftv = &tv->targetVariables[counter];
-
-        UA_ReadValueId rvi;
-        UA_ReadValueId_init(&rvi);
-        rvi.nodeId = ftv->targetNodeId;
-        rvi.attributeId = ftv->attributeId;
-        rvi.indexRange = ftv->writeIndexRange;
-        *dfv = readWithSession(server, &server->adminSession, &rvi,
-                               UA_TIMESTAMPSTORETURN_NEITHER);
-
-        /* Deactivate statuscode? */
-        if(((u64)dsr->config.dataSetFieldContentMask &
-            (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
-            dfv->hasStatus = false;
-
-        /* Deactivate timestamps */
-        if(((u64)dsr->config.dataSetFieldContentMask &
-            (u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0)
-            dfv->hasSourceTimestamp = false;
-        if(((u64)dsr->config.dataSetFieldContentMask &
-            (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0)
-            dfv->hasSourcePicoseconds = false;
-        if(((u64)dsr->config.dataSetFieldContentMask &
-            (u64)UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0)
-            dfv->hasServerTimestamp = false;
-        if(((u64)dsr->config.dataSetFieldContentMask &
-            (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
-            dfv->hasServerPicoseconds = false;
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-/* Generate a DataSetMessage for the given reader. */
-static UA_StatusCode
-UA_DataSetReader_generateDataSetMessage(UA_Server *server,
-                                        UA_DataSetMessage *dsm,
-                                        UA_DataSetReader *dsr) {
-    /* Support only for UADP configuration
-     * TODO: JSON encoding if UA_DataSetReader_generateDataSetMessage used other
-     * that RT configuration */
-
-    dsm->dataSetWriterId = dsr->config.dataSetWriterId;
-
-    UA_ExtensionObject *settings = &dsr->config.messageSettings;
-    if(settings->content.decoded.type != &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE])
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-
-    /* The configuration Flags are included inside the std. defined
-     * UA_UadpDataSetReaderMessageDataType */
-    UA_UadpDataSetReaderMessageDataType defaultUadpConfiguration;
-    UA_UadpDataSetReaderMessageDataType *dsrMessageDataType =
-        (UA_UadpDataSetReaderMessageDataType*) settings->content.decoded.data;
-
-    if(!(settings->encoding == UA_EXTENSIONOBJECT_DECODED ||
-         settings->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
-       !dsrMessageDataType->dataSetMessageContentMask) {
-        /* Create default flag configuration if no dataSetMessageContentMask or
-         * even messageSettings in UadpDataSetWriterMessageDataType was
-         * passed. */
-        memset(&defaultUadpConfiguration, 0, sizeof(UA_UadpDataSetReaderMessageDataType));
-        defaultUadpConfiguration.dataSetMessageContentMask = (UA_UadpDataSetMessageContentMask)
-            ((u64)UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP |
-             (u64)UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION |
-             (u64)UA_UADPDATASETMESSAGECONTENTMASK_MINORVERSION);
-        dsrMessageDataType = &defaultUadpConfiguration;
-    }
-
-    /* Sanity-test the configuration */
-    if(dsrMessageDataType &&
-       (dsrMessageDataType->networkMessageNumber != 0 ||
-        dsrMessageDataType->dataSetOffset != 0)) {
-        dsrMessageDataType->networkMessageNumber = 0;
-        dsrMessageDataType->dataSetOffset = 0;
-    }
-
-    /* The field encoding depends on the flags inside the reader config. */
-    if(dsr->config.dataSetFieldContentMask & (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
-        dsm->header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
-    } else if((u64)dsr->config.dataSetFieldContentMask &
-              ((u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP |
-               (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS |
-               (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS |
-               (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE)) {
-        dsm->header.fieldEncoding = UA_FIELDENCODING_DATAVALUE;
-    } else {
-        dsm->header.fieldEncoding = UA_FIELDENCODING_VARIANT;
-    }
-
-    /* Std: 'The DataSetMessageContentMask defines the flags for the content
-     * of the DataSetMessage header.' */
-    if((u64)dsrMessageDataType->dataSetMessageContentMask &
-       (u64)UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION) {
-        dsm->header.configVersionMajorVersionEnabled = true;
-        dsm->header.configVersionMajorVersion =
-            dsr->config.dataSetMetaData.configurationVersion.majorVersion;
-    }
-
-    if((u64)dsrMessageDataType->dataSetMessageContentMask &
-       (u64)UA_UADPDATASETMESSAGECONTENTMASK_MINORVERSION) {
-        dsm->header.configVersionMinorVersionEnabled = true;
-        dsm->header.configVersionMinorVersion =
-            dsr->config.dataSetMetaData.configurationVersion.minorVersion;
-    }
-
-    if((u64)dsrMessageDataType->dataSetMessageContentMask &
-       (u64)UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER) {
-        /* Will be modified when subscriber receives new nw msg */
-        dsm->header.dataSetMessageSequenceNrEnabled = true;
-        dsm->header.dataSetMessageSequenceNr = 1;
-    }
-
-    if((u64)dsrMessageDataType->dataSetMessageContentMask &
-       (u64)UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP) {
-        dsm->header.timestampEnabled = true;
-        dsm->header.timestamp = UA_DateTime_now();
-    }
-
-    if((u64)dsrMessageDataType->dataSetMessageContentMask &
-       (u64)UA_UADPDATASETMESSAGECONTENTMASK_PICOSECONDS)
-        dsm->header.picoSecondsIncluded = false;
-
-    if((u64)dsrMessageDataType->dataSetMessageContentMask &
-       (u64)UA_UADPDATASETMESSAGECONTENTMASK_STATUS)
-        dsm->header.statusEnabled = true;
-
-    /* Not supported for Delta frames atm */
-    return UA_PubSubDataSetReader_generateKeyFrameMessage(server, dsm, dsr);
-}
-
-static UA_StatusCode
-readerGroupGenerateNetworkMessage(UA_ReaderGroup *wg, UA_DataSetReader **dsr,
-                                  UA_DataSetMessage *dsm, UA_Byte dsmCount,
-                                  UA_ExtensionObject *messageSettings,
-                                  UA_NetworkMessage *nm) {
-    if(messageSettings->content.decoded.type != &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE])
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-
-    /* Set the header flags */
-    UA_UadpDataSetReaderMessageDataType *dsrm =
-        (UA_UadpDataSetReaderMessageDataType*)messageSettings->content.decoded.data;
-    nm->publisherIdEnabled = ((u64)dsrm->networkMessageContentMask &
-                              (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID) != 0;
-    nm->groupHeaderEnabled = ((u64)dsrm->networkMessageContentMask &
-                              (u64)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER) != 0;
-    nm->groupHeader.writerGroupIdEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID) != 0;
-    nm->groupHeader.groupVersionEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPVERSION) != 0;
-    nm->groupHeader.networkMessageNumberEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_NETWORKMESSAGENUMBER) != 0;
-    nm->groupHeader.sequenceNumberEnabled =
-        ((u64)dsrm->networkMessageContentMask &
-         (u64)UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER) != 0;
-    nm->payloadHeaderEnabled = ((u64)dsrm->networkMessageContentMask &
-                                (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER) != 0;
-    nm->timestampEnabled = ((u64)dsrm->networkMessageContentMask &
-                            (u64)UA_UADPNETWORKMESSAGECONTENTMASK_TIMESTAMP) != 0;
-    nm->picosecondsEnabled = ((u64)dsrm->networkMessageContentMask &
-                              (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PICOSECONDS) != 0;
-    nm->dataSetClassIdEnabled = ((u64)dsrm->networkMessageContentMask &
-                                 (u64)UA_UADPNETWORKMESSAGECONTENTMASK_DATASETCLASSID) != 0;
-    nm->promotedFieldsEnabled = ((u64)dsrm->networkMessageContentMask &
-                                 (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
-
-    /* Set the NetworkMessage header */
-    nm->version = 1;
-    nm->networkMessageType = UA_NETWORKMESSAGE_DATASET;
-    nm->publisherId = dsr[0]->config.publisherId;
-
-    /* Set the group header (use default sequence numbers) */
-    nm->groupHeader.networkMessageNumber = 1;
-    nm->groupHeader.sequenceNumber = 1;
-    nm->groupHeader.groupVersion = dsrm->groupVersion;
-    nm->groupHeader.writerGroupId = dsr[0]->config.writerGroupId;
-
-    /* TODO Security Header */
-
-    /* Set the payload information from the dsm */
-    nm->payload.dataSetPayload.dataSetMessages = dsm;
-    nm->payload.dataSetPayload.dataSetMessagesSize = dsmCount;
-
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_computeReaderGroupOffsetTable(UA_Server *server,
-                                        const UA_NodeId readerGroupId,
-                                        UA_PubSubOffsetTable *ot) {
-    if(!server || !ot)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    lockServer(server);
-
-    /* Get the ReaderGroup */
-    UA_PubSubManager *psm = getPSM(server);
-    UA_ReaderGroup *rg = (psm) ? UA_ReaderGroup_find(psm, readerGroupId) : NULL;
-    if(!rg) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-
-    memset(ot, 0, sizeof(UA_PubSubOffsetTable));
-
-    /* Define variables here to allow the goto cleanup later on */
-    size_t msgSize;
-    size_t fieldindex = 0;
-    UA_FieldTargetDataType *tv = NULL;
-
-    UA_NetworkMessage networkMessage;
-    memset(&networkMessage, 0, sizeof(UA_NetworkMessage));
-
-    UA_STACKARRAY(UA_DataSetMessage, dsmStore, rg->readersCount);
-    UA_STACKARRAY(UA_DataSetReader *, dsrStore, rg->readersCount);
-    memset(dsmStore, 0, sizeof(UA_DataSetMessage) * rg->readersCount);
-
-    size_t dsmCount = 0;
-    UA_DataSetReader *dsr;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        dsrStore[dsmCount] = dsr;
-        res = UA_DataSetReader_generateDataSetMessage(server, &dsmStore[dsmCount], dsr);
-        dsmCount++;
-        if(res != UA_STATUSCODE_GOOD)
-            goto cleanup;
-    }
-
-    /* Generate the NetworkMessage */
-    dsr = LIST_FIRST(&rg->readers);
-    res = readerGroupGenerateNetworkMessage(rg, dsrStore, dsmStore, (UA_Byte) dsmCount,
-                                            &dsr->config.messageSettings, &networkMessage);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* Compute the message length and generate the old format offset-table (done
-     * inside calcSizeBinary) */
-    msgSize = UA_NetworkMessage_calcSizeBinaryWithOffsetTable(&networkMessage, ot);
-    if(msgSize == 0) {
-        res = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
-    }
-
-    /* Create the encoded network message */
-    res = UA_NetworkMessage_encodeBinary(&networkMessage, &ot->networkMessage);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* Pick up the component NodeIds */
-    dsr = NULL;
-    for(size_t i = 0; i < ot->offsetsSize; i++) {
-        UA_PubSubOffset *o = &ot->offsets[i];
-        switch(o->offsetType) {
-        case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER:
-        case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_TIMESTAMP:
-        case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_PICOSECONDS:
-        case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_GROUPVERSION:
-            UA_NodeId_copy(&rg->head.identifier, &o->component);
-            break;
-        case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE:
-            dsr = (dsr == NULL) ? LIST_FIRST(&rg->readers) : LIST_NEXT(dsr, listEntry);
-            fieldindex = 0;
-            /* fall through */
-        case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER:
-        case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_STATUS:
-        case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_TIMESTAMP:
-        case UA_PUBSUBOFFSETTYPE_DATASETMESSAGE_PICOSECONDS:
-            UA_NodeId_copy(&dsr->head.identifier, &o->component);
-            break;
-        case UA_PUBSUBOFFSETTYPE_DATASETFIELD_DATAVALUE:
-            tv = &dsr->config.subscribedDataSet.target.targetVariables[fieldindex];
-            UA_NodeId_copy(&tv->targetNodeId, &o->component);
-            fieldindex++;
-            break;
-        case UA_PUBSUBOFFSETTYPE_DATASETFIELD_VARIANT:
-            tv = &dsr->config.subscribedDataSet.target.targetVariables[fieldindex];
-            UA_NodeId_copy(&tv->targetNodeId, &o->component);
-            fieldindex++;
-            break;
-        case UA_PUBSUBOFFSETTYPE_DATASETFIELD_RAW:
-            tv = &dsr->config.subscribedDataSet.target.targetVariables[fieldindex];
-            UA_NodeId_copy(&tv->targetNodeId, &o->component);
-            fieldindex++;
-            break;
-        default:
-            break;
-        }
-    }
-
- cleanup:
-    /* Clean up and return */
-    for(size_t i = 0; i < dsmCount; i++) {
-        UA_DataSetMessage_clear(&dsmStore[i]);
-    }
-
-    unlockServer(server);
-    return res;
 }
 
 #endif /* UA_ENABLE_PUBSUB */

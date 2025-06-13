@@ -70,17 +70,19 @@ checkAdjustArguments(UA_Server *server, UA_Session *session,
                      UA_Variant *args, UA_StatusCode *inputArgumentResults) {
     /* Verify that we have a Variant containing UA_Argument (scalar or array) in
      * the "InputArguments" node */
-    if(argRequirements->valueSource != UA_VALUESOURCE_DATA)
+    if(argRequirements->valueSourceType != UA_VALUESOURCETYPE_INTERNAL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(!argRequirements->value.data.value.hasValue)
+    if(!argRequirements->valueSource.internal.value.hasValue)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(argRequirements->value.data.value.value.type != &UA_TYPES[UA_TYPES_ARGUMENT])
+
+    const UA_Variant *argVal = &argRequirements->valueSource.internal.value.value;
+    if(argVal->type != &UA_TYPES[UA_TYPES_ARGUMENT])
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Verify the number of arguments. A scalar argument value is interpreted as
      * an array of length 1. */
-    size_t argReqsSize = argRequirements->value.data.value.value.arrayLength;
-    if(UA_Variant_isScalar(&argRequirements->value.data.value.value))
+    size_t argReqsSize = argVal->arrayLength;
+    if(UA_Variant_isScalar(argVal))
         argReqsSize = 1;
     if(argReqsSize > argsSize)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
@@ -89,7 +91,7 @@ checkAdjustArguments(UA_Server *server, UA_Session *session,
 
     /* Type-check every argument against the definition */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
+    UA_Argument *argReqs = (UA_Argument*)argVal->data;
     const char *reason;
     for(size_t i = 0; i < argReqsSize; ++i) {
         /* Incompatible value. Try to correct the type if possible. */
@@ -374,7 +376,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     /* Allocate the output arguments array */
     size_t outputArgsSize = 0;
     if(outputArguments)
-        outputArgsSize = outputArguments->value.data.value.value.arrayLength;
+        outputArgsSize = outputArguments->valueSource.internal.value.value.arrayLength;
     result->outputArguments = (UA_Variant*)
         UA_Array_new(outputArgsSize, &UA_TYPES[UA_TYPES_VARIANT]);
     if(!result->outputArguments) {

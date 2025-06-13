@@ -162,10 +162,12 @@ struct UA_EventLoop {
     /* Timer Callbacks
      * ~~~~~~~~~~~~~~~
      * Timer callbacks are executed at a defined time or regularly with a
-     * periodic interval. */
+     * periodic interval. The timer subsystem always uses the
+     * monotonic clock. */
 
     /* Time of the next timer. Returns the UA_DATETIME_MAX if no timer is
-     * registered. */
+     * registered. Returns the current monotonic time if a delayed
+     * callback is registered for immediate execution. */
     UA_DateTime (*nextTimer)(UA_EventLoop *el);
 
     /* The execution interval is in ms. The first execution time is baseTime +
@@ -615,6 +617,7 @@ UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
 
 #if defined(__linux__) /* Linux only so far */
+
 /**
  * Ethernet Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~

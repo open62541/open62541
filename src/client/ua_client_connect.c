@@ -1791,7 +1791,7 @@ static void
 delayedNetworkCallback(void *application, void *context) {
     UA_Client *client = (UA_Client*)application;
     client->channel.unprocessedDelayed.callback = NULL;
-    if(client->channel.state == UA_SECURECHANNELSTATE_CONNECTED)
+    if(client->channel.state >= UA_SECURECHANNELSTATE_CONNECTING)
         __Client_networkCallback(client->channel.connectionManager,
                                  client->channel.connectionId,
                                  client, &context,
@@ -1898,18 +1898,18 @@ void
 connectSync(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
+    /* Initialize the connection */
+    initConnect(client);
+    notifyClientState(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return;
+
     /* EventLoop is started. Otherwise initConnect would have failed. */
     UA_EventLoop *el = client->config.eventLoop;
     UA_assert(el);
 
     UA_DateTime now = el->dateTime_nowMonotonic(el);
     UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
-
-    /* Initialize the connection */
-    initConnect(client);
-    notifyClientState(client);
-    if(client->connectStatus != UA_STATUSCODE_GOOD)
-        return;
 
     /* Run the EventLoop until connected, connect fail or timeout. Write the
      * iterate result to the connectStatus. So we do not attempt to restore a

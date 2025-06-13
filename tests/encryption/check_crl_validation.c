@@ -246,7 +246,6 @@ START_TEST(encryption_connect_valid) {
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
-    cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
@@ -291,7 +290,6 @@ START_TEST(encryption_connect_revoked) {
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
-    cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");

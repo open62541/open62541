@@ -483,12 +483,13 @@ addRefWithSession(UA_Server *server, UA_Session *session, const UA_NodeId *sourc
                   UA_Boolean forward);
 
 UA_StatusCode
-setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_DataSource dataSource);
+setVariableNode_callbackValueSource(UA_Server *server, const UA_NodeId nodeId,
+                                    const UA_CallbackValueSource evs);
 
 UA_StatusCode
-setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
-                              const UA_ValueCallback callback);
+setVariableNode_internalValueSource(UA_Server *server, const UA_NodeId nodeId,
+                                    const UA_DataValue *value,
+                                    const UA_ValueSourceNotifications *notifications);
 
 UA_StatusCode
 setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,

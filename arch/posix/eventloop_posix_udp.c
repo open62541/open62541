@@ -176,6 +176,7 @@ setMulticastInterface(const char *netif, struct addrinfo *info,
 static UA_StatusCode
 setMulticastInterface(const char *netif, struct addrinfo *info,
                       MulticastRequest *req, const UA_Logger *logger) {
+    UA_RESET_ERRNO;
     struct ifaddrs *ifaddr;
     int ret = getifaddrs(&ifaddr);
     if(ret == -1) {
@@ -208,6 +209,7 @@ setMulticastInterface(const char *netif, struct addrinfo *info,
             break;
 
         /* Check if the interface name is an IP address that matches */
+        UA_RESET_ERRNO;
         char host[NI_MAXHOST];
         ret = getnameinfo(ifa->ifa_addr,
                           (info->ai_family == AF_INET) ?
@@ -335,6 +337,7 @@ getConnectionInfoFromParams(const UA_KeyValueMap *params,
 
     /* Create the socket description from the connectString
      * TODO: Make this non-blocking */
+    UA_RESET_ERRNO;
     struct addrinfo hints;
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
@@ -360,6 +363,7 @@ getConnectionInfoFromParams(const UA_KeyValueMap *params,
 static UA_StatusCode
 setLoopBackData(UA_SOCKET sockfd, UA_Boolean enableLoopback,
                 int ai_family, const UA_Logger *logger) {
+    UA_RESET_ERRNO;
     /* The loopback option has a different integer size between IPv4 and IPv6.
      * Some operating systems (e.g. OpenBSD) handle this very strict. Hence the
      * different "enable" variables below are required. */
@@ -390,6 +394,7 @@ setLoopBackData(UA_SOCKET sockfd, UA_Boolean enableLoopback,
 static UA_StatusCode
 setTimeToLive(UA_SOCKET sockfd, UA_UInt32 messageTTL,
               int ai_family, const UA_Logger *logger) {
+    UA_RESET_ERRNO;
     /* Set Time to live (TTL). Value of 1 prevent forward beyond the local network. */
 #if UA_IPV6
     if(UA_setsockopt(sockfd,
@@ -417,6 +422,7 @@ static UA_StatusCode
 setReuseAddress(UA_SOCKET sockfd, UA_Boolean enableReuse, const UA_Logger *logger) {
     /* Set reuse address -> enables sharing of the same listening address on
      * different sockets */
+    UA_RESET_ERRNO;
     int enableReuseVal = (enableReuse) ? 1 : 0;
     if(UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
                      (const char*)&enableReuseVal, sizeof(enableReuseVal)) < 0) {
@@ -434,6 +440,7 @@ setReuseAddress(UA_SOCKET sockfd, UA_Boolean enableReuse, const UA_Logger *logge
 static UA_StatusCode
 setSocketPriority(UA_SOCKET sockfd, UA_UInt32 socketPriority,
                   const UA_Logger *logger) {
+    UA_RESET_ERRNO;
     int prio = (int)socketPriority;
     if(UA_setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY, &prio, sizeof(int)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -471,6 +478,8 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *params,
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 #endif
+
+    UA_RESET_ERRNO;
 
     /* Set socket settings from the parameters */
     const UA_UInt32 *messageTTL = (const UA_UInt32*)
@@ -515,6 +524,7 @@ setupListenMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *para
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    UA_RESET_ERRNO;
     int result = -1;
     if(info->ai_family == AF_INET && multiCastType == MULTICASTTYPE_IPV4) {
         result = UA_setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
@@ -544,6 +554,7 @@ setupSendMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    UA_RESET_ERRNO;
     int result = -1;
     if(info->ai_family == AF_INET && multiCastType == MULTICASTTYPE_IPV4) {
 #ifdef UA_ARCHITECTURE_WIN32
@@ -612,6 +623,7 @@ UDP_close(UA_POSIXConnectionManager *pcm, UDP_FD *conn) {
                         &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
 
     /* Close the socket */
+    UA_RESET_ERRNO;
     int ret = UA_close(conn->rfd.fd);
     if(ret == 0) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -669,6 +681,7 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
     UA_ByteString response = pcm->rxBuffer;
 
     /* Receive */
+    UA_RESET_ERRNO;
     struct sockaddr_storage source;
 #ifndef UA_ARCHITECTURE_WIN32
     socklen_t sourceSize = (socklen_t)sizeof(struct sockaddr_storage);
@@ -747,6 +760,7 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     UA_LOCK_ASSERT(&el->elMutex);
 
     /* Get logging information */
+    UA_RESET_ERRNO;
     char hoststr[UA_MAXHOSTNAME_LENGTH];
     int get_res = UA_getnameinfo(info->ai_addr, info->ai_addrlen,
                                  hoststr, sizeof(hoststr),
@@ -761,6 +775,7 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     }
 
     /* Create the listen socket */
+    UA_RESET_ERRNO;
     UA_FD listenSocket = UA_socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     if(listenSocket == UA_INVALID_FD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -784,6 +799,7 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     MultiCastType mc = multiCastType(info);
 
     /* Bind socket to the address */
+    UA_RESET_ERRNO;
 #ifdef UA_ARCHITECTURE_WIN32
     /* On windows we need to bind the socket to INADDR_ANY before registering
      * for the multicast group */
@@ -833,6 +849,7 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
 
     /* Enable multicast if this is a multicast address */
     if(mc != MULTICASTTYPE_NONE) {
+        UA_RESET_ERRNO;
         res = setupListenMultiCast(listenSocket, info, params, mc,
                                    (validate) ? NULL : el->eventLoop.logger);
         if(res != UA_STATUSCODE_GOOD) {
@@ -930,6 +947,7 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     char portstr[6];
     mp_snprintf(portstr, 6, "%d", port);
 
+    UA_RESET_ERRNO;
     int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
 #ifdef UA_ARCHITECTURE_WIN32
@@ -1035,6 +1053,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                          "UDP %u\t| Attempting to send", (unsigned)connectionId);
 
             /* Prevent OS signals when sending to a closed socket */
+            UA_RESET_ERRNO;
             int flags = MSG_NOSIGNAL;
             size_t bytes_to_send = buf->length - nWritten;
             n = UA_sendto((UA_FD)connectionId, (const char*)buf->data + nWritten,
@@ -1062,6 +1081,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                 tmp_poll_fd.fd = (UA_FD)connectionId;
                 tmp_poll_fd.events = UA_POLLOUT;
                 do {
+                    UA_RESET_ERRNO;
                     poll_ret = UA_poll(&tmp_poll_fd, 1, 100);
                     if(poll_ret < 0 && UA_ERRNO != UA_INTERRUPTED) {
                         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -1091,6 +1111,7 @@ registerSocketAndDestinationForSend(const UA_KeyValueMap *params,
                                     const char *hostname, struct addrinfo *info,
                                     int error, UDP_FD *ufd, UA_FD *sock,
                                     const UA_Logger *logger, UA_Boolean validate) {
+    UA_RESET_ERRNO;
     UA_FD newSock = UA_socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     *sock = newSock;
     if(newSock == UA_INVALID_FD) {
@@ -1157,6 +1178,7 @@ UDP_openSendConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *par
     }
 
     /* Create a socket and register the destination address from the provided parameters */
+    UA_RESET_ERRNO;
     UA_FD newSock = UA_INVALID_FD;
     UA_StatusCode res =
         registerSocketAndDestinationForSend(params, hostname, info,

@@ -30,22 +30,6 @@
 #include "../deps/base64.h"
 #include "../deps/libc_time.h"
 
-#ifndef UA_ENABLE_PARSING
-#error UA_ENABLE_PARSING required for JSON encoding
-#endif
-
-#ifndef UA_ENABLE_TYPEDESCRIPTION
-#error UA_ENABLE_TYPEDESCRIPTION required for JSON encoding
-#endif
-
-/* vs2008 does not have INFINITY and NAN defined */
-#ifndef INFINITY
-# define INFINITY ((UA_Double)(DBL_MAX+DBL_MAX))
-#endif
-#ifndef NAN
-# define NAN ((UA_Double)(INFINITY-INFINITY))
-#endif
-
 #if defined(_MSC_VER)
 # pragma warning(disable: 4756)
 # pragma warning(disable: 4056)
@@ -182,7 +166,8 @@ writeJsonArrElm(CtxJson *ctx, const void *value,
 status
 writeJsonObjElm(CtxJson *ctx, const char *key,
                 const void *value, const UA_DataType *type) {
-    return writeJsonKey(ctx, key) | encodeJsonJumpTable[type->typeKind](ctx, value, type);
+    status ret = writeJsonKey(ctx, key);
+    return ret | encodeJsonJumpTable[type->typeKind](ctx, value, type);
 }
 
 /* Keys for JSON */
@@ -1508,7 +1493,7 @@ DECODE_JSON(DateTime) {
     if(tokenSize == 0 || tokenData[tokenSize-1] != 'Z')
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    struct mytm dts;
+    struct musl_tm dts;
     memset(&dts, 0, sizeof(dts));
 
     size_t pos = 0;
@@ -1576,7 +1561,7 @@ DECODE_JSON(DateTime) {
     dts.tm_sec = (UA_UInt16)sec;
 
     /* Compute the seconds since the Unix epoch */
-    long long sinceunix = __tm_to_secs(&dts);
+    long long sinceunix = musl_tm_to_secs(&dts);
 
     /* Are we within the range that can be represented? */
     long long sinceunix_min =
@@ -1885,6 +1870,9 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
             ctx->index = dimIndex;
             res |= Array_decodeJson(ctx, (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
 
+            /* Help clang-analyzer */
+            UA_assert(dst->arrayDimensionsSize == 0 || dst->arrayDimensions);
+
             /* Validate the dimensions */
             size_t total = 1;
             for(size_t i = 0; i < dst->arrayDimensionsSize; i++)
@@ -2003,7 +1991,9 @@ removeFieldFromEncoding(ParseCtx *ctx, UA_ByteString *encoding, size_t tokenInde
     /* Subtract the offset between ctx->json5 end encoding */
     start -= objStart;
     end -= objStart;
-
+    /* Fix: Bounds and sanity check */
+    if(end < start || end > encoding->length || start > encoding->length)
+        return;
     /* Cut out the field we want to remove */
     size_t remaining = encoding->length - end;
     memmove(encoding->data + start, encoding->data + end, remaining);
