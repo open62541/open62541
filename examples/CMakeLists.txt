@@ -82,7 +82,7 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
 endif()
 
 # Client examples
-add_example(client client.c)
+add_example(client client.cpp)
 add_example(client_connect client_connect.c)
 add_example(client_async client_async.c)
 add_example(client_connect_loop client_connect_loop.c)
