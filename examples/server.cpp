@@ -687,10 +687,10 @@ int main(int argc, char* argv[]) {
     }
         
     // Accept all certificates for demo/testing
-    //config->secureChannelPKI.clear(&config->secureChannelPKI);
-    //config->sessionPKI.clear(&config->sessionPKI);
-    //UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
-    //UA_CertificateGroup_AcceptAll(&config->sessionPKI);
+    config->secureChannelPKI.clear(&config->secureChannelPKI);
+    config->sessionPKI.clear(&config->sessionPKI);
+    UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config->sessionPKI);
 
     config->applicationDescription.applicationUri = UA_STRING_ALLOC("urn:Anexee.server.application");
     config->applicationDescription.productUri = UA_STRING_ALLOC("urn:Anexee.server");
@@ -1359,30 +1359,30 @@ UA_Server_writeObjectProperty_scalar(
         // Register server with LDS now that it's running
 
             // register server
-        UA_ClientConfig cc;
-        memset(&cc, 0, sizeof(UA_ClientConfig));
-        UA_ClientConfig_setDefault(&cc);
-        // UA_ClientConfig_setDefaultEncryption(&cc,certificate,privateKey,NULL,0,NULL,0);
-        UA_ClientConfig_setAuthenticationCert(&cc, certificate, privateKey);
+    //     UA_ClientConfig cc;
+    //     memset(&cc, 0, sizeof(UA_ClientConfig));
+    //     UA_ClientConfig_setDefault(&cc);
+    //     // UA_ClientConfig_setDefaultEncryption(&cc,certificate,privateKey,NULL,0,NULL,0);
+    //     UA_ClientConfig_setAuthenticationCert(&cc, certificate, privateKey);
 
-        cc.endpoint.securityMode = UA_MESSAGESECURITYMODE_NONE;
-        cc.endpoint.userIdentityTokensSize = 1;
-        cc.endpoint.userIdentityTokens = (UA_UserTokenPolicy *) UA_Array_new(1, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-        UA_UserTokenPolicy_init(&cc.endpoint.userIdentityTokens[0]);
-        cc.endpoint.userIdentityTokens[0].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
-        cc.endpoint.userIdentityTokens[0].policyId = UA_String_fromChars("open62541-anonymous-policy");
-        UA_ByteString_clear(&cc.securityPolicyUri);
-        cc.endpoint.userIdentityTokens[0].securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#None");
-        cc.endpoint.transportProfileUri =
-    UA_String_fromChars("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+    //     cc.endpoint.securityMode = UA_MESSAGESECURITYMODE_NONE;
+    //     cc.endpoint.userIdentityTokensSize = 1;
+    //     cc.endpoint.userIdentityTokens = (UA_UserTokenPolicy *) UA_Array_new(1, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+    //     UA_UserTokenPolicy_init(&cc.endpoint.userIdentityTokens[0]);
+    //     cc.endpoint.userIdentityTokens[0].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
+    //     cc.endpoint.userIdentityTokens[0].policyId = UA_String_fromChars("open62541-anonymous-policy");
+    //     UA_ByteString_clear(&cc.securityPolicyUri);
+    //     cc.endpoint.userIdentityTokens[0].securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#None");
+    //     cc.endpoint.transportProfileUri =
+    // UA_String_fromChars("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
 
-        for(size_t j = 0; j < cc.endpoint.userIdentityTokensSize; j++) {
-            UA_UserTokenPolicy *pol = &cc.endpoint.userIdentityTokens[j];
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Registration Client TokenType: %d, PolicyId: %.*s, SecurityPolicyUri: %.*s",
-                pol->tokenType,
-                (int)pol->policyId.length, pol->policyId.data,
-                (int)pol->securityPolicyUri.length, pol->securityPolicyUri.data);
-        }
+    //     for(size_t j = 0; j < cc.endpoint.userIdentityTokensSize; j++) {
+    //         UA_UserTokenPolicy *pol = &cc.endpoint.userIdentityTokens[j];
+    //         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Registration Client TokenType: %d, PolicyId: %.*s, SecurityPolicyUri: %.*s",
+    //             pol->tokenType,
+    //             (int)pol->policyId.length, pol->policyId.data,
+    //             (int)pol->securityPolicyUri.length, pol->securityPolicyUri.data);
+    //     }
 
 
 
@@ -1412,46 +1412,46 @@ UA_Server_writeObjectProperty_scalar(
 
 
 
-        UA_StatusCode result = UA_Server_registerDiscovery(server, &cc, discoveryUrl, UA_STRING_NULL);
-        if(result != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                         "Could not create periodic job for server register. StatusCode %s",
-                         UA_StatusCode_name(result));
-            UA_Server_delete(server);
-            return EXIT_FAILURE;
-        }
+        //UA_StatusCode result = UA_Server_registerDiscovery(server, &cc, discoveryUrl, UA_STRING_NULL);
+        //if(result != UA_STATUSCODE_GOOD) {
+        //    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        //                 "Could not create periodic job for server register. StatusCode %s",
+        //                 UA_StatusCode_name(result));
+        //    UA_Server_delete(server);
+        //    return EXIT_FAILURE;
+        //}
 
     while(running)
         UA_Server_run_iterate(server, true);
-        // Unregister from LDS before shutdown
-        memset(&cc, 0, sizeof(UA_ClientConfig));
-        UA_ClientConfig_setDefault(&cc);
+    //    // Unregister from LDS before shutdown
+    //    memset(&cc, 0, sizeof(UA_ClientConfig));
+    //    UA_ClientConfig_setDefault(&cc);
 
-        cc.endpoint.securityMode = UA_MESSAGESECURITYMODE_NONE;
-        
-        cc.endpoint.userIdentityTokensSize = 1;
-        cc.endpoint.userIdentityTokens = (UA_UserTokenPolicy *) UA_Array_new(1, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-        UA_UserTokenPolicy_init(&cc.endpoint.userIdentityTokens[0]);
-        cc.endpoint.userIdentityTokens[0].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
-        cc.endpoint.userIdentityTokens[0].policyId = UA_String_fromChars("open62541-anonymous-policy");
-        UA_ByteString_clear(&cc.securityPolicyUri);
-        cc.endpoint.userIdentityTokens[0].securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#None");
+    //    cc.endpoint.securityMode = UA_MESSAGESECURITYMODE_NONE;
+    //    
+    //    cc.endpoint.userIdentityTokensSize = 1;
+    //    cc.endpoint.userIdentityTokens = (UA_UserTokenPolicy *) UA_Array_new(1, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+    //    UA_UserTokenPolicy_init(&cc.endpoint.userIdentityTokens[0]);
+    //    cc.endpoint.userIdentityTokens[0].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
+    //    cc.endpoint.userIdentityTokens[0].policyId = UA_String_fromChars("open62541-anonymous-policy");
+    //    UA_ByteString_clear(&cc.securityPolicyUri);
+    //    cc.endpoint.userIdentityTokens[0].securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#None");
 
-        for(size_t j = 0; j < cc.endpoint.userIdentityTokensSize; j++) {
-            UA_UserTokenPolicy *pol = &cc.endpoint.userIdentityTokens[j];
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Deregistration Client TokenType: %d, PolicyId: %.*s, SecurityPolicyUri: %.*s",
-                pol->tokenType,
-                (int)pol->policyId.length, pol->policyId.data,
-                (int)pol->securityPolicyUri.length, pol->securityPolicyUri.data);
-        }
+    //    for(size_t j = 0; j < cc.endpoint.userIdentityTokensSize; j++) {
+    //        UA_UserTokenPolicy *pol = &cc.endpoint.userIdentityTokens[j];
+    //        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Deregistration Client TokenType: %d, PolicyId: %.*s, SecurityPolicyUri: %.*s",
+    //            pol->tokenType,
+    //            (int)pol->policyId.length, pol->policyId.data,
+    //            (int)pol->securityPolicyUri.length, pol->securityPolicyUri.data);
+    //    }
 
-        UA_StatusCode res = UA_Server_deregisterDiscovery(server, &cc, discoveryUrl);
-        if(res != UA_STATUSCODE_GOOD)
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                         "Could not unregister from discovery server. StatusCode %s",
-                         UA_StatusCode_name(res));
-        else
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Unregistered from discovery server.");
+    //    UA_StatusCode res = UA_Server_deregisterDiscovery(server, &cc, discoveryUrl);
+    //    if(res != UA_STATUSCODE_GOOD)
+    //        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+    //                     "Could not unregister from discovery server. StatusCode %s",
+    //                     UA_StatusCode_name(res));
+    //    else
+    //        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Unregistered from discovery server.");
 
 
     UA_VariableAttributes_clear(&attr);
@@ -1489,7 +1489,7 @@ UA_Server_writeObjectProperty_scalar(
     UA_Server_delete(server);
 
 
-    return result == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 

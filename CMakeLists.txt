@@ -16,6 +16,9 @@ if(ZEPHYR_BASE)
   include(arch/zephyr/zephyr.cmake)
 endif()
 
+if (MSVC)
+    add_compile_options(/bigobj)
+endif()
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
