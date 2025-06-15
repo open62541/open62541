@@ -169,6 +169,37 @@ getServiceDescription(UA_UInt32 requestTypeId) {
     return NULL;
 }
 
+/* Allocates the results array and iterates over it to execute the operations
+ * within a request */
+UA_StatusCode
+allocProcessServiceOperations(UA_Server *server, UA_Session *session,
+                              UA_ServiceOperation operationCallback,
+                              const void *context, const size_t *requestOperations,
+                              const UA_DataType *requestOperationsType,
+                              size_t *responseOperations,
+                              const UA_DataType *responseOperationsType) {
+    size_t ops = *requestOperations;
+    if(ops == 0)
+        return UA_STATUSCODE_BADNOTHINGTODO;
+
+    /* No padding after size_t */
+    void **respPos = (void**)((uintptr_t)responseOperations + sizeof(size_t));
+    *respPos = UA_Array_new(ops, responseOperationsType);
+    if(!(*respPos))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    *responseOperations = ops;
+    uintptr_t respOp = (uintptr_t)*respPos;
+    /* No padding after size_t */
+    uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requestOperations + sizeof(size_t));
+    for(size_t i = 0; i < ops; i++) {
+        operationCallback(server, session, context, (void*)reqOp, (void*)respOp);
+        reqOp += requestOperationsType->memSize;
+        respOp += responseOperationsType->memSize;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 static const UA_String securityPolicyNone =
     UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
 
