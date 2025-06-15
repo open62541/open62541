@@ -973,13 +973,13 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     }
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_Browse,
-                                           &request->requestedMaxReferencesPerNode,
-                                           &request->nodesToBrowseSize,
-                                           &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_BROWSERESULT]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_Browse,
+                                      &request->requestedMaxReferencesPerNode,
+                                      &request->nodesToBrowseSize,
+                                      &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_BROWSERESULT]);
 }
 
 UA_BrowseResult
@@ -1082,13 +1082,13 @@ Service_BrowseNext(UA_Server *server, UA_Session *session,
     UA_Boolean releaseContinuationPoints =
         request->releaseContinuationPoints; /* request is const */
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_BrowseNext,
-                                           &releaseContinuationPoints,
-                                           &request->continuationPointsSize,
-                                           &UA_TYPES[UA_TYPES_BYTESTRING],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_BROWSERESULT]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_BrowseNext,
+                                      &releaseContinuationPoints,
+                                      &request->continuationPointsSize,
+                                      &UA_TYPES[UA_TYPES_BYTESTRING],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_BROWSERESULT]);
 }
 
 UA_BrowseResult
@@ -1395,11 +1395,11 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
 
     UA_UInt32 nodeClassMask = 0; /* All node classes */
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
-                                           &nodeClassMask,
-                                           &request->browsePathsSize, &UA_TYPES[UA_TYPES_BROWSEPATH],
-                                           &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
+                                      &nodeClassMask, &request->browsePathsSize,
+                                      &UA_TYPES[UA_TYPES_BROWSEPATH], &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
 }
 
 UA_BrowsePathResult
