@@ -430,7 +430,7 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
      * shall verify the RequestId and the SequenceNumber. If these checks fail a
      * Bad_SecurityChecksFailed error is reported. The RequestId only needs to
      * be verified by the Client since only the Client knows if it is valid or
-     * not.*/
+     * not. */
     if(!ac) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Request with unknown RequestId %u", requestId);

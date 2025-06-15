@@ -63,119 +63,106 @@ findSingleChildNode(UA_Server *server, UA_QualifiedName targetName,
     return resultNodeId;
 }
 
-static void
-onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
-       const UA_NodeId *nodeid, void *context,
-       const UA_NumericRange *range, const UA_DataValue *data) {
+static UA_StatusCode
+ReadCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeid, void *context, UA_Boolean includeSourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
-        return;
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     const UA_NodePropertyContext *nodeContext = (const UA_NodePropertyContext*)context;
     const UA_NodeId *myNodeId = &nodeContext->parentNodeId;
 
-    UA_PublishedVariableDataType *pvd = NULL;
-    UA_PublishedDataSet *publishedDataSet = NULL;
-
-    UA_Variant value;
-    UA_Variant_init(&value);
-    UA_Boolean isConnected;
-
     switch(nodeContext->parentClassifier) {
     case UA_NS0ID_PUBSUBCONNECTIONTYPE: {
         UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_find(psm, *myNodeId);
-        switch(nodeContext->elementClassiefier) {
-        case UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID:
-            UA_PublisherId_toVariant(&pubSubConnection->config.publisherId, &value);
-            break;
-        default:
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Read error! Unknown property.");
+        if(!pubSubConnection)
+            return UA_STATUSCODE_BADNOTFOUND;
+        if(nodeContext->elementClassiefier == UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID) {
+            UA_Variant tmp;
+            UA_PublisherId_toVariant(&pubSubConnection->config.publisherId, &tmp);
+            value->hasValue = true;
+            return UA_Variant_copy(&tmp, &value->value);
         }
         break;
     }
     case UA_NS0ID_READERGROUPTYPE: {
         UA_ReaderGroup *readerGroup = UA_ReaderGroup_find(psm, *myNodeId);
         if(!readerGroup)
-            return;
-        switch(nodeContext->elementClassiefier) {
-        case UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE:
-            UA_Variant_setScalar(&value, &readerGroup->head.state,
-                                 &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
-            break;
-        default:
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Read error! Unknown property.");
+            return UA_STATUSCODE_BADNOTFOUND;
+        if(nodeContext->elementClassiefier == UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE) {
+            value->hasValue = true;
+            return UA_Variant_setScalarCopy(&value->value, &readerGroup->head.state,
+                                            &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
         }
         break;
     }
     case UA_NS0ID_DATASETREADERTYPE: {
         UA_DataSetReader *dataSetReader = UA_DataSetReader_find(psm, *myNodeId);
         if(!dataSetReader)
-            return;
-
+            return UA_STATUSCODE_BADNOTFOUND;
         switch(nodeContext->elementClassiefier) {
-        case UA_NS0ID_DATASETREADERTYPE_PUBLISHERID:
-            UA_PublisherId_toVariant(&dataSetReader->config.publisherId, &value);
-            break;
+        case UA_NS0ID_DATASETREADERTYPE_PUBLISHERID: {
+            UA_Variant tmp;
+            UA_PublisherId_toVariant(&dataSetReader->config.publisherId, &tmp);
+            value->hasValue = true;
+            return UA_Variant_copy(&tmp, &value->value);
+        }
         case UA_NS0ID_DATASETREADERTYPE_STATUS_STATE:
-            UA_Variant_setScalar(&value, &dataSetReader->head.state,
-                                 &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
-            break;
-        default:
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Read error! Unknown property.");
+            value->hasValue = true;
+            return UA_Variant_setScalarCopy(&value->value, &dataSetReader->head.state,
+                                            &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
+        default: break;
         }
         break;
     }
     case UA_NS0ID_WRITERGROUPTYPE: {
         UA_WriterGroup *writerGroup = UA_WriterGroup_find(psm, *myNodeId);
         if(!writerGroup)
-            return;
+            return UA_STATUSCODE_BADNOTFOUND;
         switch(nodeContext->elementClassiefier){
         case UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL:
-            UA_Variant_setScalar(&value, &writerGroup->config.publishingInterval,
-                                 &UA_TYPES[UA_TYPES_DURATION]);
+            value->hasValue = true;
+            return UA_Variant_setScalarCopy(&value->value,
+                                            &writerGroup->config.publishingInterval,
+                                            &UA_TYPES[UA_TYPES_DURATION]);
             break;
         case UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE:
-            UA_Variant_setScalar(&value, &writerGroup->head.state,
-                                 &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
+            value->hasValue = true;
+            return UA_Variant_setScalarCopy(&value->value, &writerGroup->head.state,
+                                            &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
             break;
-        default:
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Read error! Unknown property.");
+        default: break;
         }
         break;
     }
     case UA_NS0ID_DATASETWRITERTYPE: {
         UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(psm, *myNodeId);
         if(!dataSetWriter)
-            return;
-
+            return UA_STATUSCODE_BADNOTFOUND;
         switch(nodeContext->elementClassiefier) {
-            case UA_NS0ID_DATASETWRITERTYPE_DATASETWRITERID:
-                UA_Variant_setScalar(&value, &dataSetWriter->config.dataSetWriterId,
-                                     &UA_TYPES[UA_TYPES_UINT16]);
-                break;
-            case UA_NS0ID_DATASETWRITERTYPE_STATUS_STATE:
-                UA_Variant_setScalar(&value, &dataSetWriter->head.state,
-                                     &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
-                break;
-            default:
-                UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                               "Read error! Unknown property.");
+        case UA_NS0ID_DATASETWRITERTYPE_DATASETWRITERID:
+            value->hasValue = true;
+            return UA_Variant_setScalarCopy(&value->value, &dataSetWriter->config.dataSetWriterId,
+                                            &UA_TYPES[UA_TYPES_UINT16]);
+        case UA_NS0ID_DATASETWRITERTYPE_STATUS_STATE:
+            value->hasValue = true;
+            return UA_Variant_setScalarCopy(&value->value, &dataSetWriter->head.state,
+                                            &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
+        default: break;
         }
         break;
     }
     case UA_NS0ID_PUBLISHEDDATAITEMSTYPE: {
-        publishedDataSet = UA_PublishedDataSet_find(psm, *myNodeId);
+        UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_find(psm, *myNodeId);
         if(!publishedDataSet)
-            return;
+            return UA_STATUSCODE_BADNOTFOUND;
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_PUBLISHEDDATA: {
-            pvd = (UA_PublishedVariableDataType *)
+            UA_PublishedVariableDataType *pvd = (UA_PublishedVariableDataType *)
                 UA_calloc(publishedDataSet->fieldSize, sizeof(UA_PublishedVariableDataType));
             size_t counter = 0;
             UA_DataSetField *field;
@@ -187,123 +174,105 @@ onRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                                &pvd[counter].publishedVariable);
                 counter++;
             }
-            UA_Variant_setArray(&value, pvd, publishedDataSet->fieldSize,
+            value->hasValue = true;
+            UA_Variant_setArray(&value->value, pvd, publishedDataSet->fieldSize,
                                 &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
-            break;
+            return UA_STATUSCODE_GOOD;
         }
-        case UA_NS0ID_PUBLISHEDDATASETTYPE_DATASETMETADATA: {
-            UA_Variant_setScalar(&value, &publishedDataSet->dataSetMetaData,
-                                 &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
-            break;
-        }
-        case UA_NS0ID_PUBLISHEDDATASETTYPE_CONFIGURATIONVERSION: {
-            UA_Variant_setScalar(&value, &publishedDataSet->dataSetMetaData.configurationVersion,
-                                     &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
-            break;
-        }
-        default:
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Read error! Unknown property.");
+        case UA_NS0ID_PUBLISHEDDATASETTYPE_DATASETMETADATA:
+            value->hasValue = true;
+            return UA_Variant_setScalarCopy(&value->value, &publishedDataSet->dataSetMetaData,
+                                            &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
+        case UA_NS0ID_PUBLISHEDDATASETTYPE_CONFIGURATIONVERSION:
+            value->hasValue = true;
+            return UA_Variant_setScalarCopy(&value->value,
+                                            &publishedDataSet->dataSetMetaData.configurationVersion,
+                                            &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
+        default: break;
         }
         break;
-    }    
+    }
     case UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE: {
         UA_SubscribedDataSet *sds = UA_SubscribedDataSet_find(psm, *myNodeId);
+        if(!sds)
+            return UA_STATUSCODE_BADNOTFOUND;
         switch(nodeContext->elementClassiefier) {
-            case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED: {
-                isConnected = (sds->connectedReader != NULL);
-                UA_Variant_setScalar(&value, &isConnected,
-                                     &UA_TYPES[UA_TYPES_BOOLEAN]);
-                break;
-            }
-            case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_DATASETMETADATA: {
-                UA_Variant_setScalar(&value, &sds->config.dataSetMetaData,
-                                     &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
-                break;
-            }
-            default:
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                            "Read error! Unknown property.");
+        case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED: {
+            UA_Boolean isConnected = (sds->connectedReader != NULL);
+            value->hasValue = true;
+            return UA_Variant_setScalarCopy(&value->value, &isConnected,
+                                            &UA_TYPES[UA_TYPES_BOOLEAN]);
+        }
+        case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_DATASETMETADATA: {
+            value->hasValue = true;
+            return UA_Variant_setScalarCopy(&value->value, &sds->config.dataSetMetaData,
+                                            &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
+        }
+        default: break;
         }
         break;
     }
-    default:
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "Read error! Unknown parent element.");
+    default: break;
     }
 
-    writeValueAttribute(server, *nodeid, &value);
-    if(pvd && publishedDataSet) {
-        UA_Array_delete(pvd, publishedDataSet->fieldSize,
-                        &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
-    }
+    UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                   "Read error! Unknown property");
+    return UA_STATUSCODE_BADINTERNALERROR;
 }
 
-static void
-onWrite(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
-        const UA_NodeId *nodeId, void *nodeContext,
-        const UA_NumericRange *range, const UA_DataValue *data) {
+static UA_StatusCode
+WriteCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+              const UA_NodeId *nodeId, void *nodeContext,
+              const UA_NumericRange *range, const UA_DataValue *data) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_NodePropertyContext *npc = (UA_NodePropertyContext *)nodeContext;
 
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
-        return;
+        return UA_STATUSCODE_BADNOTFOUND;
+
     UA_WriterGroup *writerGroup = NULL;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_StatusCode res = UA_STATUSCODE_BADNOTWRITABLE;
     switch(npc->parentClassifier) {
-        case UA_NS0ID_PUBSUBCONNECTIONTYPE:
-            //no runtime writable attributes
-            break;
-        case UA_NS0ID_WRITERGROUPTYPE: {
-            writerGroup = UA_WriterGroup_find(psm, npc->parentNodeId);
-            if(!writerGroup) {
-                res = UA_STATUSCODE_BADNOTFOUND;
-                break;
+    case UA_NS0ID_PUBSUBCONNECTIONTYPE:
+        break;
+    case UA_NS0ID_WRITERGROUPTYPE: {
+        writerGroup = UA_WriterGroup_find(psm, npc->parentNodeId);
+        if(!writerGroup)
+            return UA_STATUSCODE_BADNOTFOUND;
+        switch(npc->elementClassiefier) {
+        case UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL:
+            if(!UA_Variant_hasScalarType(&data->value, &UA_TYPES[UA_TYPES_DURATION]) &&
+               !UA_Variant_hasScalarType(&data->value, &UA_TYPES[UA_TYPES_DOUBLE]))
+                return UA_STATUSCODE_BADTYPEMISMATCH;
+            UA_Duration interval = *((UA_Duration *) data->value.data);
+            if(interval <= 0.0)
+                return UA_STATUSCODE_BADOUTOFRANGE;
+            writerGroup->config.publishingInterval = interval;
+            if(writerGroup->head.state == UA_PUBSUBSTATE_OPERATIONAL) {
+                UA_WriterGroup_removePublishCallback(psm, writerGroup);
+                UA_WriterGroup_addPublishCallback(psm, writerGroup);
             }
-            switch(npc->elementClassiefier) {
-                case UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL:
-                    if(!UA_Variant_hasScalarType(&data->value, &UA_TYPES[UA_TYPES_DURATION]) &&
-                       !UA_Variant_hasScalarType(&data->value, &UA_TYPES[UA_TYPES_DOUBLE])) {
-                        res = UA_STATUSCODE_BADTYPEMISMATCH;
-                        break;
-                    }
-                    UA_Duration interval = *((UA_Duration *) data->value.data);
-                    if(interval <= 0.0) {
-                        res = UA_STATUSCODE_BADOUTOFRANGE;
-                        break;
-                    }
-                    writerGroup->config.publishingInterval = interval;
-                    if(writerGroup->head.state == UA_PUBSUBSTATE_OPERATIONAL) {
-                        UA_WriterGroup_removePublishCallback(psm, writerGroup);
-                        UA_WriterGroup_addPublishCallback(psm, writerGroup);
-                    }
-                    break;
-                default:
-                    UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                                   "Write error! Unknown property element.");
-            }
-            break;
+            return UA_STATUSCODE_GOOD;
+        default: break;
         }
-        default:
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Read error! Unknown parent element.");
+        break;
+    }
+    default: break;
     }
 
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "Changing the ReaderGroupConfig failed with status %s",
-                       UA_StatusCode_name(res));
-    }
+    UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                   "Changing the ReaderGroupConfig failed");
+    return res;
 }
 
 static UA_StatusCode
-addVariableValueSource(UA_Server *server, UA_ValueCallback valueCallback,
+setVariableValueSource(UA_Server *server, const UA_CallbackValueSource evs,
                        UA_NodeId node, UA_NodePropertyContext *context){
     UA_LOCK_ASSERT(&server->serviceMutex);
     setNodeContext(server, node, context);
-    return setVariableNode_valueCallback(server, node, valueCallback);
+    return setVariableNode_callbackValueSource(server, node, evs);
 }
 
 static UA_StatusCode
@@ -706,10 +675,10 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     connectionPublisherIdContext->parentClassifier = UA_NS0ID_PUBSUBCONNECTIONTYPE;
     connectionPublisherIdContext->elementClassiefier = UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID;
 
-    UA_ValueCallback valueCallback;
-    valueCallback.onRead = onRead;
-    valueCallback.onWrite = NULL;
-    retVal |= addVariableValueSource(server, valueCallback, publisherIdNode,
+    UA_CallbackValueSource valueCallback;
+    valueCallback.read = ReadCallback;
+    valueCallback.write = NULL;
+    retVal |= setVariableValueSource(server, valueCallback, publisherIdNode,
                                      connectionPublisherIdContext);
 
     if(server->config.pubSubConfig.enableInformationModelMethods) {
@@ -897,10 +866,10 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     dataSetReaderPublisherIdContext->parentNodeId = dataSetReader->head.identifier;
     dataSetReaderPublisherIdContext->parentClassifier = UA_NS0ID_DATASETREADERTYPE;
     dataSetReaderPublisherIdContext->elementClassiefier = UA_NS0ID_DATASETREADERTYPE_PUBLISHERID;
-    UA_ValueCallback valueCallback;
-    valueCallback.onRead = onRead;
-    valueCallback.onWrite = NULL;
-    retVal |= addVariableValueSource(server, valueCallback, publisherIdNode,
+    UA_CallbackValueSource valueCallback;
+    valueCallback.read = ReadCallback;
+    valueCallback.write = NULL;
+    retVal |= setVariableValueSource(server, valueCallback, publisherIdNode,
                                      dataSetReaderPublisherIdContext);
 
     UA_NodePropertyContext *dataSetReaderStateContext =
@@ -910,7 +879,7 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     dataSetReaderStateContext->parentClassifier = UA_NS0ID_DATASETREADERTYPE;
     dataSetReaderStateContext->elementClassiefier = UA_NS0ID_DATASETREADERTYPE_STATUS_STATE;
 
-    retVal |= addVariableValueSource(server, valueCallback, stateIdNode,
+    retVal |= setVariableValueSource(server, valueCallback, stateIdNode,
                                      dataSetReaderStateContext);
 
     /* Update childNode with values from Publisher */
@@ -1031,9 +1000,9 @@ addPublishedDataItemsRepresentation(UA_Server *server,
                      NULL, &publishedDataSet->head.identifier);
     UA_CHECK_STATUS(retVal, return retVal);
 
-    UA_ValueCallback valueCallback;
-    valueCallback.onRead = onRead;
-    valueCallback.onWrite = NULL;
+    UA_CallbackValueSource valueCallback;
+    valueCallback.read = ReadCallback;
+    valueCallback.write = NULL;
     //ToDo: Need to move the browse name from namespaceindex 0 to 1
     UA_NodeId configurationVersionNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
@@ -1047,7 +1016,7 @@ addPublishedDataItemsRepresentation(UA_Server *server,
     configurationVersionContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
     configurationVersionContext->elementClassiefier =
         UA_NS0ID_PUBLISHEDDATASETTYPE_CONFIGURATIONVERSION;
-    retVal |= addVariableValueSource(server, valueCallback, configurationVersionNode,
+    retVal |= setVariableValueSource(server, valueCallback, configurationVersionNode,
                                      configurationVersionContext);
 
     UA_NodeId publishedDataNode =
@@ -1061,7 +1030,7 @@ addPublishedDataItemsRepresentation(UA_Server *server,
     publishingIntervalContext->parentNodeId = publishedDataSet->head.identifier;
     publishingIntervalContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
     publishingIntervalContext->elementClassiefier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE_PUBLISHEDDATA;
-    retVal |= addVariableValueSource(server, valueCallback, publishedDataNode,
+    retVal |= setVariableValueSource(server, valueCallback, publishedDataNode,
                                      publishingIntervalContext);
 
     UA_NodeId dataSetMetaDataNode =
@@ -1075,7 +1044,7 @@ addPublishedDataItemsRepresentation(UA_Server *server,
     metaDataContext->parentNodeId = publishedDataSet->head.identifier;
     metaDataContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
     metaDataContext->elementClassiefier = UA_NS0ID_PUBLISHEDDATASETTYPE_DATASETMETADATA;
-    retVal |= addVariableValueSource(server, valueCallback,
+    retVal |= setVariableValueSource(server, valueCallback,
                                      dataSetMetaDataNode, metaDataContext);
 
     if(server->config.pubSubConfig.enableInformationModelMethods) {
@@ -1243,17 +1212,17 @@ addSubscribedDataSetRepresentation(UA_Server *server,
     isConnectedNodeContext->parentClassifier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE;
     isConnectedNodeContext->elementClassiefier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED;
 
-    UA_ValueCallback valueCallback;
-    valueCallback.onRead = onRead;
-    valueCallback.onWrite = NULL;
-    ret |= addVariableValueSource(server, valueCallback, connectedId, isConnectedNodeContext);
+    UA_CallbackValueSource valueCallback;
+    valueCallback.read = ReadCallback;
+    valueCallback.write = NULL;
+    ret |= setVariableValueSource(server, valueCallback, connectedId, isConnectedNodeContext);
 
     UA_NodePropertyContext *metaDataContext = (UA_NodePropertyContext *)
         UA_malloc(sizeof(UA_NodePropertyContext));
     metaDataContext->parentNodeId = subscribedDataSet->head.identifier;
     metaDataContext->parentClassifier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE;
     metaDataContext->elementClassiefier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_DATASETMETADATA;
-    ret |= addVariableValueSource(server, valueCallback, metaDataId, metaDataContext);
+    ret |= setVariableValueSource(server, valueCallback, metaDataId, metaDataContext);
 
     return ret;
 }
@@ -1372,10 +1341,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     publishingIntervalContext->parentNodeId = writerGroup->head.identifier;
     publishingIntervalContext->parentClassifier = UA_NS0ID_WRITERGROUPTYPE;
     publishingIntervalContext->elementClassiefier = UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL;
-    UA_ValueCallback valueCallback;
-    valueCallback.onRead = onRead;
-    valueCallback.onWrite = onWrite;
-    retVal |= addVariableValueSource(server, valueCallback,
+    UA_CallbackValueSource valueCallback;
+    valueCallback.read = ReadCallback;
+    valueCallback.write = WriteCallback;
+    retVal |= setVariableValueSource(server, valueCallback,
                                      publishingIntervalNode, publishingIntervalContext);
     writeAccessLevelAttribute(server, publishingIntervalNode,
                               UA_ACCESSLEVELMASK_READ ^ UA_ACCESSLEVELMASK_WRITE);
@@ -1386,10 +1355,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     stateContext->parentNodeId = writerGroup->head.identifier;
     stateContext->parentClassifier = UA_NS0ID_WRITERGROUPTYPE;
     stateContext->elementClassiefier = UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE;
-    UA_ValueCallback stateValueCallback;
-    stateValueCallback.onRead = onRead;
-    stateValueCallback.onWrite = NULL;
-    retVal |= addVariableValueSource(server, stateValueCallback,
+    UA_CallbackValueSource stateCallbackValueSource;
+    stateCallbackValueSource.read = ReadCallback;
+    stateCallbackValueSource.write = NULL;
+    retVal |= setVariableValueSource(server, stateCallbackValueSource,
                                      stateIdNode, stateContext);
 
     UA_NodeId priorityNode =
@@ -1428,10 +1397,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
                             UA_NS0ID(HASPROPERTY), messageSettingsId);
     if(!UA_NodeId_isNull(&contentMaskId)) {
         /* Set the callback */
-        UA_DataSource ds;
+        UA_CallbackValueSource ds;
         ds.read = readContentMask;
         ds.write = writeContentMask;
-        setVariableNode_dataSource(server, contentMaskId, ds);
+        setVariableNode_callbackValueSource(server, contentMaskId, ds);
         setNodeContext(server, contentMaskId, writerGroup);
 
         /* Make writable */
@@ -1444,10 +1413,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), messageSettingsId);
     if(!UA_NodeId_isNull(&groupVersionId)) {
         /* Set the callback */
-        UA_DataSource ds;
+        UA_CallbackValueSource ds;
         ds.read = readGroupVersion;
         ds.write = NULL;
-        setVariableNode_dataSource(server, groupVersionId, ds);
+        setVariableNode_callbackValueSource(server, groupVersionId, ds);
         setNodeContext(server, groupVersionId, writerGroup);
 
         /* Read only */
@@ -1610,10 +1579,10 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
     stateContext->parentNodeId = readerGroup->head.identifier;
     stateContext->parentClassifier = UA_NS0ID_READERGROUPTYPE;
     stateContext->elementClassiefier = UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE;
-    UA_ValueCallback stateValueCallback;
-    stateValueCallback.onRead = onRead;
-    stateValueCallback.onWrite = NULL;
-    retVal |= addVariableValueSource(server, stateValueCallback,
+    UA_CallbackValueSource stateCallbackValueSource;
+    stateCallbackValueSource.read = ReadCallback;
+    stateCallbackValueSource.write = NULL;
+    retVal |= setVariableValueSource(server, stateCallbackValueSource,
                                      stateIdNode, stateContext);
 
     if(server->config.pubSubConfig.enableInformationModelMethods) {
@@ -1684,7 +1653,7 @@ updateSecurityGroupProperties(UA_Server *server, UA_NodeId *securityGroupNodeId,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /*AddValueCallback*/
+    /*AddCallbackValueSource*/
     UA_Variant_setScalar(&value, &config->securityPolicyUri, &UA_TYPES[UA_TYPES_STRING]);
     retval = writeObjectProperty(server, *securityGroupNodeId,
                                  UA_QUALIFIEDNAME(0, "SecurityPolicyUri"), value);
@@ -1823,10 +1792,10 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     dataSetWriterIdContext->parentNodeId = dataSetWriter->head.identifier;
     dataSetWriterIdContext->parentClassifier = UA_NS0ID_DATASETWRITERTYPE;
     dataSetWriterIdContext->elementClassiefier = UA_NS0ID_DATASETWRITERTYPE_DATASETWRITERID;
-    UA_ValueCallback valueCallback;
-    valueCallback.onRead = onRead;
-    valueCallback.onWrite = NULL;
-    retVal |= addVariableValueSource(server, valueCallback,
+    UA_CallbackValueSource valueCallback;
+    valueCallback.read = ReadCallback;
+    valueCallback.write = NULL;
+    retVal |= setVariableValueSource(server, valueCallback,
                                      dataSetWriterIdNode, dataSetWriterIdContext);
 
     UA_NodePropertyContext *dataSetWriterStateContext =
@@ -1835,7 +1804,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     dataSetWriterStateContext->parentNodeId = dataSetWriter->head.identifier;
     dataSetWriterStateContext->parentClassifier = UA_NS0ID_DATASETWRITERTYPE;
     dataSetWriterStateContext->elementClassiefier = UA_NS0ID_DATASETWRITERTYPE_STATUS_STATE;
-    retVal |= addVariableValueSource(server, valueCallback,
+    retVal |= setVariableValueSource(server, valueCallback,
                                      stateIdNode, dataSetWriterStateContext);
 
     UA_Variant value;

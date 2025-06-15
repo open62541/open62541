@@ -118,6 +118,36 @@ UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
 /* Builtin Types */
 /*****************/
 
+UA_Boolean
+UA_StatusCode_isBad(UA_StatusCode code) {
+    return ((code >> 30) >= 0x02);
+}
+
+UA_Boolean
+UA_StatusCode_isUncertain(UA_StatusCode code) {
+    return (((code >> 30) == 0x01) && ((code >> 30) < 0x02));
+}
+
+UA_Boolean
+UA_StatusCode_isGood(UA_StatusCode code) {
+    return ((code >> 30) == 0x00);
+}
+
+UA_Boolean
+UA_StatusCode_equalTop(UA_StatusCode s1, UA_StatusCode s2) {
+    return ((s1 & 0xFFFF0000) == (s2 & 0xFFFF0000));
+}
+
+UA_String
+UA_STRING(char *chars) {
+    UA_String s = {0, NULL};
+    if(!chars)
+        return s;
+    s.length = strlen(chars);
+    s.data = (UA_Byte*)chars;
+    return s;
+}
+
 UA_String
 UA_String_fromChars(const char *src) {
     UA_String s; s.length = 0; s.data = NULL;
@@ -253,6 +283,27 @@ UA_String_vformat(UA_String *str, const char *format, va_list args) {
 }
 
 /* QualifiedName */
+UA_Boolean
+UA_QualifiedName_isNull(const UA_QualifiedName *q) {
+    return (q->namespaceIndex == 0 && q->name.length == 0);
+}
+
+UA_QualifiedName
+UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars) {
+    UA_QualifiedName qn;
+    qn.namespaceIndex = nsIndex;
+    qn.name = UA_STRING(chars);
+    return qn;
+}
+
+UA_QualifiedName
+UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+    UA_QualifiedName qn;
+    qn.namespaceIndex = nsIndex;
+    qn.name = UA_STRING_ALLOC(chars);
+    return qn;
+}
+
 static UA_StatusCode
 QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst,
                    const UA_DataType *_) {
@@ -336,6 +387,16 @@ UA_QualifiedName_print(const UA_QualifiedName *qn, UA_String *output) {
 }
 
 /* DateTime */
+UA_Int64
+UA_DateTime_toUnixTime(UA_DateTime date) {
+    return (date - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC;
+}
+
+UA_DateTime
+UA_DateTime_fromUnixTime(UA_Int64 unixDate) {
+    return (unixDate * UA_DATETIME_SEC) + UA_DATETIME_UNIX_EPOCH;
+}
+
 UA_DateTimeStruct
 UA_DateTime_toStruct(UA_DateTime t) {
     /* Divide, then subtract -> avoid underflow. Also, negative numbers are
@@ -581,6 +642,15 @@ UA_Guid_print(const UA_Guid *guid, UA_String *output) {
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_ENABLE_PARSING
+UA_Guid
+UA_GUID(const char *chars) {
+    UA_Guid guid;
+    UA_Guid_parse(&guid, UA_STRING((char*)(uintptr_t)chars));
+    return guid;
+}
+#endif
+
 /* ByteString */
 UA_StatusCode
 UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
@@ -650,6 +720,68 @@ UA_NodeId_isNull(const UA_NodeId *p) {
 UA_Order
 UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2) {
     return nodeIdOrder(n1, n2, NULL);
+}
+
+UA_NodeId
+UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
+    UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_NUMERIC;
+    id.identifier.numeric = identifier;
+    return id;
+}
+
+UA_NodeId
+UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars) {
+    UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_STRING;
+    id.identifier.string = UA_STRING(chars);
+    return id;
+}
+
+UA_NodeId
+UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex,
+                       const char *chars) {
+    UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_STRING;
+    id.identifier.string = UA_STRING_ALLOC(chars);
+    return id;
+}
+
+UA_NodeId
+UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
+    UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_GUID;
+    id.identifier.guid = guid;
+    return id;
+}
+
+UA_NodeId
+UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
+    UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    id.identifier.byteString = UA_BYTESTRING(chars);
+    return id;
+}
+
+UA_NodeId
+UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex,
+                           const char *chars) {
+    UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
+    id.namespaceIndex = nsIndex;
+    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
+    id.identifier.byteString = UA_BYTESTRING_ALLOC(chars);
+    return id;
 }
 
 /* sdbm-hash (http://www.cse.yorku.ca/~oz/hash.html) */
@@ -824,6 +956,14 @@ UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
     return UA_NodeId_printEx(id, output, NULL);
 }
 
+#ifdef UA_ENABLE_PARSING
+UA_NodeId UA_NODEID(const char *chars) {
+    UA_NodeId id;
+    UA_NodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
+    return id;
+}
+#endif
+
 /* ExpandedNodeId */
 static void
 ExpandedNodeId_clear(UA_ExpandedNodeId *p, const UA_DataType *_) {
@@ -839,6 +979,71 @@ ExpandedNodeId_copy(UA_ExpandedNodeId const *src, UA_ExpandedNodeId *dst,
     dst->serverIndex = src->serverIndex;
     return retval;
 }
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = UA_NODEID_NUMERIC(nsIndex, identifier);
+    return id;
+}
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = UA_NODEID_STRING(nsIndex, chars);
+    return id;
+}
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = UA_NODEID_STRING_ALLOC(nsIndex, chars);
+    return id;
+}
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = UA_NODEID_GUID(nsIndex, guid);
+    return id;
+}
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = UA_NODEID_BYTESTRING(nsIndex, chars);
+    return id;
+}
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
+    return id;
+}
+
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId) {
+    UA_ExpandedNodeId id;
+    memset(&id, 0, sizeof(UA_ExpandedNodeId));
+    id.nodeId = nodeId;
+    return id;
+}
+
+#ifdef UA_ENABLE_PARSING
+UA_ExpandedNodeId
+UA_EXPANDEDNODEID(const char *chars) {
+    UA_ExpandedNodeId id;
+    UA_ExpandedNodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
+    return id;
+}
+#endif
 
 UA_Boolean
 UA_ExpandedNodeId_isLocal(const UA_ExpandedNodeId *n) {
@@ -1035,6 +1240,32 @@ UA_ExtensionObject_hasDecodedType(const UA_ExtensionObject *eo,
 }
 
 /* Variant */
+UA_Boolean
+UA_Variant_isEmpty(const UA_Variant *v) {
+    return v->type == NULL;
+}
+
+UA_Boolean
+UA_Variant_isScalar(const UA_Variant *v) {
+    return (v->type != NULL && v->arrayLength == 0 &&
+            v->data > UA_EMPTY_ARRAY_SENTINEL);
+}
+
+UA_Boolean
+UA_Variant_hasScalarType(const UA_Variant *v, const UA_DataType *type) {
+    return UA_Variant_isScalar(v) && type == v->type;
+}
+
+UA_Boolean
+UA_Variant_isArray(const UA_Variant *v) {
+    return (v->type != NULL && !UA_Variant_isScalar(v));
+}
+
+UA_Boolean
+UA_Variant_hasArrayType(const UA_Variant *v, const UA_DataType *type) {
+    return (!UA_Variant_isScalar(v)) && type == v->type;
+}
+
 static void
 Variant_clear(UA_Variant *p, const UA_DataType *_) {
     /* The content is "borrowed" */
@@ -1462,6 +1693,22 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void * UA_RESTRICT array,
 }
 
 /* LocalizedText */
+UA_LocalizedText
+UA_LOCALIZEDTEXT(char *locale, char *text) {
+    UA_LocalizedText lt;
+    lt.locale = UA_STRING(locale);
+    lt.text = UA_STRING(text);
+    return lt;
+}
+
+UA_LocalizedText
+UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text) {
+    UA_LocalizedText lt;
+    lt.locale = UA_STRING_ALLOC(locale);
+    lt.text = UA_STRING_ALLOC(text);
+    return lt;
+}
+
 static void
 LocalizedText_clear(UA_LocalizedText *p, const UA_DataType *_) {
     String_clear(&p->locale, NULL);
@@ -1494,8 +1741,8 @@ DataValue_copy(UA_DataValue const *src, UA_DataValue *dst,
 }
 
 UA_StatusCode
-UA_DataValue_copyVariantRange(const UA_DataValue *src, UA_DataValue * UA_RESTRICT dst,
-                              const UA_NumericRange range) {
+UA_DataValue_copyRange(const UA_DataValue *src, UA_DataValue * UA_RESTRICT dst,
+                       const UA_NumericRange range) {
     memcpy(dst, src, sizeof(UA_DataValue));
     UA_Variant_init(&dst->value);
     UA_StatusCode retval = UA_Variant_copyRange(&src->value, &dst->value, range);
@@ -1546,6 +1793,10 @@ void *
 UA_new(const UA_DataType *type) {
     void *p = UA_calloc(1, type->memSize);
     return p;
+}
+
+void UA_init(void *p, const UA_DataType *type) {
+    memset(p, 0, type->memSize);
 }
 
 static UA_StatusCode
@@ -2266,6 +2517,11 @@ UA_Order UA_order(const void *p1, const void *p2, const UA_DataType *type) {
     return orderJumpTable[type->typeKind](p1, p2, type);
 }
 
+UA_Boolean
+UA_equal(const void *p1, const void *p2, const UA_DataType *type) {
+    return (UA_order(p1, p2, type) == UA_ORDER_EQ);
+}
+
 /******************/
 /* Array Handling */
 /******************/
@@ -2559,6 +2815,14 @@ UA_NumericRange_parse(UA_NumericRange *range, const UA_String str) {
     }
 
     return retval;
+}
+
+UA_NumericRange
+UA_NUMERICRANGE(const char *s) {
+    UA_NumericRange nr;
+    memset(&nr, 0, sizeof(nr));
+    UA_NumericRange_parse(&nr, UA_STRING((char*)(uintptr_t)s));
+    return nr;
 }
 
 /*********************/
