@@ -440,13 +440,13 @@ typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
                                     void *responseOperation);
 
 UA_StatusCode
-UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
-                                   UA_ServiceOperation operationCallback,
-                                   const void *context,
-                                   const size_t *requestOperations,
-                                   const UA_DataType *requestOperationsType,
-                                   size_t *responseOperations,
-                                   const UA_DataType *responseOperationsType)
+allocProcessServiceOperations(UA_Server *server, UA_Session *session,
+                              UA_ServiceOperation operationCallback,
+                              const void *context,
+                              const size_t *requestOperations,
+                              const UA_DataType *requestOperationsType,
+                              size_t *responseOperations,
+                              const UA_DataType *responseOperationsType)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /*********************/
