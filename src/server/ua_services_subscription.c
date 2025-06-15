@@ -223,13 +223,11 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
 
     UA_Boolean publishingEnabled = request->publishingEnabled; /* request is const */
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_SetPublishingMode,
-                                           &publishingEnabled,
-                                           &request->subscriptionIdsSize,
-                                           &UA_TYPES[UA_TYPES_UINT32],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_SetPublishingMode,
+                                      &publishingEnabled, &request->subscriptionIdsSize,
+                                      &UA_TYPES[UA_TYPES_UINT32], &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
 UA_StatusCode
@@ -372,10 +370,11 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_DeleteSubscription, NULL,
-                  &request->subscriptionIdsSize, &UA_TYPES[UA_TYPES_UINT32],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_DeleteSubscription,
+                                      NULL, &request->subscriptionIdsSize,
+                                      &UA_TYPES[UA_TYPES_UINT32], &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_STATUSCODE]);
 }
 
 void
@@ -606,11 +605,13 @@ void Service_TransferSubscriptions(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_TransferSubscription,
-                  &request->sendInitialValues,
-                  &request->subscriptionIdsSize, &UA_TYPES[UA_TYPES_UINT32],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_TRANSFERRESULT]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_TransferSubscription,
+                                      &request->sendInitialValues,
+                                      &request->subscriptionIdsSize,
+                                      &UA_TYPES[UA_TYPES_UINT32],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_TRANSFERRESULT]);
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
