@@ -29,7 +29,7 @@ static void setupEL(void) {
     cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
     /* Set up the TCP EventLoop parameters */
     UA_UInt32 maxSockets = 2; /* Max number of server sockets (default: 0 -> unbounded) */
-    UA_KeyValueMap_setScalar(&cm->eventSource.params, UA_QUALIFIEDNAME(0, "max-sockets"),
+    UA_KeyValueMap_setScalar(&cm->eventSource.params, UA_QUALIFIEDNAME(0, "max-connections"),
                              (void *)&maxSockets, &UA_TYPES[UA_TYPES_UINT32]);
     el->registerEventSource(el, &cm->eventSource);
 #else
@@ -131,18 +131,21 @@ START_TEST(connectTCP) {
     UA_UInt16 port = 4840;
     UA_Boolean listen = true;
     UA_String host = UA_STRING("localhost");
+    UA_Boolean reuseaddr = true;
 
-    UA_KeyValuePair params[3];
+    UA_KeyValuePair params[4];
     params[0].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
     params[1].key = UA_QUALIFIEDNAME(0, "listen");
     UA_Variant_setScalar(&params[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
     params[2].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&params[2].value, &host, &UA_TYPES[UA_TYPES_STRING]);
+    params[3].key = UA_QUALIFIEDNAME(0, "reuse");
+    UA_Variant_setScalar(&params[3].value, &reuseaddr, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     UA_KeyValueMap paramsMap;
     paramsMap.map = params;
-    paramsMap.mapSize = 3;
+    paramsMap.mapSize = 4;
 
     connCount = 0;
 
@@ -153,7 +156,7 @@ START_TEST(connectTCP) {
 #if !defined(UA_ARCHITECTURE_LWIP)
     /* Set up the TCP EventLoop parameters */
     UA_UInt32 maxSockets = listenSockets + 1; /* Max number of server sockets (default: 0 -> unbounded) */
-    UA_KeyValueMap_setScalar(&cm->eventSource.params, UA_QUALIFIEDNAME(0, "max-sockets"),
+    UA_KeyValueMap_setScalar(&cm->eventSource.params, UA_QUALIFIEDNAME(0, "max-connections"),
                              (void *)&maxSockets, &UA_TYPES[UA_TYPES_UINT32]);
 #endif
 
@@ -201,7 +204,7 @@ START_TEST(connectTCP) {
     retval = cm->closeConnection(cm, clientId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(connCount, listenSockets + 2);
-    for(size_t i = 0; i < 2; i++) {
+    for(size_t i = 0; i < 10; i++) {
         UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }

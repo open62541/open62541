@@ -496,8 +496,9 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  *
  * **Configuration parameters for the ConnectionManager (set before start)**
  *
- * 0:max-sockets [uint32]
- *    max sockets (default: 0 -> unbounded).
+ * 0:max-connections [uint32]
+ *    max connections (default: 0 -> unbounded).
+ *    The server sockets get deactivated if the limit is reached.
  *
  * 0:recv-bufsize [uint32]
  *    Size of the buffer that is statically allocated for receiving messages

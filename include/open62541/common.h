@@ -207,7 +207,9 @@ typedef enum {
                                       fully established */
     UA_CONNECTIONSTATE_ESTABLISHED,/* The socket is open and the connection
                                     * configured */
-    UA_CONNECTIONSTATE_CLOSING     /* The socket is closing down */
+    UA_CONNECTIONSTATE_CLOSING,    /* The socket is closing down */
+    UA_CONNECTIONSTATE_BLOCKING,   /* Listening disabled (e.g. max connections reached) */
+    UA_CONNECTIONSTATE_REOPENING   /* Listening resumed after being blocked */
 } UA_ConnectionState;
 
 
