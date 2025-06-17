@@ -113,9 +113,9 @@ class Node(object):
                 if x.localName == "BrowseName":
                     self.browseName = QualifiedName(x.firstChild.data)
                 elif x.localName == "DisplayName":
-                    self.displayName = LocalizedText(x.firstChild.data)
+                    self.displayName = LocalizedText(x)
                 elif x.localName == "Description":
-                    self.description = LocalizedText(x.firstChild.data)
+                    self.description = LocalizedText(x)
                 elif x.localName == "WriteMask":
                     self.writeMask = int(unicode(x.firstChild.data))
                 elif x.localName == "UserWriteMask":
@@ -201,15 +201,13 @@ class ReferenceTypeNode(Node):
         for (at, av) in xmlelement.attributes.items():
             if at == "Symmetric":
                 self.symmetric = "false" not in av.lower()
-            elif at == "InverseName":
-                self.inverseName = str(av)
             elif at == "IsAbstract":
                 self.isAbstract = "false" not in av.lower()
 
         for x in xmlelement.childNodes:
             if x.nodeType == x.ELEMENT_NODE:
-                if x.localName == "InverseName" and x.firstChild:
-                    self.inverseName = str(unicode(x.firstChild.data))
+                if x.localName == "InverseName":
+                    self.inverseName = LocalizedText(x)
 
 class ObjectNode(Node):
     def __init__(self, xmlelement=None):
