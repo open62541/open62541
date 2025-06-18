@@ -101,7 +101,6 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri) {
     return NULL;
 }
 
-#ifdef UA_ENABLE_ENCRYPTION
 static UA_SecurityPolicy *
 getAuthSecurityPolicy(UA_Client *client, UA_String policyUri) {
     for(size_t i = 0; i < client->config.authSecurityPoliciesSize; i++) {
@@ -110,7 +109,6 @@ getAuthSecurityPolicy(UA_Client *client, UA_String policyUri) {
     }
     return NULL;
 }
-#endif
 
 /* The endpoint is unconfigured if the description is all zeroed-out */
 static UA_Boolean
@@ -943,13 +941,20 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint) {
     for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
         /* Is the SecurityPolicy available? */
         UA_UserTokenPolicy *tokenPolicy = &endpoint->userIdentityTokens[j];
-        if(!getSecurityPolicy(client, tokenPolicy->securityPolicyUri))
-            continue;
+
+        UA_String tokenPolicyUri = tokenPolicy->securityPolicyUri;
+        if(UA_String_isEmpty(&tokenPolicyUri))
+            tokenPolicyUri = endpoint->securityPolicyUri;
+
+        const UA_String none = UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
+        /* activateSessionAsync() handles the None case separately without accessing authSecurityPolicies */
+        if(!UA_String_equal(&none, &tokenPolicyUri) && !getAuthSecurityPolicy(client, tokenPolicyUri))
+             continue;
 
         /* Required SecurityPolicyUri in the configuration? */
         if(!UA_String_isEmpty(&client->config.authSecurityPolicyUri) &&
            !UA_String_equal(&client->config.authSecurityPolicyUri,
-                            &tokenPolicy->securityPolicyUri))
+                            &tokenPolicyUri))
             continue;
 
         /* Match (entire) UserTokenPolicy if defined in the configuration? */
