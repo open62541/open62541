@@ -780,6 +780,10 @@ activateSessionAsync(UA_Client *client) {
     UA_SecurityPolicy *utsp = NULL;
     UA_SecureChannel *channel = &client->channel;
 
+    if(request.userIdentityToken.content.decoded.type ==
+       &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN])
+        goto utp_done;
+
     /* Does the UserTokenPolicy have encryption? If not specifically defined in
      * the UserTokenPolicy, then the SecurityPolicy of the underlying endpoint
      * (SecureChannel) is used. */
@@ -787,9 +791,7 @@ activateSessionAsync(UA_Client *client) {
         utp->securityPolicyUri : client->endpoint.securityPolicyUri;
     const UA_String none = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     if(UA_String_equal(&none, &tokenSecurityPolicyUri)) {
-        if(UA_String_equal(&none, &client->channel.securityPolicy->policyUri) &&
-           request.userIdentityToken.content.decoded.type !=
-           &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
+        if(UA_String_equal(&none, &client->channel.securityPolicy->policyUri)) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "!!! Warning !!! AuthenticationToken is transmitted "
                            "without encryption");
@@ -946,10 +948,15 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint) {
         if(UA_String_isEmpty(&tokenPolicyUri))
             tokenPolicyUri = endpoint->securityPolicyUri;
 
-        const UA_String none = UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
-        /* activateSessionAsync() handles the None case separately without accessing authSecurityPolicies */
-        if(!UA_String_equal(&none, &tokenPolicyUri) && !getAuthSecurityPolicy(client, tokenPolicyUri))
-             continue;
+        /* Ignore missing auth security policy for anonymous tokens */
+        if(client->config.userIdentityToken.content.decoded.type &&
+           client->config.userIdentityToken.content.decoded.type !=
+               &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
+            const UA_String none = UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
+            /* activateSessionAsync() handles the None case separately without accessing authSecurityPolicies */
+            if(!UA_String_equal(&none, &tokenPolicyUri) && !getAuthSecurityPolicy(client, tokenPolicyUri))
+                continue;
+        }
 
         /* Required SecurityPolicyUri in the configuration? */
         if(!UA_String_isEmpty(&client->config.authSecurityPolicyUri) &&
