@@ -224,7 +224,7 @@ END_TEST
  * #None SecureChannels. To be compatible with them, only check if the
  * certificate matches IF it gets sent in th asymHeader of the OPN message. */
 START_TEST(SecureChannel_serverCert) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -263,7 +263,7 @@ dateTime_nowMonotonicWithOffset(UA_EventLoop *el) {
 
 /* Simulate a deviation between the "wallclock" and the monotonic clock */
 START_TEST(SecureChannel_differentMonotonicClock) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
