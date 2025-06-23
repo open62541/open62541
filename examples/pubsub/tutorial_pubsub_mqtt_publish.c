@@ -386,7 +386,7 @@ addDataSetWriter(UA_Server *server, char *topic) {
  *     :alt: OPC UA PubSub communication in wireshark
  *
  * The open62541 subscriber API will be released later. If you want to process
- * the the datagrams, take a look on the ua_network_pubsub_networkmessage.c
+ * the datagrams, take a look on the ua_network_pubsub_networkmessage.c
  * which already contains the decoding code for UADP messages.
  *
  * It follows the main server code, making use of the above definitions. */
