@@ -634,16 +634,26 @@ class LocalizedText(Value):
         #          <Locale>xx_XX</Locale>
         #          <Text>TextText</Text>
         #        <LocalizedText> or </AliasName>
+        # OR <LocalizedText Locale="en">Text</LocalizedText>
+
         if not isinstance(xmlvalue, dom.Element):
             self.text = xmlvalue
             return
         self.checkXML(xmlvalue)
-        tmp = xmlvalue.getElementsByTagName("Locale")
-        if len(tmp) > 0 and tmp[0].firstChild != None:
-            self.locale = tmp[0].firstChild.data.strip(' \t\n\r')
-        tmp = xmlvalue.getElementsByTagName("Text")
-        if len(tmp) > 0 and tmp[0].firstChild != None:
-            self.text = tmp[0].firstChild.data.strip(' \t\n\r')
+        tmp = xmlvalue.getAttribute("Locale")
+        if tmp != "":
+            self.locale = tmp
+        else:
+            tmp = xmlvalue.getElementsByTagName("Locale")
+            if len(tmp) > 0 and tmp[0].firstChild != None:
+                self.locale = tmp[0].firstChild.data.strip(' \t\n\r')
+        tmp = xmlvalue.firstChild
+        if tmp and tmp.nodeType == dom.Element.TEXT_NODE:
+            self.text = tmp.data.strip(' \t\n\r')
+        else:
+            tmp = xmlvalue.getElementsByTagName("Text")
+            if len(tmp) > 0 and tmp[0].firstChild != None:
+                self.text = tmp[0].firstChild.data.strip(' \t\n\r')
 
     def __str__(self):
         if self.locale is None and self.text is None:
