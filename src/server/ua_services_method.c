@@ -350,11 +350,9 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
             checkAdjustArguments(server, session, inputArguments, request->inputArgumentsSize,
                                  mutableInputArgs, result->inputArgumentResults);
         UA_NODESTORE_RELEASE(server, (const UA_Node*)inputArguments);
-    } else {
-        if(request->inputArgumentsSize > 0) {
-            result->statusCode = UA_STATUSCODE_BADTOOMANYARGUMENTS;
-            return;
-        }
+    } else if(request->inputArgumentsSize > 0) {
+        result->statusCode = UA_STATUSCODE_BADTOOMANYARGUMENTS;
+        return;
     }
 
     /* Return inputArgumentResults only for BADINVALIDARGUMENT */
