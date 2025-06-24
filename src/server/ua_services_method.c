@@ -407,11 +407,10 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
 #if UA_MULTITHREADING >= 100
 
-static void
+static UA_Boolean
 Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
-                          UA_UInt32 requestHandle, size_t opIndex,
-                          UA_CallMethodRequest *opRequest, UA_CallMethodResult *opResult,
-                          UA_AsyncResponse **ar) {
+                          UA_UInt32 requestHandle, const UA_CallMethodRequest *opRequest,
+                          UA_CallMethodResult *opResult) {
     /* Get the method node. We only need the nodeClass and executable attribute.
      * Take all forward hasProperty references to get the input/output argument
      * definition variables. */
@@ -423,7 +422,7 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
                                    UA_BROWSEDIRECTION_FORWARD);
     if(!method) {
         opResult->statusCode = UA_STATUSCODE_BADMETHODINVALID;
-        return;
+        return true;
     }
 
     /* Get the object node. We only need the NodeClass attribute. But take all
@@ -438,37 +437,22 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
     if(!object) {
         opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         UA_NODESTORE_RELEASE(server, method);
-        return;
+        return true;
     }
 
-    /* Synchronous execution */
-    if(!method->methodNode.async) {
+    /* Synchronous execution. Otherwise the async operation is put into the
+     * queue by the calling method */
+    if(!method->methodNode.async)
         callWithMethodAndObject(server, session, opRequest, opResult,
                                 &method->methodNode, &object->objectNode);
-        goto cleanup;
-    }
 
-    /* <-- Async method call --> */
+    UA_Boolean done = !method->methodNode.async;
 
-    /* No AsyncResponse allocated so far */
-    if(!*ar) {
-        opResult->statusCode =
-            UA_AsyncManager_createAsyncResponse(&server->asyncManager, server,
-                            &session->sessionId, requestId, requestHandle,
-                            UA_ASYNCOPERATIONTYPE_CALL, ar);
-        if(opResult->statusCode != UA_STATUSCODE_GOOD)
-            goto cleanup;
-    }
-
-    /* Create the Async Request to be taken by workers */
-    opResult->statusCode =
-        UA_AsyncManager_createAsyncOp(&server->asyncManager,
-                                      server, *ar, opIndex, opRequest);
-
- cleanup:
     /* Release the method and object node */
     UA_NODESTORE_RELEASE(server, method);
     UA_NODESTORE_RELEASE(server, object);
+
+    return done;
 }
 
 void
@@ -482,27 +466,18 @@ Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
         return;
     }
 
-    UA_AsyncResponse *ar = NULL;
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperationsAsync(server, session, requestId,
-                  request->requestHeader.requestHandle,
-                  (UA_AsyncServiceOperation)Operation_CallMethodAsync,
-                  &request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT], &ar);
+        allocProcessServiceOperations_async(server, session, requestId,
+                                            request->requestHeader.requestHandle,
+                                            (UA_AsyncServiceOperation)Operation_CallMethodAsync,
+                                            &request->methodsToCallSize,
+                                            &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
+                                            &response->resultsSize,
+                                            &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
 
-    if(ar) {
-        if(ar->opCountdown > 0) {
-            /* Move all results to the AsyncResponse. The async operation
-             * results will be overwritten when the workers return results. */
-            ar->response.callResponse = *response;
-            UA_CallResponse_init(response);
-            *finished = false;
-        } else {
-            /* If there is a new AsyncResponse, ensure it has at least one
-             * pending operation */
-            UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
-        }
-    }
+    /* Signal that this is an async operation. Don't send out the response right away. */
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY)
+        *finished = false;
 }
 #endif
 
