@@ -24,20 +24,34 @@ UA_Boolean running;
 THREAD_HANDLE server_thread;
 static UA_Server *server;
 static size_t clientCounter;
+static UA_UInt64 lastTimedCallback;
+
+static void
+asyncCall(UA_Server *server, void *data) {
+    UA_Variant *out = (UA_Variant*)data;
+    UA_Server_setAsyncCallMethodResult(server, UA_STATUSCODE_GOOD, out);
+}
 
 static UA_StatusCode
-methodCallback(UA_Server *serverArg,
-               const UA_NodeId *sessionId, void *sessionHandle,
-               const UA_NodeId *methodId, void *methodContext,
-               const UA_NodeId *objectId, void *objectContext,
-               size_t inputSize, const UA_Variant *input,
-               size_t outputSize, UA_Variant *output) {
-    UA_NodeId asyncId = UA_NODEID_STRING(1, "asyncMethod");
-    if(UA_NodeId_equal(methodId, &asyncId))
-        ck_assert(server->serviceMutex.count == 0);
-    else
-        ck_assert(server->serviceMutex.count > 0);
+methodCallback_sync(UA_Server *serverArg,
+                    const UA_NodeId *sessionId, void *sessionHandle,
+                    const UA_NodeId *methodId, void *methodContext,
+                    const UA_NodeId *objectId, void *objectContext,
+                    size_t inputSize, const UA_Variant *input,
+                    size_t outputSize, UA_Variant *output) {
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+methodCallback_async(UA_Server *server,
+                     const UA_NodeId *sessionId, void *sessionHandle,
+                     const UA_NodeId *methodId, void *methodContext,
+                     const UA_NodeId *objectId, void *objectContext,
+                     size_t inputSize, const UA_Variant *input,
+                     size_t outputSize, UA_Variant *output) {
+    UA_DateTime callTime = UA_DateTime_now_fake(NULL) + UA_DATETIME_SEC;
+    UA_Server_addTimedCallback(server, asyncCall, output, callTime, &lastTimedCallback);
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
 static void
@@ -71,7 +85,7 @@ static void setup(void) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "method"),
-                            methodAttr, &methodCallback,
+                            methodAttr, &methodCallback_sync,
                             0, NULL, 0, NULL, NULL, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
@@ -80,10 +94,8 @@ static void setup(void) {
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "asyncMethod"),
-                            methodAttr, &methodCallback,
+                            methodAttr, &methodCallback_async,
                             0, NULL, 0, NULL, NULL, NULL);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    res = UA_Server_setMethodNodeAsync(server, UA_NODEID_STRING(1, "asyncMethod"), true);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
     UA_Server_run_startup(server);
@@ -127,22 +139,7 @@ START_TEST(Async_call) {
     }
     ck_assert_uint_eq(clientCounter, 1);
 
-    /* Process the async method call for the server */
-    UA_AsyncOperationType aot;
-    const UA_AsyncOperationRequest *request;
-    void *context = NULL;
-    UA_DateTime timeout = 0;
-    UA_Boolean haveAsync =
-        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout);
-    ck_assert_uint_eq(haveAsync, true);
-    UA_AsyncOperationResponse response;
-    UA_CallMethodResult_init(&response.callMethodResult);
-    UA_Server_setAsyncOperationResult(server, &response, context);
-
     /* Iterate and pick up the async response to be sent out */
-    UA_fakeSleep(1000);
-    UA_Server_run_iterate(server, true);
-
     UA_fakeSleep(1000);
     UA_Server_run_iterate(server, true);
 
@@ -179,6 +176,10 @@ START_TEST(Async_timeout) {
     UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(clientCounter, 0);
 
+    /* Remove the timed callback. Never answer the method call until we run into
+     * a timeout */
+    UA_Server_removeCallback(server, lastTimedCallback);
+
     UA_fakeSleep((UA_UInt32)(1000 * 1.5));
 
     /* We expect to receive the timeout not yet*/
@@ -192,6 +193,39 @@ START_TEST(Async_timeout) {
     UA_Server_run_iterate(server, true);
     UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(clientCounter, 1);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Async_forget) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Stop the server thread. Iterate manually from now on */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    /* Call async method, then the sync method.
+     * The sync method returns first. */
+    retval = UA_Client_call_async(client,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_STRING(1, "asyncMethod"),
+                                  0, NULL, clientReceiveCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* We expect to receive the timeout not yet*/
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(clientCounter, 0);
+
+    /* Remove the timed callback. Never answer the method call.
+     * The server should clean it up properly during shutdown. */
+    UA_Server_removeCallback(server, lastTimedCallback);
 
     running = true;
     THREAD_CREATE(server_thread, serverloop);
@@ -218,7 +252,6 @@ START_TEST(Async_cancel) {
     UA_UInt32 cancelCount = 0;
     UA_Client_cancelByRequestId(client, reqId, &cancelCount);
     ck_assert_uint_eq(cancelCount, 1);
-
 
     /* We expect to receive the cancelled response */
     while(clientCounter != 1) {
@@ -264,52 +297,6 @@ START_TEST(Async_cancel_multiple) {
     UA_Client_delete(client);
 } END_TEST
 
-/* Force a timeout when the operation is checked out with the worker */
-START_TEST(Async_timeout_worker) {
-    UA_Client *client = UA_Client_newForUnitTest();
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    /* Stop the server thread. Iterate manually from now on */
-    running = false;
-    THREAD_JOIN(server_thread);
-
-    /* Call async method, then the sync method.
-     * The sync method returns first. */
-    retval = UA_Client_call_async(client,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                  UA_NODEID_STRING(1, "asyncMethod"),
-                                  0, NULL, clientReceiveCallback, NULL, NULL);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Server_run_iterate(server, true);
-
-    /* Process the async method call for the server */
-    UA_AsyncOperationType aot;
-    const UA_AsyncOperationRequest *request;
-    void *context = NULL;
-    UA_DateTime timeout = 0;
-    UA_Boolean haveAsync =
-        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout);
-    ck_assert_uint_eq(haveAsync, true);
-    UA_AsyncOperationResponse response;
-    UA_CallMethodResult_init(&response.callMethodResult);
-
-    /* Force a timeout */
-    UA_fakeSleep(2500);
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(clientCounter, 1);
-
-    /* Return the late response */
-    UA_Server_setAsyncOperationResult(server, &response, context);
-
-    running = true;
-    THREAD_CREATE(server_thread, serverloop);
-
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-} END_TEST
-
 static Suite* method_async_suite(void) {
     /* set up unit test for internal data structures */
     Suite *s = suite_create("Async Method");
@@ -318,9 +305,9 @@ static Suite* method_async_suite(void) {
     tcase_add_checked_fixture(tc_manager, setup, teardown);
     tcase_add_test(tc_manager, Async_call);
     tcase_add_test(tc_manager, Async_timeout);
+    tcase_add_test(tc_manager, Async_forget);
     tcase_add_test(tc_manager, Async_cancel);
     tcase_add_test(tc_manager, Async_cancel_multiple);
-    tcase_add_test(tc_manager, Async_timeout_worker);
     suite_add_tcase(s, tc_manager);
 
     return s;
