@@ -31,35 +31,16 @@
  * by the SDK, so that we don't have to verify the arguments in the callback. */
 
 #include <open62541/client_config_default.h>
-#include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
+#include <open62541/plugin/log.h>
 
-#include <signal.h>
-#include <stdlib.h>
-#include "common.h"
+static void
+asyncCall(UA_Server *server, void *data) {
+    UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_USERLAND, "call");
 
-#ifndef UA_ARCHITECTURE_WIN32
-#include <pthread.h>
-#define THREAD_HANDLE pthread_t
-#define THREAD_CREATE(handle, callback) do {            \
-        sigset_t set;                                   \
-        sigemptyset(&set);                              \
-        sigaddset(&set, SIGINT);                        \
-        pthread_sigmask(SIG_BLOCK, &set, NULL);         \
-        pthread_create(&handle, NULL, callback, &set);  \
-    } while(0)
-#define THREAD_JOIN(handle) pthread_join(handle, NULL)
-#define THREAD_CALLBACK(name) static void * name(void *_)
-#else
-#include <windows.h>
-#define THREAD_HANDLE HANDLE
-#define THREAD_CREATE(handle, callback) { handle = CreateThread( NULL, 0, callback, NULL, 0, NULL); }
-#define THREAD_JOIN(handle) WaitForSingleObject(handle, INFINITE)
-#define THREAD_CALLBACK(name) static DWORD WINAPI name( LPVOID lpParam )
-#endif
-
-static UA_Server* globalServer;
-static volatile UA_Boolean running = true;
+    UA_Variant *out = (UA_Variant*)data;
+    UA_Server_setAsyncCallMethodResult(server, UA_STATUSCODE_GOOD, out);
+}
 
 static UA_StatusCode
 helloWorldMethodCallback1(UA_Server *server,
@@ -68,26 +49,25 @@ helloWorldMethodCallback1(UA_Server *server,
                          const UA_NodeId *objectId, void *objectContext,
                          size_t inputSize, const UA_Variant *input,
                          size_t outputSize, UA_Variant *output) {
+    UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_USERLAND, "async");
+
+    /* Prepare the output */
     UA_String *inputStr = (UA_String*)input->data;
-    UA_String tmp = UA_STRING_ALLOC("Hello ");
-    if(inputStr->length > 0) {
-        tmp.data = (UA_Byte *)UA_realloc(tmp.data, tmp.length + inputStr->length);
-        memcpy(&tmp.data[tmp.length], inputStr->data, inputStr->length);
-        tmp.length += inputStr->length;
-    }
-    UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
-    char* test = (char*)calloc(1,tmp.length+1);
-    memcpy(test, tmp.data, tmp.length);
-    UA_String_clear(&tmp);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "'Hello World 1 (async)' was called and will take 3 seconds");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "    Data 1: %s", test);
-    free(test);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "'Hello World 1 (async)' has ended");
-    return UA_STATUSCODE_GOOD;
+    UA_String out = UA_STRING_NULL;
+    UA_String_format(&out, "Hello %S", *inputStr);
+    UA_Variant_setScalarCopy(output, &out, &UA_TYPES[UA_TYPES_STRING]);
+    UA_String_clear(&out);
+
+    /* Return the output with a five second delay */
+    UA_DateTime callTime = UA_DateTime_nowMonotonic() + (2 * UA_DATETIME_SEC);
+    UA_Server_addTimedCallback(server, asyncCall, output, callTime, NULL);
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
-static void
-addHelloWorldMethod1(UA_Server *server) {
+int main(void) {
+    UA_Server *server = UA_Server_new();
+
+    /* Add method */
     UA_Argument inputArgument;
     UA_Argument_init(&inputArgument);
     inputArgument.description = UA_LOCALIZEDTEXT("en-US", "A String");
@@ -112,116 +92,8 @@ addHelloWorldMethod1(UA_Server *server) {
                             UA_QUALIFIEDNAME(1, "hello world"),
                             helloAttr, &helloWorldMethodCallback1,
                             1, &inputArgument, 1, &outputArgument, NULL, NULL);
-    /* Get the method node */
-    UA_NodeId id = UA_NODEID_NUMERIC(1, 62541);
-    UA_Server_setMethodNodeAsync(server, id, UA_TRUE);
-}
 
-static UA_StatusCode
-helloWorldMethodCallback2(UA_Server *server,
-    const UA_NodeId *sessionId, void *sessionHandle,
-    const UA_NodeId *methodId, void *methodContext,
-    const UA_NodeId *objectId, void *objectContext,
-    size_t inputSize, const UA_Variant *input,
-    size_t outputSize, UA_Variant *output) {
-    UA_String *inputStr = (UA_String*)input->data;
-    UA_String tmp = UA_STRING_ALLOC("Hello ");
-    if (inputStr->length > 0) {
-        tmp.data = (UA_Byte *)UA_realloc(tmp.data, tmp.length + inputStr->length);
-        memcpy(&tmp.data[tmp.length], inputStr->data, inputStr->length);
-        tmp.length += inputStr->length;
-    }
-    UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
-    char* test = (char*)calloc(1, tmp.length + 1);
-    memcpy(test, tmp.data, tmp.length);
-    UA_String_clear(&tmp);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "'Hello World 2 (async)' was called and will take 1 seconds");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "    Data 2: %s", test);
-    free(test);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "'Hello World 2 (async)' has ended");
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-addHelloWorldMethod2(UA_Server *server) {
-    UA_Argument inputArgument;
-    UA_Argument_init(&inputArgument);
-    inputArgument.description = UA_LOCALIZEDTEXT("en-US", "A String");
-    inputArgument.name = UA_STRING("MyInput");
-    inputArgument.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
-    inputArgument.valueRank = UA_VALUERANK_SCALAR;
-
-    UA_Argument outputArgument;
-    UA_Argument_init(&outputArgument);
-    outputArgument.description = UA_LOCALIZEDTEXT("en-US", "A String");
-    outputArgument.name = UA_STRING("MyOutput");
-    outputArgument.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
-    outputArgument.valueRank = UA_VALUERANK_SCALAR;
-
-    UA_MethodAttributes helloAttr = UA_MethodAttributes_default;
-    helloAttr.description = UA_LOCALIZEDTEXT("en-US", "Say `Hello World` sync");
-    helloAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Hello World sync");
-    helloAttr.executable = true;
-    helloAttr.userExecutable = true;
-    UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, 62542),
-                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
-                            UA_QUALIFIEDNAME(1, "hello world 2"),
-                            helloAttr, &helloWorldMethodCallback2,
-                            1, &inputArgument, 1, &outputArgument, NULL, NULL);
-    /* Get the method node */
-    UA_NodeId id = UA_NODEID_NUMERIC(1, 62542);
-    UA_Server_setMethodNodeAsync(server, id, UA_TRUE);
-}
-
-THREAD_CALLBACK(ThreadWorker) {
-    while(running) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                    "Try to dequeue an async operation");
-        const UA_AsyncOperationRequest* request = NULL;
-        void *context = NULL;
-        UA_AsyncOperationType type;
-        if(UA_Server_getAsyncOperationNonBlocking(globalServer, &type, &request, &context, NULL) == true) {
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Got entry: OKAY");
-            UA_CallMethodResult response = UA_Server_call(globalServer, &request->callMethodRequest);
-            UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*)&response,
-                                              context);
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Call done: OKAY");
-            UA_CallMethodResult_clear(&response);
-        } else {
-            /* not a good style, but done for simplicity :-) */
-            sleep_ms(100);
-        }
-    }
-    return 0;
-}
-
-/* This callback will be called when a new entry is added to the Callrequest queue */
-static void
-TestCallback(UA_Server *server) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Dispatched an async method");
-}
-
-int main(void) {
-    globalServer = UA_Server_new();
-
-    /* Set the NotifyCallback */
-    UA_ServerConfig *config = UA_Server_getConfig(globalServer);
-    config->asyncOperationNotifyCallback = TestCallback;
-
-    /* Start the Worker-Thread */
-    THREAD_HANDLE hThread;
-    THREAD_CREATE(hThread, ThreadWorker);
-
-    /* Add methods */
-    addHelloWorldMethod1(globalServer);
-    addHelloWorldMethod2(globalServer);
-
-    UA_Server_runUntilInterrupt(globalServer);
-
-    /* Shutdown the thread */
-    running = false;
-    THREAD_JOIN(hThread);
-
-    UA_Server_delete(globalServer);
+    UA_Server_runUntilInterrupt(server);
+    UA_Server_delete(server);
     return 0;
 }
