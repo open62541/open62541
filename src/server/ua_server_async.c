@@ -11,13 +11,6 @@
 #if UA_MULTITHREADING >= 100
 
 static void
-UA_AsyncOperation_delete(UA_AsyncOperation *ar) {
-    UA_CallMethodRequest_clear(&ar->request);
-    UA_CallMethodResult_clear(&ar->response);
-    UA_free(ar);
-}
-
-static void
 sendAsyncResponse(UA_Server *server, UA_AsyncManager *am,
                   UA_AsyncResponse *ar) {
     UA_assert(ar->opCountdown == 0);
@@ -84,17 +77,12 @@ UA_AsyncManager_sendAsyncResponses(void *s, void *a) {
 static void
 integrateResult(UA_Server *server, UA_AsyncManager *am,
                 UA_AsyncOperation *ao) {
-    /* Get the async response */
     UA_AsyncResponse *ar = ao->parent;
     ar->opCountdown -= 1;
-
-    /* Move the UA_CallMethodResult to UA_CallResponse */
-    ar->response.callResponse.results[ao->index] = ao->response;
-    UA_CallMethodResult_init(&ao->response);
-    UA_AsyncOperation_delete(ao);
-
-    /* Reduce the number of overall outstanding async ops */
     am->opsCount--;
+
+    /* Delete the request information embedded in the ao */
+    UA_CallMethodRequest_clear(&ao->request);
 
     /* Trigger the main server thread to send out responses */
     if(ar->opCountdown == 0 && am->dc.callback == NULL) {
@@ -138,7 +126,7 @@ checkTimeouts(UA_Server *server, void *_) {
                        "Operation was removed due to a timeout");
 
         /* Mark operation as timed out integrate */
-        op->response.statusCode = UA_STATUSCODE_BADTIMEOUT;
+        op->response->statusCode = UA_STATUSCODE_BADTIMEOUT;
         integrateResult(server, am, op);
     }
 
@@ -184,11 +172,11 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
     UA_LOCK(&am->queueLock);
     TAILQ_FOREACH_SAFE(ar, &am->newQueue, pointers, ar_tmp) {
         TAILQ_REMOVE(&am->newQueue, ar, pointers);
-        UA_AsyncOperation_delete(ar);
+        UA_CallMethodRequest_clear(&ar->request);
     }
     TAILQ_FOREACH_SAFE(ar, &am->dispatchedQueue, pointers, ar_tmp) {
         TAILQ_REMOVE(&am->dispatchedQueue, ar, pointers);
-        UA_AsyncOperation_delete(ar);
+        UA_CallMethodRequest_clear(&ar->request);
     }
     UA_UNLOCK(&am->queueLock);
 
@@ -202,87 +190,21 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
     UA_LOCK_DESTROY(&am->queueLock);
 }
 
-UA_StatusCode
-UA_AsyncManager_createAsyncResponse(UA_AsyncManager *am, UA_Server *server,
-                                    const UA_NodeId *sessionId,
-                                    const UA_UInt32 requestId, const UA_UInt32 requestHandle,
-                                    const UA_AsyncOperationType operationType,
-                                    UA_AsyncResponse **outAr) {
-    UA_AsyncResponse *newentry = (UA_AsyncResponse*)UA_calloc(1, sizeof(UA_AsyncResponse));
-    if(!newentry)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_StatusCode res = UA_NodeId_copy(sessionId, &newentry->sessionId);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_free(newentry);
-        return res;
-    }
-
-    UA_EventLoop *el = server->config.eventLoop;
-
-    newentry->requestId = requestId;
-    newentry->requestHandle = requestHandle;
-    newentry->timeout = el->dateTime_nowMonotonic(el);
-    if(server->config.asyncOperationTimeout > 0.0)
-        newentry->timeout += (UA_DateTime)
-            (server->config.asyncOperationTimeout * (UA_DateTime)UA_DATETIME_MSEC);
-    TAILQ_INSERT_TAIL(&am->asyncResponses, newentry, pointers);
-
-    *outAr = newentry;
-    return UA_STATUSCODE_GOOD;
-}
-
-/* Remove entry and free all allocated data */
 void
 UA_AsyncManager_removeAsyncResponse(UA_AsyncManager *am, UA_AsyncResponse *ar) {
     TAILQ_REMOVE(&am->asyncResponses, ar, pointers);
-    UA_CallResponse_clear(&ar->response.callResponse);
     UA_NodeId_clear(&ar->sessionId);
-    UA_free(ar);
-}
 
-/* Enqueue next MethodRequest */
-UA_StatusCode
-UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
-                              UA_AsyncResponse *ar, size_t opIndex,
-                              const UA_CallMethodRequest *opRequest) {
-    if(server->config.maxAsyncOperationQueueSize != 0 &&
-       am->opsCount >= server->config.maxAsyncOperationQueueSize) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "UA_Server_SetNextAsyncMethod: Queue exceeds limit (%d).",
-                       (int unsigned)server->config.maxAsyncOperationQueueSize);
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    }
+    /* Clean up the results array last. Because the rseults array has the ar
+     * attached. */
+    size_t resultsSize = *ar->resultsSize;
+    void *results = *ar->results;
+    const UA_DataType *resultsType = ar->resultsType;
+    *ar->resultsSize = 0;
+    *ar->results = NULL;
 
-    UA_AsyncOperation *ao = (UA_AsyncOperation*)UA_calloc(1, sizeof(UA_AsyncOperation));
-    if(!ao) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "UA_Server_SetNextAsyncMethod: Mem alloc failed.");
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    UA_StatusCode result = UA_CallMethodRequest_copy(opRequest, &ao->request);
-    if(result != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "UA_Server_SetAsyncMethodResult: UA_CallMethodRequest_copy failed.");
-        UA_free(ao);
-        return result;
-    }
-
-    UA_CallMethodResult_init(&ao->response);
-    ao->index = opIndex;
-    ao->parent = ar;
-
-    UA_LOCK(&am->queueLock);
-    TAILQ_INSERT_TAIL(&am->newQueue, ao, pointers);
-    am->opsCount++;
-    ar->opCountdown++;
-    UA_UNLOCK(&am->queueLock);
-
-    if(server->config.asyncOperationNotifyCallback)
-        server->config.asyncOperationNotifyCallback(server);
-
-    return UA_STATUSCODE_GOOD;
+    UA_CallResponse_clear(&ar->response.callResponse);
+    UA_Array_delete(results, resultsSize, resultsType);
 }
 
 /* Get and remove next Method Call Request */
@@ -347,11 +269,11 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
 
     /* Copy the result into the internal AsyncOperation */
     UA_StatusCode result =
-        UA_CallMethodResult_copy(&response->callMethodResult, &ao->response);
+        UA_CallMethodResult_copy(&response->callMethodResult, ao->response);
     if(result != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "UA_Server_SetAsyncMethodResult: UA_CallMethodResult_copy failed.");
-        ao->response.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        ao->response->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     /* Remove from the dispatch queue */
@@ -393,36 +315,101 @@ UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
 }
 
 UA_StatusCode
-UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
-                                        UA_UInt32 requestId, UA_UInt32 requestHandle,
-                                        UA_AsyncServiceOperation operationCallback,
-                                        const size_t *requestOperations,
-                                        const UA_DataType *requestOperationsType,
-                                        size_t *responseOperations,
-                                        const UA_DataType *responseOperationsType,
-                                        UA_AsyncResponse **ar) {
+allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
+                                    UA_UInt32 requestId, UA_UInt32 requestHandle,
+                                    UA_AsyncServiceOperation operationCallback,
+                                    const size_t *requestOperations,
+                                    const UA_DataType *requestOperationsType,
+                                    size_t *responseOperations,
+                                    const UA_DataType *responseOperationsType) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_AsyncManager *am = &server->asyncManager;
+
     size_t ops = *requestOperations;
     if(ops == 0)
         return UA_STATUSCODE_BADNOTHINGTODO;
 
-    /* Allocate the response array. No padding after size_t */
-    void **respPos = (void**)((uintptr_t)responseOperations + sizeof(size_t));
-    *respPos = UA_Array_new(ops, responseOperationsType);
+    /* Get the location of the response array */
+    void **respPos = (void**)(((uintptr_t)responseOperations) + sizeof(size_t));
+
+    /* Allocate the response array. The AsyncResponse and AsyncOperations are
+     * added to the back. So they get cleaned up automatically. */
+    size_t opsLen = responseOperationsType->memSize * ops;
+    size_t len = opsLen + sizeof(UA_AsyncResponse) + (sizeof(UA_AsyncOperation) * ops);
+    *respPos = UA_malloc(len);
     if(!*respPos)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    memset(*respPos, 0, len);
     *responseOperations = ops;
+
+    UA_AsyncResponse *ar = (UA_AsyncResponse*)(((uintptr_t)*respPos) + opsLen);
+    uintptr_t aop = ((uintptr_t)ar) + sizeof(UA_AsyncResponse);
 
     /* Finish / dispatch the operations. This may allocate a new AsyncResponse internally */
     uintptr_t respOp = (uintptr_t)*respPos;
-    uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requestOperations + sizeof(size_t));
+    uintptr_t reqOp = *(uintptr_t*)(((uintptr_t)requestOperations) + sizeof(size_t));
     for(size_t i = 0; i < ops; i++) {
-        operationCallback(server, session, requestId, requestHandle,
-                          i, (void*)reqOp, (void*)respOp, ar);
+        UA_AsyncOperation *op = (UA_AsyncOperation*)aop;
+        UA_Boolean done = operationCallback(server, session, requestId, requestHandle,
+                                            (void*)reqOp, (void*)respOp);
+        if(!done) {
+            if(server->config.maxAsyncOperationQueueSize != 0 &&
+               am->opsCount >= server->config.maxAsyncOperationQueueSize) {
+                UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                               "Cannot create an async operation: Queue exceeds limit (%d).",
+                               (int unsigned)server->config.maxAsyncOperationQueueSize);
+                /* TODO: Return a status code */
+            } else {
+                /* Enqueue the asyncop in the async manager */
+                op->parent = ar;
+                op->response = (UA_CallMethodResult*)respOp;
+                UA_copy((void*)reqOp, &op->request, requestOperationsType);
+                ar->opCountdown++;
+                am->opsCount++;
+                UA_LOCK(&am->queueLock);
+                TAILQ_INSERT_TAIL(&am->newQueue, op, pointers);
+                UA_UNLOCK(&am->queueLock);
+            }
+        }
         reqOp += requestOperationsType->memSize;
         respOp += responseOperationsType->memSize;
+        aop += sizeof(UA_AsyncOperation);
     }
 
-    return UA_STATUSCODE_GOOD;
+    /* Pending results, attach the AsyncResponse to the AsyncManager */
+    if(ar->opCountdown > 0) {
+        ar->requestId = requestId;
+        ar->sessionId = session->sessionId;
+        ar->requestHandle = requestHandle;
+        ar->timeout = UA_INT64_MAX;
+        UA_EventLoop *el = server->config.eventLoop;
+        if(server->config.asyncOperationTimeout > 0.0)
+            ar->timeout = el->dateTime_nowMonotonic(el) + (UA_DateTime)
+                (server->config.asyncOperationTimeout * (UA_DateTime)UA_DATETIME_MSEC);
+
+        /* Move the results array to the AsyncResponse.
+         * It must not be freed from the calling method then. */
+
+        /* TODO: Handle more response types */
+        ar->response.callResponse.results = (UA_CallMethodResult*)*respPos;
+        ar->response.callResponse.resultsSize = ops;
+        ar->resultsSize = &ar->response.callResponse.resultsSize;
+        ar->results = (void**)&ar->response.callResponse.results;
+        ar->resultsType = responseOperationsType;
+        *respPos = NULL;
+        *responseOperations = 0;
+
+        UA_LOCK(&am->queueLock);
+        TAILQ_INSERT_TAIL(&am->asyncResponses, ar, pointers);
+        UA_UNLOCK(&am->queueLock);
+
+        /* Notify the server that async operations have been queued */
+        if(server->config.asyncOperationNotifyCallback)
+            server->config.asyncOperationNotifyCallback(server);
+    }
+
+    /* Signal in the status whether async operations are pending */
+    return (ar->opCountdown == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
 UA_UInt32
@@ -453,7 +440,7 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
             UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
 
         /* Set operation status and integrate */
-        op->response.statusCode = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
+        op->response->statusCode = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
         integrateResult(server, am, op);
     }
 

@@ -30,9 +30,7 @@ typedef struct UA_AsyncResponse UA_AsyncResponse;
 typedef struct UA_AsyncOperation {
     TAILQ_ENTRY(UA_AsyncOperation) pointers;
     UA_CallMethodRequest request;
-    UA_CallMethodResult response;
-    size_t index;             /* Index of the operation in the array of ops in
-                               * request/response */
+    UA_CallMethodResult *response;
     UA_AsyncResponse *parent; /* Always non-NULL. The parent is only removed
                                * when its operations are removed */
 } UA_AsyncOperation;
@@ -44,6 +42,9 @@ struct UA_AsyncResponse {
     UA_UInt32 requestHandle;
     UA_DateTime timeout;
     UA_AsyncOperationType operationType;
+    size_t *resultsSize;
+    void **results;
+    const UA_DataType *resultsType;
     union {
         UA_CallResponse callResponse;
         UA_ReadResponse readResponse;
@@ -80,22 +81,9 @@ void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server);
 void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server);
 void UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server);
 
-UA_StatusCode
-UA_AsyncManager_createAsyncResponse(UA_AsyncManager *am, UA_Server *server,
-                                    const UA_NodeId *sessionId,
-                                    const UA_UInt32 requestId,
-                                    const UA_UInt32 requestHandle,
-                                    const UA_AsyncOperationType operationType,
-                                    UA_AsyncResponse **outAr);
-
 /* Only remove the AsyncResponse when the operation count is zero */
 void
 UA_AsyncManager_removeAsyncResponse(UA_AsyncManager *am, UA_AsyncResponse *ar);
-
-UA_StatusCode
-UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
-                              UA_AsyncResponse *ar, size_t opIndex,
-                              const UA_CallMethodRequest *opRequest);
 
 /* Send out the response with status set. Also removes all outstanding
  * operations from the dispatch queue. The queuelock needs to be taken before
@@ -103,22 +91,27 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
 UA_UInt32
 UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle);
 
-typedef void (*UA_AsyncServiceOperation)(UA_Server *server, UA_Session *session,
-                                         UA_UInt32 requestId, UA_UInt32 requestHandle,
-                                         size_t opIndex, const void *requestOperation,
-                                         void *responseOperation, UA_AsyncResponse **ar);
+typedef UA_Boolean (*UA_AsyncServiceOperation)(
+    UA_Server *server, UA_Session *session,
+    UA_UInt32 requestId, UA_UInt32 requestHandle,
+    const void *requestOperation, void *responseOperation);
 
-/* Creates an AsyncResponse in-situ when an async operation is encountered. If
- * that is the case, the sync responses are moved to the AsyncResponse. */
+/* Creates an AsyncResponse with its AsyncOperations as an appendix to the
+ * results array. The results array can be "normally" freed once all async
+ * operations are processed.
+ *
+ * If UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY is returned, then the
+ * responseOperations array is kept for the AsyncResponse and must not be freed
+ * by the calling method. For other returned status codes, the async processing
+ * is not visible to the calling method. */
 UA_StatusCode
-UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
-                                        UA_UInt32 requestId, UA_UInt32 requestHandle,
-                                        UA_AsyncServiceOperation operationCallback,
-                                        const size_t *requestOperations,
-                                        const UA_DataType *requestOperationsType,
-                                        size_t *responseOperations,
-                                        const UA_DataType *responseOperationsType,
-                                        UA_AsyncResponse **ar)
+allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
+                                    UA_UInt32 requestId, UA_UInt32 requestHandle,
+                                    UA_AsyncServiceOperation operationCallback,
+                                    const size_t *requestOperations,
+                                    const UA_DataType *requestOperationsType,
+                                    size_t *responseOperations,
+                                    const UA_DataType *responseOperationsType)
 UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 #endif /* UA_MULTITHREADING >= 100 */
