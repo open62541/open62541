@@ -967,9 +967,7 @@ void Service_Cancel(UA_Server *server, UA_Session *session,
     /* If multithreading is disabled, then there are no async services. If all
      * services are answered "right away", then there are no services that can
      * be cancelled. */
-#if UA_MULTITHREADING >= 100
     response->cancelCount = UA_AsyncManager_cancel(server, session, request->requestHandle);
-#endif
 
     /* Publish requests for Subscriptions are stored separately */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
