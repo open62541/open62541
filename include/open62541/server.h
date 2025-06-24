@@ -40,9 +40,6 @@
 
 _UA_BEGIN_DECLS
 
-/* Forward declarations */
-typedef void (*UA_Server_AsyncOperationNotifyCallback)(UA_Server *server);
-
 /**
  * .. _server:
  *
@@ -247,12 +244,13 @@ struct UA_ServerConfig {
     /* Async Operations
      * ~~~~~~~~~~~~~~~~
      * See the section for :ref:`async operations<async-operations>`. */
-#if UA_MULTITHREADING >= 100
-    UA_Double asyncOperationTimeout; /* in ms, 0 => unlimited */
+    UA_Double asyncOperationTimeout;   /* in ms, 0 => unlimited */
     size_t maxAsyncOperationQueueSize; /* 0 => unlimited */
-    /* Notify workers when an async operation was enqueued */
-    UA_Server_AsyncOperationNotifyCallback asyncOperationNotifyCallback;
-#endif
+
+    /* Notifies the userland that an async operation has been canceled. The
+     * memory for setting the output value is then freed internally and should
+     * not be touched afterwards. */
+    void (*asyncOperationCancelCallback)(UA_Server *server, void *out);
 
     /* Discovery
      * ~~~~~~~~~ */
@@ -1661,6 +1659,16 @@ void UA_EXPORT
 UA_Server_setAsyncOperationResult(UA_Server *server,
                                   const UA_AsyncOperationResponse *response,
                                   void *context);
+
+/* When the method callback answers with
+ * UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY, then an async operation is stored
+ * in the server. Within the defined timeout, the result can be set with the
+ * following. The output-array pointer is used as the key to lookup the async
+ * operation internally. Do not access the output-pointer after the timeout or
+ * after setting the result. */
+UA_EXPORT UA_StatusCode
+UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_StatusCode operationStatus,
+                                   UA_Variant *output);
 
 #endif /* !UA_MULTITHREADING >= 100 */
 

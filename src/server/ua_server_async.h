@@ -93,7 +93,6 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
 
 typedef UA_Boolean (*UA_AsyncServiceOperation)(
     UA_Server *server, UA_Session *session,
-    UA_UInt32 requestId, UA_UInt32 requestHandle,
     const void *requestOperation, void *responseOperation);
 
 /* Creates an AsyncResponse with its AsyncOperations as an appendix to the
