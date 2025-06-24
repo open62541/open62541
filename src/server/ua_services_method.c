@@ -280,7 +280,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
          * of one of its subtypes). */
         const UA_Node *objectType = getNodeType(server, &object->head);
         if(objectType) {
-            found = checkMethodReferenceRecursive(server, &objectType->head, hasComponentRefs, &methodId);
+            found = checkMethodReferenceRecursive(server, &objectType->head,
+                                                  hasComponentRefs, &methodId);
             UA_NODESTORE_RELEASE(server, objectType);
         }
     }
@@ -386,104 +387,27 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     /* Release the output arguments node */
     UA_NODESTORE_RELEASE(server, (const UA_Node*)outputArguments);
 
+    /* The outputArguments array should have a unique pointer. If the length is
+     * zero (and the pointer is NULL), then we forward a pointer to the results
+     * structure. Which is unique and should not get written to. */
+    UA_Variant *outputArray = (result->outputArgumentsSize > 0) ?
+        result->outputArguments : (UA_Variant*)result;
+
     /* Call the method. If this is an async method, unlock the server lock for
      * the duration of the (long-running) call. */
-#if UA_MULTITHREADING >= 100
-    if(method->async)
-        unlockServer(server);
-#endif
     result->statusCode = method->method(server, &session->sessionId, session->context,
                                         &method->head.nodeId, method->head.context,
                                         &object->head.nodeId, object->head.context,
                                         request->inputArgumentsSize, mutableInputArgs,
-                                        result->outputArgumentsSize, result->outputArguments);
-#if UA_MULTITHREADING >= 100
-    if(method->async)
-        lockServer(server);
-#endif
+                                        result->outputArgumentsSize, outputArray);
 
     /* TODO: Verify Output matches the argument definition */
 }
 
-#if UA_MULTITHREADING >= 100
-
 static UA_Boolean
-Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
-                          UA_UInt32 requestHandle, const UA_CallMethodRequest *opRequest,
-                          UA_CallMethodResult *opResult) {
-    /* Get the method node. We only need the nodeClass and executable attribute.
-     * Take all forward hasProperty references to get the input/output argument
-     * definition variables. */
-    const UA_Node *method =
-        UA_NODESTORE_GET_SELECTIVE(server, &opRequest->methodId,
-                                   UA_NODEATTRIBUTESMASK_NODECLASS |
-                                   UA_NODEATTRIBUTESMASK_EXECUTABLE,
-                                   UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASPROPERTY),
-                                   UA_BROWSEDIRECTION_FORWARD);
-    if(!method) {
-        opResult->statusCode = UA_STATUSCODE_BADMETHODINVALID;
-        return true;
-    }
-
-    /* Get the object node. We only need the NodeClass attribute. But take all
-     * references for now.
-     *
-     * TODO: Which references do we need actually? */
-    const UA_Node *object =
-        UA_NODESTORE_GET_SELECTIVE(server, &opRequest->objectId,
-                                   UA_NODEATTRIBUTESMASK_NODECLASS,
-                                   UA_REFERENCETYPESET_ALL,
-                                   UA_BROWSEDIRECTION_BOTH);
-    if(!object) {
-        opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        UA_NODESTORE_RELEASE(server, method);
-        return true;
-    }
-
-    /* Synchronous execution. Otherwise the async operation is put into the
-     * queue by the calling method */
-    if(!method->methodNode.async)
-        callWithMethodAndObject(server, session, opRequest, opResult,
-                                &method->methodNode, &object->objectNode);
-
-    UA_Boolean done = !method->methodNode.async;
-
-    /* Release the method and object node */
-    UA_NODESTORE_RELEASE(server, method);
-    UA_NODESTORE_RELEASE(server, object);
-
-    return done;
-}
-
-void
-Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
-                  const UA_CallRequest *request, UA_CallResponse *response,
-                  UA_Boolean *finished) {
-    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing CallRequestAsync");
-    if(server->config.maxNodesPerMethodCall != 0 &&
-        request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
-    }
-
-    response->responseHeader.serviceResult =
-        allocProcessServiceOperations_async(server, session, requestId,
-                                            request->requestHeader.requestHandle,
-                                            (UA_AsyncServiceOperation)Operation_CallMethodAsync,
-                                            &request->methodsToCallSize,
-                                            &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
-                                            &response->resultsSize,
-                                            &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
-
-    /* Signal that this is an async operation. Don't send out the response right away. */
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY)
-        *finished = false;
-}
-#endif
-
-static void
-Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
-                     const UA_CallMethodRequest *request, UA_CallMethodResult *result) {
+Operation_CallMethod(UA_Server *server, UA_Session *session,
+                     const UA_CallMethodRequest *request,
+                     UA_CallMethodResult *result) {
     /* Get the method node. We only need the nodeClass and executable attribute.
      * Take all forward hasProperty references to get the input/output argument
      * definition variables. */
@@ -495,7 +419,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
                                    UA_BROWSEDIRECTION_FORWARD);
     if(!method) {
         result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
-        return;
+        return true;
     }
 
     /* Get the object node. We only need the NodeClass attribute. But take all
@@ -510,7 +434,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
     if(!object) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         UA_NODESTORE_RELEASE(server, method);
-        return;
+        return true;
     }
 
     /* Continue with method and object as context */
@@ -520,26 +444,33 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
     /* Release the method and object node */
     UA_NODESTORE_RELEASE(server, method);
     UA_NODESTORE_RELEASE(server, object);
+
+    return (result->statusCode != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 }
 
-void Service_Call(UA_Server *server, UA_Session *session,
+UA_Boolean
+Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
                   const UA_CallRequest *request, UA_CallResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing CallRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(server->config.maxNodesPerMethodCall != 0 &&
-       request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
+        request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
-        allocProcessServiceOperations(server, session,
-                                      (UA_ServiceOperation)Operation_CallMethod, NULL,
-                                      &request->methodsToCallSize,
-                                      &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
-                                      &response->resultsSize,
-                                      &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+        allocProcessServiceOperations_async(server, session, requestId,
+                                            request->requestHeader.requestHandle,
+                                            (UA_AsyncServiceOperation)Operation_CallMethod,
+                                            &request->methodsToCallSize,
+                                            &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
+                                            &response->resultsSize,
+                                            &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+
+    /* Signal an async operation */
+    return (response->responseHeader.serviceResult == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 }
 
 UA_CallMethodResult
@@ -547,8 +478,10 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     lockServer(server);
-    Operation_CallMethod(server, &server->adminSession, NULL, request, &result);
+    Operation_CallMethod(server, &server->adminSession, request, &result);
     unlockServer(server);
+    if(result.statusCode == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY)
+        result.statusCode = UA_STATUSCODE_BADOPERATIONABANDONED;
     return result;
 }
 
