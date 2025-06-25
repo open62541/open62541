@@ -1,67 +1,88 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this
+* License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
- *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
+ *    Copyright 2025 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
-#include "eventloop_posix.h"
+#include "eventloop_lwip.h"
+
+#if defined(UA_ARCHITECTURE_LWIP)
+
 #include "open62541/plugin/eventloop.h"
 
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
-
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
-#include <time.h>
+#if defined(UA_ARCHITECTURE_POSIX)
+#include <netif/tapif.h>
 #endif
+
+/* These are just default values and not unchangeable IP assignments. They can be overridden at runtime */
+#define LWIP_PORT_INIT_IPADDR(addr)   IP4_ADDR(&addr, 192, 168, 0, 200);
+#define LWIP_PORT_INIT_GW(addr)       IP4_ADDR(&addr, 192, 168, 0, 1);
+#define LWIP_PORT_INIT_NETMASK(addr)  IP4_ADDR(&addr, 255, 255, 255, 0);
+
+#define IPV4_ADDRESS_STRING_LENGTH 16
+
+/* Configuration parameters */
+#define LWIPEVENTLOOP_PARAMETERSSIZE 3
+#define LWIPEVENTLOOP_PARAMINDEX_IPADDR 0
+#define LWIPEVENTLOOP_PARAMINDEX_NETMASK 1
+#define LWIPEVENTLOOP_PARAMINDEX_GATEWAY 2
+
+static UA_KeyValueRestriction LWIPEventLoopConfigParameters[LWIPEVENTLOOP_PARAMETERSSIZE] = {
+    {{0, UA_STRING_STATIC("ipaddr")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
+    {{0, UA_STRING_STATIC("netmask")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
+    {{0, UA_STRING_STATIC("gateway")}, &UA_TYPES[UA_TYPES_STRING], false, true, false}
+};
+
+#include <time.h>
 
 /*********/
 /* Timer */
 /*********/
 
 static UA_DateTime
-UA_EventLoopPOSIX_nextTimer(UA_EventLoop *public_el) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
-    if(el->delayedHead1 > (UA_DelayedCallback *)0x01 ||
-       el->delayedHead2 > (UA_DelayedCallback *)0x01)
-        return el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
+UA_EventLoopLWIP_nextTimer(UA_EventLoop *public_el) {
+    UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)public_el;
     return UA_Timer_next(&el->timer);
 }
 
 static UA_StatusCode
-UA_EventLoopPOSIX_addTimer(UA_EventLoop *public_el, UA_Callback cb,
-                           void *application, void *data, UA_Double interval_ms,
-                           UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
-                           UA_UInt64 *callbackId) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+UA_EventLoopLWIP_addTimer(UA_EventLoop *public_el,
+                                    UA_Callback cb,
+                                    void *application, void *data,
+                                    UA_Double interval_ms,
+                                    UA_DateTime *baseTime,
+                                    UA_TimerPolicy timerPolicy,
+                                    UA_UInt64 *callbackId) {
+    UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)public_el;
     return UA_Timer_add(&el->timer, cb, application, data, interval_ms,
                         public_el->dateTime_nowMonotonic(public_el),
                         baseTime, timerPolicy, callbackId);
 }
 
 static UA_StatusCode
-UA_EventLoopPOSIX_modifyTimer(UA_EventLoop *public_el,
+UA_EventLoopLWIP_modifyTimer(UA_EventLoop *public_el,
                               UA_UInt64 callbackId,
                               UA_Double interval_ms,
                               UA_DateTime *baseTime,
                               UA_TimerPolicy timerPolicy) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)public_el;
     return UA_Timer_modify(&el->timer, callbackId, interval_ms,
                            public_el->dateTime_nowMonotonic(public_el),
                            baseTime, timerPolicy);
 }
 
 static void
-UA_EventLoopPOSIX_removeTimer(UA_EventLoop *public_el,
+UA_EventLoopLWIP_removeTimer(UA_EventLoop *public_el,
                               UA_UInt64 callbackId) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)public_el;
     UA_Timer_remove(&el->timer, callbackId);
 }
 
 void
-UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
+UA_EventLoopLWIP_addDelayedCallback(UA_EventLoop *public_el,
                                      UA_DelayedCallback *dc) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)public_el;
     dc->next = NULL;
 
     /* el->delayedTail points either to prev->next or to the head.
@@ -79,7 +100,7 @@ UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
 
 /* Resets the delayed queue and returns the previous head and tail */
 static void
-resetDelayedQueue(UA_EventLoopPOSIX *el, UA_DelayedCallback **oldHead,
+resetDelayedQueue(UA_EventLoopLWIP *el, UA_DelayedCallback **oldHead,
                   UA_DelayedCallback **oldTail) {
     if(el->delayedHead1 <= (UA_DelayedCallback *)0x01 &&
        el->delayedHead2 <= (UA_DelayedCallback *)0x01)
@@ -105,9 +126,9 @@ resetDelayedQueue(UA_EventLoopPOSIX *el, UA_DelayedCallback **oldHead,
 }
 
 static void
-UA_EventLoopPOSIX_removeDelayedCallback(UA_EventLoop *public_el,
+UA_EventLoopLWIP_removeDelayedCallback(UA_EventLoop *public_el,
                                         UA_DelayedCallback *dc) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)public_el;
     UA_LOCK(&el->elMutex);
 
     /* Reset and get the old head and tail */
@@ -124,14 +145,14 @@ UA_EventLoopPOSIX_removeDelayedCallback(UA_EventLoop *public_el,
             next = (UA_DelayedCallback *)UA_atomic_load((void**)&cur->next);
         if(cur == dc)
             continue;
-        UA_EventLoopPOSIX_addDelayedCallback(public_el, cur);
+        UA_EventLoopLWIP_addDelayedCallback(public_el, cur);
     }
 
     UA_UNLOCK(&el->elMutex);
 }
 
 static void
-processDelayed(UA_EventLoopPOSIX *el) {
+processDelayed(UA_EventLoopLWIP *el) {
     UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Process delayed callbacks");
 
@@ -149,7 +170,9 @@ processDelayed(UA_EventLoopPOSIX *el) {
             next = (UA_DelayedCallback *)UA_atomic_load((void**)&dc->next);
         if(!dc->callback)
             continue;
+        UA_UNLOCK(&el->elMutex);
         dc->callback(dc->application, dc->context);
+        UA_LOCK(&el->elMutex);
     }
 }
 
@@ -158,7 +181,7 @@ processDelayed(UA_EventLoopPOSIX *el) {
 /***********************/
 
 static UA_StatusCode
-UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
+UA_EventLoopLWIP_start(UA_EventLoopLWIP *el) {
     UA_LOCK(&el->elMutex);
 
     if(el->eventLoop.state != UA_EVENTLOOPSTATE_FRESH &&
@@ -170,6 +193,30 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Starting the EventLoop");
 
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(el->netifInit) {
+        const UA_String *ipaddr = (const UA_String*)
+            UA_KeyValueMap_getScalar(&el->config.params, LWIPEventLoopConfigParameters[LWIPEVENTLOOP_PARAMINDEX_IPADDR].name,
+                             &UA_TYPES[UA_TYPES_STRING]);
+        const UA_String *netmask = (const UA_String*)
+            UA_KeyValueMap_getScalar(&el->config.params, LWIPEventLoopConfigParameters[LWIPEVENTLOOP_PARAMINDEX_NETMASK].name,
+                                     &UA_TYPES[UA_TYPES_STRING]);
+        const UA_String *gateway = (const UA_String*)
+            UA_KeyValueMap_getScalar(&el->config.params, LWIPEventLoopConfigParameters[LWIPEVENTLOOP_PARAMINDEX_GATEWAY].name,
+                                     &UA_TYPES[UA_TYPES_STRING]);
+
+        res = el->netifInit((UA_EventLoop*)el, ipaddr, netmask, gateway);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                         "Error during the initialisation of the network interface");
+            return res;
+        }
+    } else {
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                      "No function defined to initialize the network interface."
+                      "Initialization must be performed externally");
+    }
+
     /* Setting the clock source */
     const UA_Int32 *cs = (const UA_Int32*)
         UA_KeyValueMap_getScalar(&el->eventLoop.params,
@@ -179,7 +226,7 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
         UA_KeyValueMap_getScalar(&el->eventLoop.params,
                                  UA_QUALIFIEDNAME(0, "clock-source-monotonic"),
                                  &UA_TYPES[UA_TYPES_INT32]);
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+#if defined(UA_ARCHITECTURE_LWIP) && !defined(UA_ARCHITECTURE_FREERTOS) && !defined(__APPLE__) && !defined(__MACH__)
     el->clockSource = CLOCK_REALTIME;
     if(cs)
         el->clockSource = *cs;
@@ -199,7 +246,7 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
 #endif
 
     /* Create the self-pipe */
-    int err = UA_EventLoopPOSIX_pipe(el->selfpipe);
+    int err = UA_EventLoopLWIP_pipe(el->selfpipe);
     if(err != 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -209,44 +256,12 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Create the epoll socket */
-#ifdef UA_HAVE_EPOLL
-    el->epollfd = epoll_create1(0);
-    if(el->epollfd == -1) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "Eventloop\t| Could not create the epoll socket (%s)",
-                          errno_str));
-        UA_close(el->selfpipe[0]);
-        UA_close(el->selfpipe[1]);
-        UA_UNLOCK(&el->elMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* epoll always listens on the self-pipe. This is the only epoll_event that
-     * has a NULL data pointer. */
-    struct epoll_event event;
-    memset(&event, 0, sizeof(struct epoll_event));
-    event.events = EPOLLIN;
-    err = epoll_ctl(el->epollfd, EPOLL_CTL_ADD, el->selfpipe[0], &event);
-    if(err != 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "Eventloop\t| Could not register the self-pipe for epoll (%s)",
-                          errno_str));
-        UA_close(el->selfpipe[0]);
-        UA_close(el->selfpipe[1]);
-        close(el->epollfd);
-        UA_UNLOCK(&el->elMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-#endif
-
     /* Start the EventSources */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_EventSource *es = el->eventLoop.eventSources;
     while(es) {
+        UA_UNLOCK(&el->elMutex);
         res |= es->start(es);
+        UA_LOCK(&el->elMutex);
         es = es->next;
     }
 
@@ -259,7 +274,7 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
 }
 
 static void
-checkClosed(UA_EventLoopPOSIX *el) {
+checkClosed(UA_EventLoopLWIP *el) {
     UA_LOCK_ASSERT(&el->elMutex);
 
     UA_EventSource *es = el->eventLoop.eventSources;
@@ -283,7 +298,7 @@ checkClosed(UA_EventLoopPOSIX *el) {
 
     /* Close the epoll/IOCP socket once all EventSources have shut down */
 #ifdef UA_HAVE_EPOLL
-    UA_close(el->epollfd);
+    close(el->epollfd);
 #endif
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -291,7 +306,7 @@ checkClosed(UA_EventLoopPOSIX *el) {
 }
 
 static void
-UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
+UA_EventLoopLWIP_stop(UA_EventLoopLWIP *el) {
     UA_LOCK(&el->elMutex);
 
     if(el->eventLoop.state != UA_EVENTLOOPSTATE_STARTED) {
@@ -313,7 +328,9 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
     for(; es; es = es->next) {
         if(es->state == UA_EVENTSOURCESTATE_STARTING ||
            es->state == UA_EVENTSOURCESTATE_STARTED) {
+            UA_UNLOCK(&el->elMutex);
             es->stop(es);
+            UA_LOCK(&el->elMutex);
         }
     }
 
@@ -324,7 +341,7 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
 }
 
 static UA_StatusCode
-UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
+UA_EventLoopLWIP_run(UA_EventLoopLWIP *el, UA_UInt32 timeout) {
     UA_LOCK(&el->elMutex);
 
     if(el->executing) {
@@ -353,7 +370,9 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     UA_DateTime dateBefore =
         el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
 
+    UA_UNLOCK(&el->elMutex);
     UA_DateTime dateNext = UA_Timer_process(&el->timer, dateBefore);
+    UA_LOCK(&el->elMutex);
 
     /* Process delayed callbacks here:
      * - Removes closed sockets already here instead of polling them again.
@@ -380,7 +399,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
 
     /* Listen on the active file-descriptors (sockets) from the
      * ConnectionManagers */
-    UA_StatusCode rv = UA_EventLoopPOSIX_pollFDs(el, listenTimeout);
+    UA_StatusCode rv = UA_EventLoopLWIP_pollFDs(el, listenTimeout);
 
     /* Check if the last EventSource was successfully stopped */
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPING)
@@ -396,7 +415,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
 /*****************************/
 
 static UA_StatusCode
-UA_EventLoopPOSIX_registerEventSource(UA_EventLoopPOSIX *el,
+UA_EventLoopLWIP_registerEventSource(UA_EventLoopLWIP *el,
                                       UA_EventSource *es) {
     UA_LOCK(&el->elMutex);
 
@@ -427,7 +446,7 @@ UA_EventLoopPOSIX_registerEventSource(UA_EventLoopPOSIX *el,
 }
 
 static UA_StatusCode
-UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
+UA_EventLoopLWIP_deregisterEventSource(UA_EventLoopLWIP *el,
                                         UA_EventSource *es) {
     UA_LOCK(&el->elMutex);
 
@@ -462,9 +481,9 @@ UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
 /***************/
 
 static UA_DateTime
-UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
-    UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
+UA_EventLoopLWIP_DateTime_now(UA_EventLoop *el) {
+#if defined(UA_ARCHITECTURE_LWIP) && !defined(UA_ARCHITECTURE_FREERTOS) && !defined(__APPLE__) && !defined(__MACH__)
+    UA_EventLoopLWIP *pel = (UA_EventLoopLWIP*)el;
     struct timespec ts;
     int res = clock_gettime(pel->clockSource, &ts);
     if(UA_UNLIKELY(res != 0))
@@ -476,9 +495,9 @@ UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
 }
 
 static UA_DateTime
-UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
-    UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
+UA_EventLoopLWIP_DateTime_nowMonotonic(UA_EventLoop *el) {
+#if defined(UA_ARCHITECTURE_LWIP) && !defined(UA_ARCHITECTURE_FREERTOS) && !defined(__APPLE__) && !defined(__MACH__)
+    UA_EventLoopLWIP *pel = (UA_EventLoopLWIP*)el;
     struct timespec ts;
     int res = clock_gettime(pel->clockSourceMonotonic, &ts);
     if(UA_UNLIKELY(res != 0))
@@ -492,7 +511,7 @@ UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
 }
 
 static UA_Int64
-UA_EventLoopPOSIX_DateTime_localTimeUtcOffset(UA_EventLoop *el) {
+UA_EventLoopLWIP_DateTime_localTimeUtcOffset(UA_EventLoop *el) {
     /* TODO: Fix for custom clock sources */
     return UA_DateTime_localTimeUtcOffset();
 }
@@ -502,7 +521,7 @@ UA_EventLoopPOSIX_DateTime_localTimeUtcOffset(UA_EventLoop *el) {
 /*************************/
 
 static UA_StatusCode
-UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
+UA_EventLoopLWIP_free(UA_EventLoopLWIP *el) {
     UA_LOCK(&el->elMutex);
 
     /* Check if the EventLoop can be deleted */
@@ -514,10 +533,18 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Call netif shutdown*/
+    if(el->netifShutdown)
+        el->netifShutdown((UA_EventLoop*)el);
+
+    UA_KeyValueMap_clear(&el->config.params);
+
     /* Deregister and delete all the EventSources */
     while(el->eventLoop.eventSources) {
         UA_EventSource *es = el->eventLoop.eventSources;
-        UA_EventLoopPOSIX_deregisterEventSource(el, es);
+        UA_UNLOCK(&el->elMutex);
+        UA_EventLoopLWIP_deregisterEventSource(el, es);
+        UA_LOCK(&el->elMutex);
         es->free(es);
     }
 
@@ -526,11 +553,6 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
 
     /* Process remaining delayed callbacks */
     processDelayed(el);
-
-#ifdef UA_ARCHITECTURE_WIN32
-    /* Stop the Windows networking subsystem */
-    WSACleanup();
-#endif
 
     UA_KeyValueMap_clear(&el->eventLoop.params);
 
@@ -541,66 +563,118 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     return UA_STATUSCODE_GOOD;
 }
 
-static void
-UA_EventLoopPOSIX_lock(UA_EventLoop *public_el) {
-    UA_LOCK(&((UA_EventLoopPOSIX*)public_el)->elMutex);
-}
-static void
-UA_EventLoopPOSIX_unlock(UA_EventLoop *public_el) {
-    UA_UNLOCK(&((UA_EventLoopPOSIX*)public_el)->elMutex);
+#if defined(UA_ARCHITECTURE_POSIX)
+
+static bool initAlready = false;
+static UA_StatusCode defaultNetifInit(UA_EventLoopLWIP *el, const UA_String *ipaddr,
+                                      const UA_String *netmask, const UA_String *gw) {
+    ip4_addr_t local_ipaddr, local_netmask, local_gw;
+    LWIP_PORT_INIT_IPADDR(local_ipaddr);
+    LWIP_PORT_INIT_NETMASK(local_netmask);
+    LWIP_PORT_INIT_GW(local_gw);
+
+    /* Override with provided parameters */
+    if(ipaddr && netmask && gw) {
+        char ipaddr_s[IPV4_ADDRESS_STRING_LENGTH];
+        mp_snprintf(ipaddr_s, IPV4_ADDRESS_STRING_LENGTH, "%.*s",
+                    (int)ipaddr->length, (char*)ipaddr->data);
+        char netmask_s[IPV4_ADDRESS_STRING_LENGTH];
+        mp_snprintf(netmask_s, IPV4_ADDRESS_STRING_LENGTH, "%.*s",
+                    (int)netmask->length, (char*)netmask->data);
+        char gw_s[IPV4_ADDRESS_STRING_LENGTH];
+        mp_snprintf(gw_s, IPV4_ADDRESS_STRING_LENGTH, "%.*s",
+                    (int)gw->length, (char*)gw->data);
+
+        if(!ip4addr_aton(ipaddr_s, &local_ipaddr) || !ip4addr_aton(netmask_s, &local_netmask) ||
+           !ip4addr_aton(gw_s, &local_gw))
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* The initialization can only be done once for the runtime of the process */
+    if(!initAlready) {
+        tcpip_init(NULL, NULL);
+        LOCK_TCPIP_CORE();
+        if(!netif_add(&el->netif, &local_ipaddr, &local_netmask, &local_gw, NULL, tapif_init, tcpip_input)) {
+            UNLOCK_TCPIP_CORE();
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        netif_set_default(&el->netif);
+        netif_set_up(&el->netif);
+        UNLOCK_TCPIP_CORE();
+    }
+    initAlready = true;
+    return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode defaultNetifPoll(UA_EventLoopLWIP *el) {
+    return UA_STATUSCODE_GOOD;
+}
+
+static void defaultNetifShutdown(UA_EventLoopLWIP *el) {
+}
+
+#endif
+
 UA_EventLoop *
-UA_EventLoop_new_POSIX(const UA_Logger *logger) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)
-        UA_calloc(1, sizeof(UA_EventLoopPOSIX));
+UA_EventLoop_new_LWIP(const UA_Logger *logger, UA_EventLoopConfiguration *config) {
+    UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)
+        UA_calloc(1, sizeof(UA_EventLoopLWIP));
     if(!el)
         return NULL;
 
     UA_LOCK_INIT(&el->elMutex);
     UA_Timer_init(&el->timer);
 
+#if defined(UA_ARCHITECTURE_POSIX)
+    el->netifInit = (UA_StatusCode (*)(UA_EventLoop*, const UA_String*, const UA_String*, const UA_String*))defaultNetifInit;
+    el->netifPoll = (UA_StatusCode (*)(UA_EventLoop*))defaultNetifPoll;
+    el->netifShutdown = (void (*)(UA_EventLoop*))defaultNetifShutdown;
+#endif
+
+    if(config) {
+        el->config = *config;
+        if(config->netifInit)
+            el->netifInit = config->netifInit;
+        if(config->netifPoll)
+            el->netifPoll = config->netifPoll;
+        if(config->netifShutdown)
+            el->netifShutdown = config->netifShutdown;
+        /* Reset the old config */
+        memset(config, 0, sizeof(UA_EventLoopConfiguration));
+    }
+
     /* Initialize the queue */
     el->delayedTail = &el->delayedHead1;
     el->delayedHead2 = (UA_DelayedCallback*)0x01; /* sentinel value */
 
-#ifdef UA_ARCHITECTURE_WIN32
-    /* Start the WSA networking subsystem on Windows */
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
-
     /* Set the public EventLoop content */
     el->eventLoop.logger = logger;
 
-    el->eventLoop.start = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_start;
-    el->eventLoop.stop = (void (*)(UA_EventLoop*))UA_EventLoopPOSIX_stop;
-    el->eventLoop.free = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_free;
-    el->eventLoop.run = (UA_StatusCode (*)(UA_EventLoop*, UA_UInt32))UA_EventLoopPOSIX_run;
-    el->eventLoop.cancel = (void (*)(UA_EventLoop*))UA_EventLoopPOSIX_cancel;
+    el->eventLoop.start = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopLWIP_start;
+    el->eventLoop.stop = (void (*)(UA_EventLoop*))UA_EventLoopLWIP_stop;
+    el->eventLoop.free = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopLWIP_free;
+    el->eventLoop.run = (UA_StatusCode (*)(UA_EventLoop*, UA_UInt32))UA_EventLoopLWIP_run;
+    el->eventLoop.cancel = (void (*)(UA_EventLoop*))UA_EventLoopLWIP_cancel;
 
-    el->eventLoop.dateTime_now = UA_EventLoopPOSIX_DateTime_now;
+    el->eventLoop.dateTime_now = UA_EventLoopLWIP_DateTime_now;
     el->eventLoop.dateTime_nowMonotonic =
-        UA_EventLoopPOSIX_DateTime_nowMonotonic;
+        UA_EventLoopLWIP_DateTime_nowMonotonic;
     el->eventLoop.dateTime_localTimeUtcOffset =
-        UA_EventLoopPOSIX_DateTime_localTimeUtcOffset;
+        UA_EventLoopLWIP_DateTime_localTimeUtcOffset;
 
-    el->eventLoop.nextTimer = UA_EventLoopPOSIX_nextTimer;
-    el->eventLoop.addTimer = UA_EventLoopPOSIX_addTimer;
-    el->eventLoop.modifyTimer = UA_EventLoopPOSIX_modifyTimer;
-    el->eventLoop.removeTimer = UA_EventLoopPOSIX_removeTimer;
-    el->eventLoop.addDelayedCallback = UA_EventLoopPOSIX_addDelayedCallback;
-    el->eventLoop.removeDelayedCallback = UA_EventLoopPOSIX_removeDelayedCallback;
+    el->eventLoop.nextTimer = UA_EventLoopLWIP_nextTimer;
+    el->eventLoop.addTimer = UA_EventLoopLWIP_addTimer;
+    el->eventLoop.modifyTimer = UA_EventLoopLWIP_modifyTimer;
+    el->eventLoop.removeTimer = UA_EventLoopLWIP_removeTimer;
+    el->eventLoop.addDelayedCallback = UA_EventLoopLWIP_addDelayedCallback;
+    el->eventLoop.removeDelayedCallback = UA_EventLoopLWIP_removeDelayedCallback;
 
     el->eventLoop.registerEventSource =
         (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))
-        UA_EventLoopPOSIX_registerEventSource;
+        UA_EventLoopLWIP_registerEventSource;
     el->eventLoop.deregisterEventSource =
         (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))
-        UA_EventLoopPOSIX_deregisterEventSource;
-
-    el->eventLoop.lock = UA_EventLoopPOSIX_lock;
-    el->eventLoop.unlock = UA_EventLoopPOSIX_unlock;
+        UA_EventLoopLWIP_deregisterEventSource;
 
     return &el->eventLoop;
 }
@@ -610,11 +684,11 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
 /***************************/
 
 UA_StatusCode
-UA_EventLoopPOSIX_allocNetworkBuffer(UA_ConnectionManager *cm,
+UA_EventLoopLWIP_allocNetworkBuffer(UA_ConnectionManager *cm,
                                      uintptr_t connectionId,
                                      UA_ByteString *buf,
                                      size_t bufSize) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_LWIPConnectionManager *pcm = (UA_LWIPConnectionManager*)cm;
     if(pcm->txBuffer.length == 0)
         return UA_ByteString_allocBuffer(buf, bufSize);
     if(pcm->txBuffer.length < bufSize)
@@ -625,10 +699,10 @@ UA_EventLoopPOSIX_allocNetworkBuffer(UA_ConnectionManager *cm,
 }
 
 void
-UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
+UA_EventLoopLWIP_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     uintptr_t connectionId,
                                     UA_ByteString *buf) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_LWIPConnectionManager *pcm = (UA_LWIPConnectionManager*)cm;
     if(pcm->txBuffer.data == buf->data)
         UA_ByteString_init(buf);
     else
@@ -636,9 +710,9 @@ UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_allocateStaticBuffers(UA_POSIXConnectionManager *pcm) {
+UA_EventLoopLWIP_allocateStaticBuffers(UA_LWIPConnectionManager *pcm) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
+    UA_UInt32 rxBufSize = 1u << 10; /* The default is 64kb */
     const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
                                  UA_QUALIFIEDNAME(0, "recv-bufsize"),
@@ -673,43 +747,27 @@ cmpFD(const UA_FD *a, const UA_FD *b) {
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_setNonBlocking(UA_FD sockfd) {
-#ifndef UA_ARCHITECTURE_WIN32
-    int opts = fcntl(sockfd, F_GETFL);
-    if(opts < 0 || fcntl(sockfd, F_SETFL, opts | O_NONBLOCK) < 0)
+UA_EventLoopLWIP_setNonBlocking(UA_FD sockfd) {
+    int opts = lwip_fcntl(sockfd, F_GETFL, 0);
+    if(opts < 0 || lwip_fcntl(sockfd, F_SETFL, opts | O_NONBLOCK) < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
-#else
-    u_long iMode = 1;
-    if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
-        return UA_STATUSCODE_BADINTERNALERROR;
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd) {
-#ifdef SO_NOSIGPIPE
-    int val = 1;
-    int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_NOSIGPIPE, &val, sizeof(val));
-    if(res < 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-#endif
+UA_EventLoopLWIP_setNoSigPipe(UA_FD sockfd) {
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
+UA_EventLoopLWIP_setReusable(UA_FD sockfd) {
+#if SO_REUSE
     int enableReuseVal = 1;
-#ifndef UA_ARCHITECTURE_WIN32
     int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
-                            (const char*)&enableReuseVal, sizeof(enableReuseVal));
-    res |= UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
                             (const char*)&enableReuseVal, sizeof(enableReuseVal));
     return (res == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
 #else
-    int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
-                            (const char*)&enableReuseVal, sizeof(enableReuseVal));
-    return (res == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
 #endif
 }
 
@@ -721,7 +779,7 @@ UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
 static void
 flushSelfPipe(UA_SOCKET s) {
     char buf[128];
-#ifdef UA_ARCHITECTURE_WIN32
+#ifdef _WIN32
     recv(s, buf, 128, 0);
 #else
     ssize_t i;
@@ -731,10 +789,8 @@ flushSelfPipe(UA_SOCKET s) {
 #endif
 }
 
-#if !defined(UA_HAVE_EPOLL)
-
 UA_StatusCode
-UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+UA_EventLoopLWIP_registerFD(UA_EventLoopLWIP *el, UA_RegisteredFD *rfd) {
     UA_LOCK_ASSERT(&el->elMutex);
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Registering fd: %u", (unsigned)rfd->fd);
@@ -754,14 +810,14 @@ UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+UA_EventLoopLWIP_modifyFD(UA_EventLoopLWIP *el, UA_RegisteredFD *rfd) {
     /* Do nothing, it is enough if the data was changed in the rfd */
     UA_LOCK_ASSERT(&el->elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
 void
-UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+UA_EventLoopLWIP_deregisterFD(UA_EventLoopLWIP *el, UA_RegisteredFD *rfd) {
     UA_LOCK_ASSERT(&el->elMutex);
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Unregistering fd: %u", (unsigned)rfd->fd);
@@ -796,7 +852,7 @@ UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
 }
 
 static UA_FD
-setFDSets(UA_EventLoopPOSIX *el, fd_set *readset, fd_set *writeset, fd_set *errset) {
+setFDSets(UA_EventLoopLWIP *el, fd_set *readset, fd_set *writeset, fd_set *errset) {
     UA_LOCK_ASSERT(&el->elMutex);
 
     FD_ZERO(readset);
@@ -827,9 +883,13 @@ setFDSets(UA_EventLoopPOSIX *el, fd_set *readset, fd_set *writeset, fd_set *errs
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
+UA_EventLoopLWIP_pollFDs(UA_EventLoopLWIP *el, UA_DateTime listenTimeout) {
     UA_assert(listenTimeout >= 0);
     UA_LOCK_ASSERT(&el->elMutex);
+
+    /* Call netif poll*/
+    if(el->netifPoll)
+        el->netifPoll((UA_EventLoop*)el);
 
     fd_set readset, writeset, errset;
     UA_FD highestfd = setFDSets(el, &readset, &writeset, &errset);
@@ -842,13 +902,8 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     }
 
     struct timeval tmptv = {
-#ifndef UA_ARCHITECTURE_WIN32
-        (time_t)(listenTimeout / UA_DATETIME_SEC),
-        (suseconds_t)((listenTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
-#else
         (long)(listenTimeout / UA_DATETIME_SEC),
         (long)((listenTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
-#endif
     };
 
     UA_UNLOCK(&el->elMutex);
@@ -902,197 +957,48 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     return UA_STATUSCODE_GOOD;
 }
 
-#else /* defined(UA_HAVE_EPOLL) */
-
-UA_StatusCode
-UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
-    struct epoll_event event;
-    memset(&event, 0, sizeof(struct epoll_event));
-    event.data.ptr = rfd;
-    event.events = 0;
-    if(rfd->listenEvents & UA_FDEVENT_IN)
-        event.events |= EPOLLIN;
-    if(rfd->listenEvents & UA_FDEVENT_OUT)
-        event.events |= EPOLLOUT;
-
-    int err = epoll_ctl(el->epollfd, EPOLL_CTL_ADD, rfd->fd, &event);
-    if(err != 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP %u\t| Could not register for epoll (%s)",
-                          rfd->fd, errno_str));
-        return UA_STATUSCODE_BADINTERNALERROR;
+int UA_EventLoopLWIP_pipe(UA_FD fds[2]) {
+    #if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)  || defined(UA_ARCHITECTURE_WIN32)
+        struct sockaddr_in inaddr;
+        memset(&inaddr, 0, sizeof(inaddr));
+        inaddr.sin_family = AF_INET;
+        inaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        inaddr.sin_port = 0;
+    
+        UA_FD lst = UA_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        UA_bind(lst, (struct sockaddr *)&inaddr, sizeof(inaddr));
+        UA_listen(lst, 1);
+    
+        struct sockaddr_storage addr;
+        memset(&addr, 0, sizeof(addr));
+        socklen_t len = sizeof(addr);
+        UA_getsockname(lst, (struct sockaddr*)&addr, &len);
+    
+        fds[0] = UA_socket(AF_INET, SOCK_STREAM, 0);
+        int err = UA_connect(fds[0], (struct sockaddr*)&addr, len);
+        fds[1] = UA_accept(lst, 0, 0);
+        UA_close(lst);
+    
+        UA_EventLoopLWIP_setNoSigPipe(fds[0]);
+        UA_EventLoopLWIP_setReusable(fds[0]);
+        UA_EventLoopLWIP_setNonBlocking(fds[0]);
+        UA_EventLoopLWIP_setNoSigPipe(fds[1]);
+        UA_EventLoopLWIP_setReusable(fds[1]);
+        UA_EventLoopLWIP_setNonBlocking(fds[1]);
+        return err;
+    #else
+        return 0;
+    #endif
     }
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
-    struct epoll_event event;
-    memset(&event, 0, sizeof(struct epoll_event));
-    event.data.ptr = rfd;
-    event.events = 0;
-    if(rfd->listenEvents & UA_FDEVENT_IN)
-        event.events |= EPOLLIN;
-    if(rfd->listenEvents & UA_FDEVENT_OUT)
-        event.events |= EPOLLOUT;
-
-    int err = epoll_ctl(el->epollfd, EPOLL_CTL_MOD, rfd->fd, &event);
-    if(err != 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP %u\t| Could not modify for epoll (%s)",
-                          rfd->fd, errno_str));
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    return UA_STATUSCODE_GOOD;
-}
 
 void
-UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
-    int res = epoll_ctl(el->epollfd, EPOLL_CTL_DEL, rfd->fd, NULL);
-    if(res != 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP %u\t| Could not deregister from epoll (%s)",
-                          rfd->fd, errno_str));
-    }
-}
-
-UA_StatusCode
-UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
-    UA_assert(listenTimeout >= 0);
-
-    /* If there is a positive timeout, wait at least one millisecond, the
-     * minimum for blocking epoll_wait. This prevents a busy-loop, as the
-     * open62541 library allows even smaller timeouts, which can result in a
-     * zero timeout due to rounding to an integer here. */
-    int timeout = (int)(listenTimeout / UA_DATETIME_MSEC);
-    if(timeout == 0 && listenTimeout > 0)
-        timeout = 1;
-
-    /* Poll the registered sockets */
-    struct epoll_event epoll_events[64];
-    UA_UNLOCK(&el->elMutex);
-    int events = epoll_wait(el->epollfd, epoll_events, 64, timeout);
-    UA_LOCK(&el->elMutex);
-
-    /* TODO: Replace with pwait2 for higher-precision timeouts once this is
-     * available in the standard library.
-     *
-     * struct timespec precisionTimeout = {
-     *  (long)(listenTimeout / UA_DATETIME_SEC),
-     *   (long)((listenTimeout % UA_DATETIME_SEC) * 100)
-     * };
-     * int events = epoll_pwait2(epollfd, epoll_events, 64,
-     *                        precisionTimeout, NULL); */
-
-    /* Handle error conditions */
-    if(events == -1) {
-        if(errno == EINTR) {
-            /* We will retry, only log the error */
-            UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                         "Timeout during poll");
-            return UA_STATUSCODE_GOOD;
-        }
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP\t| Error %s, closing the server socket",
-                          errno_str));
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Process all received events */
-    for(int i = 0; i < events; i++) {
-        UA_RegisteredFD *rfd = (UA_RegisteredFD*)epoll_events[i].data.ptr;
-
-        /* The self-pipe has received */
-        if(!rfd) {
-            flushSelfPipe(el->selfpipe[0]);
-            continue;
-        }
-
-        /* The rfd is already registered for removal. Don't process incoming
-         * events any longer. */
-        if(rfd->dc.callback)
-            continue;
-
-        /* Get the event */
-        short revent = 0;
-        if((epoll_events[i].events & EPOLLIN) == EPOLLIN) {
-            revent = UA_FDEVENT_IN;
-        } else if((epoll_events[i].events & EPOLLOUT) == EPOLLOUT) {
-            revent = UA_FDEVENT_OUT;
-        } else {
-            revent = UA_FDEVENT_ERR;
-        }
-
-        /* Call the EventSource callback */
-        rfd->eventSourceCB(rfd->es, rfd, revent);
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-#endif /* defined(UA_HAVE_EPOLL) */
-
-#if defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
-int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
-    struct sockaddr_in inaddr;
-    memset(&inaddr, 0, sizeof(inaddr));
-    inaddr.sin_family = AF_INET;
-    inaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    inaddr.sin_port = 0;
-
-    SOCKET lst = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    bind(lst, (struct sockaddr *)&inaddr, sizeof(inaddr));
-    listen(lst, 1);
-
-    struct sockaddr_storage addr;
-    memset(&addr, 0, sizeof(addr));
-    int len = sizeof(addr);
-    getsockname(lst, (struct sockaddr*)&addr, &len);
-
-    fds[0] = socket(AF_INET, SOCK_STREAM, 0);
-    int err = connect(fds[0], (struct sockaddr*)&addr, len);
-    fds[1] = accept(lst, 0, 0);
-#ifdef UA_ARCHITECTURE_WIN32
-    closesocket(lst);
-#endif
-#ifdef __APPLE__
-    close(lst);
-#endif
-
-    UA_EventLoopPOSIX_setNoSigPipe(fds[0]);
-    UA_EventLoopPOSIX_setReusable(fds[0]);
-    UA_EventLoopPOSIX_setNonBlocking(fds[0]);
-    UA_EventLoopPOSIX_setNoSigPipe(fds[1]);
-    UA_EventLoopPOSIX_setReusable(fds[1]);
-    UA_EventLoopPOSIX_setNonBlocking(fds[1]);
-    return err;
-}
-#elif defined(__QNX__)
-int UA_EventLoopPOSIX_pipe(int fds[2]) {
-    int err = pipe(fds); 
-    if(err == -1) {
-      return err;
-    }
-
-    err = fcntl(fds[0], F_SETFL, O_NONBLOCK);
-    if(err == -1) {
-      return err;
-    }
-    return err;
-}
-#endif
-
-void
-UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el) {
+UA_EventLoopLWIP_cancel(UA_EventLoopLWIP *el) {
     /* Nothing to do if the EventLoop is not executing */
     if(!el->executing)
         return;
 
     /* Trigger the self-pipe */
-#ifdef UA_ARCHITECTURE_WIN32
+#ifdef _WIN32
     int err = send(el->selfpipe[1], ".", 1, 0);
 #else
     ssize_t err = write(el->selfpipe[1], ".", 1);

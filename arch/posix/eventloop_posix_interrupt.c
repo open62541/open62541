@@ -8,7 +8,7 @@
 #include "eventloop_posix.h"
 #include <signal.h>
 
-#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
 /* Different implementation approaches:
  * - Linux: Use signalfd
  * - Other: Use the self-pipe trick (http://cr.yp.to/docs/selfpipe.html) */

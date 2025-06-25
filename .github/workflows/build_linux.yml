@@ -91,7 +91,53 @@ jobs:
             build:
               name: "Debug Build & Unit Tests (clang-18)"
               cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 && sudo sysctl -w vm.mmap_rnd_bits=28
-              cmd_action: CC=clang-18 CXX=clang++-18 unit_tests          
+              cmd_action: CC=clang-18 CXX=clang++-18 unit_tests
+
+          # LWIP Build for specific Ubuntu version
+          - os: ubuntu-24.04
+            build:
+              name: "Debug Build & Unit Tests with lwip (gcc)"
+              cmd_deps: |
+                sudo apt-get install -y -qq build-essential cmake gcc git iproute2 libpcap-dev
+                cd ${HOME}
+                git clone https://github.com/lwip-tcpip/lwip.git
+                cd ${HOME}/lwip
+                git checkout tags/STABLE-2_2_1_RELEASE
+  
+                # Apply the modification to lwipopts.h
+                sed -i '30a\
+                #define MEMP_NUM_TCP_PCB 128\n\
+                #define MEMP_NUM_UDP_PCB 128\n\
+                #define MEMP_NUM_REASSDATA 128\n\
+                #define MEMP_NUM_TCP_PCB_LISTEN 128\n\
+                #define MEMP_NUM_TCP_SEG 128\n\
+                #define MEMP_NUM_PBUF 128\n\
+                #define MEMP_NUM_RAW_PCB 128\n\
+                #define MEMP_NUM_SELECT_CB 128\n\
+                #define MEMP_NUM_NETBUF 128\n\
+                #define MEMP_NUM_NETCONN 128\n\
+                #define PBUF_POOL_SIZE 128\n\
+                #define MEM_SIZE 64000\n\
+                #define LWIP_SOCKET 1\n\
+                #define LWIP_DNS 0' ${HOME}/lwip/contrib/ports/unix/posixlib/lwipopts.h
+  
+                cd ${HOME}/lwip/contrib/ports/unix/posixlib
+                mkdir build
+                cd ${HOME}/lwip/contrib/ports/unix/posixlib/build
+                cmake ..
+                make -j$(nproc)
+                sudo make install
+  
+                cd ${HOME}
+  
+                sudo ip tuntap add dev tap0 mode tap
+                sudo ip link set dev tap0 up
+                sudo ip addr add 192.168.0.1/24 dev tap0
+                sudo sysctl -w net.ipv4.ip_forward=1
+  
+                export PRECONFIGURED_TAPIF=tap0
+                echo 'export PRECONFIGURED_TAPIF=tap0' >> ~/.bashrc
+              cmd_action: unit_tests_lwip
           
           # TPM Tool Builds for specific Ubuntu versions
           - os: ubuntu-20.04
