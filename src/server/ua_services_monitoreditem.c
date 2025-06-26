@@ -146,7 +146,7 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 checkEventFilterParam(UA_Server *server, UA_Session *session,
                       const UA_MonitoredItem *mon,
-                      UA_MonitoringParameters *params,
+                      const UA_MonitoringParameters *params,
                       UA_ExtensionObject *filterResult) {
     UA_assert(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
 
@@ -227,10 +227,10 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
 #ifndef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         return UA_STATUSCODE_BADNOTSUPPORTED;
 #else
-        UA_StatusCode res = checkEventFilterParam(server, session, mon,
-                                                  params, filterResult);
+        UA_StatusCode res =
+            checkEventFilterParam(server, session, mon, params, filterResult);
         if(res != UA_STATUSCODE_GOOD)
-            return res;
+            return UA_STATUSCODE_BADEVENTFILTERINVALID;
 #endif
     } else {
         /* DataChange MonitoredItem. Can be "no filter" which defaults to
@@ -461,6 +461,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     result->statusCode |= checkAdjustMonitoredItemParams(server, session, newMon,
                                                          valueType, &newMon->parameters,
                                                          &result->filterResult);
+
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SUBSCRIPTION(server->config.logging, cmc->sub,
                                  "Could not create a MonitoredItem "

@@ -202,7 +202,6 @@ START_TEST(encryption_connect) {
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
-    cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
     /* Manually add the Basic256 SecurityPolicy.
@@ -301,7 +300,6 @@ START_TEST(encryption_connect_pem) {
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
-    cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
     /* Manually add the Basic256 SecurityPolicy.

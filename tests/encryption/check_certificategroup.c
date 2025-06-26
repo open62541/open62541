@@ -51,7 +51,7 @@ static void setup(void) {
     privateKey.data = KEY_DER_DATA;
 
     server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
-                                                          NULL, 0,
+                                                          &certificate, 1,
                                                           NULL, 0,
                                                           NULL, 0);
     ck_assert(server != NULL);
@@ -186,7 +186,6 @@ START_TEST(add_to_trustlist) {
 END_TEST
 
 START_TEST(get_trustlist) {
-
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     /* Load certificate and private key */
@@ -274,15 +273,16 @@ START_TEST(get_rejectedlist) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
-    /* Load certificate and private key */
+    /* Load certificate and private key.
+     * Use a certificate that is not in the trustlist of the server. */
     UA_ByteString certificate;
-    certificate.length = CERT_DER_LENGTH;
-    certificate.data = CERT_DER_DATA;
+    certificate.length = APPLICATION_CERT_DER_LENGTH;
+    certificate.data = APPLICATION_CERT_DER_DATA;
     ck_assert_uint_ne(certificate.length, 0);
 
     UA_ByteString privateKey;
-    privateKey.length = KEY_DER_LENGTH;
-    privateKey.data = KEY_DER_DATA;
+    privateKey.length = APPLICATION_KEY_DER_LENGTH;
+    privateKey.data = APPLICATION_KEY_DER_DATA;
     ck_assert_uint_ne(privateKey.length, 0);
 
     /* Secure client initialization */

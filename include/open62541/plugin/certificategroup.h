@@ -19,7 +19,17 @@ typedef struct UA_CertificateGroup UA_CertificateGroup;
 
 /**
  * CertificateGroup Plugin API
- * --------------------------- */
+ * ---------------------------
+ *
+ * This plugin verifies that the origin of the certificate is trusted. It does
+ * not assign any access rights/roles to the holder of the certificate.
+ *
+ * Usually, implementations of the CertificateGroup plugin provide an
+ * initialization method that takes a trust-list and a revocation-list as input.
+ * This initialization method takes a pointer to the plugin location and therein
+ * calls the ``clear`` method if valid, before attempting to initialize it anew.
+ * The lifecycle of the plugin is attached to a server or client config. The
+ * ``clear`` method is called automatically when the config is destroyed. */
 
 struct UA_CertificateGroup {
     /* The NodeId of the certificate group this pki store is associated with */
@@ -35,11 +45,13 @@ struct UA_CertificateGroup {
 
     UA_StatusCode (*getTrustList)(UA_CertificateGroup *certGroup,
                                   UA_TrustListDataType *trustList);
+
     UA_StatusCode (*setTrustList)(UA_CertificateGroup *certGroup,
                                   const UA_TrustListDataType *trustList);
 
     UA_StatusCode (*addToTrustList)(UA_CertificateGroup *certGroup,
                                     const UA_TrustListDataType *trustList);
+
     UA_StatusCode (*removeFromTrustList)(UA_CertificateGroup *certGroup,
                                          const UA_TrustListDataType *trustList);
 
@@ -51,7 +63,8 @@ struct UA_CertificateGroup {
     UA_StatusCode (*getCertificateCrls)(UA_CertificateGroup *certGroup,
                                         const UA_ByteString *certificate,
                                         const UA_Boolean isTrusted,
-                                        UA_ByteString **crls, size_t *crlsSize);
+                                        UA_ByteString **crls,
+                                        size_t *crlsSize);
 
     UA_StatusCode (*verifyCertificate)(UA_CertificateGroup *certGroup,
                                        const UA_ByteString *certificate);

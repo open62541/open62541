@@ -21,6 +21,7 @@
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 UA_Server *server;
+size_t initialTrustSize;
 
 static void setup(void) {
     /* Load certificate and private key */
@@ -33,8 +34,11 @@ static void setup(void) {
     privateKey.data = KEY_DER_DATA;
 
     server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
-                                                          NULL, 0, NULL, 0, NULL, 0);
+                                                          &certificate, 1,
+                                                          NULL, 0, NULL, 0);
     ck_assert(server != NULL);
+
+    initialTrustSize = 1;
 }
 
 #if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
@@ -67,6 +71,8 @@ static void setup2(void) {
     UA_TrustListDataType_clear(&trustList);
 
     ck_assert(server != NULL);
+
+    initialTrustSize = 0;
 }
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
@@ -117,7 +123,7 @@ START_TEST(add_ca_certificate_trustlist) {
     trustedCrls[1].data = INTERMEDIATE_EMPTY_CRL_PEM_DATA;
 
 
-    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId defaultApplicationGroup = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
 
     UA_StatusCode retval =
             UA_Server_addCertificates(server, defaultApplicationGroup, trustedCertificates, 2,
@@ -158,7 +164,7 @@ START_TEST(add_ca_certificate_issuerlist) {
     issuerCrls[1].data = INTERMEDIATE_EMPTY_CRL_PEM_DATA;
 
 
-    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId defaultApplicationGroup = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
 
     UA_StatusCode retval =
             UA_Server_addCertificates(server, defaultApplicationGroup, issuerCertificates, 2,
@@ -171,7 +177,7 @@ START_TEST(add_ca_certificate_issuerlist) {
 
     retval = config->secureChannelPKI.getTrustList(&config->secureChannelPKI, &trustList);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(trustList.trustedCertificatesSize, 0);
+    ck_assert_uint_eq(trustList.trustedCertificatesSize, initialTrustSize);
     ck_assert_uint_eq(trustList.issuerCertificatesSize, 2);
     ck_assert_uint_eq(trustList.trustedCrlsSize, 0);
     ck_assert_uint_eq(trustList.issuerCrlsSize, 2);
@@ -199,7 +205,7 @@ START_TEST(remove_certificate_trustlist) {
     trustedCrls[1].data = INTERMEDIATE_EMPTY_CRL_PEM_DATA;
 
 
-    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId defaultApplicationGroup = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
 
     UA_StatusCode retval =
             UA_Server_addCertificates(server, defaultApplicationGroup, trustedCertificates, 2,
@@ -244,10 +250,11 @@ START_TEST(remove_certificate_issuerlist) {
     issuerCrls[1].data = INTERMEDIATE_EMPTY_CRL_PEM_DATA;
 
 
-    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId defaultApplicationGroup = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
 
     UA_StatusCode retval =
-            UA_Server_addCertificates(server, defaultApplicationGroup, issuerCertificates, 2,
+            UA_Server_addCertificates(server, defaultApplicationGroup,
+                                      issuerCertificates, 2,
                                       issuerCrls, 2, false, false);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -261,7 +268,7 @@ START_TEST(remove_certificate_issuerlist) {
 
     retval = config->secureChannelPKI.getTrustList(&config->secureChannelPKI, &trustList);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(trustList.trustedCertificatesSize, 0);
+    ck_assert_uint_eq(trustList.trustedCertificatesSize, initialTrustSize);
     ck_assert_uint_eq(trustList.issuerCertificatesSize, 0);
     ck_assert_uint_eq(trustList.trustedCrlsSize, 0);
     ck_assert_uint_eq(trustList.issuerCrlsSize, 0);
@@ -278,7 +285,7 @@ START_TEST(add_application_certificate_trustlist) {
     trustedCertificates[0].length = APPLICATION_CERT_DER_LENGTH;
     trustedCertificates[0].data = APPLICATION_CERT_DER_DATA;
 
-    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId defaultApplicationGroup = UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
 
     UA_StatusCode retval =
             UA_Server_addCertificates(server, defaultApplicationGroup, trustedCertificates, 1,
@@ -291,7 +298,7 @@ START_TEST(add_application_certificate_trustlist) {
 
     retval = config->secureChannelPKI.getTrustList(&config->secureChannelPKI, &trustList);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(trustList.trustedCertificatesSize, 1);
+    ck_assert_uint_eq(trustList.trustedCertificatesSize, initialTrustSize + 1);
     ck_assert_uint_eq(trustList.issuerCertificatesSize, 0);
     ck_assert_uint_eq(trustList.trustedCrlsSize, 0);
     ck_assert_uint_eq(trustList.issuerCrlsSize, 0);

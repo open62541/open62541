@@ -11,6 +11,7 @@
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/certificategroup_default.h>
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 

@@ -147,19 +147,6 @@ addCurrentTimeDataSourceVariable(UA_Server *server) {
                                         timeDataSource, NULL, NULL);
 }
 
-static UA_DataValue *externalValue;
-
-static void
-addCurrentTimeExternalDataSource(UA_Server *server) {
-    UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time-external-source");
-
-    UA_ValueBackend valueBackend;
-    valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-    valueBackend.backend.external.value = &externalValue;
-
-    UA_Server_setVariableNode_valueBackend(server, currentNodeId, valueBackend);
-}
-
 /** It follows the main server code, making use of the above definitions. */
 
 int main(void) {
@@ -168,7 +155,6 @@ int main(void) {
     addCurrentTimeVariable(server);
     addValueCallbackToCurrentTimeVariable(server);
     addCurrentTimeDataSourceVariable(server);
-    addCurrentTimeExternalDataSource(server);
 
     UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);

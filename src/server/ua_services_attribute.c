@@ -138,17 +138,17 @@ readIsAbstractAttribute(const UA_Node *node, UA_Variant *v) {
 }
 
 static UA_StatusCode
-readValueAttributeFromNode(UA_Server *server, UA_Session *session,
+readInternalValueAttribute(UA_Server *server, UA_Session *session,
                            const UA_VariableNode *vn, UA_DataValue *v,
                            UA_NumericRange *rangeptr) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+
     /* Update the value by the user callback */
-    if(vn->value.data.callback.onRead) {
-        vn->value.data.callback.onRead(server,
-                                       session ? &session->sessionId : NULL,
-                                       session ? session->context : NULL,
-                                       &vn->head.nodeId, vn->head.context, rangeptr,
-                                       &vn->value.data.value);
+    if(vn->valueSource.internal.notifications.onRead) {
+        vn->valueSource.internal.notifications.
+            onRead(server, session ? &session->sessionId : NULL,
+                   session ? session->context : NULL, &vn->head.nodeId,
+                   vn->head.context, rangeptr, &vn->valueSource.internal.value);
         vn = (const UA_VariableNode*)
             UA_NODESTORE_GET_SELECTIVE(server, &vn->head.nodeId,
                                        UA_NODEATTRIBUTESMASK_VALUE,
@@ -159,34 +159,51 @@ readValueAttributeFromNode(UA_Server *server, UA_Session *session,
     }
 
     /* Set the result */
-    UA_StatusCode retval;
-    if(!rangeptr) {
-        retval = UA_DataValue_copy(&vn->value.data.value, v);
-    } else {
-        *v = vn->value.data.value; /* Copy timestamps */
-        UA_Variant_init(&v->value);
-        retval = UA_Variant_copyRange(&vn->value.data.value.value, &v->value, *rangeptr);
-    }
+    UA_StatusCode retval = (!rangeptr) ?
+        UA_DataValue_copy(&vn->valueSource.internal.value, v) :
+        UA_DataValue_copyRange(&vn->valueSource.internal.value, v, *rangeptr);
 
     /* Clean up */
-    if(vn->value.data.callback.onRead)
+    if(vn->valueSource.internal.notifications.onRead)
         UA_NODESTORE_RELEASE(server, (const UA_Node *)vn);
     return retval;
 }
 
 static UA_StatusCode
-readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
-                                 const UA_VariableNode *vn, UA_DataValue *v,
-                                 UA_TimestampsToReturn timestamps,
-                                 UA_NumericRange *rangeptr) {
+readExternalValueAttribute(UA_Server *server, UA_Session *session,
+                           const UA_VariableNode *vn, UA_DataValue *v,
+                           UA_NumericRange *rangeptr) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    if(!vn->value.dataSource.read)
+
+    /* Update the value by the user callback */
+    if(vn->valueSource.internal.notifications.onRead)
+        vn->valueSource.internal.notifications.
+            onRead(server, session ? &session->sessionId : NULL,
+                   session ? session->context : NULL, &vn->head.nodeId,
+                   vn->head.context, rangeptr, *vn->valueSource.external.value);
+
+    /* Reload the value pointer */
+    const UA_DataValue *val = (const UA_DataValue*)
+        UA_atomic_load((void**)vn->valueSource.external.value);
+
+    /* Set the result */
+    return (!rangeptr) ? UA_DataValue_copy(val, v) : UA_DataValue_copyRange(val, v, *rangeptr);
+}
+
+static UA_StatusCode
+readCallbackValueAttribute(UA_Server *server, UA_Session *session,
+                           const UA_VariableNode *vn, UA_DataValue *v,
+                           UA_TimestampsToReturn timestamps,
+                           UA_NumericRange *rangeptr) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    if(!vn->valueSource.callback.read)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
                                   timestamps == UA_TIMESTAMPSTORETURN_BOTH);
     UA_DataValue v2;
     UA_DataValue_init(&v2);
-    UA_StatusCode retval = vn->value.dataSource.
+    UA_StatusCode retval = vn->valueSource.callback.
         read(server,
              session ? &session->sessionId : NULL,
              session ? session->context : NULL,
@@ -207,7 +224,7 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
                            const UA_String *indexRange, UA_DataValue *v) {
     UA_EventLoop *el = server->config.eventLoop;
 
-    /* Compute the index range */
+    /* Parse the index range */
     UA_NumericRange range;
     UA_NumericRange *rangeptr = NULL;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -218,49 +235,20 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
         rangeptr = &range;
     }
 
-    switch(vn->valueBackend.backendType) {
-        case UA_VALUEBACKENDTYPE_INTERNAL:
-            retval = readValueAttributeFromNode(server, session, vn, v, rangeptr);
-            //TODO change old structure to value backend
-            break;
-        case UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK:
-            retval = readValueAttributeFromDataSource(server, session, vn, v,
-                                                      timestamps, rangeptr);
-            //TODO change old structure to value backend
-            break;
-        case UA_VALUEBACKENDTYPE_EXTERNAL:
-            if(vn->valueBackend.backend.external.callback.notificationRead) {
-                retval = vn->valueBackend.backend.external.callback.
-                    notificationRead(server,
-                                     session ? &session->sessionId : NULL,
-                                     session ? session->context : NULL,
-                                     &vn->head.nodeId, vn->head.context, rangeptr);
-                if(retval != UA_STATUSCODE_GOOD)
-                    break;
-            }
-
-            /* Check that a value is available */
-            if(!vn->valueBackend.backend.external.value) {
-                retval = UA_STATUSCODE_BADNOTREADABLE;
-                break;
-            }
-
-            /* Set the result */
-            if(rangeptr)
-                retval = UA_DataValue_copyVariantRange(
-                    *vn->valueBackend.backend.external.value, v, *rangeptr);
-            else
-                retval = UA_DataValue_copy(*vn->valueBackend.backend.external.value, v);
-            break;
-        case UA_VALUEBACKENDTYPE_NONE:
-            /* Read the value */
-            if(vn->valueSource == UA_VALUESOURCE_DATA)
-                retval = readValueAttributeFromNode(server, session, vn, v, rangeptr);
-            else
-                retval = readValueAttributeFromDataSource(server, session, vn, v,
-                                                          timestamps, rangeptr);
-            /* end lagacy */
-            break;
+    /* Read from the value souce */
+    switch(vn->valueSourceType) {
+    case UA_VALUESOURCETYPE_INTERNAL:
+        retval = readInternalValueAttribute(server, session, vn, v, rangeptr);
+        break;
+    case UA_VALUESOURCETYPE_EXTERNAL:
+        retval = readExternalValueAttribute(server, session, vn, v, rangeptr);
+        break;
+    case UA_VALUESOURCETYPE_CALLBACK:
+        retval = readCallbackValueAttribute(server, session, vn, v, timestamps, rangeptr);
+        break;
+    default:
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        break;
     }
 
     /* If not defined return a source timestamp of "now".
@@ -1299,89 +1287,87 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
-writeValueAttributeWithoutRange(UA_VariableNode *node, const UA_DataValue *value) {
-    UA_DataValue *oldValue = &node->value.data.value;
-    UA_DataValue tmpValue = *value;
+writeInternalValueAttribute(UA_DataValue *oldValue,
+                            const UA_DataValue *value,
+                            const UA_NumericRange *rangeptr) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(rangeptr) {
+        /* Value on both sides? */
+        if(value->status != oldValue->status || !value->hasValue || !oldValue->hasValue)
+            return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
-    /* If possible memcpy the new value over the old value without
-     * a malloc. For this the value needs to be "pointerfree". */
-    if(oldValue->hasValue && oldValue->value.type && oldValue->value.type->pointerFree &&
-       value->hasValue && value->value.type && value->value.type->pointerFree &&
-       oldValue->value.type->memSize == value->value.type->memSize) {
-        size_t oSize = 1;
-        size_t vSize = 1;
-        if(!UA_Variant_isScalar(&oldValue->value))
-            oSize = oldValue->value.arrayLength;
-        if(!UA_Variant_isScalar(&value->value))
-            vSize = value->value.arrayLength;
-
-        if(oSize == vSize &&
-           oldValue->value.arrayDimensionsSize == value->value.arrayDimensionsSize) {
-            /* Keep the old pointers, but adjust type and array length */
-            tmpValue.value = oldValue->value;
-            tmpValue.value.type = value->value.type;
-            tmpValue.value.arrayLength = value->value.arrayLength;
-
-            /* Copy the data over the old memory */
-            memcpy(tmpValue.value.data, value->value.data,
-                   oSize * oldValue->value.type->memSize);
-            if(oldValue->value.arrayDimensionsSize > 0) /* No memcpy with NULL-ptr */
-                memcpy(tmpValue.value.arrayDimensions, value->value.arrayDimensions,
-                       sizeof(UA_UInt32) * oldValue->value.arrayDimensionsSize);
-
-            /* Set the value */
-            node->value.data.value = tmpValue;
-            return UA_STATUSCODE_GOOD;
+        /* Make scalar a one-entry array for range matching */
+        UA_Variant editableValue;
+        const UA_Variant *v = &value->value;
+        if(UA_Variant_isScalar(&value->value)) {
+            editableValue = value->value;
+            editableValue.arrayLength = 1;
+            v = &editableValue;
         }
+
+        /* Check that the type is an exact match and not only "compatible" */
+        if(!oldValue->value.type || !v->type ||
+           !UA_NodeId_equal(&oldValue->value.type->typeId, &v->type->typeId))
+            return UA_STATUSCODE_BADTYPEMISMATCH;
+
+        /* Write the value */
+        retval = UA_Variant_setRangeCopy(&oldValue->value, v->data,
+                                         v->arrayLength, *rangeptr);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+
+        /* Write the status and timestamps */
+        oldValue->hasStatus = value->hasStatus;
+        oldValue->status = value->status;
+        oldValue->hasSourceTimestamp = value->hasSourceTimestamp;
+        oldValue->sourceTimestamp = value->sourceTimestamp;
+        oldValue->hasSourcePicoseconds = value->hasSourcePicoseconds;
+        oldValue->sourcePicoseconds = value->sourcePicoseconds;
+    } else {
+        UA_DataValue tmpValue = *value;
+
+        /* If possible memcpy the new value over the old value without
+         * a malloc. For this the value needs to be "pointerfree". */
+        if(oldValue->hasValue && oldValue->value.type &&
+           oldValue->value.type->pointerFree && value->hasValue &&
+           value->value.type && value->value.type->pointerFree &&
+           oldValue->value.type->memSize == value->value.type->memSize) {
+            size_t oSize = 1;
+            size_t vSize = 1;
+            if(!UA_Variant_isScalar(&oldValue->value))
+                oSize = oldValue->value.arrayLength;
+            if(!UA_Variant_isScalar(&value->value))
+                vSize = value->value.arrayLength;
+
+            if(oSize == vSize &&
+               oldValue->value.arrayDimensionsSize == value->value.arrayDimensionsSize) {
+                /* Keep the old pointers, but adjust type and array length */
+                tmpValue.value = oldValue->value;
+                tmpValue.value.type = value->value.type;
+                tmpValue.value.arrayLength = value->value.arrayLength;
+
+                /* Copy the data over the old memory */
+                memcpy(tmpValue.value.data, value->value.data,
+                       oSize * oldValue->value.type->memSize);
+                if(oldValue->value.arrayDimensionsSize > 0) /* No memcpy with NULL-ptr */
+                    memcpy(tmpValue.value.arrayDimensions, value->value.arrayDimensions,
+                           sizeof(UA_UInt32) * oldValue->value.arrayDimensionsSize);
+
+                /* Set the value */
+                *oldValue = tmpValue;
+                return UA_STATUSCODE_GOOD;
+            }
+        }
+
+        /* Make a deep copy of the value and replace when this succeeds */
+        retval = UA_Variant_copy(&value->value, &tmpValue.value);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        UA_DataValue_clear(oldValue);
+        *oldValue = tmpValue;
     }
 
-    /* Make a deep copy of the value and replace when this succeeds */
-    UA_StatusCode retval = UA_Variant_copy(&value->value, &tmpValue.value);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    UA_DataValue_clear(&node->value.data.value);
-    node->value.data.value = tmpValue;
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-writeValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
-                             const UA_NumericRange *rangeptr) {
-    /* Value on both sides? */
-    if(value->status != node->value.data.value.status ||
-       !value->hasValue || !node->value.data.value.hasValue)
-        return UA_STATUSCODE_BADINDEXRANGEINVALID;
-
-    /* Make scalar a one-entry array for range matching */
-    UA_Variant editableValue;
-    const UA_Variant *v = &value->value;
-    if(UA_Variant_isScalar(&value->value)) {
-        editableValue = value->value;
-        editableValue.arrayLength = 1;
-        v = &editableValue;
-    }
-
-    /* Check that the type is an exact match and not only "compatible" */
-    if(!node->value.data.value.value.type || !v->type ||
-       !UA_NodeId_equal(&node->value.data.value.value.type->typeId,
-                        &v->type->typeId))
-        return UA_STATUSCODE_BADTYPEMISMATCH;
-
-    /* Write the value */
-    UA_StatusCode retval =
-        UA_Variant_setRangeCopy(&node->value.data.value.value,
-                                v->data, v->arrayLength, *rangeptr);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Write the status and timestamps */
-    node->value.data.value.hasStatus = value->hasStatus;
-    node->value.data.value.status = value->status;
-    node->value.data.value.hasSourceTimestamp = value->hasSourceTimestamp;
-    node->value.data.value.sourceTimestamp = value->sourceTimestamp;
-    node->value.data.value.hasSourcePicoseconds = value->hasSourcePicoseconds;
-    node->value.data.value.sourcePicoseconds = value->sourcePicoseconds;
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 static UA_StatusCode
@@ -1442,56 +1428,30 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
         adjustedValue.hasSourcePicoseconds = false;
     }
 
-    /* Call into the different value storage backends.
-     *
-     * TODO: Clean up this mess with duplicated possibilities for external
-     * callbacks */
+    /* Write into the different value source backends. */
     retval = UA_STATUSCODE_BADWRITENOTSUPPORTED; /* default */
-    switch(node->valueBackend.backendType) {
-    case UA_VALUEBACKENDTYPE_NONE:
-        if(node->valueSource == UA_VALUESOURCE_DATA) {
-            /* Write into the in-situ DataValue */
-            if(!rangeptr)
-                retval = writeValueAttributeWithoutRange(node, &adjustedValue);
-            else
-                retval = writeValueAttributeWithRange(node, &adjustedValue, rangeptr);
-
-            /* Callback after writing */
-            if(retval == UA_STATUSCODE_GOOD &&
-               node->value.data.callback.onWrite) {
-                node->value.data.callback.
-                    onWrite(server, &session->sessionId, session->context,
-                            &node->head.nodeId, node->head.context,
-                            rangeptr, &adjustedValue);
-            }
-        } else if(node->value.dataSource.write) {
-            /* Write via the datasource callback */
-            retval = node->value.dataSource.
+    switch(node->valueSourceType) {
+    case UA_VALUESOURCETYPE_EXTERNAL:
+    case UA_VALUESOURCETYPE_INTERNAL: {
+        UA_DataValue *oldValue = (node->valueSourceType == UA_VALUESOURCETYPE_INTERNAL) ?
+            &node->valueSource.internal.value :
+            (UA_DataValue*)UA_atomic_load((void**)node->valueSource.external.value);
+        retval = writeInternalValueAttribute(oldValue, &adjustedValue, rangeptr);
+        if(retval == UA_STATUSCODE_GOOD &&
+           node->valueSource.internal.notifications.onWrite)
+            node->valueSource.internal.notifications.
+                onWrite(server, &session->sessionId, session->context,
+                        &node->head.nodeId, node->head.context, rangeptr, &adjustedValue);
+        break;
+    }
+    case UA_VALUESOURCETYPE_CALLBACK:
+        if(node->valueSource.callback.write)
+            retval = node->valueSource.callback.
                 write(server, &session->sessionId, session->context,
-                      &node->head.nodeId, node->head.context,
-                      rangeptr, &adjustedValue);
-        }
+                      &node->head.nodeId, node->head.context, rangeptr, &adjustedValue);
         break;
-
-    case UA_VALUEBACKENDTYPE_EXTERNAL:
-        retval = UA_STATUSCODE_GOOD;
-        if(node->valueBackend.backend.external.callback.userWrite) {
-            retval = node->valueBackend.backend.external.callback.
-                userWrite(server, &session->sessionId, session->context,
-                          &node->head.nodeId, node->head.context,
-                          rangeptr, &adjustedValue);
-        } else {
-            if(node->valueBackend.backend.external.value) {
-                UA_DataValue_clear(*node->valueBackend.backend.external.value);
-                retval = UA_DataValue_copy(&adjustedValue,
-                                           *node->valueBackend.backend.external.value);
-            }
-        }
-        break;
-
-    case UA_VALUEBACKENDTYPE_INTERNAL:
-    case UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK:
     default:
+        retval = UA_STATUSCODE_BADINTERNALERROR;
         break;
     }
 

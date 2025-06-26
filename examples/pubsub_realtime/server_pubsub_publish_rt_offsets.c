@@ -15,16 +15,24 @@ static UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, con
  * next with atomic operations. */
 UA_UInt32 valueStore[PUBSUB_CONFIG_FIELD_COUNT];
 UA_DataValue dvStore[PUBSUB_CONFIG_FIELD_COUNT];
-UA_DataValue *dvPointers[PUBSUB_CONFIG_FIELD_COUNT];
 UA_NodeId publishVariables[PUBSUB_CONFIG_FIELD_COUNT];
+
+static UA_StatusCode
+readCallback(UA_Server *server, const UA_NodeId *sessionId,
+             void *sessionContext, const UA_NodeId *nodeId,
+             void *nodeContext, UA_Boolean includeSourceTimeStamp,
+             const UA_NumericRange *range, UA_DataValue *value) {
+    *value = *(UA_DataValue*)nodeContext;
+    return UA_STATUSCODE_GOOD;
+}
 
 int main(void) {
     /* Prepare the values */
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
         valueStore[i] = (UA_UInt32) i + 1;
         UA_Variant_setScalar(&dvStore[i].value, &valueStore[i], &UA_TYPES[UA_TYPES_UINT32]);
+        dvStore[i].value.storageType = UA_VARIANT_DATA_NODELETE;
         dvStore[i].hasValue = true;
-        dvPointers[i] = &dvStore[i];
     }
 
     /* Initialize the server */
@@ -64,12 +72,12 @@ int main(void) {
                                   UA_NS0ID(BASEDATAVARIABLETYPE),
                                   vAttr, NULL, &publishVariables[i]);
 
-        /* Set the value backend of the above create node to 'external value source' */
-        UA_ValueBackend valueBackend;
-        memset(&valueBackend, 0, sizeof(UA_ValueBackend));
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = &dvPointers[i];
-        UA_Server_setVariableNode_valueBackend(server, publishVariables[i], valueBackend);
+        /* Set the node's callback value source */
+        UA_CallbackValueSource evs;
+        memset(&evs, 0, sizeof(UA_CallbackValueSource));
+        evs.read = readCallback;
+        UA_Server_setNodeContext(server, publishVariables[i], &dvStore[i]);
+        UA_Server_setVariableNode_callbackValueSource(server, publishVariables[i], evs);
 
         /* Add the DataSetField */
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));

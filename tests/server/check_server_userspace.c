@@ -16,7 +16,7 @@
 #endif
 
 START_TEST(Server_Namespace1_check) {
-    UA_Server *server = UA_Server_new();
+    UA_Server *server = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     const char *namespace1 = "http://namespace1";

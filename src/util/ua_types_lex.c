@@ -1010,12 +1010,14 @@ UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
 /* Always uses the percent-escaping */
 static UA_StatusCode
 parseAttributeOperand(UA_AttributeOperand *ao, const UA_String str, UA_NodeId defaultId) {
+    /* Initialize and set the default values */
     UA_AttributeOperand_init(ao);
+    ao->nodeId = defaultId;
+    ao->attributeId = UA_ATTRIBUTEID_VALUE;
+
+    /* Nothing to parse */
     if(str.length == 0)
         return UA_STATUSCODE_GOOD;
-
-    /* Set the default NodeId */
-    ao->nodeId = defaultId;
 
     const u8 *pos = str.data;
     const u8 *end = pos + str.length;
@@ -1162,7 +1164,6 @@ yy65:
         goto cleanup;
 
     /* Parse the AttributeId */
-    ao->attributeId = UA_ATTRIBUTEID_VALUE;
     if(pos < end && *pos == '#') {
         const u8 *attr_pos = ++pos;
         while(pos < end && ((*pos >= 'a' && *pos <= 'z') ||
