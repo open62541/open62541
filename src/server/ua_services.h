@@ -230,10 +230,10 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                           const UA_SetPublishingModeRequest *request,
                           UA_SetPublishingModeResponse *response);
 
-/* Special async service. Do not answer if StatusCode == Good. */
-UA_StatusCode
+UA_Boolean
 Service_Publish(UA_Server *server, UA_Session *session,
-                const UA_PublishRequest *request, UA_UInt32 requestId);
+                const UA_PublishRequest *request,
+                UA_PublishResponse *response);
 
 UA_Boolean
 Service_Republish(UA_Server *server, UA_Session *session,

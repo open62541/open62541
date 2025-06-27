@@ -236,16 +236,20 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
     return true;
 }
 
-UA_StatusCode
+UA_Boolean
 Service_Publish(UA_Server *server, UA_Session *session,
-                const UA_PublishRequest *request, UA_UInt32 requestId) {
+                const UA_PublishRequest *request,
+                UA_PublishResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
-                         "Processing PublishRequest with RequestId %u", requestId);
+                         "Processing PublishRequest with RequestId %u",
+                         server->asyncManager.currentRequestId);
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Return an error if the session has no subscription */
-    if(TAILQ_EMPTY(&session->subscriptions))
-        return UA_STATUSCODE_BADNOSUBSCRIPTION;
+    if(TAILQ_EMPTY(&session->subscriptions)) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
+        return true;
+    }
 
     /* Handle too many subscriptions to free resources before trying to allocate
      * resources for the new publish request. If the limit has been reached the
@@ -255,42 +259,46 @@ Service_Publish(UA_Server *server, UA_Session *session,
     /* Allocate the response to store it in the retransmission queue */
     UA_PublishResponseEntry *entry = (UA_PublishResponseEntry *)
         UA_malloc(sizeof(UA_PublishResponseEntry));
-    if(!entry)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!entry) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+        return true;
+    }
 
     /* Prepare the response */
-    entry->requestId = requestId;
-    UA_PublishResponse *response = &entry->response;
-    UA_PublishResponse_init(response);
-    response->responseHeader.requestHandle = request->requestHeader.requestHandle;
+    UA_PublishResponse *entry_response = &entry->response;
+    UA_PublishResponse_init(entry_response);
 
     /* Allocate the results array to acknowledge the acknowledge */
     if(request->subscriptionAcknowledgementsSize > 0) {
-        response->results = (UA_StatusCode *)
+        entry_response->results = (UA_StatusCode *)
             UA_Array_new(request->subscriptionAcknowledgementsSize,
                          &UA_TYPES[UA_TYPES_STATUSCODE]);
-        if(!response->results) {
+        if(!entry_response->results) {
             UA_free(entry);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
+            return true;
         }
-        response->resultsSize = request->subscriptionAcknowledgementsSize;
+        entry_response->resultsSize = request->subscriptionAcknowledgementsSize;
     }
 
-    /* <--- A good StatusCode is returned from here on ---> */
+    /* <--- Async response from here on ---> */
+
+    entry->requestId = server->asyncManager.currentRequestId;
+    entry_response->responseHeader.requestHandle = request->requestHeader.requestHandle;
 
     /* Delete Acknowledged Subscription Messages */
     for(size_t i = 0; i < request->subscriptionAcknowledgementsSize; ++i) {
         UA_SubscriptionAcknowledgement *ack = &request->subscriptionAcknowledgements[i];
         UA_Subscription *sub = UA_Session_getSubscriptionById(session, ack->subscriptionId);
         if(!sub) {
-            response->results[i] = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+            entry_response->results[i] = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
             UA_LOG_DEBUG_SESSION(server->config.logging, session,
                                  "Cannot process acknowledgements subscription %u" PRIu32,
                                  ack->subscriptionId);
             continue;
         }
         /* Remove the acked transmission from the retransmission queue */
-        response->results[i] =
+        entry_response->results[i] =
             UA_Subscription_removeRetransmissionMessage(sub, ack->sequenceNumber);
     }
 
@@ -344,7 +352,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
             break;
     }
 
-    return UA_STATUSCODE_GOOD;
+    return false;
 }
 
 static void
