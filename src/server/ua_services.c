@@ -292,8 +292,8 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     /* The publish request is not answered immediately */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     if(sd->requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
-        rh->serviceResult = Service_Publish(server, session, &request->publishRequest, requestId);
-        return (rh->serviceResult != UA_STATUSCODE_GOOD);
+        return Service_Publish(server, session, &request->publishRequest,
+                               &response->publishResponse);
     }
 #endif
 
