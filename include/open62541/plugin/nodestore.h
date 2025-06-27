@@ -605,9 +605,6 @@ typedef struct {
 
     /* Members specific to open62541 */
     UA_MethodCallback method;
-#if UA_MULTITHREADING >= 100
-    UA_Boolean async; /* Indicates an async method call */
-#endif
 } UA_MethodNode;
 
 /**
