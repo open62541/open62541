@@ -71,16 +71,15 @@ UA_AsyncManager_sendAsyncResponses(void *s, void *a) {
 }
 
 static void
-integrateResult(UA_Server *server, UA_AsyncManager *am,
-                UA_AsyncOperation *ao) {
-    UA_AsyncResponse *ar = ao->parent;
+integrateResult(UA_Server *server, UA_AsyncManager *am, UA_AsyncOperation *op) {
+    UA_AsyncResponse *ar = op->parent;
     ar->opCountdown -= 1;
     am->opsCount--;
 
-    TAILQ_REMOVE(&am->dispatchedQueue, ao, pointers);
+    TAILQ_REMOVE(&am->ops, op, pointers);
 
-    /* Delete the request information embedded in the ao */
-    UA_CallMethodRequest_clear(&ao->request);
+    /* Delete the request information embedded in the op  */
+    UA_CallMethodRequest_clear(&op->request);
 
     /* Trigger the main server thread to send out responses */
     if(ar->opCountdown == 0 && am->dc.callback == NULL) {
@@ -111,26 +110,17 @@ checkTimeouts(UA_Server *server, void *_) {
 
     /* Loop over the queue of dispatched ops */
     UA_AsyncOperation *op = NULL, *op_tmp = NULL;
-    UA_AsyncOperationQueue *q = &am->dispatchedQueue;
-
- iterate:
-    TAILQ_FOREACH_SAFE(op, q, pointers, op_tmp) {
+    TAILQ_FOREACH_SAFE(op, &am->ops, pointers, op_tmp) {
         /* The timeout has not passed. Also for all elements following in the queue. */
         if(tNow <= op->parent->timeout)
             break;
 
-        TAILQ_REMOVE(q, op, pointers);
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Operation was removed due to a timeout");
 
         /* Mark operation as timed out integrate */
         op->response->statusCode = UA_STATUSCODE_BADTIMEOUT;
         integrateResult(server, am, op);
-    }
-
-    if(q == &am->dispatchedQueue) {
-        q = &am->newQueue;
-        goto iterate;
     }
 
     unlockServer(server);
@@ -140,8 +130,7 @@ void
 UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
     memset(am, 0, sizeof(UA_AsyncManager));
     TAILQ_INIT(&am->asyncResponses);
-    TAILQ_INIT(&am->newQueue);
-    TAILQ_INIT(&am->dispatchedQueue);
+    TAILQ_INIT(&am->ops);
 }
 
 void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server) {
@@ -165,22 +154,17 @@ void
 UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_AsyncOperation *ar, *ar_tmp;
-
     /* Clean up queues */
-    TAILQ_FOREACH_SAFE(ar, &am->newQueue, pointers, ar_tmp) {
-        TAILQ_REMOVE(&am->newQueue, ar, pointers);
-        UA_CallMethodRequest_clear(&ar->request);
-    }
-    TAILQ_FOREACH_SAFE(ar, &am->dispatchedQueue, pointers, ar_tmp) {
-        TAILQ_REMOVE(&am->dispatchedQueue, ar, pointers);
-        UA_CallMethodRequest_clear(&ar->request);
+    UA_AsyncOperation *op, *op_tmp;
+    TAILQ_FOREACH_SAFE(op, &am->ops, pointers, op_tmp) {
+        TAILQ_REMOVE(&am->ops, op, pointers);
+        UA_CallMethodRequest_clear(&op->request);
     }
 
     /* Remove responses */
-    UA_AsyncResponse *current, *temp;
-    TAILQ_FOREACH_SAFE(current, &am->asyncResponses, pointers, temp) {
-        UA_AsyncManager_removeAsyncResponse(am, current);
+    UA_AsyncResponse *ar, *ar_tmp;
+    TAILQ_FOREACH_SAFE(ar, &am->asyncResponses, pointers, ar_tmp) {
+        UA_AsyncManager_removeAsyncResponse(am, ar);
     }
 }
 
@@ -214,7 +198,7 @@ UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_StatusCode operationSta
      * TODO: Add a tree-structure for the dispatch queue. The linear lookup does
      * not scale. */
     UA_AsyncOperation *op = NULL;
-    TAILQ_FOREACH(op, &am->dispatchedQueue, pointers) {
+    TAILQ_FOREACH(op, &am->ops, pointers) {
         /* If the output length is zero, we get a unique pointer directly to the
          * response structure */
         if(op->response->outputArguments == output || (UA_Variant*)op->response == output)
@@ -305,7 +289,7 @@ allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
                 UA_copy((void*)reqOp, &op->request, requestOperationsType);
                 ar->opCountdown++;
                 am->opsCount++;
-                TAILQ_INSERT_TAIL(&am->dispatchedQueue, op, pointers);
+                TAILQ_INSERT_TAIL(&am->ops, op, pointers);
             }
         }
         reqOp += requestOperationsType->memSize;
@@ -351,17 +335,13 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
     /* Loop over the newQueue, then the dispatchedQueue */
     UA_UInt32 count = 0;
     UA_AsyncOperation *op = NULL, *op_tmp = NULL;
-    UA_AsyncOperationQueue *q = &am->dispatchedQueue;
-
- iterate:
-    TAILQ_FOREACH_SAFE(op, q, pointers, op_tmp) {
+    TAILQ_FOREACH_SAFE(op, &am->ops, pointers, op_tmp) {
         UA_AsyncResponse *ar = op->parent;
         if(ar->requestHandle != requestHandle ||
            !UA_NodeId_equal(&session->sessionId, &ar->sessionId))
             continue;
 
         /* Found the matching request */
-        TAILQ_REMOVE(q, op, pointers);
         count++;
 
         /* Notify that the async operations is removed
@@ -380,11 +360,6 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
         /* Set operation status and integrate */
         op->response->statusCode = UA_STATUSCODE_BADOPERATIONABANDONED;
         integrateResult(server, am, op);
-    }
-
-    if(q == &am->dispatchedQueue) {
-        q = &am->newQueue;
-        goto iterate;
     }
 
     return count;

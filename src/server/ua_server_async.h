@@ -58,11 +58,8 @@ typedef struct {
 
     /* Operations for the workers. The queues are all FIFO: Put in at the tail,
      * take out at the head.*/
-    UA_AsyncOperationQueue newQueue;        /* New operations for the workers */
-    UA_AsyncOperationQueue dispatchedQueue; /* Operations taken by a worker. When a result is
-                                             * returned, we search for the op here to see if it
-                                             * is still "alive" (not timed out). */
-    size_t opsCount; /* How many operations are transient (in one of the three queues)? */
+    UA_AsyncOperationQueue ops; /* New operations for the workers */
+    size_t opsCount;            /* How many operations are transient (in one of the three queues)? */
 
     UA_UInt64 checkTimeoutCallbackId; /* Registered repeated callbacks */
 
