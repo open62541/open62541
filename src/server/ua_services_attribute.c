@@ -609,7 +609,7 @@ Operation_Read(UA_Server *server, UA_Session *session, UA_TimestampsToReturn *tt
     UA_NODESTORE_RELEASE(server, node);
 }
 
-void
+UA_Boolean
 Service_Read(UA_Server *server, UA_Session *session,
              const UA_ReadRequest *request, UA_ReadResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing ReadRequest");
@@ -618,20 +618,20 @@ Service_Read(UA_Server *server, UA_Session *session,
     /* Check if the timestampstoreturn is valid */
     if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
-        return;
+        return true;
     }
 
     /* Check if maxAge is valid */
     if(request->maxAge < 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
-        return;
+        return true;
     }
 
     /* Check if there are too many operations */
     if(server->config.maxNodesPerRead != 0 &&
        request->nodesToReadSize > server->config.maxNodesPerRead) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -644,6 +644,7 @@ Service_Read(UA_Server *server, UA_Session *session,
                                       &UA_TYPES[UA_TYPES_READVALUEID],
                                       &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_DATAVALUE]);
+    return true;
 }
 
 UA_DataValue
@@ -1849,7 +1850,7 @@ Operation_Write(UA_Server *server, UA_Session *session, void *context,
                                  (void*)(uintptr_t)wv);
 }
 
-void
+UA_Boolean
 Service_Write(UA_Server *server, UA_Session *session,
               const UA_WriteRequest *request,
               UA_WriteResponse *response) {
@@ -1861,7 +1862,7 @@ Service_Write(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerWrite != 0 &&
        request->nodesToWriteSize > server->config.maxNodesPerWrite) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
@@ -1871,6 +1872,7 @@ Service_Write(UA_Server *server, UA_Session *session,
                                       &UA_TYPES[UA_TYPES_WRITEVALUE],
                                       &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_STATUSCODE]);
+    return true;
 }
 
 UA_StatusCode
@@ -2053,7 +2055,7 @@ typedef void
                                 UA_HistoryReadResponse *response,
                                 void * const * const historyData);
 
-void
+UA_Boolean
 Service_HistoryRead(UA_Server *server, UA_Session *session,
                     const UA_HistoryReadRequest *request,
                     UA_HistoryReadResponse *response) {
@@ -2061,12 +2063,12 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(&server->serviceMutex);
     if(server->config.historyDatabase.context == NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
-        return;
+        return true;
     }
 
     if(request->historyReadDetails.encoding != UA_EXTENSIONOBJECT_DECODED) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
-        return;
+        return true;
     }
 
     const UA_DataType *historyDataType = &UA_TYPES[UA_TYPES_HISTORYDATA];
@@ -2099,7 +2101,7 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
     } else {
         /* TODO handle more request->historyReadDetails.content.decoded.type types */
         response->responseHeader.serviceResult = UA_STATUSCODE_BADHISTORYOPERATIONUNSUPPORTED;
-        return;
+        return true;
     }
 
     /* Check if the configured History-Backend supports the requested history type */
@@ -2107,20 +2109,20 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "The configured HistoryBackend does not support the selected history-type");
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
-        return;
+        return true;
     }
 
     /* Something to do? */
     if(request->nodesToReadSize == 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-        return;
+        return true;
     }
 
     /* Check if there are too many operations */
     if(server->config.maxNodesPerRead != 0 &&
        request->nodesToReadSize > server->config.maxNodesPerRead) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     /* Allocate a temporary array to forward the result pointers to the
@@ -2129,7 +2131,7 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         UA_calloc(request->nodesToReadSize, sizeof(void*));
     if(!historyData) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
+        return true;
     }
 
     /* Allocate the results array */
@@ -2138,7 +2140,7 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
     if(!response->results) {
         UA_free(historyData);
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
+        return true;
     }
     response->resultsSize = request->nodesToReadSize;
 
@@ -2157,12 +2159,14 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                 request->nodesToReadSize, request->nodesToRead,
                 response, historyData);
     UA_free(historyData);
+
+    return true;
 }
 
-void
+UA_Boolean
 Service_HistoryUpdate(UA_Server *server, UA_Session *session,
-                    const UA_HistoryUpdateRequest *request,
-                    UA_HistoryUpdateResponse *response) {
+                      const UA_HistoryUpdateRequest *request,
+                      UA_HistoryUpdateResponse *response) {
     UA_assert(session != NULL);
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -2172,7 +2176,7 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
     if(!response->results) {
         response->resultsSize = 0;
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
+        return true;
     }
 
     for(size_t i = 0; i < request->historyUpdateDetailsSize; ++i) {
@@ -2216,6 +2220,8 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
 
         response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
     }
+
+    return true;
 }
 
 #endif

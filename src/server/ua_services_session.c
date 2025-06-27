@@ -962,8 +962,9 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
                                        UA_SHUTDOWNREASON_CLOSE);
 }
 
-void Service_Cancel(UA_Server *server, UA_Session *session,
-                    const UA_CancelRequest *request, UA_CancelResponse *response) {
+UA_Boolean
+Service_Cancel(UA_Server *server, UA_Session *session,
+               const UA_CancelRequest *request, UA_CancelResponse *response) {
     /* If multithreading is disabled, then there are no async services. If all
      * services are answered "right away", then there are no services that can
      * be cancelled. */
@@ -998,4 +999,6 @@ void Service_Cancel(UA_Server *server, UA_Session *session,
         response->cancelCount++;
     }
 #endif
+
+    return true;
 }

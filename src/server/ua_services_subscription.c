@@ -51,7 +51,7 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
     subscription->priority = priority;
 }
 
-void
+UA_Boolean
 Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            const UA_CreateSubscriptionRequest *request,
                            UA_CreateSubscriptionResponse *response) {
@@ -63,7 +63,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
        ((server->config.maxSubscriptionsPerSession != 0) &&
         (session->subscriptionsSize >= server->config.maxSubscriptionsPerSession))) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYSUBSCRIPTIONS;
-        return;
+        return true;
     }
 
     /* Create the subscription */
@@ -72,7 +72,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
         UA_LOG_DEBUG_SESSION(server->config.logging, session,
                              "Processing CreateSubscriptionRequest failed");
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
+        return true;
     }
 
     /* Set the subscription parameters */
@@ -110,7 +110,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                              sub->subscriptionId, UA_StatusCode_name(res));
         response->responseHeader.serviceResult = res;
         UA_Subscription_delete(server, sub);
-        return;
+        return true;
     }
 
     UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
@@ -124,9 +124,11 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     response->revisedPublishingInterval = sub->publishingInterval;
     response->revisedLifetimeCount = sub->lifeTimeCount;
     response->revisedMaxKeepAliveCount = sub->maxKeepAliveCount;
+
+    return true;
 }
 
-void
+UA_Boolean
 Service_ModifySubscription(UA_Server *server, UA_Session *session,
                            const UA_ModifySubscriptionRequest *request,
                            UA_ModifySubscriptionResponse *response) {
@@ -137,7 +139,7 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-        return;
+        return true;
     }
 
     /* Store the old publishing interval */
@@ -190,6 +192,8 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
 #ifdef UA_ENABLE_DIAGNOSTICS
     sub->modifyCount++;
 #endif
+
+    return true;
 }
 
 static void
@@ -213,7 +217,7 @@ Operation_SetPublishingMode(UA_Server *server, UA_Session *session,
     Subscription_resetLifetime(sub);
 }
 
-void
+UA_Boolean
 Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                           const UA_SetPublishingModeRequest *request,
                           UA_SetPublishingModeResponse *response) {
@@ -228,6 +232,8 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                                       &publishingEnabled, &request->subscriptionIdsSize,
                                       &UA_TYPES[UA_TYPES_UINT32], &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_STATUSCODE]);
+
+    return true;
 }
 
 UA_StatusCode
@@ -361,7 +367,7 @@ Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
                          *subscriptionId);
 }
 
-void
+UA_Boolean
 Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                             const UA_DeleteSubscriptionsRequest *request,
                             UA_DeleteSubscriptionsResponse *response) {
@@ -375,9 +381,10 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                                       NULL, &request->subscriptionIdsSize,
                                       &UA_TYPES[UA_TYPES_UINT32], &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_STATUSCODE]);
+    return true;
 }
 
-void
+UA_Boolean
 Service_Republish(UA_Server *server, UA_Session *session,
                   const UA_RepublishRequest *request,
                   UA_RepublishResponse *response) {
@@ -389,7 +396,7 @@ Service_Republish(UA_Server *server, UA_Session *session,
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-        return;
+        return true;
     }
 
     /* Reset the lifetime counter */
@@ -408,7 +415,7 @@ Service_Republish(UA_Server *server, UA_Session *session,
     }
     if(!entry) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADMESSAGENOTAVAILABLE;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
@@ -418,6 +425,8 @@ Service_Republish(UA_Server *server, UA_Session *session,
 #ifdef UA_ENABLE_DIAGNOSTICS
     sub->republishMessageCount++;
 #endif
+
+    return true;
 }
 
 static UA_StatusCode
@@ -597,9 +606,10 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
 #endif
 }
 
-void Service_TransferSubscriptions(UA_Server *server, UA_Session *session,
-                                   const UA_TransferSubscriptionsRequest *request,
-                                   UA_TransferSubscriptionsResponse *response) {
+UA_Boolean
+Service_TransferSubscriptions(UA_Server *server, UA_Session *session,
+                              const UA_TransferSubscriptionsRequest *request,
+                              UA_TransferSubscriptionsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing TransferSubscriptionsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -612,6 +622,7 @@ void Service_TransferSubscriptions(UA_Server *server, UA_Session *session,
                                       &UA_TYPES[UA_TYPES_UINT32],
                                       &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_TRANSFERRESULT]);
+    return true;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

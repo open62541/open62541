@@ -1597,7 +1597,7 @@ Operation_addNode(UA_Server *server, UA_Session *session, void *nodeContext,
         UA_NodeId_clear(&result->addedNodeId);
 }
 
-void
+UA_Boolean
 Service_AddNodes(UA_Server *server, UA_Session *session,
                  const UA_AddNodesRequest *request,
                  UA_AddNodesResponse *response) {
@@ -1607,7 +1607,7 @@ Service_AddNodes(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->nodesToAddSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
@@ -1617,6 +1617,7 @@ Service_AddNodes(UA_Server *server, UA_Session *session,
                                       &UA_TYPES[UA_TYPES_ADDNODESITEM],
                                       &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_ADDNODESRESULT]);
+    return true;
 }
 
 UA_StatusCode
@@ -2099,7 +2100,7 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
     RefTree_clear(&refTree);
 }
 
-void
+UA_Boolean
 Service_DeleteNodes(UA_Server *server, UA_Session *session,
                     const UA_DeleteNodesRequest *request,
                     UA_DeleteNodesResponse *response) {
@@ -2110,7 +2111,7 @@ Service_DeleteNodes(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->nodesToDeleteSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
@@ -2120,6 +2121,7 @@ Service_DeleteNodes(UA_Server *server, UA_Session *session,
                                       &UA_TYPES[UA_TYPES_DELETENODESITEM],
                                       &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_STATUSCODE]);
+    return true;
 }
 
 UA_StatusCode
@@ -2271,7 +2273,7 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
     UA_NODESTORE_RELEASE(server, sourceNode);
 }
 
-void
+UA_Boolean
 Service_AddReferences(UA_Server *server, UA_Session *session,
                       const UA_AddReferencesRequest *request,
                       UA_AddReferencesResponse *response) {
@@ -2283,7 +2285,7 @@ Service_AddReferences(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->referencesToAddSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
@@ -2293,6 +2295,7 @@ Service_AddReferences(UA_Server *server, UA_Session *session,
                                       &UA_TYPES[UA_TYPES_ADDREFERENCESITEM],
                                       &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_STATUSCODE]);
+    return true;
 }
 
 UA_StatusCode
@@ -2389,7 +2392,7 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
     }
 }
 
-void
+UA_Boolean
 Service_DeleteReferences(UA_Server *server, UA_Session *session,
                          const UA_DeleteReferencesRequest *request,
                          UA_DeleteReferencesResponse *response) {
@@ -2400,7 +2403,7 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->referencesToDeleteSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
@@ -2410,6 +2413,7 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
                                       &UA_TYPES[UA_TYPES_DELETEREFERENCESITEM],
                                       &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_STATUSCODE]);
+    return true;
 }
 
 UA_StatusCode
