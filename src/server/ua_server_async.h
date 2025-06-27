@@ -57,6 +57,7 @@ typedef struct {
     /* Forward the request id here as the "UA_Service" method signature does not
      * contain it */
     UA_UInt32 currentRequestId;
+    UA_UInt32 currentRequestHandle;
 
     TAILQ_HEAD(, UA_AsyncResponse) asyncResponses;
 
@@ -99,7 +100,6 @@ typedef UA_Boolean (*UA_AsyncServiceOperation)(
  * is not visible to the calling method. */
 UA_StatusCode
 allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
-                                    UA_UInt32 requestHandle,
                                     UA_AsyncServiceOperation operationCallback,
                                     const size_t *requestOperations,
                                     const UA_DataType *requestOperationsType,
