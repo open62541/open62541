@@ -288,6 +288,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
 
     /* Store the request id -- will be used to create async responses */
     server->asyncManager.currentRequestId = requestId;
+    server->asyncManager.currentRequestHandle = request->requestHeader.requestHandle;
 
     /* Execute the service */
     return sd->serviceCallback(server, session, request, response);
