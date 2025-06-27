@@ -462,7 +462,7 @@ Service_Call(UA_Server *server, UA_Session *session,
     }
 
     response->responseHeader.serviceResult =
-        allocProcessServiceOperations_async(server, session, request->requestHeader.requestHandle,
+        allocProcessServiceOperations_async(server, session,
                                             (UA_AsyncServiceOperation)Operation_CallMethod,
                                             &request->methodsToCallSize,
                                             &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],

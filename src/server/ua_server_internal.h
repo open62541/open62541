@@ -430,13 +430,13 @@ UA_StatusCode
 sendResponse(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
              UA_Response *response, const UA_DataType *responseType);
 
-/* Many services come as an array of operations. This function generalizes the
- * processing of the operations. */
 typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
                                     const void *context,
                                     const void *requestOperation,
                                     void *responseOperation);
 
+/* Many services come as an array of operations. This function generalizes the
+ * processing of the operations. */
 UA_StatusCode
 allocProcessServiceOperations(UA_Server *server, UA_Session *session,
                               UA_ServiceOperation operationCallback,
