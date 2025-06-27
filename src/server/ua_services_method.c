@@ -449,8 +449,9 @@ Operation_CallMethod(UA_Server *server, UA_Session *session,
 }
 
 UA_Boolean
-Service_Call(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
-             const UA_CallRequest *request, UA_CallResponse *response) {
+Service_Call(UA_Server *server, UA_Session *session,
+             const UA_CallRequest *request,
+             UA_CallResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing CallRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -461,8 +462,7 @@ Service_Call(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
     }
 
     response->responseHeader.serviceResult =
-        allocProcessServiceOperations_async(server, session, requestId,
-                                            request->requestHeader.requestHandle,
+        allocProcessServiceOperations_async(server, session, request->requestHeader.requestHandle,
                                             (UA_AsyncServiceOperation)Operation_CallMethod,
                                             &request->methodsToCallSize,
                                             &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
