@@ -97,7 +97,7 @@ UA_ServiceDescription serviceDescriptions[] = {
      UA_SERVICECOUNTER_OFFSET(createSubscriptionCount, true), (UA_Service)Service_CreateSubscription,
      &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST], &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]},
     {UA_NS0ID_PUBLISHREQUEST_ENCODING_DEFAULTBINARY,
-     UA_SERVICECOUNTER_OFFSET(publishCount, true), NULL,
+     UA_SERVICECOUNTER_OFFSET(publishCount, true), (UA_Service)Service_Publish,
      &UA_TYPES[UA_TYPES_PUBLISHREQUEST], &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]},
     {UA_NS0ID_REPUBLISHREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET(republishCount, true), (UA_Service)Service_Republish,
@@ -289,15 +289,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     /* Store the request id -- will be used to create async responses */
     server->asyncManager.currentRequestId = requestId;
 
-    /* The publish request is not answered immediately */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    if(sd->requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
-        return Service_Publish(server, session, &request->publishRequest,
-                               &response->publishResponse);
-    }
-#endif
-
-    /* Execute the synchronous service call */
+    /* Execute the service */
     return sd->serviceCallback(server, session, request, response);
 }
 
