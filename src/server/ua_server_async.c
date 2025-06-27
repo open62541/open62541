@@ -239,7 +239,6 @@ setResultStatus(void *resp, const UA_DataType *responseOperationsType,
 
 UA_StatusCode
 allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
-                                    UA_UInt32 requestHandle,
                                     UA_AsyncServiceOperation operationCallback,
                                     const size_t *requestOperations,
                                     const UA_DataType *requestOperationsType,
@@ -268,7 +267,7 @@ allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
     UA_AsyncResponse *ar = (UA_AsyncResponse*)(((uintptr_t)*respPos) + opsLen);
     uintptr_t aop = ((uintptr_t)ar) + sizeof(UA_AsyncResponse);
 
-    /* Finish / dispatch the operations. This may allocate a new AsyncResponse internally */
+    /* Execute the operations */
     uintptr_t respOp = (uintptr_t)*respPos;
     uintptr_t reqOp = *(uintptr_t*)(((uintptr_t)requestOperations) + sizeof(size_t));
     for(size_t i = 0; i < ops; i++) {
@@ -299,11 +298,14 @@ allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
 
     /* Pending results, attach the AsyncResponse to the AsyncManager */
     if(ar->opCountdown > 0) {
-        ar->requestId = am->currentRequestId; /* Set in the AsyncManager before
-                                               * processing the request */
+        /* RequestId and -Handle are set in the AsyncManager before processing
+         * the request */
+        ar->requestId = am->currentRequestId;
+        ar->requestHandle = am->currentRequestHandle;
+
         ar->sessionId = session->sessionId;
-        ar->requestHandle = requestHandle;
         ar->timeout = UA_INT64_MAX;
+
         UA_EventLoop *el = server->config.eventLoop;
         if(server->config.asyncOperationTimeout > 0.0)
             ar->timeout = el->dateTime_nowMonotonic(el) + (UA_DateTime)
