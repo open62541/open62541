@@ -58,10 +58,6 @@ typedef struct {
 
     /* Operations for the workers. The queues are all FIFO: Put in at the tail,
      * take out at the head.*/
-    UA_Lock queueLock; /* Either take this lock free-standing (with no other
-                        * locks). Or take server->serviceMutex first and then
-                        * the queueLock. Never take the server->serviceMutex
-                        * when the queueLock is already acquired (deadlock)! */
     UA_AsyncOperationQueue newQueue;        /* New operations for the workers */
     UA_AsyncOperationQueue dispatchedQueue; /* Operations taken by a worker. When a result is
                                              * returned, we search for the op here to see if it
