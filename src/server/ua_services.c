@@ -140,7 +140,7 @@ UA_ServiceDescription serviceDescriptions[] = {
 #endif
 #ifdef UA_ENABLE_METHODCALLS
     {UA_NS0ID_CALLREQUEST_ENCODING_DEFAULTBINARY,
-     UA_SERVICECOUNTER_OFFSET(callCount, true), NULL,
+     UA_SERVICECOUNTER_OFFSET(callCount, true), (UA_Service)Service_Call,
      &UA_TYPES[UA_TYPES_CALLREQUEST], &UA_TYPES[UA_TYPES_CALLRESPONSE]},
 #endif
 #ifdef UA_ENABLE_NODEMANAGEMENT
@@ -297,16 +297,8 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     }
 #endif
 
-    /* An async call request might not be answered immediately */
-#if defined(UA_ENABLE_METHODCALLS)
-    if(sd->requestType == &UA_TYPES[UA_TYPES_CALLREQUEST])
-        return Service_Call(server, session, &request->callRequest,
-                            &response->callResponse);
-#endif
-
     /* Execute the synchronous service call */
-    sd->serviceCallback(server, session, request, response);
-    return true;
+    return sd->serviceCallback(server, session, request, response);
 }
 
 UA_Boolean
