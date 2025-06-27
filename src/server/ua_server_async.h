@@ -21,8 +21,6 @@
 
 _UA_BEGIN_DECLS
 
-#if UA_MULTITHREADING >= 100
-
 struct UA_AsyncResponse;
 typedef struct UA_AsyncResponse UA_AsyncResponse;
 
@@ -41,7 +39,6 @@ struct UA_AsyncResponse {
     UA_NodeId sessionId;
     UA_UInt32 requestHandle;
     UA_DateTime timeout;
-    UA_AsyncOperationType operationType;
     size_t *resultsSize;
     void **results;
     const UA_DataType *resultsType;
@@ -112,8 +109,6 @@ allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
                                     size_t *responseOperations,
                                     const UA_DataType *responseOperationsType)
 UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-#endif /* UA_MULTITHREADING >= 100 */
 
 _UA_END_DECLS
 
