@@ -217,7 +217,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
                                "See the 'verifyRequestTimestamp' setting.");
         if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
             rh->serviceResult = UA_STATUSCODE_BADINVALIDTIMESTAMP;
-            return false;
+            return true;
         }
     }
 
@@ -231,7 +231,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
 #endif
        ) {
         rh->serviceResult = UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-        return false;
+        return true;
     }
 
     /* Session lifecycle services */
@@ -248,7 +248,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
             UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
         }
 #endif
-        return false;
+        return true;
     }
 
     /* Set an anonymous, inactive session for services that need no session */
@@ -276,7 +276,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
         UA_Server_removeSessionByToken(server, &session->authenticationToken,
                                        UA_SHUTDOWNREASON_ABORT);
         rh->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
-        return false;
+        return true;
     }
 
     /* Update the session lifetime */
@@ -289,27 +289,26 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     if(sd->requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
         rh->serviceResult = Service_Publish(server, session, &request->publishRequest, requestId);
-        return (rh->serviceResult == UA_STATUSCODE_GOOD);
+        return (rh->serviceResult != UA_STATUSCODE_GOOD);
     }
 #endif
 
     /* An async call request might not be answered immediately */
 #if defined(UA_ENABLE_METHODCALLS)
-    if(sd->requestType == &UA_TYPES[UA_TYPES_CALLREQUEST]) {
-        return Service_CallAsync(server, session, requestId, &request->callRequest,
-                                 &response->callResponse);
-    }
+    if(sd->requestType == &UA_TYPES[UA_TYPES_CALLREQUEST])
+        return Service_Call(server, session, requestId, &request->callRequest,
+                            &response->callResponse);
 #endif
 
     /* Execute the synchronous service call */
     sd->serviceCallback(server, session, request, response);
-    return false;
+    return true;
 }
 
 UA_Boolean
-UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
-                         UA_UInt32 requestId, UA_ServiceDescription *sd,
-                         const UA_Request *request, UA_Response *response) {
+processRequest(UA_Server *server, UA_SecureChannel *channel,
+               UA_UInt32 requestId, UA_ServiceDescription *sd,
+               const UA_Request *request, UA_Response *response) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Set the authenticationToken from the create session request to help
@@ -329,14 +328,14 @@ UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
     response->responseHeader.serviceResult =
         getBoundSession(server, channel, &request->requestHeader.authenticationToken, &session);
     if(!session && sd->sessionRequired)
-        return false;
+        return true;
 
     /* The session can be NULL if not required */
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 
     /* Process the service */
-    UA_Boolean async =
-        processServiceInternal(server, channel, session, requestId, sd, request, response);
+    UA_Boolean done = processServiceInternal(server, channel, session,
+                                             requestId, sd, request, response);
 
     /* Update the service statistics */
 #ifdef UA_ENABLE_DIAGNOSTICS
@@ -354,5 +353,5 @@ UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
     }
 #endif
 
-    return async;
+    return done;
 }
