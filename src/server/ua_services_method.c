@@ -449,8 +449,8 @@ Operation_CallMethod(UA_Server *server, UA_Session *session,
 }
 
 UA_Boolean
-Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
-                  const UA_CallRequest *request, UA_CallResponse *response) {
+Service_Call(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
+             const UA_CallRequest *request, UA_CallResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing CallRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -470,7 +470,7 @@ Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
                                             &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
 
     /* Signal an async operation */
-    return (response->responseHeader.serviceResult == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
+    return (response->responseHeader.serviceResult != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 }
 
 UA_CallMethodResult

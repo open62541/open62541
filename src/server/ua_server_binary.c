@@ -482,16 +482,16 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_init(&response, sd->responseType);
     response.responseHeader.requestHandle = request.requestHeader.requestHandle;
 
-    /* Process the request */
     lockServer(server);
-    UA_Boolean async =
-        UA_Server_processRequest(server, channel, requestId, sd, &request, &response);
-    unlockServer(server);
+
+    /* Process the request */
+    UA_Boolean done = processRequest(server, channel, requestId, sd, &request, &response);
 
     /* Send response if not async */
-    if(UA_LIKELY(!async)) {
+    if(UA_LIKELY(done))
         retval = sendResponse(server, channel, requestId, &response, sd->responseType);
-    }
+
+    unlockServer(server);
 
     /* Clean up */
     UA_clear(&request, sd->requestType);
