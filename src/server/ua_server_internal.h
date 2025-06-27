@@ -203,9 +203,7 @@ struct UA_Server {
     UA_UInt64 serverComponentIds; /* Counter to assign ids from */
     UA_ServerComponentTree serverComponents;
 
-#if UA_MULTITHREADING >= 100
     UA_AsyncManager asyncManager;
-#endif
 
     /* Session Management */
     LIST_HEAD(session_list, session_list_entry) sessions;
