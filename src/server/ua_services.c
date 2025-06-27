@@ -60,13 +60,13 @@ UA_ServiceDescription serviceDescriptions[] = {
 # endif
 #endif
     {UA_NS0ID_CREATESESSIONREQUEST_ENCODING_DEFAULTBINARY,
-     UA_SERVICECOUNTER_OFFSET_NONE(false), (UA_Service)Service_CreateSession,
+     UA_SERVICECOUNTER_OFFSET_NONE(false), (UA_Service)(uintptr_t)Service_CreateSession,
      &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST], &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]},
     {UA_NS0ID_ACTIVATESESSIONREQUEST_ENCODING_DEFAULTBINARY,
-     UA_SERVICECOUNTER_OFFSET_NONE(false), (UA_Service)Service_ActivateSession,
+     UA_SERVICECOUNTER_OFFSET_NONE(false), (UA_Service)(uintptr_t)Service_ActivateSession,
      &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],  &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]},
     {UA_NS0ID_CLOSESESSIONREQUEST_ENCODING_DEFAULTBINARY,
-     UA_SERVICECOUNTER_OFFSET_NONE(true), (UA_Service)Service_CloseSession,
+     UA_SERVICECOUNTER_OFFSET_NONE(true), (UA_Service)(uintptr_t)Service_CloseSession,
      &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST], &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]},
     {UA_NS0ID_CANCELREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET_NONE(true), (UA_Service)Service_Cancel,
@@ -238,7 +238,8 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     if(sd->requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST] ||
        sd->requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
        sd->requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
-        ((UA_ChannelService)sd->serviceCallback)(server, channel, request, response);
+        UA_ChannelService cs = (UA_ChannelService)(uintptr_t)sd->serviceCallback;
+        cs(server, channel, request, response);
         /* Store the authentication token created during CreateSession to help
          * fuzzing cover more lines */
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
