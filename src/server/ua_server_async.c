@@ -239,7 +239,7 @@ setResultStatus(void *resp, const UA_DataType *responseOperationsType,
 
 UA_StatusCode
 allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
-                                    UA_UInt32 requestId, UA_UInt32 requestHandle,
+                                    UA_UInt32 requestHandle,
                                     UA_AsyncServiceOperation operationCallback,
                                     const size_t *requestOperations,
                                     const UA_DataType *requestOperationsType,
@@ -299,7 +299,8 @@ allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
 
     /* Pending results, attach the AsyncResponse to the AsyncManager */
     if(ar->opCountdown > 0) {
-        ar->requestId = requestId;
+        ar->requestId = am->currentRequestId; /* Set in the AsyncManager before
+                                               * processing the request */
         ar->sessionId = session->sessionId;
         ar->requestHandle = requestHandle;
         ar->timeout = UA_INT64_MAX;
