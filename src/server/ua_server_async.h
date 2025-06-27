@@ -54,6 +54,10 @@ struct UA_AsyncResponse {
 typedef TAILQ_HEAD(UA_AsyncOperationQueue, UA_AsyncOperation) UA_AsyncOperationQueue;
 
 typedef struct {
+    /* Forward the request id here as the "UA_Service" method signature does not
+     * contain it */
+    UA_UInt32 currentRequestId;
+
     TAILQ_HEAD(, UA_AsyncResponse) asyncResponses;
 
     /* Operations for the workers. The queues are all FIFO: Put in at the tail,
@@ -95,7 +99,7 @@ typedef UA_Boolean (*UA_AsyncServiceOperation)(
  * is not visible to the calling method. */
 UA_StatusCode
 allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
-                                    UA_UInt32 requestId, UA_UInt32 requestHandle,
+                                    UA_UInt32 requestHandle,
                                     UA_AsyncServiceOperation operationCallback,
                                     const size_t *requestOperations,
                                     const UA_DataType *requestOperationsType,

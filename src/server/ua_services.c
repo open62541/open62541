@@ -286,6 +286,9 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     UA_DateTime now = el->dateTime_now(el);
     UA_Session_updateLifetime(session, now, nowMonotonic);
 
+    /* Store the request id -- will be used to create async responses */
+    server->asyncManager.currentRequestId = requestId;
+
     /* The publish request is not answered immediately */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     if(sd->requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
@@ -297,7 +300,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     /* An async call request might not be answered immediately */
 #if defined(UA_ENABLE_METHODCALLS)
     if(sd->requestType == &UA_TYPES[UA_TYPES_CALLREQUEST])
-        return Service_Call(server, session, requestId, &request->callRequest,
+        return Service_Call(server, session, &request->callRequest,
                             &response->callResponse);
 #endif
 
