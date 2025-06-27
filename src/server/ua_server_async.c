@@ -56,7 +56,6 @@ UA_AsyncManager_sendAsyncResponses(void *s, void *a) {
     UA_AsyncManager *am = (UA_AsyncManager*)a;
 
     UA_LOCK(&server->serviceMutex);
-    UA_LOCK(&am->queueLock);
 
     /* Reset the delayed callback */
     UA_atomic_xchg((void**)&am->dc.callback, NULL);
@@ -68,7 +67,6 @@ UA_AsyncManager_sendAsyncResponses(void *s, void *a) {
             sendAsyncResponse(server, am, ar);
     }
 
-    UA_UNLOCK(&am->queueLock);
     UA_UNLOCK(&server->serviceMutex);
 }
 
@@ -109,7 +107,7 @@ checkTimeouts(UA_Server *server, void *_) {
     UA_AsyncManager *am = &server->asyncManager;
     const UA_DateTime tNow = el->dateTime_nowMonotonic(el);
 
-    UA_LOCK(&am->queueLock);
+    lockServer(server);
 
     /* Loop over the queue of dispatched ops */
     UA_AsyncOperation *op = NULL, *op_tmp = NULL;
@@ -135,7 +133,7 @@ checkTimeouts(UA_Server *server, void *_) {
         goto iterate;
     }
 
-    UA_UNLOCK(&am->queueLock);
+    unlockServer(server);
 }
 
 void
@@ -144,7 +142,6 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
     TAILQ_INIT(&am->asyncResponses);
     TAILQ_INIT(&am->newQueue);
     TAILQ_INIT(&am->dispatchedQueue);
-    UA_LOCK_INIT(&am->queueLock);
 }
 
 void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server) {
@@ -166,10 +163,11 @@ void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server) {
 
 void
 UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
     UA_AsyncOperation *ar, *ar_tmp;
 
     /* Clean up queues */
-    UA_LOCK(&am->queueLock);
     TAILQ_FOREACH_SAFE(ar, &am->newQueue, pointers, ar_tmp) {
         TAILQ_REMOVE(&am->newQueue, ar, pointers);
         UA_CallMethodRequest_clear(&ar->request);
@@ -178,16 +176,12 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
         TAILQ_REMOVE(&am->dispatchedQueue, ar, pointers);
         UA_CallMethodRequest_clear(&ar->request);
     }
-    UA_UNLOCK(&am->queueLock);
 
     /* Remove responses */
     UA_AsyncResponse *current, *temp;
     TAILQ_FOREACH_SAFE(current, &am->asyncResponses, pointers, temp) {
         UA_AsyncManager_removeAsyncResponse(am, current);
     }
-
-    /* Delete all locks */
-    UA_LOCK_DESTROY(&am->queueLock);
 }
 
 void
@@ -213,7 +207,6 @@ UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_StatusCode operationSta
     lockServer(server);
 
     UA_AsyncManager *am = &server->asyncManager;
-    UA_LOCK(&am->queueLock);
 
     /* See if the operation is still in the dispatched queue. Otherwise it has
      * been removed due to a timeout.
@@ -230,14 +223,12 @@ UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_StatusCode operationSta
     if(!op) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "UA_Server_SetAsyncMethodResult: The operation has timed out");
-        UA_UNLOCK(&am->queueLock);
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;;
     }
 
     integrateResult(server, am, op);
 
-    UA_UNLOCK(&am->queueLock);
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
@@ -314,9 +305,7 @@ allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
                 UA_copy((void*)reqOp, &op->request, requestOperationsType);
                 ar->opCountdown++;
                 am->opsCount++;
-                UA_LOCK(&am->queueLock);
                 TAILQ_INSERT_TAIL(&am->dispatchedQueue, op, pointers);
-                UA_UNLOCK(&am->queueLock);
             }
         }
         reqOp += requestOperationsType->memSize;
@@ -347,9 +336,7 @@ allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
         *respPos = NULL;
         *responseOperations = 0;
 
-        UA_LOCK(&am->queueLock);
         TAILQ_INSERT_TAIL(&am->asyncResponses, ar, pointers);
-        UA_UNLOCK(&am->queueLock);
     }
 
     /* Signal in the status whether async operations are pending */
@@ -360,8 +347,6 @@ UA_UInt32
 UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_AsyncManager *am = &server->asyncManager;
-
-    UA_LOCK(&am->queueLock);
 
     /* Loop over the newQueue, then the dispatchedQueue */
     UA_UInt32 count = 0;
@@ -402,6 +387,5 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
         goto iterate;
     }
 
-    UA_UNLOCK(&am->queueLock);
     return count;
 }
