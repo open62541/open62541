@@ -45,6 +45,12 @@ typedef struct {
 static void
 TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn);
 
+static UA_StatusCode
+TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
+                          UA_UInt16 port, void *application, void *context,
+                          UA_ConnectionManager_connectionCallback connectionCallback,
+                          UA_Boolean validate, UA_Boolean reuseaddr);
+
 /* Do not merge packets on the socket (disable Nagle's algorithm) */
 static UA_StatusCode
 TCP_setNoNagle(UA_FD sockfd) {
@@ -66,6 +72,72 @@ TCP_checkStopped(UA_POSIXConnectionManager *pcm) {
                      "TCP\t| All sockets closed, the EventLoop has stopped");
         pcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
     }
+}
+
+static void
+TCP_delayedReopen(void *application, void *context) {
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
+    UA_ConnectionManager *cm = &pcm->cm;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_DeregisteredListenFD *listenRfd = (UA_DeregisteredListenFD*)context;
+    UA_RegisteredFD *rfd = listenRfd->listenFd;
+    TCP_FD *conn = (TCP_FD*)rfd;
+
+    UA_LOCK(&el->elMutex);
+
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "TCP %u\t| Delayed reopen of the listen socket",
+                 (unsigned)conn->rfd.fd);
+
+    char hostname[UA_MAXHOSTNAME_LENGTH] = {0};
+    mp_snprintf(hostname, UA_MAXHOSTNAME_LENGTH, "%.*s",
+                (int)rfd->hostname.length, (char*)rfd->hostname.data);
+
+    TCP_registerListenSockets(pcm, hostname, rfd->port, conn->application,
+                              conn->context, conn->applicationCB, false, rfd->reuseaddr);
+
+    LIST_REMOVE(listenRfd, pointers);
+    UA_String_clear(&listenRfd->listenFd->hostname);
+    UA_free(listenRfd->listenFd);
+    UA_free(listenRfd);
+
+    if(!pcm->listenFDs.lh_first) {
+        el->maxSocketsLimitReached = false;
+    }
+
+    UA_UNLOCK(&el->elMutex);
+}
+
+static UA_StatusCode
+addListenSockets(void *application) {
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
+    UA_LOCK_ASSERT(&el->elMutex);
+
+    UA_DeregisteredListenFD *listenFd;
+    LIST_FOREACH(listenFd, &pcm->listenFDs, pointers) {
+        if(listenFd->listenFd->dc.callback) {
+            UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                         "TCP %u\t| Cannot close - already closing",
+                         (unsigned)listenFd->listenFd->fd);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+             "TCP %u\t| Reopen listen socket triggered",
+             (unsigned)listenFd->listenFd->fd);
+
+        /* Add to the delayed callback list. Will be cleaned up in the next
+         * iteration. */
+        UA_DelayedCallback *dc = &listenFd->listenFd->dc;
+        dc->callback = TCP_delayedReopen;
+        dc->application = application;
+        dc->context = listenFd;
+
+        /* Adding a delayed callback does not take a lock */
+        UA_EventLoopPOSIX_addDelayedCallback(pcm->cm.eventSource.eventLoop, dc);
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -113,6 +185,12 @@ TCP_delayedClose(void *application, void *context) {
                           (unsigned)conn->rfd.fd, errno_str));
     }
 
+    /* Resuming listen sockets in the socket list when socket space becomes available */
+    if(el->maxSocketsLimitReached) {
+        addListenSockets(application);
+    }
+
+    UA_String_clear(&conn->rfd.hostname);
     UA_free(conn);
 
     /* Check if this was the last connection for a closing ConnectionManager */
@@ -231,6 +309,70 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
                         &UA_KEYVALUEMAP_NULL, response);
 }
 
+static void *
+removeListenSockets(void *application, UA_RegisteredFD *rfd) {
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
+    int optval;
+    socklen_t optlen = sizeof(optval);
+
+    if(UA_getsockopt(rfd->fd, SOL_SOCKET, SO_ACCEPTCONN, &optval, &optlen) == 0 && optval) {
+        TCP_FD *fd = (TCP_FD*)rfd;
+        /* Check if it's already listed for reopening */
+        UA_Boolean alreadyAdded = UA_FALSE;
+        UA_DeregisteredListenFD *listenFd;
+        LIST_FOREACH(listenFd, &pcm->listenFDs, pointers) {
+            if(UA_String_equal(&listenFd->listenFd->hostname, &rfd->hostname)){
+                alreadyAdded = UA_TRUE;
+                break;
+            }
+        }
+
+        if(!alreadyAdded) {
+            listenFd = (UA_DeregisteredListenFD*)UA_calloc(1, sizeof(UA_DeregisteredListenFD));
+            listenFd->listenFd = rfd;
+            LIST_INSERT_HEAD(&pcm->listenFDs, listenFd, pointers);
+        }
+
+        /* Ensure reuse is possible right away. Port-stealing is no longer an issue
+         * as the socket gets closed anyway. And we do not want to wait for the
+         * timeout to open a new socket for the same address and port. */
+        UA_EventLoopPOSIX_setReusable(rfd->fd);
+        UA_EventLoopPOSIX_deregisterFD(el, rfd);
+
+        /* Deregister internally */
+        ZIP_REMOVE(UA_FDTree, &pcm->fds, rfd);
+        UA_assert(pcm->fdsSize > 0);
+        pcm->fdsSize--;
+
+        /* Signal closing to the application */
+        fd->applicationCB(&pcm->cm, (uintptr_t)rfd->fd,
+                          fd->application, &fd->context,
+                          UA_CONNECTIONSTATE_BLOCKING,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+
+        /* Close the socket */
+        UA_RESET_ERRNO;
+        int ret = UA_close(rfd->fd);
+        if(ret == 0) {
+            UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                        "TCP %u\t| Socket closed", (unsigned)rfd->fd);
+        } else {
+            UA_LOG_SOCKET_ERRNO_WRAP(
+               UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                              "TCP %u\t| Could not close the socket (%s)",
+                              (unsigned)rfd->fd, errno_str));
+        }
+
+        if(alreadyAdded) {
+            UA_String_clear(&rfd->hostname);
+            UA_free(rfd);
+        }
+    }
+
+    return NULL;
+}
+
 /* Gets called when a new connection opens or if the listenSocket is closed */
 static void
 TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
@@ -329,6 +471,17 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     ZIP_INSERT(UA_FDTree, &pcm->fds, &newConn->rfd);
     pcm->fdsSize++;
 
+    /* Verify whether the maximum socket limit has been exceeded.
+     * If true, remove listen sockets from the socket list to stop
+     * accepting additional connection requests */
+    const UA_UInt32 *maxSockets = (const UA_UInt32 *)UA_KeyValueMap_getScalar(
+        &cm->eventSource.params, UA_QUALIFIEDNAME(0, "max-connections"),
+        &UA_TYPES[UA_TYPES_UINT32]);
+    if(maxSockets && *maxSockets != 0 && pcm->fdsSize >= (size_t)*maxSockets) {
+        ZIP_ITER(UA_FDTree, &pcm->fds, removeListenSockets, cm);
+        el->maxSocketsLimitReached = true;
+    }
+
     /* Forward the remote hostname to the application */
     UA_KeyValuePair kvp;
     kvp.key = UA_QUALIFIEDNAME(0, "remote-address");
@@ -354,6 +507,16 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
                          UA_Boolean validate, UA_Boolean reuseaddr) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
+
+    /* Check that the maximum number of sockets has not been exceeded */
+    const UA_UInt32 *maxSockets = (const UA_UInt32 *)UA_KeyValueMap_getScalar(
+        &pcm->cm.eventSource.params, UA_QUALIFIEDNAME(0, "max-connections"),
+        &UA_TYPES[UA_TYPES_UINT32]);
+    if(el->maxSocketsLimitReached || (maxSockets && *maxSockets != 0 && pcm->fdsSize >= (size_t)*maxSockets)) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "TCP\t| Unable to establish connection: no available sockets");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* Translate INADDR_ANY to IPv4/IPv6 address */
     UA_RESET_ERRNO;
@@ -504,6 +667,11 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     newConn->application = application;
     newConn->context = context;
 
+    /* Information to reopen listen socket */
+    newConn->rfd.hostname = UA_String_fromChars(hostname);
+    newConn->rfd.port = port;
+    newConn->rfd.reuseaddr = reuseaddr;
+
     /* Register in the EventLoop */
     UA_StatusCode res = UA_EventLoopPOSIX_registerFD(el, &newConn->rfd);
     if(res != UA_STATUSCODE_GOOD) {
@@ -528,6 +696,15 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     params[1].key = UA_QUALIFIEDNAME(0, "listen-port");
     UA_Variant_setScalar(&params[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
     UA_KeyValueMap paramMap = {2, params};
+
+    if(el->maxSocketsLimitReached) {
+        /* Announce the reopening of the listen-socket in the application */
+        connectionCallback(&pcm->cm, (uintptr_t)listenSocket,
+                           application, &newConn->context,
+                           UA_CONNECTIONSTATE_REOPENING,
+                           &paramMap, UA_BYTESTRING_NULL);
+        return UA_STATUSCODE_GOOD;
+    }
 
     /* Announce the listen-socket in the application */
     connectionCallback(&pcm->cm, (uintptr_t)listenSocket,
@@ -735,16 +912,18 @@ TCP_openPassiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *
         reuseaddr = *reuseaddrTmp;
 
     /* Undefined or empty addresses array -> listen on all interfaces */
+    UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
     if(addrsSize == 0) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP\t| Listening on all interfaces");
-        return TCP_registerListenSockets(pcm, NULL, *port, application,
-                                         context, connectionCallback, validate, reuseaddr);
+        if(TCP_registerListenSockets(pcm, NULL, *port, application,
+                                     context, connectionCallback, validate, reuseaddr) == UA_STATUSCODE_GOOD)
+            retval = UA_STATUSCODE_GOOD;
+        return retval;
     }
 
     /* Iterate over the configured hostnames */
     UA_String *hostStrings = (UA_String*)addrs->data;
-    UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
     for(size_t i = 0; i < addrsSize; i++) {
         char hostname[512];
         if(hostStrings[i].length >= sizeof(hostname))
@@ -766,6 +945,16 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
                          UA_Boolean validate) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
+
+    /* Check that the maximum number of sockets has not been exceeded */
+    const UA_UInt32 *maxSockets = (const UA_UInt32 *)UA_KeyValueMap_getScalar(
+        &pcm->cm.eventSource.params, UA_QUALIFIEDNAME(0, "max-connections"),
+        &UA_TYPES[UA_TYPES_UINT32]);
+    if(el->maxSocketsLimitReached || (maxSockets && *maxSockets != 0 && pcm->fdsSize >= (size_t)*maxSockets)) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "TCP\t| Unable to establish connection: no available sockets");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* Get the connection parameters */
     char hostname[UA_MAXHOSTNAME_LENGTH];
