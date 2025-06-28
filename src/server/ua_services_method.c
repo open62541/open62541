@@ -448,6 +448,14 @@ Operation_CallMethod(UA_Server *server, UA_Session *session,
     return (result->statusCode != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 }
 
+static UA_AsyncOperationDescription callDescription = {
+    (UA_AsyncServiceOperation)Operation_CallMethod,
+    offsetof(UA_CallRequest, methodsToCallSize),
+    &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
+    offsetof(UA_CallResponse, resultsSize),
+    &UA_TYPES[UA_TYPES_CALLMETHODRESULT];
+};
+
 UA_Boolean
 Service_Call(UA_Server *server, UA_Session *session,
              const UA_CallRequest *request,
@@ -462,12 +470,7 @@ Service_Call(UA_Server *server, UA_Session *session,
     }
 
     response->responseHeader.serviceResult =
-        allocProcessServiceOperations_async(server, session, request->requestHeader.requestHandle,
-                                            (UA_AsyncServiceOperation)Operation_CallMethod,
-                                            &request->methodsToCallSize,
-                                            &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
-                                            &response->resultsSize,
-                                            &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+        allocProcessServiceOperations_async(server, session, &callDescription, request, response);
 
     /* Signal an async operation */
     return (response->responseHeader.serviceResult != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);

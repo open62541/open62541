@@ -72,14 +72,11 @@ UA_AsyncManager_sendAsyncResponses(void *s, void *a) {
 
 static void
 integrateResult(UA_Server *server, UA_AsyncManager *am, UA_AsyncOperation *op) {
+    TAILQ_REMOVE(&am->ops, op, pointers);
+
     UA_AsyncResponse *ar = op->parent;
     ar->opCountdown -= 1;
     am->opsCount--;
-
-    TAILQ_REMOVE(&am->ops, op, pointers);
-
-    /* Delete the request information embedded in the op  */
-    UA_CallMethodRequest_clear(&op->request);
 
     /* Trigger the main server thread to send out responses */
     if(ar->opCountdown == 0 && am->dc.callback == NULL) {
@@ -154,11 +151,11 @@ void
 UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    /* Clean up queues */
+    /* Clean up queues. The operations get deleted together with the
+     * AsyncResponse below. */
     UA_AsyncOperation *op, *op_tmp;
     TAILQ_FOREACH_SAFE(op, &am->ops, pointers, op_tmp) {
         TAILQ_REMOVE(&am->ops, op, pointers);
-        UA_CallMethodRequest_clear(&op->request);
     }
 
     /* Remove responses */
@@ -239,11 +236,8 @@ setResultStatus(void *resp, const UA_DataType *responseOperationsType,
 
 UA_StatusCode
 allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
-                                    UA_AsyncServiceOperation operationCallback,
-                                    const size_t *requestOperations,
-                                    const UA_DataType *requestOperationsType,
-                                    size_t *responseOperations,
-                                    const UA_DataType *responseOperationsType) {
+                                    const UA_AsyncServiceDescription *asDescription,
+                                    const void *request, void *response) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_AsyncManager *am = &server->asyncManager;
 
@@ -317,9 +311,7 @@ allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
         /* TODO: Handle more response types */
         ar->response.callResponse.results = (UA_CallMethodResult*)*respPos;
         ar->response.callResponse.resultsSize = ops;
-        ar->resultsSize = &ar->response.callResponse.resultsSize;
-        ar->results = (void**)&ar->response.callResponse.results;
-        ar->resultsType = responseOperationsType;
+        ar->asDescription = asDescription;
         *respPos = NULL;
         *responseOperations = 0;
 
