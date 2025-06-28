@@ -30,6 +30,9 @@ jobs:
             cmd_deps: brew install mbedtls
             cmake_options: -DBUILD_SHARED_LIBS=ON -DUA_ENABLE_ENCRYPTION=MBEDTLS -DUA_ENABLE_AMALGAMATION=ON -DUA_ENABLE_INLINABLE_EXPORT=ON
 
+          - name: "Build examples with INLINABLE_EXPORT=ON"
+            cmake_options: -DUA_ENABLE_INLINABLE_EXPORT=ON -DUA_BUILD_EXAMPLES=ON
+
     name: ${{ matrix.os }}-${{ matrix.build.name }}
     runs-on: ${{ matrix.os }}
     steps:
