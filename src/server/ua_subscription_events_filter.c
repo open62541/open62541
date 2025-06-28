@@ -16,8 +16,10 @@
 /* Ternary Logic
  * -------------
  * Similar to SQL, OPC UA Queries use the K3 - Strong Kleene Logic that
- * considers ternary values true/false/null (unknown). Most operators resolve to
- * a ternary value. Some operators can resolve to a literal value (e.g. CAST). */
+ * considers ternary values true/false/null (unknown). Every operator result
+ * (Variant) can be cast to a a ternary truth value. See the v2t method below.
+ * We cast all operands to a ternary truth value before a logical operator is
+ * applied. */
 
 typedef enum {
     UA_TERNARY_FALSE = -1,
@@ -50,13 +52,6 @@ UA_Ternary_not(UA_Ternary v) {
     return (UA_Ternary)((int)v * -1);
 }
 
-static UA_Ternary v2t(const UA_Variant *v) {
-    if(UA_Variant_isEmpty(v) || !UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_BOOLEAN]))
-        return UA_TERNARY_NULL;
-    UA_Boolean b = *(UA_Boolean*)v->data;
-    return (b) ? UA_TERNARY_TRUE : UA_TERNARY_FALSE;
-}
-
 static const UA_Boolean bFalse = false;
 static const UA_Boolean bTrue  = true;
 
@@ -75,6 +70,34 @@ static UA_Variant t2v(UA_Ternary t) {
     }
     v.storageType = UA_VARIANT_DATA_NODELETE;
     return v;
+}
+
+/* Forward declarations */
+static void
+castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out);
+static UA_StatusCode
+castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out);
+
+/* For translating to a ternary truth-value we apply the rules for the "explicit
+ * casting" to a Boolean. Because implicit casting from numerical to Boolean is
+ * not possible as per Table 125 in the standard. */
+static UA_Ternary v2t(const UA_Variant *v) {
+    /* Empty -> NULL, Arrays are undefined in the standard */
+    if(UA_Variant_isEmpty(v) || !UA_Variant_isScalar(v))
+        return UA_TERNARY_NULL;
+
+    /* Try to cast to Boolean. The variant remains empty if this fails.
+     * Otherwise the bTrue/bFalse singletons are set. */
+    UA_Variant vBool;
+    UA_Variant_init(&vBool);
+    if(v->type != &UA_TYPES[UA_TYPES_STRING])
+        castNumerical(v, &UA_TYPES[UA_TYPES_BOOLEAN], &vBool);
+    else
+        castImplicitFromString(v, &UA_TYPES[UA_TYPES_BOOLEAN], &vBool);
+
+    if(!vBool.type)
+        return UA_TERNARY_NULL;
+    return (vBool.data == &bTrue) ? UA_TERNARY_TRUE : UA_TERNARY_FALSE;
 }
 
 /* Type Casting Rules
@@ -189,7 +212,7 @@ implicitCastTargetType(const UA_DataType *t1, const UA_DataType *t2) {
 static void
 castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
     UA_assert(UA_Variant_isScalar(in));
-    UA_Variant_init(out); /* Set to null value */
+    UA_assert(UA_Variant_isEmpty(out));
 
     UA_Int64  i = 0;
     UA_UInt64 u = 0;
@@ -212,6 +235,16 @@ castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
     default: return;
     }
 
+    /* Boolean is true if the numerical input is non-null */
+    if(type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
+        const UA_Boolean *b = &bFalse;
+        if(i != 0 || u != 0 || f != 0.0)
+            b = &bTrue;
+        UA_Variant_setScalar(out, (void*)(uintptr_t)b, type);
+        out->storageType = UA_VARIANT_DATA_NODELETE;
+    }
+
+    /* Allocate the output data. Return NULL value if malloc fails. */
     void *data = UA_new(type);
     if(!data)
         return;
@@ -295,24 +328,26 @@ castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Vari
          * Part 4 says: String values containing "true", "false", "1" or "0"
          * can be converted to Boolean values. Other string values cause a
          * conversion error. In this case Strings are case-insensitive. */
-        UA_Boolean b;
+        const UA_Boolean *b;
         const UA_String *inStr = (const UA_String*)in->data;
         if(inStr->length == 1 && inStr->data[0] == '0') {
-            b = false;
+            b = &bFalse;
         } else if(inStr->length == 1 && inStr->data[0] == '1') {
-            b = true;
+            b = &bTrue;
         } else if(inStr->length == 4 &&
                   uppercase(inStr->data[0])== 'T' && uppercase(inStr->data[1])== 'R' &&
                   uppercase(inStr->data[2])== 'U' && uppercase(inStr->data[3])== 'E') {
-            b = true;
+            b = &bTrue;
         } else if(inStr->length == 5              && uppercase(inStr->data[0])== 'F' &&
                   uppercase(inStr->data[1])== 'A' && uppercase(inStr->data[2])== 'L' &&
                   uppercase(inStr->data[3])== 'S' && uppercase(inStr->data[4])== 'E') {
-            b = false;
+            b = &bFalse;
         } else {
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
-        return UA_Variant_setScalarCopy(out, &b, outType);
+        UA_Variant_setScalar(out, (void*)(uintptr_t)b, outType);
+        out->storageType = UA_VARIANT_DATA_NODELETE;
+        return UA_STATUSCODE_GOOD;
     }
 
 #ifdef UA_ENABLE_PARSING
@@ -349,10 +384,8 @@ castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Vari
 static UA_StatusCode
 castImplicit(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) {
     /* Of the input is empty, casting results in a NULL value */
-    if(UA_Variant_isEmpty(in)) {
-        UA_Variant_init(out);
+    if(UA_Variant_isEmpty(in))
         return UA_STATUSCODE_GOOD;
-    }
 
     /* TODO: We only support scalar values for now */
     if(!UA_Variant_isScalar(in))
@@ -439,6 +472,12 @@ castImplicit(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) 
     }
 
     default:
+        /* Implicit casting from a numerical value to Boolean is not possible.
+         * Explicit casting is possible and evaluates to true if the value is
+         * non-null. */
+        if(outType == &UA_TYPES[UA_TYPES_BOOLEAN])
+            return res;
+
         /* Try casting between numericals (also works for Boolean and StatusCode
          * input). The conversion can fail if the limits of the output type are
          * exceeded and then results in a NULL value. */
@@ -687,6 +726,7 @@ castResolveOperands(UA_FilterEvalContext *ctx, size_t index, UA_Boolean setError
     /* Cast the operands. Put the result in the same location on the stack. */
     for(size_t pos = 0; pos < ctx->top; pos++) {
         UA_Variant orig = ctx->stack[pos];
+        UA_Variant_init(&ctx->stack[pos]);
         res = castImplicit(&orig, targetType, &ctx->stack[pos]);
         if(res != UA_STATUSCODE_GOOD)
             return (setError) ? setOperandError(ctx, index, pos, res) : res;
