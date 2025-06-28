@@ -15,8 +15,8 @@
 #include <check.h>
 #include <stdlib.h>
 
-UA_Server *server = NULL;
-UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
+static UA_Server *server = NULL;
+static UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
 
 static void setup(void) {
     server = UA_Server_newForUnitTest();

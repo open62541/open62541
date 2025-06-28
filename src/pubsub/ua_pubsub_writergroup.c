@@ -21,8 +21,6 @@
 #include "ua_pubsub_keystorage.h"
 #endif
 
-#define UA_MAX_STACKBUF 128 /* Max size of network messages on the stack */
-
 static UA_StatusCode
 encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
                UA_Byte *signStart, UA_Byte *encryptStart,

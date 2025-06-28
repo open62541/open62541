@@ -24,10 +24,10 @@ static char *password = NULL;
 static UA_ByteString certificate;
 static UA_ByteString privateKey;
 static UA_ByteString securityPolicyUri;
-int return_value = 0;
+static int return_value = 0;
 
 /* Custom logger that prints to stderr. So the "good output" can be easily separated. */
-UA_LogLevel logLevel = UA_LOGLEVEL_ERROR;
+static UA_LogLevel logLevel = UA_LOGLEVEL_ERROR;
 
 /* ANSI escape sequences for color output taken from here:
  * https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c*/
@@ -72,7 +72,7 @@ cliLog(void *context, UA_LogLevel level, UA_LogCategory category,
     fflush(stderr);
 }
 
-UA_Logger stderrLog = {cliLog, NULL, NULL};
+static UA_Logger stderrLog = {cliLog, NULL, NULL};
 
 static void
 usage(void) {
@@ -521,7 +521,7 @@ exploreRecursive(char *pathString, size_t pos, const UA_NodeId current,
         if(!UA_ExpandedNodeId_isLocal(&rd->nodeId))
             continue;
         char browseName[80];
-        int len = snprintf(browseName, 80, "%d:%.*s",
+        int len = snprintf(browseName, 80, "%u:%.*s",
                            (unsigned)rd->browseName.namespaceIndex,
                            (int)rd->browseName.name.length,
                            (char*)rd->browseName.name.data);
@@ -530,7 +530,7 @@ exploreRecursive(char *pathString, size_t pos, const UA_NodeId current,
         if(len > 80)
             len = 80;
         memcpy(pathString + pos, "/", 1);
-        memcpy(pathString + pos + 1, browseName, len);
+        memcpy(pathString + pos + 1, browseName, (size_t)len);
         exploreRecursive(pathString, pos + 1 + (size_t)len, rd->nodeId.nodeId, rd->nodeClass, depth-1);
     }
 

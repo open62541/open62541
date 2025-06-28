@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <signal.h>
 
-UA_Boolean running = true;
+static UA_Boolean running = true;
 static void InitCallMulti(UA_Client* client);
 
 #ifdef UA_ENABLE_METHODCALLS
