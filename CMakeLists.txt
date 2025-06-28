@@ -825,6 +825,7 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
+                ${PROJECT_SOURCE_DIR}/src/server/ua_query.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
@@ -864,6 +865,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_query.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_query.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c

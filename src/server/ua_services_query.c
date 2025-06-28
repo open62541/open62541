@@ -7,6 +7,7 @@
 
 #include "ua_services.h"
 #include "ua_server_internal.h"
+#include "ua_query.h"
 
 #ifdef UA_ENABLE_QUERY /* conditional compilation */
 
