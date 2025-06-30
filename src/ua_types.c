@@ -248,22 +248,20 @@ UA_STRING(char *chars) {
     return s;
 }
 
+/* Make a copy with a trailing zero. The trailing zero is not required, but can
+ * avoid buffer overrun bugs with some libc methods. */
 UA_String
 UA_String_fromChars(const char *src) {
-    UA_String s; s.length = 0; s.data = NULL;
+    UA_String s = {0, NULL};
     if(!src)
         return s;
-    s.length = strlen(src);
-    if(s.length > 0) {
-        s.data = (u8*)UA_malloc(s.length);
-        if(UA_UNLIKELY(!s.data)) {
-            s.length = 0;
-            return s;
-        }
-        memcpy(s.data, src, s.length);
-    } else {
-        s.data = (u8*)UA_EMPTY_ARRAY_SENTINEL;
-    }
+    size_t len = strlen(src);
+    s.data = (u8*)UA_malloc(len+1);
+    if(!s.data)
+        return s;
+    memcpy(s.data, src, len);
+    s.data[s.length] = 0;
+    s.length = len;
     return s;
 }
 
@@ -299,16 +297,23 @@ UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2) {
     return casecmp(s1->data, s2->data, s1->length) == 0;
 }
 
+/* Make a copy with a trailing zero. The trailing zero is not required, but can
+ * avoid buffer overrun bugs with some libc methods. */
 static UA_StatusCode
 String_copy(const void *src, void *dst, const UA_DataType *_) {
     const UA_String *srcS = (const UA_String*)src;
-    UA_String *dstS = (UA_String *)dst;
-    UA_StatusCode res =
-        UA_Array_copy(srcS->data, srcS->length, (void**)&dstS->data,
-                      &UA_TYPES[UA_TYPES_BYTE]);
-    if(res == UA_STATUSCODE_GOOD)
+    UA_String *dstS = (UA_String*)dst;
+    dstS->length = 0;
+    dstS->data = NULL;
+    if(srcS->data) {
+        dstS->data = (u8*)UA_malloc(srcS->length+1);
+        if(!dstS->data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        memcpy(dstS->data, srcS->data, srcS->length);
+        dstS->data[srcS->length] = 0;
         dstS->length = srcS->length;
-    return res;
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -321,12 +326,15 @@ UA_StatusCode
 UA_String_append(UA_String *s, const UA_String s2) {
     if(s2.length == 0)
         return UA_STATUSCODE_GOOD;
+    if(s->length == 0)
+        return UA_String_copy(&s2, s);
     UA_Byte *buf = (UA_Byte*)
         UA_realloc((void*)((uintptr_t)s->data & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL),
-                   s->length + s2.length);
+                   s->length + s2.length + 1);
     if(!buf)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memcpy(buf + s->length, s2.data, s2.length);
+    buf[s->length + s2.length] = 0;
     s->data = buf;
     s->length += s2.length;
     return UA_STATUSCODE_GOOD;
@@ -348,41 +356,32 @@ UA_String_vformat(UA_String *str, const char *format, va_list args) {
     va_list args2;
     va_copy(args2, args);
 
-    /* Encode initially */
+    /* Encode initially (uses a trailing zero) */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     int out = mp_vsnprintf((char*)str->data, str->length, format, args);
     if(out < 0) {
         res = UA_STATUSCODE_BADENCODINGERROR;
-        goto errout;
+        va_end(args2);
+        return res;
     }
 
-    /* Output length zero */
-    if(out == 0) {
-        str->length = 0;
-        if(str->data == NULL)
-            str->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
-        goto errout;
-    }
-
-    /* Encode into existing buffer. mp_snprintf adds a trailing \0. So out must
-     * be truly smaller than str->length for success. */
-    if(str->length > 0) {
+    if(str->length == 0) {
+        /* Allocate the output buffer and encode again (+1 length for the trailing \0) */
+        res = UA_ByteString_allocBuffer(str, (size_t)out + 1);
+        if(UA_LIKELY(res == UA_STATUSCODE_GOOD)) {
+            mp_vsnprintf((char*)str->data, str->length, format, args2);
+            str->length--;
+        }
+    } else {
+        /* Encode into existing buffer. mp_snprintf adds a trailing \0. So out must
+         * be truly smaller than str->length for success. */
         if((size_t)out < str->length) {
             str->length = (size_t)out;
         } else {
             res = UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
         }
-        goto errout;
     }
 
-    /* Allocate and encode again (+1 length for the trailing \0) */
-    res = UA_ByteString_allocBuffer(str, (size_t)out + 1);
-    if(res != UA_STATUSCODE_GOOD)
-        goto errout;
-    mp_vsnprintf((char*)str->data, str->length, format, args2);
-    str->length--;
-
- errout:
     va_end(args2);
     return res;
 }
