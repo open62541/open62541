@@ -715,13 +715,113 @@ UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
 
 /* Used in inline functions exposing the Read service with more syntactic sugar
  * for individual attributes */
-UA_StatusCode
-__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
+static UA_StatusCode
+__Server_read(UA_Server *server, const UA_NodeId *nodeId,
                  const UA_AttributeId attributeId, void *v) {
    lockServer(server);
    UA_StatusCode retval = readWithReadValue(server, nodeId, attributeId, v);
    unlockServer(server);
    return retval;
+}
+
+UA_StatusCode
+UA_Server_readNodeId(UA_Server *server, const UA_NodeId nodeId, UA_NodeId *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_NODEID, out);
+}
+
+UA_StatusCode
+UA_Server_readNodeClass(UA_Server *server, const UA_NodeId nodeId, UA_NodeClass *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_NODECLASS, out);
+}
+
+UA_StatusCode
+UA_Server_readBrowseName(UA_Server *server, const UA_NodeId nodeId, UA_QualifiedName *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_BROWSENAME, out);
+}
+
+UA_StatusCode
+UA_Server_readDisplayName(UA_Server *server, const UA_NodeId nodeId, UA_LocalizedText *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME, out);
+}
+
+UA_StatusCode
+UA_Server_readDescription(UA_Server *server, const UA_NodeId nodeId, UA_LocalizedText *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_DESCRIPTION, out);
+}
+
+UA_StatusCode
+UA_Server_readWriteMask(UA_Server *server, const UA_NodeId nodeId, UA_UInt32 *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_WRITEMASK, out);
+}
+
+UA_StatusCode
+UA_Server_readIsAbstract(UA_Server *server, const UA_NodeId nodeId, UA_Boolean *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_ISABSTRACT, out);
+}
+
+UA_StatusCode
+UA_Server_readSymmetric(UA_Server *server, const UA_NodeId nodeId, UA_Boolean *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_SYMMETRIC, out);
+}
+
+UA_StatusCode
+UA_Server_readInverseName(UA_Server *server, const UA_NodeId nodeId, UA_LocalizedText *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_INVERSENAME, out);
+}
+
+UA_StatusCode
+UA_Server_readContainsNoLoops(UA_Server *server, const UA_NodeId nodeId, UA_Boolean *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_CONTAINSNOLOOPS, out);
+}
+
+UA_StatusCode
+UA_Server_readEventNotifier(UA_Server *server, const UA_NodeId nodeId, UA_Byte *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER, out);
+}
+
+UA_StatusCode
+UA_Server_readValue(UA_Server *server, const UA_NodeId nodeId, UA_Variant *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_VALUE, out);
+}
+
+UA_StatusCode
+UA_Server_readDataType(UA_Server *server, const UA_NodeId nodeId, UA_NodeId *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_DATATYPE, out);
+}
+
+UA_StatusCode
+UA_Server_readValueRank(UA_Server *server, const UA_NodeId nodeId, UA_Int32 *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_VALUERANK, out);
+}
+
+UA_StatusCode
+UA_Server_readArrayDimensions(UA_Server *server, const UA_NodeId nodeId, UA_Variant *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_ARRAYDIMENSIONS, out);
+}
+
+UA_StatusCode
+UA_Server_readAccessLevel(UA_Server *server, const UA_NodeId nodeId, UA_Byte *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL, out);
+}
+
+UA_StatusCode
+UA_Server_readAccessLevelEx(UA_Server *server, const UA_NodeId nodeId, UA_UInt32 *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX, out);
+}
+
+UA_StatusCode
+UA_Server_readMinimumSamplingInterval(UA_Server *server, const UA_NodeId nodeId, UA_Double *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, out);
+}
+
+UA_StatusCode
+UA_Server_readHistorizing(UA_Server *server, const UA_NodeId nodeId, UA_Boolean *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_HISTORIZING, out);
+}
+
+UA_StatusCode
+UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId, UA_Boolean *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE, out);
 }
 
 UA_StatusCode

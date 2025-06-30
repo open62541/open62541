@@ -549,166 +549,96 @@ UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
  * - UserAccessLevel
  * - UserExecutable */
 
-/* Read an attribute of a node. The specialized functions below provide a more
- * concise syntax.
- *
- * @param server The server object.
- * @param item ReadValueIds contain the NodeId of the target node, the id of the
- *             attribute to read and (optionally) an index range to read parts
- *             of an array only. See the section on NumericRange for the format
- *             used for array ranges.
- * @param timestamps Which timestamps to return for the attribute.
- * @return Returns a DataValue that contains either an error code, or a variant
- *         with the attribute value and the timestamps. */
+/* Read an attribute of a node. Returns a deep copy. */
 UA_DataValue UA_EXPORT UA_THREADSAFE
 UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps);
 
-/* Don't use this function. There are typed versions for every supported
- * attribute. */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
-                 UA_AttributeId attributeId, void *v);
+/**
+ * The following specialized read methods are a shorthand for the regular read
+ * and set a deep copy of the attribute to the ``out`` pointer (when
+ * successful). */
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readNodeId(UA_Server *server, const UA_NodeId nodeId,
-                     UA_NodeId *outNodeId) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_NODEID, outNodeId);
-})
+                     UA_NodeId *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readNodeClass(UA_Server *server, const UA_NodeId nodeId,
-                        UA_NodeClass *outNodeClass) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_NODECLASS,
-                            outNodeClass);
-})
+                        UA_NodeClass *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readBrowseName(UA_Server *server, const UA_NodeId nodeId,
-                         UA_QualifiedName *outBrowseName) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_BROWSENAME,
-                            outBrowseName);
-})
+                         UA_QualifiedName *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readDisplayName(UA_Server *server, const UA_NodeId nodeId,
-                          UA_LocalizedText *outDisplayName) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME,
-                            outDisplayName);
-})
+                          UA_LocalizedText *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readDescription(UA_Server *server, const UA_NodeId nodeId,
-                          UA_LocalizedText *outDescription) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_DESCRIPTION,
-                            outDescription);
-})
+                          UA_LocalizedText *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readWriteMask(UA_Server *server, const UA_NodeId nodeId,
-                        UA_UInt32 *outWriteMask) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_WRITEMASK,
-                            outWriteMask);
-})
+                        UA_UInt32 *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readIsAbstract(UA_Server *server, const UA_NodeId nodeId,
-                         UA_Boolean *outIsAbstract) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_ISABSTRACT,
-                            outIsAbstract);
-})
+                         UA_Boolean *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readSymmetric(UA_Server *server, const UA_NodeId nodeId,
-                        UA_Boolean *outSymmetric) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_SYMMETRIC,
-                            outSymmetric);
-})
+                        UA_Boolean *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readInverseName(UA_Server *server, const UA_NodeId nodeId,
-                          UA_LocalizedText *outInverseName) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_INVERSENAME,
-                            outInverseName);
-})
+                          UA_LocalizedText *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readContainsNoLoops(UA_Server *server, const UA_NodeId nodeId,
-                              UA_Boolean *outContainsNoLoops) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_CONTAINSNOLOOPS,
-                            outContainsNoLoops);
-})
+                              UA_Boolean *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readEventNotifier(UA_Server *server, const UA_NodeId nodeId,
-                            UA_Byte *outEventNotifier) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER,
-                            outEventNotifier);
-})
+                            UA_Byte *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readValue(UA_Server *server, const UA_NodeId nodeId,
-                    UA_Variant *outValue) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_VALUE, outValue);
-})
+                    UA_Variant *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readDataType(UA_Server *server, const UA_NodeId nodeId,
-                       UA_NodeId *outDataType) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_DATATYPE,
-                            outDataType);
-})
+                       UA_NodeId *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readValueRank(UA_Server *server, const UA_NodeId nodeId,
-                        UA_Int32 *outValueRank) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_VALUERANK,
-                            outValueRank);
-})
+                        UA_Int32 *out);
 
-/* Returns a variant with an int32 array */
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+/* Returns a variant with an uint32 array */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readArrayDimensions(UA_Server *server, const UA_NodeId nodeId,
-                              UA_Variant *outArrayDimensions) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_ARRAYDIMENSIONS,
-                            outArrayDimensions);
-})
+                              UA_Variant *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readAccessLevel(UA_Server *server, const UA_NodeId nodeId,
-                          UA_Byte *outAccessLevel) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
-                            outAccessLevel);
-})
+                          UA_Byte *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readAccessLevelEx(UA_Server *server, const UA_NodeId nodeId,
-                            UA_UInt32 *outAccessLevelEx), {
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
-                            outAccessLevelEx);
-})
+                            UA_UInt32 *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readMinimumSamplingInterval(UA_Server *server, const UA_NodeId nodeId,
-                                      UA_Double *outMinimumSamplingInterval) ,{
-    return __UA_Server_read(server, &nodeId,
-                            UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
-                            outMinimumSamplingInterval);
-})
+                                      UA_Double *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readHistorizing(UA_Server *server, const UA_NodeId nodeId,
-                          UA_Boolean *outHistorizing) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_HISTORIZING,
-                            outHistorizing);
-})
+                          UA_Boolean *out);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
-                         UA_Boolean *outExecutable) ,{
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
-                            outExecutable);
-})
+                         UA_Boolean *out);
 
 /**
  * The following node attributes cannot be changed once a node has been created:
