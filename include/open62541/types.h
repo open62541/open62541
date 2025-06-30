@@ -199,7 +199,10 @@ UA_EXPORT UA_Boolean UA_StatusCode_equalTop(UA_StatusCode s1, UA_StatusCode s2);
 /**
  * String
  * ^^^^^^
- * A sequence of Unicode characters. Strings are just an array of UA_Byte. */
+ * A sequence of Unicode characters. Strings are just an array of UA_Byte. The
+ * data might not be null-terminated, but can be. Hence, even if .length == 0,
+ * there can be .data != NULL. Hence it is best to _clear a string when it goes
+ * out of scope, regardless of its length. */
 
 typedef struct {
     size_t length; /* The length of the string */
