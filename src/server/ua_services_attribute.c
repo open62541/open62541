@@ -1883,10 +1883,10 @@ UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
 }
 
 /* Convenience function to be wrapped into inline functions */
-UA_StatusCode
-__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
-                  const UA_AttributeId attributeId,
-                  const UA_DataType *attr_type, const void *attr) {
+static UA_StatusCode
+__Server_write(UA_Server *server, const UA_NodeId *nodeId,
+               const UA_AttributeId attributeId,
+               const UA_DataType *attr_type, const void *attr) {
     lockServer(server);
     UA_StatusCode res = writeAttribute(server, &server->adminSession,
                                        nodeId, attributeId, attr, attr_type);
@@ -1919,6 +1919,125 @@ writeAttribute(UA_Server *server, UA_Session *session,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     Operation_Write(server, session, NULL, &wvalue, &res);
     return res;
+}
+
+UA_StatusCode
+UA_Server_writeBrowseName(UA_Server *server, const UA_NodeId nodeId,
+                          const UA_QualifiedName browseName) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_BROWSENAME,
+                          &UA_TYPES[UA_TYPES_QUALIFIEDNAME], &browseName);
+}
+
+UA_StatusCode
+UA_Server_writeDisplayName(UA_Server *server, const UA_NodeId nodeId,
+                           const UA_LocalizedText displayName) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME,
+                          &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &displayName);
+}
+
+UA_StatusCode
+UA_Server_writeDescription(UA_Server *server, const UA_NodeId nodeId,
+                           const UA_LocalizedText description) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_DESCRIPTION,
+                          &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &description);
+}
+
+UA_StatusCode
+UA_Server_writeWriteMask(UA_Server *server, const UA_NodeId nodeId,
+                         const UA_UInt32 writeMask) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_WRITEMASK,
+                          &UA_TYPES[UA_TYPES_UINT32], &writeMask);
+}
+
+UA_StatusCode
+UA_Server_writeIsAbstract(UA_Server *server, const UA_NodeId nodeId,
+                          const UA_Boolean isAbstract) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_ISABSTRACT,
+                          &UA_TYPES[UA_TYPES_BOOLEAN], &isAbstract);
+}
+
+UA_StatusCode
+UA_Server_writeInverseName(UA_Server *server, const UA_NodeId nodeId,
+                           const UA_LocalizedText inverseName) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_INVERSENAME,
+                          &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &inverseName);
+}
+
+UA_StatusCode
+UA_Server_writeEventNotifier(UA_Server *server, const UA_NodeId nodeId,
+                             const UA_Byte eventNotifier) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER,
+                          &UA_TYPES[UA_TYPES_BYTE], &eventNotifier);
+}
+
+UA_StatusCode
+UA_Server_writeValue(UA_Server *server, const UA_NodeId nodeId,
+                     const UA_Variant value) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_VALUE,
+                          &UA_TYPES[UA_TYPES_VARIANT], &value);
+}
+
+UA_StatusCode
+UA_Server_writeDataValue(UA_Server *server, const UA_NodeId nodeId,
+                     const UA_DataValue value) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_VALUE,
+                          &UA_TYPES[UA_TYPES_DATAVALUE], &value);
+}
+
+UA_StatusCode
+UA_Server_writeDataType(UA_Server *server, const UA_NodeId nodeId,
+                        const UA_NodeId dataType) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_DATATYPE,
+                          &UA_TYPES[UA_TYPES_NODEID], &dataType);
+}
+
+UA_StatusCode
+UA_Server_writeValueRank(UA_Server *server, const UA_NodeId nodeId,
+                         const UA_Int32 valueRank) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_VALUERANK,
+                          &UA_TYPES[UA_TYPES_INT32], &valueRank);
+}
+
+UA_StatusCode
+UA_Server_writeArrayDimensions(UA_Server *server, const UA_NodeId nodeId,
+                               const UA_Variant arrayDimensions) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_ARRAYDIMENSIONS,
+                          &UA_TYPES[UA_TYPES_VARIANT], &arrayDimensions);
+}
+
+UA_StatusCode
+UA_Server_writeAccessLevel(UA_Server *server, const UA_NodeId nodeId,
+                           const UA_Byte accessLevel) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
+                          &UA_TYPES[UA_TYPES_BYTE], &accessLevel);
+}
+
+UA_StatusCode
+UA_Server_writeAccessLevelEx(UA_Server *server, const UA_NodeId nodeId,
+                             const UA_UInt32 accessLevelEx) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
+                          &UA_TYPES[UA_TYPES_UINT32], &accessLevelEx);
+}
+
+UA_StatusCode
+UA_Server_writeMinimumSamplingInterval(UA_Server *server, const UA_NodeId nodeId,
+                                       const UA_Double miniumSamplingInterval) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
+                          &UA_TYPES[UA_TYPES_DOUBLE], &miniumSamplingInterval);
+}
+
+UA_StatusCode
+UA_Server_writeHistorizing(UA_Server *server, const UA_NodeId nodeId,
+                          const UA_Boolean historizing) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_HISTORIZING,
+                          &UA_TYPES[UA_TYPES_BOOLEAN], &historizing);
+}
+
+UA_StatusCode
+UA_Server_writeExecutable(UA_Server *server, const UA_NodeId nodeId,
+                          const UA_Boolean executable) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
+                          &UA_TYPES[UA_TYPES_BOOLEAN], &executable);
 }
 
 #ifdef UA_ENABLE_HISTORIZING

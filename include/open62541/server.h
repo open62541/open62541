@@ -656,154 +656,79 @@ UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
  * - UserExecutable
  */
 
-/* Overwrite an attribute of a node. The specialized functions below provide a
- * more concise syntax.
- *
- * @param server The server object.
- * @param value WriteValues contain the NodeId of the target node, the id of the
- *              attribute to overwritten, the actual value and (optionally) an
- *              index range to replace parts of an array only. of an array only.
- *              See the section on NumericRange for the format used for array
- *              ranges.
- * @return Returns a status code. */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value);
 
-/* Don't use this function. There are typed versions with no additional
- * overhead. */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
-                  const UA_AttributeId attributeId,
-                  const UA_DataType *attr_type, const void *attr);
-
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeBrowseName(UA_Server *server, const UA_NodeId nodeId,
-                          const UA_QualifiedName browseName) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_BROWSENAME,
-                             &UA_TYPES[UA_TYPES_QUALIFIEDNAME], &browseName);
-})
+                          const UA_QualifiedName browseName);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeDisplayName(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_LocalizedText displayName) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME,
-                             &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &displayName);
-})
+                           const UA_LocalizedText displayName);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeDescription(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_LocalizedText description) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_DESCRIPTION,
-                             &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &description);
-})
+                           const UA_LocalizedText description);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeWriteMask(UA_Server *server, const UA_NodeId nodeId,
-                         const UA_UInt32 writeMask) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_WRITEMASK,
-                             &UA_TYPES[UA_TYPES_UINT32], &writeMask);
-})
+                         const UA_UInt32 writeMask);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeIsAbstract(UA_Server *server, const UA_NodeId nodeId,
-                          const UA_Boolean isAbstract) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_ISABSTRACT,
-                             &UA_TYPES[UA_TYPES_BOOLEAN], &isAbstract);
-})
+                          const UA_Boolean isAbstract);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeInverseName(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_LocalizedText inverseName) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_INVERSENAME,
-                             &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &inverseName);
-})
+                           const UA_LocalizedText inverseName);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeEventNotifier(UA_Server *server, const UA_NodeId nodeId,
-                             const UA_Byte eventNotifier) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER,
-                             &UA_TYPES[UA_TYPES_BYTE], &eventNotifier);
-})
+                             const UA_Byte eventNotifier);
 
-/* Writes an UA_Variant to a variable/variableType node. StatusCode is set to
- * UA_STATUSCODE_GOOD, sourceTimestamp and serverTimestamp are set to
- * UA_DateTime_now(). */
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+/* THe value attribute is a DataValue. Here only a variant is provided. The
+ * StatusCode is set to UA_STATUSCODE_GOOD, sourceTimestamp and serverTimestamp
+ * are set to UA_DateTime_now(). See below for setting the full DataValue. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeValue(UA_Server *server, const UA_NodeId nodeId,
-                     const UA_Variant value) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_VALUE,
-                             &UA_TYPES[UA_TYPES_VARIANT], &value);
-})
+                     const UA_Variant value);
 
-/* Writes an UA_DataValue to a variable/variableType node. In contrast to
- * UA_Server_writeValue, this functions can also write sourceTimestamp,
- * serverTimestamp and statusCode. */
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeDataValue(UA_Server *server, const UA_NodeId nodeId,
-                     const UA_DataValue value) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_VALUE,
-                             &UA_TYPES[UA_TYPES_DATAVALUE], &value);
-})
+                         const UA_DataValue value);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeDataType(UA_Server *server, const UA_NodeId nodeId,
-                        const UA_NodeId dataType) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_DATATYPE,
-                             &UA_TYPES[UA_TYPES_NODEID], &dataType);
-})
+                        const UA_NodeId dataType);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeValueRank(UA_Server *server, const UA_NodeId nodeId,
-                         const UA_Int32 valueRank) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_VALUERANK,
-                             &UA_TYPES[UA_TYPES_INT32], &valueRank);
-})
+                         const UA_Int32 valueRank);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeArrayDimensions(UA_Server *server, const UA_NodeId nodeId,
-                               const UA_Variant arrayDimensions) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_ARRAYDIMENSIONS,
-                             &UA_TYPES[UA_TYPES_VARIANT], &arrayDimensions);
-})
+                               const UA_Variant arrayDimensions);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeAccessLevel(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_Byte accessLevel) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
-                             &UA_TYPES[UA_TYPES_BYTE], &accessLevel);
-})
+                           const UA_Byte accessLevel);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeAccessLevelEx(UA_Server *server, const UA_NodeId nodeId,
-                             const UA_UInt32 accessLevelEx), {
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
-                             &UA_TYPES[UA_TYPES_UINT32], &accessLevelEx);
-})
+                             const UA_UInt32 accessLevelEx);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeMinimumSamplingInterval(UA_Server *server, const UA_NodeId nodeId,
-                                       const UA_Double miniumSamplingInterval) ,{
-    return __UA_Server_write(server, &nodeId,
-                             UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
-                             &UA_TYPES[UA_TYPES_DOUBLE],
-                             &miniumSamplingInterval);
-})
+                                       const UA_Double miniumSamplingInterval);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeHistorizing(UA_Server *server, const UA_NodeId nodeId,
-                          const UA_Boolean historizing) ,{
-    return __UA_Server_write(server, &nodeId,
-                             UA_ATTRIBUTEID_HISTORIZING,
-                             &UA_TYPES[UA_TYPES_BOOLEAN],
-                             &historizing);
-})
+                           const UA_Boolean historizing);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_writeExecutable(UA_Server *server, const UA_NodeId nodeId,
-                          const UA_Boolean executable) ,{
-    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
-                             &UA_TYPES[UA_TYPES_BOOLEAN], &executable); 
-})
+                          const UA_Boolean executable);
 
 /**
  * Browsing
