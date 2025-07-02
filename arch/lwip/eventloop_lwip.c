@@ -43,6 +43,9 @@ static UA_KeyValueRestriction LWIPEventLoopConfigParameters[LWIPEVENTLOOP_PARAME
 static UA_DateTime
 UA_EventLoopLWIP_nextTimer(UA_EventLoop *public_el) {
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)public_el;
+    if(el->delayedHead1 > (UA_DelayedCallback *)0x01 ||
+       el->delayedHead2 > (UA_DelayedCallback *)0x01)
+        return el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
     return UA_Timer_next(&el->timer);
 }
 
