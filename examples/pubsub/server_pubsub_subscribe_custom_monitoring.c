@@ -13,10 +13,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-UA_NodeId connectionIdentifier;
-UA_NodeId readerGroupIdentifier;
-UA_NodeId readerIdentifier;
-UA_DataSetReaderConfig readerConfig;
+static UA_NodeId connectionIdentifier;
+static UA_NodeId readerGroupIdentifier;
+static UA_NodeId readerIdentifier;
+static UA_DataSetReaderConfig readerConfig;
 
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,

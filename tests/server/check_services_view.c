@@ -16,9 +16,9 @@
 #include "test_helpers.h"
 #include "thread_wrapper.h"
 
-UA_Server *server_translate_browse;
-UA_Boolean *running_translate_browse;
-THREAD_HANDLE server_thread_translate_browse;
+static UA_Server *server_translate_browse;
+static UA_Boolean *running_translate_browse;
+static THREAD_HANDLE server_thread_translate_browse;
 
 THREAD_CALLBACK(serverloop_register) {
     while (*running_translate_browse)
