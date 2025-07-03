@@ -715,13 +715,113 @@ UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
 
 /* Used in inline functions exposing the Read service with more syntactic sugar
  * for individual attributes */
-UA_StatusCode
-__UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
+static UA_StatusCode
+__Server_read(UA_Server *server, const UA_NodeId *nodeId,
                  const UA_AttributeId attributeId, void *v) {
    lockServer(server);
    UA_StatusCode retval = readWithReadValue(server, nodeId, attributeId, v);
    unlockServer(server);
    return retval;
+}
+
+UA_StatusCode
+UA_Server_readNodeId(UA_Server *server, const UA_NodeId nodeId, UA_NodeId *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_NODEID, out);
+}
+
+UA_StatusCode
+UA_Server_readNodeClass(UA_Server *server, const UA_NodeId nodeId, UA_NodeClass *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_NODECLASS, out);
+}
+
+UA_StatusCode
+UA_Server_readBrowseName(UA_Server *server, const UA_NodeId nodeId, UA_QualifiedName *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_BROWSENAME, out);
+}
+
+UA_StatusCode
+UA_Server_readDisplayName(UA_Server *server, const UA_NodeId nodeId, UA_LocalizedText *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME, out);
+}
+
+UA_StatusCode
+UA_Server_readDescription(UA_Server *server, const UA_NodeId nodeId, UA_LocalizedText *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_DESCRIPTION, out);
+}
+
+UA_StatusCode
+UA_Server_readWriteMask(UA_Server *server, const UA_NodeId nodeId, UA_UInt32 *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_WRITEMASK, out);
+}
+
+UA_StatusCode
+UA_Server_readIsAbstract(UA_Server *server, const UA_NodeId nodeId, UA_Boolean *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_ISABSTRACT, out);
+}
+
+UA_StatusCode
+UA_Server_readSymmetric(UA_Server *server, const UA_NodeId nodeId, UA_Boolean *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_SYMMETRIC, out);
+}
+
+UA_StatusCode
+UA_Server_readInverseName(UA_Server *server, const UA_NodeId nodeId, UA_LocalizedText *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_INVERSENAME, out);
+}
+
+UA_StatusCode
+UA_Server_readContainsNoLoops(UA_Server *server, const UA_NodeId nodeId, UA_Boolean *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_CONTAINSNOLOOPS, out);
+}
+
+UA_StatusCode
+UA_Server_readEventNotifier(UA_Server *server, const UA_NodeId nodeId, UA_Byte *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER, out);
+}
+
+UA_StatusCode
+UA_Server_readValue(UA_Server *server, const UA_NodeId nodeId, UA_Variant *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_VALUE, out);
+}
+
+UA_StatusCode
+UA_Server_readDataType(UA_Server *server, const UA_NodeId nodeId, UA_NodeId *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_DATATYPE, out);
+}
+
+UA_StatusCode
+UA_Server_readValueRank(UA_Server *server, const UA_NodeId nodeId, UA_Int32 *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_VALUERANK, out);
+}
+
+UA_StatusCode
+UA_Server_readArrayDimensions(UA_Server *server, const UA_NodeId nodeId, UA_Variant *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_ARRAYDIMENSIONS, out);
+}
+
+UA_StatusCode
+UA_Server_readAccessLevel(UA_Server *server, const UA_NodeId nodeId, UA_Byte *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL, out);
+}
+
+UA_StatusCode
+UA_Server_readAccessLevelEx(UA_Server *server, const UA_NodeId nodeId, UA_UInt32 *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX, out);
+}
+
+UA_StatusCode
+UA_Server_readMinimumSamplingInterval(UA_Server *server, const UA_NodeId nodeId, UA_Double *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL, out);
+}
+
+UA_StatusCode
+UA_Server_readHistorizing(UA_Server *server, const UA_NodeId nodeId, UA_Boolean *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_HISTORIZING, out);
+}
+
+UA_StatusCode
+UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId, UA_Boolean *out) {
+    return __Server_read(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE, out);
 }
 
 UA_StatusCode
@@ -1783,10 +1883,10 @@ UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
 }
 
 /* Convenience function to be wrapped into inline functions */
-UA_StatusCode
-__UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
-                  const UA_AttributeId attributeId,
-                  const UA_DataType *attr_type, const void *attr) {
+static UA_StatusCode
+__Server_write(UA_Server *server, const UA_NodeId *nodeId,
+               const UA_AttributeId attributeId,
+               const UA_DataType *attr_type, const void *attr) {
     lockServer(server);
     UA_StatusCode res = writeAttribute(server, &server->adminSession,
                                        nodeId, attributeId, attr, attr_type);
@@ -1819,6 +1919,125 @@ writeAttribute(UA_Server *server, UA_Session *session,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     Operation_Write(server, session, NULL, &wvalue, &res);
     return res;
+}
+
+UA_StatusCode
+UA_Server_writeBrowseName(UA_Server *server, const UA_NodeId nodeId,
+                          const UA_QualifiedName browseName) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_BROWSENAME,
+                          &UA_TYPES[UA_TYPES_QUALIFIEDNAME], &browseName);
+}
+
+UA_StatusCode
+UA_Server_writeDisplayName(UA_Server *server, const UA_NodeId nodeId,
+                           const UA_LocalizedText displayName) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME,
+                          &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &displayName);
+}
+
+UA_StatusCode
+UA_Server_writeDescription(UA_Server *server, const UA_NodeId nodeId,
+                           const UA_LocalizedText description) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_DESCRIPTION,
+                          &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &description);
+}
+
+UA_StatusCode
+UA_Server_writeWriteMask(UA_Server *server, const UA_NodeId nodeId,
+                         const UA_UInt32 writeMask) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_WRITEMASK,
+                          &UA_TYPES[UA_TYPES_UINT32], &writeMask);
+}
+
+UA_StatusCode
+UA_Server_writeIsAbstract(UA_Server *server, const UA_NodeId nodeId,
+                          const UA_Boolean isAbstract) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_ISABSTRACT,
+                          &UA_TYPES[UA_TYPES_BOOLEAN], &isAbstract);
+}
+
+UA_StatusCode
+UA_Server_writeInverseName(UA_Server *server, const UA_NodeId nodeId,
+                           const UA_LocalizedText inverseName) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_INVERSENAME,
+                          &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &inverseName);
+}
+
+UA_StatusCode
+UA_Server_writeEventNotifier(UA_Server *server, const UA_NodeId nodeId,
+                             const UA_Byte eventNotifier) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER,
+                          &UA_TYPES[UA_TYPES_BYTE], &eventNotifier);
+}
+
+UA_StatusCode
+UA_Server_writeValue(UA_Server *server, const UA_NodeId nodeId,
+                     const UA_Variant value) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_VALUE,
+                          &UA_TYPES[UA_TYPES_VARIANT], &value);
+}
+
+UA_StatusCode
+UA_Server_writeDataValue(UA_Server *server, const UA_NodeId nodeId,
+                     const UA_DataValue value) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_VALUE,
+                          &UA_TYPES[UA_TYPES_DATAVALUE], &value);
+}
+
+UA_StatusCode
+UA_Server_writeDataType(UA_Server *server, const UA_NodeId nodeId,
+                        const UA_NodeId dataType) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_DATATYPE,
+                          &UA_TYPES[UA_TYPES_NODEID], &dataType);
+}
+
+UA_StatusCode
+UA_Server_writeValueRank(UA_Server *server, const UA_NodeId nodeId,
+                         const UA_Int32 valueRank) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_VALUERANK,
+                          &UA_TYPES[UA_TYPES_INT32], &valueRank);
+}
+
+UA_StatusCode
+UA_Server_writeArrayDimensions(UA_Server *server, const UA_NodeId nodeId,
+                               const UA_Variant arrayDimensions) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_ARRAYDIMENSIONS,
+                          &UA_TYPES[UA_TYPES_VARIANT], &arrayDimensions);
+}
+
+UA_StatusCode
+UA_Server_writeAccessLevel(UA_Server *server, const UA_NodeId nodeId,
+                           const UA_Byte accessLevel) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
+                          &UA_TYPES[UA_TYPES_BYTE], &accessLevel);
+}
+
+UA_StatusCode
+UA_Server_writeAccessLevelEx(UA_Server *server, const UA_NodeId nodeId,
+                             const UA_UInt32 accessLevelEx) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
+                          &UA_TYPES[UA_TYPES_UINT32], &accessLevelEx);
+}
+
+UA_StatusCode
+UA_Server_writeMinimumSamplingInterval(UA_Server *server, const UA_NodeId nodeId,
+                                       const UA_Double miniumSamplingInterval) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
+                          &UA_TYPES[UA_TYPES_DOUBLE], &miniumSamplingInterval);
+}
+
+UA_StatusCode
+UA_Server_writeHistorizing(UA_Server *server, const UA_NodeId nodeId,
+                          const UA_Boolean historizing) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_HISTORIZING,
+                          &UA_TYPES[UA_TYPES_BOOLEAN], &historizing);
+}
+
+UA_StatusCode
+UA_Server_writeExecutable(UA_Server *server, const UA_NodeId nodeId,
+                          const UA_Boolean executable) {
+    return __Server_write(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
+                          &UA_TYPES[UA_TYPES_BOOLEAN], &executable);
 }
 
 #ifdef UA_ENABLE_HISTORIZING
