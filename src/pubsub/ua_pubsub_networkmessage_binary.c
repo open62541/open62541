@@ -1543,7 +1543,8 @@ UA_DataSetMessage_keyFrame_decodeBinary(PubSubDecodeCtx *ctx,
             rv = _DECODE_BINARY(&dsm->data.keyFrameFields[i].value, VARIANT);
             UA_CHECK_STATUS(rv, return rv);
             dsm->data.keyFrameFields[i].hasValue = true;
-            if(dsm->header.timestampEnabled){/*Since the variant field has no timestamp of its own, use dsm (DataSetMessage) timestamp */
+            if(dsm->header.timestampEnabled) {
+                /*Since the variant field has no timestamp of its own, use dsm (DataSetMessage) timestamp */
                 dsm->data.keyFrameFields[i].hasSourceTimestamp = true;
                 dsm->data.keyFrameFields[i].sourceTimestamp = dsm->header.timestamp;
             }
