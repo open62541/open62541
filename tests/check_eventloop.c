@@ -26,14 +26,21 @@ createEvents(UA_UInt32 events) {
     for(size_t i = 0; i < events; i++) {
         UA_Double interval = (UA_Double)i+1;
         UA_StatusCode retval =
-            el->addCyclicCallback(el, timerCallback, NULL, NULL, interval, NULL,
-                                  UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, NULL);
+            el->addTimer(el, timerCallback, NULL, NULL, interval, NULL,
+                         UA_TIMERPOLICY_CURRENTTIME, NULL);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     }
 }
 
 START_TEST(benchmarkTimer) {
+#if defined(UA_ARCHITECTURE_LWIP)
+    el = UA_EventLoop_new_LWIP(NULL, NULL);
+#elif defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
     el = UA_EventLoop_new_POSIX(NULL);
+#else
+#error Add other EventLoop implementations here
+#endif
+
     createEvents(N_EVENTS);
 
     clock_t begin = clock();

@@ -28,8 +28,8 @@ typedef struct UA_MonitoredItem UA_MonitoredItem;
 #endif
 
 /**
- * Node Store Plugin API
- * =====================
+ * Nodestore Plugin API
+ * ====================
  *
  * **Warning!!** The structures defined in this section are only relevant for
  * the developers of custom Nodestores. The interaction with the information
@@ -421,20 +421,27 @@ struct UA_NodeHead {
 };
 
 /**
+ * .. _variable-node:
+ *
  * VariableNode
- * ------------ */
+ * ------------
+ * Variables store values as well as contraints for possible values. There are
+ * two options for storing the value: Internal in the VariableNode data
+ * structure itself, external with a double-pointer (to switch to an updated
+ * value with an atomic pointer-replacing operation) or with a callback
+ * registered by the application. */
 
-/* Indicates whether a variable contains data inline or whether it points to an
- * external data source */
 typedef enum {
-    UA_VALUESOURCE_DATA,
-    UA_VALUESOURCE_DATASOURCE
-} UA_ValueSource;
+    UA_VALUESOURCETYPE_INTERNAL = 0,
+    UA_VALUESOURCETYPE_EXTERNAL = 1,
+    UA_VALUESOURCETYPE_CALLBACK = 2
+} UA_ValueSourceType;
 
 typedef struct {
-    /* Called before the value attribute is read. It is possible to write into the
-     * value attribute during onRead (using the write service). The node is
-     * re-opened afterwards so that changes are considered in the following read
+    /* Notify the application before the value attribute is read. Ignored if
+     * NULL. It is possible to write into the value attribute during onRead
+     * (using the write service). The node is re-retrieved from the Nodestore
+     * afterwards so that changes are considered in the following read
      * operation.
      *
      * @param handle Points to user-provided data for the callback.
@@ -447,8 +454,9 @@ typedef struct {
                    void *nodeContext, const UA_NumericRange *range,
                    const UA_DataValue *value);
 
-    /* Called after writing the value attribute. The node is re-opened after
-     * writing so that the new value is visible in the callback.
+    /* Notify the application after writing the value attribute. Ignored if
+     * NULL. The node is re-retrieved after writing, so that the new value is
+     * visible in the callback.
      *
      * @param server The server executing the callback
      * @sessionId The identifier of the session
@@ -465,7 +473,7 @@ typedef struct {
                     void *sessionContext, const UA_NodeId *nodeId,
                     void *nodeContext, const UA_NumericRange *range,
                     const UA_DataValue *data);
-} UA_ValueCallback;
+} UA_ValueSourceNotifications;
 
 typedef struct {
     /* Copies the data from the source into the provided value.
@@ -499,8 +507,7 @@ typedef struct {
      *        sourcetimestamp.
      * @return Returns a status code for logging. Error codes intended for the
      *         original caller are set in the value. If an error is returned,
-     *         then no releasing of the value is done
-     */
+     *         then no releasing of the value is done. */
     UA_StatusCode (*read)(UA_Server *server, const UA_NodeId *sessionId,
                           void *sessionContext, const UA_NodeId *nodeId,
                           void *nodeContext, UA_Boolean includeSourceTimeStamp,
@@ -524,71 +531,12 @@ typedef struct {
      *        optionally a sourcetimestamp
      * @return Returns a status code for logging. Error codes intended for the
      *         original caller are set in the value. If an error is returned,
-     *         then no releasing of the value is done
-     */
+     *         then no releasing of the value is done. */
     UA_StatusCode (*write)(UA_Server *server, const UA_NodeId *sessionId,
                            void *sessionContext, const UA_NodeId *nodeId,
                            void *nodeContext, const UA_NumericRange *range,
                            const UA_DataValue *value);
-} UA_DataSource;
-
-/**
- * .. _value-callback:
- *
- * Value Callback
- * ~~~~~~~~~~~~~~
- * Value Callbacks can be attached to variable and variable type nodes. If
- * not ``NULL``, they are called before reading and after writing respectively. */
-typedef struct {
-    /* Called before the value attribute is read. The external value source can be
-     * be updated and/or locked during this notification call. After this function returns
-     * to the core, the external value source is readed immediately.
-    */
-    UA_StatusCode (*notificationRead)(UA_Server *server, const UA_NodeId *sessionId,
-                                      void *sessionContext, const UA_NodeId *nodeid,
-                                      void *nodeContext, const UA_NumericRange *range);
-
-    /* Called after writing the value attribute. The node is re-opened after
-     * writing so that the new value is visible in the callback.
-     *
-     * @param server The server executing the callback
-     * @sessionId The identifier of the session
-     * @sessionContext Additional data attached to the session
-     *                 in the access control layer
-     * @param nodeid The identifier of the node.
-     * @param nodeUserContext Additional data attached to the node by
-     *        the user.
-     * @param nodeConstructorContext Additional data attached to the node
-     *        by the type constructor(s).
-     * @param range Points to the numeric range the client wants to write to (or
-     *        NULL). */
-    UA_StatusCode (*userWrite)(UA_Server *server, const UA_NodeId *sessionId,
-                               void *sessionContext, const UA_NodeId *nodeId,
-                               void *nodeContext, const UA_NumericRange *range,
-                               const UA_DataValue *data);
-} UA_ExternalValueCallback;
-
-typedef enum {
-    UA_VALUEBACKENDTYPE_NONE,
-    UA_VALUEBACKENDTYPE_INTERNAL,
-    UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK,
-    UA_VALUEBACKENDTYPE_EXTERNAL
-} UA_ValueBackendType;
-
-typedef struct {
-    UA_ValueBackendType backendType;
-    union {
-        struct {
-            UA_DataValue value;
-            UA_ValueCallback callback;
-        } internal;
-        UA_DataSource dataSource;
-        struct {
-            UA_DataValue **value;
-            UA_ExternalValueCallback callback;
-        } external;
-    } backend;
-} UA_ValueBackend;
+} UA_CallbackValueSource;
 
 #define UA_NODE_VARIABLEATTRIBUTES                                      \
     /* Constraints on possible values */                                \
@@ -597,17 +545,19 @@ typedef struct {
     size_t arrayDimensionsSize;                                         \
     UA_UInt32 *arrayDimensions;                                         \
                                                                         \
-    UA_ValueBackend valueBackend;                                       \
-                                                                        \
     /* The current value */                                             \
-    UA_ValueSource valueSource;                                         \
+    UA_ValueSourceType valueSourceType;                                 \
     union {                                                             \
         struct {                                                        \
             UA_DataValue value;                                         \
-            UA_ValueCallback callback;                                  \
-        } data;                                                         \
-        UA_DataSource dataSource;                                       \
-    } value;
+            UA_ValueSourceNotifications notifications;                  \
+        } internal;                                                     \
+        struct {                                                        \
+            UA_DataValue **value; /* double-pointer */                  \
+            UA_ValueSourceNotifications notifications;                  \
+        } external;                                                     \
+        UA_CallbackValueSource callback;                                \
+    } valueSource;
 
 typedef struct {
     UA_NodeHead head;
@@ -768,7 +718,9 @@ typedef struct {
      * It can be indicated if only a subset of the attributes and referencs need
      * to be accessed. That is relevant when the nodestore accesses a slow
      * storage backend for the attributes. The attribute mask is a bitfield with
-     * ORed entries from UA_NodeAttributesMask.
+     * ORed entries from UA_NodeAttributesMask. If the attributes mask is empty,
+     * then only the non-standard entries (context-pointer, callbacks, etc.) are
+     * returned.
      *
      * The returned node always contains the context-pointer and other fields
      * specific to open626541 (not official attributes).
@@ -788,6 +740,34 @@ typedef struct {
                                       UA_UInt32 attributeMask,
                                       UA_ReferenceTypeSet references,
                                       UA_BrowseDirection referenceDirections);
+
+    /* ``GetEditNode`` returns a pointer to a mutable version of the node. A
+     * plugin implementation that keeps all nodes in RAM can return the same
+     * pointer from ``GetNode`` and ``GetEditNode``. The differences are more
+     * important if, for example, nodes are stored in a backend database. Then
+     * the ``GetEditNode`` version is used to indicate that modifications are
+     * being made.
+     *
+     * Call ``releaseNode`` to indicate when editing is done and the pointer is
+     * no longer used. Note that changes are not (necessarily) visible in other
+     * (const) node-pointers that were previously retrieved. Changes are however
+     * visible in all newly retrieved node-pointers for the given NodeId after
+     * calling ``releaseNode``.
+     *
+     * The attribute-mask and reference-description indicate if only a subset of
+     * the attributes and referencs are to be modified. Other attributes and
+     * references shall not be changed. */
+    UA_Node * (*getEditNode)(void *nsCtx, const UA_NodeId *nodeId,
+                             UA_UInt32 attributeMask,
+                             UA_ReferenceTypeSet references,
+                             UA_BrowseDirection referenceDirections);
+
+    /* Similar to ``getEditNode``. But it can take advantage of the NodePointer
+     * structure, e.g. if it contains a direct pointer. */
+    UA_Node * (*getEditNodeFromPtr)(void *nsCtx, UA_NodePointer ptr,
+                                    UA_UInt32 attributeMask,
+                                    UA_ReferenceTypeSet references,
+                                    UA_BrowseDirection referenceDirections);
 
     /* Release a node that has been retrieved with ``getNode`` or
      * ``getNodeFromPtr``. */

@@ -12,6 +12,7 @@ open62541 Documentation
    pubsub
    tutorials
    common
+   util
    nodeset_compiler
    statuscodes
    plugin

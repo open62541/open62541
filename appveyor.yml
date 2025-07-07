@@ -32,12 +32,7 @@ init:
 
 install:
 - set PATH=C:\Users\appveyor\AppData\Roaming\Python\Scripts;%PATH%
-- ps: '& "./tools/appveyor/install.ps1"'
+- ps: '& "./tools/ci/appveyor/install.ps1"'
 
 build_script:
-- ps: '& "./tools/appveyor/build.ps1"'
-
-after_build:
-  # Only push artifact if make install is defined
-  - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-static.zip
-  - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-dynamic.zip
+- ps: '& "./tools/ci/appveyor/build.ps1"'

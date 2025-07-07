@@ -5,7 +5,6 @@
 #define _XOPEN_SOURCE 500
 #include <open62541/server.h>
 #include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
 
 #include "ua_types_encoding_binary.h"
@@ -62,7 +61,7 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_Byte *pos = msg1.data;
     const UA_Byte *end = &msg1.data[msg1.length];
-    retval = UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_delete(obj1, &UA_TYPES[_i]);
         UA_ByteString_clear(&msg1);
@@ -80,7 +79,7 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     pos = msg2.data;
     end = &msg2.data[msg2.length];
-    retval = UA_encodeBinaryInternal(obj2, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj2, &UA_TYPES[_i], &pos, &end, NULL, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     // then
@@ -116,7 +115,7 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
     UA_Byte *pos = msg1.data;
     const UA_Byte *end = &msg1.data[msg1.length];
-    retval |= UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval |= UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_delete(obj1, &UA_TYPES[_i]);
 
@@ -143,14 +142,14 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
     UA_UInt32 buflen = 256;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, buflen); // fixed size
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     srand(42);
 #else
     srandom(42);
 #endif
     for(int n = 0;n < RANDOM_TESTS;n++) {
         for(UA_UInt32 i = 0;i < buflen;i++) {
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
             UA_UInt32 rnd;
             rnd = rand();
             msg1.data[i] = rnd;
@@ -179,7 +178,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
     UA_UInt32 buflen = 256;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, buflen); // fixed size
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
     srand(42);
 #else
     srandom(42);
@@ -187,7 +186,7 @@ START_TEST(decodeComplexTypeFromRandomBufferShallSurvive) {
     // when
     for(int n = 0; n < RANDOM_TESTS; n++) {
         for(UA_UInt32 i = 0; i < buflen; i++) {
-#ifdef _WIN32
+#ifdef UA_ARCHITECTURE_WIN32
             UA_UInt32 rnd;
             rnd = rand();
             msg1.data[i] = rnd;
@@ -209,14 +208,14 @@ END_TEST
 
 START_TEST(calcSizeBinaryShallBeCorrect) {
     void *obj = UA_new(&UA_TYPES[_i]);
-    size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i]);
+    size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i], NULL);
     ck_assert_uint_ne(predicted_size, 0);
     UA_ByteString msg;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg, predicted_size);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Byte *pos = msg.data;
     const UA_Byte *end = &msg.data[msg.length];
-    retval = UA_encodeBinaryInternal(obj, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj, &UA_TYPES[_i], &pos, &end, NULL, NULL, NULL);
     if(retval)
         printf("%i\n",_i);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

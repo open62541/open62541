@@ -15,6 +15,11 @@ extern UA_ByteString *testConnectionLastSentBuf;
 
 extern UA_ConnectionManager testConnectionManagerTCP;
 
+/* Network Manager which accepts a TCP connection and replays the incoming TCP
+ * packets from a pcap dump file */
+UA_ConnectionManager *
+ConnectionManage_replayPCAP(const char *pcap_file, UA_Boolean client);
+
 _UA_END_DECLS
 
 #endif /* TESTING_NETWORKLAYERS_H_ */

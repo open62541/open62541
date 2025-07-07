@@ -120,6 +120,50 @@ START_TEST(Server_LocalMonitoredItem) {
 }
 END_TEST
 
+static UA_UInt32 staticUInt32 = 1337;
+
+static UA_StatusCode
+readDataSource(UA_Server *s, const UA_NodeId *sessionId, void *sessionContext,
+               const UA_NodeId *nodeId, void *nodeContext,
+               UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range,
+               UA_DataValue *value) {
+    UA_Variant_setScalar(&value->value, &staticUInt32, &UA_TYPES[UA_TYPES_UINT32]);
+    value->value.storageType = UA_VARIANT_DATA_NODELETE;
+    value->hasValue = true;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Use a datasource with a static memory location */
+START_TEST(Server_LocalMonitoredItem_dataSource) {
+    callbackCount = 0;
+
+    UA_DataSource ds = {readDataSource, NULL};
+    UA_Server_setVariableNode_dataSource(server, outNodeId, ds);
+
+    UA_MonitoredItemCreateRequest monitorRequest =
+            UA_MonitoredItemCreateRequest_default(outNodeId);
+    monitorRequest.requestedParameters.samplingInterval = (double)100;
+    monitorRequest.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    UA_MonitoredItemCreateResult result =
+            UA_Server_createDataChangeMonitoredItem(server,
+                                                    UA_TIMESTAMPSTORETURN_BOTH,
+                                                    monitorRequest,
+                                                    NULL,
+                                                    &dataChangeNotificationCallback);
+
+    ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
+    ck_assert_uint_eq(callbackCount, 1);
+
+    for(size_t i = 0; i < 10; i++) {
+        staticUInt32++;
+        UA_fakeSleep(100);
+        UA_Server_run_iterate(server, 1);
+    }
+    ck_assert_uint_eq(callbackCount, 11);
+}
+END_TEST
+
 /* Custom datatype with a String NodeId */
 typedef struct {
     UA_Float p;
@@ -141,6 +185,7 @@ static UA_DataType PointType = {
     {1, UA_NODEIDTYPE_NUMERIC, {0}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
+    {1, UA_NODEIDTYPE_NUMERIC, {0}}, /* .xmlEncodingId */
     sizeof(Point),                   /* .memSize */
     UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
     true,                            /* .pointerFree */
@@ -283,6 +328,7 @@ static Suite * testSuite_Client(void) {
     TCase *tc_server = tcase_create("Local Monitored Item Basic");
     tcase_add_checked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, Server_LocalMonitoredItem);
+    tcase_add_test(tc_server, Server_LocalMonitoredItem_dataSource);
     tcase_add_test(tc_server, Server_LocalMonitoredItem_CustomType);
     suite_add_tcase(s, tc_server);
 

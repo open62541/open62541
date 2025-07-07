@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
-  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
+ *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
  * based on
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
@@ -17,7 +17,7 @@
 #include <open62541/server.h>
 
 #include "open62541_queue.h"
-#include "util/ua_util_internal.h"
+#include "../util/ua_util_internal.h"
 
 _UA_BEGIN_DECLS
 
@@ -30,7 +30,7 @@ typedef struct UA_AsyncResponse UA_AsyncResponse;
 typedef struct UA_AsyncOperation {
     TAILQ_ENTRY(UA_AsyncOperation) pointers;
     UA_CallMethodRequest request;
-    UA_CallMethodResult	response;
+    UA_CallMethodResult response;
     size_t index;             /* Index of the operation in the array of ops in
                                * request/response */
     UA_AsyncResponse *parent; /* Always non-NULL. The parent is only removed
@@ -42,7 +42,7 @@ struct UA_AsyncResponse {
     UA_UInt32 requestId;
     UA_NodeId sessionId;
     UA_UInt32 requestHandle;
-    UA_DateTime	timeout;
+    UA_DateTime timeout;
     UA_AsyncOperationType operationType;
     union {
         UA_CallResponse callResponse;
@@ -56,9 +56,7 @@ struct UA_AsyncResponse {
 typedef TAILQ_HEAD(UA_AsyncOperationQueue, UA_AsyncOperation) UA_AsyncOperationQueue;
 
 typedef struct {
-    /* Requests / Responses */
     TAILQ_HEAD(, UA_AsyncResponse) asyncResponses;
-    size_t asyncResponsesCount;
 
     /* Operations for the workers. The queues are all FIFO: Put in at the tail,
      * take out at the head.*/
@@ -70,10 +68,11 @@ typedef struct {
     UA_AsyncOperationQueue dispatchedQueue; /* Operations taken by a worker. When a result is
                                              * returned, we search for the op here to see if it
                                              * is still "alive" (not timed out). */
-    UA_AsyncOperationQueue resultQueue;     /* Results to be integrated */
     size_t opsCount; /* How many operations are transient (in one of the three queues)? */
 
     UA_UInt64 checkTimeoutCallbackId; /* Registered repeated callbacks */
+
+    UA_DelayedCallback dc; /* Delayed callback to have the main thread send out responses */
 } UA_AsyncManager;
 
 void UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server);

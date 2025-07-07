@@ -101,7 +101,7 @@ main(int argc, char *argv[]) {
     bReq.requestedMaxReferencesPerNode = 0;
     bReq.nodesToBrowse = UA_BrowseDescription_new();
     bReq.nodesToBrowseSize = 1;
-    bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bReq.nodesToBrowse[0].nodeId = UA_NS0ID(OBJECTSFOLDER);
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
     cc->stateCallback = onConnect;
@@ -163,8 +163,7 @@ main(int argc, char *argv[]) {
             UA_String stringValue = UA_String_fromChars("World");
             UA_Variant_setScalar(&input, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
 
-            UA_Client_call_async(client,
-                                 UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+            UA_Client_call_async(client, UA_NS0ID(OBJECTSFOLDER),
                                  UA_NODEID_NUMERIC(1, 62541), 1, &input,
                                  methodCalled, NULL, &reqId);
             UA_String_clear(&stringValue);

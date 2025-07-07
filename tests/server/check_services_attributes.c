@@ -65,7 +65,8 @@ static void setup(void) {
     UA_Variant_setScalar(&vattr.value, &m, &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
     vattr.description = UA_LOCALIZEDTEXT("locale","the enum answer");
     vattr.displayName = UA_LOCALIZEDTEXT("locale","the enum answer");
-    vattr.valueRank = UA_VALUERANK_ANY;
+    vattr.valueRank = UA_VALUERANK_SCALAR;
+    vattr.dataType = UA_TYPES[UA_TYPES_MESSAGESECURITYMODE].typeId;
     retval = UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "the.enum.answer"),
                                        parentNodeId, parentReferenceNodeId,
                                        UA_QUALIFIEDNAME(1, "the enum answer"),
@@ -171,8 +172,9 @@ static UA_VariableNode* makeCompareSequence(void) {
         UA_NODESTORE_NEW(server, UA_NODECLASS_VARIABLE);
 
     UA_Int32 myInteger = 42;
-    UA_Variant_setScalarCopy(&node->value.data.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    node->value.data.value.hasValue = true;
+    UA_Variant_setScalarCopy(&node->valueSource.internal.value.value,
+                             &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    node->valueSource.internal.value.hasValue = true;
 
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_QualifiedName_copy(&myIntegerName, &node->head.browseName);
@@ -669,6 +671,31 @@ START_TEST(ReadSingleAttributeDataTypeDefinitionWithoutTimestamp) {
     UA_DataValue_clear(&resp);
 } END_TEST
 
+UA_DataValue staticVal;
+UA_DataValue *staticValPtr;
+
+START_TEST(ReadSingleAttributeValueWithExternalSource) {
+    UA_DataValue_init(&staticVal);
+    UA_UInt32 v = 42;
+    UA_Variant_setScalar(&staticVal.value, &v, &UA_TYPES[UA_TYPES_UINT32]);
+    staticVal.hasValue = true;
+    staticValPtr = &staticVal;
+
+    UA_StatusCode res =
+        UA_Server_setVariableNode_externalValueSource(server,
+                                                      UA_NODEID_STRING(1, "the.answer"),
+                                                      &staticValPtr, NULL);
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+
+    ck_assert(UA_DataValue_equal(&staticVal, &resp));
+    UA_DataValue_clear(&resp);
+} END_TEST
+
 /* Tests for writeValue method */
 
 START_TEST(WriteSingleAttributeNodeId) {
@@ -710,15 +737,45 @@ START_TEST(WriteSingleAttributeBrowseName) {
 } END_TEST
 
 START_TEST(WriteSingleAttributeDisplayName) {
+    /* Write a new locale. The server continues to respond with the old locale. */
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "the.answer");
+    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "the.answer.123");
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     wValue.value.hasValue = true;
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Read back the display name and compare. We continue to receive the original locale. */
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(UA_Variant_hasScalarType(&resp.value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    ck_assert(UA_order(&testValue, resp.value.data, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]) != UA_ORDER_EQ);
+    UA_DataValue_clear(&resp);
+
+    /* Update the original locale. The server continues to respond with the old locale. */
+    UA_WriteValue_init(&wValue);
+    testValue = UA_LOCALIZEDTEXT("locale", "the.answer.123");
+    UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
+    wValue.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
+    retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Read back the new display name and compare */
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
+    resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(UA_Variant_hasScalarType(&resp.value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    ck_assert(UA_order(&testValue, resp.value.data, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]) == UA_ORDER_EQ);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(WriteSingleAttributeDescription) {
@@ -877,6 +934,10 @@ START_TEST(WriteSingleAttributeValueEnum) {
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
+    UA_Variant_setScalar(&wValue.value.value, &myInteger, &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
+    retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = UA_NODEID_STRING(1, "the.enum.answer");
@@ -886,6 +947,58 @@ START_TEST(WriteSingleAttributeValueEnum) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(resp.hasValue);
     ck_assert_int_eq(4, *(UA_Int32*)resp.value.data);
+    UA_DataValue_clear(&resp);
+} END_TEST
+
+/* Writing a ByteString into a byte array */
+START_TEST(WriteSingleAttributeStringToByteArray) {
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    UA_Byte testArray[4] = {1,2,3,4};
+    UA_UInt32 testArrayDims[1] = {4};
+    UA_Variant_setArray(&vattr.value, testArray, 4, &UA_TYPES[UA_TYPES_BYTE]);
+    vattr.value.arrayDimensions = testArrayDims;
+    vattr.value.arrayDimensionsSize = 1;
+    vattr.description = UA_LOCALIZEDTEXT("locale","test array");
+    vattr.displayName = UA_LOCALIZEDTEXT("locale","test array");
+    vattr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    vattr.arrayDimensions = testArrayDims;
+    vattr.arrayDimensionsSize = 1;
+    vattr.dataType = UA_TYPES[UA_TYPES_BYTE].typeId;
+    UA_QualifiedName arrayName = UA_QUALIFIEDNAME(1, "test array");
+    UA_NodeId arrayNodeId = UA_NODEID_STRING(1, "test.array");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_StatusCode retval =
+        UA_Server_addVariableNode(server, arrayNodeId, parentNodeId,
+                                  parentReferenceNodeId, arrayName,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  vattr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String testString = UA_STRING("open");
+    UA_Variant_setScalar(&wValue.value.value, &testString, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "test.array");
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "test.array");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_int_eq(resp.status, UA_STATUSCODE_GOOD);
+    ck_assert(resp.hasValue);
+    ck_assert(UA_Variant_hasArrayType(&resp.value, &UA_TYPES[UA_TYPES_BYTE]));
+
+    UA_Byte *arr = (UA_Byte*)resp.value.data;
+    arr[0] = 'o';
+    arr[1] = 'p';
+
     UA_DataValue_clear(&resp);
 } END_TEST
 
@@ -1155,6 +1268,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeDataTypeWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleDataSourceAttributeArrayDimensionsWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeDataTypeDefinitionWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueWithExternalSource);
 
     suite_add_tcase(s, tc_readSingleAttributes);
 
@@ -1174,6 +1288,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValue);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueWithServerTimestamp);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueEnum);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeStringToByteArray);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDataType);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromScalar);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromArray);

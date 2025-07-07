@@ -31,8 +31,7 @@ createMammals(UA_Server *server) {
     otAttr.description = UA_LOCALIZEDTEXT("en-US", "A mammal");
     otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MammalType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 10000),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                UA_NS0ID(BASEOBJECTTYPE), UA_NS0ID(HASSUBTYPE),
                                 UA_QUALIFIEDNAME(1, "MammalType"), otAttr, NULL, NULL);
 
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -41,28 +40,23 @@ createMammals(UA_Server *server) {
     UA_String classVar = UA_STRING("mamalia");
     UA_Variant_setScalar(&vAttr.value, &classVar, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10001),
-                              UA_NODEID_NUMERIC(1, 10000),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Class"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_NODEID_NUMERIC(1, 10000), UA_NS0ID(HASPROPERTY),
+                              UA_QUALIFIEDNAME(1, "Class"), UA_NS0ID(BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
     vAttr = UA_VariableAttributes_default;
     vAttr.description =  UA_LOCALIZEDTEXT("en-US", "This mammals species");
     vAttr.displayName =  UA_LOCALIZEDTEXT("en-US", "Species");
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10002),
-                              UA_NODEID_NUMERIC(1, 10000),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Species"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_NODEID_NUMERIC(1, 10000), UA_NS0ID(HASPROPERTY),
+                              UA_QUALIFIEDNAME(1, "Species"), UA_NS0ID(BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
     otAttr = UA_ObjectTypeAttributes_default;
     otAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog, subtype of mammal");
     otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "DogType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 20000),
-                                UA_NODEID_NUMERIC(1, 10000),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                UA_NODEID_NUMERIC(1, 10000), UA_NS0ID(HASSUBTYPE),
                                 UA_QUALIFIEDNAME(1, "DogType"), otAttr, NULL, NULL);
 
     vAttr = UA_VariableAttributes_default;
@@ -71,10 +65,8 @@ createMammals(UA_Server *server) {
     UA_String defaultSpecies = UA_STRING("Canis");
     UA_Variant_setScalar(&vAttr.value, &defaultSpecies, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 20001),
-                              UA_NODEID_NUMERIC(1, 20000),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Species"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_NODEID_NUMERIC(1, 20000), UA_NS0ID(HASPROPERTY),
+                              UA_QUALIFIEDNAME(1, "Species"), UA_NS0ID(BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
     vAttr = UA_VariableAttributes_default;
@@ -83,10 +75,8 @@ createMammals(UA_Server *server) {
     UA_String defaultName = UA_STRING("unnamed dog");
     UA_Variant_setScalar(&vAttr.value, &defaultName, &UA_TYPES[UA_TYPES_STRING]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 20002),
-                              UA_NODEID_NUMERIC(1, 20000),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Name"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_NODEID_NUMERIC(1, 20000), UA_NS0ID(HASPROPERTY),
+                              UA_QUALIFIEDNAME(1, "Name"), UA_NS0ID(BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
     /* Instatiate a dog named bello:
@@ -100,8 +90,7 @@ createMammals(UA_Server *server) {
     oAttr.description = UA_LOCALIZEDTEXT("en-US", "A dog named Bello");
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Bello");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "Bello"), UA_NODEID_NUMERIC(1, 20000),
                             oAttr, NULL, NULL);
 
@@ -109,8 +98,7 @@ createMammals(UA_Server *server) {
     oAttr.description = UA_LOCALIZEDTEXT("en-US", "Another dog");
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Dog2");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "Dog2"), UA_NODEID_NUMERIC(1, 20000),
                             oAttr, NULL, NULL);
 
@@ -118,8 +106,7 @@ createMammals(UA_Server *server) {
     oAttr.description = UA_LOCALIZEDTEXT("en-US", "A mmamal");
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Mmamal1");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "Mammal1"), UA_NODEID_NUMERIC(1, 10000),
                             oAttr, NULL, NULL);
 
@@ -160,8 +147,7 @@ createCustomInheritance(UA_Server *server) {
     otAttr.description = UA_LOCALIZEDTEXT("en-US", "A Lamp");
     otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "LampType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 30000),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                UA_NS0ID(BASEOBJECTTYPE), UA_NS0ID(HASSUBTYPE),
                                 UA_QUALIFIEDNAME(1, "LampType"), otAttr, NULL, NULL);
 
     /* Add the two mandatory children, IsOn and Brightness */
@@ -171,14 +157,11 @@ createCustomInheritance(UA_Server *server) {
     UA_Boolean isOn = UA_FALSE;
     UA_Variant_setScalar(&vAttr.value, &isOn, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 30001),
-                              UA_NODEID_NUMERIC(1, 30000),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "IsOn"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_NODEID_NUMERIC(1, 30000), UA_NS0ID(HASPROPERTY),
+                              UA_QUALIFIEDNAME(1, "IsOn"), UA_NS0ID(BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
-    UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 30001),
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
-                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+    UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 30001), UA_NS0ID(HASMODELLINGRULE),
+                           UA_NS0EXID(MODELLINGRULE_MANDATORY), true);
 
     vAttr = UA_VariableAttributes_default;
     vAttr.description =  UA_LOCALIZEDTEXT("en-US", "Lamp brightness");
@@ -186,14 +169,12 @@ createCustomInheritance(UA_Server *server) {
     UA_UInt16 brightness = 142;
     UA_Variant_setScalar(&vAttr.value, &brightness, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 30002),
-                              UA_NODEID_NUMERIC(1, 30000),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                              UA_NODEID_NUMERIC(1, 30000), UA_NS0ID(HASPROPERTY),
                               UA_QUALIFIEDNAME(1, "Brightness"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                              vAttr, NULL, NULL);
+                              UA_NS0ID(BASEDATAVARIABLETYPE), vAttr, NULL, NULL);
     UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 30002),
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
-                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+                           UA_NS0ID(HASMODELLINGRULE),
+                           UA_NS0EXID(MODELLINGRULE_MANDATORY), true);
 
     /* Now we want to inherit all the mandatory children for LampGreen and don't
      * care about the node ids. These will be automatically generated. This will
@@ -203,8 +184,7 @@ createCustomInheritance(UA_Server *server) {
     oAttr.description = UA_LOCALIZEDTEXT("en-US", "A green lamp");
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "LampGreen");
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, 0),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "LampGreen"), UA_NODEID_NUMERIC(1, 30000),
                             oAttr, NULL, NULL);
 
@@ -218,8 +198,7 @@ createCustomInheritance(UA_Server *server) {
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "LampRed");
     UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT,
                             UA_NODEID_NUMERIC(1, 30100),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "LampRed"),
                             UA_NODEID_NUMERIC(1, 30000),
                             (const UA_NodeAttributes*)&oAttr,
@@ -232,10 +211,8 @@ createCustomInheritance(UA_Server *server) {
     isOn = UA_FALSE;
     UA_Variant_setScalar(&vAttr.value, &isOn, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 30101),
-                              UA_NODEID_NUMERIC(1, 30100),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "IsOn"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_NODEID_NUMERIC(1, 30100), UA_NS0ID(HASPROPERTY),
+                              UA_QUALIFIEDNAME(1, "IsOn"), UA_NS0ID(BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
 
     /* And then we need to call the UA_Server_addNode_finish which adds all the

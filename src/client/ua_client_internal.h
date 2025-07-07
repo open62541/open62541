@@ -18,9 +18,9 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/client_subscriptions.h>
 
+#include "../ua_securechannel.h"
+#include "../util/ua_util_internal.h"
 #include "open62541_queue.h"
-#include "ua_securechannel.h"
-#include "util/ua_util_internal.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS
@@ -64,7 +64,7 @@ typedef struct UA_Client_Subscription {
 } UA_Client_Subscription;
 
 void
-__Client_Subscriptions_clean(UA_Client *client);
+__Client_Subscriptions_clear(UA_Client *client);
 
 /* Exposed for fuzzing */
 UA_StatusCode
@@ -125,6 +125,8 @@ struct UA_Client {
 
     UA_Boolean findServersHandshake;   /* Ongoing FindServers */
     UA_Boolean endpointsHandshake;     /* Ongoing GetEndpoints */
+    UA_Boolean namespacesHandshake;    /* Ongoing Namespaces read */
+    UA_Boolean haveNamespaces;         /* Do we have the namespaces? */
 
     /* The discoveryUrl can be different from the EndpointUrl in the client
      * configuration. The EndpointUrl is used to connect initially, then the
@@ -132,7 +134,8 @@ struct UA_Client {
      * EndpointUrl != DiscoveryUrl. */
     UA_String discoveryUrl;
 
-    UA_ApplicationDescription serverDescription;
+    /* Contains the Server description, etc. */
+    UA_EndpointDescription endpoint;
 
     UA_RuleHandling allowAllCertificateUris;
 
@@ -140,6 +143,10 @@ struct UA_Client {
     UA_SecureChannel channel;
     UA_UInt32 requestId; /* Unique, internally defined for each request */
     UA_DateTime nextChannelRenewal;
+
+    /* Reverse connect (listen) connections */
+    UA_ConnectionManager *reverseConnectionCM;
+    uintptr_t reverseConnectionIds[16];
 
     /* Session */
     UA_SessionState sessionState;
@@ -162,6 +169,11 @@ struct UA_Client {
     UA_UInt32 monitoredItemHandles;
     UA_UInt16 currentlyOutStandingPublishRequests;
 
+    /* Internal namespaces. The table maps the namespace Uri to its index. This
+     * is used for the automatic namespace mapping in de/encoding. */
+    UA_String *namespaces;
+    size_t namespacesSize;
+
     /* Internal locking for thread-safety. Methods starting with UA_Client_ that
      * are marked with UA_THREADSAFE take the lock. The lock is released before
      * dropping into the EventLoop and before calling user-defined callbacks.
@@ -171,6 +183,12 @@ struct UA_Client {
     UA_Lock clientMutex;
 #endif
 };
+
+/* In order to prevent deadlocks between the EventLoop mutex and the
+ * client-mutex, we always take the EventLoop mutex first. */
+
+void lockClient(UA_Client *client);
+void unlockClient(UA_Client *client);
 
 UA_StatusCode
 __Client_AsyncService(UA_Client *client, const void *request,
@@ -187,11 +205,22 @@ __Client_Service(UA_Client *client, const void *request,
 UA_StatusCode
 __UA_Client_startup(UA_Client *client);
 
+/* Connect with the client configuration. For the async connection, finish
+ * connecting via UA_Client_run_iterate (or manually running a configured
+ * external EventLoop). */
+UA_StatusCode
+__UA_Client_connect(UA_Client *client, UA_Boolean async, const char *endpointUrl);
+
+void
+__UA_Client_Service(UA_Client *client, const void *request,
+                    const UA_DataType *requestType, void *response,
+                    const UA_DataType *responseType);
+
 UA_StatusCode
 __Client_renewSecureChannel(UA_Client *client);
 
 UA_StatusCode
-processServiceResponse(void *application, UA_SecureChannel *channel,
+processServiceResponse(UA_Client *client, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message);
 

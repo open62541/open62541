@@ -22,14 +22,12 @@ list(APPEND GENERATED_RST "")
 # Generated type definitions
 add_custom_command(OUTPUT ${DOC_SRC_DIR}/types_generated.rst
                    COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.rst ${DOC_SRC_DIR}
-                   PRE_BUILD
                    DEPENDS ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.rst)
 list(APPEND GENERATED_RST ${DOC_SRC_DIR}/types_generated.rst)
 
 macro(generate_rst in out)
     add_custom_command(OUTPUT ${out}
                        DEPENDS ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in}
-                       PRE_BUILD
                        COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in} ${out})
     list(APPEND GENERATED_RST "${out}")
 endmacro()
@@ -40,11 +38,32 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/common.h ${DOC_SRC_DIR}/com
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/util.h ${DOC_SRC_DIR}/util.rst)
 generate_rst(${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h ${DOC_SRC_DIR}/statuscodes.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server.h ${DOC_SRC_DIR}/server.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h ${DOC_SRC_DIR}/client_subscriptions.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client.h ${DOC_SRC_DIR}/client.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h ${DOC_SRC_DIR}/client_highlevel.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h ${DOC_SRC_DIR}/client_highlevel_async.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h ${DOC_SRC_DIR}/pubsub.rst)
+
+# PubSub docs are concatendated from multiple files
+add_custom_command(OUTPUT ${DOC_SRC_DIR}/pubsub.rst
+                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/c2rst.py
+                           ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
+                           ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
+                   COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/c2rst.py
+                                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
+                                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
+                                      ${DOC_SRC_DIR}/pubsub.rst)
+list(APPEND GENERATED_RST ${DOC_SRC_DIR}/pubsub.rst)
+
+# Client docs are concatendated from multiple files
+add_custom_command(OUTPUT ${DOC_SRC_DIR}/client.rst
+                   DEPENDS ${PROJECT_SOURCE_DIR}/tools/c2rst.py
+                           ${PROJECT_SOURCE_DIR}/include/open62541/client.h
+                           ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
+                           ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
+                           ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h
+                   COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/c2rst.py
+                                      ${PROJECT_SOURCE_DIR}/include/open62541/client.h
+                                      ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
+                                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
+                                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h
+                                      ${DOC_SRC_DIR}/client.rst)
+list(APPEND GENERATED_RST ${DOC_SRC_DIR}/client.rst)
 
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol.h ${DOC_SRC_DIR}/plugin_accesscontrol.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h ${DOC_SRC_DIR}/plugin_log.rst)
@@ -97,22 +116,3 @@ add_dependencies(doc open62541)
 
 set_target_properties(doc doc_latex doc_pdf PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
 set_target_properties(doc doc_latex doc_pdf PROPERTIES FOLDER "open62541/doc")
-
-if (UA_PACK_DEBIAN)
-    set(open62541_install_debdoc_html_dir share/doc/open62541/open62541.html)
-    set(open62541_install_debdoc_dir share/doc/open62541)
-
-    set(open62541_debdoc_pdf_files "${DOC_LATEX_DIR}/open62541.pdf")
-
-    install(DIRECTORY ${DOC_HTML_DIR}/
-        COMPONENT htmldoc 
-        DESTINATION ${open62541_install_debdoc_dir}/open62541.html 
-        USE_SOURCE_PERMISSIONS
-        FILES_MATCHING 
-        PATTERN "*.*"
-        PATTERN "_sources" EXCLUDE
-        PATTERN "CMakeFiles" EXCLUDE
-        PATTERN "cmake_install.cmake" EXCLUDE
-        )
-    install(FILES ${open62541_debdoc_pdf_files} COMPONENT pdfdoc DESTINATION ${open62541_install_debdoc_dir})
-endif()

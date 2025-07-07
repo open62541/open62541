@@ -1,3 +1,4 @@
+#include <open62541/plugin/log.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/log_stdout.h>
@@ -5,85 +6,64 @@
 #include "test_helpers.h"
 #include "testing_clock.h"
 #include "ua_server_internal.h"
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 #include "util/ua_util_internal.h"
 #endif /* UA_ENABLE_PUBSUB_FILE_CONFIG */
 
 #include <check.h>
+#include <stdlib.h>
 
 static UA_Server *server = NULL;
+UA_Logger logger;
 
 /* global variables for test configuration */
-static UA_Boolean UseFastPath = UA_FALSE;
 static UA_Boolean UseRawEncoding = UA_FALSE;
 
-/***************************************************************************************************/
-/***************************************************************************************************/
 static void setup(void) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "setup");
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
+
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(config != 0);
+
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_run_startup(server));
 }
 
-/***************************************************************************************************/
 static void teardown(void) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "teardown");
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_run_shutdown(server));
     UA_Server_delete(server);
 }
-/***************************************************************************************************/
-/***************************************************************************************************/
 
-
-/***************************************************************************************************/
-/***************************************************************************************************/
-/* utility functions to setup the PubSub configuration */
-
-/***************************************************************************************************/
-static void AddConnection(
-    char *pName,
-    UA_PublisherIdType publisherIdType,
-    UA_PublisherId publisherId,
-    UA_NodeId *opConnectionId) {
-
-    ck_assert(pName != 0);
-    ck_assert(opConnectionId != 0);
-
+static void
+AddConnection(char *pName, UA_PublisherId publisherId, UA_NodeId *opConnectionId) {
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING(pName);
-    connectionConfig.enabled = UA_TRUE;
-    connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
+    connectionConfig.transportProfileUri =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = publisherIdType;
-    /* deep copy is not needed (not even for string) because UA_Server_addPubSubConnection performs deep copy */
+
+    /* Deep copy is not needed (not even for string) because
+     * UA_Server_addPubSubConnection performs deep copy */
     connectionConfig.publisherId = publisherId;
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId));
+    ck_assert_int_eq(UA_STATUSCODE_GOOD,
+                     UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId));
 }
 
-/***************************************************************************************************/
-static void AddWriterGroup(
-    UA_NodeId *pConnectionId,
-    char *pName,
-    UA_UInt32 WriterGroupId,
-    UA_NodeId *opWriterGroupId) {
-
-    ck_assert(pConnectionId != 0);
-    ck_assert(pName != 0);
-    ck_assert(opWriterGroupId != 0);
-
+static void
+AddWriterGroup(UA_NodeId *pConnectionId, char *pName,
+               UA_UInt32 WriterGroupId, UA_NodeId *opWriterGroupId) {
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING(pName);
     writerGroupConfig.publishingInterval = 50.0;
-    writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = (UA_UInt16) WriterGroupId;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
@@ -94,38 +74,23 @@ static void AddWriterGroup(
                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID |
                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
     writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
-    if (UseFastPath) {
-        writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
-    }
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_addWriterGroup(server, *pConnectionId, &writerGroupConfig, opWriterGroupId));
     
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 }
 
 /***************************************************************************************************/
-static void AddPublishedDataSet(
-    UA_NodeId *pWriterGroupId,
-    char *pPublishedDataSetName,
-    char *pDataSetWriterName,
-    UA_UInt32 DataSetWriterId,
-    UA_NodeId *opPublishedDataSetId,
-    UA_NodeId *opPublishedVarId,
-    UA_DataValue **oppFastPathPublisherDataValue,
-    UA_NodeId *opDataSetWriterId) {
-
-    ck_assert(pWriterGroupId != 0);
-    ck_assert(pPublishedDataSetName != 0);
-    ck_assert(pDataSetWriterName != 0);
-    ck_assert(opPublishedDataSetId != 0);
-    ck_assert(opPublishedVarId != 0);
-    ck_assert(oppFastPathPublisherDataValue != 0);
-    ck_assert(opDataSetWriterId != 0);
-
+static void
+AddPublishedDataSet(UA_NodeId *pWriterGroupId, char *pPublishedDataSetName,
+                    char *pDataSetWriterName, UA_UInt32 DataSetWriterId,
+                    UA_NodeId *opPublishedDataSetId, UA_NodeId *opPublishedVarId,
+                    UA_DataValue **oppFastPathPublisherDataValue, UA_NodeId *opDataSetWriterId) {
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     pdsConfig.name = UA_STRING(pPublishedDataSetName);
-    UA_AddPublishedDataSetResult result = UA_Server_addPublishedDataSet(server, &pdsConfig, opPublishedDataSetId);
+    UA_AddPublishedDataSetResult result =
+        UA_Server_addPublishedDataSet(server, &pdsConfig, opPublishedDataSetId);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, result.addResult);
 
     /* Create variable to publish integer data */
@@ -150,23 +115,9 @@ static void AddPublishedDataSet(
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable = *opPublishedVarId;
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-    if (UseFastPath) {
-        dataSetFieldConfig.field.variable.rtValueSource.rtInformationModelNode = UA_TRUE;
-        *oppFastPathPublisherDataValue = UA_DataValue_new();
-        ck_assert(*oppFastPathPublisherDataValue != 0);
-        UA_Int32 *pPublisherData  = UA_Int32_new();
-        ck_assert(pPublisherData != 0);
-        *pPublisherData = 42;
-        UA_Variant_setScalar(&((**oppFastPathPublisherDataValue).value), pPublisherData, &UA_TYPES[UA_TYPES_INT32]);
-        /* add external value backend for fast-path */
-        UA_ValueBackend valueBackend;
-        memset(&valueBackend, 0, sizeof(valueBackend));
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = oppFastPathPublisherDataValue;
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setVariableNode_valueBackend(server, *opPublishedVarId, valueBackend));
-    }
-    UA_DataSetFieldResult PdsFieldResult = UA_Server_addDataSetField(server, *opPublishedDataSetId,
-                              &dataSetFieldConfig, &dataSetFieldId);
+
+    UA_DataSetFieldResult PdsFieldResult =
+        UA_Server_addDataSetField(server, *opPublishedDataSetId, &dataSetFieldConfig, &dataSetFieldId);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, PdsFieldResult.result);
 
     UA_DataSetWriterConfig dataSetWriterConfig;
@@ -180,74 +131,33 @@ static void AddPublishedDataSet(
         dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_NONE;
     }
     ck_assert_int_eq(UA_STATUSCODE_GOOD,
-        UA_Server_addDataSetWriter(server, *pWriterGroupId, *opPublishedDataSetId, &dataSetWriterConfig, opDataSetWriterId));
+                     UA_Server_addDataSetWriter(server, *pWriterGroupId,
+                                                *opPublishedDataSetId, &dataSetWriterConfig,
+                                                opDataSetWriterId));
 }
 
-/***************************************************************************************************/
-static void AddReaderGroup(
-    UA_NodeId *pConnectionId,
-    char *pName,
-    UA_NodeId *opReaderGroupId) {
-
-    ck_assert(pConnectionId != 0);
-    ck_assert(pName != 0);
-    ck_assert(opReaderGroupId != 0);
-
+static void
+AddReaderGroup(UA_NodeId *pConnectionId, char *pName,
+               UA_NodeId *opReaderGroupId) {
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING(pName);
-    if (UseFastPath) {
-        readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
-    }
     ck_assert_int_eq(UA_STATUSCODE_GOOD,
         UA_Server_addReaderGroup(server, *pConnectionId, &readerGroupConfig, opReaderGroupId));
-    // ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, *opReaderGroupId));
 }
 
-/***************************************************************************************************/
-static void AddDataSetReader(
-    UA_NodeId *pReaderGroupId,
-    char *pName,
-    UA_PublisherIdType publisherIdType,
-    UA_PublisherId publisherId,
-    UA_UInt32 WriterGroupId,
-    UA_UInt32 DataSetWriterId,
-    UA_NodeId *opSubscriberVarId,
-    UA_DataValue **oppFastPathSubscriberDataValue,
-    UA_NodeId *opDataSetReaderId) {
-
-    ck_assert(pReaderGroupId != 0);
-    ck_assert(pName != 0);
-    ck_assert(opSubscriberVarId != 0);
-    ck_assert(oppFastPathSubscriberDataValue != 0);
-    ck_assert(opDataSetReaderId != 0);
-
+static void
+AddDataSetReader(UA_NodeId *pReaderGroupId, char *pName,
+                 UA_PublisherId publisherId, UA_UInt32 WriterGroupId,
+                 UA_UInt32 DataSetWriterId, UA_NodeId *opSubscriberVarId,
+                 UA_DataValue **oppFastPathSubscriberDataValue, UA_NodeId *opDataSetReaderId) {
     UA_DataSetReaderConfig readerConfig;
     memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING(pName);
-    switch (publisherIdType) {
-        case UA_PUBLISHERIDTYPE_BYTE:
-            UA_Variant_setScalar(&readerConfig.publisherId, &publisherId.byte, &UA_TYPES[UA_TYPES_BYTE]);
-            break;
-        case UA_PUBLISHERIDTYPE_UINT16:
-            UA_Variant_setScalar(&readerConfig.publisherId, &publisherId.uint16, &UA_TYPES[UA_TYPES_UINT16]);
-            break;
-        case UA_PUBLISHERIDTYPE_UINT32:
-            UA_Variant_setScalar(&readerConfig.publisherId, &publisherId.uint32, &UA_TYPES[UA_TYPES_UINT32]);
-            break;
-        case UA_PUBLISHERIDTYPE_UINT64:
-            UA_Variant_setScalar(&readerConfig.publisherId, &publisherId.uint64, &UA_TYPES[UA_TYPES_UINT64]);
-            break;
-        case UA_PUBLISHERIDTYPE_STRING:
-            UA_Variant_setScalar(&readerConfig.publisherId, &publisherId.string, &UA_TYPES[UA_TYPES_STRING]);
-            break;
-        default:
-            ck_assert(UA_FALSE);
-            break;
-    }
+    readerConfig.publisherId = publisherId;
     readerConfig.writerGroupId    = (UA_UInt16) WriterGroupId;
     readerConfig.dataSetWriterId  = (UA_UInt16) DataSetWriterId;
-    readerConfig.messageReceiveTimeout = 2000.0;
+    readerConfig.messageReceiveTimeout = 0.0;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     readerConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE];
     UA_UadpDataSetReaderMessageDataType *dsReaderMessage = UA_UadpDataSetReaderMessageDataType_new();
@@ -258,7 +168,6 @@ static void AddDataSetReader(
     readerConfig.messageSettings.content.decoded.data = dsReaderMessage;
     if (UseRawEncoding) {
         readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
-        readerConfig.expectedEncoding = UA_PUBSUB_RT_RAW;
     } else {
         readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_NONE;
     }
@@ -270,12 +179,11 @@ static void AddDataSetReader(
     pDataSetMetaData->fields = (UA_FieldMetaData*) UA_Array_new (pDataSetMetaData->fieldsSize,
                          &UA_TYPES[UA_TYPES_FIELDMETADATA]);
 
-    UA_FieldMetaData_init (&pDataSetMetaData->fields[0]);
-    UA_NodeId_copy (&UA_TYPES[UA_TYPES_INT32].typeId,
-                    &pDataSetMetaData->fields[0].dataType);
-    pDataSetMetaData->fields[0].builtInType = UA_NS0ID_INT32;
-    pDataSetMetaData->fields[0].name =  UA_STRING ("Int32 Var");
-    pDataSetMetaData->fields[0].valueRank = -1;
+    UA_FieldMetaData_init(pDataSetMetaData->fields);
+    UA_NodeId_copy(&UA_TYPES[UA_TYPES_INT32].typeId, &pDataSetMetaData->fields->dataType);
+    pDataSetMetaData->fields->builtInType = UA_NS0ID_INT32;
+    pDataSetMetaData->fields->name =  UA_STRING ("Int32 Var");
+    pDataSetMetaData->fields->valueRank = -1;
     ck_assert(UA_Server_addDataSetReader(server, *pReaderGroupId, &readerConfig,
                                          opDataSetReaderId) == UA_STATUSCODE_GOOD);
     UA_UadpDataSetReaderMessageDataType_delete(dsReaderMessage);
@@ -288,79 +196,47 @@ static void AddDataSetReader(
     attr.dataType    = UA_TYPES[UA_TYPES_INT32].typeId;
     UA_Int32 subscriberData = 0;
     UA_Variant_setScalar(&attr.value, &subscriberData, &UA_TYPES[UA_TYPES_INT32]);
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_addVariableNode(server, UA_NODEID_NULL,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed Int32"),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, opSubscriberVarId));
+    ck_assert_int_eq(
+        UA_STATUSCODE_GOOD,
+        UA_Server_addVariableNode(server, UA_NODEID_NULL,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(1, "Subscribed Int32"),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, NULL, opSubscriberVarId));
 
-    if (UseFastPath) {
-        *oppFastPathSubscriberDataValue = UA_DataValue_new();
-        ck_assert(*oppFastPathSubscriberDataValue != 0);
-        UA_Int32 *pSubscriberData  = UA_Int32_new();
-        ck_assert(pSubscriberData != 0);
-        *pSubscriberData = 0;
-        UA_Variant_setScalar(&((**oppFastPathSubscriberDataValue).value), pSubscriberData, &UA_TYPES[UA_TYPES_INT32]);
-        /* add external value backend for fast-path */
-        UA_ValueBackend valueBackend;
-        memset(&valueBackend, 0, sizeof(valueBackend));
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = oppFastPathSubscriberDataValue;
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setVariableNode_valueBackend(server, *opSubscriberVarId, valueBackend));
-    }
+    UA_FieldTargetDataType targetVariable;
+    UA_FieldTargetDataType_init(&targetVariable);
+    targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+    targetVariable.targetNodeId = *opSubscriberVarId;
 
-    UA_FieldTargetVariable *pTargetVariables =  (UA_FieldTargetVariable *)
-        UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
-    ck_assert(pTargetVariables != 0);
-
-    UA_FieldTargetDataType_init(&pTargetVariables[0].targetVariable);
-
-    pTargetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-    pTargetVariables[0].targetVariable.targetNodeId = *opSubscriberVarId;
-
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_createTargetVariables(server, *opDataSetReaderId,
-        readerConfig.dataSetMetaData.fieldsSize, pTargetVariables));
-
-    UA_FieldTargetDataType_clear(&pTargetVariables[0].targetVariable);
-    UA_free(pTargetVariables);
-    pTargetVariables = 0;
+    ck_assert_int_eq(UA_STATUSCODE_GOOD,
+                     UA_Server_DataSetReader_createTargetVariables(server, *opDataSetReaderId,
+                                                                   1, &targetVariable));
 
     UA_free(pDataSetMetaData->fields);
-    pDataSetMetaData->fields = 0;
+    pDataSetMetaData->fields = NULL;
 }
 
-/***************************************************************************************************/
-/* utility function to check working pubsub operation */
-static void ValidatePublishSubscribe(
-    const UA_UInt32 NoOfTestVars,
-    UA_NodeId *publisherVarIds,
-    UA_NodeId *subscriberVarIds,
-    UA_DataValue **fastPathPublisherValues,     /* fast-path publisher DataValue */
-    UA_DataValue **fastPathSubscriberValues,    /* fast-path subscriber DataValue */
+static void
+ValidatePublishSubscribe(
+    const UA_UInt32 NoOfTestVars, UA_NodeId *publisherVarIds, UA_NodeId *subscriberVarIds,
+    UA_DataValue **fastPathPublisherValues,  /* fast-path publisher DataValue */
+    UA_DataValue **fastPathSubscriberValues, /* fast-path subscriber DataValue */
     const UA_Int32 TestValue,
-    const UA_UInt32 Sleep_ms, /* use at least publishing interval */
-    const UA_UInt32 NoOfRunIterateCycles)
-{
-    ck_assert(publisherVarIds != 0);
-    ck_assert(subscriberVarIds != 0);
-    ck_assert(fastPathPublisherValues != 0);
-    ck_assert(fastPathSubscriberValues != 0);
-
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "ValidatePublishSubscribe(): set variable to publish");
+    const UA_UInt32 Sleep_ms /* use at least publishing interval */) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "ValidatePublishSubscribe(): set variable to publish");
 
     /* set variable value to publish */
     UA_Int32 tmpValue = TestValue;
     for (UA_UInt32 i = 0; i < NoOfTestVars; i++) {
         tmpValue = TestValue + (UA_Int32) i;
-        if (UseFastPath) {
-            ck_assert((fastPathPublisherValues != 0) && (fastPathPublisherValues[i] != 0));
-            *((UA_Int32 *) (fastPathPublisherValues[i]->value.data)) = tmpValue;
-        } else {
-            UA_Variant writeValue;
-            UA_Variant_init(&writeValue);
-            UA_Variant_setScalarCopy(&writeValue, &tmpValue, &UA_TYPES[UA_TYPES_INT32]);
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_writeValue(server, publisherVarIds[i], writeValue));
-            UA_Variant_clear(&writeValue);
-        }
+        UA_Variant writeValue;
+        UA_Variant_init(&writeValue);
+        UA_Variant_setScalarCopy(&writeValue, &tmpValue, &UA_TYPES[UA_TYPES_INT32]);
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_writeValue(server, publisherVarIds[i], writeValue));
+        UA_Variant_clear(&writeValue);
     }
 
     UA_Boolean done = false;
@@ -371,31 +247,18 @@ static void ValidatePublishSubscribe(
         UA_UInt32 i = 0;
         for(i = 0; i < NoOfTestVars; i++) {
             tmpValue = TestValue + (UA_Int32)i;
-            if(UseFastPath) {
-                ck_assert(fastPathSubscriberValues[i] != 0);
-                if(tmpValue != *(UA_Int32 *)fastPathSubscriberValues[i]->value.data) {
-                    done = false;
-                    break;
-                }
-            } else {
-                UA_Variant SubscribedNodeData;
-                UA_Variant_init(&SubscribedNodeData);
-                UA_Server_readValue(server, subscriberVarIds[i], &SubscribedNodeData);
-                if(tmpValue != *(UA_Int32 *)SubscribedNodeData.data)
-                    done = false;
-                UA_Variant_clear(&SubscribedNodeData);
-            }
+            UA_Variant SubscribedNodeData;
+            UA_Variant_init(&SubscribedNodeData);
+            UA_Server_readValue(server, subscriberVarIds[i], &SubscribedNodeData);
+            if(tmpValue != *(UA_Int32 *)SubscribedNodeData.data)
+                done = false;
+            UA_Variant_clear(&SubscribedNodeData);
         }
     }
 }
 
-/***************************************************************************************************/
-static void DoTest_1_Connection(
-    UA_PublisherIdType publisherIdType,
-    UA_PublisherId publisherId) {
-
+static void DoTest_1_Connection(UA_PublisherId publisherId) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_1_Connection() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "fast-path     = %s", (UseFastPath) ? "enabled" : "disabled");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
 #define DOTEST_1_CONNECTION_MAX_VARS 1
@@ -413,7 +276,7 @@ static void DoTest_1_Connection(
     /* setup Connection 1: */
     UA_NodeId ConnId_1;
     UA_NodeId_init(&ConnId_1);
-    AddConnection("Conn1", publisherIdType, publisherId, &ConnId_1);
+    AddConnection("Conn1", publisherId, &ConnId_1);
 
     UA_NodeId WGId_Conn1_WG1;
     UA_NodeId_init(&WGId_Conn1_WG1);
@@ -424,59 +287,31 @@ static void DoTest_1_Connection(
     UA_NodeId PDSId_Conn1_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
 
-    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", 1, &PDSId_Conn1_WG1_PDS1,
-        &publisherVarIds[0], &fastPathPublisherDataValues[0], &DsWId_Conn1_WG1_DS1);
+    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", 1,
+                        &PDSId_Conn1_WG1_PDS1, publisherVarIds,
+                        fastPathPublisherDataValues, &DsWId_Conn1_WG1_DS1);
 
     UA_NodeId RGId_Conn1_RG1;
     UA_NodeId_init(&RGId_Conn1_RG1);
     AddReaderGroup(&ConnId_1, "Conn1_RG1", &RGId_Conn1_RG1);
     UA_NodeId DSRId_Conn1_RG1_DSR1;
     UA_NodeId_init(&DSRId_Conn1_RG1_DSR1);
-    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", publisherIdType, publisherId, 1, 1,
-        &subscriberVarIds[0], &fastPathSubscriberDataValues[0], &DSRId_Conn1_RG1_DSR1);
-
-    /* freeze groups if fast-path is enabled */
-    if (UseFastPath) {
-        if (publisherIdType != UA_PUBLISHERIDTYPE_STRING) {
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeWriterGroupConfiguration(server, WGId_Conn1_WG1));
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeReaderGroupConfiguration(server, RGId_Conn1_RG1));
-        } else {
-            /* string PublisherId is not supported with fast-path */
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "test case: STRING publisherId with fast-path");
-            /* TODO: UA_Server_freezeWriterGroupConfiguration() accepts publisherId of type STRING, but
-                UA_Server_freezeReaderGroupConfiguration() returns an error -> what is correct? */
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeWriterGroupConfiguration(server, WGId_Conn1_WG1));
-            ck_assert_int_eq(UA_STATUSCODE_BADNOTSUPPORTED, UA_Server_freezeReaderGroupConfiguration(server, RGId_Conn1_RG1));
-
-            /* cleanup and continue with other tests */
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeWriterGroupConfiguration(server, WGId_Conn1_WG1));
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeReaderGroupConfiguration(server, RGId_Conn1_RG1));
-
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PDSId_Conn1_WG1_PDS1));
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnId_1));
-            for (UA_UInt32 i = 0; i < DOTEST_1_CONNECTION_MAX_VARS; i++) {
-                UA_DataValue_clear(fastPathPublisherDataValues[i]);
-                UA_DataValue_delete(fastPathPublisherDataValues[i]);
-                UA_DataValue_clear(fastPathSubscriberDataValues[i]);
-                UA_DataValue_delete(fastPathSubscriberDataValues[i]);
-            }
-            return;
-        }
-    }
+    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", publisherId, 1, 1,
+                     subscriberVarIds, fastPathSubscriberDataValues,
+                     &DSRId_Conn1_RG1_DSR1);
 
     /* set groups operational */
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WGId_Conn1_WG1));
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, RGId_Conn1_RG1));
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
 
     /* check that publish/subscribe works -> set some test values */
-    ValidatePublishSubscribe(DOTEST_1_CONNECTION_MAX_VARS, &publisherVarIds[0], &subscriberVarIds[0],
-        &fastPathPublisherDataValues[0], &fastPathSubscriberDataValues[0], 10, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(DOTEST_1_CONNECTION_MAX_VARS, publisherVarIds, subscriberVarIds,
+        fastPathPublisherDataValues, fastPathSubscriberDataValues, 10, 100);
 
-    ValidatePublishSubscribe(DOTEST_1_CONNECTION_MAX_VARS, &publisherVarIds[0], &subscriberVarIds[0],
-        &fastPathPublisherDataValues[0], &fastPathSubscriberDataValues[0], 33, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(DOTEST_1_CONNECTION_MAX_VARS, publisherVarIds, subscriberVarIds,
+        fastPathPublisherDataValues, fastPathSubscriberDataValues, 33, 100);
 
-    ValidatePublishSubscribe(DOTEST_1_CONNECTION_MAX_VARS, &publisherVarIds[0], &subscriberVarIds[0],
-        &fastPathPublisherDataValues[0], &fastPathSubscriberDataValues[0], 44, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(DOTEST_1_CONNECTION_MAX_VARS, publisherVarIds, subscriberVarIds,
+        fastPathPublisherDataValues, fastPathSubscriberDataValues, 44, 100);
 
     /* set groups to disabled */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable groups");
@@ -484,27 +319,14 @@ static void DoTest_1_Connection(
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1));
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, RGId_Conn1_RG1));
 
-    /* unfreeze groups if fast-path is enabled */
-    if (UseFastPath) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "unfreeze groups");
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeWriterGroupConfiguration(server, WGId_Conn1_WG1));
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeReaderGroupConfiguration(server, RGId_Conn1_RG1));
-    }
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connection");
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnId_1));
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PDS");
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PDSId_Conn1_WG1_PDS1));
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connection");
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnId_1));
-
-    if (UseFastPath) {
-        for (UA_UInt32 i = 0; i < DOTEST_1_CONNECTION_MAX_VARS; i++) {
-            UA_DataValue_clear(fastPathPublisherDataValues[i]);
-            UA_DataValue_delete(fastPathPublisherDataValues[i]);
-            UA_DataValue_clear(fastPathSubscriberDataValues[i]);
-            UA_DataValue_delete(fastPathSubscriberDataValues[i]);
-        }
-    }
+    /* Iterate so the connections are actually deleted */
+    UA_Server_run_iterate(server, false);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_1_Connection() end");
 }
@@ -516,110 +338,59 @@ START_TEST(Test_1_connection) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Test PublisherId BYTE with all combinations");
 
-    UA_PublisherIdType publisherIdType = UA_PUBLISHERIDTYPE_BYTE;
     UA_PublisherId publisherId;
-    publisherId.byte = 2;
+    publisherId.idType = UA_PUBLISHERIDTYPE_BYTE;
+    publisherId.id.byte = 2;
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherIdType, publisherId);
+    DoTest_1_Connection(publisherId);
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherIdType, publisherId);
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherIdType, publisherId);
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherIdType, publisherId);
+    DoTest_1_Connection(publisherId);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Test PublisherId UINT16 with all combinations");
 
-    publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    publisherId.uint16 = 3;
+    publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    publisherId.id.uint16 = 3;
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherIdType, publisherId);
+    DoTest_1_Connection(publisherId);
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherIdType, publisherId);
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherIdType, publisherId);
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherIdType, publisherId);
+    DoTest_1_Connection(publisherId);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Test PublisherId UINT32 with all combinations");
 
-    publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    publisherId.uint32 = 5;
+    publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    publisherId.id.uint32 = 5;
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherIdType, publisherId);
+    DoTest_1_Connection(publisherId);
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherIdType, publisherId);
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherIdType, publisherId);
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherIdType, publisherId);
+    DoTest_1_Connection(publisherId);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Test PublisherId UINT64 with all combinations");
 
-    publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
-    publisherId.uint64 = 6;
+    publisherId.idType = UA_PUBLISHERIDTYPE_UINT64;
+    publisherId.id.uint64 = 6;
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherIdType, publisherId);
+    DoTest_1_Connection(publisherId);
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherIdType, publisherId);
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherIdType, publisherId);
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherIdType, publisherId);
+    DoTest_1_Connection(publisherId);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Test PublisherId STRING with all combinations");
 
-    publisherIdType = UA_PUBLISHERIDTYPE_STRING;
-    publisherId.string = UA_STRING("My PublisherId");
+    publisherId.idType = UA_PUBLISHERIDTYPE_STRING;
+    publisherId.id.string = UA_STRING("My PublisherId");
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherIdType, publisherId);
+    DoTest_1_Connection(publisherId);
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherIdType, publisherId);
-
-    /* Note: STRING publisherId is not supported with fast-path */
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_FALSE;
-    DoTest_1_Connection(publisherIdType, publisherId);
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_TRUE;
-    DoTest_1_Connection(publisherIdType, publisherId);
+    DoTest_1_Connection(publisherId);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_1_connection");
 } END_TEST
@@ -629,7 +400,6 @@ START_TEST(Test_1_connection) {
 static void DoTest_multiple_Connections(void) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_Connections() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "fast-path     = %s", (UseFastPath) ? "enabled" : "disabled");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
     /*  Writers                             -> Readers
@@ -672,10 +442,10 @@ static void DoTest_multiple_Connections(void) {
     /* setup Connection 1: */
     UA_NodeId ConnId_1;
     UA_NodeId_init(&ConnId_1);
-    UA_PublisherIdType Conn1_PublisherIdType = UA_PUBLISHERIDTYPE_BYTE;
     UA_PublisherId Conn1_PublisherId;
-    Conn1_PublisherId.byte = 1;
-    AddConnection("Conn1", Conn1_PublisherIdType, Conn1_PublisherId, &ConnId_1);
+    Conn1_PublisherId.idType = UA_PUBLISHERIDTYPE_BYTE;
+    Conn1_PublisherId.id.byte = 1;
+    AddConnection("Conn1", Conn1_PublisherId, &ConnId_1);
     ConnectionIds[0] = ConnId_1;
 
     UA_NodeId WGId_Conn1_WG1;
@@ -688,17 +458,17 @@ static void DoTest_multiple_Connections(void) {
     UA_NodeId PDSId_Conn1_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
     AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1",
-                        DSW_Id, &PDSId_Conn1_WG1_PDS1, &publisherVarIds[0],
-                        &fastPathPublisherDataValues[0], &DsWId_Conn1_WG1_DS1);
+                        DSW_Id, &PDSId_Conn1_WG1_PDS1, publisherVarIds,
+                        fastPathPublisherDataValues, &DsWId_Conn1_WG1_DS1);
     PublishedDataSetIds[0] = PDSId_Conn1_WG1_PDS1;
 
     /* setup Connection 2: */
     UA_NodeId ConnId_2;
     UA_NodeId_init(&ConnId_2);
-    UA_PublisherIdType Conn2_PublisherIdType = UA_PUBLISHERIDTYPE_BYTE;
     UA_PublisherId Conn2_PublisherId;
-    Conn2_PublisherId.byte = 2;
-    AddConnection("Conn2", Conn2_PublisherIdType, Conn2_PublisherId, &ConnId_2);
+    Conn2_PublisherId.idType = UA_PUBLISHERIDTYPE_BYTE;
+    Conn2_PublisherId.id.byte = 2;
+    AddConnection("Conn2", Conn2_PublisherId, &ConnId_2);
     ConnectionIds[1] = ConnId_2;
 
     UA_NodeId WGId_Conn2_WG1;
@@ -718,10 +488,10 @@ static void DoTest_multiple_Connections(void) {
     /* setup Connection 3: */
     UA_NodeId ConnId_3;
     UA_NodeId_init(&ConnId_3);
-    UA_PublisherIdType Conn3_PublisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     UA_PublisherId Conn3_PublisherId;
-    Conn3_PublisherId.uint16 = 1;
-    AddConnection("Conn3", Conn3_PublisherIdType, Conn3_PublisherId, &ConnId_3);
+    Conn3_PublisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    Conn3_PublisherId.id.uint16 = 1;
+    AddConnection("Conn3", Conn3_PublisherId, &ConnId_3);
     ConnectionIds[2] = ConnId_3;
 
     UA_NodeId WGId_Conn3_WG1;
@@ -741,10 +511,10 @@ static void DoTest_multiple_Connections(void) {
     /* setup Connection 4 */
     UA_NodeId ConnId_4;
     UA_NodeId_init(&ConnId_4);
-    UA_PublisherIdType Conn4_PublisherIdType = UA_PUBLISHERIDTYPE_UINT32;
     UA_PublisherId Conn4_PublisherId;
-    Conn4_PublisherId.uint32 = 15;
-    AddConnection("Conn4", Conn4_PublisherIdType, Conn4_PublisherId, &ConnId_4);
+    Conn4_PublisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    Conn4_PublisherId.id.uint32 = 15;
+    AddConnection("Conn4", Conn4_PublisherId, &ConnId_4);
     ConnectionIds[3] = ConnId_4;
 
     UA_NodeId WGId_Conn4_WG1;
@@ -764,10 +534,10 @@ static void DoTest_multiple_Connections(void) {
     /* setup Connection 5 */
     UA_NodeId ConnId_5;
     UA_NodeId_init(&ConnId_5);
-    UA_PublisherIdType Conn5_PublisherIdType = UA_PUBLISHERIDTYPE_UINT64;
     UA_PublisherId Conn5_PublisherId;
-    Conn5_PublisherId.uint64 = 33;
-    AddConnection("Conn5", Conn5_PublisherIdType, Conn5_PublisherId, &ConnId_5);
+    Conn5_PublisherId.idType = UA_PUBLISHERIDTYPE_UINT64;
+    Conn5_PublisherId.id.uint64 = 33;
+    AddConnection("Conn5", Conn5_PublisherId, &ConnId_5);
     ConnectionIds[4] = ConnId_5;
 
     UA_NodeId WGId_Conn5_WG1;
@@ -787,10 +557,10 @@ static void DoTest_multiple_Connections(void) {
     /* setup Connection 6: */
     UA_NodeId ConnId_6;
     UA_NodeId_init(&ConnId_6);
-    UA_PublisherIdType Conn6_PublisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     UA_PublisherId Conn6_PublisherId;
-    Conn6_PublisherId.uint16 = 2;
-    AddConnection("Conn6", Conn6_PublisherIdType, Conn6_PublisherId, &ConnId_6);
+    Conn6_PublisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    Conn6_PublisherId.id.uint16 = 2;
+    AddConnection("Conn6", Conn6_PublisherId, &ConnId_6);
     ConnectionIds[5] = ConnId_6;
 
     UA_NodeId WGId_Conn6_WG1;
@@ -815,7 +585,7 @@ static void DoTest_multiple_Connections(void) {
     AddReaderGroup(&ConnId_1, "Conn1_RG1", &RGId_Conn1_RG1);
     UA_NodeId DSRId_Conn1_RG1_DSR1;
     UA_NodeId_init(&DSRId_Conn1_RG1_DSR1);
-    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", Conn2_PublisherIdType,
+    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1",
                      Conn2_PublisherId, WG_Id, DSW_Id,
                      &subscriberVarIds[1], &fastPathSubscriberDataValues[1],
                      &DSRId_Conn1_RG1_DSR1);
@@ -827,9 +597,9 @@ static void DoTest_multiple_Connections(void) {
     AddReaderGroup(&ConnId_2, "Conn2_RG1", &RGId_Conn2_RG1);
     UA_NodeId DSRId_Conn2_RG1_DSR1;
     UA_NodeId_init(&DSRId_Conn2_RG1_DSR1);
-    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR1", Conn1_PublisherIdType,
-                     Conn1_PublisherId, WG_Id, DSW_Id, &subscriberVarIds[0],
-                     &fastPathSubscriberDataValues[0], &DSRId_Conn2_RG1_DSR1);
+    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR1",
+                     Conn1_PublisherId, WG_Id, DSW_Id, subscriberVarIds,
+                     fastPathSubscriberDataValues, &DSRId_Conn2_RG1_DSR1);
     ReaderGroupIds[1] = RGId_Conn2_RG1;
 
     /* setup Connection 3: */
@@ -838,7 +608,7 @@ static void DoTest_multiple_Connections(void) {
     AddReaderGroup(&ConnId_3, "Conn3_RG1", &RGId_Conn3_RG1);
     UA_NodeId DSRId_Conn3_RG1_DSR1;
     UA_NodeId_init(&DSRId_Conn3_RG1_DSR1);
-    AddDataSetReader(&RGId_Conn3_RG1, "Conn3_RG1_DSR1", Conn4_PublisherIdType,
+    AddDataSetReader(&RGId_Conn3_RG1, "Conn3_RG1_DSR1",
                      Conn4_PublisherId, WG_Id, DSW_Id, &subscriberVarIds[3],
                      &fastPathSubscriberDataValues[3], &DSRId_Conn3_RG1_DSR1);
     ReaderGroupIds[2] = RGId_Conn3_RG1;
@@ -849,7 +619,7 @@ static void DoTest_multiple_Connections(void) {
     AddReaderGroup(&ConnId_4, "Conn4_RG1", &RGId_Conn4_RG1);
     UA_NodeId DSRId_Conn4_RG1_DSR1;
     UA_NodeId_init(&DSRId_Conn4_RG1_DSR1);
-    AddDataSetReader(&RGId_Conn4_RG1, "Conn4_RG1_DSR1", Conn3_PublisherIdType,
+    AddDataSetReader(&RGId_Conn4_RG1, "Conn4_RG1_DSR1",
                      Conn3_PublisherId, WG_Id, DSW_Id, &subscriberVarIds[2],
                      &fastPathSubscriberDataValues[2], &DSRId_Conn4_RG1_DSR1);
     ReaderGroupIds[3] = RGId_Conn4_RG1;
@@ -860,7 +630,7 @@ static void DoTest_multiple_Connections(void) {
     AddReaderGroup(&ConnId_5, "Conn5_RG1", &RGId_Conn5_RG1);
     UA_NodeId DSRId_Conn5_RG1_DSR1;
     UA_NodeId_init(&DSRId_Conn5_RG1_DSR1);
-    AddDataSetReader(&RGId_Conn5_RG1, "Conn5_RG1_DSR1", Conn6_PublisherIdType,
+    AddDataSetReader(&RGId_Conn5_RG1, "Conn5_RG1_DSR1",
                      Conn6_PublisherId, WG_Id, DSW_Id, &subscriberVarIds[5],
                      &fastPathSubscriberDataValues[5], &DSRId_Conn5_RG1_DSR1);
     ReaderGroupIds[4] = RGId_Conn5_RG1;
@@ -871,39 +641,26 @@ static void DoTest_multiple_Connections(void) {
     AddReaderGroup(&ConnId_6, "Conn6_RG1", &RGId_Conn6_RG1);
     UA_NodeId DSRId_Conn6_RG1_DSR1;
     UA_NodeId_init(&DSRId_Conn6_RG1_DSR1);
-    AddDataSetReader(&RGId_Conn6_RG1, "Conn6_RG1_DSR1", Conn5_PublisherIdType,
+    AddDataSetReader(&RGId_Conn6_RG1, "Conn6_RG1_DSR1",
                      Conn5_PublisherId, WG_Id, DSW_Id, &subscriberVarIds[4],
                      &fastPathSubscriberDataValues[4], &DSRId_Conn6_RG1_DSR1);
     ReaderGroupIds[5] = RGId_Conn6_RG1;
 
-    /* freeze all Groups */
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeWriterGroupConfiguration(server, WriterGroupIds[i]));
-    }
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
-    }
     /* set groups operational */
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, ReaderGroupIds[i]));
-    }
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WriterGroupIds[i]));
-    }
-
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
 
     /* check that publish/subscribe works -> set some test values */
     ValidatePublishSubscribe(DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS, publisherVarIds,
                              subscriberVarIds, fastPathPublisherDataValues,
-                             fastPathSubscriberDataValues, 10, (UA_UInt32) 100, 3);
+                             fastPathSubscriberDataValues, 10, 100);
 
     ValidatePublishSubscribe(DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS, publisherVarIds,
                              subscriberVarIds, fastPathPublisherDataValues,
-                             fastPathSubscriberDataValues, 50, (UA_UInt32) 100, 3);
+                             fastPathSubscriberDataValues, 50, 100);
 
     ValidatePublishSubscribe(DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS, publisherVarIds,
                              subscriberVarIds, fastPathPublisherDataValues,
-                             fastPathSubscriberDataValues, 100, (UA_UInt32) 100, 3);
+                             fastPathSubscriberDataValues, 100, 100);
 
     /* set groups to disabled */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable groups");
@@ -915,16 +672,11 @@ static void DoTest_multiple_Connections(void) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD,
                          UA_Server_setReaderGroupDisabled(server, ReaderGroupIds[i]));
     }
-    /* unfreeze groups */
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connection");
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD,
-                         UA_Server_unfreezeWriterGroupConfiguration(server,
-                                                                    WriterGroupIds[i]));
-    }
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD,
-                         UA_Server_unfreezeReaderGroupConfiguration(server,
-                                                                    ReaderGroupIds[i]));
+                         UA_Server_removePubSubConnection(server, ConnectionIds[i]));
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PublishedDataSets");
@@ -934,21 +686,8 @@ static void DoTest_multiple_Connections(void) {
                                                           PublishedDataSetIds[i]));
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connection");
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD,
-                         UA_Server_removePubSubConnection(server, ConnectionIds[i]));
-    }
-
-    if (UseFastPath) {
-        for (size_t i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-            UA_DataValue_clear(fastPathPublisherDataValues[i]);
-            UA_DataValue_delete(fastPathPublisherDataValues[i]);
-
-            UA_DataValue_clear(fastPathSubscriberDataValues[i]);
-            UA_DataValue_delete(fastPathSubscriberDataValues[i]);
-        }
-    }
+    /* Iterate so the connections are actually deleted */
+    UA_Server_run_iterate(server, false);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_Connections() end");
 }
@@ -962,19 +701,9 @@ START_TEST(Test_multiple_connections) {
         - multiple groups and/or DataSets yet, therefore we only test multiple connections
         - STRING publisherIds */
 
-    UseFastPath = UA_FALSE;
     UseRawEncoding = UA_FALSE;
     DoTest_multiple_Connections();
 
-    UseFastPath = UA_FALSE;
-    UseRawEncoding = UA_TRUE;
-    DoTest_multiple_Connections();
-
-    UseFastPath = UA_TRUE;
-    UseRawEncoding = UA_FALSE;
-    DoTest_multiple_Connections();
-
-    UseFastPath = UA_TRUE;
     UseRawEncoding = UA_TRUE;
     DoTest_multiple_Connections();
 
@@ -1027,7 +756,6 @@ Test_string_PublisherId_InformationModel(const UA_NodeId connectionId,
 static void DoTest_string_PublisherId(void) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_string_PublisherId() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "fast-path     = %s", (UseFastPath) ? "enabled" : "disabled");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
     /*  Writers                                     -> Readers
@@ -1069,10 +797,10 @@ static void DoTest_string_PublisherId(void) {
         /* setup Connection 1: */
         UA_NodeId ConnId_1;
         UA_NodeId_init(&ConnId_1);
-        UA_PublisherIdType Conn1_PublisherIdType = UA_PUBLISHERIDTYPE_STRING;
         UA_PublisherId Conn1_PublisherId;
-        Conn1_PublisherId.string = UA_STRING("H");  // allocate string on stack
-        AddConnection("Conn1", Conn1_PublisherIdType, Conn1_PublisherId, &ConnId_1);
+        Conn1_PublisherId.idType = UA_PUBLISHERIDTYPE_STRING;
+        Conn1_PublisherId.id.string = UA_STRING("H");  // allocate string on stack
+        AddConnection("Conn1", Conn1_PublisherId, &ConnId_1);
         ConnectionIds[0] = ConnId_1;
 
         UA_NodeId WGId_Conn1_WG1;
@@ -1085,16 +813,16 @@ static void DoTest_string_PublisherId(void) {
         UA_NodeId PDSId_Conn1_WG1_PDS1;
         UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
         AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSW_Id, &PDSId_Conn1_WG1_PDS1,
-            &publisherVarIds[0], &fastPathPublisherDataValues[0], &DsWId_Conn1_WG1_DS1);
+            publisherVarIds, fastPathPublisherDataValues, &DsWId_Conn1_WG1_DS1);
         PublishedDataSetIds[0] = PDSId_Conn1_WG1_PDS1;
 
         /* setup Connection 2: */
         UA_NodeId ConnId_2;
         UA_NodeId_init(&ConnId_2);
-        UA_PublisherIdType Conn2_PublisherIdType = UA_PUBLISHERIDTYPE_STRING;
         UA_PublisherId Conn2_PublisherId;
-        Conn2_PublisherId.string = UA_STRING("h");
-        AddConnection("Conn2", Conn2_PublisherIdType, Conn2_PublisherId, &ConnId_2);
+        Conn2_PublisherId.idType = UA_PUBLISHERIDTYPE_STRING;
+        Conn2_PublisherId.id.string = UA_STRING("h");
+        AddConnection("Conn2", Conn2_PublisherId, &ConnId_2);
         ConnectionIds[1] = ConnId_2;
 
         UA_NodeId WGId_Conn2_WG1;
@@ -1113,10 +841,10 @@ static void DoTest_string_PublisherId(void) {
         /* setup Connection 3: */
         UA_NodeId ConnId_3;
         UA_NodeId_init(&ConnId_3);
-        UA_PublisherIdType Conn3_PublisherIdType = UA_PUBLISHERIDTYPE_STRING;
         UA_PublisherId Conn3_PublisherId;
-        Conn3_PublisherId.string = UA_STRING("hallo");
-        AddConnection("Conn3", Conn3_PublisherIdType, Conn3_PublisherId, &ConnId_3);
+        Conn3_PublisherId.idType = UA_PUBLISHERIDTYPE_STRING;
+        Conn3_PublisherId.id.string = UA_STRING("hallo");
+        AddConnection("Conn3", Conn3_PublisherId, &ConnId_3);
         ConnectionIds[2] = ConnId_3;
 
         UA_NodeId WGId_Conn3_WG1;
@@ -1135,10 +863,10 @@ static void DoTest_string_PublisherId(void) {
         /* setup Connection 4 */
         UA_NodeId ConnId_4;
         UA_NodeId_init(&ConnId_4);
-        UA_PublisherIdType Conn4_PublisherIdType = UA_PUBLISHERIDTYPE_STRING;
         UA_PublisherId Conn4_PublisherId;
-        Conn4_PublisherId.string = UA_STRING("hallo1");
-        AddConnection("Conn4", Conn4_PublisherIdType, Conn4_PublisherId, &ConnId_4);
+        Conn4_PublisherId.idType = UA_PUBLISHERIDTYPE_STRING;
+        Conn4_PublisherId.id.string = UA_STRING("hallo1");
+        AddConnection("Conn4", Conn4_PublisherId, &ConnId_4);
         ConnectionIds[3] = ConnId_4;
 
         UA_NodeId WGId_Conn4_WG1;
@@ -1157,10 +885,10 @@ static void DoTest_string_PublisherId(void) {
         /* setup Connection 5 */
         UA_NodeId ConnId_5;
         UA_NodeId_init(&ConnId_5);
-        UA_PublisherIdType Conn5_PublisherIdType = UA_PUBLISHERIDTYPE_STRING;
         UA_PublisherId Conn5_PublisherId;
-        Conn5_PublisherId.string = UA_STRING("Hallo");
-        AddConnection("Conn5", Conn5_PublisherIdType, Conn5_PublisherId, &ConnId_5);
+        Conn5_PublisherId.idType = UA_PUBLISHERIDTYPE_STRING;
+        Conn5_PublisherId.id.string = UA_STRING("Hallo");
+        AddConnection("Conn5", Conn5_PublisherId, &ConnId_5);
         ConnectionIds[4] = ConnId_5;
 
         UA_NodeId WGId_Conn5_WG1;
@@ -1184,7 +912,8 @@ static void DoTest_string_PublisherId(void) {
         AddReaderGroup(&ConnId_1, "Conn1_RG1", &RGId_Conn1_RG1);
         UA_NodeId DSRId_Conn1_RG1_DSR1;
         UA_NodeId_init(&DSRId_Conn1_RG1_DSR1);
-        AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", Conn2_PublisherIdType, Conn2_PublisherId, WG_Id, DSW_Id,
+        AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1",
+                         Conn2_PublisherId, WG_Id, DSW_Id,
             &subscriberVarIds[1], &fastPathSubscriberDataValues[1], &DSRId_Conn1_RG1_DSR1);
         ReaderGroupIds[0] = RGId_Conn1_RG1;
 
@@ -1194,8 +923,9 @@ static void DoTest_string_PublisherId(void) {
         AddReaderGroup(&ConnId_2, "Conn2_RG1", &RGId_Conn2_RG1);
         UA_NodeId DSRId_Conn2_RG1_DSR1;
         UA_NodeId_init(&DSRId_Conn2_RG1_DSR1);
-        AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR1", Conn1_PublisherIdType, Conn1_PublisherId, WG_Id, DSW_Id,
-            &subscriberVarIds[0], &fastPathSubscriberDataValues[0], &DSRId_Conn2_RG1_DSR1);
+        AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR1",
+                         Conn1_PublisherId, WG_Id, DSW_Id,
+            subscriberVarIds, fastPathSubscriberDataValues, &DSRId_Conn2_RG1_DSR1);
         ReaderGroupIds[1] = RGId_Conn2_RG1;
 
         /* setup Connection 3: */
@@ -1204,7 +934,8 @@ static void DoTest_string_PublisherId(void) {
         AddReaderGroup(&ConnId_3, "Conn3_RG1", &RGId_Conn3_RG1);
         UA_NodeId DSRId_Conn3_RG1_DSR1;
         UA_NodeId_init(&DSRId_Conn3_RG1_DSR1);
-        AddDataSetReader(&RGId_Conn3_RG1, "Conn3_RG1_DSR1", Conn5_PublisherIdType, Conn5_PublisherId, WG_Id, DSW_Id,
+        AddDataSetReader(&RGId_Conn3_RG1, "Conn3_RG1_DSR1",
+                         Conn5_PublisherId, WG_Id, DSW_Id,
             &subscriberVarIds[4], &fastPathSubscriberDataValues[4], &DSRId_Conn3_RG1_DSR1);
         ReaderGroupIds[2] = RGId_Conn3_RG1;
 
@@ -1214,7 +945,8 @@ static void DoTest_string_PublisherId(void) {
         AddReaderGroup(&ConnId_4, "Conn4_RG1", &RGId_Conn4_RG1);
         UA_NodeId DSRId_Conn4_RG1_DSR1;
         UA_NodeId_init(&DSRId_Conn4_RG1_DSR1);
-        AddDataSetReader(&RGId_Conn4_RG1, "Conn4_RG1_DSR1", Conn3_PublisherIdType, Conn3_PublisherId, WG_Id, DSW_Id,
+        AddDataSetReader(&RGId_Conn4_RG1, "Conn4_RG1_DSR1",
+                         Conn3_PublisherId, WG_Id, DSW_Id,
             &subscriberVarIds[2], &fastPathSubscriberDataValues[2], &DSRId_Conn4_RG1_DSR1);
         ReaderGroupIds[3] = RGId_Conn4_RG1;
 
@@ -1224,37 +956,29 @@ static void DoTest_string_PublisherId(void) {
         AddReaderGroup(&ConnId_5, "Conn5_RG1", &RGId_Conn5_RG1);
         UA_NodeId DSRId_Conn5_RG1_DSR1;
         UA_NodeId_init(&DSRId_Conn5_RG1_DSR1);
-        AddDataSetReader(&RGId_Conn5_RG1, "Conn5_RG1_DSR1", Conn4_PublisherIdType, Conn4_PublisherId, WG_Id, DSW_Id,
+        AddDataSetReader(&RGId_Conn5_RG1, "Conn5_RG1_DSR1",
+                         Conn4_PublisherId, WG_Id, DSW_Id,
             &subscriberVarIds[3], &fastPathSubscriberDataValues[3], &DSRId_Conn5_RG1_DSR1);
         ReaderGroupIds[4] = RGId_Conn5_RG1;
 
     }   /* end of configuration scope -> string PublisherIds are deallocated from stack
             deep copy of string PublisherId is done by UA_Server_addPubSubConnection() */
 
-    /* freeze all Groups */
-    for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeWriterGroupConfiguration(server, WriterGroupIds[i]));
-    }
-    for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
-    }
     /* set groups operational */
-    for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WriterGroupIds[i]));
-    }
-    for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, ReaderGroupIds[i]));
-    }
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
 
     /* check that publish/subscribe works -> set some test values */
-    ValidatePublishSubscribe(DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS, publisherVarIds, subscriberVarIds,
-        fastPathPublisherDataValues, fastPathSubscriberDataValues, 10, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS, publisherVarIds,
+                             subscriberVarIds, fastPathPublisherDataValues,
+                             fastPathSubscriberDataValues, 10, 100);
 
-    ValidatePublishSubscribe(DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS, publisherVarIds, subscriberVarIds, fastPathPublisherDataValues,
-        fastPathSubscriberDataValues, 50, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS, publisherVarIds,
+                             subscriberVarIds, fastPathPublisherDataValues,
+                             fastPathSubscriberDataValues, 50, 100);
 
-    ValidatePublishSubscribe(DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS, publisherVarIds, subscriberVarIds, fastPathPublisherDataValues,
-        fastPathSubscriberDataValues, 100, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS, publisherVarIds,
+                             subscriberVarIds, fastPathPublisherDataValues,
+                             fastPathSubscriberDataValues, 100, 100);
 
     /* check PubSub information model - string Ids */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -1279,12 +1003,10 @@ static void DoTest_string_PublisherId(void) {
     for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, ReaderGroupIds[i]));
     }
-    /* unfreeze groups */
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connection");
     for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeWriterGroupConfiguration(server, WriterGroupIds[i]));
-    }
-    for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnectionIds[i]));
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PublishedDataSets");
@@ -1292,20 +1014,8 @@ static void DoTest_string_PublisherId(void) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PublishedDataSetIds[i]));
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connection");
-    for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnectionIds[i]));
-    }
-
-    if (UseFastPath) {
-        for (size_t i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
-            UA_DataValue_clear(fastPathPublisherDataValues[i]);
-            UA_DataValue_delete(fastPathPublisherDataValues[i]);
-
-            UA_DataValue_clear(fastPathSubscriberDataValues[i]);
-            UA_DataValue_delete(fastPathSubscriberDataValues[i]);
-        }
-    }
+    /* Iterate so the connections are actually deleted */
+    UA_Server_run_iterate(server, false);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_string_PublisherId() end");
 }
@@ -1315,9 +1025,6 @@ static void DoTest_string_PublisherId(void) {
 /* test string PublisherId */
 START_TEST(Test_string_publisherId) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_string_publisherId");
-
-    /* note: fast-path does not support STRING publisherIds */
-    UseFastPath = UA_FALSE;
 
     UseRawEncoding = UA_FALSE;
     DoTest_string_PublisherId();
@@ -1336,7 +1043,6 @@ START_TEST(Test_string_publisherId_file_config) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_string_publisherId_file_config");
 
     UseRawEncoding = UA_FALSE;
-    UseFastPath = UA_FALSE;
 
 #define STRING_PUBLISHERID_FILE_MAX_COMPONENTS 1
     /* Attention: Publisher and corresponding Subscriber NodeId and DataValue must have the same index
@@ -1368,8 +1074,6 @@ START_TEST(Test_string_publisherId_file_config) {
         -> e.g. deep copy of Id */
     UA_PubSubConfigurationDataType config;
     UA_PubSubConfigurationDataType_init(&config);
-
-    config.enabled = UA_TRUE;
 
     /* PublishedDataSet config */
     config.publishedDataSetsSize = 1;
@@ -1411,8 +1115,8 @@ START_TEST(Test_string_publisherId_file_config) {
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                                         UA_QUALIFIEDNAME(1, "Published Int32"),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                        attr, NULL, &(publisherVarIds[0])));
-    UA_NodeId_copy(&(publisherVarIds[0]), &(pdsDataItems->publishedData->publishedVariable));
+                                        attr, NULL, publisherVarIds));
+    UA_NodeId_copy(publisherVarIds, &pdsDataItems->publishedData->publishedVariable);
     pds->dataSetSource.encoding = UA_EXTENSIONOBJECT_DECODED;
     pds->dataSetSource.content.decoded.type = &UA_TYPES[UA_TYPES_PUBLISHEDDATAITEMSDATATYPE];
     pds->dataSetSource.content.decoded.data = pdsDataItems;
@@ -1424,7 +1128,6 @@ START_TEST(Test_string_publisherId_file_config) {
     UA_PubSubConnectionDataType *connection = config.connections;
     UA_PubSubConnectionDataType_init(connection);
     connection->name = UA_STRING_ALLOC("My Connection");
-    connection->enabled = true;
     UA_String publisherIdString = UA_STRING("Publisher 1");
     UA_Variant_setScalarCopy(&connection->publisherId, &publisherIdString, &UA_TYPES[UA_TYPES_STRING]); // TODO?
     connection->transportProfileUri = UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
@@ -1442,7 +1145,6 @@ START_TEST(Test_string_publisherId_file_config) {
     ck_assert(connection->writerGroups != 0);
     UA_WriterGroupDataType *wg = connection->writerGroups;
     UA_WriterGroupDataType_init(wg);
-    wg->enabled = true;
     wg->name = UA_STRING_ALLOC("WriterGroup 1");
     wg->maxNetworkMessageSize = MAX_NETWORKMESSAGE_SIZE;
     wg->writerGroupId = 1;
@@ -1460,8 +1162,7 @@ START_TEST(Test_string_publisherId_file_config) {
     wg->dataSetWritersSize = 1;
     wg->dataSetWriters = UA_DataSetWriterDataType_new();
     ck_assert(wg->dataSetWriters != 0);
-    UA_DataSetWriterDataType *dsw = &wg->dataSetWriters[0];
-    dsw->enabled = UA_TRUE;
+    UA_DataSetWriterDataType *dsw = wg->dataSetWriters;
     dsw->name = UA_STRING_ALLOC("DataSetWriter 1");
     dsw->dataSetWriterId = 1;
     dsw->dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_NONE;
@@ -1479,9 +1180,8 @@ START_TEST(Test_string_publisherId_file_config) {
     connection->readerGroupsSize = 1;
     connection->readerGroups = UA_ReaderGroupDataType_new();
     ck_assert(connection->readerGroups != 0);
-    UA_ReaderGroupDataType *rg = &connection->readerGroups[0];
+    UA_ReaderGroupDataType *rg = connection->readerGroups;
     UA_ReaderGroupDataType_init(rg);
-    rg->enabled = UA_TRUE;
     rg->name = UA_STRING_ALLOC("ReaderGroup 1");
     rg->maxNetworkMessageSize = MAX_NETWORKMESSAGE_SIZE;
 
@@ -1489,10 +1189,9 @@ START_TEST(Test_string_publisherId_file_config) {
     rg->dataSetReadersSize = 1;
     rg->dataSetReaders = UA_DataSetReaderDataType_new();
     ck_assert(rg->dataSetReaders != 0);
-    UA_DataSetReaderDataType *dsr = &rg->dataSetReaders[0];
+    UA_DataSetReaderDataType *dsr = rg->dataSetReaders;
     UA_DataSetReaderDataType_init(dsr);
     dsr->name = UA_STRING_ALLOC("DataSetReader 1");
-    dsr->enabled = true;
     UA_Variant_setScalarCopy(&dsr->publisherId, &publisherIdString, &UA_TYPES[UA_TYPES_STRING]);
     dsr->writerGroupId = 1;
     dsr->dataSetWriterId = 1;
@@ -1526,8 +1225,8 @@ START_TEST(Test_string_publisherId_file_config) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_addVariableNode(server, UA_NODEID_NULL,
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed Int32"),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, &(subscriberVarIds[0])));
-    UA_NodeId_copy(&(subscriberVarIds[0]), &(targetVars->targetVariables->targetNodeId));
+                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, subscriberVarIds));
+    UA_NodeId_copy(subscriberVarIds, &targetVars->targetVariables->targetNodeId);
     dsr->subscribedDataSet.encoding = UA_EXTENSIONOBJECT_DECODED;
     dsr->subscribedDataSet.content.decoded.type = &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE];
     dsr->subscribedDataSet.content.decoded.data = targetVars;
@@ -1563,20 +1262,22 @@ START_TEST(Test_string_publisherId_file_config) {
     UA_PubSubConfigurationDataType_clear(&config);
 }
     /* load and apply config from ByteString buffer */
-    UA_LOCK(&server->serviceMutex);
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_PubSubManager_loadPubSubConfigFromByteString(server, encodedConfigDataBuffer));
-    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_loadPubSubConfigFromByteString(server, encodedConfigDataBuffer));
 
-    /* groups are already operational */
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
+
     /* check that publish/subscribe works -> set some test values */
-    ValidatePublishSubscribe(STRING_PUBLISHERID_FILE_MAX_COMPONENTS, &publisherVarIds[0], &subscriberVarIds[0],
-        &fastPathPublisherDataValues[0], &fastPathSubscriberDataValues[0], 10, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(STRING_PUBLISHERID_FILE_MAX_COMPONENTS, publisherVarIds,
+                             subscriberVarIds, fastPathPublisherDataValues,
+                             fastPathSubscriberDataValues, 10, 100);
 
-    ValidatePublishSubscribe(STRING_PUBLISHERID_FILE_MAX_COMPONENTS, &publisherVarIds[0], &subscriberVarIds[0],
-        &fastPathPublisherDataValues[0], &fastPathSubscriberDataValues[0], 33, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(STRING_PUBLISHERID_FILE_MAX_COMPONENTS, publisherVarIds,
+                             subscriberVarIds, fastPathPublisherDataValues,
+                             fastPathSubscriberDataValues, 33, 100);
 
-    ValidatePublishSubscribe(STRING_PUBLISHERID_FILE_MAX_COMPONENTS, &publisherVarIds[0], &subscriberVarIds[0],
-        &fastPathPublisherDataValues[0], &fastPathSubscriberDataValues[0], 44, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(STRING_PUBLISHERID_FILE_MAX_COMPONENTS, publisherVarIds,
+                             subscriberVarIds, fastPathPublisherDataValues,
+                             fastPathSubscriberDataValues, 44, 100);
 
     UA_ByteString_clear(&encodedConfigDataBuffer);
 
@@ -1589,7 +1290,6 @@ START_TEST(Test_string_publisherId_file_config) {
 static void DoTest_multiple_Groups(void) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_Groups() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "fast-path     = %s", (UseFastPath) ? "enabled" : "disabled");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
     /*  Writers                             -> Readers              -> Var Index
@@ -1637,10 +1337,10 @@ static void DoTest_multiple_Groups(void) {
     /* setup Connection 1: */
     UA_NodeId ConnId_1;
     UA_NodeId_init(&ConnId_1);
-    UA_PublisherIdType Conn1_PublisherIdType = UA_PUBLISHERIDTYPE_BYTE;
     UA_PublisherId Conn1_PublisherId;
-    Conn1_PublisherId.byte = 1;
-    AddConnection("Conn1", Conn1_PublisherIdType, Conn1_PublisherId, &ConnId_1);
+    Conn1_PublisherId.idType = UA_PUBLISHERIDTYPE_BYTE;
+    Conn1_PublisherId.id.byte = 1;
+    AddConnection("Conn1", Conn1_PublisherId, &ConnId_1);
     ConnectionIds[0] = ConnId_1;
 
     /* WriterGroup 1 */
@@ -1654,8 +1354,9 @@ static void DoTest_multiple_Groups(void) {
     UA_NodeId_init(&DsWId_Conn1_WG1_DS1);
     UA_NodeId PDSId_Conn1_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
-    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSW_Id, &PDSId_Conn1_WG1_PDS1,
-        &publisherVarIds[0], &fastPathPublisherDataValues[0], &DsWId_Conn1_WG1_DS1);
+    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSW_Id,
+                        &PDSId_Conn1_WG1_PDS1, publisherVarIds,
+                        fastPathPublisherDataValues, &DsWId_Conn1_WG1_DS1);
     PublishedDataSetIds[0] = PDSId_Conn1_WG1_PDS1;
 
     /* WriterGroup 2 */
@@ -1669,8 +1370,9 @@ static void DoTest_multiple_Groups(void) {
     UA_NodeId_init(&DsWId_Conn1_WG2_DS1);
     UA_NodeId PDSId_Conn1_WG2_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG2_PDS1);
-    AddPublishedDataSet(&WGId_Conn1_WG2, "Conn1_WG2_PDS1", "Conn1_WG2_DS1", DSW_Id, &PDSId_Conn1_WG2_PDS1,
-        &publisherVarIds[1], &fastPathPublisherDataValues[1], &DsWId_Conn1_WG2_DS1);
+    AddPublishedDataSet(&WGId_Conn1_WG2, "Conn1_WG2_PDS1", "Conn1_WG2_DS1", DSW_Id,
+                        &PDSId_Conn1_WG2_PDS1, &publisherVarIds[1],
+                        &fastPathPublisherDataValues[1], &DsWId_Conn1_WG2_DS1);
     PublishedDataSetIds[1] = PDSId_Conn1_WG2_PDS1;
 
     /* WriterGroup 3 */
@@ -1684,8 +1386,9 @@ static void DoTest_multiple_Groups(void) {
     UA_NodeId_init(&DsWId_Conn1_WG3_DS1);
     UA_NodeId PDSId_Conn1_WG3_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG3_PDS1);
-    AddPublishedDataSet(&WGId_Conn1_WG3, "Conn1_WG3_PDS1", "Conn1_WG3_DS1", DSW_Id, &PDSId_Conn1_WG3_PDS1,
-        &publisherVarIds[2], &fastPathPublisherDataValues[2], &DsWId_Conn1_WG3_DS1);
+    AddPublishedDataSet(&WGId_Conn1_WG3, "Conn1_WG3_PDS1", "Conn1_WG3_DS1", DSW_Id,
+                        &PDSId_Conn1_WG3_PDS1, &publisherVarIds[2],
+                        &fastPathPublisherDataValues[2], &DsWId_Conn1_WG3_DS1);
     PublishedDataSetIds[2] = PDSId_Conn1_WG3_PDS1;
 
     /* WriterGroup 4 */
@@ -1699,17 +1402,18 @@ static void DoTest_multiple_Groups(void) {
     UA_NodeId_init(&DsWId_Conn1_WG4_DS1);
     UA_NodeId PDSId_Conn1_WG4_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG4_PDS1);
-    AddPublishedDataSet(&WGId_Conn1_WG4, "Conn1_WG4_PDS1", "Conn1_WG4_DS1", DSW_Id, &PDSId_Conn1_WG4_PDS1,
-        &publisherVarIds[3], &fastPathPublisherDataValues[3], &DsWId_Conn1_WG4_DS1);
+    AddPublishedDataSet(&WGId_Conn1_WG4, "Conn1_WG4_PDS1", "Conn1_WG4_DS1", DSW_Id,
+                        &PDSId_Conn1_WG4_PDS1, &publisherVarIds[3],
+                        &fastPathPublisherDataValues[3], &DsWId_Conn1_WG4_DS1);
     PublishedDataSetIds[3] = PDSId_Conn1_WG4_PDS1;
 
     /* setup Connection 2: */
     UA_NodeId ConnId_2;
     UA_NodeId_init(&ConnId_2);
-    UA_PublisherIdType Conn2_PublisherIdType = UA_PUBLISHERIDTYPE_BYTE;
     UA_PublisherId Conn2_PublisherId;
-    Conn2_PublisherId.byte = 2;
-    AddConnection("Conn2", Conn2_PublisherIdType, Conn2_PublisherId, &ConnId_2);
+    Conn2_PublisherId.idType = UA_PUBLISHERIDTYPE_BYTE;
+    Conn2_PublisherId.id.byte = 2;
+    AddConnection("Conn2", Conn2_PublisherId, &ConnId_2);
     ConnectionIds[1] = ConnId_2;
 
     /* WriterGroup 1 */
@@ -1723,8 +1427,9 @@ static void DoTest_multiple_Groups(void) {
     UA_NodeId_init(&DsWId_Conn2_WG1_DS1);
     UA_NodeId PDSId_Conn2_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn2_WG1_PDS1);
-    AddPublishedDataSet(&WGId_Conn2_WG1, "Conn2_WG1_PDS1", "Conn2_WG1_DS1", DSW_Id, &PDSId_Conn2_WG1_PDS1,
-        &publisherVarIds[4], &fastPathPublisherDataValues[4], &DsWId_Conn2_WG1_DS1);
+    AddPublishedDataSet(&WGId_Conn2_WG1, "Conn2_WG1_PDS1", "Conn2_WG1_DS1", DSW_Id,
+                        &PDSId_Conn2_WG1_PDS1, &publisherVarIds[4],
+                        &fastPathPublisherDataValues[4], &DsWId_Conn2_WG1_DS1);
     PublishedDataSetIds[4] = PDSId_Conn2_WG1_PDS1;
 
     /* WriterGroup 2 */
@@ -1738,17 +1443,18 @@ static void DoTest_multiple_Groups(void) {
     UA_NodeId_init(&DsWId_Conn2_WG2_DS1);
     UA_NodeId PDSId_Conn2_WG2_PDS1;
     UA_NodeId_init(&PDSId_Conn2_WG2_PDS1);
-    AddPublishedDataSet(&WGId_Conn2_WG2, "Conn2_WG2_PDS1", "Conn2_WG2_DS1", DSW_Id, &PDSId_Conn2_WG2_PDS1,
-        &publisherVarIds[5], &fastPathPublisherDataValues[5], &DsWId_Conn2_WG2_DS1);
+    AddPublishedDataSet(&WGId_Conn2_WG2, "Conn2_WG2_PDS1", "Conn2_WG2_DS1", DSW_Id,
+                        &PDSId_Conn2_WG2_PDS1, &publisherVarIds[5],
+                        &fastPathPublisherDataValues[5], &DsWId_Conn2_WG2_DS1);
     PublishedDataSetIds[5] = PDSId_Conn2_WG2_PDS1;
 
     /* setup Connection 3: */
     UA_NodeId ConnId_3;
     UA_NodeId_init(&ConnId_3);
-    UA_PublisherIdType Conn3_PublisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     UA_PublisherId Conn3_PublisherId;
-    Conn3_PublisherId.uint16 = 1;
-    AddConnection("Conn3", Conn3_PublisherIdType, Conn3_PublisherId, &ConnId_3);
+    Conn3_PublisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    Conn3_PublisherId.id.uint16 = 1;
+    AddConnection("Conn3", Conn3_PublisherId, &ConnId_3);
     ConnectionIds[2] = ConnId_3;
 
     /* WriterGroup 1 */
@@ -1762,8 +1468,9 @@ static void DoTest_multiple_Groups(void) {
     UA_NodeId_init(&DsWId_Conn3_WG1_DS1);
     UA_NodeId PDSId_Conn3_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn3_WG1_PDS1);
-    AddPublishedDataSet(&WGId_Conn3_WG1, "Conn3_WG1_PDS1", "Conn3_WG1_DS1", DSW_Id, &PDSId_Conn3_WG1_PDS1,
-        &publisherVarIds[6], &fastPathPublisherDataValues[6], &DsWId_Conn3_WG1_DS1);
+    AddPublishedDataSet(&WGId_Conn3_WG1, "Conn3_WG1_PDS1", "Conn3_WG1_DS1", DSW_Id,
+                        &PDSId_Conn3_WG1_PDS1, &publisherVarIds[6],
+                        &fastPathPublisherDataValues[6], &DsWId_Conn3_WG1_DS1);
     PublishedDataSetIds[6] = PDSId_Conn3_WG1_PDS1;
 
     /* WriterGroup 2 */
@@ -1777,8 +1484,9 @@ static void DoTest_multiple_Groups(void) {
     UA_NodeId_init(&DsWId_Conn3_WG2_DS1);
     UA_NodeId PDSId_Conn3_WG2_PDS1;
     UA_NodeId_init(&PDSId_Conn3_WG2_PDS1);
-    AddPublishedDataSet(&WGId_Conn3_WG2, "Conn3_WG2_PDS1", "Conn3_WG2_DS1", DSW_Id, &PDSId_Conn3_WG2_PDS1,
-        &publisherVarIds[7], &fastPathPublisherDataValues[7], &DsWId_Conn3_WG2_DS1);
+    AddPublishedDataSet(&WGId_Conn3_WG2, "Conn3_WG2_PDS1", "Conn3_WG2_DS1", DSW_Id,
+                        &PDSId_Conn3_WG2_PDS1, &publisherVarIds[7],
+                        &fastPathPublisherDataValues[7], &DsWId_Conn3_WG2_DS1);
     PublishedDataSetIds[7] = PDSId_Conn3_WG2_PDS1;
 
     /* setup all Subscribers */
@@ -1791,8 +1499,9 @@ static void DoTest_multiple_Groups(void) {
     AddReaderGroup(&ConnId_1, "Conn1_RG1", &RGId_Conn1_RG1);
     UA_NodeId DSRId_Conn1_RG1_DSR1;
     UA_NodeId_init(&DSRId_Conn1_RG1_DSR1);
-    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", Conn1_PublisherIdType, Conn1_PublisherId, Conn1_WG4_Id, DSW_Id,
-        &subscriberVarIds[3], &fastPathSubscriberDataValues[3], &DSRId_Conn1_RG1_DSR1);
+    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", Conn1_PublisherId, Conn1_WG4_Id,
+                     DSW_Id, &subscriberVarIds[3],
+                     &fastPathSubscriberDataValues[3], &DSRId_Conn1_RG1_DSR1);
     ReaderGroupIds[0] = RGId_Conn1_RG1;
 
     /* ReaderGroup 2 */
@@ -1801,8 +1510,9 @@ static void DoTest_multiple_Groups(void) {
     AddReaderGroup(&ConnId_1, "Conn1_RG2", &RGId_Conn1_RG2);
     UA_NodeId DSRId_Conn1_RG2_DSR1;
     UA_NodeId_init(&DSRId_Conn1_RG2_DSR1);
-    AddDataSetReader(&RGId_Conn1_RG2, "Conn1_RG2_DSR1", Conn3_PublisherIdType, Conn3_PublisherId, Conn3_WG1_Id, DSW_Id,
-        &subscriberVarIds[6], &fastPathSubscriberDataValues[6], &DSRId_Conn1_RG2_DSR1);
+    AddDataSetReader(&RGId_Conn1_RG2, "Conn1_RG2_DSR1", Conn3_PublisherId, Conn3_WG1_Id,
+                     DSW_Id, &subscriberVarIds[6], &fastPathSubscriberDataValues[6],
+                     &DSRId_Conn1_RG2_DSR1);
     ReaderGroupIds[1] = RGId_Conn1_RG2;
 
     /* ReaderGroup 3 */
@@ -1811,8 +1521,9 @@ static void DoTest_multiple_Groups(void) {
     AddReaderGroup(&ConnId_1, "Conn1_RG3", &RGId_Conn1_RG3);
     UA_NodeId DSRId_Conn1_RG3_DSR1;
     UA_NodeId_init(&DSRId_Conn1_RG3_DSR1);
-    AddDataSetReader(&RGId_Conn1_RG3, "Conn1_RG3_DSR1", Conn2_PublisherIdType, Conn2_PublisherId, Conn2_WG1_Id, DSW_Id,
-        &subscriberVarIds[4], &fastPathSubscriberDataValues[4], &DSRId_Conn1_RG3_DSR1);
+    AddDataSetReader(&RGId_Conn1_RG3, "Conn1_RG3_DSR1", Conn2_PublisherId, Conn2_WG1_Id,
+                     DSW_Id, &subscriberVarIds[4],
+                     &fastPathSubscriberDataValues[4], &DSRId_Conn1_RG3_DSR1);
     ReaderGroupIds[2] = RGId_Conn1_RG3;
 
     /* ReaderGroup 4 */
@@ -1821,8 +1532,9 @@ static void DoTest_multiple_Groups(void) {
     AddReaderGroup(&ConnId_1, "Conn1_RG4", &RGId_Conn1_RG4);
     UA_NodeId DSRId_Conn1_RG4_DSR1;
     UA_NodeId_init(&DSRId_Conn1_RG4_DSR1);
-    AddDataSetReader(&RGId_Conn1_RG4, "Conn1_RG4_DSR1", Conn3_PublisherIdType, Conn3_PublisherId, Conn3_WG2_Id, DSW_Id,
-        &subscriberVarIds[7], &fastPathSubscriberDataValues[7], &DSRId_Conn1_RG4_DSR1);
+    AddDataSetReader(&RGId_Conn1_RG4, "Conn1_RG4_DSR1", Conn3_PublisherId, Conn3_WG2_Id,
+                     DSW_Id, &subscriberVarIds[7], &fastPathSubscriberDataValues[7],
+                     &DSRId_Conn1_RG4_DSR1);
     ReaderGroupIds[3] = RGId_Conn1_RG4;
 
     /* setup Connection 2: */
@@ -1833,8 +1545,9 @@ static void DoTest_multiple_Groups(void) {
     AddReaderGroup(&ConnId_2, "Conn2_RG1", &RGId_Conn2_RG1);
     UA_NodeId DSRId_Conn2_RG1_DSR1;
     UA_NodeId_init(&DSRId_Conn2_RG1_DSR1);
-    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR1", Conn1_PublisherIdType, Conn1_PublisherId, Conn1_WG2_Id, DSW_Id,
-        &subscriberVarIds[1], &fastPathSubscriberDataValues[1], &DSRId_Conn2_RG1_DSR1);
+    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR1", Conn1_PublisherId, Conn1_WG2_Id,
+                     DSW_Id, &subscriberVarIds[1], &fastPathSubscriberDataValues[1],
+                     &DSRId_Conn2_RG1_DSR1);
     ReaderGroupIds[4] = RGId_Conn2_RG1;
 
     /* ReaderGroup 2 */
@@ -1843,8 +1556,9 @@ static void DoTest_multiple_Groups(void) {
     AddReaderGroup(&ConnId_2, "Conn2_RG2", &RGId_Conn2_RG2);
     UA_NodeId DSRId_Conn2_RG2_DSR1;
     UA_NodeId_init(&DSRId_Conn2_RG2_DSR1);
-    AddDataSetReader(&RGId_Conn2_RG2, "Conn2_RG2_DSR1", Conn1_PublisherIdType, Conn1_PublisherId, Conn1_WG1_Id, DSW_Id,
-        &subscriberVarIds[0], &fastPathSubscriberDataValues[0], &DSRId_Conn2_RG2_DSR1);
+    AddDataSetReader(&RGId_Conn2_RG2, "Conn2_RG2_DSR1", Conn1_PublisherId, Conn1_WG1_Id,
+                     DSW_Id, subscriberVarIds, fastPathSubscriberDataValues,
+                     &DSRId_Conn2_RG2_DSR1);
     ReaderGroupIds[5] = RGId_Conn2_RG2;
 
     /* setup Connection 3: */
@@ -1855,8 +1569,9 @@ static void DoTest_multiple_Groups(void) {
     AddReaderGroup(&ConnId_3, "Conn3_RG1", &RGId_Conn3_RG1);
     UA_NodeId DSRId_Conn3_RG1_DSR1;
     UA_NodeId_init(&DSRId_Conn3_RG1_DSR1);
-    AddDataSetReader(&RGId_Conn3_RG1, "Conn3_RG1_DSR1", Conn1_PublisherIdType, Conn1_PublisherId, Conn1_WG3_Id, DSW_Id,
-        &subscriberVarIds[2], &fastPathSubscriberDataValues[2], &DSRId_Conn3_RG1_DSR1);
+    AddDataSetReader(&RGId_Conn3_RG1, "Conn3_RG1_DSR1", Conn1_PublisherId, Conn1_WG3_Id,
+                     DSW_Id, &subscriberVarIds[2], &fastPathSubscriberDataValues[2],
+                     &DSRId_Conn3_RG1_DSR1);
     ReaderGroupIds[6] = RGId_Conn3_RG1;
 
     /* ReaderGroup 2 */
@@ -1865,34 +1580,26 @@ static void DoTest_multiple_Groups(void) {
     AddReaderGroup(&ConnId_3, "Conn3_RG2", &RGId_Conn3_RG2);
     UA_NodeId DSRId_Conn3_RG2_DSR1;
     UA_NodeId_init(&DSRId_Conn3_RG2_DSR1);
-    AddDataSetReader(&RGId_Conn3_RG2, "Conn3_RG2_DSR1", Conn2_PublisherIdType, Conn2_PublisherId, Conn2_WG2_Id, DSW_Id,
-        &subscriberVarIds[5], &fastPathSubscriberDataValues[5], &DSRId_Conn3_RG2_DSR1);
+    AddDataSetReader(&RGId_Conn3_RG2, "Conn3_RG2_DSR1", Conn2_PublisherId, Conn2_WG2_Id,
+                     DSW_Id, &subscriberVarIds[5], &fastPathSubscriberDataValues[5],
+                     &DSRId_Conn3_RG2_DSR1);
     ReaderGroupIds[7] = RGId_Conn3_RG2;
 
-    /* freeze all Groups */
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_WRITERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeWriterGroupConfiguration(server, WriterGroupIds[i]));
-    }
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_READERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
-    }
     /* set groups operational */
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_WRITERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WriterGroupIds[i]));
-    }
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_READERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, ReaderGroupIds[i]));
-    }
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
 
     /* check that publish/subscribe works -> set some test values */
-    ValidatePublishSubscribe(DOTEST_MULTIPLE_GROUPS_MAX_VARS, publisherVarIds, subscriberVarIds,
-        fastPathPublisherDataValues, fastPathSubscriberDataValues, 10, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(DOTEST_MULTIPLE_GROUPS_MAX_VARS, publisherVarIds,
+                             subscriberVarIds, fastPathPublisherDataValues,
+                             fastPathSubscriberDataValues, 10, 100);
 
-    ValidatePublishSubscribe(DOTEST_MULTIPLE_GROUPS_MAX_VARS, publisherVarIds, subscriberVarIds, fastPathPublisherDataValues,
-        fastPathSubscriberDataValues, 50, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(DOTEST_MULTIPLE_GROUPS_MAX_VARS, publisherVarIds,
+                             subscriberVarIds, fastPathPublisherDataValues,
+                             fastPathSubscriberDataValues, 50, 100);
 
-    ValidatePublishSubscribe(DOTEST_MULTIPLE_GROUPS_MAX_VARS, publisherVarIds, subscriberVarIds, fastPathPublisherDataValues,
-        fastPathSubscriberDataValues, 100, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(DOTEST_MULTIPLE_GROUPS_MAX_VARS, publisherVarIds,
+                             subscriberVarIds, fastPathPublisherDataValues,
+                             fastPathSubscriberDataValues, 100, 100);
 
     /* set groups to disabled */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable groups");
@@ -1902,12 +1609,10 @@ static void DoTest_multiple_Groups(void) {
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_READERGROUPS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, ReaderGroupIds[i]));
     }
-    /* unfreeze groups */
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_WRITERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeWriterGroupConfiguration(server, WriterGroupIds[i]));
-    }
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_READERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connections");
+    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_CONNECTIONS; i++) {
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnectionIds[i]));
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PublishedDataSets");
@@ -1915,20 +1620,8 @@ static void DoTest_multiple_Groups(void) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PublishedDataSetIds[i]));
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connections");
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_CONNECTIONS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnectionIds[i]));
-    }
-
-    if (UseFastPath) {
-        for (size_t i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_VARS; i++) {
-            UA_DataValue_clear(fastPathPublisherDataValues[i]);
-            UA_DataValue_delete(fastPathPublisherDataValues[i]);
-
-            UA_DataValue_clear(fastPathSubscriberDataValues[i]);
-            UA_DataValue_delete(fastPathSubscriberDataValues[i]);
-        }
-    }
+    /* Iterate so the connections are actually deleted */
+    UA_Server_run_iterate(server, false);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_Groups() end");
 }
@@ -1936,10 +1629,6 @@ static void DoTest_multiple_Groups(void) {
 /***************************************************************************************************/
 START_TEST(Test_multiple_groups) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_multiple_groups");
-
-    /* note: fast-path does not multiple groups/datasets/string publisher Ids
-        therefore fast-path is not enabled at this test */
-    UseFastPath = UA_FALSE;
 
     UseRawEncoding = UA_FALSE;
     DoTest_multiple_Groups();
@@ -1955,7 +1644,6 @@ START_TEST(Test_multiple_groups) {
 static void DoTest_multiple_DataSets(void) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_DataSets() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "fast-path     = %s", (UseFastPath) ? "enabled" : "disabled");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
     /*  Writers                             -> Readers              -> Var Index
@@ -2001,10 +1689,10 @@ static void DoTest_multiple_DataSets(void) {
     /* setup Connection 1: */
     UA_NodeId ConnId_1;
     UA_NodeId_init(&ConnId_1);
-    UA_PublisherIdType Conn1_PublisherIdType = UA_PUBLISHERIDTYPE_BYTE;
     UA_PublisherId Conn1_PublisherId;
-    Conn1_PublisherId.byte = 1;
-    AddConnection("Conn1", Conn1_PublisherIdType, Conn1_PublisherId, &ConnId_1);
+    Conn1_PublisherId.idType = UA_PUBLISHERIDTYPE_BYTE;
+    Conn1_PublisherId.id.byte = 1;
+    AddConnection("Conn1", Conn1_PublisherId, &ConnId_1);
     ConnectionIds[0] = ConnId_1;
 
     /* WriterGroup 1 */
@@ -2020,7 +1708,7 @@ static void DoTest_multiple_DataSets(void) {
     UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
     const UA_UInt32 Conn1_WG1_DSW1_Id = 1;
     AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", Conn1_WG1_DSW1_Id, &PDSId_Conn1_WG1_PDS1,
-        &publisherVarIds[0], &fastPathPublisherDataValues[0], &DsWId_Conn1_WG1_DS1);
+        publisherVarIds, fastPathPublisherDataValues, &DsWId_Conn1_WG1_DS1);
     PublishedDataSetIds[0] = PDSId_Conn1_WG1_PDS1;
 
     /* DataSetWriter 2 */
@@ -2056,10 +1744,10 @@ static void DoTest_multiple_DataSets(void) {
     /* setup Connection 2: */
     UA_NodeId ConnId_2;
     UA_NodeId_init(&ConnId_2);
-    UA_PublisherIdType Conn2_PublisherIdType = UA_PUBLISHERIDTYPE_BYTE;
     UA_PublisherId Conn2_PublisherId;
-    Conn2_PublisherId.byte = 2;
-    AddConnection("Conn2", Conn2_PublisherIdType, Conn2_PublisherId, &ConnId_2);
+    Conn2_PublisherId.idType = UA_PUBLISHERIDTYPE_BYTE;
+    Conn2_PublisherId.id.byte = 2;
+    AddConnection("Conn2", Conn2_PublisherId, &ConnId_2);
     ConnectionIds[1] = ConnId_2;
 
     /* WriterGroup 1 */
@@ -2101,13 +1789,15 @@ static void DoTest_multiple_DataSets(void) {
     /* DataSetReader 1 */
     UA_NodeId DSRId_Conn1_RG1_DSR1;
     UA_NodeId_init(&DSRId_Conn1_RG1_DSR1);
-    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", Conn1_PublisherIdType, Conn1_PublisherId, WG_Id, Conn1_WG1_DSW4_Id,
+    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1",
+                     Conn1_PublisherId, WG_Id, Conn1_WG1_DSW4_Id,
         &subscriberVarIds[3], &fastPathSubscriberDataValues[3], &DSRId_Conn1_RG1_DSR1);
 
     /* DataSetReader 2 */
     UA_NodeId DSRId_Conn1_RG1_DSR2;
     UA_NodeId_init(&DSRId_Conn1_RG1_DSR2);
-    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR2", Conn2_PublisherIdType, Conn2_PublisherId, WG_Id, Conn1_WG1_DSW1_Id,
+    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR2",
+                     Conn2_PublisherId, WG_Id, Conn1_WG1_DSW1_Id,
         &subscriberVarIds[4], &fastPathSubscriberDataValues[4], &DSRId_Conn1_RG1_DSR2);
 
     /* setup Connection 2: */
@@ -2121,51 +1811,45 @@ static void DoTest_multiple_DataSets(void) {
     /* DataSetReader 1 */
     UA_NodeId DSRId_Conn2_RG1_DSR1;
     UA_NodeId_init(&DSRId_Conn2_RG1_DSR1);
-    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR1", Conn1_PublisherIdType, Conn1_PublisherId, WG_Id, Conn1_WG1_DSW1_Id,
-        &subscriberVarIds[0], &fastPathSubscriberDataValues[0], &DSRId_Conn2_RG1_DSR1);
+    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR1",
+                     Conn1_PublisherId, WG_Id, Conn1_WG1_DSW1_Id,
+        subscriberVarIds, fastPathSubscriberDataValues, &DSRId_Conn2_RG1_DSR1);
 
     /* DataSetReader 2 */
     UA_NodeId DSRId_Conn2_RG1_DSR2;
     UA_NodeId_init(&DSRId_Conn2_RG1_DSR2);
-    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR2", Conn1_PublisherIdType, Conn1_PublisherId, WG_Id, Conn1_WG1_DSW3_Id,
+    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR2",
+                     Conn1_PublisherId, WG_Id, Conn1_WG1_DSW3_Id,
         &subscriberVarIds[2], &fastPathSubscriberDataValues[2], &DSRId_Conn2_RG1_DSR2);
 
     /* DataSetReader 3 */
     UA_NodeId DSRId_Conn2_RG1_DSR3;
     UA_NodeId_init(&DSRId_Conn2_RG1_DSR3);
-    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR3", Conn1_PublisherIdType, Conn1_PublisherId, WG_Id, Conn1_WG1_DSW2_Id,
+    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR3",
+                     Conn1_PublisherId, WG_Id, Conn1_WG1_DSW2_Id,
         &subscriberVarIds[1], &fastPathSubscriberDataValues[1], &DSRId_Conn2_RG1_DSR3);
 
     /* DataSetReader 4 */
     UA_NodeId DSRId_Conn2_RG1_DSR4;
     UA_NodeId_init(&DSRId_Conn2_RG1_DSR4);
-    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR4", Conn2_PublisherIdType, Conn2_PublisherId, WG_Id, Conn1_WG1_DSW2_Id,
+    AddDataSetReader(&RGId_Conn2_RG1, "Conn2_RG1_DSR4",
+                     Conn2_PublisherId, WG_Id, Conn1_WG1_DSW2_Id,
         &subscriberVarIds[5], &fastPathSubscriberDataValues[5], &DSRId_Conn2_RG1_DSR4);
 
-    /* freeze all Groups */
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_WRITERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeWriterGroupConfiguration(server, WriterGroupIds[i]));
-    }
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_READERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
-    }
     /* set groups operational */
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_WRITERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WriterGroupIds[i]));
-    }
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_READERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, ReaderGroupIds[i]));
-    }
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
 
     /* check that publish/subscribe works -> set some test values */
     ValidatePublishSubscribe(DOTEST_MULTIPLE_DATASETS_MAX_VARS, publisherVarIds, subscriberVarIds,
-        fastPathPublisherDataValues, fastPathSubscriberDataValues, 10, (UA_UInt32) 100, 3);
+                             fastPathPublisherDataValues, fastPathSubscriberDataValues, 10, 100);
 
-    ValidatePublishSubscribe(DOTEST_MULTIPLE_DATASETS_MAX_VARS, publisherVarIds, subscriberVarIds, fastPathPublisherDataValues,
-        fastPathSubscriberDataValues, 50, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(DOTEST_MULTIPLE_DATASETS_MAX_VARS, publisherVarIds,
+                             subscriberVarIds, fastPathPublisherDataValues,
+                             fastPathSubscriberDataValues, 50, 100);
 
-    ValidatePublishSubscribe(DOTEST_MULTIPLE_DATASETS_MAX_VARS, publisherVarIds, subscriberVarIds, fastPathPublisherDataValues,
-        fastPathSubscriberDataValues, 100, (UA_UInt32) 100, 3);
+    ValidatePublishSubscribe(DOTEST_MULTIPLE_DATASETS_MAX_VARS, publisherVarIds,
+                             subscriberVarIds, fastPathPublisherDataValues,
+                             fastPathSubscriberDataValues, 100, 100);
 
     /* set groups to disabled */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable groups");
@@ -2175,12 +1859,10 @@ static void DoTest_multiple_DataSets(void) {
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_READERGROUPS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, ReaderGroupIds[i]));
     }
-    /* unfreeze groups */
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_WRITERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeWriterGroupConfiguration(server, WriterGroupIds[i]));
-    }
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_READERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connections");
+    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_CONNECTIONS; i++) {
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnectionIds[i]));
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PublishedDataSets");
@@ -2188,20 +1870,8 @@ static void DoTest_multiple_DataSets(void) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PublishedDataSetIds[i]));
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connections");
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_CONNECTIONS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnectionIds[i]));
-    }
-
-    if (UseFastPath) {
-        for (size_t i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_VARS; i++) {
-            UA_DataValue_clear(fastPathPublisherDataValues[i]);
-            UA_DataValue_delete(fastPathPublisherDataValues[i]);
-
-            UA_DataValue_clear(fastPathSubscriberDataValues[i]);
-            UA_DataValue_delete(fastPathSubscriberDataValues[i]);
-        }
-    }
+    /* Iterate so the connections are actually deleted */
+    UA_Server_run_iterate(server, false);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_DataSets() end");
 }
@@ -2209,10 +1879,6 @@ static void DoTest_multiple_DataSets(void) {
 /***************************************************************************************************/
 START_TEST(Test_multiple_datasets) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_multiple_datasets");
-
-    /* note: fast-path does not multiple groups/datasets/string publisher Ids
-        therefore fast-path is not enabled at this test */
-    UseFastPath = UA_FALSE;
 
     UseRawEncoding = UA_FALSE;
     DoTest_multiple_DataSets();

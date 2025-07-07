@@ -13,10 +13,11 @@
 #include <open62541/types_generated.h>
 
 #include "test_helpers.h"
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 /* Adjust your configuration globally for the ethernet tests here: */
 #include "ethernet_config.h"
@@ -36,6 +37,7 @@ static void teardown(void) {
 }
 
 START_TEST(AddConnectionsWithMinimalValidConfiguration){
+    UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode retVal;
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -47,40 +49,42 @@ START_TEST(AddConnectionsWithMinimalValidConfiguration){
 
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 1);
-    ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
+    ck_assert_uint_eq(psm->connectionsSize, 1);
+    ck_assert(! TAILQ_EMPTY(&psm->connections));
 
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
-    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 2);
+    ck_assert(&psm->connections.tqh_first->listEntry.tqe_next != NULL);
+    ck_assert_uint_eq(psm->connectionsSize, 2);
 } END_TEST
 
 
 START_TEST(AddRemoveAddConnectionWithMinimalValidConfiguration){
-        UA_StatusCode retVal;
-        UA_PubSubConnectionConfig connectionConfig;
-        memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
-        connectionConfig.name = UA_STRING("Ethernet Connection");
-        UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING(ETHERNET_INTERFACE), UA_STRING(MULTICAST_MAC_ADDRESS)};
-        UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
-                             &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-        connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
-        UA_NodeId connectionIdent;
-        retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
-        ck_assert_uint_eq(server->pubSubManager.connectionsSize, 1);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
-        retVal |= UA_Server_removePubSubConnection(server, connectionIdent);
-        ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
-        ck_assert_uint_eq(server->pubSubManager.connectionsSize, 1);
-        ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode retVal;
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
+    connectionConfig.name = UA_STRING("Ethernet Connection");
+    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING(ETHERNET_INTERFACE), UA_STRING(MULTICAST_MAC_ADDRESS)};
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
+    UA_NodeId connectionIdent;
+    retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+    ck_assert_uint_eq(psm->connectionsSize, 1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert(! TAILQ_EMPTY(&psm->connections));
+    retVal |= UA_Server_removePubSubConnection(server, connectionIdent);
+    ck_assert_uint_eq(psm->connectionsSize, 0);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+    ck_assert_uint_eq(psm->connectionsSize, 1);
+    ck_assert(&psm->connections.tqh_first->listEntry.tqe_next != NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(AddConnectionWithInvalidAddress){
+    UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode retVal;
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -90,14 +94,15 @@ START_TEST(AddConnectionWithInvalidAddress){
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
-    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(psm->connectionsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(psm->connectionsSize, 0);
 } END_TEST
 
 START_TEST(AddConnectionWithInvalidInterface){
+    UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode retVal;
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -107,36 +112,39 @@ START_TEST(AddConnectionWithInvalidInterface){
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
-    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(psm->connectionsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(psm->connectionsSize, 0);
 } END_TEST
 
 START_TEST(AddConnectionWithUnknownTransportURL){
-        UA_StatusCode retVal;
-        UA_PubSubConnectionConfig connectionConfig;
-        memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
-        connectionConfig.name = UA_STRING("Ethernet Connection");
-        UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING(ETHERNET_INTERFACE), UA_STRING(MULTICAST_MAC_ADDRESS)};
-        UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
-                             &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-        connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/unknown-eth-uadp");
-        UA_NodeId connectionIdent;
-        retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
-        ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
-        ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode retVal;
+    UA_PubSubConnectionConfig connectionConfig;
+    memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
+    connectionConfig.name = UA_STRING("Ethernet Connection");
+    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING(ETHERNET_INTERFACE), UA_STRING(MULTICAST_MAC_ADDRESS)};
+    UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+                         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+    connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/unknown-eth-uadp");
+    UA_NodeId connectionIdent;
+    retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+    ck_assert_uint_eq(psm->connectionsSize, 0);
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(AddConnectionWithNullConfig){
-        UA_StatusCode retVal;
-        retVal = UA_Server_addPubSubConnection(server, NULL, NULL);
-        ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
-        ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-    } END_TEST
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode retVal;
+    retVal = UA_Server_addPubSubConnection(server, NULL, NULL);
+    ck_assert_uint_eq(psm->connectionsSize, 0);
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+} END_TEST
 
 START_TEST(AddSingleConnectionWithMaximalConfiguration){
+    UA_PubSubManager *psm = getPSM(server);
     UA_NetworkAddressUrlDataType networkAddressUrlData = {UA_STRING(ETHERNET_INTERFACE), UA_STRING(MULTICAST_MAC_ADDRESS)};
     UA_Variant address;
     UA_Variant_setScalar(&address, &networkAddressUrlData, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
@@ -155,17 +163,16 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     memset(&connectionConf, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConf.name = UA_STRING("Ethernet Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
-    connectionConf.enabled = true;
-    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConf.publisherId.uint32 = 223344;
+    connectionConf.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConf.publisherId.id.uint32 = 223344;
     connectionConf.connectionProperties.map = connectionOptions;
     connectionConf.connectionProperties.mapSize = 3;
     connectionConf.address = address;
     UA_NodeId connection;
     UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConf, &connection);
-    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 1);
+    ck_assert_uint_eq(psm->connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
+    ck_assert(! TAILQ_EMPTY(&psm->connections));
 } END_TEST
 
 START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
@@ -187,9 +194,8 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     memset(&connectionConf, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConf.name = UA_STRING("Ethernet Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
-    connectionConf.enabled = true;
-    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConf.publisherId.uint32 = 223344;
+    connectionConf.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConf.publisherId.id.uint32 = 223344;
     connectionConf.connectionProperties.map = connectionOptions;
     connectionConf.connectionProperties.mapSize = 3;
     connectionConf.address = address;
@@ -204,8 +210,8 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     ck_assert(UA_String_equal(&connectionConfig.name, &connectionConf.name) == UA_TRUE);
     ck_assert(UA_String_equal(&connectionConfig.transportProfileUri, &connectionConf.transportProfileUri) == UA_TRUE);
     UA_NetworkAddressUrlDataType networkAddressUrlDataCopy = *((UA_NetworkAddressUrlDataType *)connectionConfig.address.data);
-    ck_assert(UA_calcSizeBinary(&networkAddressUrlDataCopy, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) ==
-              UA_calcSizeBinary(&networkAddressUrlData, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]));
+    ck_assert(UA_calcSizeBinary(&networkAddressUrlDataCopy, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE], NULL) ==
+              UA_calcSizeBinary(&networkAddressUrlData, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE], NULL));
     for(size_t i = 0; i < connectionConfig.connectionProperties.mapSize; i++){
         ck_assert(UA_String_equal(&connectionConfig.connectionProperties.map[i].key.name, &connectionConf.connectionProperties.map[i].key.name) == UA_TRUE);
         ck_assert(UA_Variant_calcSizeBinary(&connectionConfig.connectionProperties.map[i].value) == UA_Variant_calcSizeBinary(&connectionConf.connectionProperties.map[i].value));
@@ -214,7 +220,8 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
 } END_TEST
 
 int main(void) {
-    if(SKIP_ETHERNET && strlen(SKIP_ETHERNET) > 0)
+    char *skip_eth = SKIP_ETHERNET;
+    if(skip_eth && strlen(skip_eth) > 0)
         return EXIT_SUCCESS;
 
     TCase *tc_add_pubsub_connections_minimal_config = tcase_create("Create PubSub Ethernet Connections with minimal valid config");

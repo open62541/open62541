@@ -63,51 +63,42 @@ manuallyDefinePump(UA_Server *server) {
     UA_NodeId pumpId; /* get the nodeid assigned by the server */
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Pump (Manual)");
-    UA_Server_addObjectNode(server, UA_NODEID_NULL,
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                            UA_QUALIFIEDNAME(1, "Pump (Manual)"),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+    UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                            UA_NS0ID(ORGANIZES), UA_QUALIFIEDNAME(1, "Pump (Manual)"),
+                            UA_NS0ID(BASEOBJECTTYPE),
                             oAttr, NULL, &pumpId);
 
     UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
     UA_String manufacturerName = UA_STRING("Pump King Ltd.");
     UA_Variant_setScalar(&mnAttr.value, &manufacturerName, &UA_TYPES[UA_TYPES_STRING]);
     mnAttr.displayName = UA_LOCALIZEDTEXT("en-US", "ManufacturerName");
-    UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpId,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+    UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpId, UA_NS0ID(HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "ManufacturerName"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                              mnAttr, NULL, NULL);
+                              UA_NS0ID(BASEDATAVARIABLETYPE), mnAttr, NULL, NULL);
 
     UA_VariableAttributes modelAttr = UA_VariableAttributes_default;
     UA_String modelName = UA_STRING("Mega Pump 3000");
     UA_Variant_setScalar(&modelAttr.value, &modelName, &UA_TYPES[UA_TYPES_STRING]);
     modelAttr.displayName = UA_LOCALIZEDTEXT("en-US", "ModelName");
-    UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpId,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+    UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpId, UA_NS0ID(HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "ModelName"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                              modelAttr, NULL, NULL);
+                              UA_NS0ID(BASEDATAVARIABLETYPE), modelAttr, NULL, NULL);
 
     UA_VariableAttributes statusAttr = UA_VariableAttributes_default;
     UA_Boolean status = true;
     UA_Variant_setScalar(&statusAttr.value, &status, &UA_TYPES[UA_TYPES_BOOLEAN]);
     statusAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Status");
-    UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpId,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                              UA_QUALIFIEDNAME(1, "Status"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+    UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpId, UA_NS0ID(HASCOMPONENT),
+                              UA_QUALIFIEDNAME(1, "Status"), UA_NS0ID(BASEDATAVARIABLETYPE),
                               statusAttr, NULL, NULL);
 
     UA_VariableAttributes rpmAttr = UA_VariableAttributes_default;
     UA_Double rpm = 50.0;
     UA_Variant_setScalar(&rpmAttr.value, &rpm, &UA_TYPES[UA_TYPES_DOUBLE]);
     rpmAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MotorRPM");
-    UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpId,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+    UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpId, UA_NS0ID(HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "MotorRPMs"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_NS0ID(BASEDATAVARIABLETYPE),
                               rpmAttr, NULL, NULL);
 }
 
@@ -177,8 +168,7 @@ defineObjectTypes(UA_Server *server) {
     UA_ObjectTypeAttributes dtAttr = UA_ObjectTypeAttributes_default;
     dtAttr.displayName = UA_LOCALIZEDTEXT("en-US", "DeviceType");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                UA_NS0ID(BASEOBJECTTYPE), UA_NS0ID(HASSUBTYPE),
                                 UA_QUALIFIEDNAME(1, "DeviceType"), dtAttr,
                                 NULL, &deviceTypeId);
 
@@ -186,29 +176,27 @@ defineObjectTypes(UA_Server *server) {
     mnAttr.displayName = UA_LOCALIZEDTEXT("en-US", "ManufacturerName");
     UA_NodeId manufacturerNameId;
     UA_Server_addVariableNode(server, UA_NODEID_NULL, deviceTypeId,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                              UA_NS0ID(HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "ManufacturerName"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_NS0ID(BASEDATAVARIABLETYPE),
                               mnAttr, NULL, &manufacturerNameId);
     /* Make the manufacturer name mandatory */
-    UA_Server_addReference(server, manufacturerNameId,
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
-                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+    UA_Server_addReference(server, manufacturerNameId, UA_NS0ID(HASMODELLINGRULE),
+                           UA_NS0EXID(MODELLINGRULE_MANDATORY), true);
 
 
     UA_VariableAttributes modelAttr = UA_VariableAttributes_default;
     modelAttr.displayName = UA_LOCALIZEDTEXT("en-US", "ModelName");
     UA_Server_addVariableNode(server, UA_NODEID_NULL, deviceTypeId,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                              UA_NS0ID(HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "ModelName"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              UA_NS0ID(BASEDATAVARIABLETYPE),
                               modelAttr, NULL, NULL);
 
     /* Define the object type for "Pump" */
     UA_ObjectTypeAttributes ptAttr = UA_ObjectTypeAttributes_default;
     ptAttr.displayName = UA_LOCALIZEDTEXT("en-US", "PumpType");
-    UA_Server_addObjectTypeNode(server, pumpTypeId,
-                                deviceTypeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+    UA_Server_addObjectTypeNode(server, pumpTypeId, deviceTypeId, UA_NS0ID(HASSUBTYPE),
                                 UA_QUALIFIEDNAME(1, "PumpType"), ptAttr,
                                 NULL, NULL);
 
@@ -217,23 +205,18 @@ defineObjectTypes(UA_Server *server) {
     statusAttr.valueRank = UA_VALUERANK_SCALAR;
     UA_NodeId statusId;
     UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                              UA_QUALIFIEDNAME(1, "Status"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                              statusAttr, NULL, &statusId);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Status"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), statusAttr, NULL, &statusId);
     /* Make the status variable mandatory */
-    UA_Server_addReference(server, statusId,
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
-                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+    UA_Server_addReference(server, statusId, UA_NS0ID(HASMODELLINGRULE),
+                           UA_NS0EXID(MODELLINGRULE_MANDATORY), true);
 
     UA_VariableAttributes rpmAttr = UA_VariableAttributes_default;
     rpmAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MotorRPM");
     rpmAttr.valueRank = UA_VALUERANK_SCALAR;
     UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                              UA_QUALIFIEDNAME(1, "MotorRPMs"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                              rpmAttr, NULL, NULL);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "MotorRPMs"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), rpmAttr, NULL, NULL);
 }
 
 /**
@@ -249,8 +232,7 @@ addPumpObjectInstance(UA_Server *server, char *name) {
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", name);
     UA_Server_addObjectNode(server, UA_NODEID_NULL,
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
                             UA_QUALIFIEDNAME(1, name),
                             pumpTypeId, /* this refers to the object type
                                            identifier */
@@ -275,7 +257,7 @@ pumpTypeConstructor(UA_Server *server,
     /* Find the NodeId of the status child variable */
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
-    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    rpe.referenceTypeId = UA_NS0ID(HASCOMPONENT);
     rpe.isInverse = false;
     rpe.includeSubtypes = false;
     rpe.targetName = UA_QUALIFIEDNAME(1, "Status");

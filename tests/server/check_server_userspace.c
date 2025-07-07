@@ -15,6 +15,27 @@
 #pragma clang diagnostic ignored "-Wincompatible-pointer-types-discards-qualifiers"
 #endif
 
+START_TEST(Server_Namespace1_check) {
+    UA_Server *server = UA_Server_newForUnitTest();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    const char *namespace1 = "http://namespace1";
+    UA_String_clear(&config->applicationDescription.applicationUri);
+    config->applicationDescription.applicationUri = UA_STRING_ALLOC(namespace1);
+
+    UA_Server_run_startup(server);
+
+    UA_String out;
+    UA_StatusCode status = UA_Server_getNamespaceByIndex(server, 1, &out);
+    ck_assert(status == UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_String_equal(&out, &config->applicationDescription.applicationUri));
+    UA_String_clear(&out);
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+}
+END_TEST
+
 START_TEST(Server_addNamespace_ShallWork) {
     UA_Server *server = UA_Server_newForUnitTest();
 
@@ -185,6 +206,7 @@ START_TEST(Server_forEachChildNodeCall) {
 static Suite* testSuite_ServerUserspace(void) {
     Suite *s = suite_create("ServerUserspace");
     TCase *tc_core = tcase_create("Core");
+    tcase_add_test(tc_core, Server_Namespace1_check);
     tcase_add_test(tc_core, Server_addNamespace_ShallWork);
     tcase_add_test(tc_core, Server_addNamespace_writeService);
     tcase_add_test(tc_core, Server_forEachChildNodeCall);

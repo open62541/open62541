@@ -15,6 +15,8 @@
 #include "test_helpers.h"
 #include "thread_wrapper.h"
 
+#include "ua_server_internal.h"
+
 #include <check.h>
 #include <stdlib.h>
 
@@ -30,6 +32,11 @@ methodCallback(UA_Server *serverArg,
                const UA_NodeId *objectId, void *objectContext,
                size_t inputSize, const UA_Variant *input,
                size_t outputSize, UA_Variant *output) {
+    UA_NodeId asyncId = UA_NODEID_STRING(1, "asyncMethod");
+    if(UA_NodeId_equal(methodId, &asyncId))
+        ck_assert(server->serviceMutex.count == 0);
+    else
+        ck_assert(server->serviceMutex.count > 0);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -212,9 +219,11 @@ START_TEST(Async_cancel) {
     UA_Client_cancelByRequestId(client, reqId, &cancelCount);
     ck_assert_uint_eq(cancelCount, 1);
 
+
     /* We expect to receive the cancelled response */
-    UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(clientCounter, 1);
+    while(clientCounter != 1) {
+        UA_Client_run_iterate(client, 1);
+    }
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);

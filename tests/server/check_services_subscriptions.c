@@ -36,9 +36,9 @@ createSession(void) {
     UA_CreateSessionRequest request;
     UA_CreateSessionRequest_init(&request);
     request.requestedSessionTimeout = UA_UINT32_MAX;
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     UA_StatusCode retval = UA_Server_createSession(server, NULL, &request, &session);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(retval, 0);
 }
 
@@ -71,9 +71,9 @@ createSubscription(void) {
     UA_CreateSubscriptionResponse response;
     UA_CreateSubscriptionResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_CreateSubscription(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     subscriptionId = response.subscriptionId;
 
@@ -104,9 +104,9 @@ createMonitoredItem(void) {
     UA_CreateMonitoredItemsResponse response;
     UA_CreateMonitoredItemsResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_CreateMonitoredItems(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -126,9 +126,9 @@ START_TEST(Server_createSubscription) {
 
     UA_CreateSubscriptionResponse response;
     UA_CreateSubscriptionResponse_init(&response);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_CreateSubscription(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     subscriptionId = response.subscriptionId;
 
@@ -154,9 +154,9 @@ START_TEST(Server_modifySubscription) {
     UA_ModifySubscriptionResponse response;
     UA_ModifySubscriptionResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_ModifySubscription(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
 
     UA_ModifySubscriptionResponse_clear(&response);
@@ -175,9 +175,9 @@ START_TEST(Server_setPublishingMode) {
     UA_SetPublishingModeResponse response;
     UA_SetPublishingModeResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_SetPublishingMode(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
 
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
@@ -198,9 +198,9 @@ START_TEST(Server_republish) {
     UA_RepublishResponse response;
     UA_RepublishResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_Republish(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_BADMESSAGENOTAVAILABLE);
 
     UA_RepublishResponse_clear(&response);
@@ -217,9 +217,9 @@ START_TEST(Server_republish_invalid) {
     UA_RepublishResponse response;
     UA_RepublishResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_Republish(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
 
     UA_RepublishResponse_clear(&response);
@@ -238,9 +238,9 @@ START_TEST(Server_deleteSubscription) {
     UA_DeleteSubscriptionsResponse del_response;
     UA_DeleteSubscriptionsResponse_init(&del_response);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_DeleteSubscriptions(server, session, &del_request, &del_response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(del_response.resultsSize, 1);
     ck_assert_uint_eq(del_response.results[0], UA_STATUSCODE_GOOD);
 
@@ -256,9 +256,9 @@ START_TEST(Server_publishCallback) {
     UA_CreateSubscriptionRequest_init(&request);
     request.publishingEnabled = true;
     UA_CreateSubscriptionResponse_init(&response);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_CreateSubscription(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_UInt32 subscriptionId1 = response.subscriptionId;
     UA_CreateSubscriptionResponse_clear(&response);
@@ -267,9 +267,9 @@ START_TEST(Server_publishCallback) {
     UA_CreateSubscriptionRequest_init(&request);
     request.publishingEnabled = true;
     UA_CreateSubscriptionResponse_init(&response);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_CreateSubscription(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_UInt32 subscriptionId2 = response.subscriptionId;
     UA_Double publishingInterval = response.revisedPublishingInterval;
@@ -301,9 +301,9 @@ START_TEST(Server_publishCallback) {
     UA_DeleteSubscriptionsResponse del_response;
     UA_DeleteSubscriptionsResponse_init(&del_response);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_DeleteSubscriptions(server, session, &del_request, &del_response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(del_response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(del_response.resultsSize, 2);
     ck_assert_uint_eq(del_response.results[0], UA_STATUSCODE_GOOD);
@@ -344,9 +344,9 @@ START_TEST(Server_modifyMonitoredItems) {
     UA_ModifyMonitoredItemsResponse response;
     UA_ModifyMonitoredItemsResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_ModifyMonitoredItems(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -364,9 +364,9 @@ START_TEST(Server_overflow) {
     UA_CreateSubscriptionRequest_init(&createSubscriptionRequest);
     createSubscriptionRequest.publishingEnabled = true;
     UA_CreateSubscriptionResponse_init(&createSubscriptionResponse);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_CreateSubscription(server, session, &createSubscriptionRequest, &createSubscriptionResponse);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(createSubscriptionResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_UInt32 localSubscriptionId = createSubscriptionResponse.subscriptionId;
     UA_Double publishingInterval = createSubscriptionResponse.revisedPublishingInterval;
@@ -398,9 +398,9 @@ START_TEST(Server_overflow) {
     UA_CreateMonitoredItemsResponse createMonitoredItemsResponse;
     UA_CreateMonitoredItemsResponse_init(&createMonitoredItemsResponse);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_CreateMonitoredItems(server, session, &createMonitoredItemsRequest, &createMonitoredItemsResponse);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(createMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(createMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(createMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -427,7 +427,9 @@ START_TEST(Server_overflow) {
 
     UA_fakeSleep(1); /* modify the server's currenttime */
 
-    UA_MonitoredItem_sampleCallback(server, mon);
+    UA_LOCK(&server->serviceMutex);
+    UA_MonitoredItem_sample(server, mon);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(mon->queueSize, 2);
     ck_assert_uint_eq(mon->parameters.queueSize, 3);
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
@@ -435,7 +437,9 @@ START_TEST(Server_overflow) {
 
     UA_fakeSleep(1); /* modify the server's currenttime */
 
-    UA_MonitoredItem_sampleCallback(server, mon);
+    UA_LOCK(&server->serviceMutex);
+    UA_MonitoredItem_sample(server, mon);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(mon->queueSize, 3);
     ck_assert_uint_eq(mon->parameters.queueSize, 3);
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
@@ -443,7 +447,9 @@ START_TEST(Server_overflow) {
 
     UA_fakeSleep(1); /* modify the server's currenttime */
 
-    UA_MonitoredItem_sampleCallback(server, mon);
+    UA_LOCK(&server->serviceMutex);
+    UA_MonitoredItem_sample(server, mon);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(mon->queueSize, 3);
     ck_assert_uint_eq(mon->parameters.queueSize, 3);
     notification = TAILQ_FIRST(&mon->queue);
@@ -473,10 +479,10 @@ START_TEST(Server_overflow) {
     UA_ModifyMonitoredItemsResponse modifyMonitoredItemsResponse;
     UA_ModifyMonitoredItemsResponse_init(&modifyMonitoredItemsResponse);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_ModifyMonitoredItems(server, session, &modifyMonitoredItemsRequest,
                                  &modifyMonitoredItemsResponse);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -505,10 +511,10 @@ START_TEST(Server_overflow) {
 
     UA_ModifyMonitoredItemsResponse_init(&modifyMonitoredItemsResponse);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_ModifyMonitoredItems(server, session, &modifyMonitoredItemsRequest,
                                  &modifyMonitoredItemsResponse);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -536,10 +542,10 @@ START_TEST(Server_overflow) {
 
     UA_ModifyMonitoredItemsResponse_init(&modifyMonitoredItemsResponse);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_ModifyMonitoredItems(server, session, &modifyMonitoredItemsRequest,
                                  &modifyMonitoredItemsResponse);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyMonitoredItemsResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -547,7 +553,9 @@ START_TEST(Server_overflow) {
     UA_MonitoredItemModifyRequest_clear(&itemToModify);
     UA_ModifyMonitoredItemsResponse_clear(&modifyMonitoredItemsResponse);
 
-    UA_MonitoredItem_sampleCallback(server, mon);
+    UA_LOCK(&server->serviceMutex);
+    UA_MonitoredItem_sample(server, mon);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(mon->queueSize, 1);
     ck_assert_uint_eq(mon->parameters.queueSize, 1);
     notification = TAILQ_FIRST(&mon->queue);
@@ -563,10 +571,10 @@ START_TEST(Server_overflow) {
     UA_DeleteSubscriptionsResponse deleteSubscriptionsResponse;
     UA_DeleteSubscriptionsResponse_init(&deleteSubscriptionsResponse);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_DeleteSubscriptions(server, session, &deleteSubscriptionsRequest,
                                 &deleteSubscriptionsResponse);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(deleteSubscriptionsResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteSubscriptionsResponse.resultsSize, 1);
     ck_assert_uint_eq(deleteSubscriptionsResponse.results[0], UA_STATUSCODE_GOOD);
@@ -590,9 +598,9 @@ START_TEST(Server_setMonitoringMode) {
     UA_SetMonitoringModeResponse response;
     UA_SetMonitoringModeResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_SetMonitoringMode(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
@@ -614,9 +622,9 @@ START_TEST(Server_deleteMonitoredItems) {
     UA_DeleteMonitoredItemsResponse response;
     UA_DeleteMonitoredItemsResponse_init(&response);
 
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_DeleteMonitoredItems(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0], UA_STATUSCODE_GOOD);
@@ -635,9 +643,9 @@ START_TEST(Server_lifeTimeCount) {
     request.requestedLifetimeCount = 3;
     request.requestedMaxKeepAliveCount = 1;
     UA_CreateSubscriptionResponse_init(&response);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_CreateSubscription(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.revisedMaxKeepAliveCount, 1);
     ck_assert_uint_eq(response.revisedLifetimeCount, 3);
@@ -649,9 +657,9 @@ START_TEST(Server_lifeTimeCount) {
     request.requestedLifetimeCount = 4;
     request.requestedMaxKeepAliveCount = 2;
     UA_CreateSubscriptionResponse_init(&response);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_CreateSubscription(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.revisedMaxKeepAliveCount, 2);
     /* revisedLifetimeCount is revised to 3*MaxKeepAliveCount == 3 */
@@ -684,9 +692,9 @@ START_TEST(Server_lifeTimeCount) {
 
     UA_CreateMonitoredItemsResponse mresponse;
     UA_CreateMonitoredItemsResponse_init(&mresponse);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_CreateMonitoredItems(server, session, &mrequest, &mresponse);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(mresponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(mresponse.resultsSize, 1);
     ck_assert_uint_eq(mresponse.results[0].statusCode, UA_STATUSCODE_GOOD);
@@ -800,9 +808,9 @@ START_TEST(Server_invalidPublishingInterval) {
     request.publishingEnabled = true;
     request.requestedPublishingInterval = -5.0; // Must be positive
     UA_CreateSubscriptionResponse_init(&response);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_CreateSubscription(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert(response.revisedPublishingInterval ==
               server->config.publishingIntervalLimits.min);
@@ -840,9 +848,9 @@ START_TEST(Server_negativeSamplingInterval) {
 
     UA_CreateMonitoredItemsResponse response;
     UA_CreateMonitoredItemsResponse_init(&response);
-    UA_LOCK(&server->serviceMutex);
+    lockServer(server);
     Service_CreateMonitoredItems(server, session, &request, &response);
-    UA_UNLOCK(&server->serviceMutex);
+    unlockServer(server);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);

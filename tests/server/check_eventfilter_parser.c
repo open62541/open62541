@@ -1,494 +1,247 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/.
- */
-#include "open62541/types_generated.h"
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 #include "open62541/util.h"
-#include <stdlib.h>
+#include "open62541/plugin/log_stdout.h"
 #include "check.h"
 
 static UA_EventFilter filter;
 
-START_TEST(Case_0) {
-    char *inp = "SELECT\n"
-                "PATH \"/Message\", PATH \"/0:Severity\", PATH \"/EventType\"\n"
-                "WHERE\n"
-                "OR($\"ref_1\", $\"ref_2\")\n"
-                "FOR\n"
-                "$\"ref_2\":= OFTYPE ns=1;i=5003\n"
-                "$\"ref_1\":= OFTYPE i=3035";
+static UA_EventFilterParserOptions options = {&UA_Log_Stdout_};
 
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
+START_TEST(Case_0) {
+    char *inp = "SELECT /Message#Value, /Severity";
+    UA_String case0 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case0, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
 } END_TEST
 
 START_TEST(Case_1) {
-    char *inp = "SELECT\n"
-                "\n"
-                "PATH \"/Message\",\n"
-                "PATH \"/Severity\",\n"
-                "PATH \"/EventType\"\n"
-                "\n"
-                "WHERE\n"
-                "OFTYPE ns=1;i=5001";
+    char *inp = "SELECT /Message, /Severity, /EventType "
+                "WHERE OFTYPE ns=1;i=5001";
+    UA_String case1 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
+    UA_NodeId typeId = UA_NODEID_NUMERIC(1, 5001);
+    UA_ContentFilterElement *elm = &filter.whereClause.elements[0];
+    UA_LiteralOperand *op = (UA_LiteralOperand*)elm->filterOperands[0].content.decoded.data;
+    ck_assert(UA_NodeId_equal(&typeId, (UA_NodeId*)op->value.data));
+    UA_EventFilter_clear(&filter);
 } END_TEST
 
 START_TEST(Case_2) {
-    char *inp = "SELECT\n"
-                "\n"
-                "PATH \"/Message\", PATH \"/Severity\", PATH \"/EventType\"\n"
-                "\n"
-                "WHERE\n"
-                "OR(OR(OR(OFTYPE ns=1;i=5002, $4), OR($5, OFTYPE i=3035)), OR($1,$2))\n"
-                "\n"
-                "FOR\n"
-                "$1:= OFTYPE $7\n"
-                "$2:= OFTYPE $8\n"
-                "$4:= OFTYPE ns=1;i=5003\n"
-                "$5:= OFTYPE ns=1;i=5004\n"
-                "$7:= NODEID ns=1;i=5000\n"
-                "$8:= ns=1;i=5001";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_3) {
-    char *inp = "SELECT\n"
-                "\n"
-                "PATH \"/Message\",\n"
-                "PATH \"/Severity\",\n"
-                "PATH \"/EventType\"\n"
-                "\n"
-                "WHERE\n"
-                "AND((OFTYPE ns=1;i=5001), $1)\n"
-                "\n"
-                "FOR\n"
-                "$1:=  AND($20, $30)\n"
-                "$20:= {\"Type\": 3,\"Body\": 99} == INT64 99\n"
-                "$30:= TYPEID i=5000 PATH \"/Severity\" > 99";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_4) {
-    char *inp = "SELECT\n"
-                "\n"
-                "PATH \"/Message\",\n"
-                "PATH \"/0:Severity\",\n"
-                "PATH \"/EventType\"\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "AND($4, TYPEID i=5000 PATH \"/Severity\" GREATERTHAN $\"ref\")\n"
-                "\n"
-                "FOR\n"
-                "$\"ref\":= 99\n"
-                "$4:= OFTYPE ns=1;i=5000";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_5) {
-    char *inp = "SELECT\n"
-                "\n"
-                "\n"
-                "(TYPEID s=\"1;;5 2;3\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]),\n"
-                "\n"
-                "TYPEID ns=1;b=\"b3BlbjYyNTQxIQ==\" PATH \"/2:Severity/1:AnotherTest\",\n"
-                "\n"
-                "TYPEID i=5 PATH \"/1:AnotherAnotherTest\" ATTRIBUTE 23,\n"
-                "\n"
-                "PATH \"/2:FirstElement/ThirdElement\" ATTRIBUTE 15 INDEX [1],\n"
-                "\n"
-                "PATH \"/2:Severity\"\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "\n"
-                "OR(OR({\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]}, $19 ),AND(OR(PATH \"/2:FirstElement/ThirdElement\" ATTRIBUTE 15 INDEX [1],$10), $\"another\"))\n"
-                "\n"
-                "FOR\n"
-                "\n"
-                "$2:= $19 LESSTHAN $19\n"
-                "\n"
-                "$\"another\":= {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]} INLIST [{\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]}, TYPEID ns=1;b=\"b3BlbjYyNTQxIQ==\" PATH \"/1:AnotherAnotherTest\"]\n"
-                "\n"
-                "$19:= ISNULL {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]}\n"
-                "\n"
-                "$10:= {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]}  BETWEEN [FLOAT 17, TYPEID ns=1234;g=09087e75-8e5e-499b-954f-f2a9603db28a PATH \"/1:AnotherAnotherTest ATTRIBUTE 23\"]";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_6) {
-    char *inp = "SELECT\n"
-                "\n"
-                "TYPEID ns=134;s=\"1;;5 2;3\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "OR($6, $4 GREATEROREQUAL STRING \"tes tSt 3 ring\" )\n"
-                "\n"
-                "FOR\n"
-                "\n"
-                "$4:= ({\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]}) > STRING \"tes tSt 3 ring\"\n"
-                "\n"
-                "$6:= TYPEID ns=3;s=\"15 23\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20] LESSTHAN $4";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_7) {
-    char *inp = "SELECT\n"
-                "\n"
-                "\n"
-                "TYPEID ns=134;s=\"1;;5 2;3\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "NOT TYPEID ns=2;i=2000 PATH \"/0:Severity\" ATTRIBUTE 15 INDEX [1,9]";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_8) {
-    char *inp = "SELECT\n"
-                "\n"
-                "\n"
-                "TYPEID ns=134;s=\"1;;5 2;3\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "$\"another\"\n"
-                "\n"
-                "FOR\n"
-                "\n"
-                "$\"another\":= ({\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]}) GREATERTHAN STRING \"tes tSt 3 ring\"";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_9) {
-    char *inp = "SELECT\n"
-                "\n"
-                "\n"
-                "TYPEID ns=134;s=\"1;;5 2;3\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "{\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]} GREATERTHAN TYPEID ns=1234;g=09087e75-8e5e-499b-954f-f2a9603db28a PATH \"/1:AnotherAnotherTest\" ATTRIBUTE 23";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_10) {
-    char *inp = "SELECT\n"
-                "\n"
-                "\n"
-                "TYPEID ns=134;s=\"1;;5 2;3\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "TYPEID ns=1234;g=09087e75-8e5e-499b-954f-f2a9603db28a PATH \"/1:AnotherAnotherTest\" ATTRIBUTE 23 GREATERTHAN {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]}";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_11) {
-    char *inp = "SELECT\n"
-                "\n"
-                "\n"
-                "TYPEID ns=134;s=\"1;;5 2;3\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "\n"
-                "OR(OR( ISNULL TYPEID ns=2;i=2000 PATH \"/0:Severity\" ATTRIBUTE 15 INDEX [1,9], FLOAT 17 LESSOREQUAL TYPEID b=\"b3BlbjYyNTQxIQ==\" PATH \"/7:OnlyPathSpecified\" ATTRIBUTE 3 INDEX [1,4:7,90]), AND({\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]} GREATERTHAN STRING \"tes tSt 3 ring\", ($6) GREATEROREQUAL STRING \"tes tSt 3 ring\" ))\n"
-                "\n"
-                "FOR\n"
-                "\n"
-                "$19:= NOT TYPEID ns=2;i=2000 PATH \"/0:Severity\" ATTRIBUTE 15 INDEX [1,9]\n"
-                "\n"
-                "$6:= (TYPEID ns=3;s=\"15 23\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]) LESSTHAN $19";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_12) {
-    char *inp = "SELECT\n"
-                "\n"
-                "\n"
-                "TYPEID ns=134;s=\"1;;5 2;3\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "OR($1, $2)\n"
-                "\n"
-                "FOR\n"
-                "\n"
-                "\n"
-                "$2:= ( TYPEID ns=3;s=\"15 23\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]) & $19\n"
-                "\n"
-                "$\"another\":= {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]} | TYPEID ns=1234;g=09087e75-8e5e-499b-954f-f2a9603db28a PATH \"/1:AnotherAnotherTest\" ATTRIBUTE 23\n"
-                "\n"
-                "$19:= {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]} LESSOREQUAL $\"another\"\n"
-                "\n"
-                "$1:= AND($\"another\", $19)";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_13) {
-    char *inp = "SELECT\n"
-                "\n"
-                "\n"
-                "TYPEID ns=134;s=\"1;;5 2;3\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "OR($1, $2)\n"
-                "\n"
-                "FOR\n"
-                "\n"
-                "$2:= OR($19, {\"Type\": 6,\"Body\": 27} <=> $\"another\")\n"
-                "\n"
-                "$\"another\":= {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]} -> TYPEID ns=1234;g=09087e75-8e5e-499b-954f-f2a9603db28a PATH \"/1:AnotherAnotherTest\" ATTRIBUTE 23 INDEX [100,5:20]\n"
-                "\n"
-                "$19:= OFTYPE ns=10;s=\"Hel&,lo:Wor ld\"\n"
-                "\n"
-                "$1:= AND($\"another\", $19)";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_14) {
-    char *inp = "SELECT\n"
-                "\n"
-                "\n"
-                "TYPEID ns=134;s=\"1;;5 2;3\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "OR($1, $2)\n"
-                "\n"
-                "FOR\n"
-                "\n"
-                "\n"
-                "$2:= $\"another\" LE $19\n"
-                "\n"
-                "$\"another\":= {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]} <= TYPEID ns=1234;g=09087e75-8e5e-499b-954f-f2a9603db28a PATH \"/1:AnotherAnotherTest\" ATTRIBUTE 23\n"
-                "\n"
-                "$19:= {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]} BETWEEN [FLOAT 17, TYPEID ns=12;i=12345 PATH \"/1:AnotherAnotherTest\"]\n"
-                "\n"
-                "$163:= TYPEID ns=1234;g=09087e75-8e5e-499b-954f-f2a9603db28a PATH \"/1:AnotherAnotherTest\" ATTRIBUTE 23\n"
-                "\n"
-                "$\"literal float\":= FLOAT 17\n"
-                "\n"
-                "$\"literal json\":= {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]}\n"
-                "\n"
-                "$\"element oper\":= $\"element operand\"\n"
-                "\n"
-                "$\"element operand\":= $163\n"
-                "\n"
-                "$\"element op\":= $\"element operand\"\n"
-                "\n"
-                "\n"
-                "$1:= {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]} INLIST [\n"
-                "                                                                {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]},\n"
-                "                                                                TYPEID ns=1;b=\"b3BlbjYyNTQxIQ==\" PATH \"/1:AnotherAnotherTest\",\n"
-                "                                                                ({\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]}),\n"
-                "                                                                STRING \"tes tSt 3 ring\",\n"
-                "                                                                {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]},\n"
-                "                                                                $\"element op\",\n"
-                "                                                                $\"element operand\",\n"
-                "                                                                EXPNODEID \"svr=5;nsu=https://test.test.com;s=test\"\n"
-                "                                                             ]";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_15) {
-    char *inp = "SELECT\n"
-                "\n"
-                "\n"
-                "TYPEID ns=134;s=\"1;;5 2;3\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "\n"
-                "AND($19, OR( FLOAT 17 LESSOREQUAL TYPEID b=\"b3BlbjYyNTQxIQ==\" PATH \"/7:OnlyPathSpecified\" ATTRIBUTE 3 INDEX [1,4:7,90], ISNULL TYPEID ns=2;i=2000 PATH \"/0:Severity\" ATTRIBUTE 15 INDEX [1,9]))\n"
-                "\n"
-                "FOR\n"
-                "\n"
-                "$19:= {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]} GE TYPEID ns=1234;g=09087e75-8e5e-499b-954f-f2a9603db28a PATH \"/1:AnotherAnotherTest\" ATTRIBUTE 23\n";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_16) {
-    char *inp = "SELECT\n"
-                "\n"
-                "\n"
-                "TYPEID ns=134;s=\"1;;5 2;3\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "OR($1, $19)\n"
-                "\n"
-                "FOR\n"
-                "\n"
-                "\n"
-                "$\"another\":= {\"Type\": 3,\"Body\": [1,2,1,5],\"Dimension\": [2,2]} >= TYPEID ns=1234;g=09087e75-8e5e-499b-954f-f2a9603db28a PATH \"/1:AnotherAnotherTest\" ATTRIBUTE 23\n"
-                "\n"
-                "$19:= OR($\"another\", $\"another\")\n"
-                "\n"
-                "$1:= AND($\"another\", $19)";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-START_TEST(Case_17) {
-    char *inp = "SELECT\n"
-                "\n"
-                "\n"
-                "TYPEID ns=134;s=\"1;;5 2;3\" PATH \"/1:Duration/15:SecondElement/7:ThirdElement\" ATTRIBUTE 23 INDEX [100,5:20]\n"
-                "\n"
-                "WHERE\n"
-                "\n"
-                "OR(OR($10, AND($8, OR($9, $19))),AND(OR( $6 ,EXPNODEID \"svr=5;nsu=https://test.test.com;s=test\"), AND($11, $7)))\n"
-                "\n"
-                "FOR\n"
-                "\n"
-                "\n"
-                "$\"another\":= {\n"
-                "                \"Type\": 3,\n"
-                "                \"Body\": [1,2,1,5],\n"
-                "                \"Dimension\": [2,2]\n"
-                "             }\n"
-                "             GREATERTHAN \"tes tSt 3 ring\"\n"
-                "\n"
-                "$19:= OFTYPE TYPEID ns=1;i=5001 PATH \".\" ATTRIBUTE 1\n"
-                "\n"
-                "$6:= GUID 09087e75-8e5e-499b-954f-f2a9603db28a LESSTHAN UINT16 30\n"
-                "\n"
-                "$7:= false | ns=2;i=2000\n"
-                "\n"
-                "$8:= SBYTE -125 <= TIME \"2023-06-06T09:55:50.730824Z\"\n"
-                "\n"
-                "$9:= EXPNODEID \"svr=5;nsu=ht.test.com;s=test\" >= STATUSCODE 15\n"
-                "\n"
-                "$11:= LOCALIZED \"Duration\" <=> 100.33\n"
-                "\n"
-                "$10:= QNAME \"<0:HasProperty>1:Durat ion\" == \"/37:Duration\"";
-
-    UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, empty_filter);
-    UA_EventFilter_delete(empty_filter);
-    UA_ByteString_clear(&case_);
-} END_TEST
-
-
-static void setup(void) {
-    UA_EventFilter_init(&filter);
-}
-
-static void teardown(void) {
+    char *inp = "SELECT /Message, /Severity, /EventType "
+                "WHERE /Severity >= 1000";
+    UA_String case2 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case2, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     UA_EventFilter_clear(&filter);
-}
+} END_TEST
+
+/* Indirection */
+START_TEST(Case_3) {
+    char *inp = "SELECT /Message, /Severity, /EventType "
+                "WHERE /Severity >= 1000";
+    char *inp2 = "SELECT /Message, /Severity, /EventType "
+                 "WHERE $test FOR $test := /Severity >= 1000";
+    UA_EventFilter filter, filter2;
+    UA_String case1 = UA_STRING(inp);
+    UA_String case2 = UA_STRING(inp2);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    res |= UA_EventFilter_parse(&filter2, case2, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_EventFilter_equal(&filter, &filter2));
+    UA_EventFilter_clear(&filter);
+    UA_EventFilter_clear(&filter2);
+} END_TEST
+
+/* Nested Indirection */
+START_TEST(Case_4) {
+    char *inp = "SELECT /Message, /Severity, /EventType "
+                "WHERE /Severity >= 1000";
+    char *inp2 = "SELECT /Message, /Severity, /EventType "
+                 "WHERE $test FOR $test := /Severity >= $value, $value := 1000";
+    UA_EventFilter filter, filter2;
+    UA_String case1 = UA_STRING(inp);
+    UA_String case2 = UA_STRING(inp2);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    res |= UA_EventFilter_parse(&filter2, case2, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_EventFilter_equal(&filter, &filter2));
+    UA_EventFilter_clear(&filter);
+    UA_EventFilter_clear(&filter2);
+} END_TEST
+
+/* Parentheses */
+START_TEST(Case_5) {
+    char *inp = "SELECT /Severity "
+                "WHERE true AND false AND NOT true OR 123 BETWEEN [1,2]";
+    char *inp2 = "SELECT /Severity "
+                 "WHERE ((true AND false) AND (NOT true)) OR (123 BETWEEN [1,2])";
+    UA_EventFilter filter, filter2;
+    UA_String case1 = UA_STRING(inp);
+    UA_String case2 = UA_STRING(inp2);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    res |= UA_EventFilter_parse(&filter2, case2, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_EventFilter_equal(&filter, &filter2));
+    UA_EventFilter_clear(&filter);
+    UA_EventFilter_clear(&filter2);
+} END_TEST
+
+/* Definition chains */
+START_TEST(Case_6) {
+    char *inp = "SELECT /Severity WHERE OFTYPE ns=1;i=5001";
+    char *inp2 = "SELECT /Severity WHERE $test1 "
+        "FOR $test1 := $test2, $test2 := OFTYPE ns=1;i=5001";
+    UA_EventFilter filter, filter2;
+    UA_String case1 = UA_STRING(inp);
+    UA_String case2 = UA_STRING(inp2);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    res |= UA_EventFilter_parse(&filter2, case2, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_EventFilter_equal(&filter, &filter2));
+    UA_EventFilter_clear(&filter);
+    UA_EventFilter_clear(&filter2);
+} END_TEST
+
+/* Infinite recursion */
+START_TEST(Case_7) {
+    char *inp = "SELECT /Severity WHERE $test1 "
+                "FOR $test1 := $test2, $test2 := $test1";
+    UA_String case7 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case7, &options);
+    ck_assert_int_ne(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+/* Duplicate assignment */
+START_TEST(Case_8) {
+    char *inp = "SELECT /Severity WHERE $test1 "
+        "FOR $test1 := 123, $test1 := 456";
+    UA_String case8 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case8, &options);
+    ck_assert_int_ne(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+/* Missing definition */
+START_TEST(Case_9) {
+    char *inp = "SELECT /Severity WHERE $test1";
+    UA_String case9 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case9, &options);
+    ck_assert_int_ne(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+/* Select clause reference */
+START_TEST(Case_10) {
+    char *inp = "SELECT $select1 FOR $select1 := /Severity";
+    UA_String case10 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case10, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+/* Select clause missing reference */
+START_TEST(Case_11) {
+    char *inp = "SELECT $select1";
+    UA_String case11 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case11, &options);
+    ck_assert_int_ne(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+/* JSON */
+START_TEST(Case_12) {
+    char *inp = "SELECT /Severity "
+                "WHERE /Value == {\"UaType\": 3,\"Value\": [1,2,1,5],\"Dimension\": [2,2]}";
+    UA_String case1 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+/* Invalid token */
+START_TEST(Case_13) {
+    char *inp = "SELECT2 /Severity";
+    UA_String case1 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    ck_assert_int_ne(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+/* Token does not match the grammar */
+START_TEST(Case_14) {
+    char *inp = "SELECT WHERE";
+    UA_String case1 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    ck_assert_int_ne(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+/* Comment at the beginning */
+START_TEST(Case_15) {
+    char *inp = "// Comment\nSELECT /Severity";
+    UA_String case1 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+/* Comment at the end */
+START_TEST(Case_16) {
+    char *inp = "SELECT /Severity // Comment";
+    UA_String case1 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+/* Combination of NOT with binary operators */
+START_TEST(Case_17) {
+    char *inp = "SELECT /Severity WHERE /1:Diameter == 1 AND NOT /Severity BETWEEN [100,200] OR /Severity > 200";
+    char *inp2 = "SELECT /Severity WHERE ((/1:Diameter == 1) AND (NOT (/Severity BETWEEN [100,200]))) OR (/Severity > 200)";
+    UA_EventFilter filter, filter2;
+    UA_String case1 = UA_STRING(inp);
+    UA_String case2 = UA_STRING(inp2);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    res |= UA_EventFilter_parse(&filter2, case2, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_EventFilter_equal(&filter, &filter2));
+    UA_EventFilter_clear(&filter);
+    UA_EventFilter_clear(&filter2);
+} END_TEST
+
+/* More precedence tests */
+START_TEST(Case_18) {
+    char *inp = "SELECT /Severity WHERE OFTYPE ns=1;s=DrillEventType AND (/Severity > 100 AND (NOT /1:Diameter BETWEEN [5,6] AND 75 >= /1:FeedForce)) OR /1:Result == \"Failed\"";
+    char *inp2 = "SELECT /Severity WHERE OFTYPE ns=1;s=DrillEventType AND ((/Severity > 100) AND ((NOT (/1:Diameter BETWEEN [5,6])) AND 75 >= /1:FeedForce)) OR (/1:Result == \"Failed\")";
+    UA_EventFilter filter, filter2;
+    UA_String case1 = UA_STRING(inp);
+    UA_String case2 = UA_STRING(inp2);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, &options);
+    res |= UA_EventFilter_parse(&filter2, case2, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_EventFilter_equal(&filter, &filter2));
+    UA_EventFilter_clear(&filter);
+    UA_EventFilter_clear(&filter2);
+} END_TEST
+
+START_TEST(Case_19) {
+    char *inp = "SELECT /Message#Value WHERE /Severity INLIST [1,2,3]";
+    UA_String case0 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case0, &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
 
 int main(void) {
     Suite *s = suite_create("EventFilter Parser");
-
     TCase *tc_call = tcase_create("eventfilter parser - basics");
-    tcase_add_checked_fixture(tc_call, setup, teardown);
     tcase_add_test(tc_call, Case_0);
     tcase_add_test(tc_call, Case_1);
     tcase_add_test(tc_call, Case_2);
@@ -506,11 +259,14 @@ int main(void) {
     tcase_add_test(tc_call, Case_14);
     tcase_add_test(tc_call, Case_15);
     tcase_add_test(tc_call, Case_16);
+    tcase_add_test(tc_call, Case_17);
+    tcase_add_test(tc_call, Case_18);
+    tcase_add_test(tc_call, Case_19);
     suite_add_tcase(s, tc_call);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
-    srunner_run_all(sr, CK_VERBOSE);
+    srunner_run_all(sr, CK_NORMAL);
     int number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;

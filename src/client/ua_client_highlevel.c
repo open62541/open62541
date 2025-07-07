@@ -11,11 +11,7 @@
  *    Copyright 2018 (c) Peter Rustler, basyskom GmbH
  */
 
-#include <open62541/client_highlevel.h>
-#include <open62541/client_highlevel_async.h>
-
-/* The highlevel client API is an "outer onion layer". This file does not
- * include ua_client_internal.h on purpose. */
+#include "ua_client_internal.h"
 
 UA_StatusCode
 UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
@@ -25,7 +21,7 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
     UA_ReadValueId id;
     UA_ReadValueId_init(&id);
     id.attributeId = UA_ATTRIBUTEID_VALUE;
-    id.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY);
+    id.nodeId = UA_NS0ID(SERVER_NAMESPACEARRAY);
     request.nodesToRead = &id;
     request.nodesToReadSize = 1;
 
@@ -285,9 +281,151 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
     return retval;
 }
 
+/**********/
+/* Browse */
+/**********/
+
+UA_BrowseResult
+UA_Client_browse(UA_Client *client, const UA_ViewDescription *view,
+                 UA_UInt32 requestedMaxReferencesPerNode,
+                 const UA_BrowseDescription *nodesToBrowse) {
+    UA_BrowseResult res;
+    UA_BrowseRequest request;
+    UA_BrowseResponse response;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!nodesToBrowse) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto error;
+    }
+
+    /* Set up the request */
+    UA_BrowseRequest_init(&request);
+    if(view)
+        request.view = *view;
+    request.requestedMaxReferencesPerNode = requestedMaxReferencesPerNode;
+    request.nodesToBrowse = (UA_BrowseDescription*)(uintptr_t)nodesToBrowse;
+    request.nodesToBrowseSize = 1;
+
+    /* Call the service */
+    response = UA_Client_Service_browse(client, request);
+    retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(UA_StatusCode_isBad(retval))
+        goto error;
+
+    /* Return the result */
+    res = response.results[0];
+    response.resultsSize = 0;
+    UA_BrowseResponse_clear(&response);
+    return res;
+
+ error:
+    UA_BrowseResponse_clear(&response);
+    UA_BrowseResult_init(&res);
+    res.statusCode = retval;
+    return res;
+}
+
+UA_BrowseResult
+UA_Client_browseNext(UA_Client *client, UA_Boolean releaseContinuationPoint,
+                     UA_ByteString continuationPoint) {
+    /* Set up the request */
+    UA_BrowseNextRequest request;
+    UA_BrowseNextRequest_init(&request);
+    request.releaseContinuationPoints = releaseContinuationPoint;
+    request.continuationPoints = &continuationPoint;
+    request.continuationPointsSize = 1;
+
+    /* Call the service */
+    UA_BrowseResult res;
+    UA_BrowseNextResponse response = UA_Client_Service_browseNext(client, request);
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(UA_StatusCode_isBad(retval)) {
+        UA_BrowseNextResponse_clear(&response);
+        UA_BrowseResult_init(&res);
+        res.statusCode = retval;
+        return res;
+    }
+
+    /* Return the result */
+    res = response.results[0];
+    response.resultsSize = 0;
+    UA_BrowseNextResponse_clear(&response);
+    return res;
+}
+
+UA_BrowsePathResult
+UA_Client_translateBrowsePathToNodeIds(UA_Client *client,
+                                       const UA_BrowsePath *browsePath) {
+    UA_BrowsePathResult res;
+    UA_TranslateBrowsePathsToNodeIdsRequest request;
+    UA_TranslateBrowsePathsToNodeIdsResponse response;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!browsePath) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto error;
+    }
+
+    /* Set up the request */
+    UA_TranslateBrowsePathsToNodeIdsRequest_init(&request);
+    request.browsePaths = (UA_BrowsePath*)(uintptr_t)browsePath;
+    request.browsePathsSize = 1;
+
+    /* Call the service */
+    response = UA_Client_Service_translateBrowsePathsToNodeIds(client, request);
+    retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(UA_StatusCode_isBad(retval))
+        goto error;
+
+    /* Return the result */
+    res = response.results[0];
+    response.resultsSize = 0;
+    UA_TranslateBrowsePathsToNodeIdsResponse_clear(&response);
+    return res;
+
+ error:
+    UA_TranslateBrowsePathsToNodeIdsResponse_clear(&response);
+    UA_BrowsePathResult_init(&res);
+    res.statusCode = retval;
+    return res;
+}
+
 /********************/
 /* Write Attributes */
 /********************/
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_write(UA_Client *client, const UA_WriteValue *wv) {
+    if(!wv)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Set up the request */
+    UA_WriteRequest request;
+    UA_WriteRequest_init(&request);
+    request.nodesToWrite = (UA_WriteValue*)(uintptr_t)wv;
+    request.nodesToWriteSize = 1;
+
+    /* Call the service */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_WriteResponse response = UA_Client_Service_write(client, request);
+    retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(UA_StatusCode_isBad(retval)) {
+        UA_WriteResponse_clear(&response);
+        return retval;
+    }
+
+    /* Return the result */
+    retval = response.results[0];
+    UA_WriteResponse_clear(&response);
+    return retval;
+}
 
 UA_StatusCode
 __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
@@ -367,6 +505,36 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeI
 /*******************/
 /* Read Attributes */
 /*******************/
+
+UA_DataValue
+UA_Client_read(UA_Client *client, const UA_ReadValueId *rvi) {
+    /* Set up the request */
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    request.nodesToRead = (UA_ReadValueId*)(uintptr_t)rvi;
+    request.nodesToReadSize = 1;
+
+    /* Call the service */
+    UA_DataValue res;
+    UA_ReadResponse response = UA_Client_Service_read(client, request);
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(UA_StatusCode_isBad(retval)) {
+        UA_ReadResponse_clear(&response);
+        UA_DataValue_init(&res);
+        res.status = retval;
+        res.hasStatus = true;
+        return res;
+    }
+
+    /* Return the result */
+    res = response.results[0];
+    response.resultsSize = 0;
+    UA_ReadResponse_clear(&response);
+    return res;
+}
 
 UA_StatusCode
 __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
@@ -489,7 +657,7 @@ __UA_Client_HistoryRead(UA_Client *client, const UA_NodeId *nodeId,
     item.nodeId = *nodeId;
     item.indexRange = indexRange;
     item.continuationPoint = continuationPoint;
-    item.dataEncoding = UA_QUALIFIEDNAME(0, "");
+    item.dataEncoding = UA_QUALIFIEDNAME(0, NULL);
 
     UA_HistoryReadRequest request;
     UA_HistoryReadRequest_init(&request);
@@ -744,10 +912,11 @@ cleanup:
 /* Async Functions */
 /*******************/
 
-UA_StatusCode
+static UA_StatusCode
 __UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
                                  UA_AttributeId attributeId, const void *in,
-                                 const UA_DataType *inDataType, UA_ClientAsyncServiceCallback callback,
+                                 const UA_DataType *inDataType,
+                                 UA_ClientAsyncServiceCallback callback,
                                  void *userdata, UA_UInt32 *reqId) {
     if(!in)
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -769,68 +938,30 @@ __UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
     wReq.nodesToWriteSize = 1;
 
     return __UA_Client_AsyncService(client, &wReq,
-            &UA_TYPES[UA_TYPES_WRITEREQUEST], callback,
-            &UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
+                                    &UA_TYPES[UA_TYPES_WRITEREQUEST], callback,
+                                    &UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
 }
 
 UA_StatusCode
-__UA_Client_addNode_async(UA_Client *client, const UA_NodeClass nodeClass,
-                          const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
-                          const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
-                          const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
-                          const UA_DataType *attributeType, UA_NodeId *outNewNodeId,
-                          UA_ClientAsyncServiceCallback callback, void *userdata,
-                          UA_UInt32 *reqId) {
-    UA_AddNodesRequest request;
-    UA_AddNodesRequest_init(&request);
-    UA_AddNodesItem item;
-    UA_AddNodesItem_init(&item);
-    item.parentNodeId.nodeId = parentNodeId;
-    item.referenceTypeId = referenceTypeId;
-    item.requestedNewNodeId.nodeId = requestedNewNodeId;
-    item.browseName = browseName;
-    item.nodeClass = nodeClass;
-    item.typeDefinition.nodeId = typeDefinition;
-    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
-    item.nodeAttributes.content.decoded.type = attributeType;
-    item.nodeAttributes.content.decoded.data = (void*) (uintptr_t) attr; // hack. is not written into.
-    request.nodesToAdd = &item;
-    request.nodesToAddSize = 1;
-
-    return __UA_Client_AsyncService(client, &request,
-            &UA_TYPES[UA_TYPES_ADDNODESREQUEST], callback,
-            &UA_TYPES[UA_TYPES_ADDNODESRESPONSE], userdata, reqId);
-
-}
-
-UA_StatusCode
-__UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
-                       const UA_NodeId methodId, size_t inputSize,
-                       const UA_Variant *input, UA_ClientAsyncServiceCallback callback,
-                       void *userdata, UA_UInt32 *reqId) {
+UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
+                     const UA_NodeId methodId, size_t inputSize,
+                     const UA_Variant *input,
+                     UA_ClientAsyncCallCallback callback,
+                     void *userdata, UA_UInt32 *reqId) {
     UA_CallRequest request;
     UA_CallRequest_init(&request);
     UA_CallMethodRequest item;
     UA_CallMethodRequest_init(&item);
-    item.methodId = methodId;
     item.objectId = objectId;
-    item.inputArguments = (UA_Variant *) (void*) (uintptr_t) input; // cast const...
+    item.methodId = methodId;
+    item.inputArguments = (UA_Variant *)(uintptr_t)input; /* cast const */
     item.inputArgumentsSize = inputSize;
     request.methodsToCall = &item;
     request.methodsToCallSize = 1;
-
     return __UA_Client_AsyncService(client, &request,
-            &UA_TYPES[UA_TYPES_CALLREQUEST], callback,
+            &UA_TYPES[UA_TYPES_CALLREQUEST], (UA_ClientAsyncServiceCallback)callback,
             &UA_TYPES[UA_TYPES_CALLRESPONSE], userdata, reqId);
 }
-
-/* UA_StatusCode */
-/* UA_Cient_translateBrowsePathsToNodeIds_async(UA_Client *client, char **paths, */
-/*                                              UA_UInt32 *ids, size_t pathSize, */
-/*                                              UA_ClientAsyncTranslateCallback callback, */
-/*                                              void *userdata, UA_UInt32 *reqId) { */
-/*     return UA_STATUSCODE_BADNOTIMPLEMENTED; */
-/* } */
 
 /*************************/
 /* Read Single Attribute */
@@ -883,11 +1014,24 @@ AttributeReadCallback(UA_Client *client, void *userdata,
         goto finish;
     }
 
-    /* Check we have a scalar value of the right datatype */
-    if(!dv->hasValue ||
-       !UA_Variant_hasScalarType(&dv->value, ctx->resultType)) {
+    /* Check we have a value */
+    if(!dv->hasValue) {
         res = UA_STATUSCODE_BADINTERNALERROR;
         goto finish;
+    }
+
+    /* Check the type. Try to adjust "in situ" if no match. */
+    if(!UA_Variant_hasScalarType(&dv->value, ctx->resultType)) {
+        /* Remember the old pointer, adjustType can "unwrap" a type but won't
+         * free the wrapper. Because the server code still keeps the wrapper. */
+        void *oldVal = dv->value.data;
+        adjustType(&dv->value, ctx->resultType);
+        if(dv->value.data != oldVal)
+            UA_free(oldVal);
+        if(!UA_Variant_hasScalarType(&dv->value, ctx->resultType)) {
+            res = UA_STATUSCODE_BADINTERNALERROR;
+            goto finish;
+        }
     }
 
     /* Callback into userland */
@@ -1174,3 +1318,161 @@ UA_Client_readUserExecutableAttribute_async(UA_Client *client, const UA_NodeId n
                                      (UA_ClientAsyncOperationCallback)callback,
                                      userdata, requestId);
 }
+
+static UA_StatusCode
+__UA_Client_addNode_async(UA_Client *client, const UA_NodeClass nodeClass,
+                          const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
+                          const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
+                          const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
+                          const UA_DataType *attributeType, UA_NodeId *outNewNodeId,
+                          UA_ClientAsyncServiceCallback callback, void *userdata,
+                          UA_UInt32 *reqId) {
+    UA_AddNodesRequest request;
+    UA_AddNodesRequest_init(&request);
+    UA_AddNodesItem item;
+    UA_AddNodesItem_init(&item);
+    item.parentNodeId.nodeId = parentNodeId;
+    item.referenceTypeId = referenceTypeId;
+    item.requestedNewNodeId.nodeId = requestedNewNodeId;
+    item.browseName = browseName;
+    item.nodeClass = nodeClass;
+    item.typeDefinition.nodeId = typeDefinition;
+    item.nodeAttributes.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+    item.nodeAttributes.content.decoded.type = attributeType;
+    item.nodeAttributes.content.decoded.data = (void*) (uintptr_t) attr; // hack. is not written into.
+    request.nodesToAdd = &item;
+    request.nodesToAddSize = 1;
+
+    return __UA_Client_AsyncService(client, &request,
+            &UA_TYPES[UA_TYPES_ADDNODESREQUEST], callback,
+            &UA_TYPES[UA_TYPES_ADDNODESRESPONSE], userdata, reqId);
+
+}
+
+UA_StatusCode
+UA_Client_addVariableNode_async(UA_Client *client, const UA_NodeId requestedNewNodeId,
+                                const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                                const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
+                                const UA_VariableAttributes attr, UA_NodeId *outNewNodeId,
+                                UA_ClientAsyncAddNodesCallback callback, void *userdata,
+                                UA_UInt32 *reqId) {
+    return __UA_Client_addNode_async(client, UA_NODECLASS_VARIABLE, requestedNewNodeId, parentNodeId,
+                                     referenceTypeId, browseName, typeDefinition, (const UA_NodeAttributes *)&attr,
+                                     &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES], outNewNodeId,
+                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+}
+
+UA_StatusCode
+UA_Client_addVariableTypeNode_async(UA_Client *client, const UA_NodeId requestedNewNodeId,
+                                    const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                                    const UA_QualifiedName browseName, const UA_VariableTypeAttributes attr,
+                                    UA_NodeId *outNewNodeId, UA_ClientAsyncAddNodesCallback callback,
+                                    void *userdata, UA_UInt32 *reqId) {
+    return __UA_Client_addNode_async(client, UA_NODECLASS_VARIABLETYPE, requestedNewNodeId, parentNodeId,
+                                     referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
+                                     &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES], outNewNodeId,
+                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+}
+
+UA_StatusCode
+UA_Client_addObjectNode_async(UA_Client *client, const UA_NodeId requestedNewNodeId,
+                              const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                              const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
+                              const UA_ObjectAttributes attr, UA_NodeId *outNewNodeId,
+                              UA_ClientAsyncAddNodesCallback callback, void *userdata,
+                              UA_UInt32 *reqId) {
+    return __UA_Client_addNode_async(client, UA_NODECLASS_OBJECT, requestedNewNodeId, parentNodeId,
+                                     referenceTypeId, browseName, typeDefinition, (const UA_NodeAttributes *)&attr,
+                                     &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], outNewNodeId,
+                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+}
+
+UA_StatusCode
+UA_Client_addObjectTypeNode_async(UA_Client *client, const UA_NodeId requestedNewNodeId,
+                                  const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                                  const UA_QualifiedName browseName, const UA_ObjectTypeAttributes attr,
+                                  UA_NodeId *outNewNodeId, UA_ClientAsyncAddNodesCallback callback,
+                                  void *userdata, UA_UInt32 *reqId) {
+    return __UA_Client_addNode_async(client, UA_NODECLASS_OBJECTTYPE, requestedNewNodeId, parentNodeId,
+                                     referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
+                                     &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES], outNewNodeId,
+                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+}
+
+UA_StatusCode
+UA_Client_addViewNode_async(UA_Client *client, const UA_NodeId requestedNewNodeId,
+                            const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                            const UA_QualifiedName browseName, const UA_ViewAttributes attr,
+                            UA_NodeId *outNewNodeId, UA_ClientAsyncAddNodesCallback callback,
+                            void *userdata, UA_UInt32 *reqId) {
+    return __UA_Client_addNode_async(client, UA_NODECLASS_VIEW, requestedNewNodeId, parentNodeId,
+                                     referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
+                                     &UA_TYPES[UA_TYPES_VIEWATTRIBUTES], outNewNodeId,
+                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+}
+
+UA_StatusCode
+UA_Client_addReferenceTypeNode_async(UA_Client *client, const UA_NodeId requestedNewNodeId,
+                                     const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                                     const UA_QualifiedName browseName, const UA_ReferenceTypeAttributes attr,
+                                     UA_NodeId *outNewNodeId, UA_ClientAsyncAddNodesCallback callback,
+                                     void *userdata, UA_UInt32 *reqId) {
+    return __UA_Client_addNode_async(client, UA_NODECLASS_REFERENCETYPE, requestedNewNodeId, parentNodeId,
+                                     referenceTypeId, browseName, UA_NODEID_NULL,
+                                     (const UA_NodeAttributes *)&attr,
+                                     &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES], outNewNodeId,
+                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+}
+
+UA_StatusCode
+UA_Client_addDataTypeNode_async(UA_Client *client, const UA_NodeId requestedNewNodeId,
+                                const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                                const UA_QualifiedName browseName, const UA_DataTypeAttributes attr,
+                                UA_NodeId *outNewNodeId, UA_ClientAsyncAddNodesCallback callback,
+                                void *userdata, UA_UInt32 *reqId) {
+    return __UA_Client_addNode_async(client, UA_NODECLASS_DATATYPE, requestedNewNodeId, parentNodeId,
+                                     referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
+                                     &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES], outNewNodeId,
+                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+}
+
+UA_StatusCode
+UA_Client_addMethodNode_async(UA_Client *client, const UA_NodeId requestedNewNodeId,
+                              const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                              const UA_QualifiedName browseName, const UA_MethodAttributes attr,
+                              UA_NodeId *outNewNodeId, UA_ClientAsyncAddNodesCallback callback,
+                              void *userdata, UA_UInt32 *reqId) {
+    return __UA_Client_addNode_async(client, UA_NODECLASS_METHOD, requestedNewNodeId, parentNodeId,
+                                     referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
+                                     &UA_TYPES[UA_TYPES_METHODATTRIBUTES], outNewNodeId,
+                                     (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
+}
+
+#define UA_CLIENT_ASYNCWRITE_IMPL(NAME, ATTR_ID, ATTR_TYPE, ATTR_TYPEDESC)                               \
+    UA_StatusCode NAME(UA_Client *client, const UA_NodeId nodeId,                                        \
+                       const ATTR_TYPE *attr, UA_ClientAsyncWriteCallback callback,                      \
+                       void *userdata, UA_UInt32 *reqId) {                                               \
+        return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_##ATTR_ID, attr,           \
+                                                &UA_TYPES[UA_TYPES_##ATTR_TYPEDESC], \
+                                                (UA_ClientAsyncServiceCallback)callback, userdata, reqId); \
+}
+
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeNodeIdAttribute_async, NODEID, UA_NodeId, NODEID)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeNodeClassAttribute_async, NODECLASS, UA_NodeClass, NODECLASS)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeBrowseNameAttribute_async, BROWSENAME, UA_QualifiedName, QUALIFIEDNAME)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeDisplayNameAttribute_async, DISPLAYNAME, UA_LocalizedText, LOCALIZEDTEXT)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeDescriptionAttribute_async, DESCRIPTION, UA_LocalizedText, LOCALIZEDTEXT)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeWriteMaskAttribute_async, WRITEMASK, UA_UInt32, UINT32)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeIsAbstractAttribute_async, ISABSTRACT, UA_Boolean, BOOLEAN)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeSymmetricAttribute_async, SYMMETRIC, UA_Boolean, BOOLEAN)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeInverseNameAttribute_async, INVERSENAME, UA_LocalizedText, LOCALIZEDTEXT)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeContainsNoLoopsAttribute_async, CONTAINSNOLOOPS, UA_Boolean, BOOLEAN)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeEventNotifierAttribute_async, EVENTNOTIFIER, UA_Byte, BYTE)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeValueAttribute_async, VALUE, UA_Variant, VARIANT)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeDataTypeAttribute_async, DATATYPE, UA_NodeId, NODEID)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeValueRankAttribute_async, VALUERANK, UA_Int32, INT32)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeAccessLevelAttribute_async, ACCESSLEVEL, UA_Byte, BYTE)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeMinimumSamplingIntervalAttribute_async, MINIMUMSAMPLINGINTERVAL, UA_Double, DOUBLE)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeHistorizingAttribute_async, HISTORIZING, UA_Boolean, BOOLEAN)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeExecutableAttribute_async, EXECUTABLE, UA_Boolean, BOOLEAN)
+UA_CLIENT_ASYNCWRITE_IMPL(UA_Client_writeAccessLevelExAttribute_async, ACCESSLEVELEX, UA_UInt32, UINT32)

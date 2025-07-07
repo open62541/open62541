@@ -1,4 +1,4 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subjec&t to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
@@ -8,118 +8,101 @@
 #ifndef UA_EVENTFILTER_PARSER_H_
 #define UA_EVENTFILTER_PARSER_H_
 
-#include "open62541/plugin/log_stdout.h"
-#include "open62541/types_generated.h"
+#include "open62541/types.h"
+#include "open62541/plugin/log.h"
 #include "open62541_queue.h"
+#include "ua_util_internal.h"
 
 _UA_BEGIN_DECLS
 
-typedef struct UA_Parsed_EventFilter {
-    UA_EventFilter filter;
-    UA_StatusCode status;
-} UA_Parsed_EventFilter;
+/* The following token identifiers are generated from ua_eventfilter_grammar.y.
+ * They need to be udpated here whenever the grammar is changed. */
+#define EF_TOK_OR                               1
+#define EF_TOK_AND                              2
+#define EF_TOK_NOT                              3
+#define EF_TOK_BINARY_OP                        4
+#define EF_TOK_BETWEEN                          5
+#define EF_TOK_INLIST                           6
+#define EF_TOK_UNARY_OP                         7
+#define EF_TOK_SELECT                           8
+#define EF_TOK_COMMA                            9
+#define EF_TOK_WHERE                           10
+#define EF_TOK_SAO                             11
+#define EF_TOK_LITERAL                         12
+#define EF_TOK_NAMEDOPERAND                    13
+#define EF_TOK_LPAREN                          14
+#define EF_TOK_RPAREN                          15
+#define EF_TOK_LBRACKET                        16
+#define EF_TOK_RBRACKET                        17
+#define EF_TOK_FOR                             18
+#define EF_TOK_COLONEQUAL                      19
 
-typedef enum OperandIdentifier {
-    ELEMENTOPERAND,
-    EXTENSIONOBJECT
-} OperandIdentifier;
-
-typedef struct UA_Parsed_Operand {
-    OperandIdentifier identifier;
-    union {
-        char *element_ref;
-        UA_ExtensionObject extension;
-    } value;
-} UA_Parsed_Operand;
-
-typedef struct UA_Parsed_Operator {
+typedef union {
     UA_FilterOperator filter;
-    size_t nbr_children;
-    UA_Parsed_Operand *children;
-    size_t ContentFilterArrayPosition;
-} UA_Parsed_Operator;
-
-typedef enum ElementIdentifier {
-    PARSEDOPERAND,
-    parsed_operator
-} ElementIdentifier;
-
-typedef union UA_Parsed_Element {
-    UA_Parsed_Operator oper;
-    UA_Parsed_Operand operand;
-} UA_Parsed_Element;
-
-typedef struct Parsed_Element {
-    char *ref;
-    ElementIdentifier identifier;
-    UA_Parsed_Element element;
-    TAILQ_ENTRY(Parsed_Element) element_entries;
-}UA_Parsed_Element_List;
-
-typedef TAILQ_HEAD(parsed_filter_elements, Parsed_Element) parsed_filter_elements;
-
-typedef struct UA_Element_List {
-    parsed_filter_elements head;
-}UA_Element_List;
-
-typedef union UA_Local_Operand {
+    UA_String text;
     UA_SimpleAttributeOperand sao;
-    UA_NodeId id;
-    char *str;
-    UA_LiteralOperand literal;
-} UA_Local_Operand;
+} Token;
 
-typedef struct counters {
-    size_t branch_element_number;
-    size_t for_operator_reference;
-    size_t operand_ctr;
-}UA_Counters;
+struct Operand;
+typedef struct Operand Operand;
 
-void save_string(char *str, char **local_str);
-void create_next_operand_element(UA_Element_List *elements, UA_Parsed_Operand *operand, char *ref);
-UA_StatusCode create_content_filter(UA_Element_List *elements, UA_ContentFilter *filter, char *first_element, UA_StatusCode status);
-void add_new_operator(UA_Element_List *global, char *operator_ref, UA_Parsed_Operator *element);
-UA_StatusCode append_select_clauses(UA_SimpleAttributeOperand **select_clauses, size_t *sao_size, UA_ExtensionObject *extension, UA_StatusCode status);
-UA_StatusCode set_up_browsepath(UA_QualifiedName **q_name_list, size_t *size, char *str, UA_StatusCode status);
-UA_StatusCode create_literal_operand(char *string, UA_LiteralOperand *lit, UA_StatusCode status);
-UA_StatusCode create_nodeId_from_string(char *identifier, UA_NodeId *id, UA_StatusCode status);
-void handle_elementoperand(UA_Parsed_Operand *operand, char *ref);
-void handle_sao(UA_SimpleAttributeOperand *simple, UA_Parsed_Operand *operand);
-void add_operand_from_branch(char **ref, size_t *operand_ctr, UA_Parsed_Operand *operand, UA_Element_List *global);
-void set_up_variant_from_nodeId(UA_NodeId *id, UA_Variant *litvalue);
-void handle_oftype_nodeId(UA_Parsed_Operator *element, UA_NodeId *id);
-void handle_literal_operand(UA_Parsed_Operand *operand, UA_LiteralOperand *literalValue);
-void set_up_typeid(UA_Local_Operand *operand);
-void handle_between_operator(UA_Parsed_Operator *element, UA_Parsed_Operand *operand_1, UA_Parsed_Operand *operand_2, UA_Parsed_Operand *operand_3);
-void handle_two_operands_operator(UA_Parsed_Operator *element, UA_Parsed_Operand *operand_1, UA_Parsed_Operand *operand_2, UA_FilterOperator *filter);
-void init_item_list(UA_Element_List *global, UA_Counters *ctr);
-void create_branch_element(UA_Element_List *global, size_t *branch_element_number, UA_FilterOperator filteroperator, char *ref_1, char *ref_2, char **ref);
-void handle_for_operator(UA_Element_List *global, size_t *for_operator_reference, char **ref, UA_Parsed_Operator *element);
-void change_element_reference(UA_Element_List *global, char *element_name, char *new_element_reference);
-void add_in_list_children(UA_Element_List *global, UA_Parsed_Operand *oper);
-void create_in_list_operator(UA_Element_List *global, UA_Parsed_Operand *oper, char *element_ref);
-void append_string(char **string, char *yytext);
-void set_up_variant_from_bool(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_string(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_bstring(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_float(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_double(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_sbyte(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_statuscode(char *yytext, UA_Variant *litvalue);
-UA_StatusCode set_up_variant_from_expnodeid(char *yytext, UA_Variant *litvalue, UA_StatusCode status);
-void set_up_variant_from_time(const char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_byte(char *yytext, UA_Variant *litvalue);
-UA_StatusCode set_up_variant_from_qname(char *str, UA_Variant *litvalue, UA_StatusCode status);
-void set_up_variant_from_guid(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_int64(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_localized(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_uint16(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_uint32(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_uint64(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_int16(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_int32(char *yytext, UA_Variant *litvalue);
-void create_nodeid_element(UA_Element_List *elements, UA_NodeId *id, char *ref);
-void add_child_operands(UA_Parsed_Operand *operand_list, size_t operand_list_size, UA_Parsed_Operator *element, UA_FilterOperator oper);
+typedef struct {
+    UA_FilterOperator filter;
+    size_t childrenSize;
+    Operand **children;
+    UA_Boolean required; /* Referenced in the operator hierarchy */
+    size_t elementIndex; /* If non-null, then the Operator has been printed out
+                          * already to the final EventFilter in the element
+                          * array. */
+} Operator;
+
+typedef enum { OT_OPERATOR, OT_REF, OT_SAO, OT_LITERAL } OperandType;
+
+struct Operand {
+    char *ref; /* The operand has a name */
+    OperandType type;
+    union {
+        Operator op;
+        char *ref; /* Reference to another operand with a name */
+        UA_SimpleAttributeOperand sao;
+        UA_Variant literal;
+    } operand;
+    LIST_ENTRY(Operand) entries;
+    TAILQ_ENTRY(Operand) select_entries;
+    Operand *next; /* For the INLINST operator list */
+};
+
+typedef struct {
+    const UA_Logger *logger;
+    LIST_HEAD(, Operand) operands;
+    size_t operandsSize;
+    TAILQ_HEAD(, Operand) select_operands;
+    Operand *top;
+    UA_StatusCode error;
+} EFParseContext;
+
+void EFParseContext_clear(EFParseContext *ctx);
+
+char * save_string(char *str);
+Operand * create_operand(EFParseContext *ctx, OperandType ot);
+Operand * create_operator(EFParseContext *ctx, UA_FilterOperator fo);
+void append_operand(Operand *op, Operand *on);
+void append_select(EFParseContext *ctx, Operand *on);
+UA_StatusCode create_filter(EFParseContext *ctx, UA_EventFilter *filter);
+
+/* Skip whitespace and comments */
+UA_StatusCode
+UA_EventFilter_skip(const UA_ByteString content, size_t *offset, EFParseContext *ctx);
+
+/* The begin offset is set to the beginning of the token (after comments and
+ * whitespace). If we we attempt to parse a token. */
+int UA_EventFilter_lex(const UA_ByteString content, size_t *offset,
+                       EFParseContext *ctx, Operand **token);
+
+/* Translate from the offset to lines/columns of the input */
+void
+pos2lines(const UA_ByteString content, size_t pos,
+          unsigned *outLine, unsigned *outCol);
 
 _UA_END_DECLS
 

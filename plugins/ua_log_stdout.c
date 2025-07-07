@@ -10,6 +10,8 @@
 
 #include <stdio.h>
 
+#include "mp_printf.h"
+
 /* ANSI escape sequences for color output taken from here:
  * https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c*/
 
@@ -40,22 +42,18 @@ const char *logLevelNames[6] = {"trace", "debug",
 static const char *
 logCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server", "client",
-     "userland", "securitypolicy", "eventloop", "pubsub", "discovery"};
+     "userland", "security", "eventloop", "pubsub", "discovery"};
 
-/* Protect crosstalk during logging via global lock.
- * Use a spinlock on non-POSIX as we cannot statically initialize a global lock. */
+/* Protect crosstalk during logging via global lock. Use a spinlock as we cannot
+ * statically initialize a global lock across all platforms. */
 #if UA_MULTITHREADING >= 100
-# ifdef UA_ARCHITECTURE_POSIX
-UA_Lock logLock = UA_LOCK_STATIC_INIT;
-# else
-void * volatile logSpinLock = NULL;
+void *logSpinLock = NULL;
 static UA_INLINE void spinLock(void) {
     while(UA_atomic_cmpxchg(&logSpinLock, NULL, (void*)0x1) != NULL) {}
 }
 static UA_INLINE void spinUnLock(void) {
     UA_atomic_xchg(&logSpinLock, NULL);
 }
-# endif
 #endif
 
 #ifdef __clang__
@@ -78,29 +76,24 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
 
     /* Lock */
 #if UA_MULTITHREADING >= 100
-# ifdef UA_ARCHITECTURE_POSIX
-    UA_LOCK(&logLock);
-# else
     spinLock();
-# endif
 #endif
+
+#define STDOUT_LOGBUFSIZE 512
+    char logbuf[STDOUT_LOGBUFSIZE];
 
     /* Log */
     printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s/%s" ANSI_COLOR_RESET "\t",
            dts.year, dts.month, dts.day, dts.hour, dts.min, dts.sec, dts.milliSec,
            (int)(tOffset / UA_DATETIME_SEC / 36), logLevelNames[logLevelSlot],
            logCategoryNames[category]);
-    vprintf(msg, args);
-    printf("\n");
+    mp_vsnprintf(logbuf, STDOUT_LOGBUFSIZE, msg, args);
+    printf("%s\n", logbuf);
     fflush(stdout);
 
     /* Unlock */
 #if UA_MULTITHREADING >= 100
-# ifdef UA_ARCHITECTURE_POSIX
-    UA_UNLOCK(&logLock);
-# else
     spinUnLock();
-# endif
 #endif
 }
 

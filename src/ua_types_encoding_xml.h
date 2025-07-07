@@ -11,26 +11,68 @@
 
 _UA_BEGIN_DECLS
 
+#define UA_XML_MAXMEMBERSCOUNT 256
 #define UA_XML_ENCODING_MAX_RECURSION 100
+
+/* XML input gets parsed into a sequence of tokens first.
+ * Processing isntructions, etc. get ignored. */
+
+typedef enum {
+    XML_TOKEN_ELEMENT = 0,
+    XML_TOKEN_ATTRIBUTE,
+} xml_token_type;
+
+typedef struct {
+    xml_token_type type;
+    UA_String name;
+    UA_String content;
+    unsigned attributes; // For elements only: the number of attributes
+    unsigned children;   // For elements only: the number of child elements
+    unsigned start;      // First character of the token in the xml
+    unsigned end;        // Position after the token ends
+} xml_token;
+
+typedef enum {
+    XML_ERROR_NONE = 0,
+    XML_ERROR_INVALID,   // Invalid character/syntax
+    XML_ERROR_OVERFLOW   // Token buffer overflow
+} xml_error_code;
+
+typedef struct {
+    xml_error_code error;
+    unsigned int error_pos;
+    unsigned int num_tokens;
+    const xml_token *tokens;
+} xml_result;
+
+/* Parse XML input into a token sequence */
+xml_result
+xml_tokenize(const char *xml, unsigned int len,
+             xml_token *tokens, unsigned int max_tokens);
 
 typedef struct {
     uint8_t *pos;
     const uint8_t *end;
-
     uint16_t depth; /* How often did we encoding recurse? */
     UA_Boolean calcOnly; /* Only compute the length of the decoding */
-    UA_Boolean prettyPrint;
-
     const UA_DataTypeArray *customTypes;
+
+    UA_NamespaceMapping *namespaceMapping;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
 } CtxXml;
 
 typedef struct {
-    const char* data;
-    size_t length;
-
-    uint16_t depth; /* How often did we decoding recurse? */
-
+    size_t index;
+    size_t depth;
+    size_t tokensSize;
+    xml_token *tokens;
     const UA_DataTypeArray *customTypes;
+    const char *xml;
+
+    UA_NamespaceMapping *namespaceMapping;
+    const UA_String *serverUris;
+    size_t serverUrisSize;
 } ParseCtxXml;
 
 typedef UA_StatusCode

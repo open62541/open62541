@@ -5,6 +5,7 @@
 #ifndef TEST_HELPERS_H_
 #define TEST_HELPERS_H_
 
+#include <stdlib.h>
 #include <open62541/client.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
@@ -47,6 +48,25 @@ UA_Server_newForUnitTestWithSecurityPolicies(UA_UInt16 portNumber,
     return UA_Server_newWithConfig(&config);
 }
 
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+static UA_INLINE UA_Server *
+UA_Server_newForUnitTestWithSecurityPolicies_Filestore(UA_UInt16 portNumber,
+                                                       const UA_ByteString *certificate,
+                                                       const UA_ByteString *privateKey,
+                                                       const UA_String storePath) {
+    UA_ServerConfig config;
+    memset(&config, 0, sizeof(UA_ServerConfig));
+#ifdef UA_ENABLE_ENCRYPTION
+    UA_ServerConfig_setDefaultWithFilestore(&config, portNumber,
+                                            certificate, privateKey, storePath);
+#endif
+    config.eventLoop->dateTime_now = UA_DateTime_now_fake;
+    config.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
+    config.tcpReuseAddr = true;
+    return UA_Server_newWithConfig(&config);
+}
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+
 static UA_INLINE
 UA_Client * UA_Client_newForUnitTest(void) {
     UA_Client *client = UA_Client_new();
@@ -57,6 +77,10 @@ UA_Client * UA_Client_newForUnitTest(void) {
     config->eventLoop->dateTime_now = UA_DateTime_now_fake;
     config->eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
     config->tcpReuseAddr = true;
+
+    /* Increase the timeouts (needed for valgrind CI tests) */
+    config->timeout = 10 * 60 * 1000;
+
     return client;
 }
 

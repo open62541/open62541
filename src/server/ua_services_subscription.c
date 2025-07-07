@@ -29,7 +29,7 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
                         UA_UInt32 requestedMaxKeepAliveCount,
                         UA_UInt32 maxNotificationsPerPublish,
                         UA_Byte priority) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* re-parameterize the subscription */
     UA_BOUNDEDVALUE_SETWBOUNDS(server->config.publishingIntervalLimits,
@@ -55,7 +55,7 @@ void
 Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            const UA_CreateSubscriptionRequest *request,
                            UA_CreateSubscriptionResponse *response) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Check limits for the number of subscriptions */
     if(((server->config.maxSubscriptions != 0) &&
@@ -132,7 +132,7 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
                            UA_ModifySubscriptionResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing ModifySubscriptionRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
     if(!sub) {
@@ -197,7 +197,7 @@ Operation_SetPublishingMode(UA_Server *server, UA_Session *session,
                             const UA_Boolean *publishingEnabled,
                             const UA_UInt32 *subscriptionId,
                             UA_StatusCode *result) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, *subscriptionId);
     if(!sub) {
         *result = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -219,7 +219,7 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                           UA_SetPublishingModeResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing SetPublishingModeRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_Boolean publishingEnabled = request->publishingEnabled; /* request is const */
     response->responseHeader.serviceResult =
@@ -237,7 +237,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
                 const UA_PublishRequest *request, UA_UInt32 requestId) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing PublishRequest with RequestId %u", requestId);
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Return an error if the session has no subscription */
     if(TAILQ_EMPTY(&session->subscriptions))
@@ -369,7 +369,7 @@ Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                             UA_DeleteSubscriptionsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing DeleteSubscriptionsRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
@@ -384,7 +384,7 @@ Service_Republish(UA_Server *server, UA_Session *session,
                   UA_RepublishResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RepublishRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Get the subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
@@ -473,18 +473,15 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
 
     /* Check with AccessControl if the transfer is allowed */
     if(server->config.accessControl.allowTransferSubscription) {
-        UA_LOCK_ASSERT(&server->serviceMutex, 1);
-        UA_UNLOCK(&server->serviceMutex);
+        UA_LOCK_ASSERT(&server->serviceMutex);
         if(!server->config.accessControl.
            allowTransferSubscription(server, &server->config.accessControl,
                                      oldSession ? &oldSession->sessionId : NULL,
                                      oldSession ? oldSession->context : NULL,
                                      &session->sessionId, session->context)) {
-            UA_LOCK(&server->serviceMutex);
             result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;
         }
-        UA_LOCK(&server->serviceMutex);
     } else {
         result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
@@ -544,9 +541,9 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     /* Move over the notification queue */
     TAILQ_INIT(&newSub->notificationQueue);
     UA_Notification *nn, *nn_tmp;
-    TAILQ_FOREACH_SAFE(nn, &sub->notificationQueue, globalEntry, nn_tmp) {
-        TAILQ_REMOVE(&sub->notificationQueue, nn, globalEntry);
-        TAILQ_INSERT_TAIL(&newSub->notificationQueue, nn, globalEntry);
+    TAILQ_FOREACH_SAFE(nn, &sub->notificationQueue, subEntry, nn_tmp) {
+        TAILQ_REMOVE(&sub->notificationQueue, nn, subEntry);
+        TAILQ_INSERT_TAIL(&newSub->notificationQueue, nn, subEntry);
     }
     sub->notificationQueueSize = 0;
     sub->dataChangeNotifications = 0;
@@ -606,7 +603,7 @@ void Service_TransferSubscriptions(UA_Server *server, UA_Session *session,
                                    UA_TransferSubscriptionsResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing TransferSubscriptionsRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,

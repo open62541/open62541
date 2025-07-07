@@ -7,9 +7,10 @@
 
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/util.h>
-#include "securitypolicy_mbedtls_common.h"
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+
+#include "securitypolicy_common.h"
 
 #include <mbedtls/aes.h>
 #include <mbedtls/ctr_drbg.h>

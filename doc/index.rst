@@ -22,7 +22,7 @@ the 'Micro Embedded Device Server' Profile of OPC Foundation supporting OPC UA
 client/server communication, subscriptions, method calls and security
 (encryption) with the security policies 'Basic128Rsa15', 'Basic256' and
 'Basic256Sha256' and the facets 'method server' and 'node management'. See
-https://open62541.org/certified-sdk for more details.
+https://open62541.org/certification for more details.
 
 OPC Unified Architecture
 ------------------------

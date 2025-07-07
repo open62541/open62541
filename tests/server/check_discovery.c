@@ -8,6 +8,7 @@
 #include <open62541/plugin/certificategroup_default.h>
 
 #include "server/ua_server_internal.h"
+#include "client/ua_client_internal.h"
 #include "../encryption/certificates.h"
 
 #include <fcntl.h>
@@ -16,14 +17,14 @@
 #include "test_helpers.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
 #include <sys/stat.h>
 #endif
 
 #include <check.h>
 #include <stdlib.h>
 
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
 #include <sys/stat.h>
 #endif
 
@@ -33,7 +34,7 @@
 #define checkWait registerTimeout + 11
 
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
-# ifndef _WIN32
+# ifndef UA_ARCHITECTURE_WIN32
 #  define SEMAPHORE_PATH "/tmp/open62541-unit-test-semaphore"
 # else
 #  define SEMAPHORE_PATH ".\\open62541-unit-test-semaphore"
@@ -69,8 +70,8 @@ configure_lds_server(UA_Server *pServer) {
                                                    NULL, 0, NULL, 0, NULL, 0);
     config_lds->tcpReuseAddr = true;
 
-    UA_CertificateVerification_AcceptAll(&config_lds->secureChannelPKI);
-    UA_CertificateVerification_AcceptAll(&config_lds->sessionPKI);
+    UA_CertificateGroup_AcceptAll(&config_lds->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config_lds->sessionPKI);
 
     config_lds->applicationDescription.applicationType =
         UA_APPLICATIONTYPE_DISCOVERYSERVER;
@@ -154,8 +155,8 @@ setup_register(void) {
 
     config_register->tcpReuseAddr = true;
 
-    UA_CertificateVerification_AcceptAll(&config_register->secureChannelPKI);
-    UA_CertificateVerification_AcceptAll(&config_register->sessionPKI);
+    UA_CertificateGroup_AcceptAll(&config_register->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config_register->sessionPKI);
 
     UA_String_clear(&config_register->applicationDescription.applicationUri);
     config_register->applicationDescription.applicationUri =
@@ -194,7 +195,7 @@ registerServer(void) {
     UA_ClientConfig cc;
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
-    UA_CertificateVerification_AcceptAll(&cc.certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc.certificateVerification);
     cc.eventLoop->dateTime_now = UA_DateTime_now_fake;
     cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
 
@@ -225,7 +226,7 @@ unregisterServer(void) {
     UA_ClientConfig cc;
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
-    UA_CertificateVerification_AcceptAll(&cc.certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc.certificateVerification);
     cc.eventLoop->dateTime_now = UA_DateTime_now_fake;
     cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
 
@@ -247,7 +248,7 @@ unregisterServer(void) {
 static void
 Server_register_semaphore(void) {
     // create the semaphore
-#ifndef _WIN32
+#ifndef UA_ARCHITECTURE_WIN32
     int fd = open(SEMAPHORE_PATH, O_RDWR|O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
     ck_assert_int_ne(fd, -1);
     close(fd);
@@ -270,7 +271,7 @@ Server_register_semaphore(void) {
     UA_ClientConfig cc;
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
-    UA_CertificateVerification_AcceptAll(&cc.certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc.certificateVerification);
     cc.eventLoop->dateTime_now = UA_DateTime_now_fake;
     cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
 

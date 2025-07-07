@@ -22,9 +22,13 @@
 
 #cmakedefine UA_ARCHITECTURE_WIN32
 #cmakedefine UA_ARCHITECTURE_POSIX
+#cmakedefine UA_ARCHITECTURE_ZEPHYR
+#cmakedefine UA_ARCHITECTURE_LWIP
+#cmakedefine UA_ARCHITECTURE_FREERTOS
 
 /* Select default architecture if none is selected */
-#if !defined(UA_ARCHITECTURE_WIN32) && !defined(UA_ARCHITECTURE_POSIX)
+#if !defined(UA_ARCHITECTURE_WIN32) && !defined(UA_ARCHITECTURE_POSIX) &&      \
+    !defined(UA_ARCHITECTURE_ZEPHYR) && !defined(UA_ARCHITECTURE_LWIP)
 # ifdef _WIN32
 #  define UA_ARCHITECTURE_WIN32
 # else
@@ -37,17 +41,14 @@
  * ---------------
  * Changing the feature options has no effect on a pre-compiled library. */
 
-#ifndef UA_LOGLEVEL
+#ifndef UA_LOGLEVEL /* allows overriding UA_LOGLEVEL from an external Makefile */
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
 #endif
-#ifndef UA_ENABLE_AMALGAMATION
 #cmakedefine UA_ENABLE_AMALGAMATION
-#endif
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
 #cmakedefine UA_ENABLE_PUBSUB
-#cmakedefine UA_ENABLE_PUBSUB_ENCRYPTION
 #cmakedefine UA_ENABLE_PUBSUB_FILE_CONFIG
 #cmakedefine UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #cmakedefine UA_ENABLE_DA
@@ -56,12 +57,13 @@
 #cmakedefine UA_ENABLE_PARSING
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_EVENTS
 #cmakedefine UA_ENABLE_JSON_ENCODING
+#cmakedefine UA_ENABLE_JSON_ENCODING_LEGACY
 #cmakedefine UA_ENABLE_XML_ENCODING
 #cmakedefine UA_ENABLE_MQTT
 #cmakedefine UA_ENABLE_NODESET_INJECTOR
 #cmakedefine UA_INFORMATION_MODEL_AUTOLOAD
 #cmakedefine UA_ENABLE_ENCRYPTION_MBEDTLS
-#cmakedefine UA_ENABLE_CERT_REJECTED_DIR
+#cmakedefine UA_ENABLE_GDS_PUSHMANAGEMENT
 #cmakedefine UA_ENABLE_TPM2_SECURITY
 #cmakedefine UA_ENABLE_ENCRYPTION_OPENSSL
 #cmakedefine UA_ENABLE_ENCRYPTION_LIBRESSL
@@ -71,7 +73,6 @@
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
 /* Multithreading */
-#cmakedefine UA_ENABLE_IMMUTABLE_NODES
 #define UA_MULTITHREADING ${UA_MULTITHREADING}
 
 /* Advanced Options */
@@ -81,17 +82,17 @@
 #cmakedefine UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS
 #cmakedefine UA_ENABLE_DETERMINISTIC_RNG
 #cmakedefine UA_ENABLE_DISCOVERY
-#cmakedefine UA_ENABLE_DISCOVERY_MULTICAST
+#cmakedefine UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
+#cmakedefine UA_ENABLE_DISCOVERY_MULTICAST_AVAHI
+#if defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD) || defined(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+#define UA_ENABLE_DISCOVERY_MULTICAST
+#endif
 #cmakedefine UA_ENABLE_QUERY
 #cmakedefine UA_ENABLE_MALLOC_SINGLETON
 #cmakedefine UA_ENABLE_DISCOVERY_SEMAPHORE
 #cmakedefine UA_GENERATED_NAMESPACE_ZERO
 #cmakedefine UA_GENERATED_NAMESPACE_ZERO_FULL
-#cmakedefine UA_ENABLE_PUBSUB_MONITORING
-#cmakedefine UA_ENABLE_PUBSUB_BUFMALLOC
 #cmakedefine UA_ENABLE_PUBSUB_SKS
-
-#cmakedefine UA_PACK_DEBIAN
 
 /* Options for Debugging */
 #cmakedefine UA_DEBUG
@@ -122,13 +123,37 @@
 # endif
 #endif
 
+
+/**
+ * QNX Flags
+ * -------------------
+ * Defining _QNX_SOURCE will ensure proper qnx types and other features 
+ * are available. */
+#if defined(__QNX__)
+# define _QNX_SOURCE 1
+#endif
+
+/**
+ * QNX Flags
+ * -------------------
+ * Defining _QNX_SOURCE will ensure proper qnx types and other features 
+ * are available. */
+#if defined(__QNX__)
+# define _QNX_SOURCE 1
+#endif
+
 /**
  * POSIX Feature Flags
  * -------------------
  * These feature flags have to be set before including the first POSIX
- * header. */
+ * header.
+ *
+ * Special note for FreeBSD: Defining _XOPEN_SOURCE will hide lots of socket
+ * definitions as they are not defined by POSIX. Defining _BSD_SOURCE will
+ * not help as the symbols undergo a consistency check and get adjusted in
+ * the headers. */
 #ifdef UA_ARCHITECTURE_POSIX
-# if !defined(_XOPEN_SOURCE)
+# if !defined(_XOPEN_SOURCE) && !defined(__FreeBSD__)
 #  define _XOPEN_SOURCE 600
 # endif
 # ifndef _DEFAULT_SOURCE
@@ -141,17 +166,20 @@
 #  define _BSD_SOURCE
 # endif
 
-/* Define _GNU_SOURCE to get functions like ppoll. Comment this out to
+/* Define _GNU_SOURCE to get functions like poll. Comment this out to
  * only use standard POSIX definitions. */
 # ifndef _GNU_SOURCE
 #  define _GNU_SOURCE
 # endif
+
+#define UA_HAS_GETIFADDR 1
 #endif
 
 /**
  * C99 Definitions
  * --------------- */
 #include <stddef.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <inttypes.h>
@@ -206,27 +234,42 @@
 
 /* Intrinsic atomic operations are not available everywhere for MSVC.
  * Use the win32 API. Prevent duplicate definitions by via winsock2. */
-#if UA_MULTITHREADING >= 100 && defined(_WIN32)
-# ifndef _WINSOCKAPI_
-#  define _NO_WINSOCKAPI_
-# endif
-# define _WINSOCKAPI_
-# include <windows.h>
-# ifdef _NO_WINSOCKAPI_
-#  undef _WINSOCKAPI_
+#if UA_MULTITHREADING >= 100
+# if defined(_WIN32)
+#  ifndef _WINSOCKAPI_
+#   define _NO_WINSOCKAPI_
+#  endif
+#  define _WINSOCKAPI_
+#  include <windows.h>
+#  ifdef _NO_WINSOCKAPI_
+#   undef _WINSOCKAPI_
+#  endif
+# elif defined(__has_include) && __has_include(<stdatomic.h>)
+#  define UA_HAVE_C11_ATOMICS
+#  ifdef __cplusplus
+#    include <atomic>
+#    define _Atomic(T) std::atomic<T>
+#    define atomic_uintptr_t std::atomic_uintptr_t
+#  else
+#    include <stdatomic.h>
+#  endif
+# elif !defined(HAVE_GCC_SYNC_BUILTINS)
+#  error Atomic operations not implemented
 # endif
 #endif
 
 static UA_INLINE void *
-UA_atomic_xchg(void * volatile * addr, void *newptr) {
-#if UA_MULTITHREADING >= 100 && defined(_WIN32) /* Visual Studio */
-    return InterlockedExchangePointer(addr, newptr);
-#elif UA_MULTITHREADING >= 100 && defined(__GNUC__) /* GCC/Clang */
+UA_atomic_xchg(void **addr, void *newptr) {
+#if UA_MULTITHREADING >= 100
+# if defined(_WIN32) /* Visual Studio */
+    return InterlockedExchangePointer((void * volatile *)(uintptr_t)addr, newptr);
+# elif defined(UA_HAVE_C11_ATOMICS)
+    return (void *)atomic_exchange((volatile atomic_uintptr_t *)addr,
+                                   (uintptr_t)newptr);
+# else /* HAVE_GCC_SYNC_BUILTINS */
     return __sync_lock_test_and_set(addr, newptr);
-#else
-# if UA_MULTITHREADING >= 100
-#  warning Atomic operations not implemented
 # endif
+#else
     void *old = *addr;
     *addr = newptr;
     return old;
@@ -234,16 +277,41 @@ UA_atomic_xchg(void * volatile * addr, void *newptr) {
 }
 
 static UA_INLINE void *
-UA_atomic_cmpxchg(void * volatile * addr, void *expected, void *newptr) {
-#if UA_MULTITHREADING >= 100 && defined(_WIN32) /* Visual Studio */
-    return InterlockedCompareExchangePointer(addr, newptr, expected);
-#elif UA_MULTITHREADING >= 100 && defined(__GNUC__) /* GCC/Clang */
+UA_atomic_cmpxchg(void **addr, void *expected, void *newptr) {
+#if UA_MULTITHREADING >= 100
+# if defined(_WIN32) /* Visual Studio */
+    return InterlockedCompareExchangePointer((void *volatile *)(uintptr_t)addr,
+                                             newptr, expected);
+# elif defined(UA_HAVE_C11_ATOMICS)
+    atomic_compare_exchange_strong((volatile atomic_uintptr_t *)addr,
+                                   (uintptr_t *)&expected, (uintptr_t)newptr);
+    return expected;
+# else /* HAVE_GCC_SYNC_BUILTINS */
     return __sync_val_compare_and_swap(addr, expected, newptr);
+# endif
 #else
     void *old = *addr;
     if(old == expected)
         *addr = newptr;
     return old;
+#endif
+}
+
+static UA_INLINE void *
+UA_atomic_load(void **addr) {
+#if UA_MULTITHREADING >= 100
+# if defined(_WIN32) /* Visual Studio */
+    /* Assume x86 for Win32 builds. There we only need to lock stores. Reads are
+     * always atomic: "Locked operations are atomic with respect to all other
+     * memory operations and all externally visible events." */
+    return *addr;
+# elif defined(UA_HAVE_C11_ATOMICS)
+    return (void*)atomic_load((volatile atomic_uintptr_t *)addr);
+# else /* HAVE_GCC_SYNC_BUILTINS */
+    return __sync_fetch_and_or(addr, (void*)0);
+# endif
+#else
+    return *addr;
 #endif
 }
 
@@ -335,7 +403,12 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 
 /**
  * Locking for Multithreading
- * -------------------------- */
+ * --------------------------
+ * If locking is enabled, the locks must be reentrant. That is, the same thread
+ * must be able to take the same lock several times. This is required because we
+ * sometimes call a user-defined callback when the server-lock is still held.
+ * The user-defined code then should be able to call (public) methods which
+ * again take the server-lock. */
 
 #if UA_MULTITHREADING < 100
 
@@ -343,41 +416,43 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_LOCK_DESTROY(lock)
 # define UA_LOCK(lock)
 # define UA_UNLOCK(lock)
-# define UA_LOCK_ASSERT(lock, num)
+# define UA_LOCK_ASSERT(lock)
 
 #elif defined(UA_ARCHITECTURE_WIN32)
 
 typedef struct {
+    /* Critical sections on win32 are always recursive */
     CRITICAL_SECTION mutex;
-    int mutexCounter;
+    unsigned count; /* For assertions that we hold the mutex */
 } UA_Lock;
 
 static UA_INLINE void
 UA_LOCK_INIT(UA_Lock *lock) {
     InitializeCriticalSection(&lock->mutex);
-    lock->mutexCounter = 0;
+    lock->count = 0;
 }
 
 static UA_INLINE void
 UA_LOCK_DESTROY(UA_Lock *lock) {
+    UA_assert(lock->count == 0);
     DeleteCriticalSection(&lock->mutex);
 }
 
 static UA_INLINE void
 UA_LOCK(UA_Lock *lock) {
     EnterCriticalSection(&lock->mutex);
-    UA_assert(++(lock->mutexCounter) == 1);
+    lock->count++;
 }
 
 static UA_INLINE void
 UA_UNLOCK(UA_Lock *lock) {
-    UA_assert(--(lock->mutexCounter) == 0);
+    lock->count--;
     LeaveCriticalSection(&lock->mutex);
 }
 
 static UA_INLINE void
-UA_LOCK_ASSERT(UA_Lock *lock, int num) {
-    UA_assert(lock->mutexCounter == num);
+UA_LOCK_ASSERT(UA_Lock *lock) {
+    UA_assert(lock->count > 0);
 }
 
 #elif defined(UA_ARCHITECTURE_POSIX)
@@ -386,39 +461,40 @@ UA_LOCK_ASSERT(UA_Lock *lock, int num) {
 
 typedef struct {
     pthread_mutex_t mutex;
-    int mutexCounter;
+    unsigned count; /* For assertions that we hold the mutex */
 } UA_Lock;
-
-#define UA_LOCK_STATIC_INIT {PTHREAD_MUTEX_INITIALIZER, 0}
 
 static UA_INLINE void
 UA_LOCK_INIT(UA_Lock *lock) {
-    pthread_mutex_init(&lock->mutex, NULL);
-    lock->mutexCounter = 0;
+    pthread_mutexattr_t mattr;
+    pthread_mutexattr_init(&mattr);
+    pthread_mutexattr_settype(&mattr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(&lock->mutex, &mattr);
+    pthread_mutexattr_destroy(&mattr);
+    lock->count = 0;
 }
 
 static UA_INLINE void
 UA_LOCK_DESTROY(UA_Lock *lock) {
+    UA_assert(lock->count == 0);
     pthread_mutex_destroy(&lock->mutex);
 }
 
 static UA_INLINE void
 UA_LOCK(UA_Lock *lock) {
     pthread_mutex_lock(&lock->mutex);
-    UA_assert(lock->mutexCounter == 0);
-    lock->mutexCounter++;
+    lock->count++;
 }
 
 static UA_INLINE void
 UA_UNLOCK(UA_Lock *lock) {
-    UA_assert(lock->mutexCounter == 1);
-    lock->mutexCounter--;
+    lock->count--;
     pthread_mutex_unlock(&lock->mutex);
 }
 
 static UA_INLINE void
-UA_LOCK_ASSERT(UA_Lock *lock, int num) {
-    UA_assert(lock->mutexCounter == num);
+UA_LOCK_ASSERT(UA_Lock *lock) {
+    UA_assert(lock->count > 0);
 }
 
 #endif
