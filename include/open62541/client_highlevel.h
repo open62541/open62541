@@ -201,202 +201,109 @@ UA_Client_HistoryUpdate_deleteRaw(
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_write(UA_Client *client, const UA_WriteValue *wv);
 
-/* Don't call this function, use the typed versions */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-__UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
-                           UA_AttributeId attributeId, const void *in,
-                           const UA_DataType *inDataType);
-
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeNodeIdAttribute(UA_Client *client, const UA_NodeId nodeId,
-                               const UA_NodeId *newNodeId) ,{
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_NODEID,
-                                      newNodeId, &UA_TYPES[UA_TYPES_NODEID]);
-})
+                               const UA_NodeId *newNodeId);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeNodeClassAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                  const UA_NodeClass *newNodeClass) ,{
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_NODECLASS,
-                                      newNodeClass, &UA_TYPES[UA_TYPES_NODECLASS]);
-})
+                                  const UA_NodeClass *newNodeClass);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeBrowseNameAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                   const UA_QualifiedName *newBrowseName) ,{
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_BROWSENAME,
-                                      newBrowseName,
-                                      &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-})
+                                   const UA_QualifiedName *newBrowseName);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeDisplayNameAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                    const UA_LocalizedText *newDisplayName) ,{
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME,
-                                      newDisplayName,
-                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-})
+                                    const UA_LocalizedText *newDisplayName);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeDescriptionAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                    const UA_LocalizedText *newDescription) ,{
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_DESCRIPTION,
-                                      newDescription,
-                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-})
+                                    const UA_LocalizedText *newDescription);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeWriteMaskAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                  const UA_UInt32 *newWriteMask) ,{
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_WRITEMASK,
-                                      newWriteMask, &UA_TYPES[UA_TYPES_UINT32]);
-})
+                                  const UA_UInt32 *newWriteMask);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeUserWriteMaskAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                      const UA_UInt32 *newUserWriteMask) ,{
-    return __UA_Client_writeAttribute(client, &nodeId,
-                                      UA_ATTRIBUTEID_USERWRITEMASK,
-                                      newUserWriteMask,
-                                      &UA_TYPES[UA_TYPES_UINT32]);
-})
+                                      const UA_UInt32 *newUserWriteMask);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeIsAbstractAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                   const UA_Boolean *newIsAbstract) ,{
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_ISABSTRACT,
-                                      newIsAbstract, &UA_TYPES[UA_TYPES_BOOLEAN]);
-})
+                                   const UA_Boolean *newIsAbstract);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeSymmetricAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                  const UA_Boolean *newSymmetric) ,{
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_SYMMETRIC,
-                                      newSymmetric, &UA_TYPES[UA_TYPES_BOOLEAN]);
-})
+                                  const UA_Boolean *newSymmetric);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeInverseNameAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                    const UA_LocalizedText *newInverseName) ,{
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_INVERSENAME,
-                                      newInverseName,
-                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-})
+                                    const UA_LocalizedText *newInverseName);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeContainsNoLoopsAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                        const UA_Boolean *newContainsNoLoops) ,{
-    return __UA_Client_writeAttribute(client, &nodeId,
-                                      UA_ATTRIBUTEID_CONTAINSNOLOOPS,
-                                      newContainsNoLoops,
-                                      &UA_TYPES[UA_TYPES_BOOLEAN]);
-})
+                                        const UA_Boolean *newContainsNoLoops);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeEventNotifierAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                      const UA_Byte *newEventNotifier) ,{
-    return __UA_Client_writeAttribute(client, &nodeId,
-                                      UA_ATTRIBUTEID_EVENTNOTIFIER,
-                                      newEventNotifier,
-                                      &UA_TYPES[UA_TYPES_BYTE]);
-})
+                                      const UA_Byte *newEventNotifier);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeValueAttribute(UA_Client *client, const UA_NodeId nodeId,
-                              const UA_Variant *newValue) ,{
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_VALUE,
-                                      newValue, &UA_TYPES[UA_TYPES_VARIANT]);
-})
+                              const UA_Variant *newValue);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeValueAttribute_scalar(UA_Client *client, const UA_NodeId nodeId,
                                      const void *newValue,
-                                     const UA_DataType *valueType), {
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_VALUE,
-                                      newValue, valueType);
-})
+                                     const UA_DataType *valueType);
 
 /* Write a DataValue that can include timestamps and status codes */
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeValueAttributeEx(UA_Client *client, const UA_NodeId nodeId,
-                                const UA_DataValue *newValue), {
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_VALUE,
-                                      newValue, &UA_TYPES[UA_TYPES_DATAVALUE]);
-})
+                                const UA_DataValue *newValue);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeDataTypeAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                 const UA_NodeId *newDataType), {
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_DATATYPE,
-                                      newDataType, &UA_TYPES[UA_TYPES_NODEID]);
-})
+                                 const UA_NodeId *newDataType);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeValueRankAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                  const UA_Int32 *newValueRank) ,{
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_VALUERANK,
-                                      newValueRank, &UA_TYPES[UA_TYPES_INT32]);
-})
+                                  const UA_Int32 *newValueRank);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                         size_t newArrayDimensionsSize,
                                         const UA_UInt32 *newArrayDimensions);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                    const UA_Byte *newAccessLevel) ,{
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
-                                      newAccessLevel, &UA_TYPES[UA_TYPES_BYTE]);
-})
+                                    const UA_Byte *newAccessLevel);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeAccessLevelExAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                      UA_UInt32 *newAccessLevelEx), {
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
-                                      newAccessLevelEx, &UA_TYPES[UA_TYPES_UINT32]);
-})
+                                      UA_UInt32 *newAccessLevelEx);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                        const UA_Byte *newUserAccessLevel), {
-    return __UA_Client_writeAttribute(client, &nodeId,
-                                      UA_ATTRIBUTEID_USERACCESSLEVEL,
-                                      newUserAccessLevel,
-                                      &UA_TYPES[UA_TYPES_BYTE]);
-})
+                                        const UA_Byte *newUserAccessLevel);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeMinimumSamplingIntervalAttribute(UA_Client *client,
                                                 const UA_NodeId nodeId,
-                                                const UA_Double *newMinInterval), {
-    return __UA_Client_writeAttribute(client, &nodeId,
-                                      UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
-                                      newMinInterval, &UA_TYPES[UA_TYPES_DOUBLE]);
-})
+                                                const UA_Double *newMinInterval);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeHistorizingAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                    const UA_Boolean *newHistorizing), {
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_HISTORIZING,
-                                      newHistorizing, &UA_TYPES[UA_TYPES_BOOLEAN]);
-})
+                                    const UA_Boolean *newHistorizing);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                   const UA_Boolean *newExecutable), {
-    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
-                                      newExecutable, &UA_TYPES[UA_TYPES_BOOLEAN]);
-})
+                                   const UA_Boolean *newExecutable);
 
-UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Client_writeUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                       const UA_Boolean *newUserExecutable), {
-    return __UA_Client_writeAttribute(client, &nodeId,
-                                      UA_ATTRIBUTEID_USEREXECUTABLE,
-                                      newUserExecutable,
-                                      &UA_TYPES[UA_TYPES_BOOLEAN]);
-})
+                                       const UA_Boolean *newUserExecutable);
 
 /**
  * Method Calling
