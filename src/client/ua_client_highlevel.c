@@ -526,10 +526,10 @@ UA_Client_read(UA_Client *client, const UA_ReadValueId *rvi) {
     return res;
 }
 
-UA_StatusCode
-__UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
-                          UA_AttributeId attributeId, void *out,
-                          const UA_DataType *outDataType) {
+static UA_StatusCode
+__Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
+                       UA_AttributeId attributeId, void *out,
+                       const UA_DataType *outDataType) {
     UA_ReadValueId item;
     UA_ReadValueId_init(&item);
     item.nodeId = *nodeId;
@@ -580,6 +580,160 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
 
     UA_ReadResponse_clear(&response);
     return retval;
+}
+
+UA_StatusCode
+UA_Client_readNodeIdAttribute(UA_Client *client, const UA_NodeId nodeId,
+                              UA_NodeId *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_NODEID,
+                                  out, &UA_TYPES[UA_TYPES_NODEID]);
+}
+
+UA_StatusCode
+UA_Client_readNodeClassAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                 UA_NodeClass *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_NODECLASS,
+                                  out, &UA_TYPES[UA_TYPES_NODECLASS]);
+}
+
+UA_StatusCode
+UA_Client_readBrowseNameAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                  UA_QualifiedName *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_BROWSENAME,
+                                  out, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+}
+
+UA_StatusCode
+UA_Client_readDisplayNameAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                   UA_LocalizedText *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME,
+                                  out, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+}
+
+UA_StatusCode
+UA_Client_readDescriptionAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                   UA_LocalizedText *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_DESCRIPTION,
+                                  out, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+}
+
+UA_StatusCode
+UA_Client_readWriteMaskAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                 UA_UInt32 *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_WRITEMASK,
+                                  out, &UA_TYPES[UA_TYPES_UINT32]);
+}
+
+UA_StatusCode
+UA_Client_readUserWriteMaskAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                     UA_UInt32 *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_USERWRITEMASK,
+                                  out, &UA_TYPES[UA_TYPES_UINT32]);
+}
+
+UA_StatusCode
+UA_Client_readIsAbstractAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                  UA_Boolean *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_ISABSTRACT,
+                                  out, &UA_TYPES[UA_TYPES_BOOLEAN]);
+}
+
+UA_StatusCode
+UA_Client_readSymmetricAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                 UA_Boolean *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_SYMMETRIC,
+                                  out, &UA_TYPES[UA_TYPES_BOOLEAN]);
+}
+
+UA_StatusCode
+UA_Client_readInverseNameAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                   UA_LocalizedText *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_INVERSENAME,
+                                  out, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+}
+
+UA_StatusCode
+UA_Client_readContainsNoLoopsAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                       UA_Boolean *outContainsNoLoops) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_CONTAINSNOLOOPS,
+                                     outContainsNoLoops, &UA_TYPES[UA_TYPES_BOOLEAN]);
+}
+
+UA_StatusCode
+UA_Client_readEventNotifierAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                     UA_Byte *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER,
+                                  out, &UA_TYPES[UA_TYPES_BYTE]);
+}
+
+UA_StatusCode
+UA_Client_readValueAttribute(UA_Client *client, const UA_NodeId nodeId,
+                             UA_Variant *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_VALUE,
+                                  out, &UA_TYPES[UA_TYPES_VARIANT]);
+}
+
+UA_StatusCode
+UA_Client_readDataTypeAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                UA_NodeId *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_DATATYPE,
+                                  out, &UA_TYPES[UA_TYPES_NODEID]);
+}
+
+UA_StatusCode
+UA_Client_readValueRankAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                 UA_Int32 *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_VALUERANK,
+                                  out, &UA_TYPES[UA_TYPES_INT32]);
+}
+
+UA_StatusCode
+UA_Client_readAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                   UA_Byte *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
+                                  out, &UA_TYPES[UA_TYPES_BYTE]);
+}
+
+UA_StatusCode
+UA_Client_readAccessLevelExAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                     UA_UInt32 *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
+                                  out, &UA_TYPES[UA_TYPES_UINT32]);
+}
+
+UA_StatusCode
+UA_Client_readUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                       UA_Byte *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_USERACCESSLEVEL,
+                                  out, &UA_TYPES[UA_TYPES_BYTE]);
+}
+
+UA_StatusCode
+UA_Client_readMinimumSamplingIntervalAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                               UA_Double *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
+                                  out, &UA_TYPES[UA_TYPES_DOUBLE]);
+}
+
+UA_StatusCode
+UA_Client_readHistorizingAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                   UA_Boolean *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_HISTORIZING,
+                                  out, &UA_TYPES[UA_TYPES_BOOLEAN]);
+}
+
+UA_StatusCode
+UA_Client_readExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                  UA_Boolean *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
+                                  out, &UA_TYPES[UA_TYPES_BOOLEAN]);
+}
+
+UA_StatusCode
+UA_Client_readUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                      UA_Boolean *out) {
+    return __Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_USEREXECUTABLE,
+                                  out, &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
 
 static UA_StatusCode
