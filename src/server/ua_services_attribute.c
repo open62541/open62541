@@ -410,7 +410,8 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head);
         retval = UA_Variant_setScalarCopy(&v->value, &userWriteMask,
                                           &UA_TYPES[UA_TYPES_UINT32]);
-        break; }
+        break;
+    }
     case UA_ATTRIBUTEID_ISABSTRACT:
         retval = readIsAbstractAttribute(node, &v->value);
         break;
@@ -497,7 +498,8 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         UA_Byte userAccessLevel = getUserAccessLevel(server, session, &node->variableNode);
         retval = UA_Variant_setScalarCopy(&v->value, &userAccessLevel,
                                           &UA_TYPES[UA_TYPES_BYTE]);
-        break; }
+        break;
+    }
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         retval = UA_Variant_setScalarCopy(&v->value,
@@ -512,7 +514,7 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_EXECUTABLE:
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
         retval = UA_Variant_setScalarCopy(&v->value, &node->methodNode.executable,
-                          &UA_TYPES[UA_TYPES_BOOLEAN]);
+                                          &UA_TYPES[UA_TYPES_BOOLEAN]);
         break;
     case UA_ATTRIBUTEID_USEREXECUTABLE: {
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
@@ -520,13 +522,12 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
             getUserExecutable(server, session, &node->methodNode);
         retval = UA_Variant_setScalarCopy(&v->value, &userExecutable,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
-        break; }
+        break;
+    }
     case UA_ATTRIBUTEID_DATATYPEDEFINITION: {
         CHECK_NODECLASS(UA_NODECLASS_DATATYPE);
-
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        const UA_DataType *type =
-            findDataType(node, server->config.customDataTypes);
+        const UA_DataType *type = findDataType(node, server->config.customDataTypes);
         if(!type) {
             retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
             break;
@@ -537,7 +538,7 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
            UA_DATATYPEKIND_UNION == type->typeKind) {
             UA_StructureDefinition def;
             retval = getStructureDefinition(type, &def);
-            if(UA_STATUSCODE_GOOD!=retval)
+            if(UA_STATUSCODE_GOOD != retval)
                 break;
             retval = UA_Variant_setScalarCopy(&v->value, &def,
                                               &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
@@ -546,8 +547,8 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         }
 #endif
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
-        break; }
-
+        break;
+    }
     case UA_ATTRIBUTEID_ROLEPERMISSIONS:
     case UA_ATTRIBUTEID_USERROLEPERMISSIONS:
     case UA_ATTRIBUTEID_ACCESSRESTRICTIONS:
