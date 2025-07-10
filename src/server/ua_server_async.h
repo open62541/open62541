@@ -24,11 +24,25 @@ _UA_BEGIN_DECLS
 struct UA_AsyncResponse;
 typedef struct UA_AsyncResponse UA_AsyncResponse;
 
+typedef UA_Boolean (*UA_AsyncServiceOperation)(
+    UA_Server *server, UA_Session *session,
+    const void *requestOperation, void *responseOperation);
+
+/* The async service description parameterizes the async execution.
+ * It should be const-global so that the pointer to it is stable. */
+typedef struct {
+    const UA_DataType *responseType;
+    UA_AsyncServiceOperation operationCallback;
+    size_t requestCounterOffset;
+    const UA_DataType *requestOperationsType;
+    size_t responseCounterOffset;
+    const UA_DataType *responseOperationsType;
+} UA_AsyncServiceDescription;
+
 /* A single operation (of a larger request) */
 typedef struct UA_AsyncOperation {
     TAILQ_ENTRY(UA_AsyncOperation) pointers;
-    UA_CallMethodRequest request;
-    UA_CallMethodResult *response;
+    void *opResult;
     UA_AsyncResponse *parent; /* Always non-NULL. The parent is only removed
                                * when its operations are removed */
 } UA_AsyncOperation;
@@ -36,19 +50,17 @@ typedef struct UA_AsyncOperation {
 struct UA_AsyncResponse {
     TAILQ_ENTRY(UA_AsyncResponse) pointers; /* Insert new at the end */
     UA_UInt32 requestId;
-    UA_NodeId sessionId;
     UA_UInt32 requestHandle;
     UA_DateTime timeout;
-    size_t *resultsSize;
-    void **results;
-    const UA_DataType *resultsType;
+    UA_NodeId sessionId;
+    UA_UInt32 opCountdown; /* Counter for outstanding operations. The AR can
+                            * only be deleted when all have returned. */
+    const UA_AsyncServiceDescription *asyncServiceDescription;
     union {
         UA_CallResponse callResponse;
         UA_ReadResponse readResponse;
         UA_WriteResponse writeResponse;
     } response;
-    UA_UInt32 opCountdown; /* Counter for outstanding operations. The AR can
-                            * only be deleted when all have returned. */
 };
 
 typedef TAILQ_HEAD(UA_AsyncOperationQueue, UA_AsyncOperation) UA_AsyncOperationQueue;
@@ -86,10 +98,6 @@ UA_AsyncManager_removeAsyncResponse(UA_AsyncManager *am, UA_AsyncResponse *ar);
 UA_UInt32
 UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle);
 
-typedef UA_Boolean (*UA_AsyncServiceOperation)(
-    UA_Server *server, UA_Session *session,
-    const void *requestOperation, void *responseOperation);
-
 /* Creates an AsyncResponse with its AsyncOperations as an appendix to the
  * results array. The results array can be "normally" freed once all async
  * operations are processed.
@@ -100,11 +108,8 @@ typedef UA_Boolean (*UA_AsyncServiceOperation)(
  * is not visible to the calling method. */
 UA_StatusCode
 allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
-                                    UA_AsyncServiceOperation operationCallback,
-                                    const size_t *requestOperations,
-                                    const UA_DataType *requestOperationsType,
-                                    size_t *responseOperations,
-                                    const UA_DataType *responseOperationsType)
+                                    const UA_AsyncServiceDescription *asDescription,
+                                    const void *request, void *response)
 UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 _UA_END_DECLS

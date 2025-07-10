@@ -372,12 +372,15 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     const UA_VariableNode *outputArguments =
         getArgumentsVariableNode(server, &method->head, UA_STRING("OutputArguments"));
 
-    /* Allocate the output arguments array */
+    /* Allocate the output arguments array. Always allocate memory, hence the
+     * +1, even if the length is zero. Because we need a unique outputArguments
+     * pointer as the key for async operations. The memory gets deleted in
+     * UA_Array_delete even if the outputArgumentsSize is zero. */
     size_t outputArgsSize = 0;
     if(outputArguments)
         outputArgsSize = outputArguments->valueSource.internal.value.value.arrayLength;
     result->outputArguments = (UA_Variant*)
-        UA_Array_new(outputArgsSize, &UA_TYPES[UA_TYPES_VARIANT]);
+        UA_Array_new(outputArgsSize+1, &UA_TYPES[UA_TYPES_VARIANT]);
     if(!result->outputArguments) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -387,19 +390,13 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     /* Release the output arguments node */
     UA_NODESTORE_RELEASE(server, (const UA_Node*)outputArguments);
 
-    /* The outputArguments array should have a unique pointer. If the length is
-     * zero (and the pointer is NULL), then we forward a pointer to the results
-     * structure. Which is unique and should not get written to. */
-    UA_Variant *outputArray = (result->outputArgumentsSize > 0) ?
-        result->outputArguments : (UA_Variant*)result;
-
     /* Call the method. If this is an async method, unlock the server lock for
      * the duration of the (long-running) call. */
     result->statusCode = method->method(server, &session->sessionId, session->context,
                                         &method->head.nodeId, method->head.context,
                                         &object->head.nodeId, object->head.context,
                                         request->inputArgumentsSize, mutableInputArgs,
-                                        result->outputArgumentsSize, outputArray);
+                                        result->outputArgumentsSize, result->outputArguments);
 
     /* TODO: Verify Output matches the argument definition */
 }
@@ -448,10 +445,18 @@ Operation_CallMethod(UA_Server *server, UA_Session *session,
     return (result->statusCode != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 }
 
+static const UA_AsyncServiceDescription callDescription = {
+    &UA_TYPES[UA_TYPES_CALLRESPONSE],
+    (UA_AsyncServiceOperation)Operation_CallMethod,
+    offsetof(UA_CallRequest, methodsToCallSize),
+    &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
+    offsetof(UA_CallResponse, resultsSize),
+    &UA_TYPES[UA_TYPES_CALLMETHODRESULT]
+};
+
 UA_Boolean
 Service_Call(UA_Server *server, UA_Session *session,
-             const UA_CallRequest *request,
-             UA_CallResponse *response) {
+             const UA_CallRequest *request, UA_CallResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing CallRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -462,12 +467,7 @@ Service_Call(UA_Server *server, UA_Session *session,
     }
 
     response->responseHeader.serviceResult =
-        allocProcessServiceOperations_async(server, session,
-                                            (UA_AsyncServiceOperation)Operation_CallMethod,
-                                            &request->methodsToCallSize,
-                                            &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
-                                            &response->resultsSize,
-                                            &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+        allocProcessServiceOperations_async(server, session, &callDescription, request, response);
 
     /* Signal an async operation */
     return (response->responseHeader.serviceResult != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
