@@ -201,18 +201,16 @@ readCallbackValueAttribute(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
                                   timestamps == UA_TIMESTAMPSTORETURN_BOTH);
-    UA_DataValue v2;
-    UA_DataValue_init(&v2);
     UA_StatusCode retval = vn->valueSource.callback.
         read(server,
              session ? &session->sessionId : NULL,
              session ? session->context : NULL,
              &vn->head.nodeId, vn->head.context,
-             sourceTimeStamp, rangeptr, &v2);
-    if(v2.hasValue && v2.value.storageType == UA_VARIANT_DATA_NODELETE) {
-        retval = UA_DataValue_copy(&v2, v);
-        UA_DataValue_clear(&v2);
-    } else {
+             sourceTimeStamp, rangeptr, v);
+    if(retval == UA_STATUSCODE_GOOD && v->hasValue &&
+       v->value.storageType == UA_VARIANT_DATA_NODELETE) {
+        UA_DataValue v2;
+        retval = UA_DataValue_copy(v, &v2);
         *v = v2;
     }
     return retval;
