@@ -242,7 +242,8 @@ int main(int argc, char **argv) {
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
     //setting custom outbound interface for libmdnsd
-    config->mdnsInterfaceIP = UA_String_fromChars("0.0.0.0");
+//    config->mdnsInterfaceIP = UA_String_fromChars("0.0.0.0");
+    config->mdnsSendToAllInterfaces = true;  // send to all interfaces
 #endif
 
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
