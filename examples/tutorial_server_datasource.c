@@ -21,7 +21,7 @@
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^
  * As a starting point, assume that a variable for a value of type
  * :ref:`datetime` has been created in the server with the identifier
- * "ns=1,s=current-time". Assuming that our application gets triggered when a
+ * "ns=1,s=current-time-value-callback". Assuming that our application gets triggered when a
  * new value arrives from the underlying process, we can just write into the
  * variable. */
 
