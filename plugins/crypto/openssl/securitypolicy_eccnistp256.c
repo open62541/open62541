@@ -628,8 +628,10 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *policy,
 
     UA_SecurityPolicySignatureAlgorithm *asySigAlgorithm =
         &asymmetricModule->cryptoModule.signatureAlgorithm;
-    asySigAlgorithm->uri =
-        UA_STRING("https://profiles.opcfoundation.org/conformanceunit/2473\0");
+    // TODO: The Softing SDK works when we send an empty string. It does not work with either of the following:
+    // asySigAlgorithm->uri = UA_STRING("http://www.w3.org/2001/04/xmldsig-more#ecdsa-sha256\0");
+    // asySigAlgorithm->uri = UA_STRING("https://profiles.opcfoundation.org/conformanceunit/2473\0");
+    asySigAlgorithm->uri = UA_STRING_NULL;
     asySigAlgorithm->verify = UA_AsymSig_EccNistP256_verify;
     asySigAlgorithm->getRemoteSignatureSize =
         UA_Asym_EccNistP256_getRemoteSignatureSize;
