@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2025 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
@@ -257,6 +257,7 @@ typedef struct {
     UA_Variant address;
     UA_KeyValueMap connectionProperties;
     UA_Variant connectionTransportSettings;
+    UA_Boolean enabled;
 
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
 } UA_PubSubConnectionConfig;
@@ -490,6 +491,7 @@ typedef struct {
     UA_MessageSecurityMode securityMode; /* via the UA_WriterGroupDataType */
     UA_PubSubSecurityPolicy *securityPolicy;
     UA_String securityGroupId;
+    UA_Boolean enabled;
 
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
 } UA_WriterGroupConfig;
@@ -574,6 +576,7 @@ typedef struct {
     UA_ExtensionObject transportSettings;
     UA_String dataSetName;
     UA_KeyValueMap dataSetWriterProperties;
+    UA_Boolean enabled;
 
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
 } UA_DataSetWriterConfig;
@@ -699,6 +702,7 @@ typedef struct {
     } subscribedDataSet;
     /* non std. fields */
     UA_String linkedStandaloneSubscribedDataSetName;
+    UA_Boolean enabled;
 
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
 } UA_DataSetReaderConfig;
@@ -779,6 +783,7 @@ typedef struct {
     UA_MessageSecurityMode securityMode;
     UA_PubSubSecurityPolicy *securityPolicy;
     UA_String securityGroupId;
+    UA_Boolean enabled;
 
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
 } UA_ReaderGroupConfig;
@@ -830,7 +835,8 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
 * current PubSub configuration from the server. */
 UA_EXPORT UA_StatusCode
 UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
-                                         const UA_ByteString buffer);
+                                         const UA_ByteString buffer,
+                                         UA_Boolean activateAfterUpdate);
 
 /* Saves the current PubSub configuration of a server in a byteString. */
 UA_EXPORT UA_StatusCode

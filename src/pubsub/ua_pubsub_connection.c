@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2025 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019, 2022, 2024 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
@@ -373,19 +373,19 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
                            UA_PubSubState_name(c->head.state));
         if(server->config.pubSubConfig.stateChangeCallback) {
             server->config.pubSubConfig.
-                stateChangeCallback(server, c->head.identifier, targetState, ret);
+                stateChangeCallback(server, c->head.identifier, c->head.state, ret);
         }
     }
 
-    /* Update Reader and WriterGroups state. This will set them to PAUSED (if
-     * they were operational) as the Connection is now non-operational. */
     UA_ReaderGroup *readerGroup;
     LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
-        UA_ReaderGroup_setPubSubState(psm, readerGroup, readerGroup->head.state);
+        if(readerGroup->config.enabled)
+            UA_ReaderGroup_setPubSubState(psm, readerGroup, c->head.state);
     }
     UA_WriterGroup *writerGroup;
     LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
-        UA_WriterGroup_setPubSubState(psm, writerGroup, writerGroup->head.state);
+        if(writerGroup->config.enabled)
+            UA_WriterGroup_setPubSubState(psm, writerGroup, c->head.state);
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
