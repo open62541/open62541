@@ -490,6 +490,11 @@ typedef struct {
      * memory being cleaned up. Don't forget to also set `value->hasValue` to
      * true to indicate the presence of a value.
      *
+     * To make an async read, return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY.
+     * The result can then be set at a later time using
+     * UA_Server_setAsyncReadResult. Note that the server might cancel the async
+     * read by calling serverConfig->asyncOperationCancelCallback.
+     *
      * @param server The server executing the callback
      * @param sessionId The identifier of the session
      * @param sessionContext Additional data attached to the session in the
@@ -515,6 +520,11 @@ typedef struct {
 
     /* Write into a data source. This method pointer can be NULL if the
      * operation is unsupported.
+     *
+     * To make an async write, return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY.
+     * The result can then be set at a later time using
+     * UA_Server_setAsyncWriteResult. Note that the server might cancel the
+     * async read by calling serverConfig->asyncOperationCancelCallback.
      *
      * @param server The server executing the callback
      * @param sessionId The identifier of the session

@@ -250,7 +250,7 @@ struct UA_ServerConfig {
     /* Notifies the userland that an async operation has been canceled. The
      * memory for setting the output value is then freed internally and should
      * not be touched afterwards. */
-    void (*asyncOperationCancelCallback)(UA_Server *server, void *out);
+    void (*asyncOperationCancelCallback)(UA_Server *server, const void *out);
 
     /* Discovery
      * ~~~~~~~~~ */
@@ -1608,9 +1608,20 @@ UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
  * following. The output-array pointer is used as the key to lookup the async
  * operation internally. Do not access the output-pointer after the timeout or
  * after setting the result. */
-UA_EXPORT UA_StatusCode
-UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_StatusCode operationStatus,
-                                   UA_Variant *output);
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
+                                   UA_StatusCode result);
+
+/* See the UA_CallbackValueSource documentation */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_setAsyncReadResult(UA_Server *server, UA_DataValue *result);
+
+/* See the UA_CallbackValueSource documentation. The value needs to be the
+ * pointer used in the write callback. The statuscode is the result signal to be
+ * returned asynchronously. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_setAsyncWriteResult(UA_Server *server, const UA_DataValue *value,
+                              UA_StatusCode result);
 
 /**
  * Statistics

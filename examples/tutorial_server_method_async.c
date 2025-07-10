@@ -39,7 +39,7 @@ asyncCall(UA_Server *server, void *data) {
     UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_USERLAND, "call");
 
     UA_Variant *out = (UA_Variant*)data;
-    UA_Server_setAsyncCallMethodResult(server, UA_STATUSCODE_GOOD, out);
+    UA_Server_setAsyncCallMethodResult(server, out, UA_STATUSCODE_GOOD);
 }
 
 static UA_StatusCode
