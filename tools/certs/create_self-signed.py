@@ -4,13 +4,14 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # Copyright 2019 (c) Kalycito Infotech Private Limited
-#
+# Modified 2025 (c) Jianbin Liu, CFLab - bugfix and subprocess-based refactor
 
 import netifaces
 import sys
 import os
 import socket
 import argparse
+import subprocess
 
 parser = argparse.ArgumentParser()
 
@@ -98,23 +99,45 @@ if iteratorValue < 2:
     os.environ['IPADDRESS2'] = "127.0.0.1"
 
 os.environ['HOSTNAME'] = socket.gethostname()
+# Verify that the OpenSSL configuration file exists before proceeding
 openssl_conf = os.path.join(certsdir, "localhost.cnf")
+if not os.path.isfile(openssl_conf):
+    raise FileNotFoundError(f"OpenSSL config file not found: {openssl_conf}")
 
+# Change to the output directory to generate all files there
 os.chdir(os.path.abspath(args.outdir))
 
-os.system("""openssl req \
-     -config {} \
-     -new \
-     -nodes \
-     -x509 -sha256  \
-     -newkey rsa:{} \
-     -keyout localhost.key -days 365 \
-     -subj "/C=DE/L=Here/O=open62541/CN=open62541Server@localhost"\
-     -out localhost.crt""".format(openssl_conf, keysize))
+
+cmd = [
+    "openssl", "req",
+    "-config", openssl_conf,
+    "-new", "-nodes", "-x509", "-sha256",
+    "-newkey", f"rsa:{keysize}",
+    "-keyout", "localhost.key",
+    "-days", "365",
+    "-subj", "/C=DE/L=Here/O=open62541/CN=open62541Server@localhost",
+    "-out", "localhost.crt"
+]
+
+print("Running command:\n", " ".join(cmd))
+
+result = subprocess.run(cmd, capture_output=True, text=True)
+
+print("stdout:\n", result.stdout)
+print("stderr:\n", result.stderr)
+
+if result.returncode != 0:
+    raise RuntimeError("openssl req failed.")
+
 os.system("openssl x509 -in localhost.crt -outform der -out %s_cert.der" % (certificatename))
 os.system("openssl rsa -inform PEM -in localhost.key -outform DER -out %s_key.der"% (certificatename))
 
-os.remove("localhost.key")
-os.remove("localhost.crt")
+# Try to remove temporary files; ignore if not found
+for f in ["localhost.key", "localhost.crt"]:
+    try:
+        os.remove(f)
+    except FileNotFoundError:
+        print(f"Warning: file {f} not found, skipping deletion")
+
 
 print("Certificates generated in " + args.outdir)
