@@ -489,9 +489,6 @@ static UA_StatusCode
 UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
     dst->executable = src->executable;
     dst->method = src->method;
-#if UA_MULTITHREADING >= 100
-    dst->async = src->async;
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
