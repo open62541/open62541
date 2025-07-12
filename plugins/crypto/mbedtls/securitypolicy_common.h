@@ -23,16 +23,35 @@
 #define UA_SHA1_LENGTH 20
 #define UA_MAXSUBJECTLENGTH 512
 #define MBEDTLS_SAN_MAX_LEN    64
-#ifndef WIN32
-    #define MBEDTLS_ASN1_CHK_CLEANUP_ADD(g, f) \
-        do                                     \
-        {                                      \
-            if((ret = (f)) < 0)                \
-            goto cleanup;                      \
-            else                               \
-            (g) += ret;                        \
-        } while (0)
+
+/* 
+ * Some versions of mbedTLS (especially 3.x and above) define the macro
+ * MBEDTLS_ASN1_CHK_CLEANUP_ADD in <mbedtls/asn1write.h>. 
+ * 
+ * However, to ensure compatibility across different mbedTLS versions — 
+ * including those where this macro may be missing — open62541 defines its own fallback.
+ * 
+ * To avoid compiler warnings due to redefinition when using amalgamation mode 
+ * (where all headers are flattened into open62541.c), we must first undefine 
+ * the macro before redefining it.
+ */
+#ifdef MBEDTLS_ASN1_CHK_CLEANUP_ADD
+#undef MBEDTLS_ASN1_CHK_CLEANUP_ADD
 #endif
+
+/* 
+ * Macro to simplify error handling during ASN.1 structure generation.
+ * If the function call (f) returns a negative value, jump to cleanup label.
+ * Otherwise, accumulate the returned length into (g).
+ */
+#define MBEDTLS_ASN1_CHK_CLEANUP_ADD(g, f)                    \
+    do {                                                      \
+        if ((ret = (f)) < 0)                                  \
+            goto cleanup;                                     \
+        else                                                  \
+            (g) += ret;                                       \
+    } while (0)
+
 
 _UA_BEGIN_DECLS
 
