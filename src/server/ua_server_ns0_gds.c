@@ -550,7 +550,7 @@ removeCertificate(UA_Server *server,
 
     UA_String thumbpr = UA_STRING_NULL;
     thumbpr.length = (UA_SHA1_LENGTH * 2);
-    thumbpr.data = (UA_Byte*)malloc(sizeof(UA_Byte)*thumbpr.length);
+    thumbpr.data = (UA_Byte*)UA_malloc(sizeof(UA_Byte)*thumbpr.length);
 
     for(size_t i = 0; i < certificatesSize; i++) {
         UA_CertificateUtils_getThumbprint( &certificates[i], &thumbpr);
