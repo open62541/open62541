@@ -17,8 +17,7 @@ _UA_BEGIN_DECLS
  *
  *  For most usage scenarios the hash-map Nodestore will be faster.
  */
-UA_EXPORT UA_StatusCode
-UA_Nodestore_ZipTree(UA_Nodestore *ns);
+UA_EXPORT UA_Nodestore * UA_Nodestore_ZipTree(void);
 
 _UA_END_DECLS
 
