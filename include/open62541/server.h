@@ -23,7 +23,6 @@
 
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/certificategroup.h>
-#include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/accesscontrol.h>
 #include <open62541/plugin/securitypolicy.h>
@@ -39,6 +38,15 @@
 #endif
 
 _UA_BEGIN_DECLS
+
+/* Forward declarations */
+typedef void (*UA_Server_AsyncOperationNotifyCallback)(UA_Server *server);
+
+struct UA_Nodestore;
+typedef struct UA_Nodestore UA_Nodestore;
+
+struct UA_GlobalNodeLifecycle;
+typedef struct UA_GlobalNodeLifecycle UA_GlobalNodeLifecycle;
 
 /**
  * .. _server:
@@ -200,8 +208,8 @@ struct UA_ServerConfig {
     /* Nodes and Node Lifecycle
      * ~~~~~~~~~~~~~~~~~~~~~~~~
      * See the section for :ref:`node lifecycle handling<node-lifecycle>`. */
-    UA_Nodestore nodestore;
-    UA_GlobalNodeLifecycle nodeLifecycle;
+    UA_Nodestore *nodestore;
+    UA_GlobalNodeLifecycle *nodeLifecycle;
 
     /* Copy the HasModellingRule reference in instances from the type
      * definition in UA_Server_addObjectNode and UA_Server_addVariableNode.
@@ -486,6 +494,9 @@ UA_Server_run_shutdown(UA_Server *server);
 /* Manually close a session */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
+
+void UA_EXPORT
+UA_Server_setAdminSessionContext(UA_Server *server, void *context);
 
 /**
  * Session attributes: Besides the user-definable session context pointer (set
@@ -876,22 +887,122 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
 #endif /* UA_ENABLE_DISCOVERY */
 
 /**
- * Information Model Callbacks
- * ---------------------------
- * There are three places where a callback from an information model to
- * user-defined code can happen.
+ * .. _node-lifecycle:
  *
- * - Custom node constructors and destructors
- * - Linking VariableNodes with a data source
- * - MethodNode callbacks */
+ * Node Lifecycle
+ * --------------
+ * To finalize the instantiation of a node, a (user-defined) constructor
+ * callback is executed. There can be both a global constructor for all nodes
+ * and node-type constructor specific to the TypeDefinition of the new node
+ * (attached to an ObjectTypeNode or VariableTypeNode).
+ *
+ * In the hierarchy of ObjectTypes and VariableTypes, only the constructor of
+ * the (lowest) type defined for the new node is executed. Note that every
+ * Object and Variable can have only one ``isTypeOf`` reference. But type-nodes
+ * can technically have several ``hasSubType`` references to implement multiple
+ * inheritance. Issues of (multiple) inheritance in the constructor need to be
+ * solved by the user.
+ *
+ * When a node is destroyed, the node-type destructor is called before the
+ * global destructor. So the overall node lifecycle is as follows:
+ *
+ * 1. Global Constructor (set in the server config)
+ * 2. Node-Type Constructor (for VariableType or ObjectTypes)
+ * 3. (Usage-period of the Node)
+ * 4. Node-Type Destructor
+ * 5. Global Destructor
+ *
+ * The constructor and destructor callbacks can be set to ``NULL`` and are not
+ * used in that case. If the node-type constructor fails, the global destructor
+ * will be called before removing the node. The destructors are assumed to never
+ * fail.
+ *
+ * Every node carries a user-context and a constructor-context pointer. The
+ * user-context is used to attach custom data to a node. But the (user-defined)
+ * constructors and destructors may replace the user-context pointer if they
+ * wish to do so. The initial value for the constructor-context is ``NULL``.
+ * When the ``AddNodes`` service is used over the network, the user-context
+ * pointer of the new node is also initially set to ``NULL``. */
 
-void UA_EXPORT
-UA_Server_setAdminSessionContext(UA_Server *server,
-                                 void *context);
+struct UA_GlobalNodeLifecycle {
+    /* Can be NULL. May replace the nodeContext */
+    UA_StatusCode (*constructor)(UA_Server *server,
+                                 const UA_NodeId *sessionId, void *sessionContext,
+                                 const UA_NodeId *nodeId, void **nodeContext);
+
+    /* Can be NULL. The context cannot be replaced since the node is destroyed
+     * immediately afterwards anyway. */
+    void (*destructor)(UA_Server *server,
+                       const UA_NodeId *sessionId, void *sessionContext,
+                       const UA_NodeId *nodeId, void *nodeContext);
+
+    /* Can be NULL. Called during recursive node instantiation. While mandatory
+     * child nodes are automatically created if not already present, optional child
+     * nodes are not. This callback can be used to define whether an optional child
+     * node should be created.
+     *
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param sourceNodeId Source node from the type definition. If the new node
+     *        shall be created, it will be a copy of this node.
+     * @param targetParentNodeId Parent of the potential new child node
+     * @param referenceTypeId Identifies the reference type which that the parent
+     *        node has to the new node.
+     * @return Return UA_TRUE if the child node shall be instantiated,
+     *         UA_FALSE otherwise. */
+    UA_Boolean (*createOptionalChild)(UA_Server *server,
+                                      const UA_NodeId *sessionId,
+                                      void *sessionContext,
+                                      const UA_NodeId *sourceNodeId,
+                                      const UA_NodeId *targetParentNodeId,
+                                      const UA_NodeId *referenceTypeId);
+
+    /* Can be NULL. Called when a node is to be copied during recursive
+     * node instantiation. Allows definition of the NodeId for the new node.
+     * If the callback is set to NULL or the resulting NodeId is UA_NODEID_NUMERIC(X,0)
+     * an unused nodeid in namespace X will be used. E.g. passing UA_NODEID_NULL will
+     * result in a NodeId in namespace 0.
+     *
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param sourceNodeId Source node of the copy operation
+     * @param targetParentNodeId Parent node of the new node
+     * @param referenceTypeId Identifies the reference type which that the parent
+     *        node has to the new node. */
+    UA_StatusCode (*generateChildNodeId)(UA_Server *server,
+                                         const UA_NodeId *sessionId, void *sessionContext,
+                                         const UA_NodeId *sourceNodeId,
+                                         const UA_NodeId *targetParentNodeId,
+                                         const UA_NodeId *referenceTypeId,
+                                         UA_NodeId *targetNodeId);
+};
+
+/* Extra lifecycle optionally defined for ObjectTypesNodes and VariableTypeNodes */
+typedef struct {
+    /* Can be NULL. May replace the nodeContext */
+    UA_StatusCode (*constructor)(UA_Server *server,
+                                 const UA_NodeId *sessionId, void *sessionContext,
+                                 const UA_NodeId *typeNodeId, void *typeNodeContext,
+                                 const UA_NodeId *nodeId, void **nodeContext);
+
+    /* Can be NULL. May replace the nodeContext. */
+    void (*destructor)(UA_Server *server,
+                       const UA_NodeId *sessionId, void *sessionContext,
+                       const UA_NodeId *typeNodeId, void *typeNodeContext,
+                       const UA_NodeId *nodeId, void **nodeContext);
+} UA_NodeTypeLifecycle;
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                                UA_NodeTypeLifecycle lifecycle);
+
+/**
+ * Node Context
+ * ------------ */
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getNodeContext(UA_Server *server, UA_NodeId nodeId,
@@ -906,11 +1017,48 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
  * .. _datasource:
  *
  * Value Source
- * ~~~~~~~~~~~~
- *
- * There are two options for storing the value of a VariableNode: Internal in
- * the VariableNode itself or with callbacks to the application. See
- * the section on :ref:`variable-node` for details. */
+ * ------------
+ * There are three options for storing the value of a VariableNode: Internal in
+ * the VariableNode itself, using an external storage location, or using
+ * callbacks to the application. */
+
+typedef struct {
+    /* Notify the application before the value attribute is read. Ignored if
+     * NULL. It is possible to write into the value attribute during onRead
+     * (using the write service). The node is re-retrieved from the Nodestore
+     * afterwards so that changes are considered in the following read
+     * operation.
+     *
+     * @param handle Points to user-provided data for the callback.
+     * @param nodeid The identifier of the node.
+     * @param data Points to the current node value.
+     * @param range Points to the numeric range the client wants to read from
+     *        (or NULL). */
+    void (*onRead)(UA_Server *server, const UA_NodeId *sessionId,
+                   void *sessionContext, const UA_NodeId *nodeid,
+                   void *nodeContext, const UA_NumericRange *range,
+                   const UA_DataValue *value);
+
+    /* Notify the application after writing the value attribute. Ignored if
+     * NULL. The node is re-retrieved after writing, so that the new value is
+     * visible in the callback.
+     *
+     * @param server The server executing the callback
+     * @sessionId The identifier of the session
+     * @sessionContext Additional data attached to the session
+     *                 in the access control layer
+     * @param nodeid The identifier of the node.
+     * @param nodeUserContext Additional data attached to the node by
+     *        the user.
+     * @param nodeConstructorContext Additional data attached to the node
+     *        by the type constructor(s).
+     * @param range Points to the numeric range the client wants to write to (or
+     *        NULL). */
+    void (*onWrite)(UA_Server *server, const UA_NodeId *sessionId,
+                    void *sessionContext, const UA_NodeId *nodeId,
+                    void *nodeContext, const UA_NumericRange *range,
+                    const UA_DataValue *data);
+} UA_ValueSourceNotifications;
 
 /* Set the internal value source. Both the value argument and the notifications
  * argument can be NULL. If value is NULL, the Read service is used to get the
@@ -929,6 +1077,79 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_externalValueSource(UA_Server *server,
     const UA_NodeId nodeId, UA_DataValue **value,
     const UA_ValueSourceNotifications *notifications);
+
+typedef struct {
+    /* Copies the data from the source into the provided value.
+     *
+     * !! ZERO-COPY OPERATIONS POSSIBLE !!
+     * It is not required to return a copy of the actual content data. You can
+     * return a pointer to memory owned by the user. Memory can be reused
+     * between read callbacks of a DataSource, as the result is already encoded
+     * on the network buffer between each read operation.
+     *
+     * To use zero-copy reads, set the value of the `value->value` Variant
+     * without copying, e.g. with `UA_Variant_setScalar`. Then, also set
+     * `value->value.storageType` to `UA_VARIANT_DATA_NODELETE` to prevent the
+     * memory being cleaned up. Don't forget to also set `value->hasValue` to
+     * true to indicate the presence of a value.
+     *
+     * To make an async read, return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY.
+     * The result can then be set at a later time using
+     * UA_Server_setAsyncReadResult. Note that the server might cancel the async
+     * read by calling serverConfig->asyncOperationCancelCallback.
+     *
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param nodeId The identifier of the node being read from
+     * @param nodeContext Additional data attached to the node by the user
+     * @param includeSourceTimeStamp If true, then the datasource is expected to
+     *        set the source timestamp in the returned value
+     * @param range If not null, then the datasource shall return only a
+     *        selection of the (nonscalar) data. Set
+     *        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not
+     *        apply
+     * @param value The (non-null) DataValue that is returned to the client. The
+     *        data source sets the read data, the result status and optionally a
+     *        sourcetimestamp.
+     * @return Returns a status code for logging. Error codes intended for the
+     *         original caller are set in the value. If an error is returned,
+     *         then no releasing of the value is done. */
+    UA_StatusCode (*read)(UA_Server *server, const UA_NodeId *sessionId,
+                          void *sessionContext, const UA_NodeId *nodeId,
+                          void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                          const UA_NumericRange *range, UA_DataValue *value);
+
+    /* Write into a data source. This method pointer can be NULL if the
+     * operation is unsupported.
+     *
+     * To make an async write, return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY.
+     * The result can then be set at a later time using
+     * UA_Server_setAsyncWriteResult. Note that the server might cancel the
+     * async read by calling serverConfig->asyncOperationCancelCallback.
+     *
+     * @param server The server executing the callback
+     * @param sessionId The identifier of the session
+     * @param sessionContext Additional data attached to the session in the
+     *        access control layer
+     * @param nodeId The identifier of the node being written to
+     * @param nodeContext Additional data attached to the node by the user
+     * @param range If not NULL, then the datasource shall return only a
+     *        selection of the (nonscalar) data. Set
+     *        UA_STATUSCODE_BADINDEXRANGEINVALID in the value if this does not
+     *        apply
+     * @param value The (non-NULL) DataValue that has been written by the client.
+     *        The data source contains the written data, the result status and
+     *        optionally a sourcetimestamp
+     * @return Returns a status code for logging. Error codes intended for the
+     *         original caller are set in the value. If an error is returned,
+     *         then no releasing of the value is done. */
+    UA_StatusCode (*write)(UA_Server *server, const UA_NodeId *sessionId,
+                           void *sessionContext, const UA_NodeId *nodeId,
+                           void *nodeContext, const UA_NumericRange *range,
+                           const UA_DataValue *value);
+} UA_CallbackValueSource;
 
 /* It is expected that the read callback is implemented. Whenever the value
  * attribute is read, the function will be called and asked to fill a
@@ -1084,6 +1305,14 @@ UA_Server_createEventMonitoredItemEx(UA_Server *server,
  * ``UA_Server_setMethodNode_callback`` within the global constructor when
  * adding methods over the network is really wanted. See the Section
  * :ref:`object-interaction` for calling methods on an object. */
+
+typedef UA_StatusCode
+(*UA_MethodCallback)(UA_Server *server, const UA_NodeId *sessionId,
+                     void *sessionContext, const UA_NodeId *methodId,
+                     void *methodContext, const UA_NodeId *objectId,
+                     void *objectContext, size_t inputSize,
+                     const UA_Variant *input, size_t outputSize,
+                     UA_Variant *output);
 
 #ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT UA_THREADSAFE
