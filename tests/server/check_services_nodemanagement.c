@@ -28,17 +28,19 @@ globalInstantiationMethod(UA_Server *server_,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_GlobalNodeLifecycle lifecycle;
+
 static void setup(void) {
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-    UA_GlobalNodeLifecycle lifecycle;
     lifecycle.constructor = globalInstantiationMethod;
     lifecycle.destructor = NULL;
     lifecycle.createOptionalChild = NULL;
     lifecycle.generateChildNodeId = NULL;
-    config->nodeLifecycle = lifecycle;
+    config->nodeLifecycle = &lifecycle;
+
     UA_Server_setAdminSessionContext(server, (void *)0x3);
 }
 

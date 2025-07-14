@@ -508,7 +508,7 @@ serverHouseKeeping(UA_Server *server, void *_) {
 static
 UA_INLINE
 UA_Boolean UA_Server_NodestoreIsConfigured(UA_Server *server) {
-    return server->config.nodestore.getNode != NULL;
+    return (server->config.nodestore && server->config.nodestore->getNode);
 }
 
 static UA_Server *
