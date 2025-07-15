@@ -267,8 +267,8 @@ jobs:
               cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18
 
     name: ${{ matrix.os }}-${{ matrix.build.name }}
-    # runs-on: ubuntu-latest
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
+    # runs-on: self-hosted
     container:
       image: ghcr.io/marwinglaser/ci:${{ matrix.os }}
       options: --privileged
