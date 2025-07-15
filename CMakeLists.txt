@@ -1004,7 +1004,6 @@ set(plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/access
 set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
-                   ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_none.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
