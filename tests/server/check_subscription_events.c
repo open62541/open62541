@@ -530,18 +530,20 @@ START_TEST(uppropagation) {
 static void
 handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
                         UA_UInt32 monId, void *monContext,
-                        size_t nEventFields, UA_Variant *eventFields) {
+                        const UA_KeyValueMap eventFields) {
     ck_assert_uint_eq(*(UA_UInt32 *) monContext, monitoredItemId);
-    if(nEventFields == 1) {
-        /* overflow was received */
-        ck_assert(eventFields->type == &UA_TYPES[UA_TYPES_NODEID]);
-        UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
-        ck_assert((UA_NodeId_equal((UA_NodeId *) eventFields->data, &comp)));
-        overflowNotificationReceived = UA_TRUE;
-    } else if(nEventFields == 4) {
-        /* other event was received */
-        handler_events_simple(lclient, subId, subContext, monId,
-                              monContext, nEventFields, eventFields);
+    if(eventFields.mapSize != 4)
+        return;
+
+    if(eventFields.map[2].value.type != &UA_TYPES[UA_TYPES_NODEID])
+        return;
+
+    UA_NodeId *eventType = (UA_NodeId*)eventFields.map[2].value.data;
+    UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
+    if(UA_NodeId_equal(eventType, &comp)) {
+        overflowNotificationReceived = true; /* Overflow was received */
+    } else {
+        handler_events_simple(lclient, subId, subContext, monId, monContext, eventFields);
     }
 }
 
