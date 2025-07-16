@@ -49,37 +49,16 @@ eventCallback(UA_Server *server, UA_UInt32 monitoredItemId,
 }
 
 static void
-eventSetup(UA_NodeId *eventNodeId) {
-    UA_Server_createEvent(server, eventType, eventNodeId);
-    // add a severity to the event
-    UA_Variant value;
-    UA_RelativePathElement rpe;
-    UA_RelativePathElement_init(&rpe);
-    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    rpe.isInverse = false;
-    rpe.includeSubtypes = false;
-    UA_BrowsePath bp;
-    UA_BrowsePath_init(&bp);
-    bp.startingNode = *eventNodeId;
-    bp.relativePath.elementsSize = 1;
-    bp.relativePath.elements = &rpe;
-    rpe.targetName = UA_QUALIFIEDNAME(0, "Severity");
-    UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
-    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
-    // number with no special meaning
-    UA_UInt16 eventSeverity = 1000;
-    UA_Variant_setScalar(&value, &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
-    UA_BrowsePathResult_clear(&bpr);
-
-    //add a message to the event
-    rpe.targetName = UA_QUALIFIEDNAME(0, "Message");
-    bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
-    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+createEvent(void) {
+    UA_KeyValueMap eventFields = UA_KEYVALUEMAP_NULL;
     UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "Generated Event");
-    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
-    UA_BrowsePathResult_clear(&bpr);
+    UA_KeyValueMap_setScalar(&eventFields, UA_QUALIFIEDNAME(0, "/Message"),
+                             &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+
+    UA_UInt16 severity = 100;
+    UA_StatusCode res = UA_Server_createEvent(server, eventType, UA_NS0ID(SERVER),
+                                              severity, eventFields);
+    UA_KeyValueMap_clear(&eventFields);
 }
 
 /* Ensure events are received with proper values */
@@ -102,16 +81,13 @@ START_TEST(generateEvents) {
     ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
     UA_EventFilter_clear(&ef);
 
-    UA_NodeId eventNodeId;
-    eventSetup(&eventNodeId);
-
-    UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, false);
+    createEvent();
 
     UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 1);
 
-    UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, false);
-    UA_Server_triggerEvent(server, eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, false);
+    createEvent();
+    createEvent();
 
     UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 3);

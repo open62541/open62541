@@ -454,86 +454,16 @@ castImplicit(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) 
 typedef struct {
     UA_Server *server;
     UA_Session *session;
-    const UA_NodeId *eventNode;
+    UA_EventDescription ed;
+
     const UA_ContentFilter *filter;
-    UA_ContentFilterResult *filterResult;
-    UA_Variant results[UA_EVENTFILTER_MAXELEMENTS];
+    UA_Variant operatorResults[UA_EVENTFILTER_MAXELEMENTS];
 
-    /* The stack contains temporary variants. Cleaned up after the evaluation of
-     * each operator. */
+    /* The operand stack contains temporary variants. Cleaned up after the
+     * evaluation of each operator. */
     size_t top;
-    UA_Variant stack[UA_EVENTFILTER_MAXOPERANDS];
+    UA_Variant operandStack[UA_EVENTFILTER_MAXOPERANDS];
 } UA_FilterEvalContext;
-
-/* Operand Resolving
- * ~~~~~~~~~~~~~~~~~
- * Methods that all resolve an operator operand to a Variant. */
-
-/* Part 4, 7.4.4.5 SimpleAttributeOperand: The clause can point to any attribute
- * of nodes. Either a child of the event node and also the event type. */
-static UA_StatusCode
-resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
-                              const UA_NodeId *origin,
-                              const UA_SimpleAttributeOperand *sao,
-                              UA_Variant *value) {
-    /* Prepare the ReadValueId */
-    UA_ReadValueId rvi;
-    UA_ReadValueId_init(&rvi);
-    rvi.indexRange = sao->indexRange;
-    rvi.attributeId = sao->attributeId;
-
-    /* Read the value */
-    UA_DataValue v;
-    if(sao->browsePathSize == 0) {
-        /* If this list (browsePath) is empty, the Node is the instance of the
-         * TypeDefinition. (Part 4, 7.4.4.5) */
-        rvi.nodeId = *origin;
-
-        /* A Condition is an indirection. Look up the target node. */
-        /* TODO: check for Branches! One Condition could have multiple Branches */
-        UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
-        if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId)) {
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-            UA_StatusCode res = UA_getConditionId(server, origin, &rvi.nodeId);
-            UA_CHECK_STATUS(res, return res);
-#else
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-#endif
-        }
-
-        v = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
-    } else {
-        /* Resolve the browse path, starting from the event-source (and not the
-         * typeDefinitionId). */
-        UA_BrowsePathResult bpr =
-            browseSimplifiedBrowsePath(server, *origin,
-                                       sao->browsePathSize, sao->browsePath);
-        if(bpr.targetsSize == 0 && bpr.statusCode == UA_STATUSCODE_GOOD)
-            bpr.statusCode = UA_STATUSCODE_BADNOTFOUND;
-        if(bpr.statusCode != UA_STATUSCODE_GOOD) {
-            UA_StatusCode res = bpr.statusCode;
-            UA_BrowsePathResult_clear(&bpr);
-            return res;
-        }
-
-        /* Use the first match */
-        rvi.nodeId = bpr.targets[0].targetId.nodeId;
-        v = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
-        UA_BrowsePathResult_clear(&bpr);
-    }
-
-    /* Validate the result */
-    if(v.status != UA_STATUSCODE_GOOD) {
-        UA_Variant_clear(&v.value);
-        return v.status;
-    }
-    if(!v.hasValue)
-        return UA_STATUSCODE_BADNODATAAVAILABLE;
-
-    /* Move the result to the output */
-    *value = v.value;
-    return UA_STATUSCODE_GOOD;
-}
 
 static UA_StatusCode
 resolveOperand(UA_FilterEvalContext *ctx, UA_ExtensionObject *op, UA_Variant *out) {
@@ -544,7 +474,7 @@ resolveOperand(UA_FilterEvalContext *ctx, UA_ExtensionObject *op, UA_Variant *ou
     /* Result of an operator that was evaluated prior */
     if(op->content.decoded.type == &UA_TYPES[UA_TYPES_ELEMENTOPERAND]) {
         UA_ElementOperand *eo = (UA_ElementOperand*)op->content.decoded.data;
-        *out = ctx->results[eo->index];
+        *out = ctx->operatorResults[eo->index];
         out->storageType = UA_VARIANT_DATA_NODELETE;
         return UA_STATUSCODE_GOOD;
     }
@@ -562,26 +492,11 @@ resolveOperand(UA_FilterEvalContext *ctx, UA_ExtensionObject *op, UA_Variant *ou
         UA_SimpleAttributeOperand *sao =
             (UA_SimpleAttributeOperand*)op->content.decoded.data;
         return resolveSimpleAttributeOperand(ctx->server, ctx->session,
-                                             ctx->eventNode, sao, out);
+                                             &ctx->ed, sao, out);
     }
 
     return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
 }
-
-/* The operandIndex is within the operator arguments, not the operand index for
- * the overall stack */
-static UA_StatusCode
-setOperandError(UA_FilterEvalContext *ctx, size_t elementIndex,
-                size_t operandIndex, UA_StatusCode statusCode) {
-    UA_ContentFilterElementResult *res = &ctx->filterResult->elementResults[elementIndex];
-    res->operandStatusCodes[operandIndex] = statusCode;
-    /* The operator status is set globally in a single location upwards the call chain
-     * res->statusCode = statusCode; */
-    return statusCode;
-}
-
-/* Filter Operators
- * ~~~~~~~~~~~~~~~~ */
 
 static UA_StatusCode
 ofTypeOperator(UA_FilterEvalContext *ctx, size_t index) {
@@ -589,32 +504,17 @@ ofTypeOperator(UA_FilterEvalContext *ctx, size_t index) {
     UA_assert(elm->filterOperandsSize == 1);
 
     /* Get the operand. Must be a literal NodeId */
-    UA_Variant *op0 = &ctx->stack[ctx->top++];
+    UA_Variant *op0 = &ctx->operandStack[ctx->top++];
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     if(res != UA_STATUSCODE_GOOD || !UA_Variant_hasScalarType(op0, &UA_TYPES[UA_TYPES_NODEID]))
-        return setOperandError(ctx, index, 0, UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED);
-
-    /* Read the event type */
-    UA_Variant eventTypeVar;
-    UA_Variant_init(&eventTypeVar);
+        return UA_STATUSCODE_BADFILTEROPERANDINVALID;
     const UA_NodeId *operandTypeId = (const UA_NodeId *)op0->data;
-    res = readObjectProperty(ctx->server, *ctx->eventNode,
-                             UA_QUALIFIEDNAME(0, "EventType"), &eventTypeVar);
-    UA_CHECK_STATUS(res, return res);
-
-    if(!UA_Variant_hasScalarType(&eventTypeVar, &UA_TYPES[UA_TYPES_NODEID])) {
-        UA_LOG_WARNING(ctx->server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "EventType has an invalid type.");
-        UA_Variant_clear(&eventTypeVar);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
     /* Check if the eventtype is equal to the operand or a subtype of it */
-    const UA_NodeId *eventTypeId = (UA_NodeId*)eventTypeVar.data;
-    UA_Boolean ofType = isNodeInTree_singleRef(ctx->server, eventTypeId, operandTypeId,
-                                               UA_REFERENCETYPEINDEX_HASSUBTYPE);
-    ctx->results[index] = t2v(ofType ? UA_TERNARY_TRUE : UA_TERNARY_FALSE);
-    UA_Variant_clear(&eventTypeVar);
+    UA_Boolean ofType =
+        isNodeInTree_singleRef(ctx->server, &ctx->ed.eventType, operandTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE);
+    ctx->operatorResults[index] = t2v(ofType ? UA_TERNARY_TRUE : UA_TERNARY_FALSE);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -622,13 +522,13 @@ static UA_StatusCode
 andOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
     UA_assert(elm->filterOperandsSize == 2);
-    UA_Variant *op0 = &ctx->stack[ctx->top++];
+    UA_Variant *op0 = &ctx->operandStack[ctx->top++];
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
-    UA_Variant *op1 = &ctx->stack[ctx->top++];
+    UA_Variant *op1 = &ctx->operandStack[ctx->top++];
     res = resolveOperand(ctx, &elm->filterOperands[1], op1);
     UA_CHECK_STATUS(res, return res);
-    ctx->results[index] = t2v(UA_Ternary_and(v2t(op0), v2t(op1)));
+    ctx->operatorResults[index] = t2v(UA_Ternary_and(v2t(op0), v2t(op1)));
     return UA_STATUSCODE_GOOD;
 }
 
@@ -636,13 +536,13 @@ static UA_StatusCode
 orOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
     UA_assert(elm->filterOperandsSize == 2);
-    UA_Variant *op0 = &ctx->stack[ctx->top++];
+    UA_Variant *op0 = &ctx->operandStack[ctx->top++];
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
-    UA_Variant *op1 = &ctx->stack[ctx->top++];
+    UA_Variant *op1 = &ctx->operandStack[ctx->top++];
     res = resolveOperand(ctx, &elm->filterOperands[1], op1);
     UA_CHECK_STATUS(res, return res);
-    ctx->results[index] = t2v(UA_Ternary_or(v2t(op0), v2t(op1)));
+    ctx->operatorResults[index] = t2v(UA_Ternary_or(v2t(op0), v2t(op1)));
     return UA_STATUSCODE_GOOD;
 }
 
@@ -650,50 +550,50 @@ static UA_StatusCode
 notOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
     UA_assert(elm->filterOperandsSize == 1);
-    UA_Variant *op0 = &ctx->stack[ctx->top++];
+    UA_Variant *op0 = &ctx->operandStack[ctx->top++];
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
-    ctx->results[index] = t2v(UA_Ternary_not(v2t(op0)));
+    ctx->operatorResults[index] = t2v(UA_Ternary_not(v2t(op0)));
     return UA_STATUSCODE_GOOD;
 }
 
-/* Resolves the operands and casts them implicitly to the same type.
- * The result is set at &ctx->stack[ctx->top] (for the initial value of top). */
+/* Resolves the operands and casts them implicitly to the same type. The result
+ * is set at &ctx->operandStack[ctx->top] (for the initial value of top). */
 static UA_StatusCode
 castResolveOperands(UA_FilterEvalContext *ctx, size_t index, UA_Boolean setError) {
-    /* Enough space on the stack left? */
+    /* Enough space on the operand stack left? */
     const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
     if(ctx->top + elm->filterOperandsSize > UA_EVENTFILTER_MAXOPERANDS)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Resolve all operands */
-    UA_assert(ctx->top == 0); /* Assume the stack is empty */
+    UA_assert(ctx->top == 0); /* Assume the operand stack is empty */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < elm->filterOperandsSize; i++) {
-        res = resolveOperand(ctx, &elm->filterOperands[i], &ctx->stack[ctx->top++]);
+        res = resolveOperand(ctx, &elm->filterOperands[i], &ctx->operandStack[ctx->top++]);
         UA_CHECK_STATUS(res, return res);
     }
-    UA_assert(ctx->top > 0); /* Assume the stack is no longer empty */
+    UA_assert(ctx->top > 0); /* Assume the operand stack is no longer empty */
 
     /* Get the datatype for casting */
-    const UA_DataType *targetType = ctx->stack[0].type;
+    const UA_DataType *targetType = ctx->operandStack[0].type;
     for(size_t pos = 1; pos < ctx->top; pos++) {
         if(targetType)
-            targetType = implicitCastTargetType(targetType, ctx->stack[pos].type);
+            targetType = implicitCastTargetType(targetType, ctx->operandStack[pos].type);
         if(!targetType)
-            return (setError) ? setOperandError(ctx, index, pos, res) : res;
+            return UA_STATUSCODE_BADFILTEROPERANDINVALID;
     }
 
-    /* Cast the operands. Put the result in the same location on the stack. */
+    /* Cast the operands. Put the result in the same location on the operand stack. */
     for(size_t pos = 0; pos < ctx->top; pos++) {
-        UA_Variant orig = ctx->stack[pos];
-        res = castImplicit(&orig, targetType, &ctx->stack[pos]);
+        UA_Variant orig = ctx->operandStack[pos];
+        res = castImplicit(&orig, targetType, &ctx->operandStack[pos]);
         if(res != UA_STATUSCODE_GOOD)
-            return (setError) ? setOperandError(ctx, index, pos, res) : res;
-        if(ctx->stack[pos].data == orig.data) {
+            return res;
+        if(ctx->operandStack[pos].data == orig.data) {
             /* Reuse the storage type of the original data if the variant is
              * identical or only the type has changed */
-            ctx->stack[pos].storageType = orig.storageType;
+            ctx->operandStack[pos].storageType = orig.storageType;
         } else {
             UA_Variant_clear(&orig); /* Fresh allocation of the cast variant. Clean up. */
         }
@@ -708,26 +608,26 @@ compareOperator(UA_FilterEvalContext *ctx, size_t index, UA_FilterOperator op) {
 
     /* Resolve and cast the operands. A failed casting results in FALSE. Note
      * that operands could cast to NULL. */
-    UA_assert(ctx->top == 0); /* Assume the stack is empty */
+    UA_assert(ctx->top == 0); /* Assume the operand stack is empty */
     UA_StatusCode res = castResolveOperands(ctx, index, false);
-    if(res != UA_STATUSCODE_GOOD || !ctx->stack[0].type ||
-       ctx->stack[0].type != ctx->stack[1].type) {
-        ctx->results[index] = t2v(UA_TERNARY_FALSE);
+    if(res != UA_STATUSCODE_GOOD || !ctx->operandStack[0].type ||
+       ctx->operandStack[0].type != ctx->operandStack[1].type) {
+        ctx->operatorResults[index] = t2v(UA_TERNARY_FALSE);
         return UA_STATUSCODE_GOOD;
     }
-    UA_assert(ctx->top == 2); /* Assume the stack is no longer empty */
+    UA_assert(ctx->top == 2); /* Assume the operand stack is no longer empty */
 
     /* The equals operator is always possible. For the other comparisons it has
      * to be an ordered type: Numerical, Boolean, StatusCode or DateTime. */
-    const UA_DataType *type = ctx->stack[0].type;
+    const UA_DataType *type = ctx->operandStack[0].type;
     if(op != UA_FILTEROPERATOR_EQUALS && !UA_DataType_isNumeric(type) &&
        type->typeKind != UA_DATATYPEKIND_BOOLEAN &&
        type->typeKind != UA_DATATYPEKIND_STATUSCODE &&
        type->typeKind != UA_DATATYPEKIND_DATETIME)
-        return setOperandError(ctx, index, 0, UA_STATUSCODE_BADFILTEROPERANDINVALID);
+        return UA_STATUSCODE_BADFILTEROPERANDINVALID;
 
     /* Compute the order */
-    UA_Order eq = UA_order(ctx->stack[0].data, ctx->stack[1].data, type);
+    UA_Order eq = UA_order(ctx->operandStack[0].data, ctx->operandStack[1].data, type);
     UA_Ternary operatorResult = UA_TERNARY_FALSE;
     switch(op) {
     case UA_FILTEROPERATOR_EQUALS:
@@ -754,7 +654,7 @@ compareOperator(UA_FilterEvalContext *ctx, size_t index, UA_FilterOperator op) {
     }
 
     /* Set result as a literal value */
-    ctx->results[index] = t2v(operatorResult);
+    ctx->operatorResults[index] = t2v(operatorResult);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -788,24 +688,24 @@ bitwiseOperator(UA_FilterEvalContext *ctx, size_t index, UA_FilterOperator op) {
     UA_assert(ctx->filter->elements[index].filterOperandsSize == 2);
 
     /* Resolve and cast the operands. Note that operands could cast to NULL. */
-    UA_assert(ctx->top == 0); /* Assume the stack is empty */
+    UA_assert(ctx->top == 0); /* Assume the operand stack is empty */
     UA_StatusCode res = castResolveOperands(ctx, index, true);
     UA_CHECK_STATUS(res, return res);
     UA_assert(ctx->top == 2); /* Assume we have two elements */
 
     /* Operands can cast to NULL */
-    const UA_DataType *type = ctx->stack[0].type;
+    const UA_DataType *type = ctx->operandStack[0].type;
     if(!type || !UA_DataType_isNumeric(type) ||
-       ctx->stack[0].type != ctx->stack[1].type)
+       ctx->operandStack[0].type != ctx->operandStack[1].type)
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Copy the casted literal to the result */
-    res = UA_Variant_copy(&ctx->stack[0], &ctx->results[index]);
+    res = UA_Variant_copy(&ctx->operandStack[0], &ctx->operatorResults[index]);
     UA_CHECK_STATUS(res, return res);
 
     /* Do the bitwise operation on the result data */
-    UA_Byte *bytesOut = (UA_Byte*)ctx->results[index].data;
-    const UA_Byte *bytes2 = (const UA_Byte*)ctx->stack[1].data;
+    UA_Byte *bytesOut = (UA_Byte*)ctx->operatorResults[index].data;
+    const UA_Byte *bytes2 = (const UA_Byte*)ctx->operandStack[1].data;
     for(size_t i = 0; i < type->memSize; i++) {
         if(op == UA_FILTEROPERATOR_BITWISEAND)
             bytesOut[i] = bytesOut[i] & bytes2[i];
@@ -831,27 +731,27 @@ betweenOperator(UA_FilterEvalContext *ctx, size_t index) {
 
     /* If no implicit conversion is available and the operands are of different
      * types, the particular result is FALSE. */
-    UA_assert(ctx->top == 0); /* Assume the stack is empty */
+    UA_assert(ctx->top == 0); /* Assume the operand stack is empty */
     UA_StatusCode res = castResolveOperands(ctx, index, false);
     if(res != UA_STATUSCODE_GOOD) {
-        ctx->results[index] = t2v(UA_TERNARY_FALSE);
+        ctx->operatorResults[index] = t2v(UA_TERNARY_FALSE);
         return UA_STATUSCODE_GOOD;
     }
     UA_assert(ctx->top == 3); /* Assume we have three elements */
 
     /* The casting can result in NULL values or a non-numerical type */
-    const UA_DataType *type = ctx->stack[0].type;
+    const UA_DataType *type = ctx->operandStack[0].type;
     if(!type || !UA_DataType_isNumeric(type) ||
-       type != ctx->stack[1].type || type != ctx->stack[2].type)
+       type != ctx->operandStack[1].type || type != ctx->operandStack[2].type)
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
-    UA_Order o1 = UA_order(ctx->stack[0].data, ctx->stack[1].data, type);
-    UA_Order o2 = UA_order(ctx->stack[0].data, ctx->stack[2].data, type);
+    UA_Order o1 = UA_order(ctx->operandStack[0].data, ctx->operandStack[1].data, type);
+    UA_Order o2 = UA_order(ctx->operandStack[0].data, ctx->operandStack[2].data, type);
     UA_Ternary comp = ((o1 == UA_ORDER_MORE || o1 == UA_ORDER_EQ) &&
                        (o2 == UA_ORDER_LESS || o2 == UA_ORDER_EQ)) ?
         UA_TERNARY_TRUE : UA_TERNARY_FALSE;
 
-    ctx->results[index] = t2v(comp);
+    ctx->operatorResults[index] = t2v(comp);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -860,8 +760,8 @@ inListOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
     UA_assert(elm->filterOperandsSize >= 2);
     UA_Boolean found = false;
-    UA_Variant *op0 = &ctx->stack[ctx->top++];
-    UA_Variant *op1 = &ctx->stack[ctx->top++];
+    UA_Variant *op0 = &ctx->operandStack[ctx->top++];
+    UA_Variant *op1 = &ctx->operandStack[ctx->top++];
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
     for(size_t i = 1; i < elm->filterOperandsSize && !found; i++) {
@@ -872,7 +772,7 @@ inListOperator(UA_FilterEvalContext *ctx, size_t index) {
             found = true;
         UA_Variant_clear(op1);
     }
-    ctx->results[index] = t2v((found) ? UA_TERNARY_TRUE: UA_TERNARY_FALSE);
+    ctx->operatorResults[index] = t2v((found) ? UA_TERNARY_TRUE: UA_TERNARY_FALSE);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -880,10 +780,11 @@ static UA_StatusCode
 isNullOperator(UA_FilterEvalContext *ctx, size_t index) {
     const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
     UA_assert(elm->filterOperandsSize == 1);
-    UA_Variant *op0 = &ctx->stack[ctx->top++];
+    UA_Variant *op0 = &ctx->operandStack[ctx->top++];
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
-    ctx->results[index] = t2v(UA_Variant_isEmpty(op0) ? UA_TERNARY_TRUE : UA_TERNARY_FALSE);
+    ctx->operatorResults[index] =
+        t2v(UA_Variant_isEmpty(op0) ? UA_TERNARY_TRUE : UA_TERNARY_FALSE);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -891,9 +792,6 @@ static UA_StatusCode
 notImplementedOperator(UA_FilterEvalContext *ctx, size_t index) {
     return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
 }
-
-/* Filter Evaluation
- * ~~~~~~~~~~~~~~~~~ */
 
 typedef struct {
     UA_StatusCode (*operatorMethod)(UA_FilterEvalContext *ctx, size_t index);
@@ -923,9 +821,9 @@ static const UA_FilterOperatorJumptableElement operatorJumptable[18] = {
 };
 
 UA_StatusCode
-evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eventNode,
+evaluateWhereClause(UA_Server *server, UA_Session *session,
                     const UA_ContentFilter *contentFilter,
-                    UA_ContentFilterResult *contentFilterResult) {
+                    const UA_EventDescription *ed) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* An empty filter always succeeds */
@@ -934,179 +832,38 @@ evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eve
 
     /* Prepare the context */
     UA_FilterEvalContext ctx;
-    ctx.filterResult = contentFilterResult;
     ctx.filter = contentFilter;
     ctx.server = server;
     ctx.session = session;
-    ctx.eventNode = eventNode;
+    ctx.ed = *ed;
     ctx.top = 0;
 
     /* Pacify some compilers by initializing the first result */
-    UA_Variant_init(&ctx.results[0]);
+    UA_Variant_init(&ctx.operatorResults[0]);
 
     /* Evaluate the filter. Iterate backwards over the filter elements and
      * resolve each. This ensures that all element-index operands point to an
      * evaluated element. */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    int i = (int)contentFilter->elementsSize - 1;
-    for(; i >= 0; i--) {
+    size_t i = contentFilter->elementsSize - 1;
+    for(; i < contentFilter->elementsSize; i--) {
         UA_ContentFilterElement *cfe = &contentFilter->elements[i];
-        res = operatorJumptable[cfe->filterOperator].operatorMethod(&ctx, (size_t)i);
+        res = operatorJumptable[cfe->filterOperator].operatorMethod(&ctx, i);
         for(size_t j = 0; j < ctx.top; j++)
-            UA_Variant_clear(&ctx.stack[j]); /* clean up the stack */
+            UA_Variant_clear(&ctx.operandStack[j]); /* clean up the operand stack */
         ctx.top = 0;
         if(res != UA_STATUSCODE_GOOD)
             break;
     }
 
     /* The filter matches if the operator at the first position evaluates to TRUE */
-    if(res == UA_STATUSCODE_GOOD && v2t(&ctx.results[0]) != UA_TERNARY_TRUE)
+    if(res == UA_STATUSCODE_GOOD && v2t(&ctx.operatorResults[0]) != UA_TERNARY_TRUE)
         res = UA_STATUSCODE_BADNOMATCH;
 
     /* Clean up the element result variants */
-    for(int j = (int)contentFilter->elementsSize - 1; j > i; j--)
-        UA_Variant_clear(&ctx.results[j]);
+    for(size_t j = contentFilter->elementsSize - 1; j > i; j--)
+        UA_Variant_clear(&ctx.operatorResults[j]);
     return res;
-}
-
-static UA_Boolean
-isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
-             const UA_NodeId *eventId) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    /* Find the eventType variableNode */
-    UA_QualifiedName findName = UA_QUALIFIEDNAME(0, "EventType");
-    UA_BrowsePathResult bpr = browseSimplifiedBrowsePath(server, *eventId, 1, &findName);
-    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
-        UA_BrowsePathResult_clear(&bpr);
-        return false;
-    }
-
-    /* Get the EventType Property Node */
-    UA_Variant tOutVariant;
-    UA_Variant_init(&tOutVariant);
-    /* Read the Value of EventType Property Node (the Value should be a NodeId) */
-    UA_StatusCode retval = readWithReadValue(server, &bpr.targets[0].targetId.nodeId,
-                                             UA_ATTRIBUTEID_VALUE, &tOutVariant);
-    if(retval != UA_STATUSCODE_GOOD ||
-       !UA_Variant_hasScalarType(&tOutVariant, &UA_TYPES[UA_TYPES_NODEID])) {
-        UA_BrowsePathResult_clear(&bpr);
-        return false;
-    }
-
-    const UA_NodeId *tEventType = (UA_NodeId*)tOutVariant.data;
-
-    /* Check whether the EventType is a Subtype of CondtionType (Part 9 first
-     * implementation) */
-    UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
-    if(UA_NodeId_equal(validEventParent, &conditionTypeId) &&
-       isNodeInTree_singleRef(server, tEventType, &conditionTypeId,
-                              UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
-        UA_BrowsePathResult_clear(&bpr);
-        UA_Variant_clear(&tOutVariant);
-        return true;
-    }
-
-    /* EventType is not a Subtype of CondtionType (ConditionId Clause won't be
-     * present in Events, which are not Conditions) */
-    /* Check whether Valid Event other than Conditions */
-    UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    UA_Boolean isSubtypeOfBaseEvent =
-        isNodeInTree_singleRef(server, tEventType, &baseEventTypeId,
-                               UA_REFERENCETYPEINDEX_HASSUBTYPE);
-
-    UA_BrowsePathResult_clear(&bpr);
-    UA_Variant_clear(&tOutVariant);
-    return isSubtypeOfBaseEvent;
-}
-
-UA_StatusCode
-filterEvent(UA_Server *server, UA_Session *session,
-            const UA_NodeId *eventNode, UA_EventFilter *filter,
-            UA_EventFieldList *efl, UA_EventFilterResult *result) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    if(filter->selectClausesSize == 0)
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-
-    UA_EventFieldList_init(efl);
-    efl->eventFields = (UA_Variant *)
-        UA_Array_new(filter->selectClausesSize, &UA_TYPES[UA_TYPES_VARIANT]);
-    if(!efl->eventFields)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    efl->eventFieldsSize = filter->selectClausesSize;
-
-    /* Empty event filter result */
-    UA_EventFilterResult_init(result);
-    result->selectClauseResultsSize = filter->selectClausesSize;
-    result->selectClauseResults = (UA_StatusCode *)
-        UA_Array_new(filter->selectClausesSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
-    if(!result->selectClauseResults) {
-        UA_EventFieldList_clear(efl);
-        UA_EventFilterResult_clear(result);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    /* Prepare content filter result structure */
-    if(filter->whereClause.elementsSize > 0) {
-        result->whereClauseResult.elementResultsSize = filter->whereClause.elementsSize;
-        result->whereClauseResult.elementResults = (UA_ContentFilterElementResult *)
-            UA_Array_new(filter->whereClause.elementsSize,
-                         &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
-        if(!result->whereClauseResult.elementResults) {
-            UA_EventFieldList_clear(efl);
-            UA_EventFilterResult_clear(result);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-
-        for(size_t i = 0; i < filter->whereClause.elementsSize; ++i) {
-            UA_ContentFilterElementResult *er =
-                &result->whereClauseResult.elementResults[i];
-            UA_ContentFilterElement *cf = &filter->whereClause.elements[i];
-            er->operandStatusCodesSize = cf->filterOperandsSize;
-            er->operandStatusCodes = (UA_StatusCode *)
-                UA_Array_new(er->operandStatusCodesSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
-            if(!er->operandStatusCodes) {
-                UA_EventFieldList_clear(efl);
-                UA_EventFilterResult_clear(result);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-        }
-    }
-
-    /* Evaluate the where filter. Do we event need to consider the event? */
-    UA_StatusCode res = evaluateWhereClause(server, session, eventNode,
-                                            &filter->whereClause,
-                                            &result->whereClauseResult);
-    if(res != UA_STATUSCODE_GOOD){
-        UA_EventFieldList_clear(efl);
-        UA_EventFilterResult_clear(result);
-        return res;
-    }
-
-    /* Apply the select filter */
-    UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    for(size_t i = 0; i < filter->selectClausesSize; i++) {
-        UA_SimpleAttributeOperand *sc = &filter->selectClauses[i];
-        /* Check if the browsePath is BaseEventType, in which case nothing more
-         * needs to be checked */
-        if(!UA_NodeId_equal(&sc->typeDefinitionId, &baseEventTypeId) &&
-           !isValidEvent(server, &sc->typeDefinitionId, eventNode)) {
-            UA_Variant_init(&efl->eventFields[i]);
-            /* EventFilterResult currently isn't being used
-               notification->result.selectClauseResults[i] =
-                   UA_STATUSCODE_BADTYPEDEFINITIONINVALID; */
-            continue;
-        }
-
-        /* Lookup the field. The overall filter can succeed even if a single
-         * select-field cannot be resolved. */
-        result->selectClauseResults[i] =
-            resolveSimpleAttributeOperand(server, session, eventNode,
-                                          sc, &efl->eventFields[i]);
-    }
-
-    return UA_STATUSCODE_GOOD;
 }
 
 /*****************************************/
@@ -1114,12 +871,12 @@ filterEvent(UA_Server *server, UA_Session *session,
 /*****************************************/
 
 /* Initial select clause validation. The following checks are currently performed:
- * - Check if typedefenitionid or browsepath of any clause is NULL
- * - Check if the eventType is a subtype of BaseEventType
- * - Check if attributeId is valid
- * - Check if browsePath contains null
- * - Check if indexRange is defined and if it is parsable
- * - Check if attributeId is value */
+ * - Check if the TypeDefinitionId or BrowsePath of any clause is NULL
+ * - Check if the EventType is a subtype of BaseEventType
+ * - Check if the AttributeId is valid
+ * - Check if the BrowsePath contains null
+ * - Check if the IndexRange is defined and if it is parseable
+ * - Check if the AttributeId is value when an IndexRange is defined */
 UA_StatusCode
 UA_SimpleAttributeOperandValidation(UA_Server *server,
                                     const UA_SimpleAttributeOperand *sao) {

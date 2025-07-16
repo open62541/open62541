@@ -548,33 +548,6 @@ readObjectProperty(UA_Server *server, const UA_NodeId objectId,
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
-UA_Subscription *
-getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-
-UA_StatusCode
-createEvent(UA_Server *server, const UA_NodeId eventType,
-            UA_NodeId *outNodeId);
-
-UA_StatusCode
-triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
-             const UA_NodeId origin, UA_ByteString *outEventId,
-             const UA_Boolean deleteEventNode);
-
-/* Filters the given event with the given filter and writes the results into a
- * notification */
-UA_StatusCode
-filterEvent(UA_Server *server, UA_Session *session,
-            const UA_NodeId *eventNode, UA_EventFilter *filter,
-            UA_EventFieldList *efl, UA_EventFilterResult *result);
-
-#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
-
-#endif /* UA_ENABLE_SUBSCRIPTIONS */
-
 /* Returns a configured SecurityPolicy with encryption. Use Basic256Sha256 if
  * available. Otherwise use any encrypted SecurityPolicy. */
 UA_SecurityPolicy *
