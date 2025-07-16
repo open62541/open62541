@@ -355,24 +355,6 @@ typedef struct UA_ConditionSource UA_ConditionSource;
 #define UA_EVENTFILTER_MAXOPERANDS 64 /* Max operands per operator */
 #define UA_EVENTFILTER_MAXSELECT   64 /* Max select clauses */
 
-typedef struct {
-    UA_NodeId eventType;
-    UA_NodeId sourceNode;
-    UA_UInt16 severity;
-    UA_KeyValueMap otherEventFields;
-} UA_EventDescription;
-
-/* Can return an in-situ value. Check for UA_VARIANT_DATA_NODELETE. */
-UA_StatusCode
-resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
-                              const UA_EventDescription *ed,
-                              const UA_SimpleAttributeOperand *sao,
-                              UA_Variant *out);
-
-UA_StatusCode
-UA_MonitoredItem_addEvent(UA_Server *server, UA_Session *session,
-                          UA_MonitoredItem *mon, const UA_EventDescription *ed);
-
 UA_StatusCode
 generateEventId(UA_ByteString *generatedId);
 
@@ -387,22 +369,23 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
                                   size_t operatorsCount,
                                   const UA_ContentFilterElement *ef);
 
-/* Evaluate content filter, exported only for unit testing */
-UA_StatusCode
-evaluateWhereClause(UA_Server *server, UA_Session *session,
-                    const UA_ContentFilter *contentFilter,
-                    const UA_EventDescription *ed);
-
 UA_StatusCode
 createEvent(UA_Server *server, const UA_NodeId eventType,
             const UA_NodeId sourceNode, UA_UInt16 severity,
             UA_KeyValueMap otherEventFields);
 
-/* Applies the select clause */
+typedef struct {
+    UA_NodeId eventType;
+    UA_NodeId sourceNode;
+    UA_UInt16 severity;
+    UA_KeyValueMap otherEventFields;
+} UA_EventDescription;
+
+/* Evaluate content filter, exported only for unit testing */
 UA_StatusCode
-setEventFields(UA_Server *server, UA_Session *session,
-               const UA_EventDescription *ed,
-               UA_EventFilter *filter, UA_EventFieldList *efl);
+evaluateWhereClause(UA_Server *server, UA_Session *session,
+                    const UA_ContentFilter *contentFilter,
+                    const UA_EventDescription *ed);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
