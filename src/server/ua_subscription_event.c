@@ -46,7 +46,8 @@ static UA_String mandatoryEventProperties[MANDATORY_EVENT_PROPERTIES_COUNT] = {
     UA_STRING_STATIC("/Severity")
 };
 
-UA_StatusCode
+/* Can return an in-situ value. Check for UA_VARIANT_DATA_NODELETE. */
+static UA_StatusCode
 resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
                               const UA_EventDescription *ed,
                               const UA_SimpleAttributeOperand *sao,
@@ -956,6 +957,7 @@ static const UA_FilterOperatorJumptableElement operatorJumptable[18] = {
     {bitwiseOrOperator, 2, 2}
 };
 
+/* Evaluate content filter, exported only for unit testing */
 UA_StatusCode
 evaluateWhereClause(UA_Server *server, UA_Session *session,
                     const UA_ContentFilter *contentFilter,
@@ -1214,7 +1216,8 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
 /* Create Event Instance */
 /*************************/
 
-UA_StatusCode
+/* Applies the select clause */
+static UA_StatusCode
 setEventFields(UA_Server *server, UA_Session *session,
                const UA_EventDescription *ed, UA_EventFilter *filter,
                UA_EventFieldList *efl) {
@@ -1249,7 +1252,7 @@ setEventFields(UA_Server *server, UA_Session *session,
 
 /* Filters an event according to the filter specified by mon and then adds it to
  * mons notification queue */
-UA_StatusCode
+static UA_StatusCode
 UA_MonitoredItem_addEvent(UA_Server *server, UA_Session *session,
                           UA_MonitoredItem *mon, const UA_EventDescription *ed) {
     /* Get the filter */
