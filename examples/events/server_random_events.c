@@ -159,7 +159,7 @@ addGenerateSampleEventsMethodCallback(UA_Server *server,
                              const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
                              size_t outputSize, UA_Variant *output) {
-    UA_StatusCode retval;
+    UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
     UA_NodeId* eventNodeId;
     eventNodeId = (UA_NodeId*)
         UA_Array_new(SAMPLE_EVENT_TYPES_COUNT, &UA_TYPES[UA_TYPES_NODEID]);

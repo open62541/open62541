@@ -311,7 +311,7 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server) {
     return NULL; /* No encrypted policy found */
 }
 
-const char *securityModeStrs[4] = {"-invalid", "-none", "-sign", "-sign+encrypt"};
+static const char *securityModeStrs[4] = {"-invalid", "-none", "-sign", "-sign+encrypt"};
 
 UA_String
 securityPolicyUriPostfix(const UA_String uri) {

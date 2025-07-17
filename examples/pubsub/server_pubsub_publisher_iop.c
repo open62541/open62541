@@ -55,7 +55,7 @@ static UA_NodeId ds2DateTimeId;
 static UA_NodeId ds2UInt32ArrId;
 static UA_UInt32 ds2UInt32ArrValue[10] = { 0, 10, 20, 30, 40, 50, 60, 70, 80, 90 };
 
-UA_NodeId connectionIdent;
+static UA_NodeId connectionIdent;
 
 void
 timerCallback(UA_Server *server, void *data);

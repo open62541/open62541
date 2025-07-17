@@ -1091,10 +1091,10 @@ compatibleValueArrayDimensions(const UA_Variant *value, size_t targetArrayDimens
                                      valueArrayDimensionsSize, valueArrayDimensions);
 }
 
-const char *reason_EmptyType = "Empty value only allowed for BaseDataType";
-const char *reason_ValueDataType = "DataType of the value is incompatible";
-const char *reason_ValueArrayDimensions = "ArrayDimensions of the value are incompatible";
-const char *reason_ValueValueRank = "ValueRank of the value is incompatible";
+static const char *reason_EmptyType = "Empty value only allowed for BaseDataType";
+static const char *reason_ValueDataType = "DataType of the value is incompatible";
+static const char *reason_ValueArrayDimensions = "ArrayDimensions of the value are incompatible";
+static const char *reason_ValueValueRank = "ValueRank of the value is incompatible";
 
 UA_Boolean
 compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetDataTypeId,
