@@ -64,7 +64,7 @@ handler_events(UA_Client *client, UA_UInt32 subId, void *subContext,
     }
 }
 
-const size_t nSelectClauses = 2;
+static const size_t nSelectClauses = 2;
 
 static UA_SimpleAttributeOperand *
 setupSelectClauses(void) {

@@ -8,7 +8,7 @@
 #include <signal.h>
 #include <stdlib.h>
 
-UA_Boolean running = true;
+static UA_Boolean running = true;
 static void stopHandler(int sig) {
     running = false;
 }
