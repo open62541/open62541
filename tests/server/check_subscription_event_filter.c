@@ -651,7 +651,7 @@ START_TEST(ofTypeOperatorValidation_failure) {
     UA_Variant literalContent;
     UA_NodeId *nodeId = UA_NodeId_new();
     UA_NodeId_init(nodeId);
-    *nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+    *nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
     UA_Variant_setScalar(&literalContent, nodeId, &UA_TYPES[UA_TYPES_NODEID]);
     setupLiteralOperand(&filter.whereClause.elements[0], 1, &literalContent);
 

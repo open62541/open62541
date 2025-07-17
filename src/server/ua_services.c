@@ -39,7 +39,7 @@ UA_NodeId unsafe_fuzz_authenticationToken = {0, UA_NODEIDTYPE_NUMERIC, {0}};
 # define UA_SERVICECOUNTER_OFFSET(X, requiresSession) requiresSession
 #endif
 
-UA_ServiceDescription serviceDescriptions[] = {
+static UA_ServiceDescription serviceDescriptions[] = {
     {UA_NS0ID_GETENDPOINTSREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET_NONE(false), (UA_Service)Service_GetEndpoints,
      &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST], &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]},

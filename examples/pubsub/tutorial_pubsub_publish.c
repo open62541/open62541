@@ -32,7 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent,
+static UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent,
     dataSetWriterIdent;
 
 static void
