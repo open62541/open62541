@@ -294,8 +294,8 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev
-          ${{ matrix.build.cmd_deps }}      
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev libreadline-dev
+          ${{ matrix.build.cmd_deps }}
       - name: ${{ matrix.build.name }}
         shell: bash
         run: source tools/ci/ci.sh && ${{ matrix.build.cmd_action }}
