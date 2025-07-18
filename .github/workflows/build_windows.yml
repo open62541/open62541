@@ -1,0 +1,39 @@
+name: Windows Build & Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: msvc
+            cc_name: "Visual Studio 17 2022"
+            cc_shortname: msvc
+            generator: "Visual Studio 17 2022"
+          - compiler: mingw
+            cc_name: "MinGW Makefiles" 
+            cc_shortname: mingw
+            generator: "MinGW Makefiles"
+          - compiler: clang-mingw
+            cc_name: "Clang"
+            cc_shortname: clang-mingw
+            generator: "MinGW Makefiles"
+    runs-on: windows-latest
+    env:
+      CC_NAME: ${{ matrix.cc_name }}
+      CC_SHORTNAME: ${{ matrix.cc_shortname }}
+      GENERATOR: ${{ matrix.generator }}
+      FORCE_CXX: OFF
+      MSYS2_ROOT: C:\msys64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Install Requirements
+        shell: pwsh
+        run: ./tools/ci/azure-devops/win/install.ps1
+      - name: Build & Test
+        shell: pwsh
+        run: ./tools/ci/azure-devops/win/build.ps1
