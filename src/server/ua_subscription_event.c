@@ -1216,11 +1216,10 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
 /* Create Event Instance */
 /*************************/
 
-/* Applies the select clause */
-static UA_StatusCode
-setEventFields(UA_Server *server, UA_Session *session,
-               const UA_EventDescription *ed, UA_EventFilter *filter,
-               UA_EventFieldList *efl) {
+UA_StatusCode
+evaluateSelectClause(UA_Server *server, UA_Session *session,
+                     const UA_EventDescription *ed, const UA_EventFilter *filter,
+                     UA_EventFieldList *efl) {
     /* Nothing to do */
     if(filter->selectClausesSize == 0)
         return UA_STATUSCODE_GOOD;
@@ -1278,7 +1277,7 @@ UA_MonitoredItem_addEvent(UA_Server *server, UA_Session *session,
     /* Get the event fields for the select clause */
     UA_EventFieldList efl;
     UA_EventFieldList_init(&efl);
-    res = setEventFields(server, session, ed, ef, &efl);
+    res = evaluateSelectClause(server, session, ed, ef, &efl);
     if(res != UA_STATUSCODE_GOOD) {
         UA_EventFieldList_clear(&efl);
         return res;
@@ -1343,8 +1342,9 @@ setHistoricalEvent(UA_Server *server, const UA_NodeId *emitNode,
     /* Get the event fields for the select clause */
     UA_EventFieldList efl;
     UA_EventFieldList_init(&efl);
-    res = setEventFields(server, &server->adminSession, ed, ef, &efl);
+    res = evaluateSelectClause(server, &server->adminSession, ed, ef, &efl);
 
+    /* Call the history database backend */
     if(UA_LIKELY(res == UA_STATUSCODE_GOOD)) {
         server->config.historyDatabase.
             setEvent(server, server->config.historyDatabase.context,
