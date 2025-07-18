@@ -387,6 +387,12 @@ evaluateWhereClause(UA_Server *server, UA_Session *session,
                     const UA_ContentFilter *contentFilter,
                     const UA_EventDescription *ed);
 
+/* Applies the select clause and resolves the result fields */
+UA_StatusCode
+evaluateSelectClause(UA_Server *server, UA_Session *session,
+                     const UA_EventDescription *ed, const UA_EventFilter *filter,
+                     UA_EventFieldList *efl);
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /***********/
