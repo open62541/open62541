@@ -1187,16 +1187,16 @@ static UA_StatusCode
 clientConfig_setAuthenticationSecurityPolicies(UA_ClientConfig *config,
                                                UA_ByteString certificateAuth,
                                                UA_ByteString privateKeyAuth) {
+    /* Clean up old SecurityPolicies */
+    for(size_t i = 0; i < config->authSecurityPoliciesSize; i++) {
+        config->authSecurityPolicies[i].clear(&config->authSecurityPolicies[i]);
+    }
+
     UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
         UA_realloc(config->authSecurityPolicies, sizeof(UA_SecurityPolicy) * 3);
     if(!sp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->authSecurityPolicies = sp;
-
-    /* Clean up old SecurityPolicies */
-    for(size_t i = 0; i < config->authSecurityPoliciesSize; i++) {
-        config->authSecurityPolicies[i].clear(&config->authSecurityPolicies[i]);
-    }
     config->authSecurityPoliciesSize = 0;
 
     /* Basic128Rsa15 is unsecure and should not be used */
@@ -1271,6 +1271,13 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
 
     if(config->certificateVerification.clear)
         config->certificateVerification.clear(&config->certificateVerification);
+
+    
+    if(!config->certificateVerification.logging) {
+        config->certificateVerification.logging = config->logging;
+    }
+
+
     retval = UA_CertificateVerification_Trustlist(&config->certificateVerification,
                                                   trustList, trustListSize,
                                                   NULL, 0,
@@ -1278,12 +1285,31 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* Clean up old SecurityPolicies */
+    for(size_t i = 0; i < config->securityPoliciesSize; i++) {
+        config->securityPolicies[i].clear(&config->securityPolicies[i]);
+    }
     /* Populate SecurityPolicies */
     UA_SecurityPolicy *sp = (UA_SecurityPolicy*)
         UA_realloc(config->securityPolicies, sizeof(UA_SecurityPolicy) * SECURITY_POLICY_SIZE);
     if(!sp)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->securityPolicies = sp;
+    config->securityPoliciesSize = 0;
+
+
+    /* Add the None SecurityPolicy */
+    retval = UA_SecurityPolicy_None(config->securityPolicies,
+                                                    UA_BYTESTRING_NULL, config->logging);
+    
+    if(retval == UA_STATUSCODE_GOOD) {
+        ++config->securityPoliciesSize;
+    } else {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#None with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
 
     /* Load the private key and convert to the DER format. Use an empty password
      * on the first try -- maybe the key does not require a password. */
