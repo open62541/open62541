@@ -34,17 +34,24 @@ typedef struct UA_Client_NotificationsAckNumber {
     UA_SubscriptionAcknowledgement subAck;
 } UA_Client_NotificationsAckNumber;
 
+typedef enum {
+    UA_MONITOREDITEMTYPE_DATA,
+    UA_MONITOREDITEMTYPE_EVENT,
+    UA_MONITOREDITEMTYPE_NAMEDEVENT
+} UA_MonitoredItemType;
+
 typedef struct UA_Client_MonitoredItem {
     ZIP_ENTRY(UA_Client_MonitoredItem) zipfields;
     UA_UInt32 monitoredItemId;
     UA_UInt32 clientHandle;
     void *context;
     UA_Client_DeleteMonitoredItemCallback deleteCallback;
+    UA_MonitoredItemType type;
     union {
         UA_Client_DataChangeNotificationCallback dataChangeCallback;
         UA_Client_EventNotificationCallback eventCallback;
-    } handler;
-    UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
+        UA_Client_NamedEventNotificationCallback namedEventCallback;
+    } callback;
 } UA_Client_MonitoredItem;
 
 ZIP_HEAD(MonitorItemsTree, UA_Client_MonitoredItem);
