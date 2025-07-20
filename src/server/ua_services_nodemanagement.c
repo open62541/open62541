@@ -1597,7 +1597,7 @@ Operation_addNode(UA_Server *server, UA_Session *session, void *nodeContext,
         UA_NodeId_clear(&result->addedNodeId);
 }
 
-void
+UA_Boolean
 Service_AddNodes(UA_Server *server, UA_Session *session,
                  const UA_AddNodesRequest *request,
                  UA_AddNodesResponse *response) {
@@ -1607,16 +1607,17 @@ Service_AddNodes(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->nodesToAddSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_addNode, NULL,
-                                           &request->nodesToAddSize,
-                                           &UA_TYPES[UA_TYPES_ADDNODESITEM],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_ADDNODESRESULT]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_addNode, NULL,
+                                      &request->nodesToAddSize,
+                                      &UA_TYPES[UA_TYPES_ADDNODESITEM],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_ADDNODESRESULT]);
+    return true;
 }
 
 UA_StatusCode
@@ -1650,8 +1651,8 @@ addNode(UA_Server *server, const UA_NodeClass nodeClass, const UA_NodeId request
     return result.statusCode;
 }
 
-UA_StatusCode
-__UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
+static UA_StatusCode
+__Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
                     const UA_NodeId *requestedNewNodeId,
                     const UA_NodeId *parentNodeId,
                     const UA_NodeId *referenceTypeId,
@@ -1667,6 +1668,96 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
                 attributeType, nodeContext, outNewNodeId);
     unlockServer(server);
     return reval;
+}
+
+UA_StatusCode
+UA_Server_addVariableNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                          const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
+                          const UA_VariableAttributes attr, void *nodeContext,
+                          UA_NodeId *outNewNodeId) {
+    return __Server_addNode(server, UA_NODECLASS_VARIABLE, &requestedNewNodeId,
+                            &parentNodeId, &referenceTypeId, browseName,
+                            &typeDefinition, (const UA_NodeAttributes*)&attr,
+                            &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
+                            nodeContext, outNewNodeId);
+}
+
+UA_StatusCode
+UA_Server_addVariableTypeNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                              const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                              const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
+                              const UA_VariableTypeAttributes attr, void *nodeContext,
+                              UA_NodeId *outNewNodeId) {
+    return __Server_addNode(server, UA_NODECLASS_VARIABLETYPE,
+                            &requestedNewNodeId, &parentNodeId, &referenceTypeId,
+                            browseName, &typeDefinition,
+                            (const UA_NodeAttributes*)&attr,
+                            &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES],
+                            nodeContext, outNewNodeId);
+}
+
+UA_StatusCode
+UA_Server_addObjectNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                        const UA_QualifiedName browseName, const UA_NodeId typeDefinition,
+                        const UA_ObjectAttributes attr, void *nodeContext,
+                        UA_NodeId *outNewNodeId) {
+    return __Server_addNode(server, UA_NODECLASS_OBJECT, &requestedNewNodeId,
+                            &parentNodeId, &referenceTypeId, browseName,
+                            &typeDefinition, (const UA_NodeAttributes*)&attr,
+                            &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
+                            nodeContext, outNewNodeId);
+}
+
+UA_StatusCode
+UA_Server_addObjectTypeNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                            const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                            const UA_QualifiedName browseName, const UA_ObjectTypeAttributes attr,
+                            void *nodeContext, UA_NodeId *outNewNodeId) {
+    return __Server_addNode(server, UA_NODECLASS_OBJECTTYPE, &requestedNewNodeId,
+                            &parentNodeId, &referenceTypeId, browseName,
+                            &UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
+                            &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES],
+                            nodeContext, outNewNodeId);
+}
+
+UA_StatusCode
+UA_Server_addViewNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                      const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                      const UA_QualifiedName browseName, const UA_ViewAttributes attr,
+                      void *nodeContext, UA_NodeId *outNewNodeId) {
+    return __Server_addNode(server, UA_NODECLASS_VIEW, &requestedNewNodeId,
+                            &parentNodeId, &referenceTypeId, browseName,
+                            &UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
+                            &UA_TYPES[UA_TYPES_VIEWATTRIBUTES],
+                            nodeContext, outNewNodeId);
+}
+
+UA_StatusCode
+UA_Server_addReferenceTypeNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                               const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                               const UA_QualifiedName browseName,
+                               const UA_ReferenceTypeAttributes attr, void *nodeContext,
+                               UA_NodeId *outNewNodeId) {
+    return __Server_addNode(server, UA_NODECLASS_REFERENCETYPE,
+                            &requestedNewNodeId, &parentNodeId, &referenceTypeId,
+                            browseName, &UA_NODEID_NULL,
+                            (const UA_NodeAttributes*)&attr,
+                            &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES],
+                            nodeContext, outNewNodeId);
+}
+
+UA_StatusCode
+UA_Server_addDataTypeNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                          const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                          const UA_QualifiedName browseName, const UA_DataTypeAttributes attr,
+                          void *nodeContext, UA_NodeId *outNewNodeId) {
+    return __Server_addNode(server, UA_NODECLASS_DATATYPE, &requestedNewNodeId,
+                            &parentNodeId, &referenceTypeId, browseName,
+                            &UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
+                            &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES],
+                            nodeContext, outNewNodeId);
 }
 
 UA_StatusCode
@@ -2009,7 +2100,7 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
     RefTree_clear(&refTree);
 }
 
-void
+UA_Boolean
 Service_DeleteNodes(UA_Server *server, UA_Session *session,
                     const UA_DeleteNodesRequest *request,
                     UA_DeleteNodesResponse *response) {
@@ -2020,16 +2111,17 @@ Service_DeleteNodes(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->nodesToDeleteSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)deleteNodeOperation,
-                                           NULL, &request->nodesToDeleteSize,
-                                           &UA_TYPES[UA_TYPES_DELETENODESITEM],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)deleteNodeOperation,
+                                      NULL, &request->nodesToDeleteSize,
+                                      &UA_TYPES[UA_TYPES_DELETENODESITEM],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_STATUSCODE]);
+    return true;
 }
 
 UA_StatusCode
@@ -2181,7 +2273,7 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
     UA_NODESTORE_RELEASE(server, sourceNode);
 }
 
-void
+UA_Boolean
 Service_AddReferences(UA_Server *server, UA_Session *session,
                       const UA_AddReferencesRequest *request,
                       UA_AddReferencesResponse *response) {
@@ -2193,16 +2285,17 @@ Service_AddReferences(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->referencesToAddSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_addReference,
-                                           NULL, &request->referencesToAddSize,
-                                           &UA_TYPES[UA_TYPES_ADDREFERENCESITEM],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_addReference,
+                                      NULL, &request->referencesToAddSize,
+                                      &UA_TYPES[UA_TYPES_ADDREFERENCESITEM],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_STATUSCODE]);
+    return true;
 }
 
 UA_StatusCode
@@ -2299,7 +2392,7 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
     }
 }
 
-void
+UA_Boolean
 Service_DeleteReferences(UA_Server *server, UA_Session *session,
                          const UA_DeleteReferencesRequest *request,
                          UA_DeleteReferencesResponse *response) {
@@ -2310,16 +2403,17 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->referencesToDeleteSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_deleteReference,
-                                           NULL, &request->referencesToDeleteSize,
-                                           &UA_TYPES[UA_TYPES_DELETEREFERENCESITEM],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_deleteReference,
+                                      NULL, &request->referencesToDeleteSize,
+                                      &UA_TYPES[UA_TYPES_DELETEREFERENCESITEM],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_STATUSCODE]);
+    return true;
 }
 
 UA_StatusCode
@@ -2789,6 +2883,23 @@ UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
                                       nodeContext, outNewNodeId);
     unlockServer(server);
     return res;
+}
+
+UA_StatusCode
+UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
+                        const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
+                        const UA_QualifiedName browseName, const UA_MethodAttributes attr,
+                        UA_MethodCallback method,
+                        size_t inputArgumentsSize, const UA_Argument *inputArguments,
+                        size_t outputArgumentsSize, const UA_Argument *outputArguments,
+                        void *nodeContext, UA_NodeId *outNewNodeId) {
+    return UA_Server_addMethodNodeEx(server, requestedNewNodeId,  parentNodeId,
+                                     referenceTypeId, browseName, attr, method,
+                                     inputArgumentsSize, inputArguments,
+                                     UA_NODEID_NULL, NULL,
+                                     outputArgumentsSize, outputArguments,
+                                     UA_NODEID_NULL, NULL,
+                                     nodeContext, outNewNodeId);
 }
 
 static UA_StatusCode
