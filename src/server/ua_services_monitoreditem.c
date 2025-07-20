@@ -79,7 +79,7 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
 
 #endif /* UA_ENABLE_DA */
 
-void
+UA_Boolean
 Service_SetTriggering(UA_Server *server, UA_Session *session,
                       const UA_SetTriggeringRequest *request,
                       UA_SetTriggeringResponse *response) {
@@ -87,14 +87,14 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
     if(request->linksToRemoveSize == 0 &&
        request->linksToAddSize == 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-        return;
+        return true;
     }
 
     /* Get the Subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-        return;
+        return true;
     }
 
     /* Reset the lifetime counter of the Subscription */
@@ -104,7 +104,7 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
     UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, request->triggeringItemId);
     if(!mon) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
-        return;
+        return true;
     }
 
     /* Allocate the results arrays */
@@ -113,7 +113,7 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
             UA_Array_new(request->linksToRemoveSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
         if(!response->removeResults) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-            return;
+            return true;
         }
         response->removeResultsSize = request->linksToRemoveSize;
     }
@@ -127,7 +127,7 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
             response->removeResults = NULL;
             response->removeResultsSize = 0;
             response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-            return;
+            return true;
         }
         response->addResultsSize = request->linksToAddSize;
     }
@@ -140,6 +140,8 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
     for(size_t i = 0; i < request->linksToAddSize; i++)
         response->addResults[i] =
             UA_MonitoredItem_addLink(sub, mon, request->linksToAdd[i]);
+
+    return true;
 }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
@@ -500,7 +502,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                              (unsigned long)newMon->parameters.queueSize);
 }
 
-void
+UA_Boolean
 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
                              const UA_CreateMonitoredItemsRequest *request,
                              UA_CreateMonitoredItemsResponse *response) {
@@ -512,21 +514,21 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     if(server->config.maxMonitoredItemsPerCall != 0 &&
        request->itemsToCreateSize > server->config.maxMonitoredItemsPerCall) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     /* Check if the timestampstoreturn is valid */
     if(request->timestampsToReturn < UA_TIMESTAMPSTORETURN_SOURCE ||
        request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
-        return;
+        return true;
     }
 
     /* Find the subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-        return;
+        return true;
     }
 
     /* Reset the lifetime counter of the Subscription */
@@ -539,12 +541,14 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     cmc.localMon = NULL;
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_CreateMonitoredItem,
-                                           &cmc, &request->itemsToCreateSize,
-                                           &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_MONITOREDITEMCREATERESULT]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_CreateMonitoredItem,
+                                      &cmc, &request->itemsToCreateSize,
+                                      &UA_TYPES[UA_TYPES_MONITOREDITEMCREATEREQUEST],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_MONITOREDITEMCREATERESULT]);
+
+    return true;
 }
 
 UA_MonitoredItemCreateResult
@@ -774,7 +778,7 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
                              (unsigned long)mon->queueSize);
 }
 
-void
+UA_Boolean
 Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
                              const UA_ModifyMonitoredItemsRequest *request,
                              UA_ModifyMonitoredItemsResponse *response) {
@@ -785,32 +789,34 @@ Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
     if(server->config.maxMonitoredItemsPerCall != 0 &&
        request->itemsToModifySize > server->config.maxMonitoredItemsPerCall) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     /* Check if the timestampstoreturn is valid */
     if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
-        return;
+        return true;
     }
 
     /* Get the subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-        return;
+        return true;
     }
 
     /* Reset the lifetime counter of the Subscription */
     Subscription_resetLifetime(sub);
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_ModifyMonitoredItem,
-                                           sub, &request->itemsToModifySize,
-                                           &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYREQUEST],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYRESULT]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_ModifyMonitoredItem,
+                                      sub, &request->itemsToModifySize,
+                                      &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYREQUEST],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_MONITOREDITEMMODIFYRESULT]);
+
+    return true;
 }
 
 struct setMonitoringContext {
@@ -830,7 +836,7 @@ Operation_SetMonitoringMode(UA_Server *server, UA_Session *session,
     *result = UA_MonitoredItem_setMonitoringMode(server, mon, smc->monitoringMode);
 }
 
-void
+UA_Boolean
 Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
                           const UA_SetMonitoringModeRequest *request,
                           UA_SetMonitoringModeResponse *response) {
@@ -841,14 +847,14 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
     if(server->config.maxMonitoredItemsPerCall != 0 &&
        request->monitoredItemIdsSize > server->config.maxMonitoredItemsPerCall) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     /* Get the subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-        return;
+        return true;
     }
 
     /* Reset the lifetime counter of the Subscription */
@@ -860,12 +866,14 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
     smc.monitoringMode = request->monitoringMode;
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_SetMonitoringMode,
-                                           &smc, &request->monitoredItemIdsSize,
-                                           &UA_TYPES[UA_TYPES_UINT32],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_SetMonitoringMode,
+                                      &smc, &request->monitoredItemIdsSize,
+                                      &UA_TYPES[UA_TYPES_UINT32],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_STATUSCODE]);
+
+    return true;
 }
 
 static void
@@ -880,7 +888,7 @@ Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
     UA_MonitoredItem_delete(server, mon);
 }
 
-void
+UA_Boolean
 Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                              const UA_DeleteMonitoredItemsRequest *request,
                              UA_DeleteMonitoredItemsResponse *response) {
@@ -891,26 +899,28 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
     if(server->config.maxMonitoredItemsPerCall != 0 &&
        request->monitoredItemIdsSize > server->config.maxMonitoredItemsPerCall) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     /* Get the subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-        return;
+        return true;
     }
 
     /* Reset the lifetime counter of the Subscription */
     Subscription_resetLifetime(sub);
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_DeleteMonitoredItem,
-                                           sub, &request->monitoredItemIdsSize,
-                                           &UA_TYPES[UA_TYPES_UINT32],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_DeleteMonitoredItem,
+                                      sub, &request->monitoredItemIdsSize,
+                                      &UA_TYPES[UA_TYPES_UINT32],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_STATUSCODE]);
+
+    return true;
 }
 
 UA_StatusCode

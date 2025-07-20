@@ -90,9 +90,10 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
 }
 #endif
 
-void Service_FindServers(UA_Server *server, UA_Session *session,
-                         const UA_FindServersRequest *request,
-                         UA_FindServersResponse *response) {
+UA_Boolean
+Service_FindServers(UA_Server *server, UA_Session *session,
+                    const UA_FindServersRequest *request,
+                    UA_FindServersResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing FindServersRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -112,14 +113,14 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
 
 #ifndef UA_ENABLE_DISCOVERY
     if(!foundSelf)
-        return;
+        return true;
 
     response->responseHeader.serviceResult =
         UA_Array_copy(&server->config.applicationDescription, 1,
                       (void**)&response->servers,
                       &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-        return;
+        return true;
 
     response->serversSize = 1;
 #else
@@ -127,7 +128,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
         getServerComponentByName(server, UA_STRING("discovery"));
     if(!dm) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        return;
+        return true;
     }
 
     /* Allocate enough memory, including memory for the "self" response */
@@ -136,7 +137,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
         UA_Array_new(maxResults, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
     if(!response->servers) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
+        return true;
     }
 
     /* Copy into the response. TODO: Evaluate return codes */
@@ -186,6 +187,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                                     &request->endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
         }
     }
+
+    return true;
 }
 
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
@@ -213,7 +216,7 @@ entryMatchesCapabilityFilter(size_t serverCapabilityFilterSize,
     return true;
 }
 
-void
+UA_Boolean
 Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                              const UA_FindServersOnNetworkRequest *request,
                              UA_FindServersOnNetworkResponse *response) {
@@ -223,12 +226,12 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
         getServerComponentByName(server, UA_STRING("discovery"));
     if(!dm) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        return;
+        return true;
     }
 
     if(!server->config.mdnsEnabled) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTIMPLEMENTED;
-        return;
+        return true;
     }
 
     /* Set LastCounterResetTime */
@@ -245,7 +248,7 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
         recordCount = UA_MIN(recordCount, request->maxRecordsToReturn);
     if(recordCount == 0) {
         response->serversSize = 0;
-        return;
+        return true;
     }
 
     /* Iterate over all records and add to filtered list */
@@ -254,7 +257,7 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
     UA_ServerOnNetwork *current = UA_DiscoveryManager_getServerOnNetworkList(dm);
     if(!current) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        return;
+        return true;
     }
     for(size_t i = 0; i < recordCount; i++) {
         if(filteredCount >= recordCount)
@@ -271,20 +274,22 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
     }
 
     if(filteredCount == 0)
-        return;
+        return true;
 
     /* Allocate the array for the response */
     response->servers = (UA_ServerOnNetwork*)
         UA_malloc(sizeof(UA_ServerOnNetwork)*filteredCount);
     if(!response->servers) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
+        return true;
     }
     response->serversSize = filteredCount;
 
     /* Copy the server names */
-    for(size_t i = 0; i < filteredCount; i++)
+    for(size_t i = 0; i < filteredCount; i++) {
         UA_ServerOnNetwork_copy(filtered[i], &response->servers[filteredCount-i-1]);
+    }
+    return true;
 }
 #endif
 
@@ -488,7 +493,7 @@ setCurrentEndPointsArray(UA_Server *server, const UA_String endpointUrl,
     return retval;
 }
 
-void
+UA_Boolean
 Service_GetEndpoints(UA_Server *server, UA_Session *session,
                      const UA_GetEndpointsRequest *request,
                      UA_GetEndpointsResponse *response) {
@@ -509,6 +514,7 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
         setCurrentEndPointsArray(server, request->endpointUrl,
                                  request->profileUris, request->profileUrisSize,
                                  &response->endpoints, &response->endpointsSize);
+    return true;
 }
 
 #ifdef UA_ENABLE_DISCOVERY
@@ -681,19 +687,23 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     responseHeader->serviceResult = retval;
 }
 
-void Service_RegisterServer(UA_Server *server, UA_Session *session,
-                            const UA_RegisterServerRequest *request,
-                            UA_RegisterServerResponse *response) {
+UA_Boolean
+Service_RegisterServer(UA_Server *server, UA_Session *session,
+                       const UA_RegisterServerRequest *request,
+                       UA_RegisterServerResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RegisterServerRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
-    process_RegisterServer(server, session, &request->requestHeader, &request->server, 0,
-                           NULL, &response->responseHeader, 0, NULL, 0, NULL);
+    process_RegisterServer(server, session, &request->requestHeader,
+                           &request->server, 0, NULL, &response->responseHeader,
+                           0, NULL, 0, NULL);
+    return true;
 }
 
-void Service_RegisterServer2(UA_Server *server, UA_Session *session,
-                            const UA_RegisterServer2Request *request,
-                             UA_RegisterServer2Response *response) {
+UA_Boolean
+Service_RegisterServer2(UA_Server *server, UA_Session *session,
+                        const UA_RegisterServer2Request *request,
+                        UA_RegisterServer2Response *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RegisterServer2Request");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -702,6 +712,7 @@ void Service_RegisterServer2(UA_Server *server, UA_Session *session,
                            &response->responseHeader, &response->configurationResultsSize,
                            &response->configurationResults, &response->diagnosticInfosSize,
                            response->diagnosticInfos);
+    return true;
 }
 
 #endif /* UA_ENABLE_DISCOVERY */
