@@ -596,6 +596,7 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
     return result;
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 UA_MonitoredItemCreateResult
 UA_Server_createEventMonitoredItemEx(UA_Server *server,
                                      const UA_MonitoredItemCreateRequest item,
@@ -695,6 +696,7 @@ UA_Server_createEventMonitoredItem(UA_Server *server, const UA_NodeId nodeId,
                                 &UA_TYPES[UA_TYPES_EVENTFILTER]);
     return UA_Server_createEventMonitoredItemEx(server, item, monitoredItemContext, callback);
 }
+#endif
 
 static void
 Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscription *sub,
