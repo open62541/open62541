@@ -3,6 +3,24 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Event API uses string-encoded of BrowsePaths
+
+The select-clause of EventFilters defines the fields to be returned in
+event-notifications. The clause is made up of SimpleAttributeOperand structures.
+The API now uses key-value maps with string-encoded SimpleAttributeOperands for
+the keys. The string-keys can also traverse into nested structures.
+
+The key-value-map also replaces the internal representation of Events. Before
+the Events were instantiated OPC UA objects in the information model. The new
+approach significantly reduces the computational overhead associated with
+Events.
+
+The above has lead to breaking API changes in
+
+- Server-side monitoring of local events
+- Server-side creation of events (with a key-value map for the event properties)
+- Client-side monitoring of remove events
+
 ### Client async methods are typed
 
 For more of the client async service calls, specialized callback types were

@@ -182,7 +182,7 @@ typedef void (*UA_Client_DataChangeNotificationCallback)
 typedef void (*UA_Client_EventNotificationCallback)
     (UA_Client *client, UA_UInt32 subId, void *subContext,
      UA_UInt32 monId, void *monContext,
-     size_t nEventFields, UA_Variant *eventFields);
+     const UA_KeyValueMap eventFields);
 
 /* Don't use to monitor the EventNotifier attribute */
 UA_CreateMonitoredItemsResponse UA_EXPORT UA_THREADSAFE

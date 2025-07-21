@@ -1084,33 +1084,43 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
     /* A Notification is inserted into the queue which includes only the
      * NodeId of the OverflowEventType. */
 
-    /* Prepare the EventFields first. So we are sure to succeed when the
-     * Notification was allocated. */
-    UA_EventFieldList efl;
-    efl.clientHandle = mon->parameters.clientHandle;
-    efl.eventFields = UA_Variant_new();
-    if(!efl.eventFields)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_StatusCode ret =
-        UA_Variant_setScalarCopy(efl.eventFields, &eventQueueOverflowEventType,
-                                 &UA_TYPES[UA_TYPES_NODEID]);
-    if(ret != UA_STATUSCODE_GOOD) {
-        UA_Variant_delete(efl.eventFields);
-        return ret;
-    }
-    efl.eventFieldsSize = 1;
+    /* Get the EventFilter */
+    if(mon->parameters.filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
+        return UA_STATUSCODE_BADINTERNALERROR;
+    const UA_EventFilter *ef = (const UA_EventFilter*)
+        mon->parameters.filter.content.decoded.data;
+    if(ef->selectClausesSize == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* Allocate the notification */
-    UA_Notification *overflowNotification = UA_Notification_new();
-    if(!overflowNotification) {
-        UA_Variant_delete(efl.eventFields);
+    /* Initialize the notification */
+    UA_Notification *n = UA_Notification_new();
+    if(!n)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+    n->isOverflowEvent = true;
+    n->mon = mon;
+    n->data.event.clientHandle = mon->parameters.clientHandle;
 
-    /* Set the notification fields */
-    overflowNotification->isOverflowEvent = true;
-    overflowNotification->mon = mon;
-    overflowNotification->data.event = efl;
+    /* The session is needed to evaluate the select-clause. But used only for
+     * limited reads on the source node. So we can use the admin-session here if
+     * the subscription is detached. */
+    UA_Session *session = (sub->session) ?
+        sub->session : &server->adminSession;
+
+    /* Populate the event fields (most fields are the default) */
+    UA_KeyValuePair fields[1];
+    fields[0].key = (UA_QualifiedName){0, UA_STRING_STATIC("/SourceName")};
+    static UA_String sourceName = UA_STRING_STATIC("Internal/EventQueueOverflow");
+    UA_Variant_setScalar(&fields[0].value, &sourceName, &UA_TYPES[UA_TYPES_STRING]);
+    UA_EventDescription ed;
+    ed.eventType = eventQueueOverflowEventType;
+    ed.sourceNode = UA_NS0ID(SERVER);
+    ed.severity = 201; /* TODO: Can this be configured? */
+    ed.otherEventFields = (UA_KeyValueMap){1, fields};
+    UA_StatusCode res = evaluateSelectClause(server, session, &ed, ef, &n->data.event);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(n);
+        return res;
+    }
 
     /* Insert before the removed notification. This is either first in the
      * queue (if the oldest notification was removed) or before the new event
@@ -1118,7 +1128,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
      *
      * Ensure that the following is consistent with UA_Notification_enqueueMon
      * and UA_Notification_enqueueSub! */
-    TAILQ_INSERT_BEFORE(indicator, overflowNotification, monEntry);
+    TAILQ_INSERT_BEFORE(indicator, n, monEntry);
     ++mon->eventOverflows;
     ++mon->queueSize;
 
@@ -1128,24 +1138,24 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
 
     if(TAILQ_NEXT(indicator, subEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL) {
         /* Insert just before the indicator */
-        TAILQ_INSERT_BEFORE(indicator, overflowNotification, subEntry);
+        TAILQ_INSERT_BEFORE(indicator, n, subEntry);
     } else {
         /* The indicator was not reporting or not added yet. */
         if(!mon->parameters.discardOldest) {
             /* Add last to the per-Subscription queue */
             TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue,
-                              overflowNotification, subEntry);
+                              n, subEntry);
         } else {
             /* Find the oldest reported element. Add before that. */
             while(indicator) {
                 indicator = TAILQ_PREV(indicator, NotificationQueue, monEntry);
                 if(!indicator) {
                     TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue,
-                                      overflowNotification, subEntry);
+                                      n, subEntry);
                     break;
                 }
                 if(TAILQ_NEXT(indicator, subEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL) {
-                    TAILQ_INSERT_BEFORE(indicator, overflowNotification, subEntry);
+                    TAILQ_INSERT_BEFORE(indicator, n, subEntry);
                     break;
                 }
             }
