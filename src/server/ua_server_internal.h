@@ -39,7 +39,9 @@ typedef struct {
     void *context;
     union {
         UA_Server_DataChangeNotificationCallback dataChangeCallback;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         UA_Server_EventNotificationCallback eventCallback;
+#endif
     } callback;
 
     /* For Event-MonitoredItems only. The value fields are overwritten before
