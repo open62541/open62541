@@ -126,6 +126,9 @@ nodeId_printEscape(const UA_NodeId *id, UA_String *output,
 UA_StatusCode
 encodeDateTime(const UA_DateTime dt, UA_String *output);
 
+void
+UA_DataType_clear(UA_DataType *type);
+
 /**
  * Error checking macros
  */
