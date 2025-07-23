@@ -646,6 +646,13 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Client_addNamespace(UA_Client *client, const UA_String nsUri,
                        UA_UInt16 *outIndex);
 
+/* Browse the DataTypes defined on the server. Types that are unknown in the
+ * client config get added to the customTypes array. The custom types array must
+ * be empty initially. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_getRemoteDataTypes(UA_Client *client,
+                             UA_DataTypeArray *customTypes);
+
 /**
  * Connection Attributes
  * ~~~~~~~~~~~~~~~~~~~~~
