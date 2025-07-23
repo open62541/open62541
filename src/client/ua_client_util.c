@@ -186,7 +186,7 @@ UA_Client_getRemoteDataTypes(UA_Client *client,
     /* Set the output types array */
     if(typesSize > 0) {
         customTypes->types = types;
-        *(size_t*)(uintptr_t)&customTypes->typesSize = typesSize;
+        customTypes->typesSize = typesSize;
         customTypes->cleanup = true; /* Contains allocated data that needs to be freed */
     } else {
         UA_free(types);
