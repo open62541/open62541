@@ -27,9 +27,9 @@ static UA_String transportProfile =
  * the buffered NetworkMessage will only be updated.
  */
 
-UA_Server *server;
-UA_DataSetReaderConfig readerConfig;
-UA_NodeId connectionIdentifier, readerGroupIdentifier, readerIdentifier;
+static UA_Server *server;
+static UA_DataSetReaderConfig readerConfig;
+static UA_NodeId connectionIdentifier, readerGroupIdentifier, readerIdentifier;
 
 /* Add new connection to the server */
 static void

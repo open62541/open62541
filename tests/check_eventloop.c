@@ -12,8 +12,8 @@
 
 #define N_EVENTS 10000
 
-UA_EventLoop *el;
-size_t count = 0;
+static UA_EventLoop *el;
+static size_t count = 0;
 
 static void
 timerCallback(void *application, void *data) {

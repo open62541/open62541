@@ -13,9 +13,9 @@ static UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, con
 
 /* Values in static locations. We cycle the dvPointers double-pointer to the
  * next with atomic operations. */
-UA_UInt32 valueStore[PUBSUB_CONFIG_FIELD_COUNT];
-UA_DataValue dvStore[PUBSUB_CONFIG_FIELD_COUNT];
-UA_NodeId publishVariables[PUBSUB_CONFIG_FIELD_COUNT];
+static UA_UInt32 valueStore[PUBSUB_CONFIG_FIELD_COUNT];
+static UA_DataValue dvStore[PUBSUB_CONFIG_FIELD_COUNT];
+static UA_NodeId publishVariables[PUBSUB_CONFIG_FIELD_COUNT];
 
 static UA_StatusCode
 readCallback(UA_Server *server, const UA_NodeId *sessionId,

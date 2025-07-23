@@ -15,9 +15,9 @@
 #include "test_helpers.h"
 #include "thread_wrapper.h"
 
-UA_Server *server;
-UA_Boolean running;
-THREAD_HANDLE server_thread;
+static UA_Server *server;
+static UA_Boolean running;
+static THREAD_HANDLE server_thread;
 
 static const size_t usernamePasswordsSize = 2;
 static UA_UsernamePasswordLogin usernamePasswords[2] = {

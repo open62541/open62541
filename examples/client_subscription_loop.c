@@ -19,7 +19,7 @@
 #include <signal.h>
 #include <stdlib.h>
 
-UA_Boolean running = true;
+static UA_Boolean running = true;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received Ctrl-C");

@@ -11,7 +11,7 @@
 
 #define N_EVENTS 10000
 
-size_t count = 0;
+static size_t count = 0;
 
 static void
 timerCallback(void *application, void *data) {

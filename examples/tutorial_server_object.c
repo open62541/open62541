@@ -159,7 +159,7 @@ manuallyDefinePump(UA_Server *server) {
  * to an object that representes the `mandatory` modelling rule. */
 
 /* predefined identifier for later use */
-UA_NodeId pumpTypeId = {1, UA_NODEIDTYPE_NUMERIC, {1001}};
+static UA_NodeId pumpTypeId = {1, UA_NODEIDTYPE_NUMERIC, {1001}};
 
 static void
 defineObjectTypes(UA_Server *server) {
