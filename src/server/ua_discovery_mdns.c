@@ -968,10 +968,6 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName
     return UA_STATUSCODE_GOOD;
 }
 
-#ifndef IN_ZERONET
-#define IN_ZERONET(addr) ((addr & IN_CLASSA_NET) == 0)
-#endif
-
 /* Create multicast 224.0.0.251:5353 socket */
 static void
 discovery_createMulticastSocket(UA_DiscoveryManager *dm) {

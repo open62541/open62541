@@ -596,6 +596,16 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
     return UA_STATUSCODE_GOOD;
 }
 
+UA_DateTime
+UA_DATETIME(const char *chars) {
+    UA_DateTime dst;
+    UA_StatusCode res =
+        UA_DateTime_parse(&dst, UA_STRING((char*)(uintptr_t)chars));
+    if(res != UA_STATUSCODE_GOOD)
+        UA_DateTime_init(&dst);
+    return dst;
+}
+
 /* Guid */
 static const u8 hexmapLower[16] =
     {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};

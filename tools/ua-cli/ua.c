@@ -26,7 +26,7 @@ static char *password = NULL;
 static UA_ByteString certificate;
 static UA_ByteString privateKey;
 static UA_ByteString securityPolicyUri;
-int return_value = 0;
+static int return_value = 0;
 
 #define MAX_TOKENS 256
 static char * tokens[MAX_TOKENS];
@@ -40,7 +40,7 @@ bool shellMode = false; /* How to abort */
 /***********/
 
 /* Custom logger that prints to stderr. So the "good output" can be easily separated. */
-UA_LogLevel logLevel = UA_LOGLEVEL_ERROR;
+static UA_LogLevel logLevel = UA_LOGLEVEL_ERROR;
 
 /* ANSI escape sequences for color output taken from here:
  * https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c*/
@@ -85,7 +85,7 @@ cliLog(void *context, UA_LogLevel level, UA_LogCategory category,
     fflush(stderr);
 }
 
-UA_Logger stderrLog = {cliLog, NULL, NULL};
+static UA_Logger stderrLog = {cliLog, NULL, NULL};
 
 /******************/
 /* Helper Methods */
