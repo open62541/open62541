@@ -92,20 +92,29 @@ UA_findDataType(const UA_NodeId *typeId) {
 }
 
 void
+UA_DataType_clear(UA_DataType *type) {
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    UA_free((void*)(uintptr_t)type->typeName);
+    for(size_t j = 0; j < type->membersSize; ++j) {
+        UA_DataTypeMember *m = &type->members[j];
+        UA_free((void*)(uintptr_t)m->memberName);
+    }
+#endif
+    UA_NodeId_clear(&type->typeId);
+    UA_NodeId_clear(&type->binaryEncodingId);
+    UA_NodeId_clear(&type->xmlEncodingId);
+    UA_free(type->members);
+    memset(type, 0, sizeof(UA_DataType));
+}
+
+void
 UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
     while (customTypes) {
         const UA_DataTypeArray *next = customTypes->next;
         if (customTypes->cleanup) {
             for(size_t i = 0; i < customTypes->typesSize; ++i) {
-                const UA_DataType *type = &customTypes->types[i];
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-                UA_free((void*)(uintptr_t)type->typeName);
-                for(size_t j = 0; j < type->membersSize; ++j) {
-                    const UA_DataTypeMember *m = &type->members[j];
-                    UA_free((void*)(uintptr_t)m->memberName);
-                }
-#endif
-                UA_free((void*)type->members);
+                UA_DataType *type = (UA_DataType*)(uintptr_t)&customTypes->types[i];
+                UA_DataType_clear(type);
             }
             UA_free((void*)(uintptr_t)customTypes->types);
             UA_free((void*)(uintptr_t)customTypes);
