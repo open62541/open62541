@@ -137,7 +137,7 @@ struct UA_ClientConfig {
      *
      * See the section on :ref:`generic-types`. Examples for working with custom
      * data types are provided in ``/examples/custom_datatype/``. */
-    const UA_DataTypeArray *customDataTypes;
+    UA_DataTypeArray *customDataTypes;
 
     /* Namespace Mapping
      * ~~~~~~~~~~~~~~~~~

@@ -65,7 +65,7 @@ static UA_DataTypeMember members[3] = {
     }
 };
 
-static const UA_DataType PointType = {
+static UA_DataType PointType = {
     UA_TYPENAME("Point")             /* .typeName */
     {1, UA_NODEIDTYPE_NUMERIC, {1}}, /* .typeId */
     {1, UA_NODEIDTYPE_NUMERIC, {17}}, /* .binaryEncodingId, the numeric
@@ -81,7 +81,7 @@ static const UA_DataType PointType = {
     members
 };
 
-static const UA_DataTypeArray customDataTypes = {NULL, 1, &PointType, UA_FALSE};
+static UA_DataTypeArray customDataTypes = {NULL, 1, &PointType, UA_FALSE};
 
 typedef struct {
     UA_Int16 a;
@@ -125,7 +125,7 @@ static UA_DataTypeMember Opt_members[4] = {
         }
 };
 
-static const UA_DataType OptType = {
+static UA_DataType OptType = {
         UA_TYPENAME("Opt")             /* .typeName */
         {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* .typeId */
         {1, UA_NODEIDTYPE_NUMERIC, {5}}, /* .binaryEncodingId, the numeric
@@ -141,7 +141,7 @@ static const UA_DataType OptType = {
         Opt_members
 };
 
-static const UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType, UA_FALSE};
+static UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType, UA_FALSE};
 
 typedef struct {
     UA_String description;
@@ -184,7 +184,7 @@ static UA_DataTypeMember ArrayOptStruct_members[4] = {
     }
 };
 
-static const UA_DataType ArrayOptType = {
+static UA_DataType ArrayOptType = {
     UA_TYPENAME("OptArray")             /* .tyspeName */
     {1, UA_NODEIDTYPE_NUMERIC, {4243}},     /* .typeId */
     {1, UA_NODEIDTYPE_NUMERIC, {1337}}, /* .binaryEncodingId, the numeric
@@ -200,7 +200,7 @@ static const UA_DataType ArrayOptType = {
     ArrayOptStruct_members
 };
 
-static const UA_DataTypeArray customDataTypesOptArrayStruct = {&customDataTypesOptStruct, 3, &ArrayOptType, UA_FALSE};
+static UA_DataTypeArray customDataTypesOptArrayStruct = {&customDataTypesOptStruct, 3, &ArrayOptType, UA_FALSE};
 
 typedef enum {UA_UNISWITCH_NONE = 0, UA_UNISWITCH_OPTIONA = 1, UA_UNISWITCH_OPTIONB = 2} UA_UniSwitch;
 
@@ -229,7 +229,7 @@ static UA_DataTypeMember Uni_members[2] = {
         }
 };
 
-static const UA_DataType UniType = {
+static UA_DataType UniType = {
         UA_TYPENAME("Uni")
         {1, UA_NODEIDTYPE_NUMERIC, {4245}},
         {1, UA_NODEIDTYPE_NUMERIC, {13338}},
@@ -242,7 +242,7 @@ static const UA_DataType UniType = {
         Uni_members
 };
 
-static const UA_DataTypeArray customDataTypesUnion = {&customDataTypesOptArrayStruct, 2, &UniType, UA_FALSE};
+static UA_DataTypeArray customDataTypesUnion = {&customDataTypesOptArrayStruct, 2, &UniType, UA_FALSE};
 
 typedef enum {
     UA_SELFCONTAININGUNIONSWITCH_NONE = 0,
@@ -263,7 +263,7 @@ struct UA_SelfContainingUnion {
     } fields;
 };
 
-extern const UA_DataType selfContainingUnionType;
+extern UA_DataType selfContainingUnionType;
 
 static UA_DataTypeMember SelfContainingUnion_members[2] = {
 {
@@ -281,7 +281,7 @@ static UA_DataTypeMember SelfContainingUnion_members[2] = {
     false                                             /* .isOptional */
 },};
 
-const UA_DataType selfContainingUnionType = {
+UA_DataType selfContainingUnionType = {
     UA_TYPENAME("SelfContainingStruct") /* .typeName */
     {2, UA_NODEIDTYPE_NUMERIC, {4002LU}}, /* .typeId */
     {2, UA_NODEIDTYPE_NUMERIC, {0}}, /* .binaryEncodingId */
@@ -294,7 +294,7 @@ const UA_DataType selfContainingUnionType = {
     SelfContainingUnion_members  /* .members */
 };
 
-static const UA_DataTypeArray customDataTypesSelfContainingUnion = {NULL, 1, &selfContainingUnionType, UA_FALSE};
+static UA_DataTypeArray customDataTypesSelfContainingUnion = {NULL, 1, &selfContainingUnionType, UA_FALSE};
 
 START_TEST(parseCustomScalar) {
     Point p;
