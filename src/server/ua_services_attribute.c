@@ -279,53 +279,6 @@ static const UA_String jsonEncoding = {sizeof("Default JSON")-1, (UA_Byte*)"Defa
         break;                                                  \
     }
 
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-static UA_StatusCode
-getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
-    UA_StatusCode retval =
-        UA_NodeId_copy(&type->binaryEncodingId, &def->defaultEncodingId);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    switch(type->typeKind) {
-        case UA_DATATYPEKIND_STRUCTURE:
-            def->structureType = UA_STRUCTURETYPE_STRUCTURE;
-            def->baseDataType = UA_NS0ID(STRUCTURE);
-            break;
-        case UA_DATATYPEKIND_OPTSTRUCT:
-            def->structureType = UA_STRUCTURETYPE_STRUCTUREWITHOPTIONALFIELDS;
-            def->baseDataType = UA_NS0ID(STRUCTURE);
-            break;
-        case UA_DATATYPEKIND_UNION:
-            def->structureType = UA_STRUCTURETYPE_UNION;
-            def->baseDataType = UA_NS0ID(UNION);
-            break;
-        default:
-            return UA_STATUSCODE_BADENCODINGERROR;
-    }
-    def->fieldsSize = type->membersSize;
-    def->fields = (UA_StructureField *)
-        UA_calloc(def->fieldsSize, sizeof(UA_StructureField));
-    if(!def->fields) {
-        UA_NodeId_clear(&def->defaultEncodingId);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    for(size_t cnt = 0; cnt < def->fieldsSize; cnt++) {
-        const UA_DataTypeMember *m = &type->members[cnt];
-        def->fields[cnt].valueRank = (m->isArray) ? UA_VALUERANK_ONE_DIMENSION : UA_VALUERANK_SCALAR;
-        def->fields[cnt].arrayDimensions = NULL;
-        def->fields[cnt].arrayDimensionsSize = 0;
-        def->fields[cnt].name = UA_STRING((char *)(uintptr_t)m->memberName);
-        def->fields[cnt].description.locale = UA_STRING_NULL;
-        def->fields[cnt].description.text = UA_STRING_NULL;
-        def->fields[cnt].dataType = m->memberType->typeId;
-        def->fields[cnt].maxStringLength = 0;
-        def->fields[cnt].isOptional = m->isOptional;
-    }
-    return UA_STATUSCODE_GOOD;
-}
-#endif
-
 /* Returns whether the operation is done or an async operation has been
  * triggered. */
 static UA_Boolean
@@ -507,23 +460,31 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
     case UA_ATTRIBUTEID_DATATYPEDEFINITION: {
         CHECK_NODECLASS(UA_NODECLASS_DATATYPE);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
+        /* Find the DataType */
         const UA_DataType *type =
-            UA_findDataTypeWithCustom(node, server->config.customDataTypes);
+            UA_findDataTypeWithCustom(&node->head.nodeId, server->config.customDataTypes);
         if(!type) {
             retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
             break;
         }
 
+        /* Create the StructureDefinition */
         if(UA_DATATYPEKIND_STRUCTURE == type->typeKind ||
            UA_DATATYPEKIND_OPTSTRUCT == type->typeKind ||
            UA_DATATYPEKIND_UNION == type->typeKind) {
-            UA_StructureDefinition def;
-            retval = getStructureDefinition(type, &def);
-            if(UA_STATUSCODE_GOOD != retval)
+            UA_StructureDefinition *def = UA_StructureDefinition_new();
+            if(!def) {
+                retval = UA_STATUSCODE_BADOUTOFMEMORY;
                 break;
-            retval = UA_Variant_setScalarCopy(&v->value, &def,
-                                              &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
-            UA_free(def.fields);
+            }
+
+            retval = UA_DataType_toStructureDefinition(type, def);
+            if(UA_STATUSCODE_GOOD != retval) {
+                UA_free(def);
+                break;
+            }
+
+            UA_Variant_setScalar(&v->value, def, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
             break;
         }
 #endif
