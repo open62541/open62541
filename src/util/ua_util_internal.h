@@ -256,7 +256,7 @@ isTrue(uint8_t expr) {
 #endif
 
 void
-UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes);
+UA_cleanupDataTypeWithCustom(UA_DataTypeArray *customTypes);
 
 /* Get the number of optional fields contained in an structure type */
 size_t UA_EXPORT
