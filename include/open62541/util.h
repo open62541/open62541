@@ -9,6 +9,7 @@
 #define UA_HELPER_H_
 
 #include <open62541/types.h>
+#include <open62541/types_generated.h>
 #include <open62541/plugin/log.h>
 
 _UA_BEGIN_DECLS
@@ -82,6 +83,23 @@ UA_UInt32_random(void); /* no cryptographic entropy */
 
 UA_Guid UA_EXPORT
 UA_Guid_random(void);   /* no cryptographic entropy */
+
+/**
+ * Translate between Namespace and internal DataType definitions
+ * -------------------------------------------------------------
+ */
+
+UA_StatusCode
+UA_DataType_fromStructureDefinition(UA_DataType *type,
+                                    const UA_StructureDefinition *sd,
+                                    const UA_NodeId typeId,
+                                    const UA_String typeName,
+                                    const UA_DataTypeArray *customTypes);
+
+UA_EXPORT UA_StatusCode
+UA_DataType_toStructureDefinition(const UA_DataType *type,
+                                  UA_StructureDefinition *sd);
+
 
 /**
  * Key Value Map

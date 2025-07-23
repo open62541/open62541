@@ -3,6 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/types.h>
+#include <open62541/util.h>
+
+#include "util/ua_util_internal.h"
 
 #include <stdlib.h>
 #include <check.h>
@@ -324,6 +327,53 @@ START_TEST(parseCustomScalar) {
 
     UA_Variant_clear(&var2);
     UA_ByteString_clear(&buf);
+} END_TEST
+
+START_TEST(customScalarStructureDefinition) {
+    /* Roundtrip from StructureDefinition back to UA_DataType */
+    UA_StructureDefinition pointDef;
+    UA_DataType pointTypeCopy;
+    UA_StatusCode retval = UA_DataType_toStructureDefinition(&PointType, &pointDef);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_DataType_fromStructureDefinition(&pointTypeCopy, &pointDef,
+                                                 UA_NODEID_NULL, UA_STRING_NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    Point p;
+    p.x = 1.0;
+    p.y = 2.0;
+    p.z = 3.0;
+
+    /* Encode with the original type */
+    size_t buflen = UA_calcSizeBinary(&p, &PointType, NULL);
+    UA_ByteString buf;
+    retval = UA_ByteString_allocBuffer(&buf, buflen);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_encodeBinary(&p, &PointType, &buf, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Decoding and encoding with the copied type should yield the same */
+    char p2[64]; // Unknown memsize
+    retval = UA_decodeBinary(&buf, p2, &pointTypeCopy, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    size_t buf2len = UA_calcSizeBinary(p2, &pointTypeCopy, NULL);
+    UA_ByteString buf2;
+    retval = UA_ByteString_allocBuffer(&buf2, buf2len);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_encodeBinary(p2, &pointTypeCopy, &buf2, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_ByteString_equal(&buf, &buf2));
+
+    UA_ByteString_clear(&buf);
+    UA_ByteString_clear(&buf2);
+
+    UA_StructureDefinition_clear(&pointDef);
+    UA_DataType_clear(&pointTypeCopy);
 } END_TEST
 
 START_TEST(parseCustomScalarExtensionObject) {
@@ -695,6 +745,7 @@ int main(void) {
     Suite *s  = suite_create("Test Custom DataType Encoding");
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, parseCustomScalar);
+    tcase_add_test(tc, customScalarStructureDefinition);
     tcase_add_test(tc, parseCustomScalarExtensionObject);
     tcase_add_test(tc, parseCustomArray);
     tcase_add_test(tc, parseCustomStructureWithOptionalFields);
