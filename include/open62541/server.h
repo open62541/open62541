@@ -40,9 +40,6 @@
 
 _UA_BEGIN_DECLS
 
-/* Forward declarations */
-typedef void (*UA_Server_AsyncOperationNotifyCallback)(UA_Server *server);
-
 /**
  * .. _server:
  *
@@ -247,12 +244,13 @@ struct UA_ServerConfig {
     /* Async Operations
      * ~~~~~~~~~~~~~~~~
      * See the section for :ref:`async operations<async-operations>`. */
-#if UA_MULTITHREADING >= 100
-    UA_Double asyncOperationTimeout; /* in ms, 0 => unlimited */
+    UA_Double asyncOperationTimeout;   /* in ms, 0 => unlimited */
     size_t maxAsyncOperationQueueSize; /* 0 => unlimited */
-    /* Notify workers when an async operation was enqueued */
-    UA_Server_AsyncOperationNotifyCallback asyncOperationNotifyCallback;
-#endif
+
+    /* Notifies the userland that an async operation has been canceled. The
+     * memory for setting the output value is then freed internally and should
+     * not be touched afterwards. */
+    void (*asyncOperationCancelCallback)(UA_Server *server, const void *out);
 
     /* Discovery
      * ~~~~~~~~~ */
@@ -1604,65 +1602,26 @@ UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
  * Note that the operation can time out (see the asyncOperationTimeout setting in
  * the server config) also when it has been retrieved by the worker. */
 
-#if UA_MULTITHREADING >= 100
+/* When the method callback answers with
+ * UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY, then an async operation is stored
+ * in the server. Within the defined timeout, the result can be set with the
+ * following. The output-array pointer is used as the key to lookup the async
+ * operation internally. Do not access the output-pointer after the timeout or
+ * after setting the result. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
+                                   UA_StatusCode result);
 
-/* Set the async flag in a method node */
-UA_StatusCode UA_EXPORT
-UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
-                             UA_Boolean isAsync);
+/* See the UA_CallbackValueSource documentation */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_setAsyncReadResult(UA_Server *server, UA_DataValue *result);
 
-typedef enum {
-    UA_ASYNCOPERATIONTYPE_INVALID, /* 0, the default */
-    UA_ASYNCOPERATIONTYPE_CALL
-    /* UA_ASYNCOPERATIONTYPE_READ, */
-    /* UA_ASYNCOPERATIONTYPE_WRITE, */
-} UA_AsyncOperationType;
-
-typedef union {
-    UA_CallMethodRequest callMethodRequest;
-    /* UA_ReadValueId readValueId; */
-    /* UA_WriteValue writeValue; */
-} UA_AsyncOperationRequest;
-
-typedef union {
-    UA_CallMethodResult callMethodResult;
-    /* UA_DataValue readResult; */
-    /* UA_StatusCode writeResult; */
-} UA_AsyncOperationResponse;
-
-/* Get the next async operation without blocking
- *
- * @param server The server object
- * @param type The type of the async operation
- * @param request Receives pointer to the operation
- * @param context Receives the pointer to the operation context
- * @param timeout The timestamp when the operation times out and can
- *        no longer be returned to the client. The response has to
- *        be set in UA_Server_setAsyncOperationResult in any case.
- * @return false if queue is empty, true else */
-UA_Boolean UA_EXPORT
-UA_Server_getAsyncOperationNonBlocking(UA_Server *server,
-                                       UA_AsyncOperationType *type,
-                                       const UA_AsyncOperationRequest **request,
-                                       void **context, UA_DateTime *timeout);
-
-/* UA_Boolean UA_EXPORT */
-/* UA_Server_getAsyncOperationBlocking(UA_Server *server, */
-/*                                     UA_AsyncOperationType *type, */
-/*                                     const UA_AsyncOperationRequest **request, */
-/*                                     void **context, UA_DateTime *timeout); */
-
-/* Submit an async operation result
- *
- * @param server The server object
- * @param response Pointer to the operation result
- * @param context Pointer to the operation context */
-void UA_EXPORT
-UA_Server_setAsyncOperationResult(UA_Server *server,
-                                  const UA_AsyncOperationResponse *response,
-                                  void *context);
-
-#endif /* !UA_MULTITHREADING >= 100 */
+/* See the UA_CallbackValueSource documentation. The value needs to be the
+ * pointer used in the write callback. The statuscode is the result signal to be
+ * returned asynchronously. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_setAsyncWriteResult(UA_Server *server, const UA_DataValue *value,
+                              UA_StatusCode result);
 
 /**
  * Statistics

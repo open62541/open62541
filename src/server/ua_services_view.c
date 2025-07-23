@@ -954,8 +954,9 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     result->statusCode = retval;
 }
 
-void Service_Browse(UA_Server *server, UA_Session *session,
-                    const UA_BrowseRequest *request, UA_BrowseResponse *response) {
+UA_Boolean
+Service_Browse(UA_Server *server, UA_Session *session,
+               const UA_BrowseRequest *request, UA_BrowseResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing BrowseRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -963,23 +964,24 @@ void Service_Browse(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerBrowse != 0 &&
        request->nodesToBrowseSize > server->config.maxNodesPerBrowse) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     /* No views supported at the moment */
     if(!UA_NodeId_isNull(&request->view.viewId)) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADVIEWIDUNKNOWN;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_Browse,
-                                           &request->requestedMaxReferencesPerNode,
-                                           &request->nodesToBrowseSize,
-                                           &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_BROWSERESULT]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_Browse,
+                                      &request->requestedMaxReferencesPerNode,
+                                      &request->nodesToBrowseSize,
+                                      &UA_TYPES[UA_TYPES_BROWSEDESCRIPTION],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_BROWSERESULT]);
+    return true;
 }
 
 UA_BrowseResult
@@ -1071,7 +1073,7 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
     ++session->availableContinuationPoints;
 }
 
-void
+UA_Boolean
 Service_BrowseNext(UA_Server *server, UA_Session *session,
                    const UA_BrowseNextRequest *request,
                    UA_BrowseNextResponse *response) {
@@ -1082,13 +1084,14 @@ Service_BrowseNext(UA_Server *server, UA_Session *session,
     UA_Boolean releaseContinuationPoints =
         request->releaseContinuationPoints; /* request is const */
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_BrowseNext,
-                                           &releaseContinuationPoints,
-                                           &request->continuationPointsSize,
-                                           &UA_TYPES[UA_TYPES_BYTESTRING],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_BROWSERESULT]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_BrowseNext,
+                                      &releaseContinuationPoints,
+                                      &request->continuationPointsSize,
+                                      &UA_TYPES[UA_TYPES_BYTESTRING],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_BROWSERESULT]);
+    return true;
 }
 
 UA_BrowseResult
@@ -1378,7 +1381,7 @@ UA_Server_translateBrowsePathToNodeIds(UA_Server *server,
     return result;
 }
 
-void
+UA_Boolean
 Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                       const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                       UA_TranslateBrowsePathsToNodeIdsResponse *response) {
@@ -1390,16 +1393,17 @@ Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerTranslateBrowsePathsToNodeIds != 0 &&
        request->browsePathsSize > server->config.maxNodesPerTranslateBrowsePathsToNodeIds) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     UA_UInt32 nodeClassMask = 0; /* All node classes */
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
-                                           &nodeClassMask,
-                                           &request->browsePathsSize, &UA_TYPES[UA_TYPES_BROWSEPATH],
-                                           &response->resultsSize, &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_TranslateBrowsePathToNodeIds,
+                                      &nodeClassMask, &request->browsePathsSize,
+                                      &UA_TYPES[UA_TYPES_BROWSEPATH], &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_BROWSEPATHRESULT]);
+    return true;
 }
 
 UA_BrowsePathResult
@@ -1451,9 +1455,10 @@ UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
 /* Register */
 /************/
 
-void Service_RegisterNodes(UA_Server *server, UA_Session *session,
-                           const UA_RegisterNodesRequest *request,
-                           UA_RegisterNodesResponse *response) {
+UA_Boolean
+Service_RegisterNodes(UA_Server *server, UA_Session *session,
+                      const UA_RegisterNodesRequest *request,
+                      UA_RegisterNodesResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RegisterNodesRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -1461,14 +1466,14 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session,
     //TODO: hang the nodeids to the session if really needed
     if(request->nodesToRegisterSize == 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-        return;
+        return true;
     }
 
     /* Test the number of operations in the request */
     if(server->config.maxNodesPerRegisterNodes != 0 &&
        request->nodesToRegisterSize > server->config.maxNodesPerRegisterNodes) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
@@ -1476,23 +1481,24 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session,
                       (void**)&response->registeredNodeIds, &UA_TYPES[UA_TYPES_NODEID]);
     if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD)
         response->registeredNodeIdsSize = request->nodesToRegisterSize;
+
+    return true;
 }
 
-void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
-                             const UA_UnregisterNodesRequest *request,
-                             UA_UnregisterNodesResponse *response) {
+UA_Boolean
+Service_UnregisterNodes(UA_Server *server, UA_Session *session,
+                        const UA_UnregisterNodesRequest *request,
+                        UA_UnregisterNodesResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing UnRegisterNodesRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    //TODO: remove the nodeids from the session if really needed
-    if(request->nodesToUnregisterSize == 0)
+    if(request->nodesToUnregisterSize == 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
-
-    /* Test the number of operations in the request */
-    if(server->config.maxNodesPerRegisterNodes != 0 &&
-       request->nodesToUnregisterSize > server->config.maxNodesPerRegisterNodes) {
+    } else if(server->config.maxNodesPerRegisterNodes != 0 &&
+              request->nodesToUnregisterSize > server->config.maxNodesPerRegisterNodes) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
     }
+
+    return true;
 }

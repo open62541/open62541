@@ -53,9 +53,9 @@ jobs:
           - name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
               sudo apt-get install -y -qq curl
-              curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.9.1.tar.gz --output libressl.tar.gz
+              curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-4.1.0.tar.gz --output libressl.tar.gz
               tar -xvz -f libressl.tar.gz
-              cd libressl-3.9.1
+              cd libressl-4.1.0
               ./configure
               sudo make install
             cmd_action: unit_tests_encryption LIBRESSL
@@ -267,8 +267,8 @@ jobs:
               cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18
 
     name: ${{ matrix.os }}-${{ matrix.build.name }}
-    # runs-on: ubuntu-latest
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
+    # runs-on: self-hosted
     container:
       image: ghcr.io/marwinglaser/ci:${{ matrix.os }}
       options: --privileged

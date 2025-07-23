@@ -19,8 +19,6 @@
 * The server certificate and private key are loaded from the command line arguments.
 */
 
-#define MIN_ARGS 4
-
 static UA_UsernamePasswordLogin logins[3] = {
     {UA_STRING_STATIC("peter"), UA_STRING_STATIC("peter123")},
     {UA_STRING_STATIC("paula"), UA_STRING_STATIC("paula123")},
