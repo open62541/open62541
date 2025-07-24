@@ -817,6 +817,9 @@ UA_PubSubDataSetReader_generateKeyFrameMessage(UA_Server *server,
                                                UA_DataSetReader *dsr) {
     /* Prepare DataSetMessageContent */
     UA_TargetVariablesDataType *tv = &dsr->config.subscribedDataSet.target;
+    UA_DataSetMetaDataType *metaData = &dsr->config.dataSetMetaData;
+    if(tv->targetVariablesSize != metaData->fieldsSize)
+        metaData = NULL;
     dsm->header.dataSetMessageValid = true;
     dsm->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
     dsm->fieldCount = (UA_UInt16) tv->targetVariablesSize;
@@ -825,20 +828,56 @@ UA_PubSubDataSetReader_generateKeyFrameMessage(UA_Server *server,
     if(!dsm->data.keyFrameFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    // XXX
-
      for(size_t counter = 0; counter < tv->targetVariablesSize; counter++) {
         /* Read the value and set the source in the reader config */
         UA_DataValue *dfv = &dsm->data.keyFrameFields[counter];
         UA_FieldTargetDataType *ftv = &tv->targetVariables[counter];
 
-        UA_ReadValueId rvi;
-        UA_ReadValueId_init(&rvi);
-        rvi.nodeId = ftv->targetNodeId;
-        rvi.attributeId = ftv->attributeId;
-        rvi.indexRange = ftv->writeIndexRange;
-        *dfv = readWithSession(server, &server->adminSession, &rvi,
-                               UA_TIMESTAMPSTORETURN_NEITHER);
+        /* Synthesize the field value from the FieldMetaData. This allows us to
+         * prevent a read from the information model during startup. */
+        UA_FieldMetaData *fieldMetaData = (metaData) ? &metaData->fields[counter] : NULL;
+        if(fieldMetaData && fieldMetaData->valueRank == UA_VALUERANK_SCALAR) {
+            const UA_DataType *type =
+                UA_findDataTypeWithCustom(&fieldMetaData->dataType,
+                                          server->config.customDataTypes);
+            if(type == &UA_TYPES[UA_TYPES_STRING] && fieldMetaData->maxStringLength > 0) {
+                UA_String *s = UA_String_new();
+                if(!s) {
+                    UA_DataSetMessage_clear(dsm);
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                }
+                s->data = (UA_Byte*)
+                    UA_calloc(fieldMetaData->maxStringLength, sizeof(UA_Byte));
+                if(!s->data) {
+                    UA_free(s);
+                    UA_DataSetMessage_clear(dsm);
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                }
+                s->length = fieldMetaData->maxStringLength;
+                UA_Variant_setScalar(&dfv->value, s, type);
+                dfv->hasValue = true;
+            } else if(type && type->memSize < 512) {
+                char buf[512];
+                UA_init(buf, type);
+                UA_StatusCode res = UA_Variant_setScalarCopy(&dfv->value, buf, type);
+                if(res != UA_STATUSCODE_GOOD) {
+                    UA_DataSetMessage_clear(dsm);
+                    return res;
+                }
+                dfv->hasValue = true;
+            }
+        }
+
+        /* Read the value from the information model */
+        if(!dfv->hasValue) {
+            UA_ReadValueId rvi;
+            UA_ReadValueId_init(&rvi);
+            rvi.nodeId = ftv->targetNodeId;
+            rvi.attributeId = ftv->attributeId;
+            rvi.indexRange = ftv->writeIndexRange;
+            *dfv = readWithSession(server, &server->adminSession, &rvi,
+                                   UA_TIMESTAMPSTORETURN_NEITHER);
+        }
 
         /* Deactivate statuscode? */
         if(((u64)dsr->config.dataSetFieldContentMask &
