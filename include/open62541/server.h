@@ -949,7 +949,7 @@ typedef UA_CallbackValueSource UA_DataSource;
 /* Deprecated API */
 typedef UA_ValueSourceNotifications UA_ValueCallback;
 #define UA_Server_setVariableNode_valueCallback(server, nodeId, callback) \
-    UA_Server_setVariableNode_internalValueSource(server, nodeId, NULL, &callback);
+    UA_Server_setVariableNode_internalValueSource(server, nodeId, NULL, &callback)
 
 /**
  * .. _local-monitoreditems:
@@ -1796,7 +1796,7 @@ void UA_EXPORT UA_THREADSAFE
 UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 #define UA_Server_removeRepeatedCallback(server, callbackId) \
-    UA_Server_removeCallback(server, callbackId);
+    UA_Server_removeCallback(server, callbackId)
 
 /**
  * Update the Server Certificate at Runtime

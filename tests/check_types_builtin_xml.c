@@ -1406,7 +1406,7 @@ START_TEST(UA_LocalizedText_xml_encode) {
     UA_LocalizedText src;
     UA_LocalizedText_init(&src);
     src.locale = UA_STRING_ALLOC("en");
-    src.text = UA_STRING_ALLOC("enabled");;
+    src.text = UA_STRING_ALLOC("enabled");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
     size_t size = UA_calcSizeXml((void*)&src, type, NULL);
 

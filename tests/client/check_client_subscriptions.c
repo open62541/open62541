@@ -1267,7 +1267,7 @@ createSubscriptionCallback2(UA_Client *client, void *userdata, UA_UInt32 request
     /* Add a MonitoredItem */
     UA_NodeId currentTime =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-    UA_CreateMonitoredItemsRequest req;;
+    UA_CreateMonitoredItemsRequest req;
     UA_CreateMonitoredItemsRequest_init(&req);
     UA_MonitoredItemCreateRequest monRequest =
         UA_MonitoredItemCreateRequest_default(currentTime);
