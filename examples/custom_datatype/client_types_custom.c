@@ -21,9 +21,8 @@ int main(void) {
     }
 
     /* Get the description of the unknown types from the server */
-    UA_DataTypeArray *newTypes = (UA_DataTypeArray*)UA_malloc(sizeof(UA_DataTypeArray));
-    memset(newTypes, 0, sizeof(UA_DataTypeArray));
-    UA_Client_getRemoteDataTypes(client, newTypes);
+    UA_DataTypeArray *newTypes;
+    UA_Client_getRemoteDataTypes(client, 0, NULL, &newTypes);
     cc->customDataTypes = newTypes;
 
     UA_Variant value; /* Variants can hold scalar values and arrays of any type */

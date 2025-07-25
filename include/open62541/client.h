@@ -646,12 +646,22 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Client_addNamespace(UA_Client *client, const UA_String nsUri,
                        UA_UInt16 *outIndex);
 
-/* Browse the DataTypes defined on the server. Types that are unknown in the
- * client config get added to the customTypes array. The custom types array must
- * be empty initially. */
+/* Retrieve the DataTypes defined on the server. The customTypes
+ * UA_DataTypeArray gets allocated and populated internally, and its pointer is
+ * set for the output. But the UA_DataTypeArray does not get added to the client
+ * configuration automatically.
+ *
+ * - Only DataTypes that are previously unknown in the client config get added
+ *   to the UA_DataTypeArray array.
+ * - If the dataTypesNodeSize is zero, then the type hierarchy in the server is
+ *   browsed to find any unknown DataTypes.
+ * - The "cleanup"-flag in the UA_DataTypeArray is set to true, so it is cleaned
+ *   up together with the client configuration -- if it is added there. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_getRemoteDataTypes(UA_Client *client,
-                             UA_DataTypeArray *customTypes);
+                             size_t dataTypesNodesSize,
+                             const UA_NodeId *dataTypesNodes,
+                             UA_DataTypeArray **customTypes);
 
 /**
  * Connection Attributes
