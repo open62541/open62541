@@ -191,7 +191,7 @@ setETHHeader(unsigned char *buf,
     if(vid > 0 && vid != ETH_P_ALL) {
         *(UA_UInt16*)&buf[pos] = htons(0x8100);
         pos += 2;
-        UA_UInt16 vlan = (UA_UInt16)((UA_UInt16)pcp + (((UA_UInt16)dei) << 3) + (vid << 4));
+        UA_UInt16 vlan = (UA_UInt16)(((UA_UInt16)pcp << 13) | (dei << 12) | vid);
         *(UA_UInt16*)&buf[pos] = htons(vlan);
         pos += 2;
     }
