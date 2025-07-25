@@ -73,7 +73,7 @@ int main(void) {
         }
         UA_Variant_clear(&value);
         sleep_ms(1000);
-    };
+    }
 
     /* Clean up */
     UA_Variant_clear(&value);
