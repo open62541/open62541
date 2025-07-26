@@ -1236,6 +1236,11 @@ if(UA_ENABLE_DATATYPES_ALL)
     unset(UA_NS0_DATATYPES)
 endif()
 
+# Regenerate the variables in open62541Config.cmake
+unset(open62541_TOOLS_DIR CACHE)
+unset(open62541_SCHEMA_DIR CACHE)
+unset(open62541_NS0_NODESETS CACHE)
+
 set(UA_NS0_NODESET_FILES "")
 foreach(f ${UA_NS0_NODESETS})
     list(APPEND UA_NS0_NODESET_FILES ${UA_SCHEMA_DIR}/${f})
