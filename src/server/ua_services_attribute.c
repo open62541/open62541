@@ -2271,6 +2271,20 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
             continue;
         }
 
+        if(updateDetailsType == &UA_TYPES[UA_TYPES_DELETEEVENTDETAILS]) {
+            if(!server->config.historyDatabase.deleteEvent) {
+                response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
+                continue;
+            }
+            server->config.historyDatabase.
+                deleteEvent(server, server->config.historyDatabase.context,
+                            &session->sessionId, session->context,
+                            &request->requestHeader,
+                            (UA_DeleteEventDetails*)updateDetailsData,
+                            &response->results[i]);
+            continue;
+        }
+
         response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
