@@ -627,8 +627,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         writeVal.indexRange = tv->receiverIndexRange;
         writeVal.nodeId = tv->targetNodeId;
         writeVal.value = *field;
-        Operation_Write(psm->sc.server, &psm->sc.server->adminSession,
-                        NULL, &writeVal, &res);
+        Operation_Write(psm->sc.server, &psm->sc.server->adminSession, &writeVal, &res);
         if(res != UA_STATUSCODE_GOOD)
             UA_LOG_INFO_PUBSUB(psm->logging, dsr,
                                "Error writing KeyFrame field %u: %s",

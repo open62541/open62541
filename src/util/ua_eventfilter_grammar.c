@@ -1052,7 +1052,7 @@ static YYACTIONTYPE yy_reduce(
       /* (24) namedOperandAssignmentList ::= namedOperandAssignment (OPTIMIZED OUT) */ assert(yyruleno!=24);
         break;
 /********** End reduce actions ************************************************/
-  };
+  }
   assert( yyruleno<sizeof(yyRuleInfoLhs)/sizeof(yyRuleInfoLhs[0]) );
   yygoto = yyRuleInfoLhs[yyruleno];
   yysize = yyRuleInfoNRhs[yyruleno];

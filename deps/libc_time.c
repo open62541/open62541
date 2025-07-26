@@ -134,8 +134,8 @@ musl_year_to_secs(const long long year, int *is_leap) {
             *is_leap = 0;
             leaps = 0;
         } else {
-            leaps = rem / 4U;
-            rem %= 4U;
+            leaps = rem / 4;
+            rem %= 4;
             *is_leap = !rem;
         }
     }

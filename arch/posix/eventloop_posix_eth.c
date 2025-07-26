@@ -337,7 +337,7 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     }
 
     /* Use the already allocated receive-buffer */
-    UA_ByteString response = pcm->rxBuffer;;
+    UA_ByteString response = pcm->rxBuffer;
 
     /* Receive */
     UA_RESET_ERRNO;

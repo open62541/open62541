@@ -39,7 +39,7 @@ UA_NodeId unsafe_fuzz_authenticationToken = {0, UA_NODEIDTYPE_NUMERIC, {0}};
 # define UA_SERVICECOUNTER_OFFSET(X, requiresSession) requiresSession
 #endif
 
-UA_ServiceDescription serviceDescriptions[] = {
+static UA_ServiceDescription serviceDescriptions[] = {
     {UA_NS0ID_GETENDPOINTSREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET_NONE(false), (UA_Service)Service_GetEndpoints,
      &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST], &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE]},
@@ -60,13 +60,13 @@ UA_ServiceDescription serviceDescriptions[] = {
 # endif
 #endif
     {UA_NS0ID_CREATESESSIONREQUEST_ENCODING_DEFAULTBINARY,
-     UA_SERVICECOUNTER_OFFSET_NONE(false), (UA_Service)Service_CreateSession,
+     UA_SERVICECOUNTER_OFFSET_NONE(false), (UA_Service)(uintptr_t)Service_CreateSession,
      &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST], &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]},
     {UA_NS0ID_ACTIVATESESSIONREQUEST_ENCODING_DEFAULTBINARY,
-     UA_SERVICECOUNTER_OFFSET_NONE(false), (UA_Service)Service_ActivateSession,
+     UA_SERVICECOUNTER_OFFSET_NONE(false), (UA_Service)(uintptr_t)Service_ActivateSession,
      &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],  &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]},
     {UA_NS0ID_CLOSESESSIONREQUEST_ENCODING_DEFAULTBINARY,
-     UA_SERVICECOUNTER_OFFSET_NONE(true), (UA_Service)Service_CloseSession,
+     UA_SERVICECOUNTER_OFFSET_NONE(true), (UA_Service)(uintptr_t)Service_CloseSession,
      &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST], &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]},
     {UA_NS0ID_CANCELREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET_NONE(true), (UA_Service)Service_Cancel,
@@ -97,7 +97,7 @@ UA_ServiceDescription serviceDescriptions[] = {
      UA_SERVICECOUNTER_OFFSET(createSubscriptionCount, true), (UA_Service)Service_CreateSubscription,
      &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST], &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]},
     {UA_NS0ID_PUBLISHREQUEST_ENCODING_DEFAULTBINARY,
-     UA_SERVICECOUNTER_OFFSET(publishCount, true), NULL,
+     UA_SERVICECOUNTER_OFFSET(publishCount, true), (UA_Service)Service_Publish,
      &UA_TYPES[UA_TYPES_PUBLISHREQUEST], &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]},
     {UA_NS0ID_REPUBLISHREQUEST_ENCODING_DEFAULTBINARY,
      UA_SERVICECOUNTER_OFFSET(republishCount, true), (UA_Service)Service_Republish,
@@ -169,6 +169,37 @@ getServiceDescription(UA_UInt32 requestTypeId) {
     return NULL;
 }
 
+/* Allocates the results array and iterates over it to execute the operations
+ * within a request */
+UA_StatusCode
+allocProcessServiceOperations(UA_Server *server, UA_Session *session,
+                              UA_ServiceOperation operationCallback,
+                              const void *context, const size_t *requestOperations,
+                              const UA_DataType *requestOperationsType,
+                              size_t *responseOperations,
+                              const UA_DataType *responseOperationsType) {
+    size_t ops = *requestOperations;
+    if(ops == 0)
+        return UA_STATUSCODE_BADNOTHINGTODO;
+
+    /* No padding after size_t */
+    void **respPos = (void**)((uintptr_t)responseOperations + sizeof(size_t));
+    *respPos = UA_Array_new(ops, responseOperationsType);
+    if(!(*respPos))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    *responseOperations = ops;
+    uintptr_t respOp = (uintptr_t)*respPos;
+    /* No padding after size_t */
+    uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requestOperations + sizeof(size_t));
+    for(size_t i = 0; i < ops; i++) {
+        operationCallback(server, session, context, (void*)reqOp, (void*)respOp);
+        reqOp += requestOperationsType->memSize;
+        respOp += responseOperationsType->memSize;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 static const UA_String securityPolicyNone =
     UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
 
@@ -186,7 +217,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
                                "See the 'verifyRequestTimestamp' setting.");
         if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
             rh->serviceResult = UA_STATUSCODE_BADINVALIDTIMESTAMP;
-            return false;
+            return true;
         }
     }
 
@@ -200,14 +231,15 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
 #endif
        ) {
         rh->serviceResult = UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-        return false;
+        return true;
     }
 
     /* Session lifecycle services */
     if(sd->requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST] ||
        sd->requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
        sd->requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
-        ((UA_ChannelService)sd->serviceCallback)(server, channel, request, response);
+        UA_ChannelService cs = (UA_ChannelService)(uintptr_t)sd->serviceCallback;
+        cs(server, channel, request, response);
         /* Store the authentication token created during CreateSession to help
          * fuzzing cover more lines */
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
@@ -217,7 +249,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
             UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
         }
 #endif
-        return false;
+        return true;
     }
 
     /* Set an anonymous, inactive session for services that need no session */
@@ -245,7 +277,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
         UA_Server_removeSessionByToken(server, &session->authenticationToken,
                                        UA_SHUTDOWNREASON_ABORT);
         rh->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
-        return false;
+        return true;
     }
 
     /* Update the session lifetime */
@@ -254,33 +286,18 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     UA_DateTime now = el->dateTime_now(el);
     UA_Session_updateLifetime(session, now, nowMonotonic);
 
-    /* The publish request is not answered immediately */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    if(sd->requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
-        rh->serviceResult = Service_Publish(server, session, &request->publishRequest, requestId);
-        return (rh->serviceResult == UA_STATUSCODE_GOOD);
-    }
-#endif
+    /* Store the request id -- will be used to create async responses */
+    server->asyncManager.currentRequestId = requestId;
+    server->asyncManager.currentRequestHandle = request->requestHeader.requestHandle;
 
-    /* An async call request might not be answered immediately */
-#if UA_MULTITHREADING >= 100 && defined(UA_ENABLE_METHODCALLS)
-    if(sd->requestType == &UA_TYPES[UA_TYPES_CALLREQUEST]) {
-        UA_Boolean finished = true;
-        Service_CallAsync(server, session, requestId, &request->callRequest,
-                          &response->callResponse, &finished);
-        return !finished;
-    }
-#endif
-
-    /* Execute the synchronous service call */
-    sd->serviceCallback(server, session, request, response);
-    return false;
+    /* Execute the service */
+    return sd->serviceCallback(server, session, request, response);
 }
 
 UA_Boolean
-UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
-                         UA_UInt32 requestId, UA_ServiceDescription *sd,
-                         const UA_Request *request, UA_Response *response) {
+processRequest(UA_Server *server, UA_SecureChannel *channel,
+               UA_UInt32 requestId, UA_ServiceDescription *sd,
+               const UA_Request *request, UA_Response *response) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Set the authenticationToken from the create session request to help
@@ -300,14 +317,14 @@ UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
     response->responseHeader.serviceResult =
         getBoundSession(server, channel, &request->requestHeader.authenticationToken, &session);
     if(!session && sd->sessionRequired)
-        return false;
+        return true;
 
     /* The session can be NULL if not required */
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 
     /* Process the service */
-    UA_Boolean async =
-        processServiceInternal(server, channel, session, requestId, sd, request, response);
+    UA_Boolean done = processServiceInternal(server, channel, session,
+                                             requestId, sd, request, response);
 
     /* Update the service statistics */
 #ifdef UA_ENABLE_DIAGNOSTICS
@@ -325,5 +342,5 @@ UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
     }
 #endif
 
-    return async;
+    return done;
 }

@@ -19,17 +19,17 @@
 # define ANSI_COLOR_RED     "\x1b[31m"
 # define ANSI_COLOR_GREEN   "\x1b[32m"
 # define ANSI_COLOR_YELLOW  "\x1b[33m"
-# define ANSI_COLOR_BLUE    "\x1b[34m"
+/* # define ANSI_COLOR_BLUE    "\x1b[34m" */
 # define ANSI_COLOR_MAGENTA "\x1b[35m"
-# define ANSI_COLOR_CYAN    "\x1b[36m"
+/* # define ANSI_COLOR_CYAN    "\x1b[36m" */
 # define ANSI_COLOR_RESET   "\x1b[0m"
 #else
 # define ANSI_COLOR_RED     ""
 # define ANSI_COLOR_GREEN   ""
 # define ANSI_COLOR_YELLOW  ""
-# define ANSI_COLOR_BLUE    ""
+/* # define ANSI_COLOR_BLUE    "" */
 # define ANSI_COLOR_MAGENTA ""
-# define ANSI_COLOR_CYAN    ""
+/* # define ANSI_COLOR_CYAN    "" */
 # define ANSI_COLOR_RESET   ""
 #endif
 
@@ -47,7 +47,7 @@ logCategoryNames[UA_LOGCATEGORIES] =
 /* Protect crosstalk during logging via global lock. Use a spinlock as we cannot
  * statically initialize a global lock across all platforms. */
 #if UA_MULTITHREADING >= 100
-void *logSpinLock = NULL;
+static void *logSpinLock = NULL;
 static UA_INLINE void spinLock(void) {
     while(UA_atomic_cmpxchg(&logSpinLock, NULL, (void*)0x1) != NULL) {}
 }

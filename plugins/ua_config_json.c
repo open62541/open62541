@@ -156,8 +156,8 @@ PARSE_JSON(LocalizedTextField) {
      */
     cj5_token tok = ctx->tokens[++ctx->index];
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_String locale;
-    UA_String text;
+    UA_String locale = {.length = 0, .data = NULL};
+    UA_String text = {.length = 0, .data = NULL};
     for(size_t j = tok.size/2; j > 0; j--) {
         tok = ctx->tokens[++ctx->index];
         switch (tok.type) {
@@ -366,7 +366,7 @@ PARSE_JSON(StringArrayField) {
     UA_String *stringArray = (UA_String*)UA_malloc(sizeof(UA_String) * tok.size);
     size_t stringArraySize = 0;
     for(size_t j = tok.size; j > 0; j--) {
-        UA_String out = {.length = 0, .data = NULL};;
+        UA_String out = {.length = 0, .data = NULL};
         parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &out, NULL);
         UA_String_copy(&out, &stringArray[stringArraySize++]);
         UA_String_clear(&out);
@@ -394,7 +394,7 @@ PARSE_JSON(UInt32ArrayField) {
         return UA_STATUSCODE_BADARGUMENTSMISSING;
     }
     cj5_token tok = ctx->tokens[++ctx->index];
-    UA_UInt32 *numberArray = (UA_UInt32*)UA_malloc(sizeof(UA_UInt32) * tok.size);;
+    UA_UInt32 *numberArray = (UA_UInt32*)UA_malloc(sizeof(UA_UInt32) * tok.size);
     size_t numberArraySize = 0;
     for(size_t j = tok.size; j > 0; j--) {
         UA_UInt32 value;

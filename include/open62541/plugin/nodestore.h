@@ -490,6 +490,11 @@ typedef struct {
      * memory being cleaned up. Don't forget to also set `value->hasValue` to
      * true to indicate the presence of a value.
      *
+     * To make an async read, return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY.
+     * The result can then be set at a later time using
+     * UA_Server_setAsyncReadResult. Note that the server might cancel the async
+     * read by calling serverConfig->asyncOperationCancelCallback.
+     *
      * @param server The server executing the callback
      * @param sessionId The identifier of the session
      * @param sessionContext Additional data attached to the session in the
@@ -515,6 +520,11 @@ typedef struct {
 
     /* Write into a data source. This method pointer can be NULL if the
      * operation is unsupported.
+     *
+     * To make an async write, return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY.
+     * The result can then be set at a later time using
+     * UA_Server_setAsyncWriteResult. Note that the server might cancel the
+     * async read by calling serverConfig->asyncOperationCancelCallback.
      *
      * @param server The server executing the callback
      * @param sessionId The identifier of the session
@@ -592,12 +602,12 @@ typedef struct {
  * ---------- */
 
 typedef UA_StatusCode
-(*UA_MethodCallback)(UA_Server *server, const UA_NodeId *sessionId,
-                     void *sessionContext, const UA_NodeId *methodId,
-                     void *methodContext, const UA_NodeId *objectId,
-                     void *objectContext, size_t inputSize,
-                     const UA_Variant *input, size_t outputSize,
-                     UA_Variant *output);
+(*UA_MethodCallback)(UA_Server *server,
+                     const UA_NodeId *sessionId, void *sessionContext,
+                     const UA_NodeId *methodId, void *methodContext,
+                     const UA_NodeId *objectId, void *objectContext,
+                     size_t inputSize, const UA_Variant *input,
+                     size_t outputSize, UA_Variant *output);
 
 typedef struct {
     UA_NodeHead head;
@@ -605,9 +615,6 @@ typedef struct {
 
     /* Members specific to open62541 */
     UA_MethodCallback method;
-#if UA_MULTITHREADING >= 100
-    UA_Boolean async; /* Indicates an async method call */
-#endif
 } UA_MethodNode;
 
 /**
