@@ -108,7 +108,7 @@ typedef SSIZE_T ssize_t;
 
 #endif
 
-#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
+#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) do { \
     char *errno_str = NULL; \
     FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, \
     NULL, WSAGetLastError(), \
@@ -116,7 +116,7 @@ typedef SSIZE_T ssize_t;
     (LPSTR)&errno_str, 0, NULL); \
     LOG; \
     LocalFree(errno_str); \
-}
+} while (0)
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
 
 /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
@@ -250,9 +250,9 @@ typedef int SOCKET;
 #define UA_clean_errno(STR_FUN) \
     (errno == 0 ? (char*) "None" : (STR_FUN)(errno))
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG) \
-    { char *errno_str = UA_clean_errno(strerror); LOG; errno = 0; }
+    do { char *errno_str = UA_clean_errno(strerror); LOG; errno = 0; } while (0)
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG) \
-    { const char *errno_str = UA_clean_errno(gai_strerror); LOG; errno = 0; }
+    do { const char *errno_str = UA_clean_errno(gai_strerror); LOG; errno = 0; } while (0)
 
 /* epoll_pwait returns bogus data with the tc compiler */
 #if defined(__linux__) && !defined(__TINYC__)

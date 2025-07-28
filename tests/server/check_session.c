@@ -133,7 +133,7 @@ START_TEST(Session_setSessionAttribute_ShallWork) {
     UA_NodeId_copy(&createRes.authenticationToken, &client->authenticationToken);
 
     /* Set an attribute for the session. */
-    UA_QualifiedName key = UA_QUALIFIEDNAME(1, "myAttribute");;
+    UA_QualifiedName key = UA_QUALIFIEDNAME(1, "myAttribute");
     UA_Variant *variant = UA_Variant_new();
     UA_Variant_init(variant);
     status s = UA_Server_setSessionAttribute(server, &createRes.sessionId, key, variant);

@@ -72,7 +72,7 @@ START_TEST(encodeShallYieldDecode) {
     void *obj2 = UA_new(&UA_TYPES[_i]);
     size_t offset = 0;
     retval = UA_decodeBinaryInternal(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%i",
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%u",
                   _i, UA_TYPES[_i].typeId.identifier.numeric);
     ck_assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize)); // bit identical decoding
     retval = UA_ByteString_allocBuffer(&msg2, 65000);
@@ -86,7 +86,7 @@ START_TEST(encodeShallYieldDecode) {
     msg1.length = offset;
     msg2.length = offset;
     ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == true,
-                  "messages differ idx=%d,nodeid=%i", _i,
+                  "messages differ idx=%d,nodeid=%u", _i,
                   UA_TYPES[_i].typeId.identifier.numeric);
     ck_assert(UA_order(obj1, obj2, &UA_TYPES[_i]) == UA_ORDER_EQ);
 
@@ -163,7 +163,7 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
         (void)retval;
         //then
         ck_assert_msg(retval == UA_STATUSCODE_GOOD,
-                      "Decoding %d from random buffer",
+                      "Decoding %u from random buffer",
                       UA_TYPES[_i].typeId.identifier.numeric);
         // finally
         UA_delete(obj1, &UA_TYPES[_i]);

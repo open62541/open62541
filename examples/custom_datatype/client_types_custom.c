@@ -92,7 +92,7 @@ int main(void) {
         char message[STRING_BUFFER_SIZE];
         memcpy(message, u->fields.optionB.data, u->fields.optionB.length);
         message[u->fields.optionB.length] = '\0';
-        printf("Union member selection: %i , member content: %s \n", u->switchField, message);
+        printf("Union member selection: %u , member content: %s \n", u->switchField, message);
     }
 
     /* Clean up */

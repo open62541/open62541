@@ -12,20 +12,19 @@
 #include "../ua_types_encoding_json.h"
 
 /* Json keys for dsm */
-const char * UA_DECODEKEY_MESSAGES = "Messages";
-const char * UA_DECODEKEY_MESSAGETYPE = "MessageType";
-const char * UA_DECODEKEY_MESSAGEID = "MessageId";
-const char * UA_DECODEKEY_PUBLISHERID = "PublisherId";
-const char * UA_DECODEKEY_DATASETCLASSID = "DataSetClassId";
+static const char * UA_DECODEKEY_MESSAGES = "Messages";
+static const char * UA_DECODEKEY_MESSAGETYPE = "MessageType";
+static const char * UA_DECODEKEY_MESSAGEID = "MessageId";
+static const char * UA_DECODEKEY_PUBLISHERID = "PublisherId";
+static const char * UA_DECODEKEY_DATASETCLASSID = "DataSetClassId";
 
 /* Json keys for dsm */
-const char * UA_DECODEKEY_DATASETWRITERID = "DataSetWriterId";
-const char * UA_DECODEKEY_SEQUENCENUMBER = "SequenceNumber";
-const char * UA_DECODEKEY_METADATAVERSION = "MetaDataVersion";
-const char * UA_DECODEKEY_TIMESTAMP = "Timestamp";
-const char * UA_DECODEKEY_DSM_STATUS = "Status";
-const char * UA_DECODEKEY_PAYLOAD = "Payload";
-const char * UA_DECODEKEY_DS_TYPE = "Type";
+static const char * UA_DECODEKEY_DATASETWRITERID = "DataSetWriterId";
+static const char * UA_DECODEKEY_SEQUENCENUMBER = "SequenceNumber";
+static const char * UA_DECODEKEY_METADATAVERSION = "MetaDataVersion";
+static const char * UA_DECODEKEY_TIMESTAMP = "Timestamp";
+static const char * UA_DECODEKEY_DSM_STATUS = "Status";
+static const char * UA_DECODEKEY_PAYLOAD = "Payload";
 
 /* -- json encoding/decoding -- */
 static UA_StatusCode writeJsonKey_UA_String(CtxJson *ctx, const UA_String *in) {

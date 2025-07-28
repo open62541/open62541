@@ -28,11 +28,11 @@
 #define DEFAULT_ASYM_REMOTE_PLAINTEXT_BLOCKSIZE 256
 #define DEFAULT_ASYM_REMOTE_BLOCKSIZE 256
 
-UA_SecureChannel testChannel;
-UA_ByteString dummyCertificate =
+static UA_SecureChannel testChannel;
+static UA_ByteString dummyCertificate =
     UA_BYTESTRING_STATIC("DUMMY CERTIFICATE DUMMY CERTIFICATE DUMMY CERTIFICATE");
-UA_SecurityPolicy dummyPolicy;
-UA_ByteString sentData;
+static UA_SecurityPolicy dummyPolicy;
+static UA_ByteString sentData;
 
 static funcs_called fCalled;
 static key_sizes keySizes;
@@ -236,7 +236,7 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     UA_SequenceHeader sequenceHeader;
     retval = UA_decodeBinaryInternal(&sentData, &offset, &sequenceHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER], NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_msg(sequenceHeader.requestId == requestId, "Expected requestId to be %i but was %i",
+    ck_assert_msg(sequenceHeader.requestId == requestId, "Expected requestId to be %u but was %u",
                   requestId,
                   sequenceHeader.requestId);
 
@@ -311,7 +311,7 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     UA_SequenceHeader sequenceHeader;
     retval = UA_decodeBinaryInternal(&sentData, &offset, &sequenceHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER], NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_msg(sequenceHeader.requestId == requestId, "Expected requestId to be %i but was %i",
+    ck_assert_msg(sequenceHeader.requestId == requestId, "Expected requestId to be %u but was %u",
                   requestId, sequenceHeader.requestId);
 
     UA_NodeId requestTypeId;

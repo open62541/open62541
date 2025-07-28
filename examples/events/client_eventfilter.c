@@ -21,8 +21,6 @@
 #include <signal.h>
 #include <stdio.h>
 
-#define USE_FILTER_OR_TYPEOF
-
 static UA_Boolean running = true;
 #define SELECT_CLAUSE_FIELD_COUNT 3
 

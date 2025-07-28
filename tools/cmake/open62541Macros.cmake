@@ -15,9 +15,9 @@ endmacro()
 # In a local dev environment, manually set the variables from open62541Config.cmake
 set_default(open62541_TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
 set_cache(open62541_TOOLS_DIR)
-set_default(open62541_NS0_NODESETS ${UA_NS0_NODESET_FILES})
+set_default(open62541_NS0_NODESETS "${UA_NS0_NODESET_FILES}")
 set_cache(open62541_NS0_NODESETS)
-set_default(open62541_SCHEMA_DIR ${UA_SCHEMA_DIR})
+set_default(open62541_SCHEMA_DIR "${UA_SCHEMA_DIR}")
 set_cache(open62541_SCHEMA_DIR)
 
 # Set global variables to find targets and sources of dependencies
