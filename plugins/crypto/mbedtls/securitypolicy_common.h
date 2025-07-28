@@ -23,15 +23,23 @@
 #define UA_SHA1_LENGTH 20
 #define UA_MAXSUBJECTLENGTH 512
 #define MBEDTLS_SAN_MAX_LEN    64
-#ifndef WIN32
-    #define MBEDTLS_ASN1_CHK_CLEANUP_ADD(g, f) \
-        do                                     \
-        {                                      \
-            if((ret = (f)) < 0)                \
-            goto cleanup;                      \
-            else                               \
-            (g) += ret;                        \
-        } while (0)
+
+/* 
+ * Define fallback for MBEDTLS_ASN1_CHK_CLEANUP_ADD if not already defined.
+ * Some versions of mbedTLS (≥3.x) provide this macro via <mbedtls/asn1write.h>,
+ * but it may be missing in others, or unavailable in amalgamation builds.
+ *
+ * This guard ensures compatibility across mbedTLS versions without redefining
+ * an existing macro, avoiding compiler warnings in UA_ENABLE_AMALGAMATION mode.
+ */
+#ifndef MBEDTLS_ASN1_CHK_CLEANUP_ADD
+#define MBEDTLS_ASN1_CHK_CLEANUP_ADD(g, f)                    \
+    do {                                                      \
+        if ((ret = (f)) < 0)                                  \
+            goto cleanup;                                     \
+        else                                                  \
+            (g) += ret;                                       \
+    } while (0)
 #endif
 
 _UA_BEGIN_DECLS
