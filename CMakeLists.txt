@@ -832,6 +832,7 @@ if(UA_ENABLE_ENCRYPTION AND UA_ARCHITECTURE_WIN32)
 endif()
 
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
+                ${PROJECT_SOURCE_DIR}/src/ua_types_definition.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
@@ -866,6 +867,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_util.c
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
