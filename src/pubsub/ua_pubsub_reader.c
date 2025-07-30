@@ -935,14 +935,6 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server,
         dsrMessageDataType = &defaultUadpConfiguration;
     }
 
-    /* Sanity-test the configuration */
-    if(dsrMessageDataType &&
-       (dsrMessageDataType->networkMessageNumber != 0 ||
-        dsrMessageDataType->dataSetOffset != 0)) {
-        dsrMessageDataType->networkMessageNumber = 0;
-        dsrMessageDataType->dataSetOffset = 0;
-    }
-
     /* The field encoding depends on the flags inside the reader config. */
     if(dsr->config.dataSetFieldContentMask & (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
         dsm->header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
