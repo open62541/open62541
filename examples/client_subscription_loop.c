@@ -166,7 +166,7 @@ main(void) {
         }
 
         UA_Client_run_iterate(client, 1000);
-    };
+    }
 
     /* Clean up */
     UA_Client_delete(client); /* Disconnects the client internally */

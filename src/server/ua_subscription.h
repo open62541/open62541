@@ -378,11 +378,12 @@ evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eve
 /***********/
 
 /* Setting an integer value within bounds */
-#define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
+#define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST)   \
+    do { \
         if(SRC > BOUNDS.max) DST = BOUNDS.max;         \
         else if(SRC < BOUNDS.min) DST = BOUNDS.min;    \
         else DST = SRC;                                \
-    }
+    } while (0)
 
 /* Logging
  * See a description of the tricks used in ua_session.h */
