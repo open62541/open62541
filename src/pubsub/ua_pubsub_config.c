@@ -153,11 +153,8 @@ updatePubSubConfig(UA_PubSubManager *psm,
             UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
         }
         TAILQ_FOREACH(pubSubConnection, &psm->connections, listEntry) {
-            /* Make sure that the configuration matches the given pubsub connection parameters. */
-            if(UA_String_equal(&configurationParameters->connections[cnt].name, &pubSubConnection->config.name)) {
-                if(configurationParameters->connections[cnt++].enabled){
-                    UA_PubSubConnection_setPubSubState(psm, pubSubConnection, UA_PUBSUBSTATE_OPERATIONAL);
-                }
+            if(configurationParameters->connections[cnt++].enabled){
+                UA_PubSubConnection_setPubSubState(psm, pubSubConnection, UA_PUBSUBSTATE_OPERATIONAL);
             }
         }
     }
