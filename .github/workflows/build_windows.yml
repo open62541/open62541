@@ -51,7 +51,7 @@ jobs:
       
       - name: Install Requirements
         shell: pwsh
-        run: ./tools/ci/azure-devops/win/install.ps1
+        run: ./tools/ci/win/install.ps1
       
       - name: Build & Test Unit Tests
         shell: pwsh
@@ -60,7 +60,7 @@ jobs:
           if ("${{ matrix.cc_shortname }}" -eq "mingw" -or "${{ matrix.cc_shortname }}" -eq "clang-mingw") {
             $env:PATH = "C:\msys64\mingw64\bin;$env:PATH"
           }
-          ./tools/ci/azure-devops/win/build.ps1
+          ./tools/ci/win/build.ps1
       
       - name: Upload Test Results (if available)
         uses: actions/upload-artifact@v4
