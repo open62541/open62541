@@ -67,6 +67,8 @@ START_TEST(PublishSpeedTest) {
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_StatusCode retval = UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL).result;
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_enableAllPubSubComponents(server);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup1);

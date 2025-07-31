@@ -92,6 +92,8 @@ START_TEST(SinglePublishDataSetField){
 
     retVal = UA_Server_enableWriterGroup(server, writerGroup1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_enableAllPubSubComponents(server);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     UA_Server_WriterGroup_publish(server, writerGroup1);
 } END_TEST
