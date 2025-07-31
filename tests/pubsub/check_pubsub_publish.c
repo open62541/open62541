@@ -517,6 +517,7 @@ START_TEST(SinglePublishDataSetFieldAndPublishTimestampTest){
         retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
         
         retVal |= UA_Server_enableDataSetWriter(server, dataSetWriter1);
+        retVal |= UA_Server_enableAllPubSubComponents(server);
 
         UA_DateTime currentTime = UA_DateTime_now();
         UA_Server_WriterGroup_publish(server, writerGroup1);
@@ -540,6 +541,7 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
         dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime2");
         retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL).result;
         setupDataSetFieldTestEnvironment();
+        retVal |= UA_Server_enableAllPubSubComponents(server);
 
         UA_PubSubManager *psm = getPSM(server);
         UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup1);
