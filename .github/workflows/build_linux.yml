@@ -298,7 +298,7 @@ jobs:
           ${{ matrix.build.cmd_deps }}
       - name: ${{ matrix.build.name }}
         shell: bash
-        run: source tools/ci/ci.sh && ${{ matrix.build.cmd_action }}
+        run: source tools/ci/linux/ci.sh && ${{ matrix.build.cmd_action }}
         env:
           ETHERNET_INTERFACE: eth0
       - name: Upload coverage to Codecov
