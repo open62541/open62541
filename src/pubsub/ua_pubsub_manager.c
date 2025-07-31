@@ -351,10 +351,13 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
 
     UA_PubSubConnection *c;
     TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        c->config.enabled = true;
         UA_WriterGroup *wg;
         LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            wg->config.enabled = true;
             UA_DataSetWriter *dsw;
             LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                dsw->config.enabled = true;
                 res |= UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_OPERATIONAL);
             }
             res |= UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
@@ -362,8 +365,10 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
 
         UA_ReaderGroup *rg;
         LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+            rg->config.enabled = true;
             UA_DataSetReader *dsr;
             LIST_FOREACH(dsr, &rg->readers, listEntry) {
+                dsr->config.enabled = true;
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
                                                 UA_STATUSCODE_GOOD);
             }
@@ -454,7 +459,9 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     if(state == UA_LIFECYCLESTATE_STARTED) {
         UA_PubSubConnection *c;
         TAILQ_FOREACH(c, &psm->connections, listEntry) {
-            UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
+            if(c->config.enabled) {
+                UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
+            }
         }
     }
 }

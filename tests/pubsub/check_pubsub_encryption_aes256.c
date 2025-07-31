@@ -75,6 +75,8 @@ START_TEST(SinglePublishDataSetField) {
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     retVal |= UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup2);
     retVal |= UA_Server_enableWriterGroup(server, writerGroup2);
+    retVal |= UA_Server_enableAllPubSubComponents(server);
+
     writerGroupConfig.name = UA_STRING("WriterGroup 3");
     writerGroupConfig.publishingInterval = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
