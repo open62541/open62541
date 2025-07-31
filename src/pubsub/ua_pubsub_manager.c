@@ -351,10 +351,18 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
 
     UA_PubSubConnection *c;
     TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        /* Set enabled flag for connection */
+        c->config.enabled = UA_TRUE;
+
         UA_WriterGroup *wg;
         LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            /* Set enabled flag for writer group */
+            wg->config.enabled = UA_TRUE;
+            
             UA_DataSetWriter *dsw;
             LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                /* Set enabled flag for data set writer */
+                dsw->config.enabled = UA_TRUE;
                 res |= UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_OPERATIONAL);
             }
             res |= UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
@@ -362,8 +370,13 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
 
         UA_ReaderGroup *rg;
         LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+            /* Set enabled flag for reader group */
+            rg->config.enabled = UA_TRUE;
+            
             UA_DataSetReader *dsr;
             LIST_FOREACH(dsr, &rg->readers, listEntry) {
+                /* Set enabled flag for data set reader */
+                dsr->config.enabled = UA_TRUE;
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
                                                 UA_STATUSCODE_GOOD);
             }
