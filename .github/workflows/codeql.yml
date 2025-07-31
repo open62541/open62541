@@ -44,7 +44,7 @@ jobs:
           languages: ${{ matrix.language }}
       
       - name: Debug Build
-        run: source tools/ci/ci.sh && unit_tests
+        run: source tools/ci/linux/ci.sh && unit_tests
         env:
           ETHERNET_INTERFACE: eth0
       
