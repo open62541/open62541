@@ -26,6 +26,9 @@ static UA_Server *server;
 static size_t clientCounter;
 static UA_UInt64 lastTimedCallback;
 
+static const void *canceledCallRequest = NULL;
+static const void *expectedCanceledCallRequest = NULL;
+
 static void
 asyncRead(UA_Server *server, void *data) {
     UA_DataValue *out = (UA_DataValue*)data;
@@ -86,6 +89,7 @@ methodCallback_async(UA_Server *server,
                      size_t outputSize, UA_Variant *output) {
     UA_DateTime callTime = UA_DateTime_now_fake(NULL) + UA_DATETIME_SEC;
     UA_Server_addTimedCallback(server, asyncCall, output, callTime, &lastTimedCallback);
+    expectedCanceledCallRequest = output;
     return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
@@ -108,6 +112,12 @@ clientReceiveCallback(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, UA_CallResponse *cr) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Received call response");
     clientCounter++;
+}
+
+static void
+asyncOperationCancelCallback(UA_Server *server, const void *out) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Request %p was canceled", out);
+    canceledCallRequest = out;
 }
 
 THREAD_CALLBACK(serverloop) {
@@ -396,6 +406,8 @@ START_TEST(Async_cancel) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+    UA_Server_getConfig(server)->asyncOperationCancelCallback = asyncOperationCancelCallback;
+
     /* Call async method, then the sync method.
      * The sync method returns first. */
     UA_UInt32 reqId = 0;
@@ -414,6 +426,8 @@ START_TEST(Async_cancel) {
     while(clientCounter != 1) {
         UA_Client_run_iterate(client, 1);
     }
+
+    ck_assert_ptr_eq(expectedCanceledCallRequest, canceledCallRequest);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
