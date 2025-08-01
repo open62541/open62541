@@ -14,7 +14,7 @@ UA_AsyncOperation_cancel(UA_Server *server, UA_AsyncOperation *op, UA_StatusCode
     if(asd->responseOperationsType == &UA_TYPES[UA_TYPES_CALLMETHODRESULT]) {
         /* The method out array is always an allocated pointer. Also if the length is zero. */
         if(server->config.asyncOperationCancelCallback)
-            server->config.asyncOperationCancelCallback(server, op->out.call);
+            server->config.asyncOperationCancelCallback(server, op->out.call->outputArguments);
         op->out.call->statusCode = status;
     } else if(asd->responseOperationsType == &UA_TYPES[UA_TYPES_STATUSCODE]) {
         if(server->config.asyncOperationCancelCallback)
