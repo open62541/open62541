@@ -5,6 +5,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ *    Modified  2025 (c) Construction Future Lab (Author: Jianbin Liu)
  */
 
 #include "ua_discovery.h"
@@ -12,10 +13,8 @@
 #include "mdnsd/libmdnsd/mdnsd.h"
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
 
-#ifndef UA_ENABLE_AMALGAMATION
 #include "mdnsd/libmdnsd/xht.h"
 #include "mdnsd/libmdnsd/sdtxt.h"
-#endif
 
 #ifdef UA_ARCHITECTURE_WIN32
 /* inet_ntoa is deprecated on MSVC but used for compatibility */
