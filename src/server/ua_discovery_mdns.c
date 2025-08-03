@@ -5,7 +5,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
- *    Modified  2025 (c) Construction Future Lab (Author: Jianbin Liu)
+ *    Copyright 2025 (c) Construction Future Lab (Author: Jianbin Liu)
  */
 
 #include "ua_discovery.h"
