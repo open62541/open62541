@@ -162,36 +162,30 @@ mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
 option(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI "Enable mDNS discovery support (uses Avahi)" OFF)
 mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
 
-# Reset all related options first to avoid conflicts
-set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
-set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI OFF)
-# Handle the new configuration method: set specific library via UA_ENABLE_DISCOVERY_MULTICAST
+# Check for legacy usage and convert to unified interface
+if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+    message(DEPRECATION "UA_ENABLE_DISCOVERY_MULTICAST_MDNSD is deprecated. Use UA_ENABLE_DISCOVERY_MULTICAST=MDNSD instead.")
+    set(UA_ENABLE_DISCOVERY_MULTICAST "MDNSD" CACHE STRING "mDNS discovery support" FORCE)
+endif()
+if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+    message(DEPRECATION "UA_ENABLE_DISCOVERY_MULTICAST_AVAHI is deprecated. Use UA_ENABLE_DISCOVERY_MULTICAST=AVAHI instead.")
+    set(UA_ENABLE_DISCOVERY_MULTICAST "AVAHI" CACHE STRING "mDNS discovery support" FORCE)
+endif()
+
+# Handle unified configuration via UA_ENABLE_DISCOVERY_MULTICAST
 if(UA_ENABLE_DISCOVERY_MULTICAST STREQUAL "MDNSD")
-    set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON)
-    # Force override the cached value to ensure it takes effect
     set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON CACHE BOOL "Enable mDNS discovery support (uses mdnsd)" FORCE)
+    set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI OFF CACHE BOOL "Enable mDNS discovery support (uses Avahi)" FORCE)
 elseif(UA_ENABLE_DISCOVERY_MULTICAST STREQUAL "AVAHI")
-    set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI ON)
-    # Force override the cached value to ensure it takes effect
     set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI ON CACHE BOOL "Enable mDNS discovery support (uses Avahi)" FORCE)
-elseif(UA_ENABLE_DISCOVERY_MULTICAST STREQUAL "OFF")
-    # Explicitly set to OFF, do nothing, keep default values
-elseif(UA_ENABLE_DISCOVERY_MULTICAST OR UA_ENABLE_DISCOVERY_MULTICAST STREQUAL "ON")
-    # Backward compatibility: if set to ON or TRUE, default to MDNSD
-    message(DEPRECATION "Set UA_ENABLE_DISCOVERY_MULTICAST to the desired mDNS library (MDNSD or AVAHI).")
-    if(NOT UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
-        set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON)
-        set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON CACHE BOOL "Enable mDNS discovery support (uses mdnsd)" FORCE)
-    endif()
+    set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF CACHE BOOL "Enable mDNS discovery support (uses mdnsd)" FORCE)
+elseif(UA_ENABLE_DISCOVERY_MULTICAST)
+    message(DEPRECATION "Setting UA_ENABLE_DISCOVERY_MULTICAST to a boolean value is deprecated. Use UA_ENABLE_DISCOVERY_MULTICAST=MDNSD instead.")
+    set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON CACHE BOOL "Enable mDNS discovery support (uses mdnsd)" FORCE)
+    set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI OFF CACHE BOOL "Enable mDNS discovery support (uses Avahi)" FORCE)
 else()
-    # Handle cases where specific options are set directly (backward compatibility)
-    if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
-        set(UA_ENABLE_DISCOVERY_MULTICAST "MDNSD" CACHE STRING "mDNS discovery support" FORCE)
-        set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI OFF)
-    elseif(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
-        set(UA_ENABLE_DISCOVERY_MULTICAST "AVAHI" CACHE STRING "mDNS discovery support" FORCE)
-        set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
-    endif()
+    set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF CACHE BOOL "Enable mDNS discovery support (uses mdnsd)" FORCE)
+    set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI OFF CACHE BOOL "Enable mDNS discovery support (uses Avahi)" FORCE)
 endif()
 
 # security provider
