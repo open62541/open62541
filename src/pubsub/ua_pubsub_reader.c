@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2025 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
@@ -701,14 +701,15 @@ UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_PubSubManager *psm = getPSM(server);
     UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
-    if(dsr)
+    if(dsr) {
+        dsr->config.enabled = true;
         UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
                                         UA_STATUSCODE_GOOD);
-    else
-        ret = UA_STATUSCODE_BADNOTFOUND;
+        ret = UA_STATUSCODE_GOOD;
+    }
     unlockServer(server);
     return ret;
 }
@@ -718,14 +719,15 @@ UA_Server_disableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_PubSubManager *psm = getPSM(server);
     UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
-    if(dsr)
+    if(dsr) {
+        dsr->config.enabled = false;
         UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_DISABLED,
                                         UA_STATUSCODE_GOOD);
-    else
-        ret = UA_STATUSCODE_BADNOTFOUND;
+        ret = UA_STATUSCODE_GOOD;
+    }
     unlockServer(server);
     return ret;
 }

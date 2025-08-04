@@ -730,9 +730,11 @@ UA_Server_enableDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
-    UA_StatusCode ret = (dsw) ?
-        UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_OPERATIONAL) :
-        UA_STATUSCODE_BADNOTFOUND;
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
+    if(dsw) {
+        dsw->config.enabled = true;
+        ret = UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_OPERATIONAL);
+    }
     unlockServer(server);
     return ret;
 }
@@ -744,9 +746,11 @@ UA_Server_disableDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
-    UA_StatusCode ret = (dsw) ?
-        UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED) :
-        UA_STATUSCODE_BADNOTFOUND;
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
+    if(dsw) {
+        dsw->config.enabled = false;
+        ret = UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
+    }
     unlockServer(server);
     return ret;
 }

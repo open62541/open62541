@@ -1074,9 +1074,11 @@ UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
     lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
-    UA_StatusCode ret = (rg) ?
-        UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL) :
-        UA_STATUSCODE_BADNOTFOUND;
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
+    if(rg) {
+        rg->config.enabled = true;
+        ret = UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
+    }
     unlockServer(server);
     return ret;
 }
@@ -1088,9 +1090,11 @@ UA_Server_disableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
     lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
-    UA_StatusCode ret = (rg) ?
-        UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED) :
-        UA_STATUSCODE_BADNOTFOUND;
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
+    if(rg) {
+        rg->config.enabled = false;
+        ret = UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
+    }
     unlockServer(server);
     return ret;
 }

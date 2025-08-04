@@ -398,15 +398,19 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
 static UA_StatusCode
 enablePubSubConnection(UA_PubSubManager *psm, const UA_NodeId connectionId) {
     UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
-    return (c) ? UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL)
-        : UA_STATUSCODE_BADNOTFOUND;
+    if(!c)
+        return UA_STATUSCODE_BADNOTFOUND;
+    c->config.enabled = true;
+    return UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL);
 }
 
 static UA_StatusCode
 disablePubSubConnection(UA_PubSubManager *psm, const UA_NodeId connectionId) {
     UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
-    return (c) ? UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED)
-        : UA_STATUSCODE_BADNOTFOUND;
+    if(!c)
+        return UA_STATUSCODE_BADNOTFOUND;
+    c->config.enabled = false;
+    return UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
 }
 
 /***********************/
