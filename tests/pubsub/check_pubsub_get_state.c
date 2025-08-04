@@ -506,6 +506,93 @@ START_TEST(Test_error_case) {
 } END_TEST
 
 /***************************************************************************************************/
+START_TEST(Test_enable_flag) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_enable_flag");
+
+    /* Setup Connection */
+    UA_NodeId ConnId;
+    UA_NodeId_init(&ConnId);
+    AddConnection("TestConn", 1, &ConnId);
+
+    /* Setup WriterGroup */
+    UA_NodeId WGId;
+    UA_NodeId_init(&WGId);
+    AddWriterGroup(&ConnId, "TestWG", 1, 500.0, &WGId);
+
+    /* Setup DataSetWriter */
+    UA_NodeId DsWId, VarId, PDSId;
+    UA_NodeId_init(&DsWId);
+    UA_NodeId_init(&VarId);
+    UA_NodeId_init(&PDSId);
+    AddPublishedDataSet(&WGId, "TestPDS", "TestDS", 1, &PDSId, &VarId, &DsWId);
+
+    /* Setup ReaderGroup */
+    UA_NodeId RGId;
+    UA_NodeId_init(&RGId);
+    AddReaderGroup(&ConnId, "TestRG", &RGId);
+
+    /* Setup DataSetReader */
+    UA_NodeId DSRId, DSRVarId;
+    UA_NodeId_init(&DSRId);
+    UA_NodeId_init(&DSRVarId);
+    AddDataSetReader(&RGId, "TestDSR", 1, 1, 1, 350.0, &DSRVarId, &DSRId);
+
+    /* Get access to internal structures */
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *conn = UA_PubSubConnection_find(psm, ConnId);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, WGId);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, DsWId);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, RGId);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, DSRId);
+
+    ck_assert(conn != NULL);
+    ck_assert(wg != NULL);
+    ck_assert(dsw != NULL);
+    ck_assert(rg != NULL);
+    ck_assert(dsr != NULL);
+
+    /* Initially all components should be disabled (default state) */
+    ck_assert_int_eq(conn->config.enabled, false);
+    ck_assert_int_eq(wg->config.enabled, false);
+    ck_assert_int_eq(dsw->config.enabled, false);
+    ck_assert_int_eq(rg->config.enabled, false);
+    ck_assert_int_eq(dsr->config.enabled, false);
+
+    /* Test enable for Connection and verify config flag */
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enablePubSubConnection(server, ConnId));
+    ck_assert_int_eq(conn->config.enabled, true);
+    
+    /* Test enable/disable for WriterGroup and verify config flag */
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WGId));
+    ck_assert_int_eq(wg->config.enabled, true);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_disableWriterGroup(server, WGId));
+    ck_assert_int_eq(wg->config.enabled, false);
+
+    /* Test enable/disable for DataSetWriter and verify config flag */
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableDataSetWriter(server, DsWId));
+    ck_assert_int_eq(dsw->config.enabled, true);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_disableDataSetWriter(server, DsWId));
+    ck_assert_int_eq(dsw->config.enabled, false);
+
+    /* Test enable/disable for ReaderGroup and verify config flag */
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, RGId));
+    ck_assert_int_eq(rg->config.enabled, true);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_disableReaderGroup(server, RGId));
+    ck_assert_int_eq(rg->config.enabled, false);
+
+    /* Test enable/disable for DataSetReader and verify config flag */
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableDataSetReader(server, DSRId));
+    ck_assert_int_eq(dsr->config.enabled, true);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_disableDataSetReader(server, DSRId));
+    ck_assert_int_eq(dsr->config.enabled, false);
+
+    /* Test disable for Connection and verify config flag */
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_disablePubSubConnection(server, ConnId));
+    ck_assert_int_eq(conn->config.enabled, false);
+
+} END_TEST
+
+/***************************************************************************************************/
 int main(void) {
 
     TCase *tc_normal_operation = tcase_create("normal_operation");
@@ -520,10 +607,15 @@ int main(void) {
     tcase_add_checked_fixture(tc_error_case, setup, teardown);
     tcase_add_test(tc_error_case, Test_error_case);
 
+    TCase *tc_enable_flag = tcase_create("enable flag");
+    tcase_add_checked_fixture(tc_enable_flag, setup, teardown);
+    tcase_add_test(tc_enable_flag, Test_enable_flag);
+
     Suite *s = suite_create("PubSub getState test suite");
     suite_add_tcase(s, tc_normal_operation);
     suite_add_tcase(s, tc_corner_cases);
     suite_add_tcase(s, tc_error_case);
+    suite_add_tcase(s, tc_enable_flag);
 
     /* TODO: how to provoke and test an error state? */
 
