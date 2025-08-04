@@ -372,7 +372,7 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     UA_DataSetReader *dsr;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
         if(dsr->config.enabled)
-            UA_DataSetReader_setPubSubState(psm, dsr, rg->head.state,
+            UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state,
                                         UA_STATUSCODE_GOOD);
     }
 
