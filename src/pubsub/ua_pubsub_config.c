@@ -770,7 +770,7 @@ createDataSetFields(UA_PubSubManager *psm, const UA_NodeId *pdsIdent,
 UA_StatusCode
 UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
                                          const UA_ByteString buffer,
-                                         UA_Boolean activateAfterUpdate) {
+                                         UA_Boolean delayedEnable) {
     size_t offset = 0;
     UA_ExtensionObject decodedFile;
 
@@ -788,7 +788,7 @@ UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    delayComponentActivation = activateAfterUpdate;
+    delayComponentActivation = delayedEnable;
 
     UA_StatusCode res =
         UA_ExtensionObject_decodeBinary(&buffer, &offset, &decodedFile);
