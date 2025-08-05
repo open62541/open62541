@@ -223,43 +223,24 @@ typedef struct {
  * Enable/Disable Functionality
  * ----------------------------
  * All PubSub components (PubSubConnections, WriterGroups, DataSetWriters,
- * ReaderGroups, and DataSetReaders) support runtime enable/disable functionality
- * through an "enabled" Boolean flag in their respective configuration structures.
- * 
+ * ReaderGroups, and DataSetReaders) have an 'enable' flag in their config
+ * which is used to configure the initial state after creation. The enable
+ * mechanism corresponds to the definitions in Part 14 (add section).
+ *
  * This functionality provides:
- * 
- * **Runtime Control**: Components can be enabled or disabled without requiring
- * reconfiguration or removal from the server. This allows for dynamic control
- * of PubSub operations based on application requirements.
- * 
- * **Hierarchical Behavior**: When a parent component is disabled, all child
- * components effectively become inactive regardless of their individual enable
- * state. For example, disabling a WriterGroup will stop all DataSetWriters
- * within that group from publishing messages.
- * 
- * **OPC UA Part 14 Compliance**: The enable functionality corresponds to the
- * "Enabled" attribute defined in OPC UA Part 14 (PubSub specification):
- * - Section 6.2.1.2.3 for PubSubConnection objects
- * - Section 6.2.2.2.3 for WriterGroup objects
- * - Section 6.2.3.2.3 for DataSetWriter objects
- * - Section 6.2.4.1.3 for ReaderGroup objects
- * - Section 6.2.4.2.3 for DataSetReader objects
- * 
- * **Individual Control Functions**: Each component type has dedicated enable/disable
- * functions for fine-grained control:
- * - UA_Server_enablePubSubConnection() / UA_Server_disablePubSubConnection()
- * - UA_Server_enableWriterGroup() / UA_Server_disableWriterGroup()
- * - UA_Server_enableDataSetWriter() / UA_Server_disableDataSetWriter()
- * - UA_Server_enableReaderGroup() / UA_Server_disableReaderGroup()
- * - UA_Server_enableDataSetReader() / UA_Server_disableDataSetReader()
- * 
- * **Bulk Operations**: For convenience, UA_Server_enableAllPubSubComponents()
+ *
+ * **Runtime Control**: Components can be enabled or disabled using the exposed
+ * PubSub configuration methods in the information model or through the
+ * API functions of the PubSub components (e.g. UA_Server_enablePubSubConnection).
+ * For convenience, UA_Server_enableAllPubSubComponents()
  * can be used to enable all PubSub components at once, which is useful for
  * system initialization or testing scenarios.
- * 
- * **Default State**: By default, all PubSub components are created in a disabled
- * state (enabled = false) to prevent accidental activation during configuration.
- * Applications must explicitly enable components when they are ready for operation. */
+ *
+ * **Hierarchical Behavior**: When a parent component is disabled, all child
+ * components effectively become inactive (see PubSub state transitions),
+ * regardless of their individual enable state. For example, disabling a
+ * WriterGroup will stop all DataSetWriters within that group from publishing messages.
+ */
 
 /* The custom state machine callback is optional (can be NULL). It gets called
  * with a request to change the state targetState. The state pointer contains
@@ -300,8 +281,6 @@ typedef struct {
     UA_Variant address;
     UA_KeyValueMap connectionProperties;
     UA_Variant connectionTransportSettings;
-    
-    /* Enable/disable flag for runtime control (OPC UA Part 14 Section 6.2.1.2.3) */
     UA_Boolean enabled;
 
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
@@ -536,8 +515,6 @@ typedef struct {
     UA_MessageSecurityMode securityMode; /* via the UA_WriterGroupDataType */
     UA_PubSubSecurityPolicy *securityPolicy;
     UA_String securityGroupId;
-    
-    /* Enable/disable flag for runtime control (OPC UA Part 14 Section 6.2.2.2.3) */
     UA_Boolean enabled;
 
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
@@ -623,8 +600,6 @@ typedef struct {
     UA_ExtensionObject transportSettings;
     UA_String dataSetName;
     UA_KeyValueMap dataSetWriterProperties;
-    
-    /* Enable/disable flag for runtime control (OPC UA Part 14 Section 6.2.3.2.3) */
     UA_Boolean enabled;
 
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
@@ -751,8 +726,6 @@ typedef struct {
     } subscribedDataSet;
     /* non std. fields */
     UA_String linkedStandaloneSubscribedDataSetName;
-    
-    /* Enable/disable flag for runtime control (OPC UA Part 14 Section 6.2.4.2.3) */
     UA_Boolean enabled;
 
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
@@ -834,8 +807,6 @@ typedef struct {
     UA_MessageSecurityMode securityMode;
     UA_PubSubSecurityPolicy *securityPolicy;
     UA_String securityGroupId;
-    
-    /* Enable/disable flag for runtime control (OPC UA Part 14 Section 6.2.4.1.3) */
     UA_Boolean enabled;
 
     UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
@@ -885,11 +856,13 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 /* Decodes the information from the ByteString. If the decoded content is a
 * PubSubConfiguration in a UABinaryFileDataType-object. It will overwrite the
-* current PubSub configuration from the server. */
+* current PubSub configuration from the server. The 'delayedEnable' option delays
+* the activation of all added PubSub components until they have all been added.
+*/
 UA_EXPORT UA_StatusCode
 UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
                                          const UA_ByteString buffer,
-                                         UA_Boolean activateAfterUpdate);
+                                         UA_Boolean delayedEnable);
 
 /* Saves the current PubSub configuration of a server in a byteString. */
 UA_EXPORT UA_StatusCode
