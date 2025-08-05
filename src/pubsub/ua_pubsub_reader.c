@@ -324,6 +324,11 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     if(readerIdentifier)
         UA_NodeId_copy(&dsr->head.identifier, readerIdentifier);
 
+    /* Enable the DataSetReader immediately if the enabled flag is set */
+    if(dataSetReaderConfig->enabled)
+        UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
+                                        UA_STATUSCODE_GOOD);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -385,7 +390,6 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
 UA_StatusCode
 UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
                             UA_DataSetReaderConfig *dst) {
-    memset(dst, 0, sizeof(UA_DataSetReaderConfig));
     memcpy(dst, src, sizeof(UA_DataSetReaderConfig));
     dst->writerGroupId = src->writerGroupId;
     dst->dataSetWriterId = src->dataSetWriterId;
@@ -703,15 +707,14 @@ UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
-    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubManager *psm = getPSM(server);
     UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
-    if(dsr) {
-        dsr->config.enabled = true;
+    if(dsr)
         UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
                                         UA_STATUSCODE_GOOD);
-        ret = UA_STATUSCODE_GOOD;
-    }
+    else
+        ret = UA_STATUSCODE_BADNOTFOUND;
     unlockServer(server);
     return ret;
 }
@@ -721,15 +724,14 @@ UA_Server_disableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
-    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubManager *psm = getPSM(server);
     UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
-    if(dsr) {
-        dsr->config.enabled = false;
+    if(dsr)
         UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_DISABLED,
                                         UA_STATUSCODE_GOOD);
-        ret = UA_STATUSCODE_GOOD;
-    }
+    else
+        ret = UA_STATUSCODE_BADNOTFOUND;
     unlockServer(server);
     return ret;
 }

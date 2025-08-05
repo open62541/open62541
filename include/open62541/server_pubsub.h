@@ -858,15 +858,18 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
                                        const UA_ByteString keyNonce);
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+
 /* Decodes the information from the ByteString. If the decoded content is a
  * PubSubConfiguration in a UABinaryFileDataType-object. It will overwrite the
- * current PubSub configuration from the server. The 'delayedEnable' option
- * delays the activation of all added PubSub components until they have all been
- * added. */
+ * current PubSub configuration from the server. The added components are
+ * enabled automatically if their enabled-flag is set in the config.
+ * Child-components are enabled first.
+ *
+ * Note that you need to disable all components with
+ * UA_Server_disableAllPubSubComponents before loading the config. */
 UA_EXPORT UA_StatusCode
 UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
-                                         const UA_ByteString buffer,
-                                         UA_Boolean delayedEnable);
+                                         const UA_ByteString buffer);
 
 /* Saves the current PubSub configuration of a server in a byteString. */
 UA_EXPORT UA_StatusCode

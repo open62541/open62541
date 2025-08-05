@@ -251,6 +251,10 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
     if(writerGroupIdentifier)
         UA_NodeId_copy(&wg->head.identifier, writerGroupIdentifier);
 
+    /* Enable the WriterGroup immediately if the enabled flag is set */
+    if(config->enabled)
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1337,11 +1341,9 @@ UA_Server_enableWriterGroup(UA_Server *server, const UA_NodeId writerGroup)  {
     lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
-    if(wg) {
-        wg->config.enabled = true;
-        res = UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
-    }
+    UA_StatusCode res =
+        (wg) ? UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL)
+             :  UA_STATUSCODE_BADINTERNALERROR;
     unlockServer(server);
     return res;
 }
@@ -1354,11 +1356,9 @@ UA_Server_disableWriterGroup(UA_Server *server,
     lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
-    if(wg) {
-        wg->config.enabled = false;
-        res = UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
-    }
+    UA_StatusCode res =
+        (wg) ? UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED)
+             :  UA_STATUSCODE_BADINTERNALERROR;
     unlockServer(server);
     return res;
 }

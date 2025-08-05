@@ -25,6 +25,12 @@ static const char *pubSubStateNames[6] = {
     "Disabled", "Paused", "Operational", "Error", "PreOperational", "Invalid"
 };
 
+static void
+UA_PubSubManager_stop(UA_ServerComponent *sc);
+
+static UA_StatusCode
+UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server);
+
 const char *
 UA_PubSubState_name(UA_PubSubState state) {
     if(state < UA_PUBSUBSTATE_DISABLED || state > UA_PUBSUBSTATE_PREOPERATIONAL)
@@ -347,17 +353,16 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_StatusCode res = UA_PubSubManager_start(&psm->sc, server);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     UA_PubSubConnection *c;
     TAILQ_FOREACH(c, &psm->connections, listEntry) {
-        c->config.enabled = true;
         UA_WriterGroup *wg;
         LIST_FOREACH(wg, &c->writerGroups, listEntry) {
-            wg->config.enabled = true;
             UA_DataSetWriter *dsw;
             LIST_FOREACH(dsw, &wg->writers, listEntry) {
-                dsw->config.enabled = true;
                 res |= UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_OPERATIONAL);
             }
             res |= UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
@@ -365,10 +370,8 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
 
         UA_ReaderGroup *rg;
         LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-            rg->config.enabled = true;
             UA_DataSetReader *dsr;
             LIST_FOREACH(dsr, &rg->readers, listEntry) {
-                dsr->config.enabled = true;
                 UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
                                                 UA_STATUSCODE_GOOD);
             }
@@ -414,7 +417,7 @@ UA_Server_disableAllPubSubComponents(UA_Server *server) {
     lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     if(psm)
-        disableAllPubSubComponents(psm);
+        UA_PubSubManager_stop(&psm->sc); /* Calls disableAll internally */
     unlockServer(server);
 }
 
@@ -459,9 +462,7 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     if(state == UA_LIFECYCLESTATE_STARTED) {
         UA_PubSubConnection *c;
         TAILQ_FOREACH(c, &psm->connections, listEntry) {
-            if(c->config.enabled) {
-                UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
-            }
+            UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
         }
     }
 }
