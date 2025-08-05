@@ -485,17 +485,19 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
  finalize_state_machine:
 
+    /* No state change has happened */
+    if(dsr->head.state == oldState)
+        return;
+
+    UA_LOG_INFO_PUBSUB(psm->logging, dsr, "%s -> %s",
+                       UA_PubSubState_name(oldState),
+                       UA_PubSubState_name(dsr->head.state));
+
     /* Inform application about state change */
-    if(dsr->head.state != oldState) {
-        UA_LOG_INFO_PUBSUB(psm->logging, dsr, "%s -> %s",
-                           UA_PubSubState_name(oldState),
-                           UA_PubSubState_name(dsr->head.state));
-        if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            server->config.pubSubConfig.
-                stateChangeCallback(server, dsr->head.identifier,
-                                    dsr->head.state, errorReason);
-        }
-    }
+    if(server->config.pubSubConfig.stateChangeCallback)
+        server->config.pubSubConfig.
+            stateChangeCallback(server, dsr->head.identifier,
+                                dsr->head.state, errorReason);
 }
 
 /* This Method is used to initially set the SubscribedDataSet to

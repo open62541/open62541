@@ -509,22 +509,24 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     if(wg->head.transientState)
         return ret;
 
-    /* Inform the application about state change */
-    if(wg->head.state != oldState) {
-        UA_LOG_INFO_PUBSUB(psm->logging, wg, "%s -> %s",
-                           UA_PubSubState_name(oldState),
-                           UA_PubSubState_name(wg->head.state));
-        if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            server->config.pubSubConfig.
-                stateChangeCallback(server, wg->head.identifier, wg->head.state, ret);
-        }
-    }
+    /* No state change has happened */
+    if(wg->head.state == oldState)
+        return ret;
 
-    /* Update the attached DataSetWriters */
+    UA_LOG_INFO_PUBSUB(psm->logging, wg, "%s -> %s",
+                       UA_PubSubState_name(oldState),
+                       UA_PubSubState_name(wg->head.state));
+
+    /* Inform the application about state change */
+    if(server->config.pubSubConfig.stateChangeCallback)
+        server->config.pubSubConfig.
+            stateChangeCallback(server, wg->head.identifier, wg->head.state, ret);
+
+    /* Children evaluate their state machine after the state change of the parent.
+     * Keep the current child state as the target state for the child. */
     UA_DataSetWriter *writer;
     LIST_FOREACH(writer, &wg->writers, listEntry) {
-        if(writer->config.enabled)
-            UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
+        UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when

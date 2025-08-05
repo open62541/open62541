@@ -366,26 +366,29 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
     if(c->head.transientState)
         return ret;
 
+    /* No state change has happened */
+    if(c->head.state == oldState)
+        return ret;
+
+    UA_LOG_INFO_PUBSUB(psm->logging, c, "%s -> %s",
+                       UA_PubSubState_name(oldState),
+                       UA_PubSubState_name(c->head.state));
+
     /* Inform application about state change */
-    if(c->head.state != oldState) {
-        UA_LOG_INFO_PUBSUB(psm->logging, c, "%s -> %s",
-                           UA_PubSubState_name(oldState),
-                           UA_PubSubState_name(c->head.state));
-        if(server->config.pubSubConfig.stateChangeCallback) {
-            server->config.pubSubConfig.
-                stateChangeCallback(server, c->head.identifier, c->head.state, ret);
-        }
+    if(server->config.pubSubConfig.stateChangeCallback) {
+        server->config.pubSubConfig.
+            stateChangeCallback(server, c->head.identifier, c->head.state, ret);
     }
 
-    UA_ReaderGroup *readerGroup;
-    LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
-        if(readerGroup->config.enabled)
-            UA_ReaderGroup_setPubSubState(psm, readerGroup, c->head.state);
+    /* Children evaluate their state machine after the state change of the parent.
+     * Keep the current child state as the target state for the child. */
+    UA_ReaderGroup *rg;
+    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+        UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
     }
-    UA_WriterGroup *writerGroup;
-    LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
-        if(writerGroup->config.enabled)
-            UA_WriterGroup_setPubSubState(psm, writerGroup, c->head.state);
+    UA_WriterGroup *wg;
+    LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+        UA_WriterGroup_setPubSubState(psm, wg, wg->head.state);
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
