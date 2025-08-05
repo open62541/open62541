@@ -33,7 +33,8 @@ START_TEST(AddPublisherUsingBinaryFile) {
     UA_PubSubManager *psm = getPSM(server);
     UA_ByteString publisherConfiguration = loadFile("../../tests/pubsub/check_publisher_configuration.bin");
     ck_assert(publisherConfiguration.length > 0);
-    UA_StatusCode retVal = UA_Server_loadPubSubConfigFromByteString(server, publisherConfiguration, true);
+    UA_Server_disableAllPubSubComponents(server);
+    UA_StatusCode retVal = UA_Server_loadPubSubConfigFromByteString(server, publisherConfiguration);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_PubSubConnection *connection;
     UA_WriterGroup *writerGroup;
@@ -67,7 +68,8 @@ START_TEST(AddSubscriberUsingBinaryFile) {
     UA_PubSubManager *psm = getPSM(server);
     UA_ByteString subscriberConfiguration = loadFile("../../tests/pubsub/check_subscriber_configuration.bin");
     ck_assert(subscriberConfiguration.length > 0);
-    UA_StatusCode retVal = UA_Server_loadPubSubConfigFromByteString(server, subscriberConfiguration, true);
+    UA_Server_disableAllPubSubComponents(server);
+    UA_StatusCode retVal = UA_Server_loadPubSubConfigFromByteString(server, subscriberConfiguration);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_PubSubConnection *connection;
     UA_ReaderGroup *readerGroup;

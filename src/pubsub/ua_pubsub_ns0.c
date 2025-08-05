@@ -2286,7 +2286,7 @@ UA_loadPubSubConfigMethodCallback(UA_Server *server,
     UA_LOCK_ASSERT(&server->serviceMutex);
     if(inputSize == 1) {
         UA_ByteString *inputStr = (UA_ByteString*)input->data;
-        return UA_Server_loadPubSubConfigFromByteString(server, *inputStr, true);
+        return UA_Server_loadPubSubConfigFromByteString(server, *inputStr);
     } else if(inputSize > 1) {
         return UA_STATUSCODE_BADTOOMANYARGUMENTS;
     } else {

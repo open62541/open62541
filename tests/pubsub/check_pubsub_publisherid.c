@@ -45,7 +45,6 @@ AddConnection(char *pName, UA_PublisherId publisherId, UA_NodeId *opConnectionId
     connectionConfig.name = UA_STRING(pName);
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.enabled = true;
     UA_NetworkAddressUrlDataType networkAddressUrl =
         {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
@@ -69,7 +68,6 @@ AddWriterGroup(UA_NodeId *pConnectionId, char *pName,
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
     writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-    writerGroupConfig.enabled = true;
     UA_UadpWriterGroupMessageDataType *writerGroupMessage  = UA_UadpWriterGroupMessageDataType_new();
     writerGroupMessage->networkMessageContentMask          = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
@@ -127,7 +125,6 @@ AddPublishedDataSet(UA_NodeId *pWriterGroupId, char *pPublishedDataSetName,
     dataSetWriterConfig.name = UA_STRING(pDataSetWriterName);
     dataSetWriterConfig.dataSetWriterId = (UA_UInt16) DataSetWriterId;
     dataSetWriterConfig.keyFrameCount = 10;
-    dataSetWriterConfig.enabled = true;
     if (UseRawEncoding) {
         dataSetWriterConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
     } else {
@@ -145,7 +142,6 @@ AddReaderGroup(UA_NodeId *pConnectionId, char *pName,
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING(pName);
-    readerGroupConfig.enabled = true;
     ck_assert_int_eq(UA_STATUSCODE_GOOD,
         UA_Server_addReaderGroup(server, *pConnectionId, &readerGroupConfig, opReaderGroupId));
 }
@@ -164,7 +160,6 @@ AddDataSetReader(UA_NodeId *pReaderGroupId, char *pName,
     readerConfig.messageReceiveTimeout = 0.0;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     readerConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE];
-    readerConfig.enabled = true;
     UA_UadpDataSetReaderMessageDataType *dsReaderMessage = UA_UadpDataSetReaderMessageDataType_new();
     dsReaderMessage->networkMessageContentMask = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
                                                     (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER |
@@ -1267,7 +1262,8 @@ START_TEST(Test_string_publisherId_file_config) {
     UA_PubSubConfigurationDataType_clear(&config);
 }
     /* load and apply config from ByteString buffer */
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_loadPubSubConfigFromByteString(server, encodedConfigDataBuffer, true));
+   UA_Server_disableAllPubSubComponents(server);
+   ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_loadPubSubConfigFromByteString(server, encodedConfigDataBuffer));
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
 

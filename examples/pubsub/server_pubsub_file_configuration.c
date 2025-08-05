@@ -97,7 +97,7 @@ int main(int argc, char** argv) {
     /* 4. load configuration from file */
     if(loadPubSubFromFile) {
         UA_ByteString configuration = loadFile(argv[2]);
-        UA_Server_loadPubSubConfigFromByteString(server, configuration, true);
+        UA_Server_loadPubSubConfigFromByteString(server, configuration);
     }
 
     /* 5. start server */

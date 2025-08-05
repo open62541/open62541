@@ -132,6 +132,10 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
     if(cId)
         UA_NodeId_copy(&c->head.identifier, cId);
 
+    /* Enable the Connection immediately if the enabled flag is set */
+    if(cc->enabled)
+        UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -401,19 +405,15 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
 static UA_StatusCode
 enablePubSubConnection(UA_PubSubManager *psm, const UA_NodeId connectionId) {
     UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
-    if(!c)
-        return UA_STATUSCODE_BADNOTFOUND;
-    c->config.enabled = true;
-    return UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL);
+    return (c) ? UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL)
+        : UA_STATUSCODE_BADNOTFOUND;
 }
 
 static UA_StatusCode
 disablePubSubConnection(UA_PubSubManager *psm, const UA_NodeId connectionId) {
     UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
-    if(!c)
-        return UA_STATUSCODE_BADNOTFOUND;
-    c->config.enabled = false;
-    return UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
+    return (c) ? UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED)
+        : UA_STATUSCODE_BADNOTFOUND;
 }
 
 /***********************/
