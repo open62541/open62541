@@ -2,7 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
- * Copyright 2025 (c) Construction Future Lab gGmbH (Author: Jianbin Liu)
+ * Copyright (c) 2025 Construction Future Lab gGmbH (Author: Jianbin Liu)
  */
 
 /*
