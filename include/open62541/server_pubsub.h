@@ -155,6 +155,15 @@ UA_PublisherId_fromVariant(UA_PublisherId *p, const UA_Variant *src);
 UA_EXPORT void
 UA_PublisherId_toVariant(const UA_PublisherId *p, UA_Variant *dst);
 
+/**
+ * PubSub Components
+ * -----------------
+ * A PubSubComponent is either a PubSubConnection, DataSetReader, ReaderGroup,
+ * DataSetWriter, WriterGroup, PublishedDataSet or SubscribedDataSet. The
+ * PubSubComponents are represented in the information model (if that is enabled
+ * for the server). In the C-API they are identified by a unique NodeId that is
+ * assigned during creation. */
+
 typedef enum  {
     UA_PUBSUBCOMPONENT_CONNECTION  = 0,
     UA_PUBSUBCOMPONENT_WRITERGROUP  = 1,
@@ -166,20 +175,92 @@ typedef enum  {
 } UA_PubSubComponentType;
 
 /**
- * Server-wide PubSub Configuration
- * --------------------------------
- * The PubSub configuration is part of the server-config.
- */
+ * The datasets are static "configuration containers". The other
+ * PubSubComponents are active and have a state machine governing their runtime
+ * behavior and state transitions. The state machine API (in C and in the
+ * information model) exposes only ``_enable`` and ``_disable`` methods for the
+ * different PubSubComponents. Their actual state is more detailed and emerges
+ * from the internal behavior. This ``UA_PubSubState`` defines five possible
+ * states, part 14 contains a diagram for the possible state transitions:
+ *
+ * - DISABLED
+ * - PAUSED
+ * - OPERATIONAL
+ * - ERROR
+ * - PREOPERATIONAL
+ *
+ * In open62541 we classify all PubSubStates as either *enabled* or *disabled*.
+ * The disabled states are DISABLED and ERROR. These need to be manually enabled
+ * to trigger a state change. All other states are enabled and "want to become
+ * OPERATIONAL". The state machine triggers internally to automatically reach
+ * the OPERATIONAL state when the external conditions allow it. The
+ * PREOPERATIONAL state indicates that necessary measures to become OPERATIONAL
+ * have been taken, but the OPERATIONAL state has not yet been achieved. For
+ * example, a ReaderGroup only becomes OPERATIONAL, once the first message for
+ * it has been received.
+ *
+ * Notably, the state machines of the PubSubComponents are cascading. That is,
+ * the state depends on the state of the parent component. For example, an
+ * OPERATIONAL WriterGroup becomes PAUSED when its parent PubSubConnection goes
+ * to DISABLED. The PAUSED WriterGroup automatically returns to OPERATIONAL once
+ * the parent PubSubConnection becomes OPERATIONAL again. */
+
+/* Enable all PubSub components. They are triggered in the following order:
+ * DataSetWriter, WriterGroups, DataSetReader, ReaderGroups, PubSubConnections.
+ * Returns the ORed statuscodes from enabling the individual components. */
+UA_EXPORT UA_StatusCode
+UA_Server_enableAllPubSubComponents(UA_Server *server);
+
+/* Disable all PubSubComponents (same order as for _enableAll) */
+UA_EXPORT void
+UA_Server_disableAllPubSubComponents(UA_Server *server);
+
+/**
+ * The default implementation of the state machines manages resources via the
+ * configured EventLoop. Most notably these are connections (sockets) and timed
+ * callbacks. A *custom state machine* can be configured when these resources
+ * needto be managed outside of the EventLoop. An example are realtime-capable
+ * connections that should not end up in the same ``select`` syscall as the
+ * server TCP connections. Custom state machines are set in the configuration
+ * structure of the individual PubSubComponents. The custom state machine only
+ * needs to handle the state of its "local" PubSubComponent. The open62541
+ * implementation automatically triggers the child PubSubComponents after a
+ * state change.
+ *
+ * The following definitions are part of the configuration for all active
+ * PubSubComponents (not the dataset PubSubComponents). */
+
+#define UA_PUBSUBCOMPONENT_COMMON                                     \
+    UA_String name; /* For logging and in the information model */    \
+    void *context;  /* Custom pointer forwarded to callbacks */       \
+    UA_Boolean enabled; /* Component is auto-enabled at creation */   \
+                                                                      \
+    /* The custom state machine callback is optional (can be */       \
+    /* NULL). It gets called with a request to change the state to */ \
+    /* targetState. The state pointer has the old (and afterwards */  \
+    /* the new) state. When the state machine returns a bad */        \
+    /* statuscode, the state must be set to ERROR before. */          \
+    UA_StatusCode (*customStateMachine)(UA_Server *server,            \
+                                        const UA_NodeId componentId,  \
+                                        void *componentContext,       \
+                                        UA_PubSubState *state,        \
+                                        UA_PubSubState targetState);  \
+
+/**
+ * Global PubSub Configuration
+ * ---------------------------
+ * The following PubSub configuration structure is part of the server-config.
+ * It configures behavior that is valid for all PubSubComponents. */
 
 typedef struct {
-    /* Notify the application when a new PubSubComponent is added removed. That
-     * way it is possible to keep track of the configurations coming in from the
-     * methods in ns0.
+    /* Notify the application when a new PubSubComponent is added or removed.
+     * That way it is possible to keep track of the changes from the methods in
+     * the information model.
      *
      * When the return StatusCode is not good, then adding/removing the
      * component is aborted. When a component is added, it is possible to call
      * the public API _getConfig and _updateConfig methods on it from within the
-     * callback. */
+     * lifecycle callback. */
     UA_StatusCode
     (*componentLifecycleCallback)(UA_Server *server, const UA_NodeId id,
                                   const UA_PubSubComponentType componentType,
@@ -209,63 +290,6 @@ typedef struct {
 } UA_PubSubConfiguration;
 
 /**
- * PubSub Components
- * -----------------
- * All PubSubComponents (Connection, Reader, ReaderGroup, ...) have a two
- * configuration items in common: A void context-pointer and a callback to
- * override the default state machine with a custom implementation.
- *
- * When a custom state machine is set, then internally no sockets are opened and
- * no periodic callbacks are registered. All "active behavior" has to be
- * managed/configured entirely in the custom state machine. */
-
-/**
- * Enable/Disable Functionality
- * ----------------------------
- * All PubSub components (PubSubConnections, WriterGroups, DataSetWriters,
- * ReaderGroups, and DataSetReaders) have an 'enable' flag in their config
- * which is used to configure the initial state after creation. The enable
- * mechanism corresponds to the definitions in Part 14 (add section).
- *
- * This functionality provides:
- *
- * **Runtime Control**: Components can be enabled or disabled using the exposed
- * PubSub configuration methods in the information model or through the
- * API functions of the PubSub components (e.g. UA_Server_enablePubSubConnection).
- * For convenience, UA_Server_enableAllPubSubComponents()
- * can be used to enable all PubSub components at once, which is useful for
- * system initialization or testing scenarios.
- *
- * **Hierarchical Behavior**: When a parent component is disabled, all child
- * components effectively become inactive (see PubSub state transitions),
- * regardless of their individual enable state. For example, disabling a
- * WriterGroup will stop all DataSetWriters within that group from publishing messages.
- */
-
-/* The custom state machine callback is optional (can be NULL). It gets called
- * with a request to change the state targetState. The state pointer contains
- * the old (and afterwards the new) state. The notification stateChangeCallback
- * is called afterwards. When a bad statuscode is returned, the component must
- * be set to an ERROR state. */
-#define UA_PUBSUB_COMPONENT_CONTEXT                                   \
-    void *context;                                                    \
-    UA_StatusCode (*customStateMachine)(UA_Server *server,            \
-                                        const UA_NodeId componentId,  \
-                                        void *componentContext,       \
-                                        UA_PubSubState *state,        \
-                                        UA_PubSubState targetState);  \
-
-/* Enable all PubSub components. Iterates through all PubSub components and sets
- * their enabled flag to true. Useful for system initialization or testing.
- * Returns the ORed statuscodes for enabling each component individually. */
-UA_EXPORT UA_StatusCode
-UA_Server_enableAllPubSubComponents(UA_Server *server);
-
-/* Disable all PubSubComponents */
-UA_EXPORT void
-UA_Server_disableAllPubSubComponents(UA_Server *server);
-
-/**
  * PubSubConnection
  * ----------------
  * PubSubConnections are the abstraction between the concrete transport protocol
@@ -274,16 +298,13 @@ UA_Server_disableAllPubSubComponents(UA_Server *server);
  * runtime. */
 
 typedef struct {
+    UA_PUBSUBCOMPONENT_COMMON
     /* Configuration parameters from PubSubConnectionDataType */
-    UA_String name;
     UA_PublisherId publisherId;
     UA_String transportProfileUri;
     UA_Variant address;
     UA_KeyValueMap connectionProperties;
     UA_Variant connectionTransportSettings;
-    UA_Boolean enabled;
-
-    UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
 } UA_PubSubConnectionConfig;
 
 UA_EXPORT UA_StatusCode
@@ -293,13 +314,8 @@ UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
 UA_EXPORT void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *cfg);
 
-/* Add a new PubSub connection to the given server and open it.
- * @param server The server to add the connection to.
- * @param connectionConfig The configuration for the newly added connection.
- * @param connectionIdentifier If not NULL will be set to the identifier of the
- *        newly added connection.
- * @return UA_STATUSCODE_GOOD if connection was successfully added, otherwise an
- *         error code. */
+/* Add a PubSub connection to the server. The connectionId can be NULL. If
+ * defined, it is set to the NodeId of the created PubSubConnection. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addPubSubConnection(UA_Server *server,
                               const UA_PubSubConnectionConfig *connectionConfig,
@@ -494,7 +510,7 @@ typedef enum {
 } UA_PubSubEncodingType;
 
 typedef struct {
-    UA_String name;
+    UA_PUBSUBCOMPONENT_COMMON
     UA_UInt16 writerGroupId;
     UA_Duration publishingInterval;
     UA_Double keepAliveTime;
@@ -515,9 +531,6 @@ typedef struct {
     UA_MessageSecurityMode securityMode; /* via the UA_WriterGroupDataType */
     UA_PubSubSecurityPolicy *securityPolicy;
     UA_String securityGroupId;
-    UA_Boolean enabled;
-
-    UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
 } UA_WriterGroupConfig;
 
 void UA_EXPORT
@@ -592,7 +605,7 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId wgId,
  * with an existing PublishedDataSet and be contained within a WriterGroup. */
 
 typedef struct {
-    UA_String name;
+    UA_PUBSUBCOMPONENT_COMMON
     UA_UInt16 dataSetWriterId;
     UA_DataSetFieldContentMask dataSetFieldContentMask;
     UA_UInt32 keyFrameCount;
@@ -600,9 +613,6 @@ typedef struct {
     UA_ExtensionObject transportSettings;
     UA_String dataSetName;
     UA_KeyValueMap dataSetWriterProperties;
-    UA_Boolean enabled;
-
-    UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
 } UA_DataSetWriterConfig;
 
 void UA_EXPORT
@@ -706,7 +716,7 @@ UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId);
  * SubscribedDataSet and be contained within a ReaderGroup. */
 
 typedef struct {
-    UA_String name;
+    UA_PUBSUBCOMPONENT_COMMON
     UA_PublisherId publisherId;
     UA_UInt16 writerGroupId;
     UA_UInt16 dataSetWriterId;
@@ -726,9 +736,6 @@ typedef struct {
     } subscribedDataSet;
     /* non std. fields */
     UA_String linkedStandaloneSubscribedDataSetName;
-    UA_Boolean enabled;
-
-    UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
 } UA_DataSetReaderConfig;
 
 UA_EXPORT UA_StatusCode
@@ -794,9 +801,9 @@ UA_Server_setDataSetReaderTargetVariables(
  * can be configured for a ReaderGroup. */
 
 typedef struct {
-    UA_String name;
+    UA_PUBSUBCOMPONENT_COMMON
 
-    /* non std. field */
+    /* non std. fields */
     UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
     UA_ExtensionObject transportSettings;
@@ -807,9 +814,6 @@ typedef struct {
     UA_MessageSecurityMode securityMode;
     UA_PubSubSecurityPolicy *securityPolicy;
     UA_String securityGroupId;
-    UA_Boolean enabled;
-
-    UA_PUBSUB_COMPONENT_CONTEXT /* Context Configuration */
 } UA_ReaderGroupConfig;
 
 void UA_EXPORT
@@ -855,10 +859,10 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 /* Decodes the information from the ByteString. If the decoded content is a
-* PubSubConfiguration in a UABinaryFileDataType-object. It will overwrite the
-* current PubSub configuration from the server. The 'delayedEnable' option delays
-* the activation of all added PubSub components until they have all been added.
-*/
+ * PubSubConfiguration in a UABinaryFileDataType-object. It will overwrite the
+ * current PubSub configuration from the server. The 'delayedEnable' option
+ * delays the activation of all added PubSub components until they have all been
+ * added. */
 UA_EXPORT UA_StatusCode
 UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
                                          const UA_ByteString buffer,
