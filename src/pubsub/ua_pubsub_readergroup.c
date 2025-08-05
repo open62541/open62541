@@ -357,23 +357,24 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     if(rg->head.transientState)
         return ret;
 
-    /* Inform application about state change */
-    if(rg->head.state != oldState) {
-        UA_LOG_INFO_PUBSUB(psm->logging, rg, "%s -> %s",
-                           UA_PubSubState_name(oldState),
-                           UA_PubSubState_name(rg->head.state));
-        if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            server->config.pubSubConfig.
-                stateChangeCallback(server, rg->head.identifier, rg->head.state, ret);
-        }
-    }
+    /* No state change has happened */
+    if(rg->head.state == oldState)
+        return ret;
 
-    /* Update the attached DataSetReaders */
+    UA_LOG_INFO_PUBSUB(psm->logging, rg, "%s -> %s",
+                       UA_PubSubState_name(oldState),
+                       UA_PubSubState_name(rg->head.state));
+
+    /* Inform application about state change */
+    if(server->config.pubSubConfig.stateChangeCallback)
+        server->config.pubSubConfig.
+            stateChangeCallback(server, rg->head.identifier, rg->head.state, ret);
+
+    /* Children evaluate their state machine after the state change of the parent.
+     * Keep the current child state as the target state for the child. */
     UA_DataSetReader *dsr;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        if(dsr->config.enabled)
-            UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state,
-                                        UA_STATUSCODE_GOOD);
+        UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state, UA_STATUSCODE_GOOD);
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
