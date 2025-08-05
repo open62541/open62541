@@ -185,9 +185,9 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
         }
     }
 
-    /* Trigger the connection */
-    if(newGroup->config.enabled)
-        UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
+    /* Trigger the connection state machine. It might open a socket only when
+     * the first ReaderGroup is attached. */
+    UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(readerGroupId)

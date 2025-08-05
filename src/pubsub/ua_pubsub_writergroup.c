@@ -243,9 +243,9 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
     UA_LOG_INFO_PUBSUB(psm->logging, wg, "WriterGroup created (State: %s)",
                        UA_PubSubState_name(wg->head.state));
 
-    /* Trigger the connection as it might open a connection for the WG */
-    if(wg->config.enabled)
-        UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
+    /* Trigger the connection state machine. It might open a socket only when
+     * the first WriterGroup is attached. */
+    UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(writerGroupIdentifier)
