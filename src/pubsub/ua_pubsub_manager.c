@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2025 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2018 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
@@ -24,6 +24,12 @@
 static const char *pubSubStateNames[6] = {
     "Disabled", "Paused", "Operational", "Error", "PreOperational", "Invalid"
 };
+
+static void
+UA_PubSubManager_stop(UA_ServerComponent *sc);
+
+static UA_StatusCode
+UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server);
 
 const char *
 UA_PubSubState_name(UA_PubSubState state) {
@@ -347,7 +353,9 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_StatusCode res = UA_PubSubManager_start(&psm->sc, server);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     UA_PubSubConnection *c;
     TAILQ_FOREACH(c, &psm->connections, listEntry) {
@@ -409,7 +417,7 @@ UA_Server_disableAllPubSubComponents(UA_Server *server) {
     lockServer(server);
     UA_PubSubManager *psm = getPSM(server);
     if(psm)
-        disableAllPubSubComponents(psm);
+        UA_PubSubManager_stop(&psm->sc); /* Calls disableAll internally */
     unlockServer(server);
 }
 

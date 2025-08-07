@@ -3,6 +3,14 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### PubSub Components are enabled automatically if the enabled-flag is set
+
+The component configuration structure now includes the enabled flag. If the flag
+is true, the state-machine gets triggered automatically after the creation of
+the component. This is the same for the C-API, the information model methods and
+for loading the configuration from a binary file. If child-components are added
+at the same time, the children get enabled before the parents.
+
 ### Client async methods are typed
 
 For more of the client async service calls, specialized callback types were
