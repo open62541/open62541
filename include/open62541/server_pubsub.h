@@ -320,15 +320,6 @@ typedef struct {
                                         UA_PubSubState *state,        \
                                         UA_PubSubState targetState);  \
 
-/* Enable all PubSubComponents. Returns the ORed statuscodes for enabling each
- * component individually. */
-UA_EXPORT UA_StatusCode
-UA_Server_enableAllPubSubComponents(UA_Server *server);
-
-/* Disable all PubSubComponents */
-UA_EXPORT void
-UA_Server_disableAllPubSubComponents(UA_Server *server);
-
 /**
  * The following methods are used to retrieve the metadata of PubSubComponents.
  * So gar they are implemented to operate only on the components with a state
