@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2025 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
@@ -185,12 +185,17 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
         }
     }
 
-    /* Trigger the connection */
+    /* Trigger the connection state machine. It might open a socket only when
+     * the first ReaderGroup is attached. */
     UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(readerGroupId)
         UA_NodeId_copy(&newGroup->head.identifier, readerGroupId);
+
+    /* Enable the ReaderGroup immediately if the enabled flag is set */
+    if(rgc->enabled)
+        UA_ReaderGroup_setPubSubState(psm, newGroup, UA_PUBSUBSTATE_OPERATIONAL);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -356,22 +361,24 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     if(rg->head.transientState)
         return ret;
 
-    /* Inform application about state change */
-    if(rg->head.state != oldState) {
-        UA_LOG_INFO_PUBSUB(psm->logging, rg, "%s -> %s",
-                           UA_PubSubState_name(oldState),
-                           UA_PubSubState_name(rg->head.state));
-        if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            server->config.pubSubConfig.
-                stateChangeCallback(server, rg->head.identifier, rg->head.state, ret);
-        }
-    }
+    /* No state change has happened */
+    if(rg->head.state == oldState)
+        return ret;
 
-    /* Update the attached DataSetReaders */
+    UA_LOG_INFO_PUBSUB(psm->logging, rg, "%s -> %s",
+                       UA_PubSubState_name(oldState),
+                       UA_PubSubState_name(rg->head.state));
+
+    /* Inform application about state change */
+    if(server->config.pubSubConfig.stateChangeCallback)
+        server->config.pubSubConfig.
+            stateChangeCallback(server, rg->head.identifier, rg->head.state, ret);
+
+    /* Children evaluate their state machine after the state change of the parent.
+     * Keep the current child state as the target state for the child. */
     UA_DataSetReader *dsr;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state,
-                                        UA_STATUSCODE_GOOD);
+        UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state, UA_STATUSCODE_GOOD);
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when

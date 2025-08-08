@@ -2,6 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright (c) 2025 Construction Future Lab gGmbH (Author: Jianbin Liu)
  */
 
 /*
@@ -22,17 +23,17 @@
 #include <stdio.h>
 #include <errno.h>
 
-const UA_ByteString UA_SECURITY_POLICY_BASIC128_URI =
+static const UA_ByteString UA_SECURITY_POLICY_BASIC128_URI =
     {56, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15"};
 
-UA_Boolean running = true;
+static UA_Boolean running = true;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
     running = false;
 }
 
-char *discovery_url = NULL;
+static char *discovery_url = NULL;
 
 static void
 serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean isServerAnnounce,
@@ -241,8 +242,11 @@ int main(int argc, char **argv) {
     config->mdnsConfig.mdnsServerName = UA_String_fromChars("Sample-Multicast-Server");
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
-    //setting custom outbound interface for libmdnsd
-    config->mdnsInterfaceIP = UA_String_fromChars("0.0.0.0");
+    // Use loopback interface for mDNS announcements by default.
+    // This only works when the LDS and this server run on the same device.
+    // For deployment in LAN or across multiple devices, replace "127.0.0.1" with the IP of your network interface,
+    // such as "192.168.1.100" or the IP of wlan0/eth0.
+    config->mdnsInterfaceIP = UA_String_fromChars("127.0.0.1");
 #endif
 
     // See http://www.opcfoundation.org/UA/schemas/1.03/ServerCapabilities.csv
@@ -325,8 +329,6 @@ int main(int argc, char **argv) {
     while(running)
         UA_Server_run_iterate(server, true);
 
-    UA_Server_run_shutdown(server);
-
     /* Deregister the server from the discovery server */
     memset(&cc, 0, sizeof(UA_ClientConfig));
     retval = getRegisterClient(&cc, endpointRegister, argc, argv);
@@ -335,7 +337,9 @@ int main(int argc, char **argv) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not unregister server from discovery server. "
                      "StatusCode %s", UA_StatusCode_name(retval));
+    UA_ClientConfig_clear(&cc);
 
+    UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_EndpointDescription_delete(endpointRegister);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;

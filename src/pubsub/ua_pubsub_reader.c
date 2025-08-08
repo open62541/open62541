@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2025 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
@@ -324,6 +324,11 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     if(readerIdentifier)
         UA_NodeId_copy(&dsr->head.identifier, readerIdentifier);
 
+    /* Enable the DataSetReader immediately if the enabled flag is set */
+    if(dataSetReaderConfig->enabled)
+        UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
+                                        UA_STATUSCODE_GOOD);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -385,7 +390,7 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
 UA_StatusCode
 UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
                             UA_DataSetReaderConfig *dst) {
-    memset(dst, 0, sizeof(UA_DataSetReaderConfig));
+    memcpy(dst, src, sizeof(UA_DataSetReaderConfig));
     dst->writerGroupId = src->writerGroupId;
     dst->dataSetWriterId = src->dataSetWriterId;
     dst->dataSetFieldContentMask = src->dataSetFieldContentMask;
@@ -484,17 +489,19 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
  finalize_state_machine:
 
+    /* No state change has happened */
+    if(dsr->head.state == oldState)
+        return;
+
+    UA_LOG_INFO_PUBSUB(psm->logging, dsr, "%s -> %s",
+                       UA_PubSubState_name(oldState),
+                       UA_PubSubState_name(dsr->head.state));
+
     /* Inform application about state change */
-    if(dsr->head.state != oldState) {
-        UA_LOG_INFO_PUBSUB(psm->logging, dsr, "%s -> %s",
-                           UA_PubSubState_name(oldState),
-                           UA_PubSubState_name(dsr->head.state));
-        if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            server->config.pubSubConfig.
-                stateChangeCallback(server, dsr->head.identifier,
-                                    dsr->head.state, errorReason);
-        }
-    }
+    if(server->config.pubSubConfig.stateChangeCallback)
+        server->config.pubSubConfig.
+            stateChangeCallback(server, dsr->head.identifier,
+                                dsr->head.state, errorReason);
 }
 
 /* This Method is used to initially set the SubscribedDataSet to
@@ -627,8 +634,7 @@ UA_DataSetReader_process(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         writeVal.indexRange = tv->receiverIndexRange;
         writeVal.nodeId = tv->targetNodeId;
         writeVal.value = *field;
-        Operation_Write(psm->sc.server, &psm->sc.server->adminSession,
-                        NULL, &writeVal, &res);
+        Operation_Write(psm->sc.server, &psm->sc.server->adminSession, &writeVal, &res);
         if(res != UA_STATUSCODE_GOOD)
             UA_LOG_INFO_PUBSUB(psm->logging, dsr,
                                "Error writing KeyFrame field %u: %s",
@@ -817,6 +823,9 @@ UA_PubSubDataSetReader_generateKeyFrameMessage(UA_Server *server,
                                                UA_DataSetReader *dsr) {
     /* Prepare DataSetMessageContent */
     UA_TargetVariablesDataType *tv = &dsr->config.subscribedDataSet.target;
+    UA_DataSetMetaDataType *metaData = &dsr->config.dataSetMetaData;
+    if(tv->targetVariablesSize != metaData->fieldsSize)
+        metaData = NULL;
     dsm->header.dataSetMessageValid = true;
     dsm->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
     dsm->fieldCount = (UA_UInt16) tv->targetVariablesSize;
@@ -825,20 +834,56 @@ UA_PubSubDataSetReader_generateKeyFrameMessage(UA_Server *server,
     if(!dsm->data.keyFrameFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    // XXX
-
      for(size_t counter = 0; counter < tv->targetVariablesSize; counter++) {
         /* Read the value and set the source in the reader config */
         UA_DataValue *dfv = &dsm->data.keyFrameFields[counter];
         UA_FieldTargetDataType *ftv = &tv->targetVariables[counter];
 
-        UA_ReadValueId rvi;
-        UA_ReadValueId_init(&rvi);
-        rvi.nodeId = ftv->targetNodeId;
-        rvi.attributeId = ftv->attributeId;
-        rvi.indexRange = ftv->writeIndexRange;
-        *dfv = readWithSession(server, &server->adminSession, &rvi,
-                               UA_TIMESTAMPSTORETURN_NEITHER);
+        /* Synthesize the field value from the FieldMetaData. This allows us to
+         * prevent a read from the information model during startup. */
+        UA_FieldMetaData *fieldMetaData = (metaData) ? &metaData->fields[counter] : NULL;
+        if(fieldMetaData && fieldMetaData->valueRank == UA_VALUERANK_SCALAR) {
+            const UA_DataType *type =
+                UA_findDataTypeWithCustom(&fieldMetaData->dataType,
+                                          server->config.customDataTypes);
+            if(type == &UA_TYPES[UA_TYPES_STRING] && fieldMetaData->maxStringLength > 0) {
+                UA_String *s = UA_String_new();
+                if(!s) {
+                    UA_DataSetMessage_clear(dsm);
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                }
+                s->data = (UA_Byte*)
+                    UA_calloc(fieldMetaData->maxStringLength, sizeof(UA_Byte));
+                if(!s->data) {
+                    UA_free(s);
+                    UA_DataSetMessage_clear(dsm);
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                }
+                s->length = fieldMetaData->maxStringLength;
+                UA_Variant_setScalar(&dfv->value, s, type);
+                dfv->hasValue = true;
+            } else if(type && type->memSize < 512) {
+                char buf[512];
+                UA_init(buf, type);
+                UA_StatusCode res = UA_Variant_setScalarCopy(&dfv->value, buf, type);
+                if(res != UA_STATUSCODE_GOOD) {
+                    UA_DataSetMessage_clear(dsm);
+                    return res;
+                }
+                dfv->hasValue = true;
+            }
+        }
+
+        /* Read the value from the information model */
+        if(!dfv->hasValue) {
+            UA_ReadValueId rvi;
+            UA_ReadValueId_init(&rvi);
+            rvi.nodeId = ftv->targetNodeId;
+            rvi.attributeId = ftv->attributeId;
+            rvi.indexRange = ftv->writeIndexRange;
+            *dfv = readWithSession(server, &server->adminSession, &rvi,
+                                   UA_TIMESTAMPSTORETURN_NEITHER);
+        }
 
         /* Deactivate statuscode? */
         if(((u64)dsr->config.dataSetFieldContentMask &
@@ -894,14 +939,6 @@ UA_DataSetReader_generateDataSetMessage(UA_Server *server,
              (u64)UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION |
              (u64)UA_UADPDATASETMESSAGECONTENTMASK_MINORVERSION);
         dsrMessageDataType = &defaultUadpConfiguration;
-    }
-
-    /* Sanity-test the configuration */
-    if(dsrMessageDataType &&
-       (dsrMessageDataType->networkMessageNumber != 0 ||
-        dsrMessageDataType->dataSetOffset != 0)) {
-        dsrMessageDataType->networkMessageNumber = 0;
-        dsrMessageDataType->dataSetOffset = 0;
     }
 
     /* The field encoding depends on the flags inside the reader config. */

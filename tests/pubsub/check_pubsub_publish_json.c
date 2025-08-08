@@ -15,8 +15,8 @@
 #include <check.h>
 #include <stdlib.h>
 
-UA_Server *server = NULL;
-UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
+static UA_Server *server = NULL;
+static UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
 
 static void setup(void) {
     server = UA_Server_newForUnitTest();
@@ -91,6 +91,8 @@ START_TEST(SinglePublishDataSetField){
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     retVal = UA_Server_enableWriterGroup(server, writerGroup1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_enableAllPubSubComponents(server);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     UA_Server_WriterGroup_publish(server, writerGroup1);

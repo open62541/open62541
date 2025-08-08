@@ -50,15 +50,15 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
     host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cclock);
     clock_get_time(cclock, &mts);
     mach_port_deallocate(mach_task_self(), cclock);
-    return (mts.tv_sec * UA_DATETIME_SEC) + (mts.tv_nsec / 100);
+    return (mts.tv_sec * UA_DATETIME_SEC) + (mts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
 #elif !defined(CLOCK_MONOTONIC_RAW)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
 #endif
 }
 

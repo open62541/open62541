@@ -296,13 +296,8 @@ UA_DateTime UA_EXPORT UA_DateTime_nowMonotonic(void);
 UA_StatusCode UA_EXPORT
 UA_DateTime_parse(UA_DateTime *dst, const UA_String str);
 
-UA_INLINABLE(UA_DateTime
-             UA_DATETIME(const char *chars), {
-    UA_DateTime dst;
-    UA_DateTime_parse(&dst, UA_STRING((char*)(uintptr_t)chars));
-    return dst;
-})
-
+/* Returns zero if parsing fails */
+UA_EXPORT UA_DateTime UA_DATETIME(const char *chars);
 
 /* Represents a Datetime as a structure */
 typedef struct UA_DateTimeStruct {

@@ -26,7 +26,7 @@
 #include "../../deps/parse_num.h"
 #include "../../deps/libc_time.h"
 
-const char * attributeIdNames[28] = {
+static const char * attributeIdNames[28] = {
     "Invalid", "NodeId", "NodeClass", "BrowseName", "DisplayName", "Description",
     "WriteMask", "UserWriteMask", "IsAbstract", "Symmetric", "InverseName",
     "ContainsNoLoops", "EventNotifier", "Value", "DataType", "ValueRank",
