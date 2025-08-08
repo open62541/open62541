@@ -1818,25 +1818,34 @@ UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
  *
  * Async Operations
  * ----------------
- * Some operations (such as reading out a sensor that needs to warm up) can take
- * quite some time. In order not to block the server during such an operation, it
- * can be "outsourced" to a worker thread.
  *
- * Take the example of a CallRequest. It is split into the individual method call
- * operations. If the method is marked as async, then the operation is put into a
- * queue where it is be retrieved by a worker. The worker returns the result when
- * ready. See the examples in ``/examples/tutorial_server_method_async.c`` for
- * the usage.
+ * Some operations can take time, such as reading a sensor that needs to warm up
+ * first. In order not to block the server, a long-running operation can be
+ * handled asynchronously and the result returned at a later time. The core idea
+ * is that a userland callback can return
+ * UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY as the statuscode to signal that it
+ * wishes to complete the operation later.
  *
- * Note that the operation can time out (see the asyncOperationTimeout setting in
- * the server config) also when it has been retrieved by the worker. */
+ * Currently, async operations are supported for the services
+ *
+ * - Read
+ * - Write
+ * - Call
+ *
+ * with the caveat that read/write need a CallbackValueSource registered for the
+ * variable. Values that are stored directly in a VariableNode are written and
+ * read immediately.
+ *
+ * Note that an async operation can be cancelled (e.g. after a timeout period or
+ * if the caller cannot wait for the result). This is signaled in the configured
+ * ``asyncOperationCancelCallback``. The provided memory locations to store the
+ * operation output are then no longer valid. */
 
-/* When the method callback answers with
- * UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY, then an async operation is stored
- * in the server. Within the defined timeout, the result can be set with the
- * following. The output-array pointer is used as the key to lookup the async
- * operation internally. Do not access the output-pointer after the timeout or
- * after setting the result. */
+/* When the UA_MethodCallback returns UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY,
+ * then an async operation is created in the server for later completion. The
+ * output pointer from the method callback is used to identify the async
+ * operation. Do not access the output pointer after the operation has been
+ * cancelled or after setting the result. */
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_setAsyncCallMethodResult(UA_Server *server, UA_Variant *output,
                                    UA_StatusCode result);
