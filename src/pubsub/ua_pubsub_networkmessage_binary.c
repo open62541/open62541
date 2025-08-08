@@ -1563,6 +1563,11 @@ UA_DataSetMessage_keyFrame_decodeBinary(PubSubDecodeCtx *ctx,
             const UA_FieldMetaData *fmd = getFieldMetaData(emd, i);
             rv = decodeRawField(ctx, fmd, &dsm->data.keyFrameFields[i]);
             UA_CHECK_STATUS(rv, return rv);
+            if(dsm->header.timestampEnabled) {
+                /*Since the raw data field has no timestamp of its own, use dsm (DataSetMessage) timestamp */
+                dsm->data.keyFrameFields[i].hasSourceTimestamp = true;
+                dsm->data.keyFrameFields[i].sourceTimestamp = dsm->header.timestamp;
+            }
         }
         break;
     }
