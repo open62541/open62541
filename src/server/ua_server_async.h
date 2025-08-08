@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
+ *    Copyright 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  * based on
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
@@ -39,26 +40,40 @@ typedef struct {
     const UA_DataType *responseOperationsType;
 } UA_AsyncServiceDescription;
 
+typedef enum {
+    UA_ASYNCOPERATIONTYPE_CALL_REQUEST  = 0,
+    UA_ASYNCOPERATIONTYPE_READ_REQUEST  = 1,
+    UA_ASYNCOPERATIONTYPE_WRITE_REQUEST = 2,
+    UA_ASYNCOPERATIONTYPE_CALL_DIRECT   = (0 + 4),
+    UA_ASYNCOPERATIONTYPE_READ_DIRECT   = (1 + 4),
+    UA_ASYNCOPERATIONTYPE_WRITE_DIRECT  = (2 + 4)
+} UA_AsyncOperationType;
+
 /* A single operation (of a larger request) */
 typedef struct UA_AsyncOperation {
     TAILQ_ENTRY(UA_AsyncOperation) pointers;
-    UA_AsyncResponse *parent; /* Always non-NULL. The parent is only removed
-                               * when its operations are removed */
+    UA_AsyncOperationType asyncOperationType;
+
+    /* Always non-NULL */
+    union {
+        UA_AsyncResponse *response; /* The operation is part of a service request */
+    } handling;
+
+    /* The pointer to which the output value is written.
+     * The pointer must be */
     union {
         UA_CallMethodResult *call;
         UA_StatusCode *write;
         UA_DataValue *read;
-    } out;
+    } output;
+
     union {
-        UA_WriteValue write; /* Special case for the write service. A temporary
-                              * location in the AsyncOperation is used to ensure
-                              * a stable pointer as the "lookup key". But the
-                              * value must not be accessed after the sync call
-                              * has returned. */
-        UA_Variant *callOutArray; /* Keep this pointer extra as the
-                                   * CallMethodResult might be freed before the
-                                   * lookup from userland */
-    } extra;
+        /* Forward the pointer to writeValue to the operationCallback. So the
+         * pointer is stable and the memory location unique, also when the
+         * original request has been freed. But this uses a shallow copy. So
+         * don't access the writeValue after the operationCallback. */
+        UA_WriteValue writeValue;
+    } context;
 } UA_AsyncOperation;
 
 struct UA_AsyncResponse {
@@ -84,12 +99,12 @@ typedef struct {
     UA_UInt32 currentRequestId;
     UA_UInt32 currentRequestHandle;
 
+    /* Async responses that are waiting for operations */
     TAILQ_HEAD(, UA_AsyncResponse) asyncResponses;
 
-    /* Operations for the workers. The queues are all FIFO: Put in at the tail,
-     * take out at the head.*/
-    TAILQ_HEAD(, UA_AsyncOperation) ops; /* New operations for the workers */
-    size_t opsCount;            /* How many operations are transient (in one of the three queues)? */
+    /* Async operations for all async responses */
+    TAILQ_HEAD(, UA_AsyncOperation) ops;
+    size_t opsCount;
 
     UA_UInt64 checkTimeoutCallbackId; /* Registered repeated callbacks */
 
