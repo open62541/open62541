@@ -89,7 +89,8 @@ Breaking changes are frowned upon. If you cannot avoid API changes, try to
 create a new one and keep the old API alive (maybe with an addition
 UA_DEPRECATED macro).
 
-Breaking changes have to be mentioned in the CHANGELOG file.
+Breaking API changes require the ``breaking`` type mentioned in the commit
+header and an entry in the CHANGES.md file.
 
 ## Commit and PR Hygiene
 
@@ -143,6 +144,7 @@ The commit **Type** Must be one of the following:
   travis, appveyor, fuzz)
 - **docs**: Documentation only changes
 - **feat**: A new feature
+- **breaking**: A change that breaks the existing API
 - **fix**: A bug fix
 - **perf**: A code change that improves performance
 - **refactor**: A code change that neither fixes a bug nor adds a feature
