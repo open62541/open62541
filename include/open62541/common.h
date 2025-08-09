@@ -17,19 +17,6 @@
 
 _UA_BEGIN_DECLS
 
-/* Forward Declarations. Opaque pointers used in Client, Server and PubSub.
- * Defined at the top so they don't show up in the rendered documentation. */
-struct UA_Server;
-typedef struct UA_Server UA_Server;
-
-typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
-
-struct UA_ServerConfig;
-typedef struct UA_ServerConfig UA_ServerConfig;
-
-struct UA_Client;
-typedef struct UA_Client UA_Client;
-
 /**
  * .. _common:
  *
