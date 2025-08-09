@@ -10,21 +10,26 @@
 
 static void
 UA_AsyncOperation_cancel(UA_Server *server, UA_AsyncOperation *op, UA_StatusCode status) {
-    const UA_AsyncServiceDescription *asd = op->parent->asd;
-    if(asd->responseOperationsType == &UA_TYPES[UA_TYPES_CALLMETHODRESULT]) {
+    UA_AsyncOperationType type = op->asyncOperationType | 0x04;
+    switch(type) {
+    case UA_ASYNCOPERATIONTYPE_CALL_DIRECT:
         /* The method out array is always an allocated pointer. Also if the length is zero. */
         if(server->config.asyncOperationCancelCallback)
-            server->config.asyncOperationCancelCallback(server, op->out.call->outputArguments);
-        op->out.call->statusCode = status;
-    } else if(asd->responseOperationsType == &UA_TYPES[UA_TYPES_STATUSCODE]) {
+            server->config.asyncOperationCancelCallback(server, op->output.call->outputArguments);
+        op->output.call->statusCode = status;
+        break;
+    case UA_ASYNCOPERATIONTYPE_READ_DIRECT:
+    default:
         if(server->config.asyncOperationCancelCallback)
-            server->config.asyncOperationCancelCallback(server, &op->extra.write.value);
-        *op->out.write = status;
-    } else /* if(responseOperationsType == &UA_TYPES[UA_TYPES_DATAVALUE]) */ {
+            server->config.asyncOperationCancelCallback(server, op->output.read);
+        op->output.read->hasStatus = true;
+        op->output.read->status = status;
+        break;
+    case UA_ASYNCOPERATIONTYPE_WRITE_DIRECT:
         if(server->config.asyncOperationCancelCallback)
-            server->config.asyncOperationCancelCallback(server, op->out.read);
-        op->out.read->hasStatus = true;
-        op->out.read->status = status;
+            server->config.asyncOperationCancelCallback(server, &op->context.writeValue.value);
+        *op->output.write = status;
+        break;
     }
 }
 
@@ -33,7 +38,7 @@ UA_AsyncManager_removeAsyncResponse(UA_AsyncManager *am, UA_AsyncResponse *ar) {
     TAILQ_REMOVE(&am->asyncResponses, ar, pointers);
     UA_NodeId_clear(&ar->sessionId);
 
-    /* Clean up the results array last. Because the rseults array contains more
+    /* Clean up the results array last. Because the results array contains more
      * data, including the ar. */
     const UA_AsyncServiceDescription *asd = ar->asd;
     uintptr_t resultsSizePos = ((uintptr_t)&ar->response) + asd->responseCounterOffset;
@@ -78,9 +83,8 @@ sendAsyncResponse(UA_Server *server, UA_AsyncManager *am,
     responseHeader->requestHandle = ar->requestHandle;
 
     /* Send the Response */
-    UA_StatusCode res =
-        sendResponse(server, channel, ar->requestId,
-                     (UA_Response*)&ar->response, ar->asd->responseType);
+    UA_StatusCode res = sendResponse(server, channel, ar->requestId,
+                                     (UA_Response*)&ar->response, ar->asd->responseType);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "Async Response for Req# %" PRIu32 " failed "
@@ -114,7 +118,7 @@ static void
 integrateResult(UA_Server *server, UA_AsyncManager *am, UA_AsyncOperation *op) {
     TAILQ_REMOVE(&am->ops, op, pointers);
 
-    UA_AsyncResponse *ar = op->parent;
+    UA_AsyncResponse *ar = op->handling.response;
     ar->opCountdown -= 1;
     am->opsCount--;
 
@@ -146,7 +150,7 @@ checkTimeouts(UA_Server *server, void *_) {
     UA_AsyncOperation *op = NULL, *op_tmp = NULL;
     TAILQ_FOREACH_SAFE(op, &am->ops, pointers, op_tmp) {
         /* The timeout has not passed. Also for all elements following in the queue. */
-        if(tNow <= op->parent->timeout)
+        if(tNow <= op->handling.response->timeout)
             break;
 
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
@@ -242,24 +246,25 @@ allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
         void *reqOpPtr = (void*)reqOp;
         void *respOpPtr = (void*)respOp;
 
-        /* Ensure a stable pointer for the writevalue. Doesn't get written to,
-         * just used for the lookup */
         UA_AsyncOperation *op = (UA_AsyncOperation*)aop;
-        if(asd->responseType == &UA_TYPES[UA_TYPES_WRITERESPONSE]) {
-            op->extra.write = *(UA_WriteValue*)reqOp;
-            reqOpPtr = &op->extra.write;
+        if(asd->responseType == &UA_TYPES[UA_TYPES_CALLRESPONSE]) {
+            op->asyncOperationType = UA_ASYNCOPERATIONTYPE_CALL_REQUEST;
+        } else if(asd->responseType == &UA_TYPES[UA_TYPES_READRESPONSE]) {
+            op->asyncOperationType = UA_ASYNCOPERATIONTYPE_READ_REQUEST;
+        } else if(asd->responseType == &UA_TYPES[UA_TYPES_WRITERESPONSE]) {
+            op->asyncOperationType = UA_ASYNCOPERATIONTYPE_WRITE_REQUEST;
+            /* Ensure a stable pointer for the writevalue. Doesn't get written to,
+             * just used for the lookup */
+            op->context.writeValue = *(UA_WriteValue*)reqOp;
+            reqOpPtr = &op->context.writeValue;
         }
 
         /* Call the async operation */
         UA_Boolean done = asd->operationCallback(server, session, reqOpPtr, respOpPtr);
         if(!done) {
             /* Set up the async operation */
-            op->parent = ar;
-            op->out.read = (UA_DataValue*)respOpPtr; /* Applies for all response types */
-
-            /* Remember the outputArguments pointer - even when the response is already freed */
-            if(asd->responseType == &UA_TYPES[UA_TYPES_CALLRESPONSE])
-                op->extra.callOutArray = ((UA_CallMethodResult*)respOpPtr)->outputArguments;
+            op->handling.response = ar;
+            op->output.read = (UA_DataValue*)respOpPtr; /* Applies for all response types */
 
             if(server->config.maxAsyncOperationQueueSize != 0 &&
                am->opsCount >= server->config.maxAsyncOperationQueueSize) {
@@ -318,7 +323,7 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
     UA_AsyncOperation *op, *op_tmp;
     UA_AsyncManager *am = &server->asyncManager;
     TAILQ_FOREACH_SAFE(op, &am->ops, pointers, op_tmp) {
-        UA_AsyncResponse *ar = op->parent;
+        UA_AsyncResponse *ar = op->handling.response;
         if(ar->requestHandle != requestHandle ||
            !UA_NodeId_equal(&session->sessionId, &ar->sessionId))
             continue;
@@ -343,7 +348,7 @@ UA_Server_setAsyncReadResult(UA_Server *server, UA_DataValue *result) {
     UA_AsyncManager *am = &server->asyncManager;
     UA_AsyncOperation *op = NULL;
     TAILQ_FOREACH(op, &am->ops, pointers) {
-        if(op->out.read == result) {
+        if(op->output.read == result) {
             integrateResult(server, am, op);
             break;
         }
@@ -360,8 +365,8 @@ UA_Server_setAsyncWriteResult(UA_Server *server,
     UA_AsyncManager *am = &server->asyncManager;
     UA_AsyncOperation *op = NULL;
     TAILQ_FOREACH(op, &am->ops, pointers) {
-        if(&op->extra.write.value == value) {
-            *op->out.write = result;
+        if(&op->context.writeValue.value == value) {
+            *op->output.write = result;
             integrateResult(server, am, op);
             break;
         }
@@ -378,8 +383,8 @@ UA_Server_setAsyncCallMethodResult(UA_Server *server,
     UA_AsyncManager *am = &server->asyncManager;
     UA_AsyncOperation *op = NULL;
     TAILQ_FOREACH(op, &am->ops, pointers) {
-        if(op->extra.callOutArray == output) {
-            op->out.call->statusCode = result;
+        if(op->output.call->outputArguments == output) {
+            op->output.call->statusCode = result;
             integrateResult(server, am, op);
             break;
         }
