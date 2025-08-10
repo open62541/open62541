@@ -743,9 +743,14 @@ START_TEST(CheckPublishedValuesInUserLand) {
 }
 END_TEST
 
+/* Publisher and subscriber in the same server */
 START_TEST(PublisherSubscriberTogethor) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     int retryCnt = 0;
+
+    /* manually override as the publisherApp is used to subscribe */
+    subscriberConnection = publisherConnection;
+
     retval = addSubscriber(publisherApp);
     ck_assert(retval == UA_STATUSCODE_GOOD);
      retval = addPublisher(publisherApp);
@@ -812,6 +817,9 @@ START_TEST(PublisherDelayedSubscriberTogethor) {
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
     UA_ClientConfig *pubSksClientConfig = newEncryptedClientConfig("user1", "password");
+
+    /* Manually override as the connection in the publisherApp should be used to subscribe */
+    subscriberConnection = publisherConnection;
 
     retval = addSubscriber(publisherApp);
     ck_assert(retval == UA_STATUSCODE_GOOD);
