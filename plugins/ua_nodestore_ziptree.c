@@ -227,11 +227,15 @@ zipNsInsertNode(UA_Nodestore *ns, UA_Node *node, UA_NodeId *addedNodeId) {
     dummy.nodeId = node->head.nodeId;
     if(node->head.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
        node->head.nodeId.identifier.numeric == 0) {
+        NodeEntry *found;
+        UA_UInt32 mask = 0x2F;
         pcg32_random_t rng;
         pcg32_srandom_r(&rng, zns->size, 0);
-        NodeEntry *found;
         do {
-            UA_UInt32 numId = pcg32_random_r(&rng);
+            /* Generate a random NodeId. Favor "easy" NodeIds.
+             * Always above 50000. */
+            UA_UInt32 numId = (pcg32_random_r(&rng) & mask) + 50000;
+
 #if SIZE_MAX <= UA_UINT32_MAX
             /* The compressed "immediate" representation of nodes does not
              * support the full range on 32bit systems. Generate smaller
@@ -240,16 +244,22 @@ zipNsInsertNode(UA_Nodestore *ns, UA_Node *node, UA_NodeId *addedNodeId) {
                 numId = numId % (0x01 << 24);
 #endif
             node->head.nodeId.identifier.numeric = numId;
+
+            /* Look up the current NodeId */
             dummy.nodeId.identifier.numeric = numId;
             dummy.nodeIdHash = UA_NodeId_hash(&node->head.nodeId);
+            found = ZIP_FIND(NodeTree, &zns->root, &dummy);
 
-            if((found = ZIP_FIND(NodeTree, &zns->root, &dummy))) {
+            if(found) {
                 /* Reseed the rng using the browseName of the existing node.
-                 * This ensures that different information models end up with a
+                 * This ensures that different information models end up with
                  * different NodeId sequences, but still stable after a
                  * restart. */
                 UA_NodeHead *nh = (UA_NodeHead*)&found->nodeId;
                 pcg32_srandom_r(&rng, rng.state, UA_QualifiedName_hash(&nh->browseName));
+
+                /* Make the mask less strict when the NodeId already exists */
+                mask = (mask << 1) | 0x01;
             }
         } while(found);
     } else {

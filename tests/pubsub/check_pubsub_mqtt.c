@@ -297,7 +297,7 @@ START_TEST(SinglePublishSubscribeDateTime){
             vAttr.dataType = readerConfig.dataSetMetaData.fields[i].dataType;
 
             UA_NodeId newNode;
-            retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
+            retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 500000),
                                                 folderId,
                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                                 UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
