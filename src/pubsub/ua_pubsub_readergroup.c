@@ -649,8 +649,7 @@ needsValidation(const UA_Logger *logger,
 
 UA_StatusCode
 verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
-                               Ctx *ctx, UA_NetworkMessage *nm,
-                               UA_ReaderGroup *rg) {
+                               Ctx *ctx, UA_NetworkMessage *nm, UA_ReaderGroup *rg) {
     UA_MessageSecurityMode securityMode = rg->config.securityMode;
     UA_Boolean doValidate = false;
     UA_Boolean doDecrypt = false;
@@ -666,16 +665,17 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
     if(!doValidate && !doDecrypt)
         return UA_STATUSCODE_GOOD;
 
-    void *channelContext = rg->securityPolicyContext;
     UA_PubSubSecurityPolicy *securityPolicy = rg->config.securityPolicy;
-    UA_CHECK_MEM_ERROR(channelContext, return UA_STATUSCODE_BADINVALIDARGUMENT,
-                       logger, UA_LOGCATEGORY_PUBSUB,
-                       "PubSub receive. securityPolicyContext must be initialized "
-                       "when security mode is enabled to sign and/or encrypt");
     UA_CHECK_MEM_ERROR(securityPolicy, return UA_STATUSCODE_BADINVALIDARGUMENT,
                        logger, UA_LOGCATEGORY_PUBSUB,
                        "PubSub receive. securityPolicy must be set when security mode"
                        "is enabled to sign and/or encrypt");
+
+    void *channelContext = rg->securityPolicyContext;
+    UA_CHECK_MEM_ERROR(channelContext, return UA_STATUSCODE_BADINVALIDARGUMENT,
+                       logger, UA_LOGCATEGORY_PUBSUB,
+                       "PubSub receive. securityPolicyContext must be initialized "
+                       "when security mode is enabled to sign and/or encrypt");
 
     /* Validate the signature */
     if(doValidate) {
