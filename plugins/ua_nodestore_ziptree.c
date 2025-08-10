@@ -9,6 +9,7 @@
 #include <open62541/types.h>
 #include <open62541/plugin/nodestore_default.h>
 #include "ziptree.h"
+#include "pcg_basic.h"
 
 #ifndef container_of
 #define container_of(ptr, type, member) \
@@ -52,6 +53,7 @@ typedef struct {
     UA_Nodestore ns;
 
     NodeTree root;
+    size_t size;
 
     /* Maps ReferenceTypeIndex to the NodeId of the ReferenceType */
     UA_NodeId referenceTypeIds[UA_REFERENCETYPESET_MAX];
@@ -215,14 +217,21 @@ zipNsInsertNode(UA_Nodestore *ns, UA_Node *node, UA_NodeId *addedNodeId) {
     NodeEntry *entry = container_of(node, NodeEntry, nodeId);
     ZipNodestore *zns = (ZipNodestore*)ns;
 
-    /* Ensure that the NodeId is unique */
+    /* Ensure that the NodeId is unique by testing their presence. If the NodeId
+     * is ns=xx;i=0, then the numeric identifier is replaced with a random
+     * unused int32. It is ensured that the created identifiers are stable after
+     * a server restart (assuming that Nodes are created in the same order and
+     * with the same BrowseName). */
     NodeEntry dummy;
     memset(&dummy, 0, sizeof(NodeEntry));
     dummy.nodeId = node->head.nodeId;
     if(node->head.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
        node->head.nodeId.identifier.numeric == 0) {
-        do { /* Create a random nodeid until we find an unoccupied id */
-            UA_UInt32 numId = UA_UInt32_random();
+        pcg32_random_t rng;
+        pcg32_srandom_r(&rng, zns->size, 0);
+        NodeEntry *found;
+        do {
+            UA_UInt32 numId = pcg32_random_r(&rng);
 #if SIZE_MAX <= UA_UINT32_MAX
             /* The compressed "immediate" representation of nodes does not
              * support the full range on 32bit systems. Generate smaller
@@ -233,7 +242,16 @@ zipNsInsertNode(UA_Nodestore *ns, UA_Node *node, UA_NodeId *addedNodeId) {
             node->head.nodeId.identifier.numeric = numId;
             dummy.nodeId.identifier.numeric = numId;
             dummy.nodeIdHash = UA_NodeId_hash(&node->head.nodeId);
-        } while(ZIP_FIND(NodeTree, &zns->root, &dummy));
+
+            if((found = ZIP_FIND(NodeTree, &zns->root, &dummy))) {
+                /* Reseed the rng using the browseName of the existing node.
+                 * This ensures that different information models end up with a
+                 * different NodeId sequences, but still stable after a
+                 * restart. */
+                UA_NodeHead *nh = (UA_NodeHead*)&found->nodeId;
+                pcg32_srandom_r(&rng, rng.state, UA_QualifiedName_hash(&nh->browseName));
+            }
+        } while(found);
     } else {
         dummy.nodeIdHash = UA_NodeId_hash(&node->head.nodeId);
         if(ZIP_FIND(NodeTree, &zns->root, &dummy)) { /* The nodeid exists */
@@ -276,6 +294,7 @@ zipNsInsertNode(UA_Nodestore *ns, UA_Node *node, UA_NodeId *addedNodeId) {
     /* Insert the node */
     entry->nodeIdHash = dummy.nodeIdHash;
     ZIP_INSERT(NodeTree, &zns->root, entry);
+    zns->size++;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -321,6 +340,7 @@ zipNsRemoveNode(UA_Nodestore *ns, const UA_NodeId *nodeId) {
     if(!entry)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     ZIP_REMOVE(NodeTree, &zns->root, entry);
+    zns->size--;
     entry->deleted = true;
     cleanupEntry(entry);
     return UA_STATUSCODE_GOOD;
