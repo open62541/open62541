@@ -623,9 +623,10 @@ copyChild(UA_Server *server, UA_Session *session,
     /* Is the child mandatory? If not, ask callback whether child should be instantiated.
      * If not, skip. */
     if(!isMandatoryChild(server, session, &rd->nodeId.nodeId)) {
-        if(!server->config.nodeLifecycle.createOptionalChild)
+        if(!server->config.nodeLifecycle ||
+           !server->config.nodeLifecycle->createOptionalChild)
             return UA_STATUSCODE_GOOD;
-        UA_Boolean createChild = server->config.nodeLifecycle.
+        UA_Boolean createChild = server->config.nodeLifecycle->
             createOptionalChild(server, &session->sessionId, session->context,
                                 &rd->nodeId.nodeId, destinationNodeId, &rd->referenceTypeId);
         if(!createChild)
@@ -681,8 +682,9 @@ copyChild(UA_Server *server, UA_Session *session,
         UA_NodeId_clear(&node->head.nodeId);
         node->head.nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
 
-        if(server->config.nodeLifecycle.generateChildNodeId) {
-            retval = server->config.nodeLifecycle.
+        if(server->config.nodeLifecycle &&
+           server->config.nodeLifecycle->generateChildNodeId) {
+            retval = server->config.nodeLifecycle->
                 generateChildNodeId(server, &session->sessionId, session->context,
                                     &rd->nodeId.nodeId, destinationNodeId,
                                     &rd->referenceTypeId, &node->head.nodeId);
@@ -1285,8 +1287,9 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     UA_NODESTORE_RELEASE(server, node);
 
     /* Call the global constructor */
-    if(server->config.nodeLifecycle.constructor) {
-        retval = server->config.nodeLifecycle.
+    if(server->config.nodeLifecycle &&
+       server->config.nodeLifecycle->constructor) {
+        retval = server->config.nodeLifecycle->
             constructor(server, &session->sessionId,
                         session->context, nodeId, &context);
         if(retval != UA_STATUSCODE_GOOD)
@@ -1325,9 +1328,9 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     }
 
   global_destructor:
-    if(server->config.nodeLifecycle.destructor) {
-        server->config.nodeLifecycle.destructor(server, &session->sessionId,
-                                                session->context, nodeId, context);
+    if(server->config.nodeLifecycle && server->config.nodeLifecycle->destructor) {
+        server->config.nodeLifecycle->destructor(server, &session->sessionId,
+                                                 session->context, nodeId, context);
     }
     return retval;
 }
@@ -1916,10 +1919,11 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
         }
 
         /* Call the global destructor */
-        if(server->config.nodeLifecycle.destructor) {
-            server->config.nodeLifecycle.destructor(server, &session->sessionId,
-                                                    session->context,
-                                                    &member->head.nodeId, context);
+        if(server->config.nodeLifecycle &&
+           server->config.nodeLifecycle->destructor) {
+            server->config.nodeLifecycle->destructor(server, &session->sessionId,
+                                                     session->context,
+                                                     &member->head.nodeId, context);
         }
 
         /* Release the node. Don't access the node context from here on. */

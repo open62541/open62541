@@ -272,8 +272,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* NodeStore */
-    if(conf->nodestore.context == NULL)
-        UA_Nodestore_HashMap(&conf->nodestore);
+    if(!conf->nodestore)
+        conf->nodestore = UA_Nodestore_ZipTree();
 
     /* Logging */
     if(conf->logging == NULL)

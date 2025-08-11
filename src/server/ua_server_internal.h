@@ -852,24 +852,24 @@ readSessionSecurityDiagnostics(UA_Server *server,
 /***************************/
 
 #define UA_NODESTORE_NEW(server, nodeClass)                             \
-    server->config.nodestore.newNode(server->config.nodestore.context, nodeClass)
+    server->config.nodestore->newNode(server->config.nodestore, nodeClass)
 
 #define UA_NODESTORE_DELETE(server, node)                               \
-    server->config.nodestore.deleteNode(server->config.nodestore.context, node)
+    server->config.nodestore->deleteNode(server->config.nodestore, node)
 
 /* Get the node with all attributes and references */
 static UA_INLINE const UA_Node *
 UA_NODESTORE_GET(UA_Server *server, const UA_NodeId *nodeId) {
-    return server->config.nodestore.
-        getNode(server->config.nodestore.context, nodeId, UA_NODEATTRIBUTESMASK_ALL,
+    return server->config.nodestore->
+        getNode(server->config.nodestore, nodeId, UA_NODEATTRIBUTESMASK_ALL,
                 UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
 }
 
 /* Get the editable node with all attributes and references */
 static UA_INLINE UA_Node *
 UA_NODESTORE_GET_EDIT(UA_Server *server, const UA_NodeId *nodeId) {
-    return server->config.nodestore.
-        getEditNode(server->config.nodestore.context, nodeId,
+    return server->config.nodestore->
+        getEditNode(server->config.nodestore, nodeId,
                     UA_NODEATTRIBUTESMASK_ALL, UA_REFERENCETYPESET_ALL,
                     UA_BROWSEDIRECTION_BOTH);
 }
@@ -877,43 +877,41 @@ UA_NODESTORE_GET_EDIT(UA_Server *server, const UA_NodeId *nodeId) {
 /* Get the node with all attributes and references */
 static UA_INLINE const UA_Node *
 UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target) {
-    return server->config.nodestore.
-        getNodeFromPtr(server->config.nodestore.context, target, UA_NODEATTRIBUTESMASK_ALL,
+    return server->config.nodestore->
+        getNodeFromPtr(server->config.nodestore,
+                       target, UA_NODEATTRIBUTESMASK_ALL,
                        UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
 }
 
 #define UA_NODESTORE_GET_SELECTIVE(server, nodeid, attrMask, refs, refDirs) \
-    server->config.nodestore.getNode(server->config.nodestore.context,      \
-                                     nodeid, attrMask, refs, refDirs)
+    server->config.nodestore->getNode(server->config.nodestore,             \
+                                      nodeid, attrMask, refs, refDirs)
 
 #define UA_NODESTORE_GET_EDIT_SELECTIVE(server, nodeid, attrMask, refs, refDirs) \
-    server->config.nodestore.getEditNode(server->config.nodestore.context,       \
-                                         nodeid, attrMask, refs, refDirs)
+    server->config.nodestore->getEditNode(server->config.nodestore,              \
+                                          nodeid, attrMask, refs, refDirs)
 
 #define UA_NODESTORE_GETFROMREF_SELECTIVE(server, target, attrMask, refs, refDirs) \
-    server->config.nodestore.getNodeFromPtr(server->config.nodestore.context,      \
-                                            target, attrMask, refs, refDirs)
+    server->config.nodestore->getNodeFromPtr(server->config.nodestore,             \
+                                             target, attrMask, refs, refDirs)
 
 #define UA_NODESTORE_RELEASE(server, node)                              \
-    server->config.nodestore.releaseNode(server->config.nodestore.context, node)
+    server->config.nodestore->releaseNode(server->config.nodestore, node)
 
 #define UA_NODESTORE_GETCOPY(server, nodeid, outnode)                      \
-    server->config.nodestore.getNodeCopy(server->config.nodestore.context, \
-                                         nodeid, outnode)
+    server->config.nodestore->getNodeCopy(server->config.nodestore, nodeid, outnode)
 
 #define UA_NODESTORE_INSERT(server, node, addedNodeId)                    \
-    server->config.nodestore.insertNode(server->config.nodestore.context, \
-                                        node, addedNodeId)
+    server->config.nodestore->insertNode(server->config.nodestore, node, addedNodeId)
 
 #define UA_NODESTORE_REPLACE(server, node)                              \
-    server->config.nodestore.replaceNode(server->config.nodestore.context, node)
+    server->config.nodestore->replaceNode(server->config.nodestore, node)
 
 #define UA_NODESTORE_REMOVE(server, nodeId)                             \
-    server->config.nodestore.removeNode(server->config.nodestore.context, nodeId)
+    server->config.nodestore->removeNode(server->config.nodestore, nodeId)
 
 #define UA_NODESTORE_GETREFERENCETYPEID(server, index)                  \
-    server->config.nodestore.getReferenceTypeId(server->config.nodestore.context, \
-                                                index)
+    server->config.nodestore->getReferenceTypeId(server->config.nodestore, index)
 
 /* Handling of Locales */
 
