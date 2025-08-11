@@ -595,6 +595,42 @@ UA_Server_init(UA_Server *server) {
         addServerComponent(server, UA_PubSubManager_new(server), NULL);
 #endif
 
+    /* For all custom datatypes, check if they are represented in the
+     * information model. If not, add them. */
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    for(const UA_DataTypeArray *custom = server->config.customDataTypes;
+        custom != NULL; custom = custom->next) {
+        for(size_t i = 0; i < custom->typesSize; i++) {
+            const UA_DataType *type = &custom->types[i];
+            if(type->typeKind != UA_DATATYPEKIND_STRUCTURE &&
+               type->typeKind != UA_DATATYPEKIND_OPTSTRUCT &&
+               type->typeKind != UA_DATATYPEKIND_UNION)
+                continue;
+            const UA_Node *node =
+                UA_NODESTORE_GET_SELECTIVE(server, &type->typeId, 0,
+                                           UA_REFERENCETYPESET_NONE,
+                                           UA_BROWSEDIRECTION_INVALID);
+            if(node) {
+                UA_NODESTORE_RELEASE(server, node);
+                continue;
+            }
+
+            UA_QualifiedName dataTypeBrowseName =
+                {type->typeId.namespaceIndex, UA_STRING_STATIC((char*)(uintptr_t)type->typeName)};
+            UA_DataTypeAttributes dta = UA_DataTypeAttributes_default;
+            dta.displayName.text = UA_STRING((char*)(uintptr_t)type->typeName);
+            res = UA_Server_addDataTypeNode(server, type->typeId, UA_NS0ID(STRUCTURE),
+                                            UA_NS0ID(HASSUBTYPE), dataTypeBrowseName,
+                                            dta, NULL, NULL);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                               "Could not add DataTypeNode for %s (%N)",
+                               type->typeName, type->typeId);
+            }
+        }
+    }
+#endif
+
     unlockServer(server);
     return server;
 
