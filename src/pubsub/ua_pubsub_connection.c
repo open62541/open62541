@@ -607,8 +607,7 @@ PubSubSendChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 static UA_StatusCode
 UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                UA_Boolean validate) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
@@ -699,8 +698,7 @@ UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
 static UA_StatusCode
 UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                UA_Boolean validate) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
@@ -763,8 +761,7 @@ UA_PubSubConnection_canConnect(UA_PubSubConnection *c) {
 static UA_StatusCode
 UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             UA_Boolean validate) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
     if(!el) {

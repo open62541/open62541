@@ -1102,8 +1102,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 static UA_StatusCode
 UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
                                  UA_Boolean validate) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* Already connected? */
     if(wg->sendChannel != 0 && !validate)
@@ -1181,8 +1180,7 @@ UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
 static UA_StatusCode
 UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
                            UA_Boolean validate) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PubSubConnection *c = wg->linkedConnection;
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
@@ -1247,8 +1245,7 @@ UA_WriterGroup_disconnect(UA_WriterGroup *wg) {
 static UA_StatusCode
 UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
                        UA_Boolean validate) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* Check if already connected or no WG TransportSettings */
     if(!UA_WriterGroup_canConnect(wg) && !validate)
