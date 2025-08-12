@@ -10,14 +10,6 @@
 #ifndef UA_NODESTORE_H_
 #define UA_NODESTORE_H_
 
-/* !!! Warning !!!
- *
- * If you are not developing a nodestore plugin, then you should not work with
- * the definitions from this file directly. The underlying node structures are
- * not meant to be used directly by end users. Please use the public server API
- * / OPC UA services to interact with the information model. */
-
-#include <open62541/util.h>
 #include <open62541/server.h>
 
 _UA_BEGIN_DECLS
@@ -31,12 +23,11 @@ typedef struct UA_MonitoredItem UA_MonitoredItem;
 /**
  * Nodestore Plugin API
  * ====================
- *
  * **Warning!!** The structures defined in this section are only relevant for
  * the developers of custom Nodestores. The interaction with the information
  * model is possible only via the OPC UA :ref:`services`. So the following
- * sections are purely informational so that users may have a clear mental
- * model of the underlying representation.
+ * sections are mainly for users that seek to understand the underlying
+ * representation -- which is not directly accessible.
  *
  * ReferenceType Bitfield Representation
  * -------------------------------------
@@ -51,6 +42,7 @@ typedef struct UA_MonitoredItem UA_MonitoredItem;
  *
  * The following ReferenceTypes have a fixed index. The NS0 bootstrapping
  * creates these ReferenceTypes in-order. */
+
 #define UA_REFERENCETYPEINDEX_REFERENCES 0
 #define UA_REFERENCETYPEINDEX_HASSUBTYPE 1
 #define UA_REFERENCETYPEINDEX_AGGREGATES 2
@@ -111,7 +103,6 @@ UA_ReferenceTypeSet_contains(const UA_ReferenceTypeSet *set, UA_Byte index) {
 /**
  * Node Pointer
  * ------------
- *
  * The "native" format for reference between nodes is the ExpandedNodeId. That
  * is, references can also point to external servers. In practice, most
  * references point to local nodes using numerical NodeIds from the
@@ -186,7 +177,6 @@ UA_NodePointer_toNodeId(UA_NodePointer np);
 /**
  * Base Node Attributes
  * --------------------
- *
  * Nodes contain attributes according to their node type. The base node
  * attributes are common to all node types. In the OPC UA :ref:`services`,
  * attributes are referred to via the :ref:`nodeid` of the containing node and
@@ -214,7 +204,6 @@ typedef struct UA_ReferenceTargetTreeElem {
         struct UA_ReferenceTargetTreeElem *right;
     } nameTreeEntry;
 } UA_ReferenceTargetTreeElem;
-
 
 /* List of reference targets with the same reference type and direction. Uses
  * either an array or a tree structure. The SDK will not change the type of
@@ -302,21 +291,8 @@ struct UA_NodeHead {
 };
 
 /**
- * .. _variable-node:
- *
  * VariableNode
- * ------------
- * Variables store values as well as contraints for possible values. There are
- * two options for storing the value: Internal in the VariableNode data
- * structure itself, external with a double-pointer (to switch to an updated
- * value with an atomic pointer-replacing operation) or with a callback
- * registered by the application. */
-
-typedef enum {
-    UA_VALUESOURCETYPE_INTERNAL = 0,
-    UA_VALUESOURCETYPE_EXTERNAL = 1,
-    UA_VALUESOURCETYPE_CALLBACK = 2
-} UA_ValueSourceType;
+ * ------------ */
 
 #define UA_NODE_VARIABLEATTRIBUTES                                      \
     /* Constraints on possible values */                                \
@@ -437,7 +413,6 @@ typedef struct {
 /**
  * Node Union
  * ----------
- *
  * A union that represents any kind of node. The node head can always be used.
  * Check the NodeClass before accessing specific content.
  */
@@ -457,14 +432,8 @@ typedef union {
 /**
  * Nodestore
  * ---------
- *
- * The following definitions are used for implementing custom node storage
- * backends. **Most users will want to use the default nodestore and don't need
- * to work with the nodestore API**.
- *
- * Outside of custom nodestore implementations, users should not manually edit
- * nodes. Please use the OPC UA services for that. Otherwise, all consistency
- * checks are omitted. This can crash the application eventually. */
+ * The following structurere defines the interaction between the server and
+ * Nodestore backends. */
 
 typedef void (*UA_NodestoreVisitor)(void *visitorCtx, const UA_Node *node);
 
@@ -480,7 +449,7 @@ struct UA_Nodestore {
 
     void (*deleteNode)(UA_Nodestore *ns, UA_Node *node);
 
-    /* ``Get`` returns a pointer to an immutable node. Call ``releaseNode`` to
+    /* _getNode returns a pointer to an immutable node. Call _releaseNode to
      * indicate when the pointer is no longer accessed.
      *
      * It can be indicated if only a subset of the attributes and referencs need
@@ -502,25 +471,25 @@ struct UA_Nodestore {
                                UA_ReferenceTypeSet references,
                                UA_BrowseDirection referenceDirections);
 
-    /* Similar to the normal ``getNode``. But it can take advantage of the
+    /* Similar to the normal _getNode. But it can take advantage of the
      * NodePointer structure, e.g. if it contains a direct pointer. */
     const UA_Node * (*getNodeFromPtr)(UA_Nodestore *ns, UA_NodePointer ptr,
                                       UA_UInt32 attributeMask,
                                       UA_ReferenceTypeSet references,
                                       UA_BrowseDirection referenceDirections);
 
-    /* ``GetEditNode`` returns a pointer to a mutable version of the node. A
+    /* _getEditNode returns a pointer to a mutable version of the node. A
      * plugin implementation that keeps all nodes in RAM can return the same
-     * pointer from ``GetNode`` and ``GetEditNode``. The differences are more
+     * pointer from _getNode and _getEditNode. The differences are more
      * important if, for example, nodes are stored in a backend database. Then
-     * the ``GetEditNode`` version is used to indicate that modifications are
+     * the _getEditNode version is used to indicate that modifications are
      * being made.
      *
-     * Call ``releaseNode`` to indicate when editing is done and the pointer is
+     * Call _releaseNode to indicate when editing is done and the pointer is
      * no longer used. Note that changes are not (necessarily) visible in other
      * (const) node-pointers that were previously retrieved. Changes are however
      * visible in all newly retrieved node-pointers for the given NodeId after
-     * calling ``releaseNode``.
+     * calling _releaseNode.
      *
      * The attribute-mask and reference-description indicate if only a subset of
      * the attributes and referencs are to be modified. Other attributes and
@@ -530,7 +499,7 @@ struct UA_Nodestore {
                              UA_ReferenceTypeSet references,
                              UA_BrowseDirection referenceDirections);
 
-    /* Similar to ``getEditNode``. But it can take advantage of the NodePointer
+    /* Similar to _getEditNode. But it can take advantage of the NodePointer
      * structure, e.g. if it contains a direct pointer. */
     UA_Node * (*getEditNodeFromPtr)(UA_Nodestore *ns, UA_NodePointer ptr,
                                     UA_UInt32 attributeMask,
