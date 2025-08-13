@@ -21,7 +21,7 @@
     TYPE v2 = *(const TYPE*)data2;                              \
     TYPE diff = (v1 > v2) ? (TYPE)(v1 - v2) : (TYPE)(v2 - v1);  \
     return ((UA_Double)diff > deadband);                        \
-} while(false);
+} while(false)
 
 static UA_Boolean
 detectScalarDeadBand(const void *data1, const void *data2,

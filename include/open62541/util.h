@@ -13,6 +13,10 @@
 
 _UA_BEGIN_DECLS
 
+/* Forward Declarations */
+struct UA_Server;
+typedef struct UA_Server UA_Server;
+
 /**
  * .. _utility:
  *

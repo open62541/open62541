@@ -18,7 +18,7 @@
 #include <time.h>
 #include <sys/time.h>
 
-#if defined(__APPLE__) || defined(__MACH__)
+#if defined(__APPLE__) && defined(__MACH__)
 # include <mach/clock.h>
 # include <mach/mach.h>
 #endif
@@ -43,7 +43,7 @@ UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
 }
 
 UA_DateTime UA_DateTime_nowMonotonic(void) {
-#if defined(__APPLE__) || defined(__MACH__)
+#if defined(__APPLE__) && defined(__MACH__)
     /* OS X does not have clock_gettime, use clock_get_time */
     clock_serv_t cclock;
     mach_timespec_t mts;

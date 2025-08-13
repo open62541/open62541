@@ -493,7 +493,6 @@ UA_PubSubManager_stop(UA_ServerComponent *sc) {
 
 UA_StatusCode
 UA_PubSubManager_clear(UA_PubSubManager *psm) {
-    UA_Server *server = psm->sc.server;
     if(psm->sc.state != UA_LIFECYCLESTATE_STOPPED) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "Cannot delete the PubSubManager because "
@@ -501,7 +500,7 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* Remove Connections - this also remove WriterGroups and ReaderGroups */
     UA_PubSubConnection *c, *tmpC;
