@@ -182,10 +182,7 @@
             <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
         </References>
         <Value>
-            <ListOfInt32>
-                <Int32>1</Int32>
-                <Int32>2</Int32>
-            </ListOfInt32>
+            <Int32>1</Int32>
         </Value>
     </UAVariable>
     <UAVariable DataType="Int32" NodeId="ns=1;i=8006" BrowseName="1:Int32_OneOrMoreDim_noInit_ValueRank=0" AccessLevel="3" ValueRank="0">
@@ -306,7 +303,7 @@
             <uax:ListOfExtensionObject>
                 <uax:ExtensionObject>
                     <uax:TypeId>
-                        <uax:Identifier>i=0</uax:Identifier>
+                        <uax:Identifier>ns=1;i=10001</uax:Identifier>
                     </uax:TypeId>
                     <uax:Body>
                         <Point xmlns="http://yourorganisation.org/test/Types.xsd">
@@ -317,7 +314,7 @@
                 </uax:ExtensionObject>
                 <uax:ExtensionObject>
                     <uax:TypeId>
-                        <uax:Identifier>i=0</uax:Identifier>
+                        <uax:Identifier>ns=1;i=10001</uax:Identifier>
                     </uax:TypeId>
                     <uax:Body>
                         <Point xmlns="http://yourorganisation.org/test/Types.xsd">
@@ -328,7 +325,7 @@
                 </uax:ExtensionObject>
                 <uax:ExtensionObject>
                     <uax:TypeId>
-                        <uax:Identifier>i=0</uax:Identifier>
+                        <uax:Identifier>ns=1;i=10001</uax:Identifier>
                     </uax:TypeId>
                     <uax:Body>
                         <Point xmlns="http://yourorganisation.org/test/Types.xsd">
@@ -339,7 +336,7 @@
                 </uax:ExtensionObject>
                 <uax:ExtensionObject>
                     <uax:TypeId>
-                        <uax:Identifier>i=0</uax:Identifier>
+                        <uax:Identifier>ns=1;i=10001</uax:Identifier>
                     </uax:TypeId>
                     <uax:Body>
                         <Point xmlns="http://yourorganisation.org/test/Types.xsd">
@@ -358,52 +355,58 @@
             <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=5001</Reference>
         </References>
         <Value>
-            <uax:ListOfExtensionObject>
-                <uax:ExtensionObject>
-                    <uax:TypeId>
-                        <uax:Identifier>ns=1;i=10001</uax:Identifier>
-                    </uax:TypeId>
-                    <uax:Body>
-                        <Point xmlns="http://yourorganisation.org/test/Types.xsd">
-                            <x>1</x>
-                            <y>2</y>
-                        </Point>
-                    </uax:Body>
-                </uax:ExtensionObject>
-                <uax:ExtensionObject>
-                    <uax:TypeId>
-                        <uax:Identifier>ns=1;i=10001</uax:Identifier>
-                    </uax:TypeId>
-                    <uax:Body>
-                        <Point xmlns="http://yourorganisation.org/test/Types.xsd">
-                            <x>3</x>
-                            <y>4</y>
-                        </Point>
-                    </uax:Body>
-                </uax:ExtensionObject>
-                <uax:ExtensionObject>
-                    <uax:TypeId>
-                        <uax:Identifier>ns=1;i=10001</uax:Identifier>
-                    </uax:TypeId>
-                    <uax:Body>
-                        <Point xmlns="http://yourorganisation.org/test/Types.xsd">
-                            <x>5</x>
-                            <y>6</y>
-                        </Point>
-                    </uax:Body>
-                </uax:ExtensionObject>
-                <uax:ExtensionObject>
-                    <uax:TypeId>
-                        <uax:Identifier>ns=1;i=10001</uax:Identifier>
-                    </uax:TypeId>
-                    <uax:Body>
-                        <Point xmlns="http://yourorganisation.org/test/Types.xsd">
-                            <x>7</x>
-                            <y>8</y>
-                        </Point>
-                    </uax:Body>
-                </uax:ExtensionObject>
-            </uax:ListOfExtensionObject>
+            <Matrix>
+                <Dimensions>
+                    <Int32>2</Int32>
+                    <Int32>2</Int32>
+                </Dimensions>
+                <Elements>
+                    <uax:ExtensionObject>
+                        <uax:TypeId>
+                            <uax:Identifier>ns=1;i=10001</uax:Identifier>
+                        </uax:TypeId>
+                        <uax:Body>
+                            <Point xmlns="http://yourorganisation.org/test/Types.xsd">
+                                <x>1</x>
+                                <y>2</y>
+                            </Point>
+                        </uax:Body>
+                    </uax:ExtensionObject>
+                    <uax:ExtensionObject>
+                        <uax:TypeId>
+                            <uax:Identifier>ns=1;i=10001</uax:Identifier>
+                        </uax:TypeId>
+                        <uax:Body>
+                            <Point xmlns="http://yourorganisation.org/test/Types.xsd">
+                                <x>3</x>
+                                <y>4</y>
+                            </Point>
+                        </uax:Body>
+                    </uax:ExtensionObject>
+                    <uax:ExtensionObject>
+                        <uax:TypeId>
+                            <uax:Identifier>ns=1;i=10001</uax:Identifier>
+                        </uax:TypeId>
+                        <uax:Body>
+                            <Point xmlns="http://yourorganisation.org/test/Types.xsd">
+                                <x>5</x>
+                                <y>6</y>
+                            </Point>
+                        </uax:Body>
+                    </uax:ExtensionObject>
+                    <uax:ExtensionObject>
+                        <uax:TypeId>
+                            <uax:Identifier>ns=1;i=10001</uax:Identifier>
+                        </uax:TypeId>
+                        <uax:Body>
+                            <Point xmlns="http://yourorganisation.org/test/Types.xsd">
+                                <x>7</x>
+                                <y>8</y>
+                            </Point>
+                        </uax:Body>
+                    </uax:ExtensionObject>
+                </Elements>
+            </Matrix>
         </Value>
     </UAVariable>    
     <UAVariable DataType="Double" ParentNodeId="ns=1;i=5100" NodeId="ns=1;i=5101" BrowseName="1:Double_init" AccessLevel="3">
@@ -477,14 +480,20 @@
             <Reference ReferenceType="Organizes" IsForward="false">ns=1;i=5100</Reference>
         </References>
         <Value>
-            <uax:ListOfInt32>
-                <uax:Int32>11</uax:Int32>
-                <uax:Int32>21</uax:Int32>
-                <uax:Int32>31</uax:Int32>
-                <uax:Int32>12</uax:Int32>
-                <uax:Int32>22</uax:Int32>
-                <uax:Int32>32</uax:Int32>
-            </uax:ListOfInt32>
+            <Matrix>
+                <Dimensions>
+                    <Int32>3</Int32>
+                    <Int32>2</Int32>
+                </Dimensions>
+                <Elements>
+                    <uax:Int32>11</uax:Int32>
+                    <uax:Int32>21</uax:Int32>
+                    <uax:Int32>31</uax:Int32>
+                    <uax:Int32>12</uax:Int32>
+                    <uax:Int32>22</uax:Int32>
+                    <uax:Int32>32</uax:Int32>
+                </Elements>
+            </Matrix>
         </Value>
     </UAVariable>
     <UADataType NodeId="ns=1;i=3003" BrowseName="1:PointWithArray">
