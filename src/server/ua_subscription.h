@@ -369,10 +369,12 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
                                   size_t operatorsCount,
                                   const UA_ContentFilterElement *ef);
 
+/* If the subscriptionId and monitoredItemId are non-NULL, they are used to
+ * filter the subscriptions and monitoreditems that emit the event. */
 UA_StatusCode
-createEvent(UA_Server *server, const UA_NodeId eventType,
-            const UA_NodeId sourceNode, UA_UInt16 severity,
-            UA_KeyValueMap otherEventFields);
+createEvent(UA_Server *server, const UA_NodeId eventType, const UA_NodeId sourceNode,
+            UA_UInt16 severity, UA_KeyValueMap otherEventFields,
+            const UA_UInt32 *subscriptionId, const UA_UInt32 *monitoredItemId);
 
 typedef struct {
     UA_NodeId eventType;

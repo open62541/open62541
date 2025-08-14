@@ -1364,9 +1364,9 @@ static const UA_NodeId emitReferencesRoots[EMIT_REFS_ROOT_COUNT] =
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASNOTIFIER}}};
 
 UA_StatusCode
-createEvent(UA_Server *server, const UA_NodeId eventType,
-            const UA_NodeId sourceNode, UA_UInt16 severity,
-            UA_KeyValueMap otherEventFields) {
+createEvent(UA_Server *server, const UA_NodeId eventType, const UA_NodeId sourceNode,
+            UA_UInt16 severity, UA_KeyValueMap otherEventFields,
+            const UA_UInt32 *subscriptionId, const UA_UInt32 *monitoredItemId) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -1485,12 +1485,20 @@ createEvent(UA_Server *server, const UA_NodeId eventType,
             if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
                 continue;
 
+            /* Filter on the MonitoredItemId */
+            if(monitoredItemId && *monitoredItemId != mon->monitoredItemId)
+                continue;
+
+            /* Filter on the SUbscriptionId */
+            UA_Subscription *sub = mon->subscription;
+            if(subscriptionId && *subscriptionId != sub->subscriptionId)
+                continue;
+
             /* Select the session. If the subscription is not bound to a
              * session, use the AdminSession. This has no security implications,
              * as only values from the EventDescription and the DisplayName of
              * the source node are used. */
-            UA_Session *session = (mon->subscription->session) ?
-                mon->subscription->session : &server->adminSession;
+            UA_Session *session = (sub->session) ? sub->session : &server->adminSession;
 
             /* Evaluate the where-clause and create a notification */
             res = UA_MonitoredItem_addEvent(server, session, mon, &ed);
@@ -1522,7 +1530,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
                       UA_KeyValueMap otherEventFields) {
     lockServer(server);
     UA_StatusCode res =
-        createEvent(server, eventType, sourceNode, severity, otherEventFields);
+        createEvent(server, eventType, sourceNode, severity, otherEventFields, NULL, NULL);
     unlockServer(server);
     return res;
 }
