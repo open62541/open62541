@@ -965,7 +965,8 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                 /* An error we cannot recover from? */
                 if(UA_ERRNO != UA_INTERRUPTED &&
                    UA_ERRNO != UA_WOULDBLOCK &&
-                   UA_ERRNO != UA_AGAIN) {
+                   UA_ERRNO != UA_AGAIN &&
+                   UA_ERRNO != UA_INPROGRESS) {
                     UA_LOG_SOCKET_ERRNO_WRAP(
                        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                                     "UDP %u\t| Send failed with error %s",
