@@ -1047,10 +1047,6 @@ if(UA_ARCHITECTURE_LWIP)
             ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip_udp.c)
 endif()
 
-if(UA_ARCHITECTURE_LWIP AND UA_ARCHITECTURE_POSIX)
-    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c)
-endif()
-
 if(UA_ARCHITECTURE_FREERTOS)
     # Assume the FreeRTOS POSIX "Simulator".
     # Change this to directly include the source files if required.
