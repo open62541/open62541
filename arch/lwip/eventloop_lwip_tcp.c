@@ -680,7 +680,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
             if(n < 0) {
                 /* An error we cannot recover from? */
                 if(UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_WOULDBLOCK &&
-                   UA_ERRNO != UA_AGAIN)
+                   UA_ERRNO != UA_AGAIN && UA_ERRNO != UA_INPROGRESS)
                     goto shutdown;
 
                 /* Poll for the socket resources to become available and retry
