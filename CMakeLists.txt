@@ -43,7 +43,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 12)
+set(OPEN62541_VER_PATCH 13)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -339,11 +339,8 @@ if(UA_ENABLE_PUBSUB_SKS)
     endif()
 endif()
 
-option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" ON)
+option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" ${UA_ENABLE_PUBSUB})
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-    if(NOT UA_ENABLE_PUBSUB)
-        message(FATAL_ERROR "PubSub information model representation cannot be used with disabled PubSub function.")
-    endif()
     if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
         message(FATAL_ERROR "PubSub information model representation cannot be used with MINIMAL namespace zero.")
     endif()
@@ -797,7 +794,6 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/certificategroup.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h
@@ -805,7 +801,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h)
+                     ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h)
 
 # Main Library
 
@@ -1007,7 +1004,6 @@ set(plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/access
 set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
-                   ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_none.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)

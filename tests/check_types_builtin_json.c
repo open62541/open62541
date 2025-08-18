@@ -2218,8 +2218,6 @@ START_TEST(UA_Variant_Matrix_UInt16_json_encode) {
     UA_ByteString buf;
     UA_ByteString_allocBuffer(&buf, size+1);
 
-    size_t sizeOfBytes = UA_calcSizeJson((void *) &src, type, NULL);
-
     status s = UA_encodeJson((void *) &src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 

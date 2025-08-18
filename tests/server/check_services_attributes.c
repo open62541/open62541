@@ -685,6 +685,8 @@ START_TEST(ReadSingleAttributeValueWithExternalSource) {
         UA_Server_setVariableNode_externalValueSource(server,
                                                       UA_NODEID_STRING(1, "the.answer"),
                                                       &staticValPtr, NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = UA_NODEID_STRING(1, "the.answer");

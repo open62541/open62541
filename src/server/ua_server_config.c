@@ -67,9 +67,9 @@ UA_ServerConfig_clear(UA_ServerConfig *config) {
     config->endpointsSize = 0;
 
     /* Nodestore */
-    if(config->nodestore.context && config->nodestore.clear) {
-        config->nodestore.clear(config->nodestore.context);
-        config->nodestore.context = NULL;
+    if(config->nodestore) {
+        config->nodestore->free(config->nodestore);
+        config->nodestore = NULL;
     }
 
     /* Certificate Validation */

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2019 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2025 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2020 Yannick Wallerer, Siemens AG
@@ -20,8 +20,6 @@
 #ifdef UA_ENABLE_PUBSUB_SKS
 #include "ua_pubsub_keystorage.h"
 #endif
-
-#define UA_MAX_STACKBUF 128 /* Max size of network messages on the stack */
 
 static UA_StatusCode
 encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
@@ -245,12 +243,17 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
     UA_LOG_INFO_PUBSUB(psm->logging, wg, "WriterGroup created (State: %s)",
                        UA_PubSubState_name(wg->head.state));
 
-    /* Trigger the connection as it might open a connection for the WG */
+    /* Trigger the connection state machine. It might open a socket only when
+     * the first WriterGroup is attached. */
     UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(writerGroupIdentifier)
         UA_NodeId_copy(&wg->head.identifier, writerGroupIdentifier);
+
+    /* Enable the WriterGroup immediately if the enabled flag is set */
+    if(config->enabled)
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -510,18 +513,21 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     if(wg->head.transientState)
         return ret;
 
-    /* Inform the application about state change */
-    if(wg->head.state != oldState) {
-        UA_LOG_INFO_PUBSUB(psm->logging, wg, "%s -> %s",
-                           UA_PubSubState_name(oldState),
-                           UA_PubSubState_name(wg->head.state));
-        if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            server->config.pubSubConfig.
-                stateChangeCallback(server, wg->head.identifier, wg->head.state, ret);
-        }
-    }
+    /* No state change has happened */
+    if(wg->head.state == oldState)
+        return ret;
 
-    /* Update the attached DataSetWriters */
+    UA_LOG_INFO_PUBSUB(psm->logging, wg, "%s -> %s",
+                       UA_PubSubState_name(oldState),
+                       UA_PubSubState_name(wg->head.state));
+
+    /* Inform the application about state change */
+    if(server->config.pubSubConfig.stateChangeCallback)
+        server->config.pubSubConfig.
+            stateChangeCallback(server, wg->head.identifier, wg->head.state, ret);
+
+    /* Children evaluate their state machine after the state change of the parent.
+     * Keep the current child state as the target state for the child. */
     UA_DataSetWriter *writer;
     LIST_FOREACH(writer, &wg->writers, listEntry) {
         UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
@@ -1096,8 +1102,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 static UA_StatusCode
 UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
                                  UA_Boolean validate) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* Already connected? */
     if(wg->sendChannel != 0 && !validate)
@@ -1175,8 +1180,7 @@ UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
 static UA_StatusCode
 UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
                            UA_Boolean validate) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PubSubConnection *c = wg->linkedConnection;
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
@@ -1241,8 +1245,7 @@ UA_WriterGroup_disconnect(UA_WriterGroup *wg) {
 static UA_StatusCode
 UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
                        UA_Boolean validate) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* Check if already connected or no WG TransportSettings */
     if(!UA_WriterGroup_canConnect(wg) && !validate)

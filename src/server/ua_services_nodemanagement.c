@@ -92,7 +92,7 @@ checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
 
 #define UA_PARENT_REFERENCES_COUNT 2
 
-const UA_NodeId parentReferences[UA_PARENT_REFERENCES_COUNT] = {
+static const UA_NodeId parentReferences[UA_PARENT_REFERENCES_COUNT] = {
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASSUBTYPE}},
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASCOMPONENT}}
 };
@@ -623,9 +623,10 @@ copyChild(UA_Server *server, UA_Session *session,
     /* Is the child mandatory? If not, ask callback whether child should be instantiated.
      * If not, skip. */
     if(!isMandatoryChild(server, session, &rd->nodeId.nodeId)) {
-        if(!server->config.nodeLifecycle.createOptionalChild)
+        if(!server->config.nodeLifecycle ||
+           !server->config.nodeLifecycle->createOptionalChild)
             return UA_STATUSCODE_GOOD;
-        UA_Boolean createChild = server->config.nodeLifecycle.
+        UA_Boolean createChild = server->config.nodeLifecycle->
             createOptionalChild(server, &session->sessionId, session->context,
                                 &rd->nodeId.nodeId, destinationNodeId, &rd->referenceTypeId);
         if(!createChild)
@@ -681,8 +682,9 @@ copyChild(UA_Server *server, UA_Session *session,
         UA_NodeId_clear(&node->head.nodeId);
         node->head.nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
 
-        if(server->config.nodeLifecycle.generateChildNodeId) {
-            retval = server->config.nodeLifecycle.
+        if(server->config.nodeLifecycle &&
+           server->config.nodeLifecycle->generateChildNodeId) {
+            retval = server->config.nodeLifecycle->
                 generateChildNodeId(server, &session->sessionId, session->context,
                                     &rd->nodeId.nodeId, destinationNodeId,
                                     &rd->referenceTypeId, &node->head.nodeId);
@@ -1285,8 +1287,9 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     UA_NODESTORE_RELEASE(server, node);
 
     /* Call the global constructor */
-    if(server->config.nodeLifecycle.constructor) {
-        retval = server->config.nodeLifecycle.
+    if(server->config.nodeLifecycle &&
+       server->config.nodeLifecycle->constructor) {
+        retval = server->config.nodeLifecycle->
             constructor(server, &session->sessionId,
                         session->context, nodeId, &context);
         if(retval != UA_STATUSCODE_GOOD)
@@ -1325,9 +1328,9 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     }
 
   global_destructor:
-    if(server->config.nodeLifecycle.destructor) {
-        server->config.nodeLifecycle.destructor(server, &session->sessionId,
-                                                session->context, nodeId, context);
+    if(server->config.nodeLifecycle && server->config.nodeLifecycle->destructor) {
+        server->config.nodeLifecycle->destructor(server, &session->sessionId,
+                                                 session->context, nodeId, context);
     }
     return retval;
 }
@@ -1597,7 +1600,7 @@ Operation_addNode(UA_Server *server, UA_Session *session, void *nodeContext,
         UA_NodeId_clear(&result->addedNodeId);
 }
 
-void
+UA_Boolean
 Service_AddNodes(UA_Server *server, UA_Session *session,
                  const UA_AddNodesRequest *request,
                  UA_AddNodesResponse *response) {
@@ -1607,16 +1610,17 @@ Service_AddNodes(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->nodesToAddSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_addNode, NULL,
-                                           &request->nodesToAddSize,
-                                           &UA_TYPES[UA_TYPES_ADDNODESITEM],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_ADDNODESRESULT]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_addNode, NULL,
+                                      &request->nodesToAddSize,
+                                      &UA_TYPES[UA_TYPES_ADDNODESITEM],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_ADDNODESRESULT]);
+    return true;
 }
 
 UA_StatusCode
@@ -1915,10 +1919,11 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
         }
 
         /* Call the global destructor */
-        if(server->config.nodeLifecycle.destructor) {
-            server->config.nodeLifecycle.destructor(server, &session->sessionId,
-                                                    session->context,
-                                                    &member->head.nodeId, context);
+        if(server->config.nodeLifecycle &&
+           server->config.nodeLifecycle->destructor) {
+            server->config.nodeLifecycle->destructor(server, &session->sessionId,
+                                                     session->context,
+                                                     &member->head.nodeId, context);
         }
 
         /* Release the node. Don't access the node context from here on. */
@@ -2099,7 +2104,7 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
     RefTree_clear(&refTree);
 }
 
-void
+UA_Boolean
 Service_DeleteNodes(UA_Server *server, UA_Session *session,
                     const UA_DeleteNodesRequest *request,
                     UA_DeleteNodesResponse *response) {
@@ -2110,16 +2115,17 @@ Service_DeleteNodes(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->nodesToDeleteSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)deleteNodeOperation,
-                                           NULL, &request->nodesToDeleteSize,
-                                           &UA_TYPES[UA_TYPES_DELETENODESITEM],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)deleteNodeOperation,
+                                      NULL, &request->nodesToDeleteSize,
+                                      &UA_TYPES[UA_TYPES_DELETENODESITEM],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_STATUSCODE]);
+    return true;
 }
 
 UA_StatusCode
@@ -2271,7 +2277,7 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
     UA_NODESTORE_RELEASE(server, sourceNode);
 }
 
-void
+UA_Boolean
 Service_AddReferences(UA_Server *server, UA_Session *session,
                       const UA_AddReferencesRequest *request,
                       UA_AddReferencesResponse *response) {
@@ -2283,16 +2289,17 @@ Service_AddReferences(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->referencesToAddSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_addReference,
-                                           NULL, &request->referencesToAddSize,
-                                           &UA_TYPES[UA_TYPES_ADDREFERENCESITEM],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_addReference,
+                                      NULL, &request->referencesToAddSize,
+                                      &UA_TYPES[UA_TYPES_ADDREFERENCESITEM],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_STATUSCODE]);
+    return true;
 }
 
 UA_StatusCode
@@ -2389,7 +2396,7 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
     }
 }
 
-void
+UA_Boolean
 Service_DeleteReferences(UA_Server *server, UA_Session *session,
                          const UA_DeleteReferencesRequest *request,
                          UA_DeleteReferencesResponse *response) {
@@ -2400,16 +2407,17 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
     if(server->config.maxNodesPerNodeManagement != 0 &&
        request->referencesToDeleteSize > server->config.maxNodesPerNodeManagement) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
+        return true;
     }
 
     response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                                           (UA_ServiceOperation)Operation_deleteReference,
-                                           NULL, &request->referencesToDeleteSize,
-                                           &UA_TYPES[UA_TYPES_DELETEREFERENCESITEM],
-                                           &response->resultsSize,
-                                           &UA_TYPES[UA_TYPES_STATUSCODE]);
+        allocProcessServiceOperations(server, session,
+                                      (UA_ServiceOperation)Operation_deleteReference,
+                                      NULL, &request->referencesToDeleteSize,
+                                      &UA_TYPES[UA_TYPES_DELETEREFERENCESITEM],
+                                      &response->resultsSize,
+                                      &UA_TYPES[UA_TYPES_STATUSCODE]);
+    return true;
 }
 
 UA_StatusCode

@@ -165,10 +165,10 @@ cj5__parse_primitive(cj5__parser* parser) {
     // Make the comparison case-insensitive.
     uint32_t fourcc = 0;
     if(start + 3 < len) {
-        fourcc += json5[start] | 32;
-        fourcc += (json5[start+1] | 32) << 8;
-        fourcc += (json5[start+2] | 32) << 16;
-        fourcc += (json5[start+3] | 32) << 24;
+        fourcc += (unsigned char)json5[start] | 32U;
+        fourcc += ((unsigned char)json5[start+1] | 32U) << 8;
+        fourcc += ((unsigned char)json5[start+2] | 32U) << 16;
+        fourcc += ((unsigned char)json5[start+3] | 32U) << 24;
     }
     
     cj5_token_type type;
@@ -658,7 +658,7 @@ cj5_get_str(const cj5_result *r, unsigned int tok_index,
         case 'r': buf[outpos++] = '\r'; break;
         case 'n': buf[outpos++] = '\n'; break;
         case 't': buf[outpos++] = '\t'; break;
-        default:  buf[outpos++] = c;    break;
+        default:  buf[outpos++] = (char)c; break;
         case 'u': {
             // Parse a unicode code point
             if(pos + 4 >= end)

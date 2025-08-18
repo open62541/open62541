@@ -13,9 +13,9 @@
 #include <stdio.h>
 #include "mp_printf.h"
 
-const char *syslogLevelNames[6] = {"trace", "debug", "info",
+static const char *syslogLevelNames[6] = {"trace", "debug", "info",
                                    "warn", "error", "fatal"};
-const char *syslogCategoryNames[UA_LOGCATEGORIES] =
+static const char *syslogCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server", "client",
      "userland", "security", "eventloop", "pubsub", "discovery"};
 
