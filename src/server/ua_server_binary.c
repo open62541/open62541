@@ -813,7 +813,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_dump_hex_pkg(msg.data, msg.length);
 #endif
 #ifdef UA_DEBUG_DUMP_PKGS_FILE
-    UA_debug_dumpCompleteChunk(server, channel->connection, msg);
+    UA_debug_dumpCompleteChunk(server, channel->connection, &msg);
 #endif
 
     UA_EventLoop *el = bpm->sc.server->config.eventLoop;
