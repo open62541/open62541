@@ -10,7 +10,7 @@ jobs:
   Documentation-Generation-And-Upload:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
       - uses: actions/setup-python@v6
@@ -25,7 +25,7 @@ jobs:
       - name: Build Documentation
         run: source tools/ci/linux/ci.sh && build_docs_pdf
       - name: Checkout Website Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: open62541/open62541-www
           path: open62541-www
