@@ -457,7 +457,7 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     if(result.statusCode == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
         if(server->config.asyncOperationCancelCallback)
             server->config.asyncOperationCancelCallback(server, result.outputArguments);
-        result.statusCode = UA_STATUSCODE_BADOPERATIONABANDONED;
+        result.statusCode = UA_STATUSCODE_BADWAITINGFORRESPONSE;
     }
     unlockServer(server);
     return result;
