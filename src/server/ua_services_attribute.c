@@ -590,8 +590,9 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
     return (retval != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 }
 
-static UA_Boolean
+UA_Boolean
 Operation_Read(UA_Server *server, UA_Session *session,
+               UA_TimestampsToReturn ttr,
                const UA_ReadValueId *rvi, UA_DataValue *dv) {
     /* Get the node (with only the selected attribute if the NodeStore supports that) */
     UA_UInt32 attrMask = attributeId2AttributeMask((UA_AttributeId)rvi->attributeId);
@@ -605,60 +606,15 @@ Operation_Read(UA_Server *server, UA_Session *session,
     }
 
     /* Perform the read operation */
-    UA_Boolean done = ReadWithNodeMaybeAsync(node, server, session, server->ttr, rvi, dv);
+    UA_Boolean done = ReadWithNodeMaybeAsync(node, server, session, ttr, rvi, dv);
     UA_NODESTORE_RELEASE(server, node);
     return done;
-}
-
-static const UA_AsyncServiceDescription readDescription = {
-    &UA_TYPES[UA_TYPES_READRESPONSE],
-    (UA_AsyncServiceOperation)Operation_Read,
-    offsetof(UA_ReadRequest, nodesToReadSize),
-    &UA_TYPES[UA_TYPES_READVALUEID],
-    offsetof(UA_ReadResponse, resultsSize),
-    &UA_TYPES[UA_TYPES_DATAVALUE]
-};
-
-UA_Boolean
-Service_Read(UA_Server *server, UA_Session *session,
-             const UA_ReadRequest *request, UA_ReadResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing ReadRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    /* Check if the timestampstoreturn is valid */
-    if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
-        return true;
-    }
-
-    /* Check if maxAge is valid */
-    if(request->maxAge < 0) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
-        return true;
-    }
-
-    /* Check if there are too many operations */
-    if(server->config.maxNodesPerRead != 0 &&
-       request->nodesToReadSize > server->config.maxNodesPerRead) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return true;
-    }
-
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    server->ttr = request->timestampsToReturn;
-    response->responseHeader.serviceResult =
-        allocProcessServiceOperations_async(server, session, &readDescription,
-                                            request, response);
-
-    /* Signal an async operation */
-    return (response->responseHeader.serviceResult != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 }
 
 UA_DataValue
 readWithSession(UA_Server *server, UA_Session *session,
                 const UA_ReadValueId *item,
-                UA_TimestampsToReturn timestampsToReturn) {
+                UA_TimestampsToReturn ttr) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_DataValue dv;
@@ -672,8 +628,7 @@ readWithSession(UA_Server *server, UA_Session *session,
         return dv;
     }
 
-    server->ttr = timestampsToReturn;
-    UA_Boolean done = Operation_Read(server, session, item, &dv);
+    UA_Boolean done = Operation_Read(server, session, ttr, item, &dv);
     if(!done) {
         if(server->config.asyncOperationCancelCallback)
             server->config.asyncOperationCancelCallback(server, &dv);

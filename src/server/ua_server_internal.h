@@ -253,13 +253,6 @@ struct UA_Server {
     UA_Lock serviceMutex;
 #endif
 
-    /* This gets transmitted as part of the ReadRequest and was part of
-     * Operation_Read. Use the following variable to pass the argument to
-     * Operation_Read in order to have the same internal API for all async
-     * operations. This is save as the Read-Request is always behind the server
-     * mutex. */
-    UA_TimestampsToReturn ttr;
-
     /* Statistics */
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
