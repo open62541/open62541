@@ -245,6 +245,32 @@ persistAsyncResponse(UA_Server *server, UA_Session *session,
     TAILQ_INSERT_TAIL(&am->asyncResponses, ar, pointers);
 }
 
+static void
+persistAsyncOperation(UA_Server *server, UA_AsyncOperation *op,
+                      UA_AsyncOperationType opType, UA_AsyncResponse *ar,
+                      void *outputPtr) {
+    /* Set up the async operation */
+    op->asyncOperationType = opType;
+    op->handling.response = ar;
+    op->output.read = (UA_DataValue*)outputPtr; /* To find the op later on */
+
+    /* Not enough resources to store the async operation */
+    UA_AsyncManager *am = &server->asyncManager;
+    if(server->config.maxAsyncOperationQueueSize != 0 &&
+       am->opsCount >= server->config.maxAsyncOperationQueueSize) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Cannot create async operation: Queue exceeds limit (%d).",
+                       (int unsigned)server->config.maxAsyncOperationQueueSize);
+        UA_AsyncOperation_cancel(server, op, UA_STATUSCODE_BADTOOMANYOPERATIONS);
+        return;
+    }
+
+    /* Enqueue the asyncop in the async manager */
+    ar->opCountdown++;
+    am->opsCount++;
+    TAILQ_INSERT_TAIL(&am->ops, op, pointers);
+}
+
 UA_Boolean
 Service_Read(UA_Server *server, UA_Session *session,
              const UA_ReadRequest *request, UA_ReadResponse *response) {
@@ -289,39 +315,16 @@ Service_Read(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->nodesToReadSize;
 
+    /* Execute the operations */
     UA_AsyncResponse *ar = (UA_AsyncResponse*)&response->results[response->resultsSize];
     UA_AsyncOperation *aopArray = (UA_AsyncOperation*)&ar[1];
-
-    /* Execute the operations */
-    UA_AsyncManager *am = &server->asyncManager;
     for(size_t i = 0; i < request->nodesToReadSize; i++) {
-        UA_Boolean done = Operation_Read(server, session,
-                                         request->timestampsToReturn,
-                                         &request->nodesToRead[i],
-                                         &response->results[i]);
-        if(done)
-            continue;
-
-        /* Set up the async operation */
-        UA_AsyncOperation *op = &aopArray[i];
-        op->asyncOperationType = UA_ASYNCOPERATIONTYPE_READ_REQUEST;
-        op->handling.response = ar;
-        op->output.read = &response->results[i];
-
-        /* Not enough resources to store the async operation */
-        if(server->config.maxAsyncOperationQueueSize != 0 &&
-           am->opsCount >= server->config.maxAsyncOperationQueueSize) {
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Cannot create an async read operation: Queue exceeds limit (%d).",
-                           (int unsigned)server->config.maxAsyncOperationQueueSize);
-            UA_AsyncOperation_cancel(server, op, UA_STATUSCODE_BADTOOMANYOPERATIONS);
-            continue;
-        }
-
-        /* Enqueue the asyncop in the async manager */
-        ar->opCountdown++;
-        am->opsCount++;
-        TAILQ_INSERT_TAIL(&am->ops, op, pointers);
+        UA_Boolean done = Operation_Read(server, session, request->timestampsToReturn,
+                                         &request->nodesToRead[i], &response->results[i]);
+        if(!done)
+            persistAsyncOperation(server, &aopArray[i],
+                                  UA_ASYNCOPERATIONTYPE_READ_REQUEST,
+                                  ar, &response->results[i]);
     }
 
     /* If async operations are pending, persist them and signal the service is
@@ -365,38 +368,20 @@ Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *req
     }
     response->resultsSize = request->nodesToWriteSize;
 
+    /* Execute the operations */
     UA_AsyncResponse *ar = (UA_AsyncResponse*)&response->results[response->resultsSize];
     UA_AsyncOperation *aopArray = (UA_AsyncOperation*)&ar[1];
-
-    /* Execute the operations */
-    UA_AsyncManager *am = &server->asyncManager;
     for(size_t i = 0; i < request->nodesToWriteSize; i++) {
-        UA_Boolean done = Operation_Write(server, session,
-                                         &request->nodesToWrite[i],
-                                         &response->results[i]);
-        if(done)
-            continue;
-
-        /* Set up the async operation */
-        UA_AsyncOperation *op = &aopArray[i];
-        op->asyncOperationType = UA_ASYNCOPERATIONTYPE_WRITE_REQUEST;
-        op->handling.response = ar;
-        op->output.write = &response->results[i];
-
-        /* Not enough resources to store the async operation */
-        if(server->config.maxAsyncOperationQueueSize != 0 &&
-           am->opsCount >= server->config.maxAsyncOperationQueueSize) {
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Cannot create an async write operation: Queue exceeds limit (%d).",
-                           (int unsigned)server->config.maxAsyncOperationQueueSize);
-            UA_AsyncOperation_cancel(server, op, UA_STATUSCODE_BADTOOMANYOPERATIONS);
-            continue;
-        }
-
-        /* Enqueue the asyncop in the async manager */
-        ar->opCountdown++;
-        am->opsCount++;
-        TAILQ_INSERT_TAIL(&am->ops, op, pointers);
+        /* Ensure a stable pointer for the writevalue. Doesn't get written to,
+         * just used for the lookup of the async operation later on.
+         * The original writeValue might be _clear'ed before the lookup. */
+        UA_AsyncOperation *aop = &aopArray[i];
+        aop->context.writeValue = request->nodesToWrite[i];
+        UA_Boolean done = Operation_Write(server, session, &aop->context.writeValue,
+                                          &response->results[i]);
+        if(!done)
+            persistAsyncOperation(server, aop, UA_ASYNCOPERATIONTYPE_WRITE_REQUEST,
+                                  ar, &response->results[i]);
     }
 
     /* If async operations are pending, persist them and signal the service is
@@ -439,37 +424,16 @@ Service_Call(UA_Server *server, UA_Session *session,
     }
     response->resultsSize = request->methodsToCallSize;
 
+    /* Execute the operations */
     UA_AsyncResponse *ar = (UA_AsyncResponse*)&response->results[response->resultsSize];
     UA_AsyncOperation *aopArray = (UA_AsyncOperation*)&ar[1];
-
-    /* Execute the operations */
-    UA_AsyncManager *am = &server->asyncManager;
     for(size_t i = 0; i < request->methodsToCallSize; i++) {
         UA_Boolean done = Operation_CallMethod(server, session, &request->methodsToCall[i],
                                                &response->results[i]);
-        if(done)
-            continue;
-
-        /* Set up the async operation */
-        UA_AsyncOperation *op = &aopArray[i];
-        op->asyncOperationType = UA_ASYNCOPERATIONTYPE_CALL_REQUEST;
-        op->handling.response = ar;
-        op->output.call = &response->results[i];
-
-        /* Not enough resources to store the async operation */
-        if(server->config.maxAsyncOperationQueueSize != 0 &&
-           am->opsCount >= server->config.maxAsyncOperationQueueSize) {
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Cannot create an async call operation: Queue exceeds limit (%d).",
-                           (int unsigned)server->config.maxAsyncOperationQueueSize);
-            UA_AsyncOperation_cancel(server, op, UA_STATUSCODE_BADTOOMANYOPERATIONS);
-            continue;
-        }
-
-        /* Enqueue the asyncop in the async manager */
-        ar->opCountdown++;
-        am->opsCount++;
-        TAILQ_INSERT_TAIL(&am->ops, op, pointers);
+        if(!done)
+            persistAsyncOperation(server, &aopArray[i],
+                                  UA_ASYNCOPERATIONTYPE_CALL_REQUEST,
+                                  ar, &response->results[i]);
     }
 
     /* If async operations are pending, persist them and signal the service is
@@ -481,97 +445,6 @@ Service_Call(UA_Server *server, UA_Session *session,
     return (ar->opCountdown == 0);
 }
 #endif
-
-UA_StatusCode
-allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
-                                    const UA_AsyncServiceDescription *asd,
-                                    const void *request, void *response) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_AsyncManager *am = &server->asyncManager;
-
-    uintptr_t requestCountPos = ((uintptr_t)request) + asd->requestCounterOffset;
-    size_t reqSize = *(size_t*)requestCountPos;
-    const void *reqArray = *(const void**)(requestCountPos + sizeof(size_t));
-    if(reqSize == 0)
-        return UA_STATUSCODE_BADNOTHINGTODO;
-
-    /* Get the location of the response array */
-    uintptr_t responseCountPos = ((uintptr_t)response) + asd->responseCounterOffset;
-    size_t *respSizePtr = (size_t*)responseCountPos;
-    void **respArrayPtr = (void**)(responseCountPos + sizeof(size_t));
-
-    /* Allocate the response array. The AsyncResponse and AsyncOperations are
-     * added to the back. So they get cleaned up automatically. */
-    size_t opsLen = asd->responseOperationsType->memSize * reqSize;
-    size_t len = opsLen + sizeof(UA_AsyncResponse) + (sizeof(UA_AsyncOperation) * reqSize);
-    void *respArray = UA_malloc(len);
-    if(!respArray)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    memset(respArray, 0, len);
-    *respSizePtr = reqSize;
-    *respArrayPtr = respArray;
-
-    uintptr_t reqOp = (uintptr_t)reqArray;
-    uintptr_t respOp = (uintptr_t)respArray;
-    uintptr_t aop = respOp + opsLen + sizeof(UA_AsyncResponse);
-    UA_AsyncResponse *ar = (UA_AsyncResponse*)(respOp + opsLen);
-    ar->responseType = asd->responseType;
-
-    /* Execute the operations */
-    for(size_t i = 0; i < reqSize; i++) {
-        void *reqOpPtr = (void*)reqOp;
-        void *respOpPtr = (void*)respOp;
-
-        UA_AsyncOperation *op = (UA_AsyncOperation*)aop;
-        if(asd->responseType == &UA_TYPES[UA_TYPES_CALLRESPONSE]) {
-            op->asyncOperationType = UA_ASYNCOPERATIONTYPE_CALL_REQUEST;
-        } else if(asd->responseType == &UA_TYPES[UA_TYPES_READRESPONSE]) {
-            op->asyncOperationType = UA_ASYNCOPERATIONTYPE_READ_REQUEST;
-        } else if(asd->responseType == &UA_TYPES[UA_TYPES_WRITERESPONSE]) {
-            op->asyncOperationType = UA_ASYNCOPERATIONTYPE_WRITE_REQUEST;
-            /* Ensure a stable pointer for the writevalue. Doesn't get written to,
-             * just used for the lookup */
-            op->context.writeValue = *(UA_WriteValue*)reqOp;
-            reqOpPtr = &op->context.writeValue;
-        }
-
-        /* Call the async operation */
-        UA_Boolean done = asd->operationCallback(server, session, reqOpPtr, respOpPtr);
-        if(!done) {
-            /* Set up the async operation */
-            op->handling.response = ar;
-            op->output.read = (UA_DataValue*)respOpPtr; /* Applies for all response types */
-
-            if(server->config.maxAsyncOperationQueueSize != 0 &&
-               am->opsCount >= server->config.maxAsyncOperationQueueSize) {
-                /* Not enough resources to store the async operation */
-                UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                               "Cannot create an async operation: Queue exceeds limit (%d).",
-                               (int unsigned)server->config.maxAsyncOperationQueueSize);
-                UA_AsyncOperation_cancel(server, op, UA_STATUSCODE_BADTOOMANYOPERATIONS);
-            } else {
-                /* Enqueue the asyncop in the async manager */
-                ar->opCountdown++;
-                am->opsCount++;
-                TAILQ_INSERT_TAIL(&am->ops, op, pointers);
-            }
-        }
-
-        /* Forward the pointer to the next operation */
-        reqOp += asd->requestOperationsType->memSize;
-        respOp += asd->responseOperationsType->memSize;
-        aop += sizeof(UA_AsyncOperation);
-    }
-
-    /* No async operations, this is done */
-    if(ar->opCountdown == 0)
-        return UA_STATUSCODE_GOOD;
-
-    /* Persist the response as an async response and signal in the status that
-     * async operations are pending */
-    persistAsyncResponse(server, session, response, ar);
-    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
-}
 
 UA_UInt32
 UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle) {
