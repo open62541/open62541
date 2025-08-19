@@ -162,6 +162,11 @@ Service_Read(UA_Server *server, UA_Session *session,
              UA_ReadResponse *response);
 
 UA_Boolean
+Operation_Read(UA_Server *server, UA_Session *session,
+               UA_TimestampsToReturn ttr,
+               const UA_ReadValueId *rvi, UA_DataValue *dv);
+
+UA_Boolean
 Service_Write(UA_Server *server, UA_Session *session,
               const UA_WriteRequest *request,
               UA_WriteResponse *response);
