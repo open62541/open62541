@@ -1826,23 +1826,9 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-void
+UA_Boolean
 Operation_Write(UA_Server *server, UA_Session *session,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
-    UA_assert(session != NULL);
-    *result = UA_Server_editNode(server, session, &wv->nodeId, wv->attributeId,
-                                 UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                                 (UA_EditNodeCallback)copyAttributeIntoNode,
-                                 (void*)(uintptr_t)wv);
-    /* If writing is async, signal that we can no longer receive the statuscode */
-    if(*result == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY &&
-       server->config.asyncOperationCancelCallback)
-        server->config.asyncOperationCancelCallback(server, &wv->value);
-}
-
-static UA_Boolean
-Operation_WriteAsync(UA_Server *server, UA_Session *session,
-                     const UA_WriteValue *wv, UA_StatusCode *result) {
     UA_assert(session != NULL);
     *result = UA_Server_editNode(server, session, &wv->nodeId, wv->attributeId,
                                  UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
@@ -1851,43 +1837,17 @@ Operation_WriteAsync(UA_Server *server, UA_Session *session,
     return (*result != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 }
 
-static const UA_AsyncServiceDescription writeDescription = {
-    &UA_TYPES[UA_TYPES_WRITERESPONSE],
-    (UA_AsyncServiceOperation)Operation_WriteAsync,
-    offsetof(UA_WriteRequest, nodesToWriteSize),
-    &UA_TYPES[UA_TYPES_WRITEVALUE],
-    offsetof(UA_WriteResponse, resultsSize),
-    &UA_TYPES[UA_TYPES_STATUSCODE]
-};
-
-UA_Boolean
-Service_Write(UA_Server *server, UA_Session *session,
-              const UA_WriteRequest *request,
-              UA_WriteResponse *response) {
-    UA_assert(session != NULL);
-    UA_LOG_DEBUG_SESSION(server->config.logging, session,
-                         "Processing WriteRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    if(server->config.maxNodesPerWrite != 0 &&
-       request->nodesToWriteSize > server->config.maxNodesPerWrite) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return true;
-    }
-
-    response->responseHeader.serviceResult =
-        allocProcessServiceOperations_async(server, session, &writeDescription,
-                                            request, response);
-
-    /* Signal an async operation */
-    return (response->responseHeader.serviceResult != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
-}
-
 UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     lockServer(server);
     Operation_Write(server, &server->adminSession, value, &res);
+    /* If writing is async, signal that we can no longer receive the statuscode */
+    if(res == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
+        if(server->config.asyncOperationCancelCallback)
+            server->config.asyncOperationCancelCallback(server, &value->value);
+        res = UA_STATUSCODE_BADWAITINGFORRESPONSE;
+    }
     unlockServer(server);
     return res;
 }
@@ -1928,6 +1888,12 @@ writeAttribute(UA_Server *server, UA_Session *session,
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     Operation_Write(server, session, &wvalue, &res);
+    /* If writing is async, signal that we can no longer receive the statuscode */
+    if(res == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
+        if(server->config.asyncOperationCancelCallback)
+            server->config.asyncOperationCancelCallback(server, &wvalue.value);
+        res = UA_STATUSCODE_BADWAITINGFORRESPONSE;
+    }
     return res;
 }
 

@@ -499,10 +499,6 @@ UA_StatusCode
 setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                      UA_NodeTypeLifecycle lifecycle);
 
-void
-Operation_Write(UA_Server *server, UA_Session *session,
-                const UA_WriteValue *wv, UA_StatusCode *result);
-
 UA_StatusCode
 writeAttribute(UA_Server *server, UA_Session *session,
                const UA_NodeId *nodeId, const UA_AttributeId attributeId,
