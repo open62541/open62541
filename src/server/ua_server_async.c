@@ -38,19 +38,33 @@ UA_AsyncManager_removeAsyncResponse(UA_AsyncManager *am, UA_AsyncResponse *ar) {
     TAILQ_REMOVE(&am->asyncResponses, ar, pointers);
     UA_NodeId_clear(&ar->sessionId);
 
-    /* Clean up the results array last. Because the results array contains more
-     * data, including the ar. */
-    const UA_AsyncServiceDescription *asd = ar->asd;
-    uintptr_t resultsSizePos = ((uintptr_t)&ar->response) + asd->responseCounterOffset;
-    size_t *resultsSize = (size_t*)resultsSizePos;
-    void **results = (void**)(resultsSizePos + sizeof(size_t));
-    size_t origResultsSize = *resultsSize;
-    void *origResults = *results;
-    *resultsSize = 0;
-    *results = NULL;
-
-    UA_CallResponse_clear(&ar->response.callResponse);
-    UA_Array_delete(origResults, origResultsSize, asd->responseOperationsType);
+    /* Clean up the results array last. Because the results array memory also
+     * includes ar. */
+    void *arr = NULL;
+    size_t arrSize = 0;
+    const UA_DataType *arrType;
+    if(ar->responseType == &UA_TYPES[UA_TYPES_CALLRESPONSE]) {
+        arr = ar->response.callResponse.results;
+        arrSize = ar->response.callResponse.resultsSize;
+        ar->response.callResponse.results = NULL;
+        ar->response.callResponse.resultsSize = 0;
+        arrType = &UA_TYPES[UA_TYPES_CALLMETHODRESULT];
+    } else if(ar->responseType == &UA_TYPES[UA_TYPES_READRESPONSE]) {
+        arr = ar->response.readResponse.results;
+        arrSize = ar->response.readResponse.resultsSize;
+        ar->response.readResponse.results = NULL;
+        ar->response.readResponse.resultsSize = 0;
+        arrType = &UA_TYPES[UA_TYPES_DATAVALUE];
+    } else /* if(ar->responseType == &UA_TYPES[UA_TYPES_WRITERESPONSE]) */ {
+        UA_assert(ar->responseType == &UA_TYPES[UA_TYPES_WRITERESPONSE]);
+        arr = ar->response.writeResponse.results;
+        arrSize = ar->response.writeResponse.resultsSize;
+        ar->response.writeResponse.results = NULL;
+        ar->response.writeResponse.resultsSize = 0;
+        arrType = &UA_TYPES[UA_TYPES_STATUSCODE];
+    }
+    UA_clear(&ar->response.callResponse, ar->responseType);
+    UA_Array_delete(arr, arrSize, arrType);
 }
 
 static void
@@ -84,7 +98,7 @@ sendAsyncResponse(UA_Server *server, UA_AsyncManager *am,
 
     /* Send the Response */
     UA_StatusCode res = sendResponse(server, channel, ar->requestId,
-                                     (UA_Response*)&ar->response, ar->asd->responseType);
+                                     (UA_Response*)&ar->response, ar->responseType);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "Async Response for Req# %" PRIu32 " failed "
@@ -224,9 +238,8 @@ persistAsyncResponse(UA_Server *server, UA_Session *session,
             (server->config.asyncOperationTimeout * (UA_DateTime)UA_DATETIME_MSEC);
 
     /* Move the response content to the AsyncResponse */
-    const UA_AsyncServiceDescription *asd = ar->asd;
-    memcpy(&ar->response, response, asd->responseType->memSize);
-    UA_init(response, asd->responseType);
+    memcpy(&ar->response, response, ar->responseType->memSize);
+    UA_init(response, ar->responseType);
 
     /* Enqueue the ar */
     TAILQ_INSERT_TAIL(&am->asyncResponses, ar, pointers);
@@ -265,7 +278,7 @@ allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
     uintptr_t respOp = (uintptr_t)respArray;
     uintptr_t aop = respOp + opsLen + sizeof(UA_AsyncResponse);
     UA_AsyncResponse *ar = (UA_AsyncResponse*)(respOp + opsLen);
-    ar->asd = asd;
+    ar->responseType = asd->responseType;
 
     /* Execute the operations */
     for(size_t i = 0; i < reqSize; i++) {
