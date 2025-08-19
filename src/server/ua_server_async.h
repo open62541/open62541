@@ -78,7 +78,6 @@ typedef struct UA_AsyncOperation {
 
 struct UA_AsyncResponse {
     TAILQ_ENTRY(UA_AsyncResponse) pointers; /* Insert new at the end */
-    const UA_AsyncServiceDescription *asd;
 
     UA_UInt32 requestId;
     UA_UInt32 requestHandle;
@@ -86,6 +85,8 @@ struct UA_AsyncResponse {
     UA_NodeId sessionId;
     UA_UInt32 opCountdown; /* Counter for outstanding operations. The AR can
                             * only be deleted when all have returned. */
+
+    const UA_DataType *responseType;
     union {
         UA_CallResponse callResponse;
         UA_ReadResponse readResponse;
