@@ -194,6 +194,7 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
      * AsyncResponse below. */
     UA_AsyncOperation *op, *op_tmp;
     TAILQ_FOREACH_SAFE(op, &am->ops, pointers, op_tmp) {
+        UA_AsyncOperation_cancel(server, op, UA_STATUSCODE_BADSHUTDOWN);
         TAILQ_REMOVE(&am->ops, op, pointers);
     }
 
