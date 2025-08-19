@@ -581,6 +581,20 @@ format_string_loop(output_t *output, const char *format, va_list args) {
                 break;
             }
 
+            case 'Q': {
+                UA_String buf = UA_STRING_NULL;
+                UA_QualifiedName qn = va_arg(args, UA_QualifiedName);
+                UA_StatusCode res = UA_QualifiedName_print(&qn, &buf);
+                if(res == UA_STATUSCODE_GOOD) {
+                    out_(output, (const char*)buf.data, buf.length);
+                    UA_String_clear(&buf);
+                } else {
+                    out_rev_(output, ")rre(", 5, width, flags);
+                }
+                format++;
+                break;
+            }
+
             default:
                 putchar_(output, *format);
                 format++;
