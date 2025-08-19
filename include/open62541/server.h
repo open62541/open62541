@@ -26,13 +26,10 @@
 #include <open62541/server_pubsub.h>
 #endif
 
-/* Forward declarations */
-typedef void (*UA_Server_AsyncOperationNotifyCallback)(UA_Server *server);
-
+/* Forward Declarations */
 struct UA_Nodestore;
 typedef struct UA_Nodestore UA_Nodestore;
 
-/* Forward Declarations */
 struct UA_ServerConfig;
 typedef struct UA_ServerConfig UA_ServerConfig;
 
