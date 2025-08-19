@@ -179,8 +179,6 @@ void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server) {
 }
 
 void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server) {
-    /* Add a regular callback for checking timeouts and sending finished
-     * responses at a 100ms interval. */
     removeCallback(server, am->checkTimeoutCallbackId);
     if(am->dc.callback) {
         UA_EventLoop *el = server->config.eventLoop;
