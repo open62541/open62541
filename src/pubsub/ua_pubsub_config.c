@@ -139,9 +139,10 @@ updatePubSubConfig(UA_PubSubManager *psm,
         if(res != UA_STATUSCODE_GOOD)
             break;
     }
-
+    if(configurationParameters->enabled) {
+        UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
+    }
     UA_free(publishedDataSetIdent);
-
     return res;
 }
 
@@ -414,7 +415,6 @@ createReaderGroup(UA_PubSubManager *psm,
             UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
         }
     }
-
     return UA_STATUSCODE_GOOD;
 }
 
