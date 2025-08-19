@@ -479,9 +479,13 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult_init(&result);
     lockServer(server);
     Operation_CallMethod(server, &server->adminSession, request, &result);
-    unlockServer(server);
-    if(result.statusCode == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY)
+    /* Cancel asynchronous responses right away */
+    if(result.statusCode == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
+        if(server->config.asyncOperationCancelCallback)
+            server->config.asyncOperationCancelCallback(server, result.outputArguments);
         result.statusCode = UA_STATUSCODE_BADOPERATIONABANDONED;
+    }
+    unlockServer(server);
     return result;
 }
 
