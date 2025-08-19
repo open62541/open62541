@@ -171,6 +171,10 @@ Service_Write(UA_Server *server, UA_Session *session,
               const UA_WriteRequest *request,
               UA_WriteResponse *response);
 
+UA_Boolean
+Operation_Write(UA_Server *server, UA_Session *session,
+                const UA_WriteValue *wv, UA_StatusCode *result);
+
 #ifdef UA_ENABLE_HISTORIZING
 UA_Boolean
 Service_HistoryRead(UA_Server *server, UA_Session *session,
