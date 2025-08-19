@@ -401,10 +401,12 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     /* TODO: Verify Output matches the argument definition */
 }
 
-static UA_Boolean
+UA_Boolean
 Operation_CallMethod(UA_Server *server, UA_Session *session,
                      const UA_CallMethodRequest *request,
                      UA_CallMethodResult *result) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
     /* Get the method node. We only need the nodeClass and executable attribute.
      * Take all forward hasProperty references to get the input/output argument
      * definition variables. */
@@ -443,34 +445,6 @@ Operation_CallMethod(UA_Server *server, UA_Session *session,
     UA_NODESTORE_RELEASE(server, object);
 
     return (result->statusCode != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
-}
-
-static const UA_AsyncServiceDescription callDescription = {
-    &UA_TYPES[UA_TYPES_CALLRESPONSE],
-    (UA_AsyncServiceOperation)Operation_CallMethod,
-    offsetof(UA_CallRequest, methodsToCallSize),
-    &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
-    offsetof(UA_CallResponse, resultsSize),
-    &UA_TYPES[UA_TYPES_CALLMETHODRESULT]
-};
-
-UA_Boolean
-Service_Call(UA_Server *server, UA_Session *session,
-             const UA_CallRequest *request, UA_CallResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing CallRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    if(server->config.maxNodesPerMethodCall != 0 &&
-        request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return true;
-    }
-
-    response->responseHeader.serviceResult =
-        allocProcessServiceOperations_async(server, session, &callDescription, request, response);
-
-    /* Signal an async operation */
-    return (response->responseHeader.serviceResult != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 }
 
 UA_CallMethodResult
