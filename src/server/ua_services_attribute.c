@@ -542,6 +542,7 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
             retval = UA_Variant_setScalarCopy(&v->value, &def,
                                               &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
             UA_free(def.fields);
+            UA_NodeId_clear(&def.defaultEncodingId);            
             break;
         }
 #endif
