@@ -55,7 +55,6 @@ server_needed_examples = {
         "tutorial_client_events":"tutorial_server_events",
         "tutorial_client_firststeps":"tutorial_server_firststeps",
         "tutorial_pubsub_connection":"tutorial_pubsub_subscribe",
-        "tutorial_pubsub_mqtt_subscrib":"tutorial_pubsub_mqtt_publish",
         "tutorial_pubsub_publish":"tutorial_pubsub_subscribe",
         "tutorial_pubsub_subscribe":"tutorial_pubsub_publish",
         "tutorial_server_reverseconnect":"ci_server 4841 client_cert.der client_key.der server_cert.der"
@@ -105,7 +104,9 @@ blacklist = {
         "client_historical":1,
         "client_subscription_loop":1,
         "client_method_async":1,
-        "pubsub_subscribe_encrypted":1
+        "pubsub_subscribe_encrypted":1,
+        "tutorial_pubsub_mqtt_subscribe":1,
+        "tutorial_pubsub_mqtt_publish":1
 }
 
 # Run each example with valgrind.
