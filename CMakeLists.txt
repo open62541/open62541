@@ -883,7 +883,9 @@ if(UA_GENERATED_NAMESPACE_ZERO)
 endif()
 
 if(UA_ENABLE_PARSING)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/parse_num.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c
+                            ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
         if(NOT UA_ENABLE_JSON_ENCODING)
             message(WARNING "Event Filter Parsing require JSON to be enabled")
@@ -901,10 +903,8 @@ if(UA_ENABLE_JSON_ENCODING)
         message(FATAL_ERROR "JSON encoding requires parsing and type descriptions to be enabled")
     endif()
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h
-                            ${PROJECT_SOURCE_DIR}/deps/parse_num.h
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
-                            ${PROJECT_SOURCE_DIR}/deps/parse_num.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json_105.c)
     if(UA_ENABLE_PUBSUB)
@@ -934,10 +934,6 @@ endif()
 if(UA_ENABLE_XML_ENCODING)
     if(NOT UA_ENABLE_PARSING OR NOT UA_ENABLE_TYPEDESCRIPTION)
         message(FATAL_ERROR "XML encoding requires parsing and type descriptions to be enabled")
-    endif()
-    if(NOT UA_ENABLE_JSON_ENCODING)
-        list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/parse_num.h)
-        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
     endif()
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/yxml.h
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
