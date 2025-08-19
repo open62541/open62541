@@ -5,19 +5,9 @@
 extern "C" {
 #endif
 
-#if !defined(_MSC_VER) || _MSC_VER >= 1800
-# include <stddef.h>
-# include <stdint.h>
-# include <stdbool.h> /* C99 Boolean */
-#else
-# include "ms_stdint.h"
-# if !defined(__bool_true_false_are_defined)
-#  define bool unsigned char
-#  define true 1
-#  define false 0
-#  define __bool_true_false_are_defined
-# endif
-#endif
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 /* Parse integer numbers. Returns the number of parsed digits until the first
  * non-valid character. Returns 0 upon failure.
