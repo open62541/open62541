@@ -25,21 +25,6 @@ _UA_BEGIN_DECLS
 struct UA_AsyncResponse;
 typedef struct UA_AsyncResponse UA_AsyncResponse;
 
-typedef UA_Boolean (*UA_AsyncServiceOperation)(
-    UA_Server *server, UA_Session *session,
-    const void *requestOperation, void *responseOperation);
-
-/* The async service description parameterizes the async execution.
- * It should be const-global so that the pointer to it is stable. */
-typedef struct {
-    const UA_DataType *responseType;
-    UA_AsyncServiceOperation operationCallback;
-    size_t requestCounterOffset;
-    const UA_DataType *requestOperationsType;
-    size_t responseCounterOffset;
-    const UA_DataType *responseOperationsType;
-} UA_AsyncServiceDescription;
-
 typedef enum {
     UA_ASYNCOPERATIONTYPE_CALL_REQUEST  = 0,
     UA_ASYNCOPERATIONTYPE_READ_REQUEST  = 1,
@@ -122,20 +107,6 @@ void UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server);
  * calling _cancel. */
 UA_UInt32
 UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle);
-
-/* Creates an AsyncResponse with its AsyncOperations as an appendix to the
- * results array. The results array can be "normally" freed once all async
- * operations are processed.
- *
- * If UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY is returned, then the
- * responseOperations array is kept for the AsyncResponse and must not be freed
- * by the calling method. For other returned status codes, the async processing
- * is not visible to the calling method. */
-UA_StatusCode
-allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
-                                    const UA_AsyncServiceDescription *asDescription,
-                                    const void *request, void *response)
-UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 _UA_END_DECLS
 
