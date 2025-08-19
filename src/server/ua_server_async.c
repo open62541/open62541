@@ -205,6 +205,33 @@ UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
     }
 }
 
+static void
+persistAsyncResponse(UA_Server *server, UA_Session *session,
+                     void *response, UA_AsyncResponse *ar) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_AsyncManager *am = &server->asyncManager;
+
+    /* Pending results, attach the AsyncResponse to the AsyncManager. RequestId
+     * and -Handle are set in the AsyncManager before processing the request. */
+    ar->requestId = am->currentRequestId;
+    ar->requestHandle = am->currentRequestHandle;
+    ar->sessionId = session->sessionId;
+    ar->timeout = UA_INT64_MAX;
+
+    UA_EventLoop *el = server->config.eventLoop;
+    if(server->config.asyncOperationTimeout > 0.0)
+        ar->timeout = el->dateTime_nowMonotonic(el) + (UA_DateTime)
+            (server->config.asyncOperationTimeout * (UA_DateTime)UA_DATETIME_MSEC);
+
+    /* Move the response content to the AsyncResponse */
+    const UA_AsyncServiceDescription *asd = ar->asd;
+    memcpy(&ar->response, response, asd->responseType->memSize);
+    UA_init(response, asd->responseType);
+
+    /* Enqueue the ar */
+    TAILQ_INSERT_TAIL(&am->asyncResponses, ar, pointers);
+}
+
 UA_StatusCode
 allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
                                     const UA_AsyncServiceDescription *asd,
@@ -290,26 +317,9 @@ allocProcessServiceOperations_async(UA_Server *server, UA_Session *session,
     if(ar->opCountdown == 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Pending results, attach the AsyncResponse to the AsyncManager. RequestId
-     * and -Handle are set in the AsyncManager before processing the request. */
-    ar->requestId = am->currentRequestId;
-    ar->requestHandle = am->currentRequestHandle;
-    ar->sessionId = session->sessionId;
-    ar->timeout = UA_INT64_MAX;
-
-    UA_EventLoop *el = server->config.eventLoop;
-    if(server->config.asyncOperationTimeout > 0.0)
-        ar->timeout = el->dateTime_nowMonotonic(el) + (UA_DateTime)
-            (server->config.asyncOperationTimeout * (UA_DateTime)UA_DATETIME_MSEC);
-
-    /* Move the response content to the AsyncResponse */
-    memcpy(&ar->response, response, asd->responseType->memSize);
-    UA_init(response, asd->responseType);
-
-    /* Enqueue the ar */
-    TAILQ_INSERT_TAIL(&am->asyncResponses, ar, pointers);
-
-    /* Signal in the status whether async operations are pending */
+    /* Persist the response as an async response and signal in the status that
+     * async operations are pending */
+    persistAsyncResponse(server, session, response, ar);
     return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
