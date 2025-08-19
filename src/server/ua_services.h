@@ -184,6 +184,11 @@ UA_Boolean
 Service_Call(UA_Server *server, UA_Session *session,
              const UA_CallRequest *request,
              UA_CallResponse *response);
+
+UA_Boolean
+Operation_CallMethod(UA_Server *server, UA_Session *session,
+                     const UA_CallMethodRequest *request,
+                     UA_CallMethodResult *result);
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
