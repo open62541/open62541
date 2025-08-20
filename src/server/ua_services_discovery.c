@@ -715,4 +715,22 @@ Service_RegisterServer2(UA_Server *server, UA_Session *session,
     return true;
 }
 
+void
+UA_Server_registerServer(UA_Server *server, const UA_RegisteredServer *regServer,
+                         const size_t requestDiscoveryConfigurationSize,
+                         const UA_ExtensionObject *requestDiscoveryConfiguration,
+                         UA_ResponseHeader *responseHeader,
+                         size_t *responseConfigurationResultsSize,
+                         UA_StatusCode **responseConfigurationResults) {
+
+    UA_LOCK(&server->serviceMutex);
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    process_RegisterServer(
+        server, NULL, NULL, regServer, requestDiscoveryConfigurationSize,
+        requestDiscoveryConfiguration, responseHeader, responseConfigurationResultsSize,
+        responseConfigurationResults, 0, NULL);
+    UA_UNLOCK(&server->serviceMutex);
+    return true;
+}
+
 #endif /* UA_ENABLE_DISCOVERY */

@@ -1397,6 +1397,25 @@ void UA_EXPORT UA_THREADSAFE
 UA_Server_setRegisterServerCallback(UA_Server *server,
                                     UA_Server_registerServerCallback cb, void* data);
 
+/* Register a server with this discovery server.
+ * This is called by the own discovery server implementation
+ * 
+ * @param server the own server object
+ * @param requestServer the server to register
+ * @param requestDiscoveryConfigurationSize the size of the configuration
+ * @param requestDiscoveryConfiguration the discovery configuration of the server record
+ * @param responseHeader the response header to fill
+ * @param responseConfigurationResultsSize the size of the configuration results
+ * @param responseConfigurationResults the configuration results to fill
+ */
+void UA_EXPORT UA_THREADSAFE
+UA_Server_registerServer(UA_Server *server, const UA_RegisteredServer *requestServer,
+                         const size_t requestDiscoveryConfigurationSize,
+                         const UA_ExtensionObject *requestDiscoveryConfiguration,
+                         UA_ResponseHeader *responseHeader,
+                         size_t *responseConfigurationResultsSize,
+                         UA_StatusCode **responseConfigurationResults);
+
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
 /* Callback for server detected through mDNS. Data is passed from the register
