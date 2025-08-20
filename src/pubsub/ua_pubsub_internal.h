@@ -31,12 +31,6 @@
  * state changes and also the integration which is expected between the
  * components.
  *
- * We distinguish between `enabled` and `disabled` states. The disabled states
- * or `Disabled` and `Error`. The difference is that disabled states need to
- * manually enabled (via the _enable method call). The other states are either
- * Operational or return automatically to the Operational state once the
- * prerequisites are met.
- * 
  * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
  * |**Component**   |       |**Disabled**        |**Paused**      |**Pre-Operational** |**Operational** |**Error**       |
  * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
@@ -561,11 +555,13 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
                                     UA_ByteString buffer,
                                     UA_NetworkMessage *nm);
 
+#ifdef UA_ENABLE_JSON_ENCODING
 UA_StatusCode
 UA_ReaderGroup_decodeNetworkMessageJSON(UA_PubSubManager *psm,
                                         UA_ReaderGroup *rg,
                                         UA_ByteString buffer,
                                         UA_NetworkMessage *nm);
+#endif
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 

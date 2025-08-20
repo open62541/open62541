@@ -43,7 +43,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 11)
+set(OPEN62541_VER_PATCH 13)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -67,7 +67,7 @@ MESSAGE(STATUS "open62541 Version: ${OPEN62541_VERSION}")
 # Architecture #
 ################
 
-set(UA_ARCHITECTURES "none" "posix" "win32" "zephyr")
+set(UA_ARCHITECTURES "none" "posix" "win32" "zephyr" "freertos-lwip" "posix-lwip")
 set(UA_ARCHITECTURE "" CACHE STRING "Architecture to build open62541 for")
 SET_PROPERTY(CACHE UA_ARCHITECTURE PROPERTY STRINGS "" ${UA_ARCHITECTURES})
 
@@ -86,6 +86,12 @@ elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
     set(UA_ARCHITECTURE_WIN32 1)
 elseif("${UA_ARCHITECTURE}" STREQUAL "zephyr")
     set(UA_ARCHITECTURE_ZEPHYR 1)
+elseif("${UA_ARCHITECTURE}" STREQUAL "freertos-lwip")
+    set(UA_ARCHITECTURE_LWIP 1)
+    set(UA_ARCHITECTURE_FREERTOS 1)
+elseif("${UA_ARCHITECTURE}" STREQUAL "posix-lwip")
+    set(UA_ARCHITECTURE_LWIP 1)
+    set(UA_ARCHITECTURE_POSIX 1)
 endif()
 
 #################
@@ -333,11 +339,8 @@ if(UA_ENABLE_PUBSUB_SKS)
     endif()
 endif()
 
-option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" ON)
+option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" ${UA_ENABLE_PUBSUB})
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-    if(NOT UA_ENABLE_PUBSUB)
-        message(FATAL_ERROR "PubSub information model representation cannot be used with disabled PubSub function.")
-    endif()
     if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
         message(FATAL_ERROR "PubSub information model representation cannot be used with MINIMAL namespace zero.")
     endif()
@@ -545,6 +548,20 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
     pkg_search_module(AVAHI REQUIRED avahi-client avahi-common)
     include_directories(${AVAHI_INCLUDE_DIRS})
     list(APPEND open62541_LIBRARIES "${AVAHI_LIBRARIES}")
+endif()
+
+if(UA_ARCHITECTURE_LWIP)
+    # Assume lwip is provided as a library.
+    # Directly include the source files here if required.
+    #
+    # Example settings (POSIX Port):
+    # LWIP_INCLUDE_DIRS ../lwip/contrib/ports/unix/port/include;
+    #                   ../lwip/contrib/ports/unix/posixlib;
+    #                   ../lwip/contrib/ports/unix/posixlib/include;
+    #                   ../lwip/src/include
+    # LWIP_LIBRARIES    ../lwip/contrib/ports/unix/lib/build/liblwip.so
+    find_package(LWIP REQUIRED)
+    list(APPEND open62541_LIBRARIES ${LWIP_LIBRARIES})
 endif()
 
 #####################
@@ -777,7 +794,6 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/certificategroup.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h
@@ -785,7 +801,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h)
+                     ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h)
 
 # Main Library
 
@@ -866,27 +883,33 @@ if(UA_GENERATED_NAMESPACE_ZERO)
 endif()
 
 if(UA_ENABLE_PARSING)
-    if(NOT UA_ENABLE_JSON_ENCODING)
-        message(FATAL_ERROR "Parsing features require JSON to be enabled")
-    endif()
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/parse_num.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c
+                            ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-        list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.h)
-        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.c
-                                ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_lex.c
-                                ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_grammar.c)
+        if(NOT UA_ENABLE_JSON_ENCODING)
+            message(WARNING "Event Filter Parsing require JSON to be enabled")
+        else()
+            list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.h)
+            list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.c
+                                    ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_lex.c
+                                    ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_grammar.c)
+        endif()
     endif()
 endif()
 
 if(UA_ENABLE_JSON_ENCODING)
+    if(NOT UA_ENABLE_PARSING OR NOT UA_ENABLE_TYPEDESCRIPTION)
+        message(FATAL_ERROR "JSON encoding requires parsing and type descriptions to be enabled")
+    endif()
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h
-                            ${PROJECT_SOURCE_DIR}/deps/parse_num.h
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
-                            ${PROJECT_SOURCE_DIR}/deps/parse_num.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c
-                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json_105.c
-                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
+                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json_105.c)
+    if(UA_ENABLE_PUBSUB)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
+    endif()
 endif()
 
 if(UA_ENABLE_PUBSUB)
@@ -909,14 +932,15 @@ if(UA_ENABLE_PUBSUB)
 endif()
 
 if(UA_ENABLE_XML_ENCODING)
-    if(NOT UA_ENABLE_JSON_ENCODING)
-        list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/parse_num.h)
-        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
+    if(NOT UA_ENABLE_PARSING OR NOT UA_ENABLE_TYPEDESCRIPTION)
+        message(FATAL_ERROR "XML encoding requires parsing and type descriptions to be enabled")
     endif()
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/yxml.h
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/yxml.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
+else()
+    message(WARNING "UA_ENABLE_XML_ENCODING is not enabled. Value attributes will not be extracted from XML.")
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
@@ -976,7 +1000,6 @@ set(plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/access
 set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
-                   ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_none.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
@@ -1006,6 +1029,32 @@ if(UA_ARCHITECTURE_ZEPHYR)
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
+endif()
+
+if(UA_ARCHITECTURE_LWIP)
+    list(APPEND plugin_sources
+            ${PROJECT_SOURCE_DIR}/arch/common/timer.h
+            ${PROJECT_SOURCE_DIR}/arch/common/timer.c
+            ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
+            ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
+            ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip.h
+            ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip.c
+            ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip_tcp.c
+            ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip_udp.c)
+endif()
+
+if(UA_ARCHITECTURE_FREERTOS)
+    # Assume the FreeRTOS POSIX "Simulator".
+    # Change this to directly include the source files if required.
+    set(FREERTOS_KERNEL_PATH "~/software/FreeRTOSv202411.00/FreeRTOS/Source" CACHE STRING "")
+    set(FREERTOS_PORT_PATH "~/software/FreeRTOSv202411.00/FreeRTOS/Demo/Posix_GCC" CACHE STRING "")
+    include(arch/freertos/freertos.cmake)
+    include_directories(${FREERTOS_PORT_PATH} "${FREERTOS_KERNEL_PATH}/include")
+    include_directories("${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/Posix")
+    add_compile_definitions(projCOVERAGE_TEST=0)
+    add_compile_definitions(projENABLE_TRACING=0)
+    list(APPEND open62541_LIBRARIES freertos_config freertos_kernel)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/freertos/clock_freertos.c)
 endif()
 
 if(UA_ENABLE_MQTT)
@@ -1336,6 +1385,9 @@ endfunction()
 
 include_directories_private("${PROJECT_SOURCE_DIR}/deps")
 
+if(UA_ARCHITECTURE_LWIP)
+    include_directories_private(${LWIP_INCLUDE_DIRS})
+endif()
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     include_directories_private(${MBEDTLS_INCLUDE_DIRS})
 endif()

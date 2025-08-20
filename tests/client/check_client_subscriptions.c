@@ -1267,7 +1267,7 @@ createSubscriptionCallback2(UA_Client *client, void *userdata, UA_UInt32 request
     /* Add a MonitoredItem */
     UA_NodeId currentTime =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-    UA_CreateMonitoredItemsRequest req;;
+    UA_CreateMonitoredItemsRequest req;
     UA_CreateMonitoredItemsRequest_init(&req);
     UA_MonitoredItemCreateRequest monRequest =
         UA_MonitoredItemCreateRequest_default(currentTime);
@@ -1389,7 +1389,7 @@ START_TEST(Client_subscription_async_sub) {
     /* Simulate network cable unplugged (no response from server) */
     UA_ConnectionManager *cm = client->channel.connectionManager;
     cm->closeConnection(cm, client->channel.connectionId);
-    UA_fakeSleep((UA_UInt32)publishingInterval * 100);
+    UA_fakeSleep((UA_UInt32)cc->timeout * 2);
 
     ck_assert_uint_lt(client->config.outStandingPublishRequests, 10);
     ck_assert_uint_eq(inactivityCallbackCalled, false);

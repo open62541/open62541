@@ -28,16 +28,25 @@ class LocalizedText():
         #          <Locale>xx_XX</Locale>
         #          <Text>TextText</Text>
         #        <LocalizedText> or </AliasName>
+        # OR <LocalizedText Locale="en">Text</LocalizedText>
+
         if not isinstance(xmlvalue, dom.Element):
             self.text = xmlvalue
             return
-        self.checkXML(xmlvalue)
-        tmp = xmlvalue.getElementsByTagName("Locale")
-        if len(tmp) > 0 and tmp[0].firstChild != None:
-            self.locale = tmp[0].firstChild.data.strip(' \t\n\r')
-        tmp = xmlvalue.getElementsByTagName("Text")
-        if len(tmp) > 0 and tmp[0].firstChild != None:
-            self.text = tmp[0].firstChild.data.strip(' \t\n\r')
+        tmp = xmlvalue.getAttribute("Locale")
+        if tmp != "":
+            self.locale = tmp
+        else:
+            tmp = xmlvalue.getElementsByTagName("Locale")
+            if len(tmp) > 0 and tmp[0].firstChild != None:
+                self.locale = tmp[0].firstChild.data.strip(' \t\n\r')
+        tmp = xmlvalue.firstChild
+        if tmp and tmp.nodeType == dom.Element.TEXT_NODE:
+            self.text = tmp.data.strip(' \t\n\r')
+        else:
+            tmp = xmlvalue.getElementsByTagName("Text")
+            if len(tmp) > 0 and tmp[0].firstChild != None:
+                self.text = tmp[0].firstChild.data.strip(' \t\n\r')
 
     def __str__(self):
         if self.locale is None and self.text is None:
@@ -75,7 +84,7 @@ class NodeId():
                     self.ns = namespaceMapping[self.ns]
             elif p[:2] == "i=":
                 self.i = int(p[2:])
-            elif p[:2] == "o=":
+            elif p[:2] == "b=":
                 self.b = p[2:]
             elif p[:2] == "g=":
                 tmp = []
@@ -102,7 +111,6 @@ class NodeId():
         if not isinstance(xmlvalue, dom.Element):
             self.text = xmlvalue # Alias
             return
-        self.checkXML(xmlvalue)
 
         # Catch XML <NodeId />
         if xmlvalue.firstChild is None:
@@ -165,7 +173,6 @@ class QualifiedName():
                 self.ns = int(xmlvalue[:colonindex])
             return
 
-        self.checkXML(xmlvalue)
         # Is a namespace index passed?
         if len(xmlvalue.getElementsByTagName("NamespaceIndex")) != 0:
             self.ns = int(xmlvalue.getElementsByTagName("NamespaceIndex")[0].firstChild.data)

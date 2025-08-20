@@ -508,7 +508,7 @@ serverHouseKeeping(UA_Server *server, void *_) {
 static
 UA_INLINE
 UA_Boolean UA_Server_NodestoreIsConfigured(UA_Server *server) {
-    return server->config.nodestore.getNode != NULL;
+    return (server->config.nodestore && server->config.nodestore->getNode);
 }
 
 static UA_Server *
@@ -640,8 +640,7 @@ setServerShutdown(UA_Server *server) {
                    (int)server->config.shutdownDelay);
 
     UA_EventLoop *el = server->config.eventLoop;
-    server->endTime = el->dateTime_now(el) +
-        (UA_DateTime)(server->config.shutdownDelay * UA_DATETIME_MSEC);
+    server->endTime = el->dateTime_now(el) + (UA_DateTime)(server->config.shutdownDelay * UA_DATETIME_MSEC);
 
     return false;
 }
@@ -654,9 +653,9 @@ UA_StatusCode
 UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
     lockServer(server);
-    UA_StatusCode retval = server->config.eventLoop->
-        addTimer(server->config.eventLoop, (UA_Callback)callback,
-                 server, data, 0.0, &date, UA_TIMERPOLICY_ONCE, callbackId);
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_StatusCode retval = el->addTimer(el, (UA_Callback)callback, server, data,
+                                        0.0, &date, UA_TIMERPOLICY_ONCE, callbackId);
     unlockServer(server);
     return retval;
 }
@@ -665,9 +664,9 @@ UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    return server->config.eventLoop->addTimer(
-        server->config.eventLoop, (UA_Callback)callback, server, data, interval_ms, NULL,
-        UA_TIMERPOLICY_CURRENTTIME, callbackId);
+    UA_EventLoop *el = server->config.eventLoop;
+    return el->addTimer(el, (UA_Callback)callback, server, data, interval_ms, NULL,
+                        UA_TIMERPOLICY_CURRENTTIME, callbackId);
 }
 
 UA_StatusCode
@@ -684,17 +683,15 @@ UA_StatusCode
 changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                UA_Double interval_ms) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    return server->config.eventLoop->
-        modifyTimer(server->config.eventLoop, callbackId, interval_ms,
-                    NULL, UA_TIMERPOLICY_CURRENTTIME);
+    UA_EventLoop *el = server->config.eventLoop;
+    return el->modifyTimer(el, callbackId, interval_ms, NULL, UA_TIMERPOLICY_CURRENTTIME);
 }
 
 UA_StatusCode
 UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                          UA_Double interval_ms) {
     lockServer(server);
-    UA_StatusCode retval =
-        changeRepeatedCallbackInterval(server, callbackId, interval_ms);
+    UA_StatusCode retval = changeRepeatedCallbackInterval(server, callbackId, interval_ms);
     unlockServer(server);
     return retval;
 }
@@ -703,8 +700,7 @@ void
 removeCallback(UA_Server *server, UA_UInt64 callbackId) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_EventLoop *el = server->config.eventLoop;
-    if(el)
-        el->removeTimer(el, callbackId);
+    el->removeTimer(el, callbackId);
 }
 
 void

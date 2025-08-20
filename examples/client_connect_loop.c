@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include "common.h"
 
-UA_Boolean running = true;
+static UA_Boolean running = true;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Received Ctrl-C");
@@ -73,7 +73,7 @@ int main(void) {
         }
         UA_Variant_clear(&value);
         sleep_ms(1000);
-    };
+    }
 
     /* Clean up */
     UA_Variant_clear(&value);

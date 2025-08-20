@@ -17,14 +17,6 @@
 #include "../deps/dtoa.h"
 #include "../deps/yxml.h"
 
-#ifndef UA_ENABLE_PARSING
-#error UA_ENABLE_PARSING required for XML encoding
-#endif
-
-#ifndef UA_ENABLE_TYPEDESCRIPTION
-#error UA_ENABLE_TYPEDESCRIPTION required for XML encoding
-#endif
-
 /* Replicate yxml_isNameStart and yxml_isName from yxml. But differently we
  * already break at the first colon, so "uax:String" becomes "String". */
 static UA_String
@@ -926,7 +918,7 @@ DECODE_XML(DateTime) {
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
     UA_String str = {length, (UA_Byte*)(uintptr_t)data};
-    return decodeDateTime(str, dst);
+    return UA_DateTime_parse(dst, str);
 }
 
 /* Find the child with the given name and return its content.

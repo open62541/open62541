@@ -113,7 +113,7 @@ example_dir = os.path.join(current_dir, "bin", "examples")
 examples = os.listdir(example_dir)
 
 cur_dir = os.path.dirname(os.path.realpath(__file__)) # path of current file
-tests_path = os.path.join(cur_dir, os.pardir, os.pardir, "tests")
+tests_path = os.path.join(cur_dir, os.pardir, os.pardir, os.pardir, "tests")
 
 # skipping examples that are in the blacklist
 for example in examples:

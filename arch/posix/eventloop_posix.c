@@ -9,7 +9,7 @@
 #include "eventloop_posix.h"
 #include "open62541/plugin/eventloop.h"
 
-#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
 
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
 #include <time.h>
@@ -22,17 +22,17 @@
 static UA_DateTime
 UA_EventLoopPOSIX_nextTimer(UA_EventLoop *public_el) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    if(el->delayedHead1 > (UA_DelayedCallback *)0x01 ||
+       el->delayedHead2 > (UA_DelayedCallback *)0x01)
+        return el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
     return UA_Timer_next(&el->timer);
 }
 
 static UA_StatusCode
-UA_EventLoopPOSIX_addTimer(UA_EventLoop *public_el,
-                                    UA_Callback cb,
-                                    void *application, void *data,
-                                    UA_Double interval_ms,
-                                    UA_DateTime *baseTime,
-                                    UA_TimerPolicy timerPolicy,
-                                    UA_UInt64 *callbackId) {
+UA_EventLoopPOSIX_addTimer(UA_EventLoop *public_el, UA_Callback cb,
+                           void *application, void *data, UA_Double interval_ms,
+                           UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
+                           UA_UInt64 *callbackId) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     return UA_Timer_add(&el->timer, cb, application, data, interval_ms,
                         public_el->dateTime_nowMonotonic(public_el),

@@ -39,7 +39,9 @@ typedef struct {
     void *context;
     union {
         UA_Server_DataChangeNotificationCallback dataChangeCallback;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         UA_Server_EventNotificationCallback eventCallback;
+#endif
     } callback;
 
     /* For Event-MonitoredItems only. The value fields are overwritten before
@@ -203,9 +205,7 @@ struct UA_Server {
     UA_UInt64 serverComponentIds; /* Counter to assign ids from */
     UA_ServerComponentTree serverComponents;
 
-#if UA_MULTITHREADING >= 100
     UA_AsyncManager asyncManager;
-#endif
 
     /* Session Management */
     LIST_HEAD(session_list, session_list_entry) sessions;
@@ -252,6 +252,13 @@ struct UA_Server {
 #if UA_MULTITHREADING >= 100
     UA_Lock serviceMutex;
 #endif
+
+    /* This gets transmitted as part of the ReadRequest and was part of
+     * Operation_Read. Use the following variable to pass the argument to
+     * Operation_Read in order to have the same internal API for all async
+     * operations. This is save as the Read-Request is always behind the server
+     * mutex. */
+    UA_TimestampsToReturn ttr;
 
     /* Statistics */
     UA_SecureChannelStatistics secureChannelStatistics;
@@ -422,31 +429,31 @@ isConditionOrBranch(UA_Server *server,
 const UA_Node *
 getNodeType(UA_Server *server, const UA_NodeHead *nodeHead);
 
-/* Returns whether we send a response right away (async call or not) */
+/* Returns whether the response is done (async call or not) */
 UA_Boolean
-UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
-                         UA_UInt32 requestId, UA_ServiceDescription *sd,
-                         const UA_Request *request, UA_Response *response);
+processRequest(UA_Server *server, UA_SecureChannel *channel,
+               UA_UInt32 requestId, UA_ServiceDescription *sd,
+               const UA_Request *request, UA_Response *response);
 
 UA_StatusCode
 sendResponse(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
              UA_Response *response, const UA_DataType *responseType);
 
-/* Many services come as an array of operations. This function generalizes the
- * processing of the operations. */
 typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
                                     const void *context,
                                     const void *requestOperation,
                                     void *responseOperation);
 
+/* Many services come as an array of operations. This function generalizes the
+ * processing of the operations. */
 UA_StatusCode
-UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
-                                   UA_ServiceOperation operationCallback,
-                                   const void *context,
-                                   const size_t *requestOperations,
-                                   const UA_DataType *requestOperationsType,
-                                   size_t *responseOperations,
-                                   const UA_DataType *responseOperationsType)
+allocProcessServiceOperations(UA_Server *server, UA_Session *session,
+                              UA_ServiceOperation operationCallback,
+                              const void *context,
+                              const size_t *requestOperations,
+                              const UA_DataType *requestOperationsType,
+                              size_t *responseOperations,
+                              const UA_DataType *responseOperationsType)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /*********************/
@@ -483,12 +490,13 @@ addRefWithSession(UA_Server *server, UA_Session *session, const UA_NodeId *sourc
                   UA_Boolean forward);
 
 UA_StatusCode
-setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_DataSource dataSource);
+setVariableNode_callbackValueSource(UA_Server *server, const UA_NodeId nodeId,
+                                    const UA_CallbackValueSource evs);
 
 UA_StatusCode
-setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
-                              const UA_ValueCallback callback);
+setVariableNode_internalValueSource(UA_Server *server, const UA_NodeId nodeId,
+                                    const UA_DataValue *value,
+                                    const UA_ValueSourceNotifications *notifications);
 
 UA_StatusCode
 setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
@@ -499,7 +507,7 @@ setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                      UA_NodeTypeLifecycle lifecycle);
 
 void
-Operation_Write(UA_Server *server, UA_Session *session, void *context,
+Operation_Write(UA_Server *server, UA_Session *session,
                 const UA_WriteValue *wv, UA_StatusCode *result);
 
 UA_StatusCode
@@ -533,10 +541,6 @@ UA_WRITEATTRIBUTEFUNCS(ValueRank, UA_ATTRIBUTEID_VALUERANK, UA_Int32, INT32)
 UA_WRITEATTRIBUTEFUNCS(AccessLevel, UA_ATTRIBUTEID_ACCESSLEVEL, UA_Byte, BYTE)
 UA_WRITEATTRIBUTEFUNCS(MinimumSamplingInterval, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
                        UA_Double, DOUBLE)
-
-void
-Operation_Read(UA_Server *server, UA_Session *session, UA_TimestampsToReturn *ttr,
-               const UA_ReadValueId *rvi, UA_DataValue *dv);
 
 UA_DataValue
 readWithSession(UA_Server *server, UA_Session *session,
@@ -687,14 +691,6 @@ RefTree_containsNodeId(RefTree *rt, const UA_NodeId *target);
 /***************************************/
 /* Check Information Model Consistency */
 /***************************************/
-
-/* Read a node attribute in the context of a "checked-out" node. So the
- * attribute will not be copied when possible. The variant then points into the
- * node and has UA_VARIANT_DATA_NODELETE set. */
-void
-ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
-             UA_TimestampsToReturn timestampsToReturn,
-             const UA_ReadValueId *id, UA_DataValue *v);
 
 UA_StatusCode
 readValueAttribute(UA_Server *server, UA_Session *session,
@@ -856,24 +852,24 @@ readSessionSecurityDiagnostics(UA_Server *server,
 /***************************/
 
 #define UA_NODESTORE_NEW(server, nodeClass)                             \
-    server->config.nodestore.newNode(server->config.nodestore.context, nodeClass)
+    server->config.nodestore->newNode(server->config.nodestore, nodeClass)
 
 #define UA_NODESTORE_DELETE(server, node)                               \
-    server->config.nodestore.deleteNode(server->config.nodestore.context, node)
+    server->config.nodestore->deleteNode(server->config.nodestore, node)
 
 /* Get the node with all attributes and references */
 static UA_INLINE const UA_Node *
 UA_NODESTORE_GET(UA_Server *server, const UA_NodeId *nodeId) {
-    return server->config.nodestore.
-        getNode(server->config.nodestore.context, nodeId, UA_NODEATTRIBUTESMASK_ALL,
+    return server->config.nodestore->
+        getNode(server->config.nodestore, nodeId, UA_NODEATTRIBUTESMASK_ALL,
                 UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
 }
 
 /* Get the editable node with all attributes and references */
 static UA_INLINE UA_Node *
 UA_NODESTORE_GET_EDIT(UA_Server *server, const UA_NodeId *nodeId) {
-    return server->config.nodestore.
-        getEditNode(server->config.nodestore.context, nodeId,
+    return server->config.nodestore->
+        getEditNode(server->config.nodestore, nodeId,
                     UA_NODEATTRIBUTESMASK_ALL, UA_REFERENCETYPESET_ALL,
                     UA_BROWSEDIRECTION_BOTH);
 }
@@ -881,43 +877,41 @@ UA_NODESTORE_GET_EDIT(UA_Server *server, const UA_NodeId *nodeId) {
 /* Get the node with all attributes and references */
 static UA_INLINE const UA_Node *
 UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target) {
-    return server->config.nodestore.
-        getNodeFromPtr(server->config.nodestore.context, target, UA_NODEATTRIBUTESMASK_ALL,
+    return server->config.nodestore->
+        getNodeFromPtr(server->config.nodestore,
+                       target, UA_NODEATTRIBUTESMASK_ALL,
                        UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
 }
 
 #define UA_NODESTORE_GET_SELECTIVE(server, nodeid, attrMask, refs, refDirs) \
-    server->config.nodestore.getNode(server->config.nodestore.context,      \
-                                     nodeid, attrMask, refs, refDirs)
+    server->config.nodestore->getNode(server->config.nodestore,             \
+                                      nodeid, attrMask, refs, refDirs)
 
 #define UA_NODESTORE_GET_EDIT_SELECTIVE(server, nodeid, attrMask, refs, refDirs) \
-    server->config.nodestore.getEditNode(server->config.nodestore.context,       \
-                                         nodeid, attrMask, refs, refDirs)
+    server->config.nodestore->getEditNode(server->config.nodestore,              \
+                                          nodeid, attrMask, refs, refDirs)
 
 #define UA_NODESTORE_GETFROMREF_SELECTIVE(server, target, attrMask, refs, refDirs) \
-    server->config.nodestore.getNodeFromPtr(server->config.nodestore.context,      \
-                                            target, attrMask, refs, refDirs)
+    server->config.nodestore->getNodeFromPtr(server->config.nodestore,             \
+                                             target, attrMask, refs, refDirs)
 
 #define UA_NODESTORE_RELEASE(server, node)                              \
-    server->config.nodestore.releaseNode(server->config.nodestore.context, node)
+    server->config.nodestore->releaseNode(server->config.nodestore, node)
 
 #define UA_NODESTORE_GETCOPY(server, nodeid, outnode)                      \
-    server->config.nodestore.getNodeCopy(server->config.nodestore.context, \
-                                         nodeid, outnode)
+    server->config.nodestore->getNodeCopy(server->config.nodestore, nodeid, outnode)
 
 #define UA_NODESTORE_INSERT(server, node, addedNodeId)                    \
-    server->config.nodestore.insertNode(server->config.nodestore.context, \
-                                        node, addedNodeId)
+    server->config.nodestore->insertNode(server->config.nodestore, node, addedNodeId)
 
 #define UA_NODESTORE_REPLACE(server, node)                              \
-    server->config.nodestore.replaceNode(server->config.nodestore.context, node)
+    server->config.nodestore->replaceNode(server->config.nodestore, node)
 
 #define UA_NODESTORE_REMOVE(server, nodeId)                             \
-    server->config.nodestore.removeNode(server->config.nodestore.context, nodeId)
+    server->config.nodestore->removeNode(server->config.nodestore, nodeId)
 
 #define UA_NODESTORE_GETREFERENCETYPEID(server, index)                  \
-    server->config.nodestore.getReferenceTypeId(server->config.nodestore.context, \
-                                                index)
+    server->config.nodestore->getReferenceTypeId(server->config.nodestore, index)
 
 /* Handling of Locales */
 

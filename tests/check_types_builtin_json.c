@@ -2218,8 +2218,6 @@ START_TEST(UA_Variant_Matrix_UInt16_json_encode) {
     UA_ByteString buf;
     UA_ByteString_allocBuffer(&buf, size+1);
 
-    size_t sizeOfBytes = UA_calcSizeJson((void *) &src, type, NULL);
-
     status s = UA_encodeJson((void *) &src, type, &buf, NULL);
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
@@ -4841,6 +4839,38 @@ START_TEST(UA_ExtensionObject_Unkown_json_decode) {
 
     //{"unknown":"body","saveas":"Bytestring"}Q
     ck_assert_uint_eq(out.content.encoded.body.length, 40);
+    ck_assert_int_eq(out.content.encoded.body.data[0], '{');
+    ck_assert_int_eq(out.content.encoded.body.data[1], '\"');
+    ck_assert_int_eq(out.content.encoded.body.data[2], 'u');
+    ck_assert_int_eq(out.content.encoded.body.data[3], 'n');
+    ck_assert_int_eq(out.content.encoded.body.data[4], 'k');
+    ck_assert_int_eq(out.content.encoded.body.data[5], 'n');
+    ck_assert_int_eq(out.content.encoded.body.data[6], 'o');
+    ck_assert_int_eq(out.content.encoded.body.data[7], 'w');
+    UA_ExtensionObject_clear(&out);
+}
+END_TEST
+
+/* JSON structure that contains UaTypeId "in situ" */
+START_TEST(UA_ExtensionObject_Unkown_Nobody_json_decode) {
+    // given
+
+    UA_ExtensionObject out;
+    UA_ExtensionObject_init(&out);
+    UA_ByteString buf = UA_STRING("{\"UaTypeId\":\"i=4711\",\"unknown\":\"body\",\"saveas\":\"Bytestring\"}");
+
+    // when
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT], NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    // then
+    ck_assert_int_eq(out.encoding, UA_EXTENSIONOBJECT_ENCODED_BYTESTRING);
+    ck_assert_int_eq(out.content.encoded.typeId.identifier.numeric, 4711);
+
+    //{"unknown":"body","saveas":"Bytestring"}Q
+    ck_assert_uint_eq(out.content.encoded.body.length, 40);
+    ck_assert_int_eq(out.content.encoded.body.data[0], '{');
+    ck_assert_int_eq(out.content.encoded.body.data[1], '\"');
     ck_assert_int_eq(out.content.encoded.body.data[2], 'u');
     ck_assert_int_eq(out.content.encoded.body.data[3], 'n');
     ck_assert_int_eq(out.content.encoded.body.data[4], 'k');
@@ -5706,6 +5736,7 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_decode, UA_ExtensionObject_EncodedByteString_json_decode);
     tcase_add_test(tc_json_decode, UA_ExtensionObject_EncodedXml_json_decode);
     tcase_add_test(tc_json_decode, UA_ExtensionObject_Unkown_json_decode);
+    tcase_add_test(tc_json_decode, UA_ExtensionObject_Unkown_Nobody_json_decode);
 
     //Others
     tcase_add_test(tc_json_decode, UA_wrongBoolean_json_decode);

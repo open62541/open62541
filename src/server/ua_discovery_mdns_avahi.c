@@ -414,10 +414,6 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName
     return UA_STATUSCODE_GOOD;
 }
 
-#ifndef IN_ZERONET
-#define IN_ZERONET(addr) ((addr & IN_CLASSA_NET) == 0)
-#endif
-
 /* Callback when the client state changes */
 static
 void client_callback(AvahiClient *c, AvahiClientState state, void *userdata) {

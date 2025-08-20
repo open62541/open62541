@@ -32,7 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
+static UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
@@ -157,7 +157,7 @@ addDataSetWriter(UA_Server *server) {
  *     :alt: OPC UA PubSub communication in wireshark
  *
  * The open62541 subscriber API will be released later. If you want to process
- * the the datagrams, take a look on the ``ua_network_pubsub_networkmessage.c``
+ * the datagrams, take a look on the ``ua_pubsub_networkmessage_binary.c``
  * which already contains the decoding code for UADP messages.
  *
  * It follows the main server code, making use of the above definitions. */

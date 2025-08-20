@@ -29,14 +29,6 @@
 #include "../deps/parse_num.h"
 #include "../deps/base64.h"
 
-#ifndef UA_ENABLE_PARSING
-#error UA_ENABLE_PARSING required for JSON encoding
-#endif
-
-#ifndef UA_ENABLE_TYPEDESCRIPTION
-#error UA_ENABLE_TYPEDESCRIPTION required for JSON encoding
-#endif
-
 /* vs2008 does not have INFINITY and NAN defined */
 #ifndef INFINITY
 # define INFINITY ((UA_Double)(DBL_MAX+DBL_MAX))
@@ -178,7 +170,8 @@ writeJsonArrElm(CtxJson *ctx, const void *value,
 status
 writeJsonObjElm(CtxJson *ctx, const char *key,
                 const void *value, const UA_DataType *type) {
-    return writeJsonKey(ctx, key) | encodeJsonJumpTable[type->typeKind](ctx, value, type);
+    status ret = writeJsonKey(ctx, key);
+    return ret | encodeJsonJumpTable[type->typeKind](ctx, value, type);
 }
 
 /* Keys for JSON */
@@ -1938,7 +1931,7 @@ DECODE_JSON(DateTime) {
     GET_TOKEN;
 
     UA_ByteString input = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
-    UA_StatusCode res = decodeDateTime(input, dst);
+    UA_StatusCode res = UA_DateTime_parse(dst, input);
     if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
         ctx->index++;
     return res;

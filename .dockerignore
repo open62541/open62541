@@ -1,5 +1,4 @@
 .github
-.azure-pipelines
 .dockerignore
 .travis*
 appveyor.yml

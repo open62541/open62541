@@ -10,7 +10,7 @@
 
 #include "eventloop_posix.h"
 
-#if defined(UA_ARCHITECTURE_POSIX) && defined(__linux__)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) && defined(__linux__)
 
 #include <arpa/inet.h> /* htons */
 #include <net/ethernet.h> /* ETH_P_*/
@@ -337,7 +337,7 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
     }
 
     /* Use the already allocated receive-buffer */
-    UA_ByteString response = pcm->rxBuffer;;
+    UA_ByteString response = pcm->rxBuffer;
 
     /* Receive */
     UA_RESET_ERRNO;

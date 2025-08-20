@@ -30,14 +30,6 @@
 #include "../deps/base64.h"
 #include "../deps/libc_time.h"
 
-#ifndef UA_ENABLE_PARSING
-#error UA_ENABLE_PARSING required for JSON encoding
-#endif
-
-#ifndef UA_ENABLE_TYPEDESCRIPTION
-#error UA_ENABLE_TYPEDESCRIPTION required for JSON encoding
-#endif
-
 #if defined(_MSC_VER)
 # pragma warning(disable: 4756)
 # pragma warning(disable: 4056)
@@ -174,7 +166,8 @@ writeJsonArrElm(CtxJson *ctx, const void *value,
 status
 writeJsonObjElm(CtxJson *ctx, const char *key,
                 const void *value, const UA_DataType *type) {
-    return writeJsonKey(ctx, key) | encodeJsonJumpTable[type->typeKind](ctx, value, type);
+    status ret = writeJsonKey(ctx, key);
+    return ret | encodeJsonJumpTable[type->typeKind](ctx, value, type);
 }
 
 /* Keys for JSON */
@@ -437,7 +430,7 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
     return ret | writeJsonArrEnd(ctx, type);
 }
 
-static const u8 hexmap[16] =
+static const char hexmap[16] =
     {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
 ENCODE_JSON(String) {
@@ -484,7 +477,7 @@ ENCODE_JSON(String) {
             if(*pos >= ' ' && *pos != 127) {
                 /* Escape \ or " */
                 escape_buf[0] = '\\';
-                escape_buf[1] = *pos;
+                escape_buf[1] = (char)*pos;
             } else {
                 /* Unprintable characters need to be escaped */
                 escape_buf[0] = '\\';
@@ -1959,18 +1952,19 @@ tokenToByteString(ParseCtx *ctx, UA_ByteString *p) {
  * verbatim into the encoding ByteString. tokenIndex points to the field (after
  * the field name) that shall be removed. */
 static void
-removeFieldFromEncoding(ParseCtx *ctx, UA_ByteString *encoding, size_t tokenIndex) {
+removeFieldFromEncoding(ParseCtx *ctx, UA_ByteString *encoding,
+                        size_t parentIndex, size_t tokenIndex) {
     /* Which part of the encoding to cut out */
-    unsigned objStart = ctx->tokens[ctx->index].start;
-    unsigned objEnd = ctx->tokens[ctx->index].end;
+    unsigned objStart = ctx->tokens[parentIndex].start;
+    unsigned objEnd = ctx->tokens[parentIndex].end;
     unsigned start = ctx->tokens[tokenIndex-1].start;
     unsigned end = ctx->tokens[tokenIndex].end + 1; /* One char after */
 
-    UA_Boolean haveBefore = (ctx->index < tokenIndex - 2);
+    UA_Boolean haveBefore = (parentIndex < tokenIndex - 2);
     if(haveBefore) {
         /* Find where the previous token ended. This also removes the comma
          * between the previous and the current element. */
-        for(size_t i = ctx->index + 2; i < tokenIndex - 1; i++) {
+        for(size_t i = parentIndex + 2; i < tokenIndex - 1; i++) {
             if(ctx->tokens[i].end + 1 > start)
                 start = ctx->tokens[i].end + 1;
         }
@@ -1995,15 +1989,18 @@ removeFieldFromEncoding(ParseCtx *ctx, UA_ByteString *encoding, size_t tokenInde
         ctx->index = oldIndex;
     }
 
-    /* Subtract the offset between ctx->json5 end encoding */
+    UA_assert(end > start);
+    UA_assert(start > objStart);
+
+    /* Move the offset from ctx->json5 to encoding->data */
     start -= objStart;
     end -= objStart;
-    /* Fix: Bounds and sanity check */
-    if(end < start || end > encoding->length || start > encoding->length)
-        return;
+
+    UA_assert(end <= encoding->length);
+
     /* Cut out the field we want to remove */
-    size_t remaining = encoding->length - end;
-    memmove(encoding->data + start, encoding->data + end, remaining);
+    size_t after_len = encoding->length - end;
+    memmove(encoding->data + start, encoding->data + end, after_len);
     encoding->length -= (end - start);
 }
 
@@ -2069,6 +2066,7 @@ DECODE_JSON(ExtensionObject) {
                 return UA_STATUSCODE_BADDECODINGERROR;
 
             /* Extract the entire ExtensionObject object as the body */
+            size_t parentIndex = ctx->index;
             ret = tokenToByteString(ctx, &dst->content.encoded.body);
             if(ret != UA_STATUSCODE_GOOD)
                 return ret;
@@ -2076,10 +2074,10 @@ DECODE_JSON(ExtensionObject) {
             /* Remove the UaEncoding and UaTypeId field from the encoding.
              * Remove the later field first. */
             if(encIndex != 0 && encIndex > typeIdIndex)
-                removeFieldFromEncoding(ctx, &dst->content.encoded.body, encIndex);
-            removeFieldFromEncoding(ctx, &dst->content.encoded.body, typeIdIndex);
+                removeFieldFromEncoding(ctx, &dst->content.encoded.body, parentIndex, encIndex);
+            removeFieldFromEncoding(ctx, &dst->content.encoded.body, parentIndex, typeIdIndex);
             if(encIndex != 0 && encIndex < typeIdIndex)
-                removeFieldFromEncoding(ctx, &dst->content.encoded.body, encIndex);
+                removeFieldFromEncoding(ctx, &dst->content.encoded.body, parentIndex, encIndex);
 
             return UA_STATUSCODE_GOOD;
         }
