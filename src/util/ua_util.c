@@ -914,8 +914,6 @@ UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Escaping esc) {
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef UA_ENABLE_PARSING
-
 static UA_StatusCode
 moveTmpToOut(UA_String *tmp, UA_String *out) {
     /* Output has zero length */
@@ -1151,8 +1149,6 @@ UA_ReadValueId_print(const UA_ReadValueId *rvi, UA_String *out) {
 
     return moveTmpToOut(&tmp, out);
 }
-
-#endif
 
 /************************/
 /* Cryptography Helpers */
