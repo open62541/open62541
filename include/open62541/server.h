@@ -1286,6 +1286,62 @@ UA_Server_setAsyncWriteResult(UA_Server *server, const UA_DataValue *value,
                               UA_StatusCode result);
 
 /**
+ * The server API supports asynchronous "local" read/write/call operations. The
+ * user supplies a callback method that gets called synchronously (if the
+ * operation terminates right away) or at a later time.
+ *
+ * Async operations incur a small overhead as memory is allocated to persist the
+ * calling-context over time.
+ *
+ * The callback is called exactly one time. Also if the operation is cancelled,
+ * in which case the Statuscode ``UA_STATUSCODE_BADTIMEOUT`` or
+ * ``UA_STATUSCODE_BADSHUTDOWN`` is set.
+ *
+ * If an operation returns asynchronously (e.g. using
+ * ``UA_Server_setAsyncReadResult``) then the user-defined callback is executed
+ * only in the next iteration of the Eventloop. Hence
+ * ``UA_Server_setAsyncReadResult`` et al. acquire the server-lock, but are
+ * otherwise non-blocking.
+ *
+ * The maximum timeout is always defined in milliseconds. A timeout of zero
+ * means infinite. */
+
+typedef void (*UA_ServerAsyncReadCallback)(UA_Server *server, void *context,
+                                           const UA_DataValue *result);
+typedef void (*UA_ServerAsyncWriteCallback)(UA_Server *server, void *context,
+                                            UA_StatusCode result);
+typedef void (*UA_ServerAsyncMethodCallback)(UA_Server *server, void *context,
+                                             const UA_CallMethodResult *result);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_read_async(UA_Server *server, const UA_ReadValueId *operation,
+                     UA_TimestampsToReturn timestamps,
+                     UA_ServerAsyncReadCallback callback,
+                     void *context, UA_UInt32 timeout);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_write_async(UA_Server *server, const UA_WriteValue *operation,
+                      UA_ServerAsyncWriteCallback callback,
+                      void *context, UA_UInt32 timeout);
+
+#ifdef UA_ENABLE_METHODCALLS
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_call_async(UA_Server *server, const UA_CallMethodRequest *operation,
+                     UA_ServerAsyncMethodCallback callback,
+                     void *context, UA_UInt32 timeout);
+#endif
+
+/* Cancels all outstanding async operations for which the given context-pointer
+ * was used. The status is set for the operations. The
+ * asyncOperationCancelCallback from the server-config gets called for all
+ * operations where the result has not yet been set. The operation's individual
+ * result callback is called right away (if cancelSynchronous == true) or in the
+ * next iteration of the Eventloop. */
+void UA_EXPORT UA_THREADSAFE
+UA_Server_cancelAsync(UA_Server *server, void *context, UA_StatusCode status,
+                      UA_Boolean cancelSynchronous);
+
+/**
  * .. _events:
  *
  * Events
