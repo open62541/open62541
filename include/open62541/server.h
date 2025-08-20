@@ -1286,6 +1286,79 @@ UA_Server_setAsyncWriteResult(UA_Server *server, const UA_DataValue *value,
                               UA_StatusCode result);
 
 /**
+ * The server supports asynchronous "local" read/write/call operations. The user
+ * supplies a result-callback that gets called either synchronously (if the
+ * operation terminates right away) or asynchronously at a later time. The
+ * result-callback is called exactly one time for each operation, also if the
+ * operation is cancelled. In this case a StatusCode like
+ * ``UA_STATUSCODE_BADTIMEOUT`` or ``UA_STATUSCODE_BADSHUTDOWN`` is set.
+ *
+ * If an operation returns asynchronously, then the result-callback is executed
+ * only in the next iteration of the Eventloop. An exception to this is
+ * UA_Server_cancelAsync, which can optionally call the result-callback right
+ * away (e.g. as part of a cleanup where the context of the result-callback gets
+ * removed).
+ *
+ * Async operations incur a small overhead since memory is allocated to persist
+ * the operation over time.
+ *
+ * The operation timeout is defined in milliseconds. A timeout of zero means
+ * infinite. */
+
+typedef void(*UA_ServerAsyncReadResultCallback)
+    (UA_Server *server, void *asyncOpContext, const UA_DataValue *result);
+typedef void(*UA_ServerAsyncWriteResultCallback)
+    (UA_Server *server, void *asyncOpContext, UA_StatusCode result);
+typedef void(*UA_ServerAsyncMethodResultCallback)
+    (UA_Server *server, void *asyncOpContext, const UA_CallMethodResult *result);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_read_async(UA_Server *server, const UA_ReadValueId *operation,
+                     UA_TimestampsToReturn timestamps,
+                     UA_ServerAsyncReadResultCallback callback,
+                     void *asyncOpContext, UA_UInt32 timeout);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_write_async(UA_Server *server, const UA_WriteValue *operation,
+                      UA_ServerAsyncWriteResultCallback callback,
+                      void *asyncOpContext, UA_UInt32 timeout);
+
+#ifdef UA_ENABLE_METHODCALLS
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_call_async(UA_Server *server, const UA_CallMethodRequest *operation,
+                     UA_ServerAsyncMethodResultCallback callback,
+                     void *asyncOpContext, UA_UInt32 timeout);
+#endif
+
+/**
+ * Local async operations can be manually cancelled (besides an internal cancel
+ * due to a timeout or server shutdown). The local async operations to be
+ * cancelled are selected by matching their asyncOpContext pointer. This can
+ * cancel multiple operations that use the same context pointer.
+ *
+ * For operations where the async result was not yet set, the
+ * asyncOperationCancelCallback from the server-config gets called and the
+ * cancel-status is set in the operation result.
+ *
+ * For async operations where the result has already been set, but not yet
+ * notified with the result-callback (to be done in the next EventLoop
+ * iteration), the asyncOperationCancelCallback is not called and no cancel
+ * status is set in the result.
+ *
+ * Each operation's result-callback gets called exactly once. When the operation
+ * is cancelled, the result-callback can be called synchronously using the
+ * synchronousResultCallback flag. Otherwise the result gets returned "normally"
+ * in the next EventLoop iteration. The synchronous option ensures that all
+ * (matching) async operations are fully cancelled right away. This can be
+ * important in a cleanup situation where the asyncOpContext is no longer valid
+ * in the future. */
+
+void UA_EXPORT UA_THREADSAFE
+UA_Server_cancelAsync(UA_Server *server, void *asyncOpContext,
+                      UA_StatusCode status,
+                      UA_Boolean synchronousResultCallback);
+
+/**
  * .. _events:
  *
  * Events
