@@ -715,7 +715,7 @@ Service_RegisterServer2(UA_Server *server, UA_Session *session,
     return true;
 }
 
-void
+UA_Boolean
 UA_Server_registerServer(UA_Server *server, const UA_RegisteredServer *regServer,
                          const size_t requestDiscoveryConfigurationSize,
                          const UA_ExtensionObject *requestDiscoveryConfiguration,

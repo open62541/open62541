@@ -1408,7 +1408,7 @@ UA_Server_setRegisterServerCallback(UA_Server *server,
  * @param responseConfigurationResultsSize the size of the configuration results
  * @param responseConfigurationResults the configuration results to fill
  */
-void UA_EXPORT UA_THREADSAFE
+UA_Boolean UA_EXPORT UA_THREADSAFE
 UA_Server_registerServer(UA_Server *server, const UA_RegisteredServer *requestServer,
                          const size_t requestDiscoveryConfigurationSize,
                          const UA_ExtensionObject *requestDiscoveryConfiguration,
