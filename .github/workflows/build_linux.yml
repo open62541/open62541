@@ -295,7 +295,7 @@ jobs:
           IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
           echo "New IPv6 status on eth0: $IPV6"
           [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }      
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: true
       - name: Install Dependencies
