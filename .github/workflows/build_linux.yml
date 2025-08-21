@@ -10,6 +10,7 @@ jobs:
         os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
         build:
           - name: "Debug Build & Unit Tests (gcc)"
+            cmd_deps: sudo apt-get install -y -qq curl
             cmd_action: unit_tests
           - name: "Debug Build & Unit Tests (gcc, 32bit)"
             cmd_deps: |
@@ -19,35 +20,39 @@ jobs:
             cmd_action: unit_tests_32
 
           - name: "Debug Build & Unit Tests without Subscriptions (gcc)"
+            cmd_deps: sudo apt-get install -y -qq curl
             cmd_action: unit_tests_nosub
 
           - name: "Debug Build & Unit Tests with Diagnostics (gcc)"
+            cmd_deps: sudo apt-get install -y -qq curl
             cmd_action: unit_tests_diag
 
           - name: "Debug Build & Unit Tests with multithreading (gcc)"
+            cmd_deps: sudo apt-get install -y -qq curl
             cmd_action: unit_tests_mt
 
           - name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
+            cmd_deps: sudo apt-get install -y -qq curl
             cmd_action: unit_tests_alarms
 
           - name: "Debug Build & Unit Tests (tcc)"
-            cmd_deps: sudo apt-get install -y -qq tcc
+            cmd_deps: sudo apt-get install -y -qq tcc curl
             cmd_action: CC=tcc unit_tests
 
           - name: "Encryption (MbedTLS) Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev curl
             cmd_action: unit_tests_encryption MBEDTLS
 
           - name: "PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev curl
             cmd_action: unit_tests_encryption_mbedtls_pubsub
 
           - name: "PubSub SKS Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev curl
             cmd_action: unit_tests_pubsub_sks
 
           - name: "Encryption (OpenSSL) Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq openssl
+            cmd_deps: sudo apt-get install -y -qq openssl curl
             cmd_action: unit_tests_encryption OPENSSL
 
           - name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
@@ -61,16 +66,19 @@ jobs:
             cmd_action: unit_tests_encryption LIBRESSL
 
           - name: "Release Build"
-            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
+            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev curl
             cmd_action: build_release
 
           - name: "Amalgamation Build"
+            cmd_deps: sudo apt-get install -y -qq curl
             cmd_action: build_amalgamation
 
           - name: "Amalgamation Build with Multithreading"
+            cmd_deps: sudo apt-get install -y -qq curl
             cmd_action: build_amalgamation_mt
 
           - name: "Build All Companion Specifications"
+            cmd_deps: sudo apt-get install -y -qq curl
             cmd_action: build_all_companion_specs
 
         include:          
