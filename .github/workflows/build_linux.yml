@@ -15,7 +15,7 @@ jobs:
             cmd_deps: |
               sudo dpkg --add-architecture i386
               sudo apt-get update
-              sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386 libxml2-dev:i386
+              sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386 libxml2-dev:i386 curl
             cmd_action: unit_tests_32
 
           - name: "Debug Build & Unit Tests without Subscriptions (gcc)"
