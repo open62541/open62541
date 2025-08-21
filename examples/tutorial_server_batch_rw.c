@@ -54,8 +54,7 @@ typedef struct {
 static BatchContext readBatchCtx = {0};
 static BatchContext writeBatchCtx = {0};
 
-/* Server startup flag to prevent batching during initialization */
-static UA_Boolean serverStarted = false;
+
 
 /* Initialize batch context */
 static void
@@ -162,21 +161,7 @@ readCallback_async(UA_Server *server, const UA_NodeId *sessionId,
                    void *sessionContext, const UA_NodeId *nodeId,
                    void *nodeContext, UA_Boolean includeSourceTimeStamp,
                    const UA_NumericRange *range, UA_DataValue *value) {
-    (void)sessionId;
-    (void)sessionContext;
-    (void)nodeContext;
-    (void)includeSourceTimeStamp;
-    (void)range;
-    
-    /* Don't batch during server startup */
-    if (!serverStarted) {
-        /* Return a default value during startup */
-        UA_UInt32 defaultValue = 0;
-        UA_Variant_setScalarCopy(&value->value, &defaultValue, &UA_TYPES[UA_TYPES_UINT32]);
-        value->hasValue = true;
-        return UA_STATUSCODE_GOOD;
-    }
-    
+
     /* Check if we can add to current read batch */
     if (readBatchCtx.pendingCount >= MAX_BATCH_SIZE) {
         /* Process current batch immediately */
@@ -295,8 +280,7 @@ int main(void) {
     addAsyncVariable(server, "variable-4", 1);
     addAsyncVariable(server, "variable-5", 1);
     
-    /* Enable batching after all variables are added */
-    serverStarted = true;
+
     
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
                 "Combined batch server started. Batch timeout: %dms, Max batch size: %d", 
