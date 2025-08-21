@@ -32,10 +32,7 @@
 
 /* Request structure for both read and write */
 typedef struct {
-    union {
-        UA_DataValue *dataValue;  /* For write operations */
-        UA_DataValue *readValue;  /* For read operations */
-    };
+    UA_DataValue *dataValue;  /* For both read and write operations */
     UA_NodeId nodeId;
     UA_UInt32 requestId;
     UA_Boolean isWrite;  /* true for write, false for read */
@@ -97,12 +94,12 @@ processReadBatch(UA_Server *server, void *data) {
         }
         
         /* Set the value in the data value */
-        UA_Variant_setScalarCopy(&req->readValue->value, 
+        UA_Variant_setScalarCopy(&req->dataValue->value, 
                                 &value, &UA_TYPES[UA_TYPES_UINT32]);
-        req->readValue->hasValue = true;
+        req->dataValue->hasValue = true;
         
         /* Complete the async read operation */
-        UA_Server_setAsyncReadResult(server, req->readValue);
+        UA_Server_setAsyncReadResult(server, req->dataValue);
     }
     
     /* Reset batch context */
@@ -170,7 +167,7 @@ readCallback_async(UA_Server *server, const UA_NodeId *sessionId,
     
     /* Add read request to pending batch */
     BatchRequest *req = &readBatchCtx.pendingRequests[readBatchCtx.pendingCount];
-    req->readValue = value;
+    req->dataValue = value;
     req->nodeId = *nodeId;
     req->requestId = 0;
     req->isWrite = false;
