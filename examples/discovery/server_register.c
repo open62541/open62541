@@ -102,6 +102,7 @@ int main(int argc, char **argv) {
     UA_ClientConfig cc;
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefault(&cc);
+    cc.securityMode = UA_MESSAGESECURITYMODE_NONE;
 
     UA_StatusCode retval =
         UA_Server_registerDiscovery(server, &cc,
