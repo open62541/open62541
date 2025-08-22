@@ -236,7 +236,7 @@ jobs:
           - os: ubuntu-24.04
             build:
               name: "Examples with MbedTLS and mDNSD (gcc)"
-              cmd_deps: sudo apt-get install -y -qq libmbedtls-dev python3-netifaces
+              cmd_deps: sudo apt-get install -y -qq libmbedtls-dev python3-netifaces curl
               cmd_action: run_examples MBEDTLS MDNSD
 
           # Valgrind tests for specific Ubuntu versions
