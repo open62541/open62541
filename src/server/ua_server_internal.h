@@ -253,13 +253,6 @@ struct UA_Server {
     UA_Lock serviceMutex;
 #endif
 
-    /* This gets transmitted as part of the ReadRequest and was part of
-     * Operation_Read. Use the following variable to pass the argument to
-     * Operation_Read in order to have the same internal API for all async
-     * operations. This is save as the Read-Request is always behind the server
-     * mutex. */
-    UA_TimestampsToReturn ttr;
-
     /* Statistics */
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
@@ -505,10 +498,6 @@ setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
 UA_StatusCode
 setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                      UA_NodeTypeLifecycle lifecycle);
-
-void
-Operation_Write(UA_Server *server, UA_Session *session,
-                const UA_WriteValue *wv, UA_StatusCode *result);
 
 UA_StatusCode
 writeAttribute(UA_Server *server, UA_Session *session,

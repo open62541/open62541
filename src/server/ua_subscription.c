@@ -1462,6 +1462,13 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     if(mon->registered)
         UA_Server_unregisterMonitoredItem(server, mon);
 
+    /* Cancel outstanding async reads. The status code avoids the sample being
+     * processed. Call _processReady to ensure that the callbacks have been
+     * triggered. */
+    if(mon->outstandingAsyncReads > 0)
+        async_cancel(server, mon, UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST, true);
+    UA_assert(mon->outstandingAsyncReads == 0);
+
     /* Remove the TriggeringLinks */
     if(mon->triggeringLinksSize > 0) {
         UA_free(mon->triggeringLinks);
