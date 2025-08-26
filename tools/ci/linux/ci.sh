@@ -165,6 +165,43 @@ function unit_tests {
     fi
 }
 
+function unit_tests_libwebsockets {
+    set -euo pipefail
+
+    # Start HTTP server
+    python3 tools/lws/httpServer.py  &
+    SERVER_PID=$!
+    echo "HTTP server PID: $SERVER_PID"
+
+    # Ensure we stop the server on any exit from this shell
+    trap 'echo "Stopping server $SERVER_PID"; kill $SERVER_PID 2>/dev/null || true' EXIT
+
+    # Wait until reachable (max 30s)
+    for i in {1..30}; do
+        if curl -fsS http://127.0.0.1:8000/ >/dev/null 2>&1; then
+            echo "Server is up."
+            break
+        fi
+        sleep 1
+    done
+    # Fail fast if still not up
+    curl -fsS http://127.0.0.1:8000/ >/dev/null
+
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=ON \
+          -DUA_ENABLE_LWS=ON \
+          -DUA_ENABLE_PUBSUB=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_FORCE_WERROR=ON \
+          ..
+    make ${MAKEOPTS}
+    set_capabilities
+    make test ARGS="-V"
+}
+
 function unit_tests_lwip {
     mkdir -p build; cd build; rm -rf *
     cmake -DUA_ARCHITECTURE="posix-lwip" \

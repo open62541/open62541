@@ -221,6 +221,10 @@ if(UA_ENABLE_MQTT)
     ua_add_test(check_eventloop_mqtt.c)
 endif()
 
+if(UA_ENABLE_LWS)
+    ua_add_test(check_eventloop_http.c)
+endif()
+
 # Test Server
 
 ua_add_test(server/check_accesscontrol.c)
