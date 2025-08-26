@@ -707,6 +707,25 @@ UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
 #endif
 
+
+/**
+ * HTTP Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * The HTTP ConnectionManager uses the libwebsockets library to send http requests.
+ *
+ * Open Connection Parameters:
+ * - 0:hostname [string]: Hostname (or IPv4/v6 address) of the connection (required).
+ * - 0:port [uint16]: Port of the target host (default: 443).
+ *
+ * Send Parameters:
+ * - 0:path [string]: Path is the string of information that comes after the top level domain name (default: /).
+ * - 0:method [string]: HTTP Methods (default: GET).
+ * - 0:body [string]: Data to be sent when the POST method is selected. (default: empty).
+ * */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_HTTP(const UA_String eventSourceName);
+
 /**
  * MQTT Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~

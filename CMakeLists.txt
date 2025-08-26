@@ -189,6 +189,15 @@ else()
     endif()
 endif()
 
+option(UA_ENABLE_LWS "Includes the libwebsockets library" OFF)
+mark_as_advanced(UA_ENABLE_LWS)
+
+if(UA_ENABLE_LWS)
+    if(NOT UA_ARCHITECTURE_POSIX)
+        message(FATAL_ERROR "Libwebsockets cannot be used without posix")
+    endif()
+endif()
+
 # security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
 set(UA_ENABLE_ENCRYPTION OFF CACHE STRING "Encryption support (LibreSSL EXPERIMENTAL)")
@@ -536,6 +545,11 @@ endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
     list(APPEND open62541_LIBRARIES ${TPM2_LIB})
+endif()
+
+if(UA_ENABLE_LWS)
+    find_package(libwebsockets 4.3 REQUIRED)
+    list(APPEND open62541_LIBRARIES ${LIBWEBSOCKETS_LIBRARIES})
 endif()
 
 if(MINGW)
@@ -1048,6 +1062,13 @@ if(UA_ARCHITECTURE_FREERTOS)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/freertos/clock_freertos.c)
 endif()
 
+if(UA_ENABLE_LWS)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_http.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_lws.h
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_lws.c)
+endif()
+
 if(UA_ENABLE_MQTT)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
 endif()
@@ -1395,6 +1416,9 @@ if(UA_ENABLE_ENCRYPTION_LIBRESSL)
 endif()
 if(UA_ENABLE_NODESETLOADER)
     include_directories_private(${NODESETLOADER_PRIVATE_INCLUDES})
+endif()
+if(UA_ENABLE_LWS)
+    include_directories_private(${LIBWEBSOCKETS_INCLUDE_DIR})
 endif()
 
 # Public include directories
