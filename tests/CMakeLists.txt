@@ -139,15 +139,24 @@ endif()
 macro(add_test_valgrind TEST_NAME)
     if(UA_ENABLE_UNIT_TESTS_MEMCHECK)
         if(MSVC)
-            add_test(${TEST_NAME} drmemory -batch -exit_code_if_errors 1 -results_to_stderr -summary -- ${ARGN})
+            set(TEST_COMMAND drmemory -batch -exit_code_if_errors 1
+                -results_to_stderr -summary -- ${ARGN})
         else()
             set(VALGRIND_LOG ${TESTS_BINARY_DIR}/${TEST_NAME}.log)
             set(VALGRIND_CMD valgrind --error-exitcode=1 --suppressions=${PROJECT_SOURCE_DIR}/tests/valgrind_suppressions.supp ${VALGRIND_FLAGS} --log-file=${VALGRIND_LOG} ${ARGN})
-            add_test(${TEST_NAME} ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/valgrind_check_error.py ${VALGRIND_LOG} ${VALGRIND_CMD})
+            set(TEST_COMMAND ${Python3_EXECUTABLE}
+                ${PROJECT_SOURCE_DIR}/tests/valgrind_check_error.py
+                ${VALGRIND_LOG} ${VALGRIND_CMD})
         endif()
     else()
-        add_test(${TEST_NAME} ${ARGN})
+        set(TEST_COMMAND ${ARGN})
     endif()
+    if(UA_TEST_WRAPPER)
+        add_test(${TEST_NAME} ${UA_TEST_WRAPPER} ${TEST_COMMAND})
+    else()
+        add_test(${TEST_NAME} ${TEST_COMMAND})
+    endif()
+    unset(TEST_COMMAND)
     if(UA_BUILD_FUZZING_CORPUS)
         target_sources(check_${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/tests/fuzz/ua_debug_dump_pkgs_file.c)
         file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/corpus/${TEST_NAME})
@@ -187,7 +196,7 @@ function(ua_add_test test_path_relative)
 
     set(options)
     set(oneValueArgs)
-    set(multiValueArgs EXTRASOURCES EXTRALIBS)
+    set(multiValueArgs EXTRASOURCES EXTRALIBS WRAPPER)
     cmake_parse_arguments(arg "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     add_executable(${TEST_NAME} ${test_path_relative} ${arg_EXTRASOURCES} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins> $<TARGET_OBJECTS:open62541-testplugins>)
@@ -200,7 +209,9 @@ function(ua_add_test test_path_relative)
     endif()
     target_compile_definitions(${TEST_NAME} PRIVATE -DUA_UNITTEST)
     set_target_properties(${TEST_NAME} PROPERTIES FOLDER "tests")
+    set(UA_TEST_WRAPPER ${arg_WRAPPER})
     add_test_valgrind(${TEST_NAME} ${TESTS_BINARY_DIR}/${TEST_NAME})
+    unset(UA_TEST_WRAPPER)
 endfunction()
 
 ua_add_test(check_types_builtin.c)
@@ -301,6 +312,11 @@ endif()
 
 if(UA_ENABLE_MQTT)
     ua_add_test(check_eventloop_mqtt.c)
+endif()
+
+if(UA_ENABLE_LWS)
+    ua_add_test(check_eventloop_http.c WRAPPER ${Python3_EXECUTABLE}
+                ${PROJECT_SOURCE_DIR}/tools/lws/httpServer.py --run-test)
 endif()
 
 # Test Server
