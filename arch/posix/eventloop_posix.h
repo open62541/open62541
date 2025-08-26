@@ -429,6 +429,13 @@ typedef struct {
     /* Self-pipe to cancel blocking wait */
     UA_FD selfpipe[2]; /* 0: read, 1: write */
 
+#ifdef UA_ENABLE_LWS
+    /* One libwebsockets context shared by all users of this EventLoop */
+    void *lwsContext;
+    size_t lwsContextUsers;
+    UA_EventLoop *lwsForeignLoop;
+#endif
+
 #if UA_MULTITHREADING >= 100
     UA_Lock elMutex;
 #endif

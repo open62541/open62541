@@ -716,6 +716,54 @@ UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
 #endif
 
+
+/**
+ * HTTP Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~~
+ *
+ * The HTTP ConnectionManager uses the libwebsockets library to send HTTP requests.
+ *
+ * **Open Connection Parameters:**
+ *
+ * 0:address [string]
+ *    Hostname or IPv4/IPv6 address of the target (required).
+ *
+ * 0:port [uint16]
+ *    Port of the target host (required).
+ *
+ * 0:timeout [uint16]
+ *    Connection timeout in seconds (default: 30).
+ *
+ * 0:useSSL [bool]
+ *    Encrypt the connection with TLS (default: false).
+ *
+ * 0:username [string]
+ *    Username for HTTP Basic authentication. The authorization header is added
+ *    only if both ``username`` and ``password`` are set.
+ *
+ * 0:password [string]
+ *    Password for HTTP Basic authentication. The authorization header is added
+ *    only if both ``username`` and ``password`` are set.
+ *
+ * **Send Parameters:**
+ *
+ * 0:path [string]
+ *    Request-target path (default: ``/``).
+ *
+ * 0:method [string]
+ *    HTTP request method (default: ``GET``).
+ *
+ * 0:header [string]
+ *    Additional request headers encoded as ampersand-separated key-value
+ *    pairs, for example ``Accept=application/json&X-Trace=yes``. Header names
+ *    and values therefore cannot contain unescaped ``&`` or ``=`` characters.
+ *
+ * The ``buf`` argument passed to ``sendWithConnection`` is used as the request
+ * body. It may be ``NULL`` for an empty body and, like all ConnectionManager
+ * send buffers, is released internally even if sending fails. */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_HTTP(const UA_String eventSourceName);
+
 /**
  * MQTT Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~
