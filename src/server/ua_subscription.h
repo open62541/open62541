@@ -316,6 +316,9 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
 void
 Subscription_resetLifetime(UA_Subscription *sub);
 
+UA_Subscription *
+getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
+
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub,
                                  UA_UInt32 monitoredItemId);
@@ -348,10 +351,6 @@ typedef struct UA_ConditionSource UA_ConditionSource;
 #define UA_EVENTFILTER_MAXSELECT   64 /* Max select clauses */
 
 UA_StatusCode
-UA_MonitoredItem_addEvent(UA_Server *server, UA_MonitoredItem *mon,
-                          const UA_NodeId *event);
-
-UA_StatusCode
 generateEventId(UA_ByteString *generatedId);
 
 /* Static validation when the filter is registered */
@@ -365,13 +364,31 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
                                   size_t operatorsCount,
                                   const UA_ContentFilterElement *ef);
 
+UA_StatusCode
+createEvent(UA_Server *server, const UA_NodeId eventType,
+            const UA_NodeId sourceNode, UA_UInt16 severity,
+            UA_KeyValueMap otherEventFields);
+
+typedef struct {
+    UA_NodeId eventType;
+    UA_NodeId sourceNode;
+    UA_UInt16 severity;
+    UA_KeyValueMap otherEventFields;
+} UA_EventDescription;
+
 /* Evaluate content filter, exported only for unit testing */
 UA_StatusCode
-evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eventNode,
+evaluateWhereClause(UA_Server *server, UA_Session *session,
                     const UA_ContentFilter *contentFilter,
-                    UA_ContentFilterResult *contentFilterResult);
+                    const UA_EventDescription *ed);
 
-#endif
+/* Applies the select clause and resolves the result fields */
+UA_StatusCode
+evaluateSelectClause(UA_Server *server, UA_Session *session,
+                     const UA_EventDescription *ed, const UA_EventFilter *filter,
+                     UA_EventFieldList *efl);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /***********/
 /* Helpers */
