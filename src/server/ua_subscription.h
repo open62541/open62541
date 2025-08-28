@@ -101,6 +101,10 @@ typedef TAILQ_HEAD(NotificationMessageQueue, UA_NotificationMessageEntry)
 /* MonitoredItem */
 /*****************/
 
+/* Maximum number of outstanding async reads per MonitoredItem.
+ * This protects against unbounded memory usage. */
+#define UA_MONITOREDITEM_ASYNC_MAX 8
+
 /* The type of sampling for MonitoredItems depends on the sampling interval.
  *
  * >0: Cyclic callback
@@ -157,6 +161,7 @@ struct UA_MonitoredItem {
                                                             * interval */
     } sampling;
     UA_DataValue lastValue;
+    UA_UInt32 outstandingAsyncReads; /* at most UA_MONITOREDITEM_ASYNC_MAX */
 
     /* Triggering Links */
     size_t triggeringLinksSize;
