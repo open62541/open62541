@@ -850,6 +850,10 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_event.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_method.c
@@ -941,22 +945,6 @@ if(UA_ENABLE_XML_ENCODING)
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
 else()
     message(WARNING "UA_ENABLE_XML_ENCODING is not enabled. Value attributes will not be extracted from XML.")
-endif()
-
-if(UA_ENABLE_SUBSCRIPTIONS)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
-                            ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c)
-    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-        if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
-            message(FATAL_ERROR "Events require at least the reduced Namespace Zero")
-        endif()
-        list(APPEND lib_sources
-                    ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_event.c
-                    ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_eventfilter.c)
-        if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
-            list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c)
-        endif()
-    endif()
 endif()
 
 if(UA_DEBUG_DUMP_PKGS)

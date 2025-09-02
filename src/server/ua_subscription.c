@@ -1057,20 +1057,6 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
 
 static const UA_NodeId eventQueueOverflowEventType =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE}};
-static const UA_NodeId baseEventType =
-    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEEVENTTYPE}};
-
-#define OVERFLOWPROPERTIES_COUNT 8
-static UA_QualifiedName overflowPropertyPaths[OVERFLOWPROPERTIES_COUNT] = {
-    {0, UA_STRING_STATIC("EventId")},
-    {0, UA_STRING_STATIC("EventType")},
-    {0, UA_STRING_STATIC("SourceNode")},
-    {0, UA_STRING_STATIC("SourceName")},
-    {0, UA_STRING_STATIC("Time")},
-    {0, UA_STRING_STATIC("ReceiveTime")},
-    {0, UA_STRING_STATIC("Message")},
-    {0, UA_STRING_STATIC("Severity")},
-};
 
 /* The specification states in Part 4 5.12.1.5 that an EventQueueOverflowEvent
  * "is generated when the first Event has to be discarded [...] without
@@ -1106,80 +1092,35 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
     if(ef->selectClausesSize == 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* Allocate the EventFields */
-    UA_EventFieldList efl;
-    efl.clientHandle = mon->parameters.clientHandle;
-    efl.eventFields = (UA_Variant*)UA_calloc(ef->selectClausesSize, sizeof(UA_Variant));
-    if(!efl.eventFields)
+    /* Initialize the notification */
+    UA_Notification *n = UA_Notification_new();
+    if(!n)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    efl.eventFieldsSize = ef->selectClausesSize;
+    n->isOverflowEvent = true;
+    n->mon = mon;
+    n->data.event.clientHandle = mon->parameters.clientHandle;
 
-    /* Populate the EventFields */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < ef->selectClausesSize; i++) {
-        UA_Variant *value = &efl.eventFields[i];
-        UA_SimpleAttributeOperand *sao = &ef->selectClauses[i];
-        /* Check if this can be a property of the OverflowEventType */
-        if(!UA_NodeId_equal(&sao->typeDefinitionId, &baseEventType))
-            continue;
-        if(sao->attributeId != UA_ATTRIBUTEID_VALUE)
-            continue;
-        if(sao->browsePathSize != 1)
-            continue;
+    /* The session is needed to evaluate the select-clause. But used only for
+     * limited reads on the source node. So we can use the admin-session here if
+     * the subscription is detached. */
+    UA_Session *session = (sub->session) ?
+        sub->session : &server->adminSession;
 
-        /* Find the exact property and set the value  */
-        if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[0])) {
-            /* EventId */
-            UA_ByteString eventid = UA_BYTESTRING_NULL;
-            res |= generateEventId(&eventid);
-            res |= UA_Variant_setScalarCopy(value, &eventid, &UA_TYPES[UA_TYPES_BYTESTRING]);
-            UA_ByteString_clear(&eventid);
-        } else if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[1])) {
-            /* EventType */
-            res |= UA_Variant_setScalarCopy(value, &eventQueueOverflowEventType,
-                                            &UA_TYPES[UA_TYPES_NODEID]);
-        } else if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[2])) {
-            /* SourceNode */
-            UA_NodeId serverId = UA_NS0ID(SERVER);
-            res |= UA_Variant_setScalarCopy(value, &serverId, &UA_TYPES[UA_TYPES_NODEID]);
-        } else if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[3])) {
-            /* SourceName */
-            UA_String sourceName = UA_STRING("Internal/EventQueueOverflow");
-            res |= UA_Variant_setScalarCopy(value, &sourceName, &UA_TYPES[UA_TYPES_STRING]);
-        } else if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[4]) ||
-                  UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[5])) {
-            /* Time / ReceiveTime */
-            UA_EventLoop *el = server->config.eventLoop;
-            UA_DateTime rcvTime = el->dateTime_now(el);
-            UA_Variant_setScalar(value, &rcvTime, &UA_TYPES[UA_TYPES_DATETIME]);
-        } else if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[6])) {
-            /* Message */
-            UA_LocalizedText message;
-            UA_LocalizedText_init(&message);
-            res |= UA_Variant_setScalarCopy(value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-        } else if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[7])) {
-            /* Severity */
-            UA_UInt16 severity = 201;
-            res |= UA_Variant_setScalarCopy(value, &severity, &UA_TYPES[UA_TYPES_UINT16]);
-        }
-
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_EventFieldList_clear(&efl);
-            return res;
-        }
+    /* Populate the event fields (most fields are the default) */
+    UA_KeyValuePair fields[1];
+    fields[0].key = (UA_QualifiedName){0, UA_STRING_STATIC("/SourceName")};
+    static UA_String sourceName = UA_STRING_STATIC("Internal/EventQueueOverflow");
+    UA_Variant_setScalar(&fields[0].value, &sourceName, &UA_TYPES[UA_TYPES_STRING]);
+    UA_EventDescription ed;
+    ed.eventType = eventQueueOverflowEventType;
+    ed.sourceNode = UA_NS0ID(SERVER);
+    ed.severity = 201; /* TODO: Can this be configured? */
+    ed.otherEventFields = (UA_KeyValueMap){1, fields};
+    UA_StatusCode res = evaluateSelectClause(server, session, &ed, ef, &n->data.event);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(n);
+        return res;
     }
-
-    /* Allocate the notification */
-    UA_Notification *overflowNotification = UA_Notification_new();
-    if(!overflowNotification) {
-        UA_EventFieldList_clear(&efl);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    /* Set the notification fields */
-    overflowNotification->isOverflowEvent = true;
-    overflowNotification->mon = mon;
-    overflowNotification->data.event = efl;
 
     /* Insert before the removed notification. This is either first in the
      * queue (if the oldest notification was removed) or before the new event
@@ -1187,7 +1128,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
      *
      * Ensure that the following is consistent with UA_Notification_enqueueMon
      * and UA_Notification_enqueueSub! */
-    TAILQ_INSERT_BEFORE(indicator, overflowNotification, monEntry);
+    TAILQ_INSERT_BEFORE(indicator, n, monEntry);
     ++mon->eventOverflows;
     ++mon->queueSize;
 
@@ -1197,24 +1138,24 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
 
     if(TAILQ_NEXT(indicator, subEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL) {
         /* Insert just before the indicator */
-        TAILQ_INSERT_BEFORE(indicator, overflowNotification, subEntry);
+        TAILQ_INSERT_BEFORE(indicator, n, subEntry);
     } else {
         /* The indicator was not reporting or not added yet. */
         if(!mon->parameters.discardOldest) {
             /* Add last to the per-Subscription queue */
             TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue,
-                              overflowNotification, subEntry);
+                              n, subEntry);
         } else {
             /* Find the oldest reported element. Add before that. */
             while(indicator) {
                 indicator = TAILQ_PREV(indicator, NotificationQueue, monEntry);
                 if(!indicator) {
                     TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue,
-                                      overflowNotification, subEntry);
+                                      n, subEntry);
                     break;
                 }
                 if(TAILQ_NEXT(indicator, subEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL) {
-                    TAILQ_INSERT_BEFORE(indicator, overflowNotification, subEntry);
+                    TAILQ_INSERT_BEFORE(indicator, n, subEntry);
                     break;
                 }
             }
