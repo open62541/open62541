@@ -408,3 +408,24 @@ UA_Server_getSessionAttribute_scalar(UA_Server *server,
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
+
+UA_StatusCode
+UA_Server_getSessionName(UA_Server *server, const UA_NodeId *sessionId,
+                         UA_String *outSessionName) {
+    if(!outSessionName) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    lockServer(server);
+
+    UA_Session *session = getSessionById(server, sessionId);
+
+    if(!session) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
+    }
+
+    UA_StatusCode res = UA_String_copy(&session->sessionName, outSessionName);
+    unlockServer(server);
+    return res;
+}

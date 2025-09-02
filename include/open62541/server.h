@@ -267,6 +267,10 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                                  const UA_QualifiedName key);
 
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_getSessionName(UA_Server *server, const UA_NodeId *sessionId,
+                         UA_String *outSessionName);
+
 /**
  * Attribute Service Set
  * ---------------------
