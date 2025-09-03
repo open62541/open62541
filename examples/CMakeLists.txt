@@ -242,3 +242,9 @@ endif()
 if(UA_ENABLE_NODESET_INJECTOR)
     set(UA_NODESETINJECTOR_SOURCE_FILES ${UA_NODESETINJECTOR_SOURCE_FILES} PARENT_SCOPE)
 endif()
+
+########################
+# Pilz Adhoc Nodestore #
+########################
+
+add_example(pilz_adhoc_nodes pilz-adhoc-nodes/adhoc_nodes_application.c pilz-adhoc-nodes/adhoc_nodestore.c)
