@@ -45,7 +45,7 @@ int musl_inet_pton(int af, const char * UA_RESTRICT s, void * UA_RESTRICT a0)
 
 	if (af==AF_INET) {
 		for (i=0; i<4; i++) {
-			for (v=j=0; j<3 && isdigit(s[j]); j++)
+			for (v=j=0; j<3 && isdigit((unsigned char)s[j]); j++)
 				v = 10*v + s[j]-'0';
 			if (j==0 || (j>1 && s[0]=='0') || v>255) return 0;
 			a[i] = v;

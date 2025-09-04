@@ -278,11 +278,13 @@ mdns_append_path_to_url(UA_String *url, const char *path) {
     size_t newUrlLen = url->length + pathLen; //size of the new url string incl. the path 
     /* todo: malloc may fail: return a statuscode */
     char *newUrl = (char *)UA_malloc(url->length + pathLen);
-    memcpy(newUrl, url->data, url->length);
-    memcpy(newUrl + url->length, path, pathLen);
-    UA_String_clear(url);
-    url->length = newUrlLen;
-    url->data = (UA_Byte *) newUrl;
+    if (newUrl) {
+        memcpy(newUrl, url->data, url->length);
+        memcpy(newUrl + url->length, path, pathLen);
+        UA_String_clear(url);
+        url->length = newUrlLen;
+        url->data = (UA_Byte *) newUrl;
+    }
 }
 
 static void

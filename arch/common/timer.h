@@ -23,20 +23,17 @@ _UA_BEGIN_DECLS
  * Obviously, the timer must not be deleted from within one of its
  * callbacks. */
 
-/* Callback where the application is either a client or a server */
-typedef void (*UA_ApplicationCallback)(void *application, void *data);
-
 typedef struct UA_TimerEntry {
     ZIP_ENTRY(UA_TimerEntry) treeEntry;
-    UA_TimerPolicy timerPolicy;      /* Timer policy to handle cycle misses */
-    UA_DateTime nextTime;            /* The next time when the callback is to be
-                                      * executed */
-    UA_DateTime interval;            /* Interval in 100ns resolution. If the
-                                      * interval is zero, the callback is not
-                                      * repeated and removed after execution. */
-    UA_ApplicationCallback callback; /* This is also a sentinel value. If the
-                                      * callback is NULL, then the entry is
-                                      * marked for deletion. */
+    UA_TimerPolicy timerPolicy; /* Timer policy to handle cycle misses */
+    UA_DateTime nextTime;       /* The next time when the callback is to be
+                                 * executed */
+    UA_DateTime interval;       /* Interval in 100ns resolution. If the
+                                 * interval is zero, the callback is not
+                                 * repeated and removed after execution. */
+    UA_Callback cb;             /* This is also a sentinel value. If the
+                                 * callback is NULL, then the entry is
+                                 * marked for deletion. */
     void *application;
     void *data;
 
@@ -64,7 +61,7 @@ UA_DateTime
 UA_Timer_next(UA_Timer *t);
 
 UA_StatusCode
-UA_Timer_add(UA_Timer *t, UA_ApplicationCallback callback,
+UA_Timer_add(UA_Timer *t, UA_Callback callback,
              void *application, void *data, UA_Double interval_ms,
              UA_DateTime now, UA_DateTime *baseTime,
              UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId);

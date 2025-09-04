@@ -293,8 +293,6 @@ typedef struct {
 #endif
 } UA_EventLoopLWIP;
 
-/* The following functions differ between epoll and normal select */
-
 /* Register to start receiving events */
 UA_StatusCode
 UA_EventLoopLWIP_registerFD(UA_EventLoopLWIP *el, UA_RegisteredFD *rfd);

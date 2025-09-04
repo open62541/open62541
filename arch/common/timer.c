@@ -93,7 +93,7 @@ batchTimerEntry(UA_Timer *t, UA_TimerEntry *te) {
  * future. This will be picked up in the next iteration and inserted at the
  * correct place. So that the next execution takes place ät "nextTime". */
 UA_StatusCode
-UA_Timer_add(UA_Timer *t, UA_ApplicationCallback callback,
+UA_Timer_add(UA_Timer *t, UA_Callback callback,
              void *application, void *data, UA_Double interval_ms,
              UA_DateTime now, UA_DateTime *baseTime,
              UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId) {
@@ -126,7 +126,7 @@ UA_Timer_add(UA_Timer *t, UA_ApplicationCallback callback,
 
     /* Set the repeated callback */
     te->interval = interval;
-    te->callback = callback;
+    te->cb = callback;
     te->application = application;
     te->data = data;
     te->nextTime = nextTime;
@@ -214,7 +214,7 @@ UA_Timer_remove(UA_Timer *t, UA_UInt64 callbackId) {
         ZIP_REMOVE(UA_TimerIdTree, &t->idTree, te);
         UA_free(te);
     } else {
-        te->callback = NULL;
+        te->cb = NULL;
     }
 
     UA_UNLOCK(&t->timerMutex);
@@ -231,12 +231,12 @@ processEntryCallback(void *context, UA_TimerEntry *te) {
     UA_Timer *t = tpc->t;
 
     /* Execute the callback */
-    if(te->callback) {
-        te->callback(te->application, te->data);
+    if(te->cb) {
+        te->cb(te->application, te->data);
     }
 
     /* Remove the entry if marked for deletion or a "once" policy */
-    if(!te->callback || te->timerPolicy == UA_TIMERPOLICY_ONCE) {
+    if(!te->cb || te->timerPolicy == UA_TIMERPOLICY_ONCE) {
         ZIP_REMOVE(UA_TimerIdTree, &t->idTree, te);
         UA_free(te);
         return NULL;

@@ -363,12 +363,12 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
                                 const UA_String str);
+#endif
 
 /* The out-string can be pre-allocated. Then the size is adjusted or an error
  * returned. If the out-string is NULL, then memory is allocated for it. */
 UA_EXPORT UA_StatusCode
 UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
-#endif
 
 /**
  * .. _parse-sao:
@@ -434,6 +434,7 @@ UA_AttributeOperand_parse(UA_AttributeOperand *ao,
 UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
                                 const UA_String str);
+#endif
 
 /* The out-string can be pre-allocated. Then the size is adjusted or an error
  * returned. If the out-string is NULL, then memory is allocated for it. */
@@ -448,7 +449,6 @@ UA_AttributeOperand_print(const UA_AttributeOperand *ao,
 UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
                                 UA_String *out);
-#endif
 
 /**
  * Convenience macros for complex types

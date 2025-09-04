@@ -450,6 +450,7 @@ UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
     return t;
 }
 
+#ifdef UA_ENABLE_PARSING
 UA_StatusCode
 UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
     if(str.length == 0)
@@ -605,6 +606,7 @@ UA_DATETIME(const char *chars) {
         UA_DateTime_init(&dst);
     return dst;
 }
+#endif
 
 /* Guid */
 static const u8 hexmapLower[16] =

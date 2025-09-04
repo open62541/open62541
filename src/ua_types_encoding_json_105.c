@@ -430,7 +430,7 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
     return ret | writeJsonArrEnd(ctx, type);
 }
 
-static const u8 hexmap[16] =
+static const char hexmap[16] =
     {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 
 ENCODE_JSON(String) {
@@ -477,7 +477,7 @@ ENCODE_JSON(String) {
             if(*pos >= ' ' && *pos != 127) {
                 /* Escape \ or " */
                 escape_buf[0] = '\\';
-                escape_buf[1] = *pos;
+                escape_buf[1] = (char)*pos;
             } else {
                 /* Unprintable characters need to be escaped */
                 escape_buf[0] = '\\';

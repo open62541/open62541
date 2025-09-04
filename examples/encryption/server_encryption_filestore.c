@@ -66,6 +66,5 @@ cleanup:
     UA_Server_delete(server);
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
-    UA_String_clear(&storePath);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
