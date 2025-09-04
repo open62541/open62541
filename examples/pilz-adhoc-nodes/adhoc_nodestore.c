@@ -1,10 +1,16 @@
 #include "adhoc_nodestore.h"
 #include <open62541/plugin/nodestore.h>
+#include <open62541/server.h>
+#include <open62541/types.h>
 
 #ifndef container_of
 #define container_of(ptr, type, member) \
     (type *)((uintptr_t)ptr - offsetof(type,member))
 #endif
+
+/***************/
+/* AdHoc Nodes */
+/***************/
 
 /* The default Nodestore is simply a hash-map from NodeIds to Nodes. To find an
  * entry, iterate over candidate positions according to the NodeId hash.
@@ -116,6 +122,46 @@ static const MockBackendNode* findMockBackendNode(UA_UInt32 nodeId, UA_UInt16 na
     }
     return NULL;
 }
+
+static void
+setAsyncReadResult(UA_Server *server, void *data) {
+    UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_USERLAND, "read result");
+    UA_DataValue *value= (UA_DataValue*)data;
+    UA_Server_setAsyncReadResult(server, value);
+}
+
+static UA_StatusCode
+delayedValueRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+                 const UA_NodeId *nodeId, void *nodeContext,
+                 UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range,
+                 UA_DataValue *value) {
+    /* Get the mockup node */
+    const MockBackendNode *mockNode =
+        findMockBackendNode(nodeId->identifier.numeric, nodeId->namespaceIndex);
+    if(!mockNode)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Set the value immediately in the output */
+    UA_String v = UA_STRING(mockNode->value);
+    UA_Variant_setScalarCopy(&value->value, &v, &UA_TYPES[UA_TYPES_STRING]);
+    value->hasValue = true;
+
+    /* Return the output with a five second delay */
+    UA_DateTime callTime = UA_DateTime_nowMonotonic() + (2 * UA_DATETIME_SEC);
+    UA_Server_addTimedCallback(server, setAsyncReadResult, value, callTime, NULL);
+    return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
+}
+
+static UA_StatusCode
+delayedValueWrite(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+                  const UA_NodeId *nodeId, void *nodeContext,
+                  const UA_NumericRange *range, const UA_DataValue *value) {
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+/**********************/
+/* Fallback Nodestore */
+/**********************/
 
 typedef struct MapEntry {
     struct MapEntry *orig; /* the version this is a copy from (or NULL) */
@@ -378,6 +424,11 @@ static MapEntry* createNodeFromMockData(const MockBackendNode* mockNode) {
             /* Set DataType to String */
             varNode->dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRING);
             varNode->valueRank = UA_VALUERANK_SCALAR;
+
+            /* Set the value to the async callback */
+            varNode->valueSourceType = UA_VALUESOURCETYPE_CALLBACK;
+            varNode->valueSource.callback.read = delayedValueRead;
+            varNode->valueSource.callback.write = delayedValueWrite;
             break;
         }
         case UA_NODECLASS_METHOD: {
