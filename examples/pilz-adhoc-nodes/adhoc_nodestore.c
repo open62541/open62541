@@ -1,5 +1,6 @@
 #include "adhoc_nodestore.h"
 #include <open62541/plugin/nodestore.h>
+#include <open62541/plugin/nodestore_default.h>
 #include <open62541/server.h>
 #include <open62541/types.h>
 
@@ -180,6 +181,7 @@ typedef struct {
 
 typedef struct {
     UA_Nodestore ns;
+    UA_Nodestore *fallback;
 
     MapSlot *slots;
     UA_UInt32 size;
@@ -738,6 +740,8 @@ static void
 AdHocNodestore_free(UA_Nodestore *ns) {
     AdHocNodestore *ans = (AdHocNodestore*)ns;
 
+    ans->fallback->free(ans->fallback);
+
     UA_UInt32 size = ans->size;
     MapSlot *slots = ans->slots;
     for(UA_UInt32 i = 0; i < size; ++i) {
@@ -763,6 +767,12 @@ UA_Nodestore_PilzAdHoc(void) {
     AdHocNodestore *ns = (AdHocNodestore*)UA_malloc(sizeof(AdHocNodestore));
     if(!ns)
         return NULL;
+
+    ns->fallback = UA_Nodestore_ZipTree();
+    if(!ns->fallback) {
+        UA_free(ns);
+        return NULL;
+    }
 
     ns->referenceTypeCounter = 0;
     ns->sizePrimeIndex = higher_prime_index(UA_NODEMAP_MINSIZE);
