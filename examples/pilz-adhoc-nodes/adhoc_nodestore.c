@@ -473,40 +473,46 @@ AdHocNodestore_getNode(UA_Nodestore *orig_ns, const UA_NodeId *nodeid,
                        UA_ReferenceTypeSet references,
                        UA_BrowseDirection referenceDirections) {
     AdHocNodestore *ns = (AdHocNodestore*)orig_ns;
+
+    /* Search in the fallback */
+    const UA_Node *out = ns->fallback->getNode(ns->fallback, nodeid, attributeMask, references, referenceDirections);
+    if(out)
+        return out;
+
+    /* Search in the cache hash-map */
     MapSlot *slot = findOccupiedSlot(ns, nodeid);
-    
-    /* If node exists in hashmap, return it */
     if(slot) {
         ++slot->entry->refCount;
         return &slot->entry->node;
     }
     
     /* Node not in hashmap - check if it exists in mock backend */
-    if(nodeid->identifierType == UA_NODEIDTYPE_NUMERIC) {
-        const MockBackendNode* mockNode = findMockBackendNode(nodeid->identifier.numeric, 
-                                                              nodeid->namespaceIndex);
-        if(mockNode) {
-            /* Create node from mock data and insert into hashmap */
-            MapEntry *entry = createNodeFromMockData(mockNode);
-            if(entry) {
-                /* Find a free slot and insert */
-                MapSlot *newSlot = findFreeSlot(ns, &entry->node.head.nodeId);
-                if(newSlot) {
-                    newSlot->nodeIdHash = UA_NodeId_hash(&entry->node.head.nodeId);
-                    newSlot->entry = entry;
-                    ++ns->count;
+    if(nodeid->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return NULL;
+    const MockBackendNode* mockNode = findMockBackendNode(nodeid->identifier.numeric, 
+                                                          nodeid->namespaceIndex);
+    if(!mockNode)
+        return NULL;
+
+    /* Create node from mock data and insert into hashmap */
+    MapEntry *entry = createNodeFromMockData(mockNode);
+    if(!entry)
+        return NULL;
+
+    /* Find a free slot and insert */
+    MapSlot *newSlot = findFreeSlot(ns, &entry->node.head.nodeId);
+    if(newSlot) {
+        newSlot->nodeIdHash = UA_NodeId_hash(&entry->node.head.nodeId);
+        newSlot->entry = entry;
+        ++ns->count;
                     
-                    /* Mark as dynamically created for later cleanup */
-                    entry->refCount = 1; /* Initial reference */
-                    return &entry->node;
-                } else {
-                    /* Could not insert - cleanup */
-                    deleteNodeMapEntry(entry);
-                }
-            }
-        }
+        /* Mark as dynamically created for later cleanup */
+        entry->refCount = 1; /* Initial reference */
+        return &entry->node;
+    } else {
+        /* Could not insert - cleanup */
+        deleteNodeMapEntry(entry);
     }
-    
     return NULL;
 }
 
@@ -526,6 +532,14 @@ AdHocNodestore_releaseNode(UA_Nodestore *orig_ns, const UA_Node *node) {
     AdHocNodestore *ns = (AdHocNodestore*)orig_ns;
     if(!node)
         return;
+
+    /* Search in the fallback */
+    const UA_Node *backend = ns->fallback->getNode(ns->fallback, &node->head.nodeId, 0,
+                                                   UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
+    if(backend) {
+        ns->fallback->releaseNode(ns->fallback, node);
+        ns->fallback->releaseNode(ns->fallback, node);
+    }
 
     MapEntry *entry = container_of(node, MapEntry, node);
     UA_assert(&entry->node == node);
