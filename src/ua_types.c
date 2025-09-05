@@ -100,6 +100,8 @@ UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
                 const UA_DataType *type = &customTypes->types[i];
 #ifdef UA_ENABLE_TYPEDESCRIPTION
                 UA_free((void*)(uintptr_t)type->typeName);
+                UA_NodeId_clear((UA_NodeId*)(uintptr_t)&type->typeId);
+                UA_NodeId_clear((UA_NodeId*)(uintptr_t)&type->binaryEncodingId);                    
                 for(size_t j = 0; j < type->membersSize; ++j) {
                     const UA_DataTypeMember *m = &type->members[j];
                     UA_free((void*)(uintptr_t)m->memberName);
