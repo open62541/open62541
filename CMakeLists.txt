@@ -932,6 +932,7 @@ if(UA_ENABLE_PUBSUB)
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_readergroup.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0_sks.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_securitygroup.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c)
