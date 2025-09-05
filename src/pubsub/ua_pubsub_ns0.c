@@ -63,6 +63,23 @@ findSingleChildNode(UA_Server *server, UA_QualifiedName targetName,
     return resultNodeId;
 }
 
+/* Read callback specifically for PublishSubscribeType Status State */
+static UA_StatusCode
+readPublishSubscribeStatusCallback(UA_Server *server, const UA_NodeId *sessionId, 
+                                 void *sessionContext, const UA_NodeId *nodeid, 
+                                 void *context, UA_Boolean includeSourceTimeStamp,
+                                 const UA_NumericRange *range, UA_DataValue *value) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    value->hasValue = true;
+    return UA_Variant_setScalarCopy(&value->value, &psm->pubSubState,
+                                  &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
+}
+
 static UA_StatusCode
 ReadCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeid, void *context, UA_Boolean includeSourceTimeStamp,
@@ -2342,6 +2359,13 @@ initPubSubNS0(UA_Server *server) {
     retVal |= writePubSubNs0VariableArray(server,
                                           UA_NS0ID(PUBLISHSUBSCRIBE_SUPPORTEDTRANSPORTPROFILES),
                                           profileArray, 1, &UA_TYPES[UA_TYPES_STRING]);
+
+    /* Set read callback for PublishSubscribeType Status State (mandatory) */
+    UA_CallbackValueSource statusCallback;
+    statusCallback.read = readPublishSubscribeStatusCallback;
+    statusCallback.write = NULL;
+    retVal |= setVariableValueSource(server, statusCallback, 
+                                    UA_NS0ID(PUBLISHSUBSCRIBETYPE_STATUS_STATE), NULL);
 
     if(server->config.pubSubConfig.enableInformationModelMethods) {
         /* Add missing references */
