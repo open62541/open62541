@@ -468,7 +468,7 @@ DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr
                                     size_t targetsSize, const UA_FieldTargetDataType *targets);
 
 /* Returns an error reason if the target state is `Error` */
-void
+UA_StatusCode
 UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                 UA_PubSubState targetState, UA_StatusCode errorReason);
 
