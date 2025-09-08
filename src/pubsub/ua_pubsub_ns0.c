@@ -63,35 +63,13 @@ findSingleChildNode(UA_Server *server, UA_QualifiedName targetName,
     return resultNodeId;
 }
 
-/* Read callback specifically for PublishSubscribeType Status State */
-static UA_StatusCode
-readPublishSubscribeStatusCallback(UA_Server *server, const UA_NodeId *sessionId, 
-                                 void *sessionContext, const UA_NodeId *nodeid, 
-                                 void *context, UA_Boolean includeSourceTimeStamp,
-                                 const UA_NumericRange *range, UA_DataValue *value) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    value->hasValue = true;
-
-    UA_PubSubState state = UA_PUBSUBSTATE_OPERATIONAL;
-
-    return UA_Variant_setScalarCopy(&value->value, &state,
-                                  &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
-
-    //return UA_Variant_setScalarCopy(&value->value, &psm->pubSubState,
-    //                              &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
-}
-
 static UA_StatusCode
 findPubSubComponentFromStatus(UA_Server *server, const UA_NodeId *statusObjectId,
                               UA_NodeId *componentNodeId, UA_PubSubComponentType *componentType,
-                              void **component) {
+                              void **component, UA_Boolean *isPublishSubscribeObject) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    *isPublishSubscribeObject = false;
     /* Find the parent PubSub component by browsing up from the Status object */
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -122,8 +100,14 @@ findPubSubComponentFromStatus(UA_Server *server, const UA_NodeId *statusObjectId
     UA_NodeId readergroupTypeId = UA_NS0ID(READERGROUPTYPE);
     UA_NodeId datasetreaderTypeId = UA_NS0ID(DATASETREADERTYPE);
     UA_NodeId datasetwriterTypeId = UA_NS0ID(DATASETWRITERTYPE);
+    UA_NodeId publishsubscribeTypeId = UA_NS0ID(PUBLISHSUBSCRIBETYPE);
 
-    if(UA_NodeId_equal(&parentTypeId, &pubsubconnectionTypeId)) {
+    if(UA_NodeId_equal(&parentTypeId, &publishsubscribeTypeId)) {
+        *isPublishSubscribeObject = true;
+        *componentType = UA_PUBSUBCOMPONENT_CONNECTION;
+        *component = psm;
+        return UA_STATUSCODE_GOOD;
+    } else if(UA_NodeId_equal(&parentTypeId, &pubsubconnectionTypeId)) {
         *componentType = UA_PUBSUBCOMPONENT_CONNECTION;
         *component = UA_PubSubConnection_find(psm, *componentNodeId);
     } else if(UA_NodeId_equal(&parentTypeId, &writergroupTypeId)) {
@@ -148,7 +132,6 @@ findPubSubComponentFromStatus(UA_Server *server, const UA_NodeId *statusObjectId
     return UA_STATUSCODE_GOOD;
 }
 
-/* DataSource callback for State variable - returns the actual state of the PubSub component */
 static UA_StatusCode
 pubSubStateVariableDataSourceRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                                   const UA_NodeId *nodeid, void *context, UA_Boolean includeSourceTimeStamp,
@@ -177,31 +160,39 @@ pubSubStateVariableDataSourceRead(UA_Server *server, const UA_NodeId *sessionId,
     UA_NodeId componentNodeId;
     UA_PubSubComponentType componentType;
     void *component = NULL;
+    UA_Boolean isPublishSubscribeObject = false;
     
     UA_StatusCode retVal = findPubSubComponentFromStatus(server, &statusObjectId,
-                                                        &componentNodeId, &componentType, &component);
+                                                        &componentNodeId, &componentType, &component, &isPublishSubscribeObject);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
     UA_PubSubState state = UA_PUBSUBSTATE_DISABLED;
-    switch(componentType) {
-    case UA_PUBSUBCOMPONENT_CONNECTION:
-        state = ((UA_PubSubConnection*)component)->head.state;
-        break;
-    case UA_PUBSUBCOMPONENT_WRITERGROUP:
-        state = ((UA_WriterGroup*)component)->head.state;
-        break;
-    case UA_PUBSUBCOMPONENT_READERGROUP:
-        state = ((UA_ReaderGroup*)component)->head.state;
-        break;
-    case UA_PUBSUBCOMPONENT_DATASETREADER:
-        state = ((UA_DataSetReader*)component)->head.state;
-        break;
-    case UA_PUBSUBCOMPONENT_DATASETWRITER:
-        state = ((UA_DataSetWriter*)component)->head.state;
-        break;
-    default:
-        return UA_STATUSCODE_BADNOTSUPPORTED;
+    
+    if(isPublishSubscribeObject) {
+        UA_PubSubManager *psm = (UA_PubSubManager*)component;
+        state = (psm->sc.state == UA_LIFECYCLESTATE_STARTED) ? 
+                UA_PUBSUBSTATE_OPERATIONAL : UA_PUBSUBSTATE_DISABLED;
+    } else {
+        switch(componentType) {
+        case UA_PUBSUBCOMPONENT_CONNECTION:
+            state = ((UA_PubSubConnection*)component)->head.state;
+            break;
+        case UA_PUBSUBCOMPONENT_WRITERGROUP:
+            state = ((UA_WriterGroup*)component)->head.state;
+            break;
+        case UA_PUBSUBCOMPONENT_READERGROUP:
+            state = ((UA_ReaderGroup*)component)->head.state;
+            break;
+        case UA_PUBSUBCOMPONENT_DATASETREADER:
+            state = ((UA_DataSetReader*)component)->head.state;
+            break;
+        case UA_PUBSUBCOMPONENT_DATASETWRITER:
+            state = ((UA_DataSetWriter*)component)->head.state;
+            break;
+        default:
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
     }
 
     value->hasValue = true;
@@ -226,9 +217,10 @@ enablePubSubObjectAction(UA_Server *server, const UA_NodeId *sessionId, void *se
     UA_NodeId componentNodeId;
     UA_PubSubComponentType componentType;
     void *component = NULL;
+    UA_Boolean isPublishSubscribeObject = false;
     
     UA_StatusCode retVal = findPubSubComponentFromStatus(server, objectId,
-                                                        &componentNodeId, &componentType, &component);
+                                                        &componentNodeId, &componentType, &component, &isPublishSubscribeObject);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
@@ -236,23 +228,50 @@ enablePubSubObjectAction(UA_Server *server, const UA_NodeId *sessionId, void *se
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* Enable the appropriate PubSub component based on type */
+    if(isPublishSubscribeObject) {
+        if(psm->sc.state != UA_LIFECYCLESTATE_STOPPED)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
+        return UA_STATUSCODE_GOOD;
+    }
+
     switch(componentType) {
-    case UA_PUBSUBCOMPONENT_CONNECTION:
-        retVal = UA_PubSubConnection_setPubSubState(psm, (UA_PubSubConnection*)component, UA_PUBSUBSTATE_OPERATIONAL);
+    case UA_PUBSUBCOMPONENT_CONNECTION: {
+        UA_PubSubConnection *conn = (UA_PubSubConnection*)component;
+        /* OPC UA Standard: "The Server shall reject Enable Method calls if the current State is not Disabled." */
+        if(conn->head.state != UA_PUBSUBSTATE_DISABLED)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        retVal = UA_PubSubConnection_setPubSubState(psm, conn, UA_PUBSUBSTATE_OPERATIONAL);
         break;
-    case UA_PUBSUBCOMPONENT_WRITERGROUP:
-        retVal = UA_WriterGroup_setPubSubState(psm, (UA_WriterGroup*)component, UA_PUBSUBSTATE_OPERATIONAL);
+    }
+    case UA_PUBSUBCOMPONENT_WRITERGROUP: {
+        UA_WriterGroup *wg = (UA_WriterGroup*)component;
+        if(wg->head.state != UA_PUBSUBSTATE_DISABLED)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        retVal = UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
         break;
-    case UA_PUBSUBCOMPONENT_READERGROUP:
-        retVal = UA_ReaderGroup_setPubSubState(psm, (UA_ReaderGroup*)component, UA_PUBSUBSTATE_OPERATIONAL);
+    }
+    case UA_PUBSUBCOMPONENT_READERGROUP: {
+        UA_ReaderGroup *rg = (UA_ReaderGroup*)component;
+        if(rg->head.state != UA_PUBSUBSTATE_DISABLED)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        retVal = UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
         break;
-    case UA_PUBSUBCOMPONENT_DATASETREADER:
-        retVal = UA_DataSetReader_setPubSubState(psm, (UA_DataSetReader*)component, UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD);
+    }
+    case UA_PUBSUBCOMPONENT_DATASETREADER: {
+        UA_DataSetReader *dsr = (UA_DataSetReader*)component;
+        if(dsr->head.state != UA_PUBSUBSTATE_DISABLED)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        retVal = UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD);
         break;
-    case UA_PUBSUBCOMPONENT_DATASETWRITER:
-        retVal = UA_DataSetWriter_setPubSubState(psm, (UA_DataSetWriter*)component, UA_PUBSUBSTATE_OPERATIONAL);
+    }
+    case UA_PUBSUBCOMPONENT_DATASETWRITER: {
+        UA_DataSetWriter *dsw = (UA_DataSetWriter*)component;
+        if(dsw->head.state != UA_PUBSUBSTATE_DISABLED)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        retVal = UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_OPERATIONAL);
         break;
+    }
     default:
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
@@ -278,9 +297,10 @@ disablePubSubObjectAction(UA_Server *server, const UA_NodeId *sessionId, void *s
     UA_NodeId componentNodeId;
     UA_PubSubComponentType componentType;
     void *component = NULL;
+    UA_Boolean isPublishSubscribeObject = false;
     
     UA_StatusCode retVal = findPubSubComponentFromStatus(server, objectId,
-                                                        &componentNodeId, &componentType, &component);
+                                                        &componentNodeId, &componentType, &component, &isPublishSubscribeObject);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
@@ -288,23 +308,54 @@ disablePubSubObjectAction(UA_Server *server, const UA_NodeId *sessionId, void *s
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* Disable the appropriate PubSub component based on type */
+    /* Handle PublishSubscribe object separately */
+    if(isPublishSubscribeObject) {
+        /* For PublishSubscribe object, check PubSubManager lifecycle state */
+        if(psm->sc.state == UA_LIFECYCLESTATE_STOPPED)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        /* Disable the PubSubManager by stopping it */
+        UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Disable the appropriate PubSub component with state validation */
     switch(componentType) {
-    case UA_PUBSUBCOMPONENT_CONNECTION:
-        retVal = UA_PubSubConnection_setPubSubState(psm, (UA_PubSubConnection*)component, UA_PUBSUBSTATE_DISABLED);
+    case UA_PUBSUBCOMPONENT_CONNECTION: {
+        UA_PubSubConnection *conn = (UA_PubSubConnection*)component;
+        /* OPC UA Standard: "The Server shall reject Disable Method calls if the current State is Disabled." */
+        if(conn->head.state == UA_PUBSUBSTATE_DISABLED)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        retVal = UA_PubSubConnection_setPubSubState(psm, conn, UA_PUBSUBSTATE_DISABLED);
         break;
-    case UA_PUBSUBCOMPONENT_WRITERGROUP:
-        retVal = UA_WriterGroup_setPubSubState(psm, (UA_WriterGroup*)component, UA_PUBSUBSTATE_DISABLED);
+    }
+    case UA_PUBSUBCOMPONENT_WRITERGROUP: {
+        UA_WriterGroup *wg = (UA_WriterGroup*)component;
+        if(wg->head.state == UA_PUBSUBSTATE_DISABLED)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        retVal = UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
         break;
-    case UA_PUBSUBCOMPONENT_READERGROUP:
-        retVal = UA_ReaderGroup_setPubSubState(psm, (UA_ReaderGroup*)component, UA_PUBSUBSTATE_DISABLED);
+    }
+    case UA_PUBSUBCOMPONENT_READERGROUP: {
+        UA_ReaderGroup *rg = (UA_ReaderGroup*)component;
+        if(rg->head.state == UA_PUBSUBSTATE_DISABLED)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        retVal = UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
         break;
-    case UA_PUBSUBCOMPONENT_DATASETREADER:
-        retVal = UA_DataSetReader_setPubSubState(psm, (UA_DataSetReader*)component, UA_PUBSUBSTATE_DISABLED, UA_STATUSCODE_GOOD);
+    }
+    case UA_PUBSUBCOMPONENT_DATASETREADER: {
+        UA_DataSetReader *dsr = (UA_DataSetReader*)component;
+        if(dsr->head.state == UA_PUBSUBSTATE_DISABLED)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        retVal = UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_DISABLED, UA_STATUSCODE_GOOD);
         break;
-    case UA_PUBSUBCOMPONENT_DATASETWRITER:
-        retVal = UA_DataSetWriter_setPubSubState(psm, (UA_DataSetWriter*)component, UA_PUBSUBSTATE_DISABLED);
+    }
+    case UA_PUBSUBCOMPONENT_DATASETWRITER: {
+        UA_DataSetWriter *dsw = (UA_DataSetWriter*)component;
+        if(dsw->head.state == UA_PUBSUBSTATE_DISABLED)
+            return UA_STATUSCODE_BADINVALIDSTATE;
+        retVal = UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
         break;
+    }
     default:
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
@@ -2250,7 +2301,7 @@ initPubSubNS0(UA_Server *server) {
 
     /* Set read callback for PublishSubscribeType Status State (mandatory) */
     UA_CallbackValueSource statusCallback;
-    statusCallback.read = readPublishSubscribeStatusCallback;
+    statusCallback.read = pubSubStateVariableDataSourceRead;
     statusCallback.write = NULL;
     retVal |= setVariableValueSource(server, statusCallback, 
                                     UA_NS0ID(PUBLISHSUBSCRIBE_STATUS_STATE), NULL);
