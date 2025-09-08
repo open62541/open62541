@@ -369,30 +369,34 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
                                   size_t operatorsCount,
                                   const UA_ContentFilterElement *ef);
 
-/* If the subscriptionId and monitoredItemId are non-NULL, they are used to
- * filter the subscriptions and monitoreditems that emit the event. */
+/* If the sessionId, subscriptionId or monitoredItemId are non-NULL, they are
+ * used to filter the subscriptions and monitoreditems that emit the event. */
 UA_StatusCode
-createEvent(UA_Server *server, const UA_NodeId eventType, const UA_NodeId sourceNode,
-            UA_UInt16 severity, UA_KeyValueMap otherEventFields,
+createEvent(UA_Server *server, const UA_NodeId sourceNode, const UA_NodeId eventType,
+            UA_UInt16 severity, const UA_LocalizedText message,
+            const UA_KeyValueMap *eventFields, const UA_NodeId *eventTypeInstance,
             const UA_UInt32 *subscriptionId, const UA_UInt32 *monitoredItemId);
 
 typedef struct {
-    UA_NodeId eventType;
     UA_NodeId sourceNode;
+    UA_NodeId eventType;
     UA_UInt16 severity;
-    UA_KeyValueMap otherEventFields;
+    UA_LocalizedText message;
+    const UA_KeyValueMap *eventFields;
+    const UA_NodeId *eventTypeInstance;
 } UA_EventDescription;
 
 /* Evaluate content filter, exported only for unit testing */
 UA_StatusCode
 evaluateWhereClause(UA_Server *server, UA_Session *session,
-                    const UA_ContentFilter *contentFilter,
+                    const UA_ContentFilter *cf,
                     const UA_EventDescription *ed);
 
 /* Applies the select clause and resolves the result fields */
 UA_StatusCode
 evaluateSelectClause(UA_Server *server, UA_Session *session,
-                     const UA_EventDescription *ed, const UA_EventFilter *filter,
+                     const UA_EventDescription *ed,
+                     const UA_EventFilter *filter,
                      UA_EventFieldList *efl);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */

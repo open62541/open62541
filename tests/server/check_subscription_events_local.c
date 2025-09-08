@@ -50,15 +50,10 @@ eventCallback(UA_Server *server, UA_UInt32 monitoredItemId,
 
 static void
 createEvent(void) {
-    UA_KeyValueMap eventFields = UA_KEYVALUEMAP_NULL;
-    UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "Generated Event");
-    UA_KeyValueMap_setScalar(&eventFields, UA_QUALIFIEDNAME(0, "/Message"),
-                             &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-
     UA_UInt16 severity = 100;
-    UA_StatusCode res = UA_Server_createEvent(server, eventType, UA_NS0ID(SERVER),
-                                              severity, eventFields);
-    UA_KeyValueMap_clear(&eventFields);
+    UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "Generated Event");
+    UA_StatusCode res = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType,
+                                              severity, message, NULL, NULL);
 }
 
 /* Ensure events are received with proper values */
