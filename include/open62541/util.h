@@ -123,6 +123,14 @@ UA_KeyValueMap_set(UA_KeyValueMap *map,
                    const UA_QualifiedName key,
                    const UA_Variant *value);
 
+/* The same as _set, but inserts a shallow copy of the value. Set
+ * UA_VARIANT_DATA_NODELETE if the value should not be _cleared together with
+ * the map. */
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_setShallow(UA_KeyValueMap *map,
+                          const UA_QualifiedName key,
+                          UA_Variant *value);
+
 /* Helper function for scalar insertion that internally calls
  * `UA_KeyValueMap_set` */
 UA_EXPORT UA_StatusCode
