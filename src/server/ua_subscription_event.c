@@ -1458,20 +1458,29 @@ static const UA_NodeId emitReferencesRoots[EMIT_REFS_ROOT_COUNT] =
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASNOTIFIER}}};
 
 UA_StatusCode
-createEvent(UA_Server *server, const UA_NodeId sourceNode, const UA_NodeId eventType,
-            UA_UInt16 severity, const UA_LocalizedText message,
-            const UA_KeyValueMap *eventFields, const UA_NodeId *eventTypeInstance,
-            const UA_UInt32 *subscriptionId, const UA_UInt32 *monitoredItemId) {
+createEvent(UA_Server *server, const UA_EventDescription *ed,
+            const UA_NodeId *sessionId, const UA_UInt32 *subscriptionId,
+            const UA_UInt32 *monitoredItemId) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    /* MonitoredItem can only be filtered if the Subscription is defined.
+     * Subscription can only be filtered if a Session is defined. */
+    if((subscriptionId && !sessionId) ||
+       (monitoredItemId && !subscriptionId)) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Event shall be created with a filter on Subscription (or MonitoredItem), "
+                       "but no Session (or Subscription) is defined");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
                  "Events: An event of severity %su is emitted by node %N",
-                 severity, sourceNode);
+                 ed->severity, ed->sourceNode);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_Boolean isCallerAC = false;
-    if(isConditionOrBranch(server, &eventType, &sourceNode, &isCallerAC) &&
+    if(isConditionOrBranch(server, &ed->eventType, &ed->sourceNode, &isCallerAC) &&
        !isCallerAC) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Condition Events: Please use A&C API to trigger Condition Events 0x%08X",
@@ -1507,15 +1516,6 @@ createEvent(UA_Server *server, const UA_NodeId sourceNode, const UA_NodeId event
     /*     return UA_STATUSCODE_BADINVALIDARGUMENT; */
     /* } */
 
-    /* Prepare the data structure passed for each node */
-    UA_EventDescription ed;
-    ed.sourceNode = sourceNode;
-    ed.eventType = eventType;
-    ed.severity = severity;
-    ed.message = message;
-    ed.eventFields = eventFields;
-    ed.eventTypeInstance = eventTypeInstance;
-
     /* List of nodes that emit the node. Events propagate upwards (bubble up) in
      * the node hierarchy. */
     UA_ExpandedNodeId *emitNodes = NULL;
@@ -1529,7 +1529,7 @@ createEvent(UA_Server *server, const UA_NodeId sourceNode, const UA_NodeId event
      * a Server and as such has implied HasEventSource References to every event
      * source in a Server. */
     UA_NodeId emitStartNodes[2];
-    emitStartNodes[0] = sourceNode;
+    emitStartNodes[0] = ed->sourceNode;
     emitStartNodes[1] = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
 
     /* Get all ReferenceTypes over which the events propagate */
@@ -1582,23 +1582,28 @@ createEvent(UA_Server *server, const UA_NodeId sourceNode, const UA_NodeId event
             if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
                 continue;
 
+            /* Filter on the Session. If a subscription is not attached to a
+             * session, then this filter never matches. */
+            UA_Subscription *sub = mon->subscription;
+            if(sessionId && (!sub->session || !UA_NodeId_equal(sessionId, &sub->session->sessionId)))
+                continue;
+
+            /* Filter on the SubscriptionId */
+            if(subscriptionId && *subscriptionId != sub->subscriptionId)
+                continue;
+
             /* Filter on the MonitoredItemId */
             if(monitoredItemId && *monitoredItemId != mon->monitoredItemId)
                 continue;
 
-            /* Filter on the SubscriptionId */
-            UA_Subscription *sub = mon->subscription;
-            if(subscriptionId && *subscriptionId != sub->subscriptionId)
-                continue;
-
-            /* Select the session. If the subscription is not bound to a
-             * session, use the AdminSession. This has no security implications,
-             * as only values from the EventDescription and the DisplayName of
-             * the source node are used. */
+            /* Select the session used to resolve SimpleAttributeOperands. If
+             * the subscription is not bound to a session, use the AdminSession.
+             *
+             * TODO: Preserve the access rights of the last connected session? */
             UA_Session *session = (sub->session) ? sub->session : &server->adminSession;
 
             /* Evaluate the where-clause and create a notification */
-            res = UA_MonitoredItem_addEvent(server, session, mon, &ed);
+            res = UA_MonitoredItem_addEvent(server, session, mon, ed);
             if(res != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                                "Events: Could not add the event to a listening "
@@ -1612,7 +1617,7 @@ createEvent(UA_Server *server, const UA_NodeId sourceNode, const UA_NodeId event
         /* Add event entry in the historical database */
 #ifdef UA_ENABLE_HISTORIZING
         if(server->config.historyDatabase.setEvent)
-            setHistoricalEvent(server, &emitNodes[i].nodeId, &ed);
+            setHistoricalEvent(server, &emitNodes[i].nodeId, ed);
 #endif
     }
 
@@ -1627,10 +1632,28 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId sourceNode,
                       const UA_LocalizedText message,
                       const UA_KeyValueMap *eventFields,
                       const UA_NodeId *eventTypeInstance) {
+    UA_EventDescription ed;
+    ed.sourceNode = sourceNode;
+    ed.eventType = eventType;
+    ed.severity = severity;
+    ed.message = message;
+    ed.eventFields = eventFields;
+    ed.eventTypeInstance = eventTypeInstance;
+
     lockServer(server);
-    UA_StatusCode res =
-        createEvent(server, sourceNode, eventType, severity, message,
-                    eventFields, eventTypeInstance, NULL, NULL);
+    UA_StatusCode res = createEvent(server, &ed, NULL, NULL, NULL);
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_createEventEx(UA_Server *server,
+                        const UA_EventDescription *ed,
+                        const UA_NodeId *sessionId,
+                        const UA_UInt32 *subscriptionId,
+                        const UA_UInt32 *monitoredItemId) {
+    lockServer(server);
+    UA_StatusCode res = createEvent(server, ed, sessionId, subscriptionId, monitoredItemId);
     unlockServer(server);
     return res;
 }
