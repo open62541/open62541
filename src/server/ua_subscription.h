@@ -372,19 +372,9 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
 /* If the sessionId, subscriptionId or monitoredItemId are non-NULL, they are
  * used to filter the subscriptions and monitoreditems that emit the event. */
 UA_StatusCode
-createEvent(UA_Server *server, const UA_NodeId sourceNode, const UA_NodeId eventType,
-            UA_UInt16 severity, const UA_LocalizedText message,
-            const UA_KeyValueMap *eventFields, const UA_NodeId *eventTypeInstance,
-            const UA_UInt32 *subscriptionId, const UA_UInt32 *monitoredItemId);
-
-typedef struct {
-    UA_NodeId sourceNode;
-    UA_NodeId eventType;
-    UA_UInt16 severity;
-    UA_LocalizedText message;
-    const UA_KeyValueMap *eventFields;
-    const UA_NodeId *eventTypeInstance;
-} UA_EventDescription;
+createEvent(UA_Server *server, const UA_EventDescription *ed,
+            const UA_NodeId *sessionId, const UA_UInt32 *subscriptionId,
+            const UA_UInt32 *monitoredItemId);
 
 /* Evaluate content filter, exported only for unit testing */
 UA_StatusCode

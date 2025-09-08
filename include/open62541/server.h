@@ -1434,6 +1434,30 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId sourceNode,
                       const UA_KeyValueMap *eventFields,
                       const UA_NodeId *eventTypeInstance);
 
+/* Extended version of the _createEvent API. The members of the
+ * UA_EventDescription structure have the same meaning as above.
+ *
+ * In addition, the extended version allows the filtering of Events to be only
+ * transmitted to a particular Session/Subscription/MonitoredItem. The filtering
+ * criteria can be NULL. But the subscriptionId requires a sessionId and the
+ * monitoredItemId requires subscriptionId as context. */
+
+typedef struct {
+    UA_NodeId sourceNode;
+    UA_NodeId eventType;
+    UA_UInt16 severity;
+    UA_LocalizedText message;
+    const UA_KeyValueMap *eventFields;
+    const UA_NodeId *eventTypeInstance;
+} UA_EventDescription;
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_createEventEx(UA_Server *server,
+                        const UA_EventDescription *ed,
+                        const UA_NodeId *sessionId,
+                        const UA_UInt32 *subscriptionId,
+                        const UA_UInt32 *monitoredItemId);
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 #ifdef UA_ENABLE_DISCOVERY
