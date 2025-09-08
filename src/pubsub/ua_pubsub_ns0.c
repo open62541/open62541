@@ -76,8 +76,48 @@ readPublishSubscribeStatusCallback(UA_Server *server, const UA_NodeId *sessionId
         return UA_STATUSCODE_BADINTERNALERROR;
 
     value->hasValue = true;
-    return UA_Variant_setScalarCopy(&value->value, &psm->pubSubState,
+
+    UA_PubSubState state = UA_PUBSUBSTATE_OPERATIONAL;
+
+    return UA_Variant_setScalarCopy(&value->value, &state,
                                   &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
+
+    //return UA_Variant_setScalarCopy(&value->value, &psm->pubSubState,
+    //                              &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
+}
+
+static UA_StatusCode
+enablePubSubObjectAction(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+                         const UA_NodeId *methodId, void *methodContext,
+                         const UA_NodeId *objectId, void *objectContext,
+                         size_t inputSize, const UA_Variant *input,
+                         size_t outputSize, UA_Variant *output) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* Find the State variable within the Status object */
+    UA_NodeId stateNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                               UA_NS0ID(HASCOMPONENT), *objectId);
+    if(UA_NodeId_isNull(&stateNodeId))
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+}
+
+static UA_StatusCode
+disablePubSubObjectAction(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+                          const UA_NodeId *methodId, void *methodContext,
+                          const UA_NodeId *objectId, void *objectContext,
+                          size_t inputSize, const UA_Variant *input,
+                          size_t outputSize, UA_Variant *output) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* Find the State variable within the Status object */
+    UA_NodeId stateNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                               UA_NS0ID(HASCOMPONENT), *objectId);
+    if(UA_NodeId_isNull(&stateNodeId))
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    return UA_STATUSCODE_BADNOTIMPLEMENTED;
 }
 
 static UA_StatusCode
@@ -659,6 +699,9 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     UA_NodeId transportProfileUri =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "TransportProfileUri"),
                             UA_NS0ID(HASCOMPONENT), connection->head.identifier);
+    UA_NodeId statusIdNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
+                            UA_NS0ID(HASCOMPONENT), connection->head.identifier);
 
     if(UA_NodeId_isNull(&addressNode) || UA_NodeId_isNull(&urlNode) ||
        UA_NodeId_isNull(&interfaceNode) || UA_NodeId_isNull(&publisherIdNode) ||
@@ -705,6 +748,15 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
                          UA_NS0ID(PUBSUBCONNECTIONTYPE_ADDREADERGROUP), true);
         retVal |= addRef(server, connection->head.identifier, UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(PUBSUBCONNECTIONTYPE_REMOVEGROUP), true);
+        
+        if(!UA_NodeId_isNull(&statusIdNode)) {
+            retVal |= addRef(server, statusIdNode,
+                            UA_NS0ID(HASCOMPONENT),
+                            UA_NS0ID(PUBSUBSTATUSTYPE_ENABLE), true);
+            retVal |= addRef(server, statusIdNode,
+                            UA_NS0ID(HASCOMPONENT),
+                            UA_NS0ID(PUBSUBSTATUSTYPE_DISABLE), true);
+        }
     }
     return retVal;
 }
@@ -908,6 +960,14 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     UA_Variant_setScalar(&value, &dataSetReader->config.dataSetWriterId,
                          &UA_TYPES[UA_TYPES_UINT16]);
     writeValueAttribute(server, dataSetwriterIdNode, &value);
+
+    if(server->config.pubSubConfig.enableInformationModelMethods) {
+        retVal |= addRef(server, statusIdNode, UA_NS0ID(HASCOMPONENT), 
+                        UA_NS0ID(PUBSUBSTATUSTYPE_ENABLE), true);
+        retVal |= addRef(server, statusIdNode, UA_NS0ID(HASCOMPONENT), 
+                        UA_NS0ID(PUBSUBSTATUSTYPE_DISABLE), true);
+    }
+    
     return retVal;
 }
 
@@ -1450,6 +1510,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
         retVal |= addRef(server, writerGroup->head.identifier,
                          UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(WRITERGROUPTYPE_REMOVEDATASETWRITER), true);
+        retVal |= addRef(server, statusIdNode, UA_NS0ID(HASCOMPONENT), 
+                        UA_NS0ID(PUBSUBSTATUSTYPE_ENABLE), true);
+        retVal |= addRef(server, statusIdNode, UA_NS0ID(HASCOMPONENT), 
+                        UA_NS0ID(PUBSUBSTATUSTYPE_DISABLE), true);
     }
     return retVal;
 }
@@ -1607,6 +1671,10 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
                          UA_NS0ID(READERGROUPTYPE_ADDDATASETREADER), true);
         retVal |= addRef(server, readerGroup->head.identifier, UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(READERGROUPTYPE_REMOVEDATASETREADER), true);
+        retVal |= addRef(server, statusIdNode, UA_NS0ID(HASCOMPONENT), 
+                        UA_NS0ID(PUBSUBSTATUSTYPE_ENABLE), true);
+        retVal |= addRef(server, statusIdNode, UA_NS0ID(HASCOMPONENT), 
+                        UA_NS0ID(PUBSUBSTATUSTYPE_DISABLE), true);
     }
     return retVal;
 }
@@ -1735,6 +1803,12 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
                       UA_NS0ID(UADPDATASETWRITERMESSAGETYPE), &object_attr,
                       &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
                       NULL, NULL);
+    if(server->config.pubSubConfig.enableInformationModelMethods) {
+        retVal |= addRef(server, statusIdNode, UA_NS0ID(HASCOMPONENT), 
+                        UA_NS0ID(PUBSUBSTATUSTYPE_ENABLE), true);
+        retVal |= addRef(server, statusIdNode, UA_NS0ID(HASCOMPONENT), 
+                        UA_NS0ID(PUBSUBSTATUSTYPE_DISABLE), true);
+    }
 
     return retVal;
 }
@@ -2029,7 +2103,7 @@ initPubSubNS0(UA_Server *server) {
     statusCallback.read = readPublishSubscribeStatusCallback;
     statusCallback.write = NULL;
     retVal |= setVariableValueSource(server, statusCallback, 
-                                    UA_NS0ID(PUBLISHSUBSCRIBETYPE_STATUS_STATE), NULL);
+                                    UA_NS0ID(PUBLISHSUBSCRIBE_STATUS_STATE), NULL);
 
     if(server->config.pubSubConfig.enableInformationModelMethods) {
         /* Add missing references */
@@ -2041,6 +2115,10 @@ initPubSubNS0(UA_Server *server) {
                          UA_NS0ID(HASCOMPONENT), UA_NS0ID(DATASETFOLDERTYPE_REMOVEPUBLISHEDDATASET), true);
         retVal |= addRef(server, UA_NS0ID(PUBLISHSUBSCRIBE_PUBLISHEDDATASETS),
                          UA_NS0ID(HASCOMPONENT), UA_NS0ID(DATASETFOLDERTYPE_REMOVEDATASETFOLDER), true);
+        retVal |= addRef(server, UA_NS0ID(PUBLISHSUBSCRIBE_STATUS),
+                         UA_NS0ID(HASCOMPONENT), UA_NS0ID(PUBSUBSTATUSTYPE_ENABLE), true);
+        retVal |= addRef(server, UA_NS0ID(PUBLISHSUBSCRIBE_STATUS),
+                         UA_NS0ID(HASCOMPONENT), UA_NS0ID(PUBSUBSTATUSTYPE_DISABLE), true);
 
         /* Set method callbacks */
         retVal |= setMethodNode_callback(server, UA_NS0ID(PUBLISHSUBSCRIBE_ADDCONNECTION), addPubSubConnectionAction);
@@ -2059,6 +2137,8 @@ initPubSubNS0(UA_Server *server) {
         retVal |= setMethodNode_callback(server, UA_NS0ID(READERGROUPTYPE_ADDDATASETREADER), addDataSetReaderAction);
         retVal |= setMethodNode_callback(server, UA_NS0ID(READERGROUPTYPE_REMOVEDATASETREADER), removeDataSetReaderAction);
         retVal |= setMethodNode_callback(server, UA_NS0ID(PUBLISHSUBSCRIBE_PUBSUBCONFIGURATION_RESERVEIDS), addReserveIdsAction);
+        retVal |= setMethodNode_callback(server, UA_NS0ID(PUBSUBSTATUSTYPE_ENABLE), enablePubSubObjectAction);
+        retVal |= setMethodNode_callback(server, UA_NS0ID(PUBSUBSTATUSTYPE_DISABLE), disablePubSubObjectAction);
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
         /* Adds method node to server. This method is used to load binary files for
