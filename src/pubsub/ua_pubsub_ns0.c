@@ -87,6 +87,128 @@ readPublishSubscribeStatusCallback(UA_Server *server, const UA_NodeId *sessionId
 }
 
 static UA_StatusCode
+findPubSubComponentFromStatus(UA_Server *server, const UA_NodeId *statusObjectId,
+                              UA_NodeId *componentNodeId, UA_PubSubComponentType *componentType,
+                              void **component) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* Find the parent PubSub component by browsing up from the Status object */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *statusObjectId;
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    bd.referenceTypeId = UA_NS0ID(HASCOMPONENT);
+    bd.includeSubtypes = false;
+    bd.nodeClassMask = UA_NODECLASS_OBJECT;
+    bd.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID | UA_BROWSERESULTMASK_TYPEDEFINITION;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    if(br.statusCode != UA_STATUSCODE_GOOD || br.referencesSize == 0) {
+        UA_BrowseResult_clear(&br);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    *componentNodeId = br.references[0].nodeId.nodeId;
+    UA_NodeId parentTypeId = br.references[0].typeDefinition.nodeId;
+    UA_BrowseResult_clear(&br);
+
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Identify component type and find the component */
+    UA_NodeId pubsubconnectionTypeId = UA_NS0ID(PUBSUBCONNECTIONTYPE);
+    UA_NodeId writergroupTypeId = UA_NS0ID(WRITERGROUPTYPE);
+    UA_NodeId readergroupTypeId = UA_NS0ID(READERGROUPTYPE);
+    UA_NodeId datasetreaderTypeId = UA_NS0ID(DATASETREADERTYPE);
+    UA_NodeId datasetwriterTypeId = UA_NS0ID(DATASETWRITERTYPE);
+
+    if(UA_NodeId_equal(&parentTypeId, &pubsubconnectionTypeId)) {
+        *componentType = UA_PUBSUBCOMPONENT_CONNECTION;
+        *component = UA_PubSubConnection_find(psm, *componentNodeId);
+    } else if(UA_NodeId_equal(&parentTypeId, &writergroupTypeId)) {
+        *componentType = UA_PUBSUBCOMPONENT_WRITERGROUP;
+        *component = UA_WriterGroup_find(psm, *componentNodeId);
+    } else if(UA_NodeId_equal(&parentTypeId, &readergroupTypeId)) {
+        *componentType = UA_PUBSUBCOMPONENT_READERGROUP;
+        *component = UA_ReaderGroup_find(psm, *componentNodeId);
+    } else if(UA_NodeId_equal(&parentTypeId, &datasetreaderTypeId)) {
+        *componentType = UA_PUBSUBCOMPONENT_DATASETREADER;
+        *component = UA_DataSetReader_find(psm, *componentNodeId);
+    } else if(UA_NodeId_equal(&parentTypeId, &datasetwriterTypeId)) {
+        *componentType = UA_PUBSUBCOMPONENT_DATASETWRITER;
+        *component = UA_DataSetWriter_find(psm, *componentNodeId);
+    } else {
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    if(!*component)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+/* DataSource callback for State variable - returns the actual state of the PubSub component */
+static UA_StatusCode
+pubSubStateVariableDataSourceRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+                                  const UA_NodeId *nodeid, void *context, UA_Boolean includeSourceTimeStamp,
+                                  const UA_NumericRange *range, UA_DataValue *value) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* Find the parent Status object by browsing inverse from State variable */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *nodeid;
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    bd.referenceTypeId = UA_NS0ID(HASCOMPONENT);
+    bd.includeSubtypes = false;
+    bd.nodeClassMask = UA_NODECLASS_OBJECT;
+    bd.resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    if(br.statusCode != UA_STATUSCODE_GOOD || br.referencesSize == 0) {
+        UA_BrowseResult_clear(&br);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_NodeId statusObjectId = br.references[0].nodeId.nodeId;
+    UA_BrowseResult_clear(&br);
+
+    UA_NodeId componentNodeId;
+    UA_PubSubComponentType componentType;
+    void *component = NULL;
+    
+    UA_StatusCode retVal = findPubSubComponentFromStatus(server, &statusObjectId,
+                                                        &componentNodeId, &componentType, &component);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+
+    UA_PubSubState state = UA_PUBSUBSTATE_DISABLED;
+    switch(componentType) {
+    case UA_PUBSUBCOMPONENT_CONNECTION:
+        state = ((UA_PubSubConnection*)component)->head.state;
+        break;
+    case UA_PUBSUBCOMPONENT_WRITERGROUP:
+        state = ((UA_WriterGroup*)component)->head.state;
+        break;
+    case UA_PUBSUBCOMPONENT_READERGROUP:
+        state = ((UA_ReaderGroup*)component)->head.state;
+        break;
+    case UA_PUBSUBCOMPONENT_DATASETREADER:
+        state = ((UA_DataSetReader*)component)->head.state;
+        break;
+    case UA_PUBSUBCOMPONENT_DATASETWRITER:
+        state = ((UA_DataSetWriter*)component)->head.state;
+        break;
+    default:
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    value->hasValue = true;
+    return UA_Variant_setScalarCopy(&value->value, &state, &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
+}
+
+static UA_StatusCode
 enablePubSubObjectAction(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                          const UA_NodeId *methodId, void *methodContext,
                          const UA_NodeId *objectId, void *objectContext,
@@ -100,7 +222,42 @@ enablePubSubObjectAction(UA_Server *server, const UA_NodeId *sessionId, void *se
     if(UA_NodeId_isNull(&stateNodeId))
         return UA_STATUSCODE_BADNOTFOUND;
 
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    /* Use helper function to identify and find the PubSub component */
+    UA_NodeId componentNodeId;
+    UA_PubSubComponentType componentType;
+    void *component = NULL;
+    
+    UA_StatusCode retVal = findPubSubComponentFromStatus(server, objectId,
+                                                        &componentNodeId, &componentType, &component);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Enable the appropriate PubSub component based on type */
+    switch(componentType) {
+    case UA_PUBSUBCOMPONENT_CONNECTION:
+        retVal = UA_PubSubConnection_setPubSubState(psm, (UA_PubSubConnection*)component, UA_PUBSUBSTATE_OPERATIONAL);
+        break;
+    case UA_PUBSUBCOMPONENT_WRITERGROUP:
+        retVal = UA_WriterGroup_setPubSubState(psm, (UA_WriterGroup*)component, UA_PUBSUBSTATE_OPERATIONAL);
+        break;
+    case UA_PUBSUBCOMPONENT_READERGROUP:
+        retVal = UA_ReaderGroup_setPubSubState(psm, (UA_ReaderGroup*)component, UA_PUBSUBSTATE_OPERATIONAL);
+        break;
+    case UA_PUBSUBCOMPONENT_DATASETREADER:
+        retVal = UA_DataSetReader_setPubSubState(psm, (UA_DataSetReader*)component, UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD);
+        break;
+    case UA_PUBSUBCOMPONENT_DATASETWRITER:
+        retVal = UA_DataSetWriter_setPubSubState(psm, (UA_DataSetWriter*)component, UA_PUBSUBSTATE_OPERATIONAL);
+        break;
+    default:
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    return retVal;
 }
 
 static UA_StatusCode
@@ -117,7 +274,42 @@ disablePubSubObjectAction(UA_Server *server, const UA_NodeId *sessionId, void *s
     if(UA_NodeId_isNull(&stateNodeId))
         return UA_STATUSCODE_BADNOTFOUND;
 
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    /* Use helper function to identify and find the PubSub component */
+    UA_NodeId componentNodeId;
+    UA_PubSubComponentType componentType;
+    void *component = NULL;
+    
+    UA_StatusCode retVal = findPubSubComponentFromStatus(server, objectId,
+                                                        &componentNodeId, &componentType, &component);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Disable the appropriate PubSub component based on type */
+    switch(componentType) {
+    case UA_PUBSUBCOMPONENT_CONNECTION:
+        retVal = UA_PubSubConnection_setPubSubState(psm, (UA_PubSubConnection*)component, UA_PUBSUBSTATE_DISABLED);
+        break;
+    case UA_PUBSUBCOMPONENT_WRITERGROUP:
+        retVal = UA_WriterGroup_setPubSubState(psm, (UA_WriterGroup*)component, UA_PUBSUBSTATE_DISABLED);
+        break;
+    case UA_PUBSUBCOMPONENT_READERGROUP:
+        retVal = UA_ReaderGroup_setPubSubState(psm, (UA_ReaderGroup*)component, UA_PUBSUBSTATE_DISABLED);
+        break;
+    case UA_PUBSUBCOMPONENT_DATASETREADER:
+        retVal = UA_DataSetReader_setPubSubState(psm, (UA_DataSetReader*)component, UA_PUBSUBSTATE_DISABLED, UA_STATUSCODE_GOOD);
+        break;
+    case UA_PUBSUBCOMPONENT_DATASETWRITER:
+        retVal = UA_DataSetWriter_setPubSubState(psm, (UA_DataSetWriter*)component, UA_PUBSUBSTATE_DISABLED);
+        break;
+    default:
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    return retVal;
 }
 
 static UA_StatusCode
@@ -741,6 +933,17 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     retVal |= setVariableValueSource(server, valueCallback, publisherIdNode,
                                      connectionPublisherIdContext);
 
+    if(!UA_NodeId_isNull(&statusIdNode)) {
+        UA_NodeId stateNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                                   UA_NS0ID(HASCOMPONENT), statusIdNode);
+        if(!UA_NodeId_isNull(&stateNodeId)) {
+            UA_DataSource stateDataSource;
+            stateDataSource.read = pubSubStateVariableDataSourceRead;
+            stateDataSource.write = NULL;
+            retVal |= UA_Server_setVariableNode_dataSource(server, stateNodeId, stateDataSource);
+        }
+    }
+
     if(server->config.pubSubConfig.enableInformationModelMethods) {
         retVal |= addRef(server, connection->head.identifier, UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(PUBSUBCONNECTIONTYPE_ADDWRITERGROUP), true);
@@ -941,15 +1144,14 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     retVal |= setVariableValueSource(server, valueCallback, publisherIdNode,
                                      dataSetReaderPublisherIdContext);
 
-    UA_NodePropertyContext *dataSetReaderStateContext =
-        (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
-    UA_CHECK_MEM(dataSetReaderStateContext, return UA_STATUSCODE_BADOUTOFMEMORY);
-    dataSetReaderStateContext->parentNodeId = dataSetReader->head.identifier;
-    dataSetReaderStateContext->parentClassifier = UA_NS0ID_DATASETREADERTYPE;
-    dataSetReaderStateContext->elementClassiefier = UA_NS0ID_DATASETREADERTYPE_STATUS_STATE;
-
-    retVal |= setVariableValueSource(server, valueCallback, stateIdNode,
-                                     dataSetReaderStateContext);
+    UA_NodeId stateNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                               UA_NS0ID(HASCOMPONENT), statusIdNode);
+    if(!UA_NodeId_isNull(&stateNodeId)) {
+        UA_DataSource stateDataSource;
+        stateDataSource.read = pubSubStateVariableDataSourceRead;
+        stateDataSource.write = NULL; 
+        retVal |= UA_Server_setVariableNode_dataSource(server, stateNodeId, stateDataSource);
+    }
 
     /* Update childNode with values from Publisher */
     UA_Variant value;
@@ -1426,17 +1628,14 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     writeAccessLevelAttribute(server, publishingIntervalNode,
                               UA_ACCESSLEVELMASK_READ ^ UA_ACCESSLEVELMASK_WRITE);
 
-    UA_NodePropertyContext * stateContext = (UA_NodePropertyContext *)
-        UA_malloc(sizeof(UA_NodePropertyContext));
-    UA_CHECK_MEM(stateContext, return UA_STATUSCODE_BADOUTOFMEMORY);
-    stateContext->parentNodeId = writerGroup->head.identifier;
-    stateContext->parentClassifier = UA_NS0ID_WRITERGROUPTYPE;
-    stateContext->elementClassiefier = UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE;
-    UA_CallbackValueSource stateCallbackValueSource;
-    stateCallbackValueSource.read = ReadCallback;
-    stateCallbackValueSource.write = NULL;
-    retVal |= setVariableValueSource(server, stateCallbackValueSource,
-                                     stateIdNode, stateContext);
+    UA_NodeId stateNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                               UA_NS0ID(HASCOMPONENT), statusIdNode);
+    if(!UA_NodeId_isNull(&stateNodeId)) {
+        UA_DataSource stateDataSource;
+        stateDataSource.read = pubSubStateVariableDataSourceRead;
+        stateDataSource.write = NULL;
+        retVal |= UA_Server_setVariableNode_dataSource(server, stateNodeId, stateDataSource);
+    }
 
     UA_NodeId priorityNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Priority"),
@@ -1654,17 +1853,10 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
     if(UA_NodeId_isNull(&stateIdNode))
         return UA_STATUSCODE_BADNOTFOUND;
 
-    UA_NodePropertyContext * stateContext = (UA_NodePropertyContext *)
-        UA_malloc(sizeof(UA_NodePropertyContext));
-    UA_CHECK_MEM(stateContext, return UA_STATUSCODE_BADOUTOFMEMORY);
-    stateContext->parentNodeId = readerGroup->head.identifier;
-    stateContext->parentClassifier = UA_NS0ID_READERGROUPTYPE;
-    stateContext->elementClassiefier = UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE;
-    UA_CallbackValueSource stateCallbackValueSource;
-    stateCallbackValueSource.read = ReadCallback;
-    stateCallbackValueSource.write = NULL;
-    retVal |= setVariableValueSource(server, stateCallbackValueSource,
-                                     stateIdNode, stateContext);
+    UA_DataSource stateDataSource;
+    stateDataSource.read = pubSubStateVariableDataSourceRead;
+    stateDataSource.write = NULL;
+    retVal |= UA_Server_setVariableNode_dataSource(server, stateIdNode, stateDataSource);
 
     if(server->config.pubSubConfig.enableInformationModelMethods) {
         retVal |= addRef(server, readerGroup->head.identifier, UA_NS0ID(HASCOMPONENT),
@@ -1773,14 +1965,14 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     retVal |= setVariableValueSource(server, valueCallback,
                                      dataSetWriterIdNode, dataSetWriterIdContext);
 
-    UA_NodePropertyContext *dataSetWriterStateContext =
-        (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
-    UA_CHECK_MEM(dataSetWriterStateContext, return UA_STATUSCODE_BADOUTOFMEMORY);
-    dataSetWriterStateContext->parentNodeId = dataSetWriter->head.identifier;
-    dataSetWriterStateContext->parentClassifier = UA_NS0ID_DATASETWRITERTYPE;
-    dataSetWriterStateContext->elementClassiefier = UA_NS0ID_DATASETWRITERTYPE_STATUS_STATE;
-    retVal |= setVariableValueSource(server, valueCallback,
-                                     stateIdNode, dataSetWriterStateContext);
+    UA_NodeId stateNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
+                                               UA_NS0ID(HASCOMPONENT), statusIdNode);
+    if(!UA_NodeId_isNull(&stateNodeId)) {
+        UA_DataSource stateDataSource;
+        stateDataSource.read = pubSubStateVariableDataSourceRead;
+        stateDataSource.write = NULL;
+        retVal |= UA_Server_setVariableNode_dataSource(server, stateNodeId, stateDataSource);
+    }
 
     UA_Variant value;
     UA_Variant_init(&value);
@@ -1880,20 +2072,9 @@ writerGroupTypeDestructor(UA_Server *server,
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishingInterval"),
                             UA_NS0ID(HASPROPERTY), *nodeId);
 
-    UA_NodeId statusNode =
-        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
-                            UA_NS0ID(HASCOMPONENT), *nodeId);
-    UA_NodeId stateNode =
-        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
-                            UA_NS0ID(HASCOMPONENT), statusNode);
-
     UA_NodePropertyContext *ctx;
     getNodeContext(server, intervalNode, (void **)&ctx);
     if(!UA_NodeId_isNull(&intervalNode))
-        UA_free(ctx);
-
-    getNodeContext(server, stateNode, (void **)&ctx);
-    if(!UA_NodeId_isNull(&stateNode))
         UA_free(ctx);
 }
 
@@ -1903,17 +2084,6 @@ readerGroupTypeDestructor(UA_Server *server,
                           const UA_NodeId *typeId, void *typeContext,
                           const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_NodeId statusNode =
-        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
-                            UA_NS0ID(HASCOMPONENT), *nodeId);
-    UA_NodeId stateNode =
-        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
-                            UA_NS0ID(HASCOMPONENT), statusNode);
-
-    UA_NodePropertyContext *ctx;
-    getNodeContext(server, stateNode, (void **)&ctx);
-    if(!UA_NodeId_isNull(&stateNode))
-        UA_free(ctx);
 }
 
 static void
@@ -1928,20 +2098,10 @@ dataSetWriterTypeDestructor(UA_Server *server,
     UA_NodeId dataSetWriterIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
                             UA_NS0ID(HASPROPERTY), *nodeId);
-    UA_NodeId statusNode =
-        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
-                            UA_NS0ID(HASCOMPONENT), *nodeId);
-    UA_NodeId stateNode =
-        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
-                            UA_NS0ID(HASCOMPONENT), statusNode);
 
     UA_NodePropertyContext *ctx;
     getNodeContext(server, dataSetWriterIdNode, (void **)&ctx);
     if(!UA_NodeId_isNull(&dataSetWriterIdNode))
-        UA_free(ctx);
-
-    getNodeContext(server, stateNode, (void **)&ctx);
-    if(!UA_NodeId_isNull(&stateNode))
         UA_free(ctx);
 }
 
@@ -1956,20 +2116,10 @@ dataSetReaderTypeDestructor(UA_Server *server,
     UA_NodeId publisherIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
                             UA_NS0ID(HASPROPERTY), *nodeId);
-    UA_NodeId statusNode =
-        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
-                            UA_NS0ID(HASCOMPONENT), *nodeId);
-    UA_NodeId stateNode =
-        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "State"),
-                            UA_NS0ID(HASCOMPONENT), statusNode);
 
     UA_NodePropertyContext *ctx;
     getNodeContext(server, publisherIdNode, (void **)&ctx);
     if(!UA_NodeId_isNull(&publisherIdNode))
-        UA_free(ctx);
-
-    getNodeContext(server, stateNode, (void **)&ctx);
-    if(!UA_NodeId_isNull(&stateNode))
         UA_free(ctx);
 }
 
