@@ -46,6 +46,71 @@ static UA_String mandatoryEventProperties[MANDATORY_EVENT_PROPERTIES_COUNT] = {
     UA_STRING_STATIC("/Severity")
 };
 
+/* Read the value in the information model */
+static UA_StatusCode
+readSimpleAttributeOperand(UA_Server *server, UA_Session *session,
+                           const UA_NodeId *origin,
+                           const UA_SimpleAttributeOperand *sao,
+                           UA_Variant *value) {
+    /* Prepare the ReadValueId */
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.indexRange = sao->indexRange;
+    rvi.attributeId = sao->attributeId;
+
+    /* Read the value */
+    UA_DataValue v;
+    if(sao->browsePathSize == 0) {
+        /* If this list (browsePath) is empty, the Node is the instance of the
+         * TypeDefinition. (Part 4, 7.4.4.5) */
+        rvi.nodeId = *origin;
+
+        /* A Condition is an indirection. Look up the target node. */
+        /* TODO: check for Branches! One Condition could have multiple Branches */
+        UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+        if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId)) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+            UA_StatusCode res = UA_getConditionId(server, origin, &rvi.nodeId);
+            UA_CHECK_STATUS(res, return res);
+#else
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
+        }
+
+        v = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    } else {
+        /* Resolve the browse path, starting from the event-source (and not the
+         * typeDefinitionId). */
+        UA_BrowsePathResult bpr =
+            browseSimplifiedBrowsePath(server, *origin,
+                                       sao->browsePathSize, sao->browsePath);
+        if(bpr.targetsSize == 0 && bpr.statusCode == UA_STATUSCODE_GOOD)
+            bpr.statusCode = UA_STATUSCODE_BADNOTFOUND;
+        if(bpr.statusCode != UA_STATUSCODE_GOOD) {
+            UA_StatusCode res = bpr.statusCode;
+            UA_BrowsePathResult_clear(&bpr);
+            return res;
+        }
+
+        /* Use the first match */
+        rvi.nodeId = bpr.targets[0].targetId.nodeId;
+        v = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        UA_BrowsePathResult_clear(&bpr);
+    }
+
+    /* Validate the result */
+    if(v.status != UA_STATUSCODE_GOOD) {
+        UA_Variant_clear(&v.value);
+        return v.status;
+    }
+    if(!v.hasValue)
+        return UA_STATUSCODE_BADNODATAAVAILABLE;
+
+    /* Move the result to the output */
+    *value = v.value;
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Can return an in-situ value. Check for UA_VARIANT_DATA_NODELETE. */
 static UA_StatusCode
 resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
@@ -58,17 +123,20 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
      * TypeDefinitionId disabled. */
     UA_Byte pathBuf[512];
     UA_QualifiedName pathString = {0, {512, pathBuf}};
-    UA_SimpleAttributeOperand tmp_sao = *sao;
-    UA_String_init(&tmp_sao.indexRange);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_SimpleAttributeOperand tmp_sao = *sao;
+    static UA_NodeId baseEventTypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEEVENTTYPE}};
+
+    if(UA_NodeId_isNull(&tmp_sao.typeDefinitionId))
+        tmp_sao.typeDefinitionId = baseEventTypeId;
 
  search_again:
     res = UA_SimpleAttributeOperand_print(&tmp_sao, &pathString.name);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* The value is explicitly defined */
-    const UA_Variant *found = UA_KeyValueMap_get(&ed->otherEventFields, pathString);
+    /* Source 1: Resolve from the key-value map */
+    const UA_Variant *found = UA_KeyValueMap_get(ed->eventFields, pathString);
     if(found) {
         if(sao->indexRange.length == 0) {
             *out = *found;
@@ -84,8 +152,25 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
         return res;
     }
 
-    /* Use a default for the mandatory fields of the BaseEventType.
+    /* Not found. Print the SAO again with BaseEventTypeId as the
+     * TypeDefinitionId and try again. This removes any TypeDefinitionId prefix
+     * from the printed SAO-string. */
+    if(!UA_NodeId_equal(&tmp_sao.typeDefinitionId, &baseEventTypeId)) {
+        tmp_sao.typeDefinitionId = baseEventTypeId;
+        goto search_again;
+    }
+
+    /* Source 2: Read from the information model */
+    if(ed->eventTypeInstance) {
+        res = readSimpleAttributeOperand(server,session, ed->eventTypeInstance, sao, out);
+        if(res == UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_GOOD;
+        res = UA_STATUSCODE_GOOD; /* reset */
+    }
+
+    /* Source 3: Use a default for the mandatory fields of the BaseEventType.
      * Here we ignore the IndexRange. */
+    UA_String_init(&tmp_sao.indexRange); /* No index range allowed */
     if(UA_String_equal(&pathString.name, &mandatoryEventProperties[0])) {
         /* EventId */
         UA_ByteString eventid = UA_BYTESTRING_NULL;
@@ -128,18 +213,10 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
         return UA_Variant_setScalarCopy(out, &rcvTime, &UA_TYPES[UA_TYPES_DATETIME]);
     } else if(UA_String_equal(&pathString.name, &mandatoryEventProperties[6])) {
         /* Message */
-        UA_LocalizedText message;
-        UA_LocalizedText_init(&message);
-        return UA_Variant_setScalarCopy(out, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        return UA_Variant_setScalarCopy(out, &ed->message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     } else if(UA_String_equal(&pathString.name, &mandatoryEventProperties[7])) {
         /* Severity */
         return UA_Variant_setScalarCopy(out, &ed->severity, &UA_TYPES[UA_TYPES_UINT16]);
-    }
-
-    /* Try again with the TypeDefinitionId */
-    if(!UA_NodeId_isNull(&tmp_sao.typeDefinitionId)) {
-        UA_NodeId_init(&tmp_sao.typeDefinitionId);
-        goto search_again;
     }
 
     /* Not found, return an empty Variant */
@@ -647,11 +724,29 @@ ofTypeOperator(UA_FilterEvalContext *ctx, size_t index) {
         return UA_STATUSCODE_BADFILTEROPERANDINVALID;
     const UA_NodeId *operandTypeId = (const UA_NodeId *)op0->data;
 
-    /* Check if the eventtype is equal to the operand or a subtype of it */
+    /* Read the /EventType event field */
+    static UA_QualifiedName eventTypeName = {0, UA_STRING_STATIC("EventType")};
+    UA_SimpleAttributeOperand sao;
+    UA_SimpleAttributeOperand_init(&sao);
+    sao.attributeId = UA_ATTRIBUTEID_VALUE;
+    sao.browsePath = &eventTypeName;
+    sao.browsePathSize = 1;
+    UA_Variant eventType;
+    UA_Variant_init(&eventType);
+    res = resolveSimpleAttributeOperand(ctx->server, ctx->session, &ctx->ed, &sao, &eventType);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    if(!UA_Variant_hasScalarType(&eventType, &UA_TYPES[UA_TYPES_NODEID])) {
+        UA_Variant_clear(&eventType);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Is the /EventType a subtype of the requested type? */
     UA_Boolean ofType =
-        isNodeInTree_singleRef(ctx->server, &ctx->ed.eventType, operandTypeId,
+        isNodeInTree_singleRef(ctx->server, (UA_NodeId*)eventType.data, operandTypeId,
                                UA_REFERENCETYPEINDEX_HASSUBTYPE);
     ctx->operatorResults[index] = t2v(ofType ? UA_TERNARY_TRUE : UA_TERNARY_FALSE);
+    UA_Variant_clear(&eventType);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -960,17 +1055,17 @@ static const UA_FilterOperatorJumptableElement operatorJumptable[18] = {
 /* Evaluate content filter, exported only for unit testing */
 UA_StatusCode
 evaluateWhereClause(UA_Server *server, UA_Session *session,
-                    const UA_ContentFilter *contentFilter,
+                    const UA_ContentFilter *cf,
                     const UA_EventDescription *ed) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* An empty filter always succeeds */
-    if(contentFilter->elementsSize == 0)
+    if(cf->elementsSize == 0)
         return UA_STATUSCODE_GOOD;
 
     /* Prepare the context */
     UA_FilterEvalContext ctx;
-    ctx.filter = contentFilter;
+    ctx.filter = cf;
     ctx.server = server;
     ctx.session = session;
     ctx.ed = *ed;
@@ -983,9 +1078,9 @@ evaluateWhereClause(UA_Server *server, UA_Session *session,
      * resolve each. This ensures that all element-index operands point to an
      * evaluated element. */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    size_t i = contentFilter->elementsSize - 1;
-    for(; i < contentFilter->elementsSize; i--) {
-        UA_ContentFilterElement *cfe = &contentFilter->elements[i];
+    size_t i = cf->elementsSize - 1;
+    for(; i < cf->elementsSize; i--) {
+        UA_ContentFilterElement *cfe = &cf->elements[i];
         res = operatorJumptable[cfe->filterOperator].operatorMethod(&ctx, i);
         for(size_t j = 0; j < ctx.top; j++)
             UA_Variant_clear(&ctx.operandStack[j]); /* clean up the operand stack */
@@ -999,7 +1094,7 @@ evaluateWhereClause(UA_Server *server, UA_Session *session,
         res = UA_STATUSCODE_BADNOMATCH;
 
     /* Clean up the element result variants */
-    for(size_t j = contentFilter->elementsSize - 1; j > i; j--)
+    for(size_t j = cf->elementsSize - 1; j > i; j--)
         UA_Variant_clear(&ctx.operatorResults[j]);
     return res;
 }
@@ -1266,8 +1361,7 @@ UA_MonitoredItem_addEvent(UA_Server *server, UA_Session *session,
     UA_assert(sub);
 
     /* Evaluate the where clause */
-    UA_StatusCode res =
-        evaluateWhereClause(server, session, &ef->whereClause, ed);
+    UA_StatusCode res = evaluateWhereClause(server, session, &ef->whereClause, ed);
     if(res != UA_STATUSCODE_GOOD) {
         if(res == UA_STATUSCODE_BADNOMATCH)
             res = UA_STATUSCODE_GOOD;
@@ -1364,15 +1458,16 @@ static const UA_NodeId emitReferencesRoots[EMIT_REFS_ROOT_COUNT] =
      {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HASNOTIFIER}}};
 
 UA_StatusCode
-createEvent(UA_Server *server, const UA_NodeId eventType, const UA_NodeId sourceNode,
-            UA_UInt16 severity, UA_KeyValueMap otherEventFields,
+createEvent(UA_Server *server, const UA_NodeId sourceNode, const UA_NodeId eventType,
+            UA_UInt16 severity, const UA_LocalizedText message,
+            const UA_KeyValueMap *eventFields, const UA_NodeId *eventTypeInstance,
             const UA_UInt32 *subscriptionId, const UA_UInt32 *monitoredItemId) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
-                 "Events: An event of type %N and severity %su is created on node %N",
-                 eventType, severity, sourceNode);
+                 "Events: An event of severity %su is emitted by node %N",
+                 severity, sourceNode);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_Boolean isCallerAC = false;
@@ -1414,10 +1509,12 @@ createEvent(UA_Server *server, const UA_NodeId eventType, const UA_NodeId source
 
     /* Prepare the data structure passed for each node */
     UA_EventDescription ed;
-    ed.eventType = eventType;
     ed.sourceNode = sourceNode;
+    ed.eventType = eventType;
     ed.severity = severity;
-    ed.otherEventFields = otherEventFields;
+    ed.message = message;
+    ed.eventFields = eventFields;
+    ed.eventTypeInstance = eventTypeInstance;
 
     /* List of nodes that emit the node. Events propagate upwards (bubble up) in
      * the node hierarchy. */
@@ -1489,7 +1586,7 @@ createEvent(UA_Server *server, const UA_NodeId eventType, const UA_NodeId source
             if(monitoredItemId && *monitoredItemId != mon->monitoredItemId)
                 continue;
 
-            /* Filter on the SUbscriptionId */
+            /* Filter on the SubscriptionId */
             UA_Subscription *sub = mon->subscription;
             if(subscriptionId && *subscriptionId != sub->subscriptionId)
                 continue;
@@ -1525,12 +1622,15 @@ createEvent(UA_Server *server, const UA_NodeId eventType, const UA_NodeId source
 }
 
 UA_StatusCode
-UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
-                      const UA_NodeId sourceNode, UA_UInt16 severity,
-                      UA_KeyValueMap otherEventFields) {
+UA_Server_createEvent(UA_Server *server, const UA_NodeId sourceNode,
+                      const UA_NodeId eventType, UA_UInt16 severity,
+                      const UA_LocalizedText message,
+                      const UA_KeyValueMap *eventFields,
+                      const UA_NodeId *eventTypeInstance) {
     lockServer(server);
     UA_StatusCode res =
-        createEvent(server, eventType, sourceNode, severity, otherEventFields, NULL, NULL);
+        createEvent(server, sourceNode, eventType, severity, message,
+                    eventFields, eventTypeInstance, NULL, NULL);
     unlockServer(server);
     return res;
 }

@@ -38,6 +38,8 @@ static size_t nSelectClauses = 4;
 static UA_Boolean notificationReceived;
 static UA_Boolean overflowNotificationReceived = false;
 static UA_SimpleAttributeOperand *selectClauses;
+static UA_LocalizedText message = {UA_STRING_STATIC("en-US"),
+                                   UA_STRING_STATIC("Generated Event")};
 
 UA_Double publishingInterval = 500.0;
 
@@ -212,18 +214,6 @@ teardown(void) {
     UA_Client_delete(client);
 }
 
-static UA_StatusCode
-createTestEvent(const UA_NodeId sourceNode) {
-    UA_KeyValueMap eventFields = UA_KEYVALUEMAP_NULL;
-    UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "Generated Event");
-    UA_KeyValueMap_setScalar(&eventFields, UA_QUALIFIEDNAME(0, "/Message"),
-                             &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    UA_StatusCode res =
-        UA_Server_createEvent(server, eventType, sourceNode, 100, eventFields);
-    UA_KeyValueMap_clear(&eventFields);
-    return res;
-}
-
 static UA_MonitoredItemCreateResult
 addMonitoredItem(UA_Client_EventNotificationCallback handler, bool setFilter, bool discardOldest) {
     UA_MonitoredItemCreateRequest item;
@@ -267,7 +257,8 @@ START_TEST(generateEvents) {
     monitoredItemId = createResult.monitoredItemId;
 
     // Create an event
-    UA_StatusCode retval = createTestEvent(UA_NS0ID(SERVER));
+    UA_StatusCode retval =
+        UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     joinServer();
@@ -365,7 +356,8 @@ START_TEST(uppropagation) {
     monitoredItemId = createResult.monitoredItemId;
 
     // create the event on a child of server
-    UA_StatusCode retval = createTestEvent(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_VENDORSERVERINFO));
+    UA_StatusCode retval =
+        UA_Server_createEvent(server, UA_NS0ID(SERVER_VENDORSERVERINFO), eventType, 100, message, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     joinServer();
@@ -428,9 +420,10 @@ START_TEST(eventOverflow) {
     monitoredItemId = createResult.monitoredItemId;
 
     // create events
-    UA_StatusCode retval = createTestEvent(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER));
+    UA_StatusCode retval =
+        UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    retval = createTestEvent(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER));
+    retval = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     joinServer();
@@ -523,7 +516,7 @@ START_TEST(discardNewestOverflow) {
     // create a large amount of events, ensure the server doesnt crash because of it
     UA_StatusCode retval;
     for(size_t j = 0; j < 100; j++) {
-        retval = createTestEvent(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER));
+        retval = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
     retval = UA_Client_run_iterate(client, 0);
@@ -556,7 +549,7 @@ START_TEST(eventStressing) {
     UA_StatusCode retval;
     for(size_t i = 0; i < 20; i++) {
         for(size_t j = 0; j < 30; j++) {
-            retval = createTestEvent(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER));
+            retval = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL);
             ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         }
         retval = UA_Client_run_iterate(client, 0);
@@ -586,10 +579,11 @@ START_TEST(evaluateFilterWhereClause) {
     UA_ContentFilter_init(&contentFilter);
 
     UA_EventDescription ed;
-    ed.eventType = eventType;
     ed.sourceNode = UA_NS0ID(SERVER);
+    ed.eventType = eventType;
     ed.severity = 100;
-    ed.otherEventFields = UA_KEYVALUEMAP_NULL;
+    ed.eventFields = NULL;
+    ed.eventTypeInstance = NULL;
 
     lockServer(server);
     UA_StatusCode retval = evaluateWhereClause(server, &server->adminSession,

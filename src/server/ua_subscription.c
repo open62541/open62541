@@ -1055,7 +1055,7 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-static const UA_NodeId eventQueueOverflowEventType =
+static UA_NodeId eventQueueOverflowEventType =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE}};
 
 /* The specification states in Part 4 5.12.1.5 that an EventQueueOverflowEvent
@@ -1106,16 +1106,21 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
     UA_Session *session = (sub->session) ?
         sub->session : &server->adminSession;
 
-    /* Populate the event fields (most fields are the default) */
-    UA_KeyValuePair fields[1];
-    fields[0].key = (UA_QualifiedName){0, UA_STRING_STATIC("/SourceName")};
+    /* Set up the event fields (most fields are the default) */
     static UA_String sourceName = UA_STRING_STATIC("Internal/EventQueueOverflow");
+    UA_KeyValuePair fields[1];
+    fields[0].key = (UA_QualifiedName){1, UA_STRING_STATIC("/SourceName")};
     UA_Variant_setScalar(&fields[0].value, &sourceName, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap fieldMap = {1, fields};
+
+    /* Populate the notification according the select clause */
     UA_EventDescription ed;
-    ed.eventType = eventQueueOverflowEventType;
     ed.sourceNode = UA_NS0ID(SERVER);
+    ed.eventType = eventQueueOverflowEventType;
     ed.severity = 201; /* TODO: Can this be configured? */
-    ed.otherEventFields = (UA_KeyValueMap){1, fields};
+    ed.message = UA_LOCALIZEDTEXT(NULL, NULL);
+    ed.eventFields = &fieldMap;
+    ed.eventTypeInstance = NULL;
     UA_StatusCode res = evaluateSelectClause(server, session, &ed, ef, &n->data.event);
     if(res != UA_STATUSCODE_GOOD) {
         UA_free(n);

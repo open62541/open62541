@@ -58,19 +58,10 @@ createEventMethodCallback(UA_Server *server,
                           size_t outputSize, UA_Variant *output) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Creating event");
 
-    /* Set the Event properties. For all mandatory properties of the
-     * BaseEventType, defaults are created if they are undefined. All further
-     * properties need to be defined here. */
-    UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "An event has been generated.");
-    UA_KeyValueMap eventFields = UA_KEYVALUEMAP_NULL;
-    UA_KeyValueMap_setScalar(&eventFields, UA_QUALIFIEDNAME(0, "/Message"),
-                             &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-
     UA_UInt16 severity = 100;
-    UA_StatusCode res = UA_Server_createEvent(server, eventType, UA_NS0ID(SERVER),
-                                              severity, eventFields);
-    UA_KeyValueMap_clear(&eventFields);
-
+    UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "An event has been generated.");
+    UA_StatusCode res = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType,
+                                              severity, message, NULL, NULL);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "Creating event failed. StatusCode %s",

@@ -63,11 +63,6 @@ createEvent(UA_Server *server, UA_NodeId eventType,
     if(random)
         severity = (UA_UInt16) UA_UInt32_random() % UA_UINT16_MAX;
 
-    UA_LocalizedText eventMessage =
-        UA_LOCALIZEDTEXT("en-US", "An event has been generated.");
-    UA_KeyValueMap_setScalar(&eventFields, UA_QUALIFIEDNAME(0, "/Message"),
-                             &eventMessage, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-
     switch(index) {
     case 0: // SampleBaseEventType
     case 1: // SampleDeviceFailureEventType
@@ -122,8 +117,10 @@ createEvent(UA_Server *server, UA_NodeId eventType,
         break;
     }
 
-    UA_StatusCode res = UA_Server_createEvent(server, eventType, UA_NS0ID(SERVER),
-                                              severity, eventFields);
+    UA_LocalizedText eventMessage = UA_LOCALIZEDTEXT("en-US", "An event has been generated.");
+
+    UA_StatusCode res = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, severity,
+                                              eventMessage, &eventFields, NULL);
     UA_KeyValueMap_clear(&eventFields);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
