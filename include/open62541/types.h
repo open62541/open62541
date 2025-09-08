@@ -1053,7 +1053,7 @@ struct UA_DataType {
  * the client or server configuration. */
 typedef struct UA_DataTypeArray {
     const struct UA_DataTypeArray *next;
-    const size_t typesSize;
+    size_t typesSize;
     const UA_DataType *types;
     UA_Boolean cleanup; /* Free the array structure and its content
                            when the client or server configuration

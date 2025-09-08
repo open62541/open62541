@@ -362,6 +362,9 @@ void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
 void setupNs1Uri(UA_Server *server);
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
 
+UA_StatusCode
+addCustomTypeArray(UA_Server *server, const UA_DataType *typeArray, size_t typeArraySize);
+
 UA_Boolean
 UA_Node_hasSubTypeOrInstances(const UA_NodeHead *head);
 

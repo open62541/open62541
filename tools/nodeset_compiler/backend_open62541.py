@@ -659,16 +659,6 @@ _UA_END_DECLS
 
         functionNumber = functionNumber + 1
 
-    # Load generated types
-    for arr in typesArray:
-        if arr == "UA_TYPES":
-            continue
-        writec("\nstatic UA_DataTypeArray custom" + arr + " = {")
-        writec("    NULL,")
-        writec("    " + arr + "_COUNT,")
-        writec("    " + arr + ",")
-        writec("    UA_FALSE\n};")
-
     writec("""
 UA_StatusCode %s(UA_Server *server) {
 UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
@@ -711,17 +701,10 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
             writec(typeArr + "[i]" + ".typeId.namespaceIndex = ns[" + str(len(nodeset.namespaces)-1) + "];")
             writec(typeArr + "[i]" + ".binaryEncodingId.namespaceIndex = ns[" + str(len(nodeset.namespaces)-1) + "];")
             writec("}")
+            # Add generated types to the server
+            writec("\n/* Load custom datatype definitions into the server */")
+            writec("UA_Server_addCustomTypeArray(server, " + typeArr + ", " + typeArr + "_COUNT);")
             writec("#endif")
-
-    # Add generated types to the server
-    writec("\n/* Load custom datatype definitions into the server */")
-    for arr in typesArray:
-        if arr == "UA_TYPES":
-            continue
-        writec("if(" + arr + "_COUNT > 0) {")
-        writec("custom" + arr + ".next = UA_Server_getConfig(server)->customDataTypes;")
-        writec("UA_Server_getConfig(server)->customDataTypes = &custom" + arr + ";\n")
-        writec("}")
 
     if functionNumber > 0:
         for i in range(0, functionNumber):
