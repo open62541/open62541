@@ -1495,15 +1495,14 @@ static const UA_NodeId emitReferencesRoots[EMIT_REFS_ROOT_COUNT] =
 
 UA_StatusCode
 createEvent(UA_Server *server, const UA_EventDescription *ed,
-            const UA_NodeId *sessionId, const UA_UInt32 *subscriptionId,
-            const UA_UInt32 *monitoredItemId, UA_ByteString *outEventId) {
+            UA_ByteString *outEventId) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* MonitoredItem can only be filtered if the Subscription is defined.
      * Subscription can only be filtered if a Session is defined. */
-    if((subscriptionId && !sessionId) ||
-       (monitoredItemId && !subscriptionId)) {
+    if((ed->subscriptionId && !ed->sessionId) ||
+       (ed->monitoredItemId && !ed->subscriptionId)) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Event shall be created with a filter on Subscription (or MonitoredItem), "
                        "but no Session (or Subscription) is defined");
@@ -1637,15 +1636,15 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
             /* Filter on the Session. If a subscription is not attached to a
              * session, then this filter never matches. */
             UA_Subscription *sub = mon->subscription;
-            if(sessionId && (!sub->session || !UA_NodeId_equal(sessionId, &sub->session->sessionId)))
+            if(ed->sessionId && (!sub->session || !UA_NodeId_equal(ed->sessionId, &sub->session->sessionId)))
                 continue;
 
             /* Filter on the SubscriptionId */
-            if(subscriptionId && *subscriptionId != sub->subscriptionId)
+            if(ed->subscriptionId && *ed->subscriptionId != sub->subscriptionId)
                 continue;
 
             /* Filter on the MonitoredItemId */
-            if(monitoredItemId && *monitoredItemId != mon->monitoredItemId)
+            if(ed->monitoredItemId && *ed->monitoredItemId != mon->monitoredItemId)
                 continue;
 
             /* Get the EventFilter from the MonitoredItem */
@@ -1697,7 +1696,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId sourceNode,
                       const UA_KeyValueMap *eventFields,
                       const UA_NodeId *eventInstance,
                       UA_ByteString *outEventId) {
-    UA_EventDescription ed;
+    UA_EventDescription ed = {0};
     ed.sourceNode = sourceNode;
     ed.eventType = eventType;
     ed.severity = severity;
@@ -1706,8 +1705,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId sourceNode,
     ed.eventInstance = eventInstance;
 
     lockServer(server);
-    UA_StatusCode res =
-        createEvent(server, &ed, NULL, NULL, NULL, outEventId);
+    UA_StatusCode res = createEvent(server, &ed, outEventId);
     unlockServer(server);
     return res;
 }
@@ -1715,14 +1713,9 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId sourceNode,
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_createEventEx(UA_Server *server,
                         const UA_EventDescription *ed,
-                        const UA_NodeId *sessionId,
-                        const UA_UInt32 *subscriptionId,
-                        const UA_UInt32 *monitoredItemId,
                         UA_ByteString *outEventId) {
     lockServer(server);
-    UA_StatusCode res =
-        createEvent(server, ed, sessionId, subscriptionId,
-                    monitoredItemId, outEventId);
+    UA_StatusCode res = createEvent(server, ed, outEventId);
     unlockServer(server);
     return res;
 }
