@@ -1055,9 +1055,6 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-static UA_NodeId eventQueueOverflowEventType =
-    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE}};
-
 /* The specification states in Part 4 5.12.1.5 that an EventQueueOverflowEvent
  * "is generated when the first Event has to be discarded [...] without
  * discarding any other event". So only generate one for all deleted events. */
@@ -1103,25 +1100,29 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
     /* The session is needed to evaluate the select-clause. But used only for
      * limited reads on the source node. So we can use the admin-session here if
      * the subscription is detached. */
-    UA_Session *session = (sub->session) ?
-        sub->session : &server->adminSession;
+    UA_Session *session = (sub->session) ? sub->session : &server->adminSession;
 
-    /* Set up the event fields (most fields are the default) */
+    /* Set up the context for the filter evaluation */
     static UA_String sourceName = UA_STRING_STATIC("Internal/EventQueueOverflow");
     UA_KeyValuePair fields[1];
     fields[0].key = (UA_QualifiedName){1, UA_STRING_STATIC("/SourceName")};
     UA_Variant_setScalar(&fields[0].value, &sourceName, &UA_TYPES[UA_TYPES_STRING]);
     UA_KeyValueMap fieldMap = {1, fields};
 
-    /* Populate the notification according the select clause */
-    UA_EventDescription ed;
-    ed.sourceNode = UA_NS0ID(SERVER);
-    ed.eventType = eventQueueOverflowEventType;
-    ed.severity = 201; /* TODO: Can this be configured? */
-    ed.message = UA_LOCALIZEDTEXT(NULL, NULL);
-    ed.eventFields = &fieldMap;
-    ed.eventTypeInstance = NULL;
-    UA_StatusCode res = evaluateSelectClause(server, session, &ed, ef, &n->data.event);
+    UA_FilterEvalContext ctx;
+    UA_FilterEvalContext_init(&ctx);
+    ctx.server = server;
+    ctx.session = session;
+    ctx.filter = *ef;
+    ctx.ed.sourceNode = UA_NS0ID(SERVER);
+    ctx.ed.eventType = UA_NS0ID(EVENTQUEUEOVERFLOWEVENTTYPE);
+    ctx.ed.severity = 201; /* TODO: Can this be configured? */
+    ctx.ed.message = UA_LOCALIZEDTEXT(NULL, NULL);
+    ctx.ed.eventFields = &fieldMap;
+
+    /* Evaluate the select clause to populate the notification */
+    UA_StatusCode res = evaluateSelectClause(&ctx, &n->data.event);
+    UA_FilterEvalContext_reset(&ctx);
     if(res != UA_STATUSCODE_GOOD) {
         UA_free(n);
         return res;

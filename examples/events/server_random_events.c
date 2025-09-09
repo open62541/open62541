@@ -120,7 +120,7 @@ createEvent(UA_Server *server, UA_NodeId eventType,
     UA_LocalizedText eventMessage = UA_LOCALIZEDTEXT("en-US", "An event has been generated.");
 
     UA_StatusCode res = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, severity,
-                                              eventMessage, &eventFields, NULL);
+                                              eventMessage, &eventFields, NULL, NULL);
     UA_KeyValueMap_clear(&eventFields);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,

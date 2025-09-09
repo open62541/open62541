@@ -355,9 +355,6 @@ typedef struct UA_ConditionSource UA_ConditionSource;
 #define UA_EVENTFILTER_MAXOPERANDS 64 /* Max operands per operator */
 #define UA_EVENTFILTER_MAXSELECT   64 /* Max select clauses */
 
-UA_StatusCode
-generateEventId(UA_ByteString *generatedId);
-
 /* Static validation when the filter is registered */
 UA_StatusCode
 UA_SimpleAttributeOperandValidation(UA_Server *server,
@@ -374,20 +371,55 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
 UA_StatusCode
 createEvent(UA_Server *server, const UA_EventDescription *ed,
             const UA_NodeId *sessionId, const UA_UInt32 *subscriptionId,
-            const UA_UInt32 *monitoredItemId);
+            const UA_UInt32 *monitoredItemId, UA_ByteString *outEventId);
+
+typedef struct {
+    UA_Server *server;
+    UA_Session *session;
+    UA_EventDescription ed; /* shallow copy */
+    UA_EventFilter filter;  /* shallow copy */
+
+    /* Don't reread or regenerate values that have already been gotten during
+     * the same filter evaluation */
+    UA_KeyValueMap fieldCache;
+
+    /* Generated / cached EventId */
+    UA_ByteString eventId;
+    UA_Byte eventIdBuf[16];
+
+    /* <-- Variables used only by evaluateWhereClause --> */
+
+    UA_Variant operatorResults[UA_EVENTFILTER_MAXELEMENTS];
+
+    /* The operand stack contains temporary variants. Cleaned up after the
+     * evaluation of each operator. */
+    size_t top;
+    UA_Variant operandStack[UA_EVENTFILTER_MAXOPERANDS];
+} UA_FilterEvalContext;
+
+/* The _reset method resets the filter between evaluations for different
+ * MonitoredItems. The EventId is reset *only* if eventId.data != eventIdBuf.
+ * This does not lead to memleaks and ensures we do not regenerate random
+ * EventIds for the same event on different MonitoredItems. */
+void UA_FilterEvalContext_init(UA_FilterEvalContext *ctx);
+void UA_FilterEvalContext_reset(UA_FilterEvalContext *ctx);
+
+UA_StatusCode
+resolveSAO(UA_FilterEvalContext *ctx, const UA_SimpleAttributeOperand *sao,
+           UA_Variant *out);
+
+/* Retrieve or generate the unique EventId and cache it. Takes the EventId from
+ * the EventDescription if explicitly set by the user. If successful,
+ * ctx->eventId contains the cached EventId */
+UA_StatusCode cacheEventId(UA_FilterEvalContext *ctx);
 
 /* Evaluate content filter, exported only for unit testing */
 UA_StatusCode
-evaluateWhereClause(UA_Server *server, UA_Session *session,
-                    const UA_ContentFilter *cf,
-                    const UA_EventDescription *ed);
+evaluateWhereClause(UA_FilterEvalContext *ctx);
 
 /* Applies the select clause and resolves the result fields */
 UA_StatusCode
-evaluateSelectClause(UA_Server *server, UA_Session *session,
-                     const UA_EventDescription *ed,
-                     const UA_EventFilter *filter,
-                     UA_EventFieldList *efl);
+evaluateSelectClause(UA_FilterEvalContext *ctx, UA_EventFieldList *efl);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
