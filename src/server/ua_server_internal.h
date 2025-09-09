@@ -796,6 +796,11 @@ UA_StatusCode
 initNS0PushManagement(UA_Server *server);
 #endif
 
+#ifdef UA_ENABLE_RBAC
+UA_StatusCode
+initNS0RBAC(UA_Server *server);
+#endif
+
 
 #ifdef UA_ENABLE_DIAGNOSTICS
 void createSessionObject(UA_Server *server, UA_Session *session);
