@@ -667,6 +667,22 @@ START_TEST(evaluateFilterWhereClause) {
 }
 END_TEST
 
+// Create an audit event that shall be delivered *only* to the AdminSession
+START_TEST(auditEvent) {
+    UA_NodeId adminSessionId = UA_NODEID("g=00000001-0000-0000-0000-000000000000");
+
+    UA_EventDescription ed = {0};
+    ed.sourceNode = UA_NS0ID(SERVER);
+    ed.eventType = UA_NS0ID(AUDITEVENTTYPE);
+    ed.severity = 500;
+    ed.message = UA_LOCALIZEDTEXT("something", "happened");
+
+    // TOOD: Add all mandatory fields of the AuditEventType
+
+    UA_StatusCode res = UA_Server_createEventEx(server, &ed, &adminSessionId, NULL, NULL, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+} END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /* Assumes subscriptions work fine with data change because of other unit test */
@@ -683,6 +699,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, discardNewestOverflow);
     tcase_add_test(tc_server, eventStressing);
     tcase_add_test(tc_server, evaluateFilterWhereClause);
+    tcase_add_test(tc_server, auditEvent);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
 
