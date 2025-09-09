@@ -573,6 +573,11 @@ UA_Server_init(UA_Server *server) {
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
+#ifdef UA_ENABLE_RBAC
+    res = initNS0RBAC(server);
+    UA_CHECK_STATUS(res, goto cleanup);
+#endif
+
 #ifdef UA_ENABLE_NODESET_INJECTOR
     res = UA_Server_injectNodesets(server);
     UA_CHECK_STATUS(res, goto cleanup);

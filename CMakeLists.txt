@@ -121,6 +121,7 @@ option(UA_ENABLE_XML_ENCODING "Enable XML encoding" ON)
 option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
 option(UA_ENABLE_GDS_PUSHMANAGEMENT "Enable GDS pushManagement support" OFF)
 option(UA_ENABLE_DATATYPES_ALL "Generate all datatypes for namespace zero (uses more binary space)" ON)
+option(UA_ENABLE_RBAC "Enable Role-Based Access Control" OFF)
 
 option(UA_ENABLE_JSON_ENCODING_LEGACY "Use the old JSON encoding before the v1.05 spec" OFF)
 mark_as_advanced(UA_ENABLE_JSON_ENCODING_LEGACY)
@@ -892,6 +893,10 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/utf8.c
                 ${PROJECT_SOURCE_DIR}/deps/itoa.c
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.c)
+
+if(UA_ENABLE_RBAC)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_rbac.c)
+endif()
 
 if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.h)
