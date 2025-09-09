@@ -250,7 +250,7 @@ createTestEvent(void) {
     UA_UInt16 severity = 100;
     UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "Generated Event");
     UA_StatusCode res = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType,
-                                              severity, message, NULL, NULL);
+                                              severity, message, NULL, NULL, NULL);
 }
 
 static void deleteMonitoredItems(void){

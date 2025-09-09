@@ -1385,7 +1385,7 @@ UA_Server_cancelAsync(UA_Server *server, void *asyncOpContext,
  *    ``SimpleAttributeOperands`` from the EventFilter are resolved in its
  *    context.
  * 3. The event fields defined as mandatory for the *BaseEventType* have a
- *    defined default:
+ *    default that gets used if they are not defined otherwise:
  *
  *    /EventId
  *       ByteString to uniquely identify the event instance
@@ -1420,19 +1420,22 @@ UA_Server_cancelAsync(UA_Server *server, void *asyncOpContext,
  * An event field that is missing from all sources resolves to an empty variant.
  *
  * It is typically faster to define event-fields in the key-value map than to
- * look them up from an EventType instance in the information model. This is
+ * look them up from an event instance in the information model. This is
  * particularly important for events emitted at a high frequency. */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-/* Create an event in the server. The eventFields and eventTypeInstance pointer
- * can be NULL and are then not considered as a source of event fields. */
+/* Create an event in the server. The eventFields and eventInstance pointer can
+ * be NULL and are then not considered as a source of event fields. The
+ * outEventId pointer can be NULL. If set, the EventId of a successfully created
+ * Event gets copied into the argument. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_createEvent(UA_Server *server, const UA_NodeId sourceNode,
                       const UA_NodeId eventType, UA_UInt16 severity,
                       const UA_LocalizedText message,
                       const UA_KeyValueMap *eventFields,
-                      const UA_NodeId *eventTypeInstance);
+                      const UA_NodeId *eventInstance,
+                      UA_ByteString *outEventId);
 
 /* Extended version of the _createEvent API. The members of the
  * UA_EventDescription structure have the same meaning as above.
@@ -1440,7 +1443,7 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId sourceNode,
  * In addition, the extended version allows the filtering of Events to be only
  * transmitted to a particular Session/Subscription/MonitoredItem. The filtering
  * criteria can be NULL. But the subscriptionId requires a sessionId and the
- * monitoredItemId requires subscriptionId as context. */
+ * monitoredItemId requires a subscriptionId as context. */
 
 typedef struct {
     UA_NodeId sourceNode;
@@ -1448,7 +1451,7 @@ typedef struct {
     UA_UInt16 severity;
     UA_LocalizedText message;
     const UA_KeyValueMap *eventFields;
-    const UA_NodeId *eventTypeInstance;
+    const UA_NodeId *eventInstance;
 } UA_EventDescription;
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
@@ -1456,7 +1459,8 @@ UA_Server_createEventEx(UA_Server *server,
                         const UA_EventDescription *ed,
                         const UA_NodeId *sessionId,
                         const UA_UInt32 *subscriptionId,
-                        const UA_UInt32 *monitoredItemId);
+                        const UA_UInt32 *monitoredItemId,
+                        UA_ByteString *outEventId);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 

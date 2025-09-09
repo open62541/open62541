@@ -61,7 +61,7 @@ createEventMethodCallback(UA_Server *server,
     UA_UInt16 severity = 100;
     UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "An event has been generated.");
     UA_StatusCode res = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType,
-                                              severity, message, NULL, NULL);
+                                              severity, message, NULL, NULL, NULL);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "Creating event failed. StatusCode %s",

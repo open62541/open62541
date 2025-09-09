@@ -8,50 +8,21 @@
  *    Copyright 2022, 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
+#include <open62541/types.h>
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-/***************************************************/
-/* Resolve SimpleAttributeOperand for Key-ValueMap */
-/***************************************************/
-
-/* We use a 16-Byte ByteString as an identifier */
-UA_StatusCode
-generateEventId(UA_ByteString *generatedId) {
-    /* EventId is a ByteString, which is basically just a string
-     * We will use a 16-Byte ByteString as an identifier */
-    UA_StatusCode res = UA_ByteString_allocBuffer(generatedId, 16 * sizeof(UA_Byte));
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-    UA_UInt32 *ids = (UA_UInt32*)generatedId->data;
-    ids[0] = UA_UInt32_random();
-    ids[1] = UA_UInt32_random();
-    ids[2] = UA_UInt32_random();
-    ids[3] = UA_UInt32_random();
-    return UA_STATUSCODE_GOOD;
-}
-
-/* Names of the mandatory event properties (in the BaseEventType) */
-#define MANDATORY_EVENT_PROPERTIES_COUNT 8
-static UA_String mandatoryEventProperties[MANDATORY_EVENT_PROPERTIES_COUNT] = {
-    UA_STRING_STATIC("/EventId"),
-    UA_STRING_STATIC("/EventType"),
-    UA_STRING_STATIC("/SourceNode"),
-    UA_STRING_STATIC("/SourceName"),
-    UA_STRING_STATIC("/Time"),
-    UA_STRING_STATIC("/ReceiveTime"),
-    UA_STRING_STATIC("/Message"),
-    UA_STRING_STATIC("/Severity")
-};
-
-/* Read the value in the information model */
 static UA_StatusCode
-readSimpleAttributeOperand(UA_Server *server, UA_Session *session,
-                           const UA_NodeId *origin,
-                           const UA_SimpleAttributeOperand *sao,
-                           UA_Variant *value) {
+readSAOfromEventInstance(UA_FilterEvalContext *ctx,
+                         const UA_SimpleAttributeOperand *sao,
+                         UA_Variant *value) {
+    /* EventInstance in the information model defined? */
+    const UA_NodeId *ei = ctx->ed.eventInstance;
+    if(!ei)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
     /* Prepare the ReadValueId */
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
@@ -63,27 +34,26 @@ readSimpleAttributeOperand(UA_Server *server, UA_Session *session,
     if(sao->browsePathSize == 0) {
         /* If this list (browsePath) is empty, the Node is the instance of the
          * TypeDefinition. (Part 4, 7.4.4.5) */
-        rvi.nodeId = *origin;
+        rvi.nodeId = *ei;
 
         /* A Condition is an indirection. Look up the target node. */
         /* TODO: check for Branches! One Condition could have multiple Branches */
         UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
         if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId)) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-            UA_StatusCode res = UA_getConditionId(server, origin, &rvi.nodeId);
+            UA_StatusCode res = UA_getConditionId(ctx->server, ctx->ed.eventInstance, &rvi.nodeId);
             UA_CHECK_STATUS(res, return res);
 #else
             return UA_STATUSCODE_BADNOTSUPPORTED;
 #endif
         }
 
-        v = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        v = readWithSession(ctx->server, ctx->session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
     } else {
         /* Resolve the browse path, starting from the event-source (and not the
          * typeDefinitionId). */
         UA_BrowsePathResult bpr =
-            browseSimplifiedBrowsePath(server, *origin,
-                                       sao->browsePathSize, sao->browsePath);
+            browseSimplifiedBrowsePath(ctx->server, *ei, sao->browsePathSize, sao->browsePath);
         if(bpr.targetsSize == 0 && bpr.statusCode == UA_STATUSCODE_GOOD)
             bpr.statusCode = UA_STATUSCODE_BADNOTFOUND;
         if(bpr.statusCode != UA_STATUSCODE_GOOD) {
@@ -94,7 +64,7 @@ readSimpleAttributeOperand(UA_Server *server, UA_Session *session,
 
         /* Use the first match */
         rvi.nodeId = bpr.targets[0].targetId.nodeId;
-        v = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        v = readWithSession(ctx->server, ctx->session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
         UA_BrowsePathResult_clear(&bpr);
     }
 
@@ -111,19 +81,112 @@ readSimpleAttributeOperand(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
+/***************/
+/* Filter Eval */
+/***************/
+
+/* Names of the mandatory event properties (in the BaseEventType) */
+#define MANDATORY_EVENT_PROPERTIES_COUNT 8
+static UA_String mandatoryEventProperties[MANDATORY_EVENT_PROPERTIES_COUNT] = {
+    UA_STRING_STATIC("/EventId"),
+    UA_STRING_STATIC("/EventType"),
+    UA_STRING_STATIC("/SourceNode"),
+    UA_STRING_STATIC("/SourceName"),
+    UA_STRING_STATIC("/Time"),
+    UA_STRING_STATIC("/ReceiveTime"),
+    UA_STRING_STATIC("/Message"),
+    UA_STRING_STATIC("/Severity")
+};
+
+void
+UA_FilterEvalContext_init(UA_FilterEvalContext *ctx) {
+    memset(ctx, 0, sizeof(UA_FilterEvalContext));
+}
+
+void
+UA_FilterEvalContext_reset(UA_FilterEvalContext *ctx) {
+    if(ctx->eventId.data && ctx->eventId.data != ctx->eventIdBuf)
+        UA_ByteString_clear(&ctx->eventId);
+    UA_KeyValueMap_clear(&ctx->fieldCache);
+
+    /* The data of the EventId is either in the eventIdBuf or in the fieldCache
+     * or in the ed. So no memory to free here. Keep the EventId if it points to
+     * the random-id bytes for the next evaluation. */
+    if(ctx->eventId.data != ctx->eventIdBuf)
+        UA_ByteString_init(&ctx->eventId);
+}
+
+UA_StatusCode
+cacheEventId(UA_FilterEvalContext *ctx) {
+    /* Already cached */
+    if(ctx->eventId.length > 0)
+        return UA_STATUSCODE_GOOD;
+
+    /* Resolve from the Key-Value Map - This does not make a deep copy */
+    const UA_EventDescription *ed = &ctx->ed;
+    if(ed && ed->eventFields) {
+        const UA_Variant *found =
+            UA_KeyValueMap_get(ed->eventFields, UA_QUALIFIEDNAME(0, "/EventId"));
+        if(found) {
+            if(!UA_Variant_hasScalarType(found, &UA_TYPES[UA_TYPES_BYTESTRING]))
+                return UA_STATUSCODE_BADTYPEMISMATCH;
+            ctx->eventId = *(UA_ByteString*)found->data; /* shallow copy */
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    /* Resolve from the EventInstance. But only if a useful identifier
+     * (ByteString, length > 0) has been set in the information model. */
+    static UA_QualifiedName eventIdName = {0, UA_STRING_STATIC("EventId")};
+    UA_SimpleAttributeOperand sao;
+    UA_SimpleAttributeOperand_init(&sao);
+    sao.attributeId = UA_ATTRIBUTEID_VALUE;
+    sao.browsePath = &eventIdName;
+    sao.browsePathSize = 1;
+
+    UA_Variant val;
+    UA_StatusCode res = readSAOfromEventInstance(ctx, &sao, &val);
+    if(res == UA_STATUSCODE_GOOD) {
+        UA_Boolean isIdString = UA_Variant_hasScalarType(&val, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_assert(!isIdString || val.data != NULL); /* pacify a clang-analyzer warning */
+        if(isIdString && ((UA_ByteString*)val.data)->length > 0) {
+            res = UA_KeyValueMap_setShallow(&ctx->fieldCache,
+                                            UA_QUALIFIEDNAME(0, "/EventId"), &val);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_Variant_clear(&val);
+                return res;
+            }
+            ctx->eventId = *(UA_ByteString*)val.data; /* shallow copy */
+            return UA_STATUSCODE_GOOD;
+        }
+
+        /* Continue to create a random ByteString */
+        UA_Variant_clear(&val);
+    }
+
+    /* If nothing is explicitly defined, create a random 16-byte ByteString */
+    UA_UInt32 *ids = (UA_UInt32*)ctx->eventIdBuf;
+    ids[0] = UA_UInt32_random();
+    ids[1] = UA_UInt32_random();
+    ids[2] = UA_UInt32_random();
+    ids[3] = UA_UInt32_random();
+    ctx->eventId = (UA_ByteString){16, ctx->eventIdBuf};
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Can return an in-situ value. Check for UA_VARIANT_DATA_NODELETE. */
-static UA_StatusCode
-resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
-                              const UA_EventDescription *ed,
-                              const UA_SimpleAttributeOperand *sao,
-                              UA_Variant *out) {
+UA_StatusCode
+resolveSAO(UA_FilterEvalContext *ctx, const UA_SimpleAttributeOperand *sao,
+           UA_Variant *out) {
     /* Print the SAO as a human-readable string. We are using the
      * TypeDefinitionId initially to disambiguate properties with the same
      * BrowseName but from different EventTypes. The we try again wtih the
      * TypeDefinitionId disabled. */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    const UA_EventDescription *ed = &ctx->ed;
+    const UA_Variant *found;
     UA_Byte pathBuf[512];
     UA_QualifiedName pathString = {0, {512, pathBuf}};
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_SimpleAttributeOperand tmp_sao = *sao;
     static UA_NodeId baseEventTypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEEVENTTYPE}};
 
@@ -135,8 +198,21 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* Source 1: Resolve from the key-value map */
-    const UA_Variant *found = UA_KeyValueMap_get(ed->eventFields, pathString);
+    /* Special Case: EventId (generated only once per Event, ignores the IndexRange) */
+    if(UA_String_equal(&pathString.name, &mandatoryEventProperties[0])) {
+        res = cacheEventId(ctx);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        UA_Variant_setScalar(out, &ctx->eventId, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        out->storageType = UA_VARIANT_DATA_NODELETE;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Source 1: Use the SAO-string to look up from the user-defined key-value
+     * map (and from the cache) */
+    found = UA_KeyValueMap_get(ed->eventFields, pathString);
+    if(!found)
+        found = UA_KeyValueMap_get(&ctx->fieldCache, pathString);
     if(found) {
         if(sao->indexRange.length == 0) {
             *out = *found;
@@ -161,24 +237,15 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
     }
 
     /* Source 2: Read from the information model */
-    if(ed->eventTypeInstance) {
-        res = readSimpleAttributeOperand(server,session, ed->eventTypeInstance, sao, out);
-        if(res == UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_GOOD;
-        res = UA_STATUSCODE_GOOD; /* reset */
-    }
+    res = readSAOfromEventInstance(ctx, sao, out);
+    if(res == UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOOD;
+    res = UA_STATUSCODE_GOOD; /* reset and continue */
 
     /* Source 3: Use a default for the mandatory fields of the BaseEventType.
      * Here we ignore the IndexRange. */
     UA_String_init(&tmp_sao.indexRange); /* No index range allowed */
-    if(UA_String_equal(&pathString.name, &mandatoryEventProperties[0])) {
-        /* EventId */
-        UA_ByteString eventid = UA_BYTESTRING_NULL;
-        res |= generateEventId(&eventid);
-        res |= UA_Variant_setScalarCopy(out, &eventid, &UA_TYPES[UA_TYPES_BYTESTRING]);
-        UA_ByteString_clear(&eventid);
-        return res;
-    } else if(UA_String_equal(&pathString.name, &mandatoryEventProperties[1])) {
+    if(UA_String_equal(&pathString.name, &mandatoryEventProperties[1])) {
         /* EventType */
         return UA_Variant_setScalarCopy(out, &ed->eventType, &UA_TYPES[UA_TYPES_NODEID]);
     } else if(UA_String_equal(&pathString.name, &mandatoryEventProperties[2])) {
@@ -191,7 +258,8 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
         UA_ReadValueId_init(&rvi);
         rvi.nodeId = ed->sourceNode;
         rvi.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
-        UA_DataValue dv = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        UA_DataValue dv = readWithSession(ctx->server, ctx->session, &rvi,
+                                          UA_TIMESTAMPSTORETURN_NEITHER);
         if(dv.status != UA_STATUSCODE_GOOD) {
             res = dv.status;
             UA_DataValue_clear(&dv);
@@ -208,7 +276,7 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
     } else if(UA_String_equal(&pathString.name, &mandatoryEventProperties[4]) ||
               UA_String_equal(&pathString.name, &mandatoryEventProperties[5])) {
         /* Time / ReceiveTime */
-        UA_EventLoop *el = server->config.eventLoop;
+        UA_EventLoop *el = ctx->server->config.eventLoop;
         UA_DateTime rcvTime = el->dateTime_now(el);
         return UA_Variant_setScalarCopy(out, &rcvTime, &UA_TYPES[UA_TYPES_DATETIME]);
     } else if(UA_String_equal(&pathString.name, &mandatoryEventProperties[6])) {
@@ -665,20 +733,6 @@ castImplicit(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) 
 /* Filter Evaluation
  * ----------------- */
 
-typedef struct {
-    UA_Server *server;
-    UA_Session *session;
-    UA_EventDescription ed;
-
-    const UA_ContentFilter *filter;
-    UA_Variant operatorResults[UA_EVENTFILTER_MAXELEMENTS];
-
-    /* The operand stack contains temporary variants. Cleaned up after the
-     * evaluation of each operator. */
-    size_t top;
-    UA_Variant operandStack[UA_EVENTFILTER_MAXOPERANDS];
-} UA_FilterEvalContext;
-
 static UA_StatusCode
 resolveOperand(UA_FilterEvalContext *ctx, UA_ExtensionObject *op, UA_Variant *out) {
     if(op->encoding != UA_EXTENSIONOBJECT_DECODED &&
@@ -705,8 +759,7 @@ resolveOperand(UA_FilterEvalContext *ctx, UA_ExtensionObject *op, UA_Variant *ou
     if(op->content.decoded.type == &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]) {
         UA_SimpleAttributeOperand *sao =
             (UA_SimpleAttributeOperand*)op->content.decoded.data;
-        return resolveSimpleAttributeOperand(ctx->server, ctx->session,
-                                             &ctx->ed, sao, out);
+        return resolveSAO(ctx, sao, out);
     }
 
     return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
@@ -714,7 +767,7 @@ resolveOperand(UA_FilterEvalContext *ctx, UA_ExtensionObject *op, UA_Variant *ou
 
 static UA_StatusCode
 ofTypeOperator(UA_FilterEvalContext *ctx, size_t index) {
-    const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
+    const UA_ContentFilterElement *elm = &ctx->filter.whereClause.elements[index];
     UA_assert(elm->filterOperandsSize == 1);
 
     /* Get the operand. Must be a literal NodeId */
@@ -733,7 +786,7 @@ ofTypeOperator(UA_FilterEvalContext *ctx, size_t index) {
     sao.browsePathSize = 1;
     UA_Variant eventType;
     UA_Variant_init(&eventType);
-    res = resolveSimpleAttributeOperand(ctx->server, ctx->session, &ctx->ed, &sao, &eventType);
+    res = resolveSAO(ctx, &sao, &eventType);
     if(res != UA_STATUSCODE_GOOD)
         return res;
     if(!UA_Variant_hasScalarType(&eventType, &UA_TYPES[UA_TYPES_NODEID])) {
@@ -752,7 +805,7 @@ ofTypeOperator(UA_FilterEvalContext *ctx, size_t index) {
 
 static UA_StatusCode
 andOperator(UA_FilterEvalContext *ctx, size_t index) {
-    const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
+    const UA_ContentFilterElement *elm = &ctx->filter.whereClause.elements[index];
     UA_assert(elm->filterOperandsSize == 2);
     UA_Variant *op0 = &ctx->operandStack[ctx->top++];
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
@@ -766,7 +819,7 @@ andOperator(UA_FilterEvalContext *ctx, size_t index) {
 
 static UA_StatusCode
 orOperator(UA_FilterEvalContext *ctx, size_t index) {
-    const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
+    const UA_ContentFilterElement *elm = &ctx->filter.whereClause.elements[index];
     UA_assert(elm->filterOperandsSize == 2);
     UA_Variant *op0 = &ctx->operandStack[ctx->top++];
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
@@ -780,7 +833,7 @@ orOperator(UA_FilterEvalContext *ctx, size_t index) {
 
 static UA_StatusCode
 notOperator(UA_FilterEvalContext *ctx, size_t index) {
-    const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
+    const UA_ContentFilterElement *elm = &ctx->filter.whereClause.elements[index];
     UA_assert(elm->filterOperandsSize == 1);
     UA_Variant *op0 = &ctx->operandStack[ctx->top++];
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
@@ -794,7 +847,7 @@ notOperator(UA_FilterEvalContext *ctx, size_t index) {
 static UA_StatusCode
 castResolveOperands(UA_FilterEvalContext *ctx, size_t index, UA_Boolean setError) {
     /* Enough space on the operand stack left? */
-    const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
+    const UA_ContentFilterElement *elm = &ctx->filter.whereClause.elements[index];
     if(ctx->top + elm->filterOperandsSize > UA_EVENTFILTER_MAXOPERANDS)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -836,7 +889,7 @@ castResolveOperands(UA_FilterEvalContext *ctx, size_t index, UA_Boolean setError
 
 static UA_StatusCode
 compareOperator(UA_FilterEvalContext *ctx, size_t index, UA_FilterOperator op) {
-    UA_assert(ctx->filter->elements[index].filterOperandsSize == 2);
+    UA_assert(ctx->filter.whereClause.elements[index].filterOperandsSize == 2);
 
     /* Resolve and cast the operands. A failed casting results in FALSE. Note
      * that operands could cast to NULL. */
@@ -917,7 +970,7 @@ lteOperator(UA_FilterEvalContext *ctx, size_t index) {
 
 static UA_StatusCode
 bitwiseOperator(UA_FilterEvalContext *ctx, size_t index, UA_FilterOperator op) {
-    UA_assert(ctx->filter->elements[index].filterOperandsSize == 2);
+    UA_assert(ctx->filter.whereClause.elements[index].filterOperandsSize == 2);
 
     /* Resolve and cast the operands. Note that operands could cast to NULL. */
     UA_assert(ctx->top == 0); /* Assume the operand stack is empty */
@@ -959,7 +1012,7 @@ bitwiseOrOperator(UA_FilterEvalContext *ctx, size_t index) {
 
 static UA_StatusCode
 betweenOperator(UA_FilterEvalContext *ctx, size_t index) {
-    UA_assert(ctx->filter->elements[index].filterOperandsSize == 3);
+    UA_assert(ctx->filter.whereClause.elements[index].filterOperandsSize == 3);
 
     /* If no implicit conversion is available and the operands are of different
      * types, the particular result is FALSE. */
@@ -989,7 +1042,7 @@ betweenOperator(UA_FilterEvalContext *ctx, size_t index) {
 
 static UA_StatusCode
 inListOperator(UA_FilterEvalContext *ctx, size_t index) {
-    const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
+    const UA_ContentFilterElement *elm = &ctx->filter.whereClause.elements[index];
     UA_assert(elm->filterOperandsSize >= 2);
     UA_Boolean found = false;
     UA_Variant *op0 = &ctx->operandStack[ctx->top++];
@@ -1010,7 +1063,7 @@ inListOperator(UA_FilterEvalContext *ctx, size_t index) {
 
 static UA_StatusCode
 isNullOperator(UA_FilterEvalContext *ctx, size_t index) {
-    const UA_ContentFilterElement *elm = &ctx->filter->elements[index];
+    const UA_ContentFilterElement *elm = &ctx->filter.whereClause.elements[index];
     UA_assert(elm->filterOperandsSize == 1);
     UA_Variant *op0 = &ctx->operandStack[ctx->top++];
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
@@ -1054,48 +1107,41 @@ static const UA_FilterOperatorJumptableElement operatorJumptable[18] = {
 
 /* Evaluate content filter, exported only for unit testing */
 UA_StatusCode
-evaluateWhereClause(UA_Server *server, UA_Session *session,
-                    const UA_ContentFilter *cf,
-                    const UA_EventDescription *ed) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
+evaluateWhereClause(UA_FilterEvalContext *ctx) {
+    UA_LOCK_ASSERT(&ctx->server->serviceMutex);
 
     /* An empty filter always succeeds */
-    if(cf->elementsSize == 0)
+    if(ctx->filter.whereClause.elementsSize == 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Prepare the context */
-    UA_FilterEvalContext ctx;
-    ctx.filter = cf;
-    ctx.server = server;
-    ctx.session = session;
-    ctx.ed = *ed;
-    ctx.top = 0;
-
     /* Pacify some compilers by initializing the first result */
-    UA_Variant_init(&ctx.operatorResults[0]);
+    UA_assert(ctx->top == 0);
+    UA_Variant_init(&ctx->operatorResults[0]);
 
     /* Evaluate the filter. Iterate backwards over the filter elements and
      * resolve each. This ensures that all element-index operands point to an
      * evaluated element. */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+    const UA_ContentFilter *cf = &ctx->filter.whereClause;
     size_t i = cf->elementsSize - 1;
     for(; i < cf->elementsSize; i--) {
         UA_ContentFilterElement *cfe = &cf->elements[i];
-        res = operatorJumptable[cfe->filterOperator].operatorMethod(&ctx, i);
-        for(size_t j = 0; j < ctx.top; j++)
-            UA_Variant_clear(&ctx.operandStack[j]); /* clean up the operand stack */
-        ctx.top = 0;
+        res = operatorJumptable[cfe->filterOperator].operatorMethod(ctx, i);
+        /* Clean up the operand stack */
+        for(size_t j = 0; j < ctx->top; j++)
+            UA_Variant_clear(&ctx->operandStack[j]);
+        ctx->top = 0;
         if(res != UA_STATUSCODE_GOOD)
             break;
     }
 
     /* The filter matches if the operator at the first position evaluates to TRUE */
-    if(res == UA_STATUSCODE_GOOD && v2t(&ctx.operatorResults[0]) != UA_TERNARY_TRUE)
+    if(res == UA_STATUSCODE_GOOD && v2t(&ctx->operatorResults[0]) != UA_TERNARY_TRUE)
         res = UA_STATUSCODE_BADNOMATCH;
 
-    /* Clean up the element result variants */
+    /* Clean up the stack */
     for(size_t j = cf->elementsSize - 1; j > i; j--)
-        UA_Variant_clear(&ctx.operatorResults[j]);
+        UA_Variant_clear(&ctx->operatorResults[j]);
     return res;
 }
 
@@ -1312,25 +1358,24 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
 /*************************/
 
 UA_StatusCode
-evaluateSelectClause(UA_Server *server, UA_Session *session,
-                     const UA_EventDescription *ed, const UA_EventFilter *filter,
-                     UA_EventFieldList *efl) {
+evaluateSelectClause(UA_FilterEvalContext *ctx, UA_EventFieldList *efl) {
     /* Nothing to do */
-    if(filter->selectClausesSize == 0)
+    if(ctx->filter.selectClausesSize == 0)
         return UA_STATUSCODE_GOOD;
 
     /* Allocate the event fields list */
     efl->eventFields = (UA_Variant*)
-        UA_calloc(filter->selectClausesSize, sizeof(UA_Variant));
+        UA_calloc(ctx->filter.selectClausesSize, sizeof(UA_Variant));
     if(!efl->eventFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    efl->eventFieldsSize = filter->selectClausesSize;
+    efl->eventFieldsSize = ctx->filter.selectClausesSize;
 
     /* Resolve the select clauses */
-    for(size_t i = 0; i < filter->selectClausesSize; i++) {
-        const UA_SimpleAttributeOperand *sao = &filter->selectClauses[i];
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < ctx->filter.selectClausesSize; i++) {
+        const UA_SimpleAttributeOperand *sao = &ctx->filter.selectClauses[i];
         UA_Variant *field = &efl->eventFields[i];
-        resolveSimpleAttributeOperand(server, session, ed, sao, field);
+        res |= resolveSAO(ctx, sao, field);
 
         /* Ensure a deep copy */
         if(field->storageType == UA_VARIANT_DATA_NODELETE) {
@@ -1341,55 +1386,38 @@ evaluateSelectClause(UA_Server *server, UA_Session *session,
         }
     }
 
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 /* Filters an event according to the filter specified by mon and then adds it to
  * mons notification queue */
 static UA_StatusCode
-UA_MonitoredItem_addEvent(UA_Server *server, UA_Session *session,
-                          UA_MonitoredItem *mon, const UA_EventDescription *ed) {
-    /* Get the filter */
-    if(mon->parameters.filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
-        return UA_STATUSCODE_BADFILTERNOTALLOWED;
-    UA_EventFilter *ef = (UA_EventFilter*)
-        mon->parameters.filter.content.decoded.data;
-
-    /* A MonitoredItem is always attached to a (local) Subscription.
-     * A Subscription can be not attached to any Session. */
-    UA_Subscription *sub = mon->subscription;
-    UA_assert(sub);
-
+UA_MonitoredItem_addEvent(UA_MonitoredItem *mon, UA_FilterEvalContext *ctx) {
     /* Evaluate the where clause */
-    UA_StatusCode res = evaluateWhereClause(server, session, &ef->whereClause, ed);
+    UA_StatusCode res = evaluateWhereClause(ctx);
     if(res != UA_STATUSCODE_GOOD) {
         if(res == UA_STATUSCODE_BADNOMATCH)
             res = UA_STATUSCODE_GOOD;
         return res;
     }
 
-    /* Get the event fields for the select clause */
-    UA_EventFieldList efl;
-    UA_EventFieldList_init(&efl);
-    res = evaluateSelectClause(server, session, ed, ef, &efl);
+    /* Allocate memory for the notification */
+    UA_Notification *n = UA_Notification_new();
+    if(!n)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Evaluate the select clause to get the event fields */
+    res = evaluateSelectClause(ctx, &n->data.event);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_EventFieldList_clear(&efl);
+        UA_EventFieldList_clear(&n->data.event);
+        UA_free(n);
         return res;
     }
 
-    /* Allocate memory for the notification */
-    UA_Notification *n = UA_Notification_new();
-    if(!n) {
-        UA_EventFieldList_clear(&efl);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    /* Prepare and enqueue the notification */
-    n->data.event = efl;
+    /* Finalize and enqueue the notification */
     n->data.event.clientHandle = mon->parameters.clientHandle;
     n->mon = mon;
-    UA_Notification_enqueueAndTrigger(server, n);
-
+    UA_Notification_enqueueAndTrigger(ctx->server, n);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1425,10 +1453,17 @@ setHistoricalEvent(UA_Server *server, const UA_NodeId *emitNode,
     }
     UA_EventFilter *ef = (UA_EventFilter*)historicalEventFilterValue.data;
 
+    UA_FilterEvalContext ctx;
+    UA_FilterEvalContext_init(&ctx);
+    ctx.server = server;
+    ctx.session = &server->adminSession;
+    ctx.filter = *ef;
+    ctx.ed = *ed;
+
     /* Evaluate the where clause */
-    UA_StatusCode res =
-        evaluateWhereClause(server, &server->adminSession, &ef->whereClause, ed);
+    UA_StatusCode res = evaluateWhereClause(&ctx);
     if(res != UA_STATUSCODE_GOOD) {
+        UA_FilterEvalContext_reset(&ctx);
         UA_Variant_clear(&historicalEventFilterValue);
         return;
     }
@@ -1436,7 +1471,7 @@ setHistoricalEvent(UA_Server *server, const UA_NodeId *emitNode,
     /* Get the event fields for the select clause */
     UA_EventFieldList efl;
     UA_EventFieldList_init(&efl);
-    res = evaluateSelectClause(server, &server->adminSession, ed, ef, &efl);
+    res = evaluateSelectClause(&ctx, &efl);
 
     /* Call the history database backend */
     if(UA_LIKELY(res == UA_STATUSCODE_GOOD)) {
@@ -1445,6 +1480,7 @@ setHistoricalEvent(UA_Server *server, const UA_NodeId *emitNode,
                      &ed->sourceNode, emitNode, ef, &efl);
     }
 
+    UA_FilterEvalContext_reset(&ctx);
     UA_Variant_clear(&historicalEventFilterValue);
     UA_EventFieldList_clear(&efl);
 }
@@ -1460,7 +1496,7 @@ static const UA_NodeId emitReferencesRoots[EMIT_REFS_ROOT_COUNT] =
 UA_StatusCode
 createEvent(UA_Server *server, const UA_EventDescription *ed,
             const UA_NodeId *sessionId, const UA_UInt32 *subscriptionId,
-            const UA_UInt32 *monitoredItemId) {
+            const UA_UInt32 *monitoredItemId, UA_ByteString *outEventId) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -1516,22 +1552,6 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
     /*     return UA_STATUSCODE_BADINVALIDARGUMENT; */
     /* } */
 
-    /* List of nodes that emit the node. Events propagate upwards (bubble up) in
-     * the node hierarchy. */
-    UA_ExpandedNodeId *emitNodes = NULL;
-    size_t emitNodesSize = 0;
-
-    /* Add the server node to the list of nodes from which the event is emitted.
-     * The server node emits all events.
-     *
-     * Part 3, 7.17: In particular, the root notifier of a Server, the Server
-     * Object defined in Part 5, is always capable of supplying all Events from
-     * a Server and as such has implied HasEventSource References to every event
-     * source in a Server. */
-    UA_NodeId emitStartNodes[2];
-    emitStartNodes[0] = ed->sourceNode;
-    emitStartNodes[1] = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
-
     /* Get all ReferenceTypes over which the events propagate */
     UA_ReferenceTypeSet emitRefTypes;
     UA_ReferenceTypeSet_init(&emitRefTypes);
@@ -1542,12 +1562,25 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
             UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                            "Events: Could not create the list of references for event "
                            "propagation with StatusCode %s", UA_StatusCode_name(res));
-            goto cleanup;
+            return res;
         }
         emitRefTypes = UA_ReferenceTypeSet_union(emitRefTypes, tmpRefTypes);
     }
 
-    /* Get the list of nodes in the hierarchy that emits the event. */
+    /* Get the list of nodes in the hierarchy that emits the event. Add the
+     * server node to the list of nodes from which the event is emitted. The
+     * server node emits all events.
+     *
+     * Part 3, 7.17: In particular, the root notifier of a Server, the Server
+     * Object defined in Part 5, is always capable of supplying all Events from
+     * a Server and as such has implied HasEventSource References to every event
+     * source in a Server. */
+    UA_NodeId emitStartNodes[2];
+    emitStartNodes[0] = ed->sourceNode;
+    emitStartNodes[1] = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+
+    UA_ExpandedNodeId *emitNodes = NULL;
+    size_t emitNodesSize = 0;
     res = browseRecursive(server, 2, emitStartNodes, UA_BROWSEDIRECTION_INVERSE,
                           &emitRefTypes, UA_NODECLASS_UNSPECIFIED, true,
                           &emitNodesSize, &emitNodes);
@@ -1555,7 +1588,26 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Events: Could not create the list of nodes listening on the "
                        "event with StatusCode %s", UA_StatusCode_name(res));
-        goto cleanup;
+        return res;
+    }
+
+    /* Set up the eval context. */
+    UA_FilterEvalContext ctx;
+    UA_FilterEvalContext_init(&ctx);
+    ctx.server = server;
+    ctx.ed = *ed;
+    /* ctx.session is set below for each MonitoredItem */
+    /* ctx.filter is set below for each MonitoredItem */
+
+    /* Create / resolve the EventId and copy into outEventId */
+    if(outEventId) {
+        ctx.session = &server->adminSession;
+        res = cacheEventId(&ctx);
+        if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
+            res = UA_ByteString_copy(&ctx.eventId, outEventId);
+        UA_FilterEvalContext_reset(&ctx);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
     /* Loop over all nodes that emit this event instance */
@@ -1596,14 +1648,24 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
             if(monitoredItemId && *monitoredItemId != mon->monitoredItemId)
                 continue;
 
+            /* Get the EventFilter from the MonitoredItem */
+            if(!UA_ExtensionObject_hasDecodedType(&mon->parameters.filter,
+                                                  &UA_TYPES[UA_TYPES_EVENTFILTER])) {
+                UA_LOG_ERROR_SUBSCRIPTION(server->config.logging, mon->subscription,
+                                          "MonitoredItem %" PRIi32 " | "
+                                          "The filter must be an EventFilter", mon->monitoredItemId);
+                continue;
+            }
+            ctx.filter = *(UA_EventFilter*)mon->parameters.filter.content.decoded.data;
+
             /* Select the session used to resolve SimpleAttributeOperands. If
              * the subscription is not bound to a session, use the AdminSession.
-             *
              * TODO: Preserve the access rights of the last connected session? */
-            UA_Session *session = (sub->session) ? sub->session : &server->adminSession;
+            ctx.session = (sub->session) ? sub->session : &server->adminSession;
 
             /* Evaluate the where-clause and create a notification */
-            res = UA_MonitoredItem_addEvent(server, session, mon, ed);
+            res = UA_MonitoredItem_addEvent(mon, &ctx);
+            UA_FilterEvalContext_reset(&ctx);
             if(res != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                                "Events: Could not add the event to a listening "
@@ -1621,7 +1683,9 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
 #endif
     }
 
- cleanup:
+    /* Clean up and return */
+    if(outEventId && res != UA_STATUSCODE_GOOD)
+        UA_ByteString_clear(outEventId);
     UA_Array_delete(emitNodes, emitNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     return res;
 }
@@ -1631,17 +1695,19 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId sourceNode,
                       const UA_NodeId eventType, UA_UInt16 severity,
                       const UA_LocalizedText message,
                       const UA_KeyValueMap *eventFields,
-                      const UA_NodeId *eventTypeInstance) {
+                      const UA_NodeId *eventInstance,
+                      UA_ByteString *outEventId) {
     UA_EventDescription ed;
     ed.sourceNode = sourceNode;
     ed.eventType = eventType;
     ed.severity = severity;
     ed.message = message;
     ed.eventFields = eventFields;
-    ed.eventTypeInstance = eventTypeInstance;
+    ed.eventInstance = eventInstance;
 
     lockServer(server);
-    UA_StatusCode res = createEvent(server, &ed, NULL, NULL, NULL);
+    UA_StatusCode res =
+        createEvent(server, &ed, NULL, NULL, NULL, outEventId);
     unlockServer(server);
     return res;
 }
@@ -1651,9 +1717,12 @@ UA_Server_createEventEx(UA_Server *server,
                         const UA_EventDescription *ed,
                         const UA_NodeId *sessionId,
                         const UA_UInt32 *subscriptionId,
-                        const UA_UInt32 *monitoredItemId) {
+                        const UA_UInt32 *monitoredItemId,
+                        UA_ByteString *outEventId) {
     lockServer(server);
-    UA_StatusCode res = createEvent(server, ed, sessionId, subscriptionId, monitoredItemId);
+    UA_StatusCode res =
+        createEvent(server, ed, sessionId, subscriptionId,
+                    monitoredItemId, outEventId);
     unlockServer(server);
     return res;
 }

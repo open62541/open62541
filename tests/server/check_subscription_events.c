@@ -258,7 +258,7 @@ START_TEST(generateEvents) {
 
     // Create an event
     UA_StatusCode retval =
-        UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL);
+        UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     joinServer();
@@ -357,7 +357,7 @@ START_TEST(uppropagation) {
 
     // create the event on a child of server
     UA_StatusCode retval =
-        UA_Server_createEvent(server, UA_NS0ID(SERVER_VENDORSERVERINFO), eventType, 100, message, NULL, NULL);
+        UA_Server_createEvent(server, UA_NS0ID(SERVER_VENDORSERVERINFO), eventType, 100, message, NULL, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     joinServer();
@@ -421,9 +421,9 @@ START_TEST(eventOverflow) {
 
     // create events
     UA_StatusCode retval =
-        UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL);
+        UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    retval = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL);
+    retval = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     joinServer();
@@ -516,7 +516,7 @@ START_TEST(discardNewestOverflow) {
     // create a large amount of events, ensure the server doesnt crash because of it
     UA_StatusCode retval;
     for(size_t j = 0; j < 100; j++) {
-        retval = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL);
+        retval = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL, NULL);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
     retval = UA_Client_run_iterate(client, 0);
@@ -549,7 +549,7 @@ START_TEST(eventStressing) {
     UA_StatusCode retval;
     for(size_t i = 0; i < 20; i++) {
         for(size_t j = 0; j < 30; j++) {
-            retval = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL);
+            retval = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL, NULL);
             ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         }
         retval = UA_Client_run_iterate(client, 0);
@@ -574,43 +574,42 @@ START_TEST(eventStressing) {
 } END_TEST
 
 START_TEST(evaluateFilterWhereClause) {
-    //test empty filter
-    UA_ContentFilter contentFilter;
-    UA_ContentFilter_init(&contentFilter);
+    UA_FilterEvalContext ctx;
+    UA_FilterEvalContext_init(&ctx);
+    ctx.server = server;
+    ctx.session = &server->adminSession;
 
-    UA_EventDescription ed;
-    ed.sourceNode = UA_NS0ID(SERVER);
-    ed.eventType = eventType;
-    ed.severity = 100;
-    ed.eventFields = NULL;
-    ed.eventTypeInstance = NULL;
+    ctx.ed.sourceNode = UA_NS0ID(SERVER);
+    ctx.ed.eventType = eventType;
+    ctx.ed.severity = 100;
+    ctx.ed.eventFields = NULL;
+    ctx.ed.eventInstance = NULL;
 
     lockServer(server);
-    UA_StatusCode retval = evaluateWhereClause(server, &server->adminSession,
-                                               &contentFilter, &ed);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
     unlockServer(server);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    /* Illegal filter operators */
     UA_ContentFilterElement contentFilterElement;
     UA_ContentFilterElement_init(&contentFilterElement);
-    contentFilter.elements = &contentFilterElement;
-    contentFilter.elementsSize = 1;
-    contentFilterElement.filterOperator = UA_FILTEROPERATOR_RELATEDTO;
+    ctx.filter.whereClause.elements = &contentFilterElement;
+    ctx.filter.whereClause.elementsSize = 1;
 
+    /* Illegal filter operators */
+    contentFilterElement.filterOperator = UA_FILTEROPERATOR_RELATEDTO;
     lockServer(server);
-    retval = evaluateWhereClause(server, &server->adminSession,
-                                 &contentFilter, &ed);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
     unlockServer(server);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED);
 
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_INVIEW;
-
     lockServer(server);
-    retval = evaluateWhereClause(server, &server->adminSession,
-                                 &contentFilter, &ed);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
     unlockServer(server);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED);
@@ -639,8 +638,8 @@ START_TEST(evaluateFilterWhereClause) {
     UA_Variant_setScalar(&literalOperand.value, &eventType, &UA_TYPES[UA_TYPES_NODEID]);
 
     lockServer(server);
-    retval = evaluateWhereClause(server, &server->adminSession,
-                                 &contentFilter, &ed);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
     unlockServer(server);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -650,8 +649,8 @@ START_TEST(evaluateFilterWhereClause) {
     UA_Variant_setScalar(&literalOperand.value, &nodeId, &UA_TYPES[UA_TYPES_NODEID]);
 
     lockServer(server);
-    retval = evaluateWhereClause(server, &server->adminSession,
-                                 &contentFilter, &ed);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
     unlockServer(server);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -660,8 +659,8 @@ START_TEST(evaluateFilterWhereClause) {
     nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEMODELCHANGEEVENTTYPE);
 
     lockServer(server);
-    retval = evaluateWhereClause(server, &server->adminSession,
-                                 &contentFilter, &ed);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
     unlockServer(server);
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
