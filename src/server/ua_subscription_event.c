@@ -145,6 +145,7 @@ cacheEventId(UA_FilterEvalContext *ctx) {
     sao.browsePathSize = 1;
 
     UA_Variant val;
+    UA_Variant_init(&val);
     UA_StatusCode res = readSAOfromEventInstance(ctx, &sao, &val);
     if(res == UA_STATUSCODE_GOOD) {
         UA_Boolean isIdString = UA_Variant_hasScalarType(&val, &UA_TYPES[UA_TYPES_BYTESTRING]);
@@ -240,7 +241,6 @@ resolveSAO(UA_FilterEvalContext *ctx, const UA_SimpleAttributeOperand *sao,
     res = readSAOfromEventInstance(ctx, sao, out);
     if(res == UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_GOOD;
-    res = UA_STATUSCODE_GOOD; /* reset and continue */
 
     /* Source 3: Use a default for the mandatory fields of the BaseEventType.
      * Here we ignore the IndexRange. */
