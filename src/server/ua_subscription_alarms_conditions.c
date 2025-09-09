@@ -810,7 +810,7 @@ enteringDisabledState(UA_Server *server, const UA_NodeId *conditionId,
         UA_EventDescription ed = {0};
         ed.eventInstance = &triggeredNode;
         ed.sourceNode = *conditionSource;
-        retval = createEvent(server, &ed, NULL, NULL, NULL, &lastEventId);
+        retval = createEvent(server, &ed, &lastEventId);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Triggering condition event failed",);
         setIsCallerAC(server, &triggeredNode, conditionSource, false);
 
@@ -1694,8 +1694,10 @@ refreshLogic(UA_Server *server, UA_Session *session,
     ed.sourceNode = UA_NS0ID(SERVER);
     ed.eventType = UA_NS0ID(REFRESHSTARTEVENTTYPE);
     ed.severity = REFRESHEVENT_SEVERITY_DEFAULT;
-    UA_StatusCode retval = createEvent(server, &ed, &session->sessionId, &sub->subscriptionId,
-                                       (monitoredItem) ? &monitoredItem->monitoredItemId : NULL, NULL);
+    ed.sessionId = &session->sessionId;
+    ed.subscriptionId = &sub->subscriptionId;
+    ed.monitoredItemId = (monitoredItem) ? &monitoredItem->monitoredItemId : NULL;
+    UA_StatusCode retval = createEvent(server, &ed, NULL);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Events: Could not add the event to a listening node",);
 
     /* 2. Refresh (see 5.5.7) */
@@ -1736,19 +1738,20 @@ refreshLogic(UA_Server *server, UA_Session *session,
                 UA_ByteString_clear(&branch->lastEventId);
 
                 /* Add the event */
-                UA_EventDescription ed = {0};
                 ed.eventInstance = &triggeredNode;
                 ed.sourceNode = conditionSource;
-                retval = createEvent(server, &ed, NULL, NULL, NULL, &branch->lastEventId);
+                ed.eventType = UA_NODEID_NULL; /* overwritten by the EventInstance */
+                retval = createEvent(server, &ed, &branch->lastEventId);
                 CONDITION_ASSERT_RETURN_RETVAL(retval, "Events: Could not add the event to a listening node",);
             }
         }
     }
 
     /* 3. Trigger RefreshEndEvent */
+    ed.eventInstance = NULL;
+    ed.sourceNode = UA_NS0ID(SERVER);
     ed.eventType = UA_NS0ID(REFRESHENDEVENTTYPE);
-    return createEvent(server, &ed, &session->sessionId, &sub->subscriptionId,
-                       (monitoredItem) ? &monitoredItem->monitoredItemId : NULL, NULL);
+    return createEvent(server, &ed, NULL);
 }
 
 static UA_StatusCode
@@ -2784,7 +2787,7 @@ triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
 
     /* Trigger the event for Condition*/
     //Condition Nodes should not be deleted after triggering the event
-    UA_StatusCode retval = createEvent(server, &ed, NULL, NULL, NULL, &eventId);
+    UA_StatusCode retval = createEvent(server, &ed, &eventId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Triggering condition event failed",);
 
     setIsCallerAC(server, &condition, &conditionSource, false);

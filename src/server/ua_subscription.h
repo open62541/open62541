@@ -370,8 +370,7 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
  * used to filter the subscriptions and monitoreditems that emit the event. */
 UA_StatusCode
 createEvent(UA_Server *server, const UA_EventDescription *ed,
-            const UA_NodeId *sessionId, const UA_UInt32 *subscriptionId,
-            const UA_UInt32 *monitoredItemId, UA_ByteString *outEventId);
+            UA_ByteString *outEventId);
 
 typedef struct {
     UA_Server *server;

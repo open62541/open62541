@@ -676,10 +676,11 @@ START_TEST(auditEvent) {
     ed.eventType = UA_NS0ID(AUDITEVENTTYPE);
     ed.severity = 500;
     ed.message = UA_LOCALIZEDTEXT("something", "happened");
+    ed.sessionId = &adminSessionId;
 
     // TOOD: Add all mandatory fields of the AuditEventType
 
-    UA_StatusCode res = UA_Server_createEventEx(server, &ed, &adminSessionId, NULL, NULL, NULL);
+    UA_StatusCode res = UA_Server_createEventEx(server, &ed, NULL);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 } END_TEST
 

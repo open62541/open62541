@@ -1446,20 +1446,23 @@ UA_Server_createEvent(UA_Server *server, const UA_NodeId sourceNode,
  * monitoredItemId requires a subscriptionId as context. */
 
 typedef struct {
+    /* Event fields */
     UA_NodeId sourceNode;
     UA_NodeId eventType;
     UA_UInt16 severity;
     UA_LocalizedText message;
     const UA_KeyValueMap *eventFields;
     const UA_NodeId *eventInstance;
+
+    /* Restrict who can receive the event */
+    const UA_NodeId *sessionId;
+    const UA_UInt32 *subscriptionId;
+    const UA_UInt32 *monitoredItemId;
 } UA_EventDescription;
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_createEventEx(UA_Server *server,
                         const UA_EventDescription *ed,
-                        const UA_NodeId *sessionId,
-                        const UA_UInt32 *subscriptionId,
-                        const UA_UInt32 *monitoredItemId,
                         UA_ByteString *outEventId);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
