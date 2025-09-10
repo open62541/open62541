@@ -247,4 +247,6 @@ endif()
 # Pilz Adhoc Nodestore #
 ########################
 
-add_example(pilz_adhoc_nodes pilz-adhoc-nodes/adhoc_nodes_application.c pilz-adhoc-nodes/adhoc_nodestore.c)
+add_example(pilz_adhoc_nodes pilz-adhoc-nodes/adhoc_nodes_application.c
+                             pilz-adhoc-nodes/adhoc_backend.c
+                             pilz-adhoc-nodes/adhoc_nodestore.c)
