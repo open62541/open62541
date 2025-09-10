@@ -388,7 +388,7 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
      * Keep the current child state as the target state for the child. */
     UA_ReaderGroup *rg;
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-        if (psm->pubSubInitialSetupMode) {
+        if(psm->pubSubInitialSetupMode && rg->config.enabled) {
             UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
         } else {
             UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
@@ -396,7 +396,7 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
     }
     UA_WriterGroup *wg;
     LIST_FOREACH(wg, &c->writerGroups, listEntry) {
-        if (psm->pubSubInitialSetupMode) {
+        if(psm->pubSubInitialSetupMode && wg->config.enabled) {
             UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
         } else {
             UA_WriterGroup_setPubSubState(psm, wg, wg->head.state);
