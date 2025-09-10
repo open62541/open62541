@@ -114,9 +114,13 @@ static const MockBackendNode mockBackendNodes[] = {
 #define MOCK_BACKEND_NODE_COUNT (sizeof(mockBackendNodes) / sizeof(MockBackendNode))
 
 /* Helper function to find a mock backend node by NodeId */
-static const MockBackendNode* findMockBackendNode(UA_UInt32 nodeId, UA_UInt16 namespaceIndex) {
+static const MockBackendNode* findMockBackendNode(const UA_NodeId *nodeId) {
+    if(nodeId->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return NULL;
+    UA_UInt32 id = nodeId->identifier.numeric;
+    UA_UInt16 namespaceIndex = nodeId->namespaceIndex;
     for(size_t i = 0; i < MOCK_BACKEND_NODE_COUNT; i++) {
-        if(mockBackendNodes[i].nodeId == nodeId && 
+        if(mockBackendNodes[i].nodeId == id && 
            mockBackendNodes[i].namespaceIndex == namespaceIndex) {
             return &mockBackendNodes[i];
         }
@@ -137,8 +141,7 @@ delayedValueRead(UA_Server *server, const UA_NodeId *sessionId, void *sessionCon
                  UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range,
                  UA_DataValue *value) {
     /* Get the mockup node */
-    const MockBackendNode *mockNode =
-        findMockBackendNode(nodeId->identifier.numeric, nodeId->namespaceIndex);
+    const MockBackendNode *mockNode = findMockBackendNode(nodeId);
     if(!mockNode)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -452,16 +455,20 @@ static MapEntry* createNodeFromMockData(const MockBackendNode* mockNode) {
 /* Interface functions */
 /***********************/
 
+/* Always create new nodes from the fallback. The backend nodes are already there. */
 static UA_Node *
-AdHocNodestore_newNode(UA_Nodestore *_, UA_NodeClass nodeClass) {
-    MapEntry *entry = createEntry(nodeClass);
-    if(!entry)
-        return NULL;
-    return &entry->node;
+AdHocNodestore_newNode(UA_Nodestore *orig_ns, UA_NodeClass nodeClass) {
+    AdHocNodestore *ns = (AdHocNodestore*)orig_ns;
+    return ns->fallback->newNode(ns->fallback, nodeClass);
 }
 
 static void
-AdHocNodestore_deleteNode(UA_Nodestore *_, UA_Node *node) {
+AdHocNodestore_deleteNode(UA_Nodestore *orig_ns, UA_Node *node) {
+    AdHocNodestore *ns = (AdHocNodestore*)orig_ns;
+    if(!findMockBackendNode(&node->head.nodeId)) {
+        ns->fallback->deleteNode(ns->fallback, node);
+        return;
+    }
     MapEntry *entry = container_of(node, MapEntry, node);
     UA_assert(&entry->node == node);
     deleteNodeMapEntry(entry);
@@ -489,8 +496,7 @@ AdHocNodestore_getNode(UA_Nodestore *orig_ns, const UA_NodeId *nodeid,
     /* Node not in hashmap - check if it exists in mock backend */
     if(nodeid->identifierType != UA_NODEIDTYPE_NUMERIC)
         return NULL;
-    const MockBackendNode* mockNode = findMockBackendNode(nodeid->identifier.numeric, 
-                                                          nodeid->namespaceIndex);
+    const MockBackendNode* mockNode = findMockBackendNode(nodeid);
     if(!mockNode)
         return NULL;
 
@@ -533,12 +539,9 @@ AdHocNodestore_releaseNode(UA_Nodestore *orig_ns, const UA_Node *node) {
     if(!node)
         return;
 
-    /* Search in the fallback */
-    const UA_Node *backend = ns->fallback->getNode(ns->fallback, &node->head.nodeId, 0,
-                                                   UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
-    if(backend) {
+    if(!findMockBackendNode(&node->head.nodeId)) {
         ns->fallback->releaseNode(ns->fallback, node);
-        ns->fallback->releaseNode(ns->fallback, node);
+        return;
     }
 
     MapEntry *entry = container_of(node, MapEntry, node);
@@ -569,27 +572,29 @@ AdHocNodestore_releaseNode(UA_Nodestore *orig_ns, const UA_Node *node) {
 static UA_StatusCode
 AdHocNodestore_getNodeCopy(UA_Nodestore *orig_ns, const UA_NodeId *nodeId,
                            UA_Node **outNode) {
+    /* Search in the fallback */
     AdHocNodestore *ns = (AdHocNodestore*)orig_ns;
-    MapSlot *slot = findOccupiedSlot(ns, nodeId);
-    if(!slot)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    MapEntry *entry = slot->entry;
-    MapEntry *newItem = createEntry(entry->node.head.nodeClass);
-    if(!newItem)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_StatusCode retval = UA_Node_copy(&entry->node, &newItem->node);
-    if(retval == UA_STATUSCODE_GOOD) {
-        newItem->orig = entry; /* Store the pointer to the original */
-        *outNode = &newItem->node;
-    } else {
-        deleteNodeMapEntry(newItem);
+    UA_StatusCode res = ns->fallback->getNodeCopy(ns->fallback, nodeId, outNode);
+    if(res == UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOOD;
+
+    /* Does a backend node exist? */
+    if(nodeId->identifierType == UA_NODEIDTYPE_NUMERIC) {
+        if(findMockBackendNode(nodeId))
+            return UA_STATUSCODE_BADNOTWRITABLE;
     }
-    return retval;
+
+    return UA_STATUSCODE_BADNOTFOUND;
 }
 
 static UA_StatusCode
 AdHocNodestore_removeNode(UA_Nodestore *orig_ns, const UA_NodeId *nodeid) {
+    /* Search in the fallback */
     AdHocNodestore *ns = (AdHocNodestore*)orig_ns;
+    UA_StatusCode res = ns->fallback->removeNode(ns->fallback, nodeid);
+    if(res == UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOOD;
+
     MapSlot *slot = findOccupiedSlot(ns, nodeid);
     if(!slot)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -611,127 +616,27 @@ AdHocNodestore_removeNode(UA_Nodestore *orig_ns, const UA_NodeId *nodeid) {
  */
 static UA_StatusCode
 AdHocNodestore_insertNode(UA_Nodestore *orig_ns, UA_Node *node, UA_NodeId *addedNodeId) {
+    /* The node was originally created from the fallback nodestore */
     AdHocNodestore *ns = (AdHocNodestore*)orig_ns;
-    if(ns->size * 3 <= ns->count * 4) {
-        if(expand(ns) != UA_STATUSCODE_GOOD){
-            deleteNodeMapEntry(container_of(node, MapEntry, node));
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-    }
-
-    MapSlot *slot;
-    if(node->head.nodeId.identifierType == UA_NODEIDTYPE_NUMERIC &&
-       node->head.nodeId.identifier.numeric == 0) {
-        /* Create a random nodeid: Start at least with 50,000 to make sure we
-         * don not conflict with nodes from the spec. If we find a conflict, we
-         * just try another identifier until we have tried all possible
-         * identifiers. Since the size is prime and we don't change the increase
-         * val, we will reach the starting id again. E.g. adding a nodeset will
-         * create children while there are still other nodes which need to be
-         * created. Thus the node ids may collide. */
-        UA_UInt32 size = ns->size;
-        UA_UInt64 identifier = mod(50000 + size+1, UA_UINT32_MAX); /* Use 64bit to
-                                                                    * avoid overflow */
-        UA_UInt32 increase = mod2(ns->count+1, size);
-        UA_UInt32 startId = (UA_UInt32)identifier; /* mod ensures us that the id
-                                                    * is a valid 32 bit integer */
-
-        do {
-            node->head.nodeId.identifier.numeric = (UA_UInt32)identifier;
-            slot = findFreeSlot(ns, &node->head.nodeId);
-            if(slot)
-                break;
-            identifier += increase;
-            if(identifier >= size)
-                identifier -= size;
-#if SIZE_MAX <= UA_UINT32_MAX
-            /* The compressed "immediate" representation of nodes does not
-             * support the full range on 32bit systems. Generate smaller
-             * identifiers as they can be stored more compactly. */
-            if(identifier >= (0x01 << 24))
-                identifier = identifier % (0x01 << 24);
-#endif
-        } while((UA_UInt32)identifier != startId);
-    } else {
-        slot = findFreeSlot(ns, &node->head.nodeId);
-    }
-
-    if(!slot) {
-        deleteNodeMapEntry(container_of(node, MapEntry, node));
-        return UA_STATUSCODE_BADNODEIDEXISTS;
-    }
-
-    /* Copy the NodeId */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(addedNodeId) {
-        retval = UA_NodeId_copy(&node->head.nodeId, addedNodeId);
-        if(retval != UA_STATUSCODE_GOOD) {
-            deleteNodeMapEntry(container_of(node, MapEntry, node));
-            return retval;
-        }
-    }
-
-    /* For new ReferencetypeNodes add to the index map */
-    if(node->head.nodeClass == UA_NODECLASS_REFERENCETYPE) {
-        UA_ReferenceTypeNode *refNode = &node->referenceTypeNode;
-        if(ns->referenceTypeCounter >= UA_REFERENCETYPESET_MAX) {
-            deleteNodeMapEntry(container_of(node, MapEntry, node));
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-
-        retval = UA_NodeId_copy(&node->head.nodeId, &ns->referenceTypeIds[ns->referenceTypeCounter]);
-        if(retval != UA_STATUSCODE_GOOD) {
-            deleteNodeMapEntry(container_of(node, MapEntry, node));
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-
-        /* Assign the ReferenceTypeIndex to the new ReferenceTypeNode */
-        refNode->referenceTypeIndex = ns->referenceTypeCounter;
-        refNode->subTypes = UA_REFTYPESET(ns->referenceTypeCounter);
-
-        ns->referenceTypeCounter++;
-    }
-
-    /* Insert the node */
-    MapEntry *newEntry = container_of(node, MapEntry, node);
-    slot->nodeIdHash = UA_NodeId_hash(&node->head.nodeId);
-    slot->entry = newEntry;
-    ++ns->count;
-    return retval;
+    if(!findMockBackendNode(&node->head.nodeId))
+        return ns->fallback->insertNode(ns->fallback, node, addedNodeId);
+    ns->fallback->deleteNode(ns->fallback, node);
+    return UA_STATUSCODE_BADALREADYEXISTS;
 }
 
 static UA_StatusCode
 AdHocNodestore_replaceNode(UA_Nodestore *orig_ns, UA_Node *node) {
     AdHocNodestore *ns = (AdHocNodestore*)orig_ns;
-    MapEntry *newEntry = container_of(node, MapEntry, node);
-
-    /* Find the node */
-    MapSlot *slot = findOccupiedSlot(ns, &node->head.nodeId);
-    if(!slot) {
-        deleteNodeMapEntry(newEntry);
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    }
-
-    /* The node was already updated since the copy was made? */
-    MapEntry *oldEntry = slot->entry;
-    if(oldEntry != newEntry->orig) {
-        deleteNodeMapEntry(newEntry);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Replace the entry */
-    slot->entry = newEntry;
-    oldEntry->deleted = true;
-    cleanupNodeMapEntry(oldEntry);
-    return UA_STATUSCODE_GOOD;
+    if(!findMockBackendNode(&node->head.nodeId))
+        return ns->fallback->replaceNode(ns->fallback, node);
+    ns->fallback->deleteNode(ns->fallback, node);
+    return UA_STATUSCODE_BADINTERNALERROR;
 }
 
 static const UA_NodeId *
 AdHocNodestore_getReferenceTypeId(UA_Nodestore *orig_ns, UA_Byte refTypeIndex) {
     AdHocNodestore *ns = (AdHocNodestore*)orig_ns;
-    if(refTypeIndex >= ns->referenceTypeCounter)
-        return NULL;
-    return &ns->referenceTypeIds[refTypeIndex];
+    return ns->fallback->getReferenceTypeId(ns->fallback, refTypeIndex);
 }
 
 static void

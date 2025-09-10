@@ -90,33 +90,23 @@ int main(void) {
     signal(SIGTERM, stopHandler);
 
     /* Create a server configuration */
-    UA_Server *server = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_StatusCode retval = UA_ServerConfig_setDefault(config);
-    if (retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "Could not create default server configuration: %s",
-                     UA_StatusCode_name(retval));
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
-    /* Replace the default nodestore with our custom Pilz implementation */
-    config->nodestore->free(config->nodestore);
-    config->nodestore = UA_Nodestore_PilzAdHoc();;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
+    UA_ServerConfig startConfig = {0};
+    UA_ServerConfig_setDefault(&startConfig);
+    startConfig.nodestore->free(startConfig.nodestore);
+    startConfig.nodestore = UA_Nodestore_PilzAdHoc();;
+    UA_Server *server = UA_Server_newWithConfig(&startConfig);
 
     /* Set the server description */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_LocalizedText_clear(&config->applicationDescription.applicationName);
     config->applicationDescription.applicationName =
         UA_LOCALIZEDTEXT_ALLOC("en-US", "OPC UA Server with Custom Pilz Nodestore");
+    UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:open62541.example.pilz_nodestore");
 
     /* Add test nodes to demonstrate the custom nodestore functionality */
-    retval = addTestNodes(server);
+    UA_StatusCode retval = addTestNodes(server);
     if (retval != UA_STATUSCODE_GOOD) {
         UA_Server_delete(server);
         return EXIT_FAILURE;
