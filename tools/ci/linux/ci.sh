@@ -19,17 +19,6 @@ fi
 # Allow to reuse TIME-WAIT sockets for new connections
 sudo sysctl -w net.ipv4.tcp_tw_reuse=1
 
-###########
-# cpplint #
-###########
-
-function cpplint {
-    mkdir -p build; cd build; rm -rf *
-    cmake -DUA_FORCE_WERROR=ON \
-          ..
-    make ${MAKEOPTS} cpplint
-}
-
 #####################################
 # Build Documentation including PDF #
 #####################################
