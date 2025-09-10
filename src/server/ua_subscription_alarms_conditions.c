@@ -2521,11 +2521,12 @@ addCondition_finish(UA_Server *server, const UA_NodeId conditionId,
  * ReferenceType should be passed to create the reference to condition source.
  * Otherwise, UA_NODEID_NULL should be passed to make the condition unexposed. */
 UA_StatusCode
-UA_Server_createCondition(UA_Server *server,
+UA_Server_createConditionWithContext(UA_Server *server,
                           const UA_NodeId conditionId, const UA_NodeId conditionType,
                           const UA_QualifiedName conditionName,
                           const UA_NodeId conditionSource,
-                          const UA_NodeId hierarchialReferenceType,
+                          const UA_NodeId hierarchicalReferenceType,
+                          void *nodeContext,
                           UA_NodeId *outNodeId) {
     if(!outNodeId) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
@@ -2533,22 +2534,35 @@ UA_Server_createCondition(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_StatusCode retval = UA_Server_addCondition_begin(server, conditionId, conditionType,
-                                                        conditionName, outNodeId);
+    UA_StatusCode retval = UA_Server_addConditionWithContext_begin(server, conditionId, conditionType,
+                                                        conditionName, nodeContext, outNodeId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     lockServer(server);
     retval = addCondition_finish(server, *outNodeId, conditionType, conditionName,
-                               conditionSource, hierarchialReferenceType);
+                               conditionSource, hierarchicalReferenceType);
     unlockServer(server);
     return retval;
 }
 
 UA_StatusCode
-UA_Server_addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
-                             const UA_NodeId conditionType,
-                             const UA_QualifiedName conditionName, UA_NodeId *outNodeId) {
+UA_Server_createCondition(UA_Server *server,
+                          const UA_NodeId conditionId, const UA_NodeId conditionType,
+                          const UA_QualifiedName conditionName,
+                          const UA_NodeId conditionSource,
+                          const UA_NodeId hierarchicalReferenceType,
+                          UA_NodeId *outNodeId) {
+    return UA_Server_createConditionWithContext(server, conditionId, conditionType,
+                                     conditionName, conditionSource,
+                                     hierarchicalReferenceType,
+                                     NULL, outNodeId);
+}
+
+UA_StatusCode
+UA_Server_addConditionWithContext_begin(UA_Server *server, const UA_NodeId conditionId,
+                             const UA_NodeId conditionType, const UA_QualifiedName conditionName, 
+                             void *nodeContext, UA_NodeId *outNodeId) {
     if(!outNodeId) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "outNodeId cannot be NULL!");
@@ -2575,9 +2589,17 @@ UA_Server_addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
         UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT, conditionId,
                                 UA_NODEID_NULL, UA_NODEID_NULL, conditionName,
                                 conditionType, &oAttr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
-                                NULL, outNodeId);
+                                nodeContext, outNodeId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding Condition failed", );
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
+                             const UA_NodeId conditionType,
+                             const UA_QualifiedName conditionName, UA_NodeId *outConditionId) {
+    return UA_Server_addConditionWithContext_begin(server, conditionId, conditionType,
+                                                   conditionName, NULL, outConditionId);
 }
 
 UA_StatusCode
