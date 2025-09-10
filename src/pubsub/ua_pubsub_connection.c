@@ -388,11 +388,19 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
      * Keep the current child state as the target state for the child. */
     UA_ReaderGroup *rg;
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-        UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
+        if (psm->pubSubInitialSetupMode) {
+            UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
+        } else {
+            UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
+        }
     }
     UA_WriterGroup *wg;
     LIST_FOREACH(wg, &c->writerGroups, listEntry) {
-        UA_WriterGroup_setPubSubState(psm, wg, wg->head.state);
+        if (psm->pubSubInitialSetupMode) {
+            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
+        } else {
+            UA_WriterGroup_setPubSubState(psm, wg, wg->head.state);
+        }
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
