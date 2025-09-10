@@ -176,7 +176,54 @@ updatePubSubConfig(UA_PubSubManager *psm,
     /* Phase 2: Enable components based on original configuration */
     UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
                 "[UA_PubSubManager_updatePubSubConfig] START COMPONENTS (Phase 2: Enabling)");
-
+    
+    /* Enable connections and their child components */
+    for(size_t i = 0; i < configurationParameters->connectionsSize; i++) {
+        const UA_PubSubConnectionDataType *connParams = &configurationParameters->connections[i];
+        
+        if(connParams->enabled) {
+            UA_PubSubConnection *conn = UA_PubSubConnection_find(psm, connectionIdents[i]);
+            if(conn) {
+                conn->config.enabled = true;                
+                UA_WriterGroup *wg;
+                size_t wgIndex = 0;
+                LIST_FOREACH(wg, &conn->writerGroups, listEntry) {
+                    if(wgIndex < connParams->writerGroupsSize && connParams->writerGroups[wgIndex].enabled) {
+                        wg->config.enabled = true;
+                        UA_DataSetWriter *dsw;
+                        size_t dswIndex = 0;
+                        LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                            if(dswIndex < connParams->writerGroups[wgIndex].dataSetWritersSize && 
+                               connParams->writerGroups[wgIndex].dataSetWriters[dswIndex].enabled) {
+                                dsw->config.enabled = true;
+                            }
+                            dswIndex++;
+                        }
+                    }
+                    wgIndex++;
+                }
+                
+                /* Enable reader groups */
+                UA_ReaderGroup *rg;
+                size_t rgIndex = 0;
+                LIST_FOREACH(rg, &conn->readerGroups, listEntry) {
+                    if(rgIndex < connParams->readerGroupsSize && connParams->readerGroups[rgIndex].enabled) {
+                        rg->config.enabled = true;                        
+                        UA_DataSetReader *dsr;
+                        size_t dsrIndex = 0;
+                        LIST_FOREACH(dsr, &rg->readers, listEntry) {
+                            if(dsrIndex < connParams->readerGroups[rgIndex].dataSetReadersSize && 
+                               connParams->readerGroups[rgIndex].dataSetReaders[dsrIndex].enabled) {
+                                dsr->config.enabled = true;
+                            }
+                            dsrIndex++;
+                        }
+                    }
+                    rgIndex++;
+                }
+            }
+        }
+    }
 
     /* Enable PubSubManager if specified */
     if(configurationParameters->enabled) {
@@ -185,13 +232,6 @@ updatePubSubConfig(UA_PubSubManager *psm,
         psm->pubSubInitialSetupMode = true;
         UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
         psm->pubSubInitialSetupMode = false;
-    }
-
-    /* Enable PubSubManager if specified */
-    if(configurationParameters->enabled) {
-        UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                       "[UA_PubSubManager_updatePubSubConfig] PubSubManager is enabled");
-        UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
     }
     
     UA_free(connectionIdents);
