@@ -636,6 +636,11 @@ struct UA_PubSubManager {
     size_t reserveIdsSize;
     UA_ReserveIdTree reserveIds;
 
+    /* During the initial activation of the PubSub subsystem (e.g. when loading a configuration file), special behaviour
+     * is required within the PubSub state machine transitions. This global flag can be set to indicate that the
+     * configuration phase is active, and it is evaluated during the state changes of the PubSub components. */
+    UA_Boolean pubSubInitialSetupMode;
+
 #ifdef UA_ENABLE_PUBSUB_SKS
     LIST_HEAD(, UA_PubSubKeyStorage) pubSubKeyList;
 

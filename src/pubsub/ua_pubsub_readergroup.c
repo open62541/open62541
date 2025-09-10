@@ -135,9 +135,6 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
                 c->head.logIdString, newGroup->head.identifier);
     newGroup->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(psm->logging, newGroup, "ReaderGroup created (State: %s)",
-                       UA_PubSubState_name(newGroup->head.state));
-
     /* Validate the connection settings */
     retval = UA_ReaderGroup_connect(psm, newGroup, true);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -184,6 +181,9 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
             return retval;
         }
     }
+
+    UA_LOG_INFO_PUBSUB(psm->logging, newGroup, "ReaderGroup created (State: %s)",
+                   UA_PubSubState_name(newGroup->head.state));
 
     /* Trigger the connection state machine. It might open a socket only when
      * the first ReaderGroup is attached. */
@@ -379,7 +379,11 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
      * Keep the current child state as the target state for the child. */
     UA_DataSetReader *dsr;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state, UA_STATUSCODE_GOOD);
+        if (psm->pubSubInitialSetupMode) {
+            UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD);
+        } else {
+            UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state, UA_STATUSCODE_GOOD);
+        }
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
