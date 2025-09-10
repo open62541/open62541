@@ -68,6 +68,12 @@ if(UA_ENABLE_METHODCALLS)
     endif()
 endif()
 
+# Batch operation examples using async API
+if (UA_MULTITHREADING GREATER_EQUAL 100)
+    add_example(tutorial_server_batch_rw tutorial_server_batch_rw.c)
+    add_example(tutorial_client_batch_read_trigger tutorial_client_batch_read_trigger.c)
+endif()
+
 if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
     add_example(tutorial_server_alarms_conditions tutorial_server_alarms_conditions.c)
 endif()
