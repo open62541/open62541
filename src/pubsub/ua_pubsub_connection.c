@@ -939,10 +939,6 @@ UA_Server_updatePubSubConnectionConfig(UA_Server *server,
         goto errout;
     }
 
-    /* Call the state-machine. This can move the connection state from _ERROR to
-     * _DISABLED. */
-    UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
-
     UA_PubSubConnectionConfig_clear(&oldConfig);
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
