@@ -531,7 +531,11 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
      * Keep the current child state as the target state for the child. */
     UA_DataSetWriter *writer;
     LIST_FOREACH(writer, &wg->writers, listEntry) {
-        UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
+        if (psm->pubSubInitialSetupMode) {
+            UA_DataSetWriter_setPubSubState(psm, writer, UA_PUBSUBSTATE_OPERATIONAL);
+        } else {
+            UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
+        }
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
