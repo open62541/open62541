@@ -229,6 +229,7 @@ updatePubSubConfig(UA_PubSubManager *psm,
     if(configurationParameters->enabled) {
         UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
                        "[UA_PubSubManager_updatePubSubConfig] PubSubManager is enabled");
+        UA_assert(psm->sc.state == UA_LIFECYCLESTATE_STOPPED);
         psm->pubSubInitialSetupMode = true;
         UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
         psm->pubSubInitialSetupMode = false;
