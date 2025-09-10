@@ -187,7 +187,8 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
 
     /* Trigger the connection state machine. It might open a socket only when
      * the first ReaderGroup is attached. */
-    UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
+    if(rgc->enabled)
+        UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(readerGroupId)
@@ -1177,10 +1178,6 @@ UA_Server_updateReaderGroupConfig(UA_Server *server, const UA_NodeId rgId,
         }
     }
 #endif
-
-    /* Call the state-machine. This can move the rg state from _ERROR to
-     * _DISABLED. */
-    UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
 
     /* Clean up and return */
     UA_ReaderGroupConfig_clear(&oldConfig);
