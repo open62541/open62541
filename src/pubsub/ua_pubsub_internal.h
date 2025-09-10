@@ -695,6 +695,11 @@ UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now);
 UA_StatusCode
 initPubSubNS0(UA_Server *server);
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+UA_StatusCode
+initPubSubNS0_SKS(UA_Server *server);
+#endif
+
 UA_StatusCode
 addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection);
 

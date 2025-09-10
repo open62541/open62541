@@ -12,10 +12,6 @@
 
 #include "ua_pubsub_internal.h"
 
-#ifdef UA_ENABLE_PUBSUB_SKS
-UA_StatusCode initPubSubNS0_SKS(UA_Server *server);
-#endif
-
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
 typedef struct {
