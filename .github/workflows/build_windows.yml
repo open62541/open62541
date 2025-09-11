@@ -14,7 +14,7 @@ jobs:
             generator: "Visual Studio 17 2022"
             arch: "x64"
           - compiler: mingw
-            cc_name: "MinGW Makefiles" 
+            cc_name: "MinGW Makefiles"
             cc_shortname: mingw
             generator: "Ninja"
           - compiler: clang-mingw
@@ -27,42 +27,44 @@ jobs:
       CC_SHORTNAME: ${{ matrix.cc_shortname }}
       GENERATOR: ${{ matrix.generator }}
       ARCH: ${{ matrix.arch }}
-      FORCE_CXX: OFF
-      MSYS2_ROOT: C:\msys64
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
-      
-      - name: Setup MSYS2 for MinGW builds
+
+      - name: MinGW install
         if: matrix.cc_shortname == 'mingw' || matrix.cc_shortname == 'clang-mingw'
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
+          update: true
           install: >-
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-cmake
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-check
             mingw-w64-x86_64-clang
-          path-type: minimal
-          pacboy: >-
-            mbedtls:p
-      
-      - name: Install Requirements
-        shell: pwsh
-        run: ./tools/ci/win/install.ps1
-      
-      - name: Build & Test Unit Tests
+            mingw-w64-x86_64-mbedtls
+
+      - name: MinGW build
+        if: matrix.cc_shortname == 'mingw' || matrix.cc_shortname == 'clang-mingw'
+        shell: msys2 {0}
+        run: ./tools/ci/win/build_mingw.sh
+
+      - name: MSVC install
+        if: matrix.cc_shortname == 'msvc'
         shell: pwsh
         run: |
-          Write-Host -ForegroundColor Green "`n### Building and Testing with ${{ matrix.compiler }} ###`n"
-          if ("${{ matrix.cc_shortname }}" -eq "mingw" -or "${{ matrix.cc_shortname }}" -eq "clang-mingw") {
-            $env:PATH = "C:\msys64\mingw64\bin;$env:PATH"
-          }
+          vcpkg install mbedtls:x64-windows-static
+          vcpkg install check:x64-windows-static
+
+      - name: MSVC build
+        if: matrix.cc_shortname == 'msvc'
+        shell: pwsh
+        run: |
           ./tools/ci/win/build.ps1
-      
-      - name: Upload Test Results (if available)
+
+      - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
