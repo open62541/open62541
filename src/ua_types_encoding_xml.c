@@ -17,14 +17,6 @@
 #include "../deps/dtoa.h"
 #include "../deps/yxml.h"
 
-#ifndef UA_ENABLE_PARSING
-#error UA_ENABLE_PARSING required for XML encoding
-#endif
-
-#ifndef UA_ENABLE_TYPEDESCRIPTION
-#error UA_ENABLE_TYPEDESCRIPTION required for XML encoding
-#endif
-
 /* Replicate yxml_isNameStart and yxml_isName from yxml. But differently we
  * already break at the first colon, so "uax:String" becomes "String". */
 static UA_String
@@ -58,12 +50,21 @@ xml_tokenize(const char *xml, unsigned int len,
     xml_token *stack[32]; /* Max nesting depth is 32 */
     xml_token backup_tokens[32]; /* To be used when the tokens run out */
 
+    /* Help clang-analyzer */
+#ifdef __clang_analyzer__
+    memset(stack, 0, 32 * sizeof(void*));
+    memset(backup_tokens, 0, 32 * sizeof(xml_token));
+#endif
+
     stack[top] = &backup_tokens[top];
     memset(stack[top], 0, sizeof(xml_token));
 
     unsigned val_begin = 0;
     unsigned pos = 0;
     for(; pos < len; pos++) {
+#ifdef __clang_analyzer__
+        UA_assert(stack[top] != NULL);
+#endif
         yxml_ret_t status = yxml_parse(&ctx, xml[pos]);
         switch(status) {
         case YXML_EEOF:
@@ -917,7 +918,7 @@ DECODE_XML(DateTime) {
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
     UA_String str = {length, (UA_Byte*)(uintptr_t)data};
-    return decodeDateTime(str, dst);
+    return UA_DateTime_parse(dst, str);
 }
 
 /* Find the child with the given name and return its content.
@@ -1352,6 +1353,8 @@ decodeMatrixVariant(ParseCtxXml *ctx, UA_Variant *dst) {
     /* Decode the array */
     ctx->index = oldIndex;
     ret = Array_decodeXml(ctx, &dst->arrayLength, dst->type);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
 
     /* Check that the ArrayDimensions match */
     size_t dimLen = 1;

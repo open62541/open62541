@@ -1406,7 +1406,7 @@ START_TEST(UA_LocalizedText_xml_encode) {
     UA_LocalizedText src;
     UA_LocalizedText_init(&src);
     src.locale = UA_STRING_ALLOC("en");
-    src.text = UA_STRING_ALLOC("enabled");;
+    src.text = UA_STRING_ALLOC("enabled");
     const UA_DataType *type = &UA_TYPES[UA_TYPES_LOCALIZEDTEXT];
     size_t size = UA_calcSizeXml((void*)&src, type, NULL);
 
@@ -2603,7 +2603,16 @@ START_TEST(UA_Float_xml_nan_decode) {
     UA_ByteString buf = UA_STRING("<Float>NaN</Float>");
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_FLOAT], NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
     ck_assert(out != out); /* Check if not a number */
+
+    ck_assert_int_eq(((u8*)&out)[0], 0x00);
+    ck_assert_int_eq(((u8*)&out)[1], 0x00);
+    ck_assert_int_eq(((u8*)&out)[2], 0xc0);
+
+    /* Some 32bit architectures have a different "native" NaN.
+     * NaN can have different valid representations. */
+    ck_assert(((u8*)&out)[3] == 0x7f || ((u8*)&out)[3] == 0xff);
 }
 END_TEST
 
@@ -2704,7 +2713,20 @@ START_TEST(UA_Double_nan_xml_decode) {
     UA_ByteString buf = UA_STRING("<Double>NaN</Double>");
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_DOUBLE], NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
     ck_assert(out != out); /* Check if not a number */
+
+    ck_assert_int_eq(((u8*)&out)[0], 0x00);
+    ck_assert_int_eq(((u8*)&out)[1], 0x00);
+    ck_assert_int_eq(((u8*)&out)[2], 0x00);
+    ck_assert_int_eq(((u8*)&out)[3], 0x00);
+    ck_assert_int_eq(((u8*)&out)[4], 0x00);
+    ck_assert_int_eq(((u8*)&out)[5], 0x00);
+    ck_assert_int_eq(((u8*)&out)[6], 0xf8);
+
+    /* Some 32bit architectures have a different "native" NaN.
+     * NaN can have different valid representations. */
+    ck_assert(((u8*)&out)[7] == 0x7f || ((u8*)&out)[7] == 0xff);
 }
 END_TEST
 

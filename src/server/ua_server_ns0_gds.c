@@ -550,7 +550,7 @@ removeCertificate(UA_Server *server,
 
     UA_String thumbpr = UA_STRING_NULL;
     thumbpr.length = (UA_SHA1_LENGTH * 2);
-    thumbpr.data = (UA_Byte*)malloc(sizeof(UA_Byte)*thumbpr.length);
+    thumbpr.data = (UA_Byte*)UA_malloc(sizeof(UA_Byte)*thumbpr.length);
 
     for(size_t i = 0; i < certificatesSize; i++) {
         UA_CertificateUtils_getThumbprint( &certificates[i], &thumbpr);
@@ -1150,7 +1150,10 @@ applyChangesToServer(UA_Server *server) {
             UA_EndpointDescription *ed = &server->config.endpoints[j];
             UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
                                 &server->config.endpoints[j].securityPolicyUri);
-            UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+            if(!sp) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
 
             if(!UA_NodeId_equal(&sp->certificateTypeId, &certTypeId))
                 continue;

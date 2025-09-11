@@ -48,6 +48,7 @@ _UA_BEGIN_DECLS
  * Boolean
  * ^^^^^^^
  * A two-state logical value (true or false). */
+
 typedef bool UA_Boolean;
 #define UA_TRUE true UA_INTERNAL_DEPRECATED
 #define UA_FALSE false UA_INTERNAL_DEPRECATED
@@ -56,6 +57,7 @@ typedef bool UA_Boolean;
  * SByte
  * ^^^^^
  * An integer value between -128 and 127. */
+
 typedef int8_t UA_SByte;
 #define UA_SBYTE_MIN (-128)
 #define UA_SBYTE_MAX 127
@@ -64,6 +66,7 @@ typedef int8_t UA_SByte;
  * Byte
  * ^^^^
  * An integer value between 0 and 255. */
+
 typedef uint8_t UA_Byte;
 #define UA_BYTE_MIN 0
 #define UA_BYTE_MAX 255
@@ -72,6 +75,7 @@ typedef uint8_t UA_Byte;
  * Int16
  * ^^^^^
  * An integer value between -32 768 and 32 767. */
+
 typedef int16_t UA_Int16;
 #define UA_INT16_MIN (-32768)
 #define UA_INT16_MAX 32767
@@ -80,6 +84,7 @@ typedef int16_t UA_Int16;
  * UInt16
  * ^^^^^^
  * An integer value between 0 and 65 535. */
+
 typedef uint16_t UA_UInt16;
 #define UA_UINT16_MIN 0
 #define UA_UINT16_MAX 65535
@@ -88,6 +93,7 @@ typedef uint16_t UA_UInt16;
  * Int32
  * ^^^^^
  * An integer value between -2 147 483 648 and 2 147 483 647. */
+
 typedef int32_t UA_Int32;
 #define UA_INT32_MIN ((int32_t)-2147483648LL)
 #define UA_INT32_MAX 2147483647L
@@ -96,6 +102,7 @@ typedef int32_t UA_Int32;
  * UInt32
  * ^^^^^^
  * An integer value between 0 and 4 294 967 295. */
+
 typedef uint32_t UA_UInt32;
 #define UA_UINT32_MIN 0
 #define UA_UINT32_MAX 4294967295UL
@@ -105,6 +112,7 @@ typedef uint32_t UA_UInt32;
  * ^^^^^
  * An integer value between -9 223 372 036 854 775 808 and
  * 9 223 372 036 854 775 807. */
+
 typedef int64_t UA_Int64;
 #define UA_INT64_MAX (int64_t)9223372036854775807LL
 #define UA_INT64_MIN ((int64_t)-UA_INT64_MAX-1LL)
@@ -113,6 +121,7 @@ typedef int64_t UA_Int64;
  * UInt64
  * ^^^^^^
  * An integer value between 0 and 18 446 744 073 709 551 615. */
+
 typedef uint64_t UA_UInt64;
 #define UA_UINT64_MIN 0
 #define UA_UINT64_MAX (uint64_t)18446744073709551615ULL
@@ -121,6 +130,7 @@ typedef uint64_t UA_UInt64;
  * Float
  * ^^^^^
  * An IEEE single precision (32 bit) floating point value. */
+
 typedef float UA_Float;
 #define UA_FLOAT_MIN FLT_MIN
 #define UA_FLOAT_MAX FLT_MAX
@@ -129,6 +139,7 @@ typedef float UA_Float;
  * Double
  * ^^^^^^
  * An IEEE double precision (64 bit) floating point value. */
+
 typedef double UA_Double;
 #define UA_DOUBLE_MIN DBL_MIN
 #define UA_DOUBLE_MAX DBL_MAX
@@ -151,6 +162,7 @@ typedef double UA_Double;
  *   uncertain for reasons indicated by the SubCode.
  * - A StatusCode with severity Bad means that the value is not usable for
  *   reasons indicated by the SubCode. */
+
 typedef uint32_t UA_StatusCode;
 
 /* Returns the human-readable name of the StatusCode. If no matching StatusCode
@@ -161,79 +173,70 @@ typedef uint32_t UA_StatusCode;
 UA_EXPORT const char *
 UA_StatusCode_name(UA_StatusCode code);
 
-/* Extracts the severity from a StatusCode. See Part 4, Section 7.34 for
- * details. */
-UA_INLINABLE(UA_Boolean
-             UA_StatusCode_isBad(UA_StatusCode code), {
-    return ((code >> 30) >= 0x02);
-})
+/**
+ * The following methods extract the severity from a StatusCode. See Part 4,
+ * Section 7.34 for details. */
 
-UA_INLINABLE(UA_Boolean
-             UA_StatusCode_isUncertain(UA_StatusCode code), {
-    return ((code >> 30) == 0x01);
-})
+/* (code >> 30) >= 0x02 */
+UA_EXPORT UA_Boolean
+UA_StatusCode_isBad(UA_StatusCode code);
 
-UA_INLINABLE(UA_Boolean
-             UA_StatusCode_isGood(UA_StatusCode code), {
-    return ((code >> 30) == 0x00);
-})
+/* ((code >> 30) == 0x01) && ((code >> 30) < 0x02) */
+UA_EXPORT UA_Boolean
+UA_StatusCode_isUncertain(UA_StatusCode code);
 
-/* Compares the top 16 bits of two StatusCodes for equality. This should only
- * be used when processing user-defined StatusCodes e.g when processing a ReadResponse.
- * As a convention, the lower bits of StatusCodes should not be used internally, meaning
- * can compare them without the use of this function. */
-UA_INLINABLE(UA_Boolean
-             UA_StatusCode_isEqualTop(UA_StatusCode s1, UA_StatusCode s2), {
-    return ((s1 & 0xFFFF0000) == (s2 & 0xFFFF0000));
-})
+/* (code >> 30) == 0x00 */
+UA_EXPORT UA_Boolean
+UA_StatusCode_isGood(UA_StatusCode code);
+
+/* Compares the top 16 bits of two StatusCodes for equality. This should only be
+ * used when processing user-defined StatusCodes e.g when processing a
+ * ReadResponse. As a convention, the lower bits of StatusCodes should not be
+ * used internally. */
+UA_EXPORT UA_Boolean UA_StatusCode_equalTop(UA_StatusCode s1, UA_StatusCode s2);
+#define UA_StatusCode_isEqualTop(s1, s2) UA_StatusCode_equalTop(s1, s2)
 
 /**
  * String
  * ^^^^^^
  * A sequence of Unicode characters. Strings are just an array of UA_Byte. */
+
 typedef struct {
     size_t length; /* The length of the string */
     UA_Byte *data; /* The content (not null-terminated) */
 } UA_String;
 
-/* Copies the content on the heap. Returns a null-string when alloc fails */
-UA_String UA_EXPORT
-UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-UA_Boolean UA_EXPORT
-UA_String_isEmpty(const UA_String *s);
-
-UA_StatusCode UA_EXPORT
-UA_String_append(UA_String *s, const UA_String s2);
-
 UA_EXPORT extern const UA_String UA_STRING_NULL;
+UA_EXPORT UA_Boolean UA_String_isEmpty(const UA_String *s);
+#define UA_String_isNull(s) UA_String_isEmpty(s)
 
-/**
- * ``UA_STRING`` returns a string pointing to the original char-array.
- * ``UA_STRING_ALLOC`` is shorthand for ``UA_String_fromChars`` and makes a copy
- * of the char-array. */
-UA_INLINABLE(UA_String
-             UA_STRING(char *chars), {
-    UA_String s;
-    memset(&s, 0, sizeof(s));
-    if(!chars)
-        return s;
-    s.length = strlen(chars); s.data = (UA_Byte*)chars;
-    return s;
-})
+/* Returns a string pointing to the original char-array */
+UA_EXPORT UA_String UA_STRING(char *chars);
 
+/* Returns a string-copy of the char-array. Returns a null-string when
+ * alloc fails. */
+UA_EXPORT UA_String UA_String_fromChars(const char *src);
 #define UA_STRING_ALLOC(CHARS) UA_String_fromChars(CHARS)
 
-/* Define strings at compile time (in ROM) */
+/* Define string variable at compile time (in ROM) */
 #define UA_STRING_STATIC(CHARS) {sizeof(CHARS)-1, (UA_Byte*)CHARS}
 
-/* The following methods implement the C standard's printf/vprintf.
+/* Uses realloc to append to the string in the first argument */
+UA_EXPORT UA_StatusCode
+UA_String_append(UA_String *s, const UA_String s2);
+
+/**
+ * The following methods implement the C standard's printf/vprintf.
  *
  * In addition to the format specifiers from the C standard, the following can
  * be used also:
  *
  * - %S - UA_String (not wrapped in quotation marks in the output)
  * - %N - UA_NodeId (using UA_NodeId_print)
+ *
+ * Example usage:
+ *   UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 4711);
+ *   UA_String_format(outString, "Test %N", nodeId);
  *
  * The output is written to the output string in the first argument. Memory of
  * sufficient length is allocated when the output string initially has zero
@@ -243,11 +246,18 @@ UA_INLINABLE(UA_String
  * string is used as buffer for encoding and its length is adjusted accordingly.
  * If the length is too short, then UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED is
  * reported. Also in that case the string is printed as much as possible. */
-UA_EXPORT UA_StatusCode
-UA_String_printf(UA_String *str, const char *format, ...);
 
 UA_EXPORT UA_StatusCode
-UA_String_vprintf(UA_String *str, const char *format, va_list args);
+UA_String_format(UA_String *str, const char *format, ...);
+
+UA_EXPORT UA_StatusCode
+UA_String_vformat(UA_String *str, const char *format, va_list args);
+
+/* Old API */
+#define UA_String_printf(str, format, ...)   \
+    UA_String_format(str, format, __VA_ARGS__)
+#define UA_String_vprintf(str, format, args) \
+    UA_String_vformat(str, format, args)
 
 /**
  * .. _datetime:
@@ -282,6 +292,15 @@ UA_Int64 UA_EXPORT UA_DateTime_localTimeUtcOffset(void);
  * not absolute time. */
 UA_DateTime UA_EXPORT UA_DateTime_nowMonotonic(void);
 
+#ifdef UA_ENABLE_PARSING
+/* Parse the humand-readable DateTime format */
+UA_StatusCode UA_EXPORT
+UA_DateTime_parse(UA_DateTime *dst, const UA_String str);
+
+/* Returns zero if parsing fails */
+UA_EXPORT UA_DateTime UA_DATETIME(const char *chars);
+#endif
+
 /* Represents a Datetime as a structure */
 typedef struct UA_DateTimeStruct {
     UA_UInt16 nanoSec;
@@ -298,7 +317,8 @@ typedef struct UA_DateTimeStruct {
 UA_DateTimeStruct UA_EXPORT UA_DateTime_toStruct(UA_DateTime t);
 UA_DateTime UA_EXPORT UA_DateTime_fromStruct(UA_DateTimeStruct ts);
 
-/* The C99 standard (7.23.1) says: "The range and precision of times
+/**
+ * The C99 standard (7.23.1) says: "The range and precision of times
  * representable in clock_t and time_t are implementation-defined." On most
  * systems, time_t is a 4 or 8 byte integer counting seconds since the UTC Unix
  * epoch. The following methods are used for conversion. */
@@ -306,15 +326,13 @@ UA_DateTime UA_EXPORT UA_DateTime_fromStruct(UA_DateTimeStruct ts);
 /* Datetime of 1 Jan 1970 00:00 */
 #define UA_DATETIME_UNIX_EPOCH (11644473600LL * UA_DATETIME_SEC)
 
-UA_INLINABLE(UA_Int64
-             UA_DateTime_toUnixTime(UA_DateTime date), {
-    return (date - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC;
-})
+/* (date - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC */
+UA_EXPORT UA_Int64
+UA_DateTime_toUnixTime(UA_DateTime date);
 
-UA_INLINABLE(UA_DateTime
-             UA_DateTime_fromUnixTime(UA_Int64 unixDate), {
-    return (unixDate * UA_DATETIME_SEC) + UA_DATETIME_UNIX_EPOCH;
-})
+/* (unixDate * UA_DATETIME_SEC) + UA_DATETIME_UNIX_EPOCH */
+UA_EXPORT UA_DateTime
+UA_DateTime_fromUnixTime(UA_Int64 unixDate);
 
 /**
  * Guid
@@ -345,18 +363,15 @@ UA_Guid_print(const UA_Guid *guid, UA_String *output);
 UA_StatusCode UA_EXPORT
 UA_Guid_parse(UA_Guid *guid, const UA_String str);
 
-UA_INLINABLE(UA_Guid
-             UA_GUID(const char *chars), {
-    UA_Guid guid;
-    UA_Guid_parse(&guid, UA_STRING((char*)(uintptr_t)chars));
-    return guid;
-})
+/* Shorthand, returns UA_GUID_NULL upon failure to parse */
+UA_EXPORT UA_Guid UA_GUID(const char *chars);
 #endif
 
 /**
  * ByteString
  * ^^^^^^^^^^
  * A sequence of octets. */
+
 typedef UA_String UA_ByteString;
 
 UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
@@ -388,6 +403,7 @@ UA_ByteString_hash(UA_UInt32 initialHashValue,
  * XmlElement
  * ^^^^^^^^^^
  * An XML element. */
+
 typedef UA_String UA_XmlElement;
 
 /**
@@ -396,6 +412,7 @@ typedef UA_String UA_XmlElement;
  * NodeId
  * ^^^^^^
  * An identifier for a node in the address space of an OPC UA Server. */
+
 enum UA_NodeIdType {
     UA_NODEIDTYPE_NUMERIC    = 0, /* In the binary encoding, this can also
                                    * become 1 or 2 (two-byte and four-byte
@@ -417,6 +434,29 @@ typedef struct {
 } UA_NodeId;
 
 UA_EXPORT extern const UA_NodeId UA_NODEID_NULL;
+
+UA_EXPORT UA_NodeId
+UA_NODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier);
+
+UA_EXPORT UA_NodeId
+UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars);
+
+UA_EXPORT UA_NodeId
+UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars);
+
+UA_EXPORT UA_NodeId
+UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid);
+
+UA_EXPORT UA_NodeId
+UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars);
+
+UA_EXPORT UA_NodeId
+UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex,
+                           const char *chars);
+
+/* Shorthand for standard-defined NodeIds in Namespace 0.
+ * See the generated nodeids.h for the full list. */
+#define UA_NS0ID(ID) UA_NODEID_NUMERIC(0, UA_NS0ID_##ID)
 
 UA_Boolean UA_EXPORT UA_NodeId_isNull(const UA_NodeId *p);
 
@@ -469,81 +509,9 @@ UA_StatusCode UA_EXPORT
 UA_NodeId_parseEx(UA_NodeId *id, const UA_String str,
                   const UA_NamespaceMapping *nsMapping);
 
-UA_INLINABLE(UA_NodeId
-             UA_NODEID(const char *chars), {
-    UA_NodeId id;
-    UA_NodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
-    return id;
-})
+/* Shorthand, returns UA_NODEID_NULL when parsing fails */
+UA_EXPORT UA_NodeId UA_NODEID(const char *chars);
 #endif
-
-/** The following methods are a shorthand for creating NodeIds. */
-UA_INLINABLE(UA_NodeId
-             UA_NODEID_NUMERIC(UA_UInt16 nsIndex,
-                               UA_UInt32 identifier), {
-    UA_NodeId id;
-    memset(&id, 0, sizeof(UA_NodeId));
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_NUMERIC;
-    id.identifier.numeric = identifier;
-    return id;
-})
-
-/* Shorthand for standard-defined NodeIds in Namespace 0.
- * See the generated nodeids.h for the full list. */
-#define UA_NS0ID(ID) UA_NODEID_NUMERIC(0, UA_NS0ID_##ID)
-
-UA_INLINABLE(UA_NodeId
-             UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars), {
-    UA_NodeId id;
-    memset(&id, 0, sizeof(UA_NodeId));
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_STRING;
-    id.identifier.string = UA_STRING(chars);
-    return id;
-})
-
-UA_INLINABLE(UA_NodeId
-             UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex,
-                                    const char *chars), {
-    UA_NodeId id;
-    memset(&id, 0, sizeof(UA_NodeId));
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_STRING;
-    id.identifier.string = UA_STRING_ALLOC(chars);
-    return id;
-})
-
-UA_INLINABLE(UA_NodeId
-             UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid), {
-    UA_NodeId id;
-    memset(&id, 0, sizeof(UA_NodeId));
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_GUID;
-    id.identifier.guid = guid;
-    return id;
-})
-
-UA_INLINABLE(UA_NodeId
-             UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars), {
-    UA_NodeId id;
-    memset(&id, 0, sizeof(UA_NodeId));
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.byteString = UA_BYTESTRING(chars);
-    return id;
-})
-
-UA_INLINABLE(UA_NodeId
-             UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex,
-                                        const char *chars), {
-    UA_NodeId id;
-    memset(&id, 0, sizeof(UA_NodeId));
-    id.namespaceIndex = nsIndex;
-    id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.byteString = UA_BYTESTRING_ALLOC(chars);
-    return id;
-})
 
 /* Total ordering of NodeId */
 UA_Order UA_EXPORT
@@ -558,6 +526,7 @@ UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
  * ExpandedNodeId
  * ^^^^^^^^^^^^^^
  * A NodeId that allows the namespace URI to be specified instead of an index. */
+
 typedef struct {
     UA_NodeId nodeId;
     UA_String namespaceUri;
@@ -565,6 +534,31 @@ typedef struct {
 } UA_ExpandedNodeId;
 
 UA_EXPORT extern const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL;
+
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier);
+
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars);
+
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars);
+
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid);
+
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars);
+
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars);
+
+UA_EXPORT UA_ExpandedNodeId UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId);
+#define UA_NODEID2EXPANDEDNODEID(n) UA_EXPANDEDNODEID_NODEID(n)
+
+/* Shorthand for standard-defined NodeIds in Namespace 0.
+ * See the generated nodeids.h for the full list. */
+#define UA_NS0EXID(ID) UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_##ID)
 
 /* Print the ExpandedNodeId in the humand-readable format defined in Part 6,
  * 5.3.1.11:
@@ -603,67 +597,10 @@ UA_ExpandedNodeId_parseEx(UA_ExpandedNodeId *id, const UA_String str,
                           const UA_NamespaceMapping *nsMapping,
                           size_t serverUrisSize, const UA_String *serverUris);
 
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID(const char *chars), {
-    UA_ExpandedNodeId id;
-    UA_ExpandedNodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
-    return id;
-})
+/* Shorthand, returns UA_EXPANDEDNODEID_NULL when parsing fails */
+UA_EXPORT UA_ExpandedNodeId
+UA_EXPANDEDNODEID(const char *chars);
 #endif
-
-/** The following functions are shorthand for creating ExpandedNodeIds. */
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_NODEID2EXPANDEDNODEID(UA_NodeId nodeId), {
-    UA_ExpandedNodeId id; id.nodeId = nodeId;
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_NUMERIC(nsIndex, identifier);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-/* Shorthand for standard-defined NodeIds in Namespace 0.
- * See the generated nodeids.h for the full list. */
-#define UA_NS0EXID(ID) UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_##ID)
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_STRING(nsIndex, chars);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_STRING_ALLOC(UA_UInt16 nsIndex, const char *chars), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_STRING_ALLOC(nsIndex, chars);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_STRING_GUID(UA_UInt16 nsIndex, UA_Guid guid), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_GUID(nsIndex, guid);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING(nsIndex, chars);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
-    id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
-})
-
-UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId), {
-    UA_ExpandedNodeId id; memset(&id, 0, sizeof(UA_ExpandedNodeId));
-    id.nodeId = nodeId; return id;
-})
 
 /* Does the ExpandedNodeId point to a local node? That is, are namespaceUri and
  * serverIndex empty? */
@@ -687,35 +624,24 @@ UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n);
  * QualifiedName
  * ^^^^^^^^^^^^^
  * A name qualified by a namespace. */
+
 typedef struct {
     UA_UInt16 namespaceIndex;
     UA_String name;
 } UA_QualifiedName;
 
-UA_INLINABLE(UA_Boolean
-             UA_QualifiedName_isNull(const UA_QualifiedName *q), {
-    return (q->namespaceIndex == 0 && q->name.length == 0);
-})
+UA_EXPORT UA_QualifiedName
+UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars);
+
+UA_EXPORT UA_QualifiedName
+UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars);
+
+UA_EXPORT UA_Boolean
+UA_QualifiedName_isNull(const UA_QualifiedName *q);
 
 /* Returns a non-cryptographic hash for QualifiedName */
 UA_UInt32 UA_EXPORT
 UA_QualifiedName_hash(const UA_QualifiedName *q);
-
-UA_INLINABLE(UA_QualifiedName
-             UA_QUALIFIEDNAME(UA_UInt16 nsIndex, char *chars), {
-    UA_QualifiedName qn;
-    qn.namespaceIndex = nsIndex;
-    qn.name = UA_STRING(chars);
-    return qn;
-})
-
-UA_INLINABLE(UA_QualifiedName
-             UA_QUALIFIEDNAME_ALLOC(UA_UInt16 nsIndex, const char *chars), {
-    UA_QualifiedName qn;
-    qn.namespaceIndex = nsIndex;
-    qn.name = UA_STRING_ALLOC(chars);
-    return qn;
-})
 
 /* Print the human-readable QualifiedName format. QualifiedNames can be printed
  * with either the integer NamespaceIndex or using the NamespaceUri.
@@ -757,26 +683,17 @@ UA_QualifiedName_parseEx(UA_QualifiedName *qn, const UA_String str,
  * LocalizedText
  * ^^^^^^^^^^^^^
  * Human readable text with an optional locale identifier. */
+
 typedef struct {
     UA_String locale;
     UA_String text;
 } UA_LocalizedText;
 
-UA_INLINABLE(UA_LocalizedText
-             UA_LOCALIZEDTEXT(char *locale, char *text), {
-    UA_LocalizedText lt;
-    lt.locale = UA_STRING(locale);
-    lt.text = UA_STRING(text);
-    return lt;
-})
+UA_EXPORT UA_LocalizedText
+UA_LOCALIZEDTEXT(char *locale, char *text);
 
-UA_INLINABLE(UA_LocalizedText
-             UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text), {
-    UA_LocalizedText lt;
-    lt.locale = UA_STRING_ALLOC(locale);
-    lt.text = UA_STRING_ALLOC(text);
-    return lt;
-})
+UA_EXPORT UA_LocalizedText
+UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text);
 
 /**
  * .. _numericrange:
@@ -788,6 +705,7 @@ UA_INLINABLE(UA_LocalizedText
  * with a string encoding, such as "1:2,0:3,5". The colon separates min/max
  * index and the comma separates dimensions. A single value indicates a range
  * with a single element (min==max). */
+
 typedef struct {
     UA_UInt32 min;
     UA_UInt32 max;
@@ -801,20 +719,14 @@ typedef struct  {
 UA_StatusCode UA_EXPORT
 UA_NumericRange_parse(UA_NumericRange *range, const UA_String str);
 
-UA_INLINABLE(UA_NumericRange
-             UA_NUMERICRANGE(const char *s), {
-    UA_NumericRange nr;
-    memset(&nr, 0, sizeof(nr)); 
-    UA_NumericRange_parse(&nr, UA_STRING((char*)(uintptr_t)s));
-    return nr;
-})
+/* Returns an empty NumericRange if parsing fails */
+UA_EXPORT UA_NumericRange UA_NUMERICRANGE(const char *s);
 
 /**
  * .. _variant:
  *
  * Variant
  * ^^^^^^^
- *
  * Variants may contain values of any type together with a description of the
  * content. See the section on :ref:`generic-types` on how types are described.
  * The standard mandates that variants contain built-in data types only. If the
@@ -843,6 +755,7 @@ UA_INLINABLE(UA_NumericRange
  *
  * Variants can also be *empty*. Then, the pointer to the type description is
  * ``NULL``. */
+
 /* Forward declaration. See the section on Generic Type Handling */
 struct UA_DataType;
 typedef struct UA_DataType UA_DataType;
@@ -866,124 +779,63 @@ typedef struct {
 } UA_Variant;
 
 /* Returns true if the variant has no value defined (contains neither an array
- * nor a scalar value).
- *
- * @param v The variant
- * @return Is the variant empty */
-UA_INLINABLE(UA_Boolean
-             UA_Variant_isEmpty(const UA_Variant *v), {
-    return v->type == NULL;
-})
+ * nor a scalar value) */
+UA_EXPORT UA_Boolean UA_Variant_isEmpty(const UA_Variant *v);
+#define UA_Variant_isNull(v) UA_Variant_isEmpty(v)
 
-/* Returns true if the variant contains a scalar value. Note that empty variants
- * contain an array of length -1 (undefined).
- *
- * @param v The variant
- * @return Does the variant contain a scalar value */
-UA_INLINABLE(UA_Boolean
-             UA_Variant_isScalar(const UA_Variant *v), {
-    return (v->arrayLength == 0 && v->data > UA_EMPTY_ARRAY_SENTINEL);
-})
+/* Returns true if the variant contains a scalar value */
+UA_EXPORT UA_Boolean
+UA_Variant_isScalar(const UA_Variant *v);
 
-/* Returns true if the variant contains a scalar value of the given type.
- *
- * @param v The variant
- * @param type The data type
- * @return Does the variant contain a scalar value of the given type */
-UA_INLINABLE(UA_Boolean
-             UA_Variant_hasScalarType(const UA_Variant *v,
-                                      const UA_DataType *type), {
-    return UA_Variant_isScalar(v) && type == v->type;
-})
+/* Returns true if the variant contains a scalar value of the given type */
+UA_EXPORT UA_Boolean
+UA_Variant_hasScalarType(const UA_Variant *v, const UA_DataType *type);
 
-/* Returns true if the variant contains an array of the given type.
- *
- * @param v The variant
- * @param type The data type
- * @return Does the variant contain an array of the given type */
-UA_INLINABLE(UA_Boolean
-             UA_Variant_hasArrayType(const UA_Variant *v,
-                                     const UA_DataType *type), {
-    return (!UA_Variant_isScalar(v)) && type == v->type;
-})
+/* Returns true if the variant contains an array */
+UA_EXPORT UA_Boolean
+UA_Variant_isArray(const UA_Variant *v);
+
+/* Returns true if the variant contains an array of the given type */
+UA_EXPORT UA_Boolean
+UA_Variant_hasArrayType(const UA_Variant *v, const UA_DataType *type);
 
 /* Set the variant to a scalar value that already resides in memory. The value
- * takes on the lifecycle of the variant and is deleted with it.
- *
- * @param v The variant
- * @param p A pointer to the value data
- * @param type The datatype of the value in question */
+ * will be cleared together with the variant. */
 void UA_EXPORT
-UA_Variant_setScalar(UA_Variant *v, void * UA_RESTRICT p,
-                     const UA_DataType *type);
+UA_Variant_setScalar(UA_Variant *v, void *value, const UA_DataType *type);
 
-/* Set the variant to a scalar value that is copied from an existing variable.
- * @param v The variant
- * @param p A pointer to the value data
- * @param type The datatype of the value
- * @return Indicates whether the operation succeeded or returns an error code */
+/* Set the variant to a deep-copy of the provided scalar value */
 UA_StatusCode UA_EXPORT
-UA_Variant_setScalarCopy(UA_Variant *v, const void * UA_RESTRICT p,
-                         const UA_DataType *type);
+UA_Variant_setScalarCopy(UA_Variant *v, const void *p, const UA_DataType *type);
 
-/* Set the variant to an array that already resides in memory. The array takes
- * on the lifecycle of the variant and is deleted with it.
- *
- * @param v The variant
- * @param array A pointer to the array data
- * @param arraySize The size of the array
- * @param type The datatype of the array */
+/* Set the variant to an existing array value. The array is cleared together
+ * with the variant. */
 void UA_EXPORT
-UA_Variant_setArray(UA_Variant *v, void * UA_RESTRICT array,
-                    size_t arraySize, const UA_DataType *type);
+UA_Variant_setArray(UA_Variant *v, void *array, size_t arraySize,
+                    const UA_DataType *type);
 
-/* Set the variant to an array that is copied from an existing array.
- *
- * @param v The variant
- * @param array A pointer to the array data
- * @param arraySize The size of the array
- * @param type The datatype of the array
- * @return Indicates whether the operation succeeded or returns an error code */
+/* Set the variant to a deep-copy of the provided array */
 UA_StatusCode UA_EXPORT
-UA_Variant_setArrayCopy(UA_Variant *v, const void * UA_RESTRICT array,
-                        size_t arraySize, const UA_DataType *type);
+UA_Variant_setArrayCopy(UA_Variant *v, const void *array, size_t arraySize,
+                        const UA_DataType *type);
 
 /* Copy the variant, but use only a subset of the (multidimensional) array into
  * a variant. Returns an error code if the variant is not an array or if the
- * indicated range does not fit.
- *
- * @param src The source variant
- * @param dst The target variant
- * @param range The range of the copied data
- * @return Returns UA_STATUSCODE_GOOD or an error code */
+ * indicated range does not fit. */
 UA_StatusCode UA_EXPORT
-UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
+UA_Variant_copyRange(const UA_Variant *src, UA_Variant *dst,
                      const UA_NumericRange range);
 
 /* Insert a range of data into an existing variant. The data array cannot be
  * reused afterwards if it contains types without a fixed size (e.g. strings)
- * since the members are moved into the variant and take on its lifecycle.
- *
- * @param v The variant
- * @param dataArray The data array. The type must match the variant
- * @param dataArraySize The length of the data array. This is checked to match
- *        the range size.
- * @param range The range of where the new data is inserted
- * @return Returns UA_STATUSCODE_GOOD or an error code */
+ * since the members are moved into the variant and take on its lifecycle. */
 UA_StatusCode UA_EXPORT
-UA_Variant_setRange(UA_Variant *v, void * UA_RESTRICT array,
+UA_Variant_setRange(UA_Variant *v, void *array,
                     size_t arraySize, const UA_NumericRange range);
 
-/* Deep-copy a range of data into an existing variant.
- *
- * @param v The variant
- * @param dataArray The data array. The type must match the variant
- * @param dataArraySize The length of the data array. This is checked to match
- *        the range size.
- * @param range The range of where the new data is inserted
- * @return Returns UA_STATUSCODE_GOOD or an error code */
+/* Deep-copy a range of data into the variant */
 UA_StatusCode UA_EXPORT
-UA_Variant_setRangeCopy(UA_Variant *v, const void * UA_RESTRICT array,
+UA_Variant_setRangeCopy(UA_Variant *v, const void *array,
                         size_t arraySize, const UA_NumericRange range);
 
 /**
@@ -991,11 +843,11 @@ UA_Variant_setRangeCopy(UA_Variant *v, const void * UA_RESTRICT array,
  *
  * ExtensionObject
  * ^^^^^^^^^^^^^^^
- *
  * ExtensionObjects may contain scalars of any data type. Even those that are
  * unknown to the receiver. See the section on :ref:`generic-types` on how types
  * are described. If the received data type is unknown, the encoded string and
  * target NodeId is stored instead of the decoded value. */
+
 typedef enum {
     UA_EXTENSIONOBJECT_ENCODED_NOBODY     = 0,
     UA_EXTENSIONOBJECT_ENCODED_BYTESTRING = 1,
@@ -1023,26 +875,24 @@ typedef struct {
 /* Initialize the ExtensionObject and set the "decoded" value to the given
  * pointer. The value will be deleted when the ExtensionObject is cleared. */
 void UA_EXPORT
-UA_ExtensionObject_setValue(UA_ExtensionObject *eo,
-                            void * UA_RESTRICT p,
+UA_ExtensionObject_setValue(UA_ExtensionObject *eo, void *p,
                             const UA_DataType *type);
 
 /* Initialize the ExtensionObject and set the "decoded" value to the given
  * pointer. The value will *not* be deleted when the ExtensionObject is
  * cleared. */
 void UA_EXPORT
-UA_ExtensionObject_setValueNoDelete(UA_ExtensionObject *eo,
-                                    void * UA_RESTRICT p,
+UA_ExtensionObject_setValueNoDelete(UA_ExtensionObject *eo, void *p,
                                     const UA_DataType *type);
 
 /* Initialize the ExtensionObject and set the "decoded" value to a fresh copy of
  * the given value pointer. The value will be deleted when the ExtensionObject
  * is cleared. */
 UA_StatusCode UA_EXPORT
-UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo,
-                                void * UA_RESTRICT p,
+UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo, void *p,
                                 const UA_DataType *type);
 
+/* Returns true if the ExtensionObject contains a decoded value of the type */
 UA_Boolean UA_EXPORT
 UA_ExtensionObject_hasDecodedType(const UA_ExtensionObject *eo,
                                   const UA_DataType *type);
@@ -1053,6 +903,7 @@ UA_ExtensionObject_hasDecodedType(const UA_ExtensionObject *eo,
  * DataValue
  * ^^^^^^^^^
  * A data value with an associated status code and timestamps. */
+
 typedef struct {
     UA_Variant    value;
     UA_DateTime   sourceTimestamp;
@@ -1070,21 +921,18 @@ typedef struct {
 
 /* Copy the DataValue, but use only a subset of the (multidimensional) array of
  * of the variant of the source DataValue. Returns an error code if the variant
- * of the DataValue is not an array or if the indicated range does not fit.
- *
- * @param src The source DataValue
- * @param dst The target DataValue
- * @param range The range of the variant of the DataValue to copy
- * @return Returns UA_STATUSCODE_GOOD or an error code */
+ * of the DataValue is not an array or if the indicated range does not fit. */
 UA_StatusCode UA_EXPORT
-UA_DataValue_copyVariantRange(const UA_DataValue *src, UA_DataValue * UA_RESTRICT dst,
-                              const UA_NumericRange range);
+UA_DataValue_copyRange(const UA_DataValue *src, UA_DataValue *dst,
+                       const UA_NumericRange range);
+#define UA_DataValue_copyVariantRange(s,d,r) UA_DataValue_copyRange(s,d,r)
 
 /**
  * DiagnosticInfo
  * ^^^^^^^^^^^^^^
  * A structure that contains detailed error and diagnostic information
  * associated with a StatusCode. */
+
 typedef struct UA_DiagnosticInfo {
     UA_Boolean    hasSymbolicId          : 1;
     UA_Boolean    hasNamespaceUri        : 1;
@@ -1107,7 +955,6 @@ typedef struct UA_DiagnosticInfo {
  *
  * Generic Type Handling
  * ---------------------
- *
  * All information about a (builtin/structured) data type is stored in a
  * ``UA_DataType``. The array ``UA_TYPES`` contains the description of all
  * standard-defined types. This type description is used for the following
@@ -1243,67 +1090,38 @@ UA_DataType_isNumeric(const UA_DataType *type);
 const UA_DataType UA_EXPORT *
 UA_findDataType(const UA_NodeId *typeId);
 
-/*
- * Add custom data types to the search scope of UA_findDataType. */
-
+/* Add custom data types to the search scope of UA_findDataType. */
 const UA_DataType UA_EXPORT *
 UA_findDataTypeWithCustom(const UA_NodeId *typeId,
                           const UA_DataTypeArray *customTypes);
 
 /** The following functions are used for generic handling of data types. */
 
-/* Allocates and initializes a variable of type dataType
- *
- * @param type The datatype description
- * @return Returns the memory location of the variable or NULL if no
- *         memory could be allocated */
-void UA_EXPORT * UA_new(const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
+/* Allocates and initializes a variable of type dataType */
+UA_EXPORT void * UA_new(const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
 
-/* Initializes a variable to default values
- *
- * @param p The memory location of the variable
- * @param type The datatype description */
-UA_INLINABLE(void
-             UA_init(void *p, const UA_DataType *type), {
-    memset(p, 0, type->memSize);
-})
+/* Initializes a variable to default null values */
+UA_EXPORT void UA_init(void *p, const UA_DataType *type);
 
-/* Copies the content of two variables. If copying fails (e.g. because no memory
- * was available for an array), then dst is emptied and initialized to prevent
- * memory leaks.
- *
- * @param src The memory location of the source variable
- * @param dst The memory location of the destination variable
- * @param type The datatype description
- * @return Indicates whether the operation succeeded or returns an error code */
+/* Copies the content of two variables. The pointer is _init'ed internally. If
+ * copying fails, then dst is cleared internally to prevent memory leaks. */
 UA_StatusCode UA_EXPORT
 UA_copy(const void *src, void *dst, const UA_DataType *type);
 
-/* Deletes the dynamically allocated content of a variable (e.g. deallocates all
- * arrays in the variable). Also initializes the variable to default values.
- * Afterwards, the variable can be safely deleted without causing memory leaks.
- *
- * @param p The memory location of the variable
- * @param type The datatype description of the variable */
+/* Deletes the dynamically allocated content of a value (e.g. deallocates all
+ * arrays in the variable). At last the entire value is _init'ed. */
 void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
 
-/* Frees a variable and all of its content.
- *
- * @param p The memory location of the variable
- * @param type The datatype description of the variable */
+/* Calls UA_clear and then UA_free on the memory */
 void UA_EXPORT UA_delete(void *p, const UA_DataType *type);
 
 /* Pretty-print the value from the datatype. The output is pretty-printed JSON5.
  * Note that this format is non-standard and should not be sent over the
  * network. It can however be read by our own JSON decoding.
  *
- * @param p The memory location of the variable
- * @param type The datatype description of the variable
- * @param output A string that is used for the pretty-printed output. If the
- *        memory for string is already allocated, we try to use the existing
- *        string (the length is adjusted). If the string is empty, memory
- *        is allocated for it.
- * @return Indicates whether the operation succeeded */
+ * If the memory for string is already allocated, we try to use the existing
+ * string (the length is adjusted down). If the string is empty, memory is
+ * allocated for it. */
 #ifdef UA_ENABLE_JSON_ENCODING
 UA_StatusCode UA_EXPORT
 UA_print(const void *p, const UA_DataType *type, UA_String *output);
@@ -1323,19 +1141,13 @@ UA_print(const void *p, const UA_DataType *type, UA_String *output);
  *
  * When members of different types are permitted (in Variants and
  * ExtensionObjects), the memory address in the "UA_DataType*" pointer
- * determines which variable is smaller.
- *
- * @param p1 The memory location of the first value
- * @param p2 The memory location of the first value
- * @param type The datatype description of both values */
+ * determines which variable is smaller. */
 UA_Order UA_EXPORT
 UA_order(const void *p1, const void *p2, const UA_DataType *type);
 
-/* Compare if two values have identical content. */
-UA_INLINABLE(UA_Boolean
-             UA_equal(const void *p1, const void *p2, const UA_DataType *type), {
-    return (UA_order(p1, p2, type) == UA_ORDER_EQ);
-})
+/* Compare if two values are identical */
+UA_EXPORT UA_Boolean
+UA_equal(const void *p1, const void *p2, const UA_DataType *type);
 
 /**
  * Namespace Mapping
@@ -1470,8 +1282,7 @@ UA_decodeBinary(const UA_ByteString *inBuf,
  *
  * These extensions are not intended to be used for the OPC UA protocol on the
  * network. They were rather added to allow more convenient configuration file
- * formats that also include data in the OPC UA type system.
- */
+ * formats that also include data in the OPC UA type system. */
 
 #ifdef UA_ENABLE_JSON_ENCODING
 
@@ -1494,19 +1305,16 @@ typedef struct {
     UA_Boolean stringNodeIds; /* String encoding for NodeIds, like "ns=1;i=42" */
 } UA_EncodeJsonOptions;
 
-/* Returns the number of bytes the value src takes in json encoding. Returns
+/* Returns the number of bytes the value src takes in JSON encoding. Returns
  * zero if an error occurs. */
 UA_EXPORT size_t
 UA_calcSizeJson(const void *src, const UA_DataType *type,
                 const UA_EncodeJsonOptions *options);
 
-/* Encodes the scalar value described by type to json encoding.
- *
- * @param src The value. Must not be NULL.
- * @param type The value type. Must not be NULL.
- * @param outBuf Pointer to ByteString containing the result if the encoding
- *        was successful
- * @return Returns a statuscode whether encoding succeeded. */
+/* Encodes the scalar value described by type to JSON encoding. If the outBuf
+ * already contains memory, this is used (if sufficient) and outBuf->length is
+ * adjusted down. Otherwise sufficient memory is allocated. The options can be
+ * NULL. */
 UA_StatusCode UA_EXPORT
 UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
               const UA_EncodeJsonOptions *options);
@@ -1531,16 +1339,9 @@ typedef struct {
                             * first JSON element in the input string. */
 } UA_DecodeJsonOptions;
 
-/* Decodes a scalar value described by type from json encoding.
- *
- * @param src The buffer with the json encoded value. Must not be NULL.
- * @param dst The target value. Must not be NULL. The target is assumed to have
- *        size type->memSize. The value is reset to zero before decoding. If
- *        decoding fails, members are deleted and the value is reset (zeroed)
- *        again.
- * @param type The value type. Must not be NULL.
- * @param options The options struct for decoding.
- * @return Returns a statuscode whether decoding succeeded. */
+/* Decodes a scalar value described by type from JSON encoding. The dst value is
+ * _init'ed initially. It gets cleared internally when an error occurs. The
+ * options can be NULL. */
 UA_StatusCode UA_EXPORT
 UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
               const UA_DecodeJsonOptions *options);
@@ -1556,8 +1357,7 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
  *
  * These extensions are not intended to be used for the OPC UA protocol on the
  * network. They were rather added to allow more convenient configuration file
- * formats that also include data in the OPC UA type system.
- */
+ * formats that also include data in the OPC UA type system. */
 
 #ifdef UA_ENABLE_XML_ENCODING
 
@@ -1576,13 +1376,10 @@ UA_EXPORT size_t
 UA_calcSizeXml(const void *src, const UA_DataType *type,
                const UA_EncodeXmlOptions *options);
 
-/* Encodes the scalar value described by type to xml encoding.
- *
- * @param src The value. Must not be NULL.
- * @param type The value type. Must not be NULL.
- * @param outBuf Pointer to ByteString containing the result if the encoding
- *        was successful
- * @return Returns a statuscode whether encoding succeeded. */
+/* Encodes the scalar value described by type to XML encoding. If the outBuf
+ * already contains memory, this is used (if sufficient) and outBuf->length is
+ * adjusted down. Otherwise sufficient memory is allocated. The options can be
+ * NULL. */
 UA_StatusCode UA_EXPORT
 UA_encodeXml(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
              const UA_EncodeXmlOptions *options);
@@ -1601,16 +1398,9 @@ typedef struct {
                                           * datatype definitions */
 } UA_DecodeXmlOptions;
 
-/* Decodes a scalar value described by type from xml encoding.
- *
- * @param src The buffer with the xml encoded value. Must not be NULL.
- * @param dst The target value. Must not be NULL. The target is assumed to have
- *        size type->memSize. The value is reset to zero before decoding. If
- *        decoding fails, members are deleted and the value is reset (zeroed)
- *        again.
- * @param type The value type. Must not be NULL.
- * @param options The options struct for decoding, currently unused
- * @return Returns a statuscode whether decoding succeeded. */
+/* Decodes a scalar value described by type from XML encoding. The dst value is
+ * _init'ed initially. It gets cleared internally when an error occurs. The
+ * options can be NULL. */
 UA_StatusCode UA_EXPORT
 UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
              const UA_DecodeXmlOptions *options);
@@ -1630,75 +1420,40 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
  * has length 0 and the data pointer is ``NULL``. An array of length 0 also has
  * length 0 but a data pointer ``UA_EMPTY_ARRAY_SENTINEL``. */
 
-/* Allocates and initializes an array of variables of a specific type
- *
- * @param size The requested array length
- * @param type The datatype description
- * @return Returns the memory location of the variable or NULL if no memory
- *         could be allocated */
+/* Allocates and initializes an array of the given type */
 void UA_EXPORT *
 UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
 
-/* Allocates and copies an array
- *
- * @param src The memory location of the source array
- * @param size The size of the array
- * @param dst The location of the pointer to the new array
- * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY */
+/* Makes a deep-copy of an array. On success, the dst argument is set to point
+ * to the allocated memory. */
 UA_StatusCode UA_EXPORT
 UA_Array_copy(const void *src, size_t size, void **dst,
               const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /* Resizes (and reallocates) an array. The last entries are initialized to zero
  * if the array length is increased. If the array length is decreased, the last
- * entries are removed if the size is decreased.
+ * entries are cleared if the size is decreased.
  *
- * @param p Double pointer to the array memory. Can be overwritten by the result
- *          of a realloc.
- * @param size The current size of the array. Overwritten in case of success.
- * @param newSize The new size of the array
- * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The
- *         original array is left untouched in the failure case. */
+ * The double-pointer to the array and the size-pointer are overwritten upon
+ * success. The array remains untouched in case of an internal error. */
 UA_StatusCode UA_EXPORT
 UA_Array_resize(void **p, size_t *size, size_t newSize,
                 const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-/* Append the given element at the end of the array. The content is moved
- * (shallow copy) and the original memory is _init'ed if appending is
- * successful.
- *
- * @param p Double pointer to the array memory. Can be overwritten by the result
- *          of a realloc.
- * @param size The current size of the array. Overwritten in case of success.
- * @param newElem The element to be appended. The memory is reset upon success.
- * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The
- *         original array is left untouched in the failure case. */
+/* Append a scalar value at the end of the array. The content is moved (shallow
+ * copy) and the original value location is _init'ed if appending is successful.
+ * Otherwise similar to UA_Array_resize. */
 UA_StatusCode UA_EXPORT
 UA_Array_append(void **p, size_t *size, void *newElem,
                 const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-/* Append a copy of the given element at the end of the array.
- *
- * @param p Double pointer to the array memory. Can be overwritten by the result
- *          of a realloc.
- * @param size The current size of the array. Overwritten in case of success.
- * @param newElem The element to be appended.
- * @param type The datatype of the array members
- * @return Returns UA_STATUSCODE_GOOD or UA_STATUSCODE_BADOUTOFMEMORY. The
- *         original array is left untouched in the failure case. */
-
+/* Append a copy of the given element at the end of the array. The memory of the
+ * newValue argument is not written. Otherwise similar to UA_Array_append. */
 UA_StatusCode UA_EXPORT
 UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
                     const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-/* Deletes an array.
- *
- * @param p The memory location of the array
- * @param size The size of the array
- * @param type The datatype of the array members */
+/* Deletes an array by calling _clear on the element and freeing the memory */
 void UA_EXPORT
 UA_Array_delete(void *p, size_t size, const UA_DataType *type);
 
@@ -1707,7 +1462,6 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type);
  *
  * Generated Data Type Definitions
  * -------------------------------
- *
  * The following standard-defined datatypes are auto-generated from XML files
  * that are part of the OPC UA standard. All datatypes are built up from the 25
  * builtin-in datatypes from the :ref:`types` section.

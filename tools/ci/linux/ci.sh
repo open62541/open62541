@@ -19,30 +19,6 @@ fi
 # Allow to reuse TIME-WAIT sockets for new connections
 sudo sysctl -w net.ipv4.tcp_tw_reuse=1
 
-###########
-# cpplint #
-###########
-
-function cpplint {
-    mkdir -p build; cd build; rm -rf *
-    cmake -DUA_FORCE_WERROR=ON \
-          ..
-    make ${MAKEOPTS} cpplint
-}
-
-#######################
-# Build Documentation #
-#######################
-
-function build_docs {
-    mkdir -p build; cd build; rm -rf *
-    cmake -DCMAKE_BUILD_TYPE=Release \
-          -DUA_BUILD_EXAMPLES=ON \
-          -DUA_FORCE_WERROR=ON \
-          ..
-    make doc
-}
-
 #####################################
 # Build Documentation including PDF #
 #####################################
@@ -187,6 +163,22 @@ function unit_tests {
     if [ "$COVERAGE" = "ON" ]; then
         make gcov
     fi
+}
+
+function unit_tests_lwip {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DUA_ARCHITECTURE="posix-lwip" \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_COVERAGE=ON \
+          -DUA_ENABLE_PUBSUB=OFF \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF \
+          -DUA_FORCE_WERROR=ON \
+          ..
+    make ${MAKEOPTS}
+    set_capabilities
+    make test ARGS="-V"
 }
 
 function unit_tests_32 {
@@ -358,6 +350,51 @@ function unit_tests_valgrind {
     sudo -E bash -c "make test ARGS=\"-V\""
 }
 
+##########################
+# Build and Run Examples #
+##########################
+
+function run_examples {
+    mkdir -p build; cd build; rm -rf *
+
+    # create certificates for the examples
+    python3 ../tools/certs/create_self-signed.py -c server
+    python3 ../tools/certs/create_self-signed.py -c client
+
+    # copy json server config
+    cp ../examples/json_config/server_json_config.json5 server_json_config.json5
+
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_ENABLE_ENCRYPTION=$1 \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+          -DUA_ENABLE_MQTT=ON \
+          -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
+          -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_NODESETLOADER=ON \
+          -DUA_ENABLE_PUBSUB_SKS=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_DISCOVERY_MULTICAST=$2 \
+          -DUA_FORCE_WERROR=ON \
+          ..
+    make ${MAKEOPTS}
+
+    # Run each example. Wait 10 seconds and send the SIGINT
+    # signal. Wait for the process to terminate and collect the exit status.
+    # Abort when the exit status is non-null.
+    sudo -E bash -c "python3 ../tools/ci/linux/examples_with_valgrind.py --no-valgrind"
+    EXIT_CODE=$?
+    if [[ $EXIT_CODE -ne 0 ]]; then
+        echo "Processing failed with exit code $EXIT_CODE"
+        exit $EXIT_CODE
+    fi
+}
+
 ########################################
 # Build and Run Examples with Valgrind #
 ########################################
@@ -370,7 +407,7 @@ function examples_valgrind {
     python3 ../tools/certs/create_self-signed.py -c client
 
     # copy json server config
-    cp ../plugins/server_config.json5 server_config.json5
+    cp ../examples/json_config/server_json_config.json5 server_json_config.json5
 
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
@@ -396,7 +433,7 @@ function examples_valgrind {
     # signal. Wait for the process to terminate and collect the exit status.
     # Abort when the exit status is non-null.
     # set_capabilities not possible with valgrind
-    sudo -E bash -c "python3 ../tools/ci/examples_with_valgrind.py"
+    sudo -E bash -c "python3 ../tools/ci/linux/examples_with_valgrind.py"
     EXIT_CODE=$?
     if [[ $EXIT_CODE -ne 0 ]]; then
         echo "Processing failed with exit code $EXIT_CODE"
@@ -425,15 +462,16 @@ function build_clang_analyzer {
           -DUA_FORCE_WERROR=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
-    scan-build-$version --status-bugs \
-          -disable-checker unix.BlockInCriticalSection \
-          -disable-checker unix.Errno \
-          --exclude ../src/util make ${MAKEOPTS}
+    scan-build-$version \
+          --status-bugs \
+          --exclude ../src/util \
+          --exclude ../tests \
+          make ${MAKEOPTS}
 }
 
-###################################################
-# Compile alle ua-schema companion specifications #
-###################################################
+########################################
+# Compile all Companion Specifications #
+########################################
 
 function build_all_companion_specs {
     mkdir -p build; cd build; rm -rf *
@@ -441,7 +479,9 @@ function build_all_companion_specs {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_FORCE_WERROR=ON \
-          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;ISA95-JOBCONTROL\;OpenSCS\;CNC\;AMB\;AutoID\;POWERLINK\;Machinery\;LADS\;PackML\;PNEM\;PLCopen\;MachineTool\;PROFINET\;MachineVision\;FDT\;CommercialKitchenEquipment\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
+          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;ISA95-JOBCONTROL\;OpenSCS\;CNC\;\
+AMB\;AutoID\;POWERLINK\;Machinery\;LADS\;PackML\;PNEM\;PLCopen\;MachineTool\;\
+PROFINET\;MachineVision\;FDT\;CommercialKitchenEquipment\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS} check_nodeset_compiler_testnodeset

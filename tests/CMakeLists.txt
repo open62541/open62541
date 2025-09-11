@@ -4,7 +4,7 @@ if(MSVC)
         $<$<CONFIG:>:/MD>
         $<$<CONFIG:Debug>:/MDd>
         $<$<CONFIG:Release>:/MD>
-    )    
+    )
 else()
     add_compile_options(-Wno-unused-variable -Wno-unused-function)
     add_compile_options(-Wno-gnu-zero-variadic-macro-arguments) # silence warning for the check library
@@ -14,7 +14,7 @@ endif()
 find_package(Check REQUIRED)
 set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
 if(NOT WIN32 AND NOT APPLE AND NOT (CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD") AND NOT (CMAKE_HOST_SYSTEM_NAME MATCHES "FreeBSD"))
-  list(APPEND LIBS subunit)
+    list(APPEND LIBS subunit)
 endif()
 include_directories(${CHECK_INCLUDE_DIRS})
 link_directories(${CHECK_LIBRARY_DIRS})
@@ -38,6 +38,11 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins")
 # #include <src_generated/<...>.h>
 include_directories("${PROJECT_BINARY_DIR}")
 include_directories("${PROJECT_BINARY_DIR}/../plugins")
+
+if(UA_ARCHITECTURE_LWIP)
+    # lwip includes
+    include_directories(${LWIP_INCLUDE_DIRS})
+endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     # mbedtls includes
@@ -79,7 +84,7 @@ set(test_plugin_sources
 
 # Network replay tests currently require a Linux environment.
 # Also only do it for 64bit builds, as there is a bug in the Debian multi-arch installation.
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT AND NOT UA_ARCHITECTURE_LWIP)
     list(APPEND test_plugin_sources
                 ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers_pcap.c)
     list(APPEND LIBS pcap)
@@ -151,12 +156,17 @@ function(ua_add_test test_path_relative)
     string(REPLACE "/" ";" QUALIFIED_PATHNAME ${PATH_WITHOUT_EXTENSION})
     list(POP_BACK QUALIFIED_PATHNAME TEST_NAME)
 
-    add_executable(${TEST_NAME} ${test_path_relative} ${ARGN} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins> $<TARGET_OBJECTS:open62541-testplugins>)
-    target_link_libraries(${TEST_NAME} ${LIBS})
+    set(options)
+    set(oneValueArgs)
+    set(multiValueArgs EXTRASOURCES EXTRALIBS)
+    cmake_parse_arguments(arg "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    add_executable(${TEST_NAME} ${test_path_relative} ${arg_EXTRASOURCES} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins> $<TARGET_OBJECTS:open62541-testplugins>)
+    add_dependencies(${TEST_NAME} open62541-testplugins)
+    target_link_libraries(${TEST_NAME} ${LIBS} ${arg_EXTRALIBS})
+    target_compile_definitions(${TEST_NAME} PRIVATE -DUA_UNITTEST)
+    set_target_properties(${TEST_NAME} PROPERTIES FOLDER "tests")
     add_test_valgrind(${TEST_NAME} ${TESTS_BINARY_DIR}/${TEST_NAME})
-    if(UA_ENABLE_NODESET_INJECTOR)
-        set(UA_NODESETINJECTOR_TEST_NAMES ${TEST_NAME} ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
-    endif()
 endfunction()
 
 ua_add_test(check_types_builtin.c)
@@ -197,9 +207,12 @@ ua_add_test(check_timer.c)
 ua_add_test(check_eventloop.c)
 ua_add_test(check_eventloop_tcp.c)
 ua_add_test(check_eventloop_udp.c)
-ua_add_test(check_eventloop_interrupt.c)
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP)
+    ua_add_test(check_eventloop_interrupt.c)
+endif()
+
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
     # Requires raw socket capability, currently not possible with valgrind
     ua_add_test(check_eventloop_eth.c)
 endif()
@@ -216,13 +229,11 @@ ua_add_test(server/check_services_attributes.c)
 ua_add_test(server/check_services_nodemanagement.c)
 ua_add_test(server/check_server_callbacks.c)
 
-add_executable(check_server_password server/check_server_password.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins> $<TARGET_OBJECTS:open62541-testplugins>)
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-target_link_libraries(check_server_password ${LIBS} -lcrypt)
+    ua_add_test(server/check_server_password.c EXTRALIBS -lcrypt)
 else()
-target_link_libraries(check_server_password ${LIBS})
+    ua_add_test(server/check_server_password.c)
 endif()
-add_test_valgrind(server_password ${TESTS_BINARY_DIR}/check_server_password)
 
 if (UA_MULTITHREADING GREATER_EQUAL 100)
     ua_add_test(multithreading/check_mt_addVariableNode.c)
@@ -237,17 +248,17 @@ if (UA_MULTITHREADING GREATER_EQUAL 100)
 endif()
 
 if(UA_ENABLE_METHODCALLS)
-  ua_add_test(server/check_services_call.c)
+    ua_add_test(server/check_services_call.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
-  ua_add_test(server/check_services_subscriptions.c)
-  ua_add_test(server/check_monitoreditem_filter.c)
-if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-  ua_add_test(server/check_subscription_events.c)
-  ua_add_test(server/check_subscription_events_local.c)
-  ua_add_test(server/check_subscription_event_filter.c)
-endif()
+    ua_add_test(server/check_services_subscriptions.c)
+    ua_add_test(server/check_monitoreditem_filter.c)
+    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+        ua_add_test(server/check_subscription_events.c)
+        ua_add_test(server/check_subscription_events_local.c)
+        ua_add_test(server/check_subscription_event_filter.c)
+    endif()
 endif()
 
 ua_add_test(server/check_nodestore.c)
@@ -264,7 +275,7 @@ ua_add_test(server/check_server_userspace.c)
 ua_add_test(server/check_node_inheritance.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
-  ua_add_test(server/check_local_monitored_item.c)
+    ua_add_test(server/check_local_monitored_item.c)
 endif()
 
 if(UA_ENABLE_PUBSUB)
@@ -352,8 +363,8 @@ ua_add_test(client/check_client_async_connect.c)
 ua_add_test(client/check_client_highlevel.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
-  ua_add_test(client/check_client_subscriptions.c)
-  ua_add_test(client/check_subscriptionWithactivateSession.c)
+    ua_add_test(client/check_client_subscriptions.c)
+    ua_add_test(client/check_subscriptionWithactivateSession.c)
 endif()
 
 if(UA_ENABLE_HISTORIZING)
@@ -425,15 +436,11 @@ endif()
 
 # Tests for interfaces
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
-    ua_add_test(server/check_interfaces.c ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c)
+    ua_add_test(server/check_interfaces.c EXTRASOURCES ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c)
     target_include_directories(check_interfaces PRIVATE ${NODESET_COMPILER_OUTPUT_DIR})
 endif()
 
-if(UA_ENABLE_NODESET_INJECTOR)
-    set(UA_NODESETINJECTOR_TEST_NAMES ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
-endif()
-
 # Only do the network replay test for 64bit builds, as there is a bug in the Debian multi-arch installation
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP AND NOT UA_FORCE_32BIT)
     ua_add_test(network_replay/check_network_replay.c)
 endif()

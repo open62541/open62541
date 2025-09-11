@@ -28,6 +28,9 @@
 #include <open62541/plugin/securitypolicy.h>
 
 /* Forward declarations */
+struct UA_Client;
+typedef struct UA_Client UA_Client;
+
 struct UA_ClientConfig;
 typedef struct UA_ClientConfig UA_ClientConfig;
 

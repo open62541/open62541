@@ -18,7 +18,7 @@
 #include <time.h>
 #include <sys/time.h>
 
-#if defined(__APPLE__) || defined(__MACH__)
+#if defined(__APPLE__) && defined(__MACH__)
 # include <mach/clock.h>
 # include <mach/mach.h>
 #endif
@@ -43,22 +43,22 @@ UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
 }
 
 UA_DateTime UA_DateTime_nowMonotonic(void) {
-#if defined(__APPLE__) || defined(__MACH__)
+#if defined(__APPLE__) && defined(__MACH__)
     /* OS X does not have clock_gettime, use clock_get_time */
     clock_serv_t cclock;
     mach_timespec_t mts;
     host_get_clock_service(mach_host_self(), SYSTEM_CLOCK, &cclock);
     clock_get_time(cclock, &mts);
     mach_port_deallocate(mach_task_self(), cclock);
-    return (mts.tv_sec * UA_DATETIME_SEC) + (mts.tv_nsec / 100);
+    return (mts.tv_sec * UA_DATETIME_SEC) + (mts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
 #elif !defined(CLOCK_MONOTONIC_RAW)
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
 #else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC_RAW, &ts);
-    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100);
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
 #endif
 }
 

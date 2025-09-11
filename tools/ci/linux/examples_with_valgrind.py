@@ -1,6 +1,12 @@
 import os
 import subprocess
 import time
+import argparse
+
+parser = argparse.ArgumentParser(description="Run OPC UA examples with or without valgrind")
+parser.add_argument("--no-valgrind", action="store_true",
+                    help="Run examples without valgrind (default: on)")
+args_cli = parser.parse_args()
 
 example_args = {
         "client_encryption":"opc.tcp://localhost:4840 client_cert.der client_key.der server_cert.der",
@@ -14,9 +20,10 @@ example_args = {
         "pubsub_TSN_publisher":"-i lo",
         "pubsub_TSN_publisher_multiple_thread":"-i lo",
         "server_encryption":"server_cert.der server_key.der client_cert.der",
+        "server_encryption_filestore":"server_cert.der server_key.der",
         "server_loglevel":"--loglevel=1",
         "ci_server":"4840 server_cert.der server_key.der client_cert.der",
-        "server_file_based_config":"server_config.json5"
+        "server_json_config":"server_json_config.json5"
         }
 
 server_needed_examples = {
@@ -48,7 +55,6 @@ server_needed_examples = {
         "tutorial_client_events":"tutorial_server_events",
         "tutorial_client_firststeps":"tutorial_server_firststeps",
         "tutorial_pubsub_connection":"tutorial_pubsub_subscribe",
-        "tutorial_pubsub_mqtt_subscrib":"tutorial_pubsub_mqtt_publish",
         "tutorial_pubsub_publish":"tutorial_pubsub_subscribe",
         "tutorial_pubsub_subscribe":"tutorial_pubsub_publish",
         "tutorial_server_reverseconnect":"ci_server 4841 client_cert.der client_key.der server_cert.der"
@@ -98,7 +104,9 @@ blacklist = {
         "client_historical":1,
         "client_subscription_loop":1,
         "client_method_async":1,
-        "pubsub_subscribe_encrypted":1
+        "pubsub_subscribe_encrypted":1,
+        "tutorial_pubsub_mqtt_subscribe":1,
+        "tutorial_pubsub_mqtt_publish":1
 }
 
 # Run each example with valgrind.
@@ -113,7 +121,7 @@ example_dir = os.path.join(current_dir, "bin", "examples")
 examples = os.listdir(example_dir)
 
 cur_dir = os.path.dirname(os.path.realpath(__file__)) # path of current file
-tests_path = os.path.join(cur_dir, os.pardir, os.pardir, "tests")
+tests_path = os.path.join(cur_dir, os.pardir, os.pardir, os.pardir, "tests")
 
 # skipping examples that are in the blacklist
 for example in examples:
@@ -123,9 +131,19 @@ for example in examples:
 
     # get the arguments for the example
     args = example_args.get(example)
-    cmd = ["valgrind", "--errors-for-leak-kinds=all", "--leak-check=full", "--error-exitcode=1337",
-           f"--suppressions={tests_path}/valgrind_suppressions.supp",
-           "./bin/examples/"+example]
+
+    if args_cli.no_valgrind:
+        cmd = ["./bin/examples/" + example]
+    else:
+        cmd = [
+            "valgrind",
+            "--errors-for-leak-kinds=all",
+            "--leak-check=full",
+            "--error-exitcode=1337",
+            f"--suppressions={tests_path}/valgrind_suppressions.supp",
+            "./bin/examples/" + example
+        ]
+
     if args:
         args_list = args.split()
         cmd += args_list
@@ -172,11 +190,17 @@ for example in examples:
 
     # save the exit code
     exit_code = process.wait()
-    if exit_code == 1337:
+
+    # Check exit codes depending on whether valgrind is enabled
+    if not args_cli.no_valgrind and exit_code == 1337:
         print(f"Processing {example} failed with valgrind issues")
         exit(exit_code)
-    if exit_code != 0:
+    if not args_cli.no_valgrind and exit_code != 0:
         print(f"The application returned exit code {exit_code} but valgrind has no issue")
+
+    if args_cli.no_valgrind and exit_code != 0:
+        print(f"The application returned exit code {exit_code}")
+        exit(exit_code)
 
     # terminate the server and client
     if server_process:

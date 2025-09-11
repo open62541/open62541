@@ -12,8 +12,8 @@
 
 #define N_EVENTS 10000
 
-UA_EventLoop *el;
-size_t count = 0;
+static UA_EventLoop *el;
+static size_t count = 0;
 
 static void
 timerCallback(void *application, void *data) {
@@ -33,7 +33,14 @@ createEvents(UA_UInt32 events) {
 }
 
 START_TEST(benchmarkTimer) {
+#if defined(UA_ARCHITECTURE_LWIP)
+    el = UA_EventLoop_new_LWIP(NULL, NULL);
+#elif defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
     el = UA_EventLoop_new_POSIX(NULL);
+#else
+#error Add other EventLoop implementations here
+#endif
+
     createEvents(N_EVENTS);
 
     clock_t begin = clock();

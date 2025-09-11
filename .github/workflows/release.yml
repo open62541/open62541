@@ -2,6 +2,7 @@ name: Build Release Artifacts
 
 on:
   push:
+  pull_request:
   release:
     types: [published]
 
@@ -13,7 +14,7 @@ jobs:
         with:
           submodules: true
       - run: sudo apt-get install -y -qq libmbedtls-dev
-      - run: source tools/ci/ci.sh && build_release_amalgamation
+      - run: source tools/ci/linux/ci.sh && build_release_amalgamation
       - run: gh release upload ${{ github.ref_name }} build/open62541.{c,h}
         env:
           GH_TOKEN: ${{ github.token }}

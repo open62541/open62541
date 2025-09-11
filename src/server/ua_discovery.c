@@ -352,8 +352,10 @@ discoveryClientStateCallback(UA_Client *client,
     UA_Client_getConnectionAttribute_scalar(client, UA_QUALIFIEDNAME(0, "securityMode"),
                                             &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE],
                                             &msm);
-#ifdef UA_ENABLE_ENCRYPTION 
-    if(msm != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+#ifdef UA_ENABLE_ENCRYPTION
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    if(cc->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT &&
+       msm != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return;
 #endif
 
@@ -450,10 +452,14 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
     cc->stateCallback = discoveryClientStateCallback;
     cc->clientContext = ar;
 
-    /* Use encryption by default */
+    /* If it's not already set, use encryption by default */
+    if(cc->securityMode == UA_MESSAGESECURITYMODE_INVALID) {
 #ifdef UA_ENABLE_ENCRYPTION
-    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+        cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+#else
+        cc->securityMode = UA_MESSAGESECURITYMODE_NONE;
 #endif
+    }
 
     /* Open only a SecureChannel */
     cc->noSession = true;

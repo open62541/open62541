@@ -10,9 +10,7 @@ jobs:
         os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
         build:
           - name: "Debug Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq mosquitto
             cmd_action: unit_tests
-
           - name: "Debug Build & Unit Tests (gcc, 32bit)"
             cmd_deps: |
               sudo dpkg --add-architecture i386
@@ -32,23 +30,8 @@ jobs:
           - name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
             cmd_action: unit_tests_alarms
 
-          - name: "Debug Build & Unit Tests (clang-11)"
-            runs_on: "ubuntu-20.04"
-            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 mosquitto
-            cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
-
-          - name: "Debug Build & Unit Tests (clang-15)"
-            runs_on: "ubuntu-22.04"
-            cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 mosquitto && sudo sysctl -w vm.mmap_rnd_bits=28
-            cmd_action: CC=clang-15 CXX=clang++-15 unit_tests
-
-          - name: "Debug Build & Unit Tests (clang-18)"
-            runs_on: "ubuntu-24.04"
-            cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 mosquitto && sudo sysctl -w vm.mmap_rnd_bits=28
-            cmd_action: CC=clang-18 CXX=clang++-18 unit_tests
-
           - name: "Debug Build & Unit Tests (tcc)"
-            cmd_deps: sudo apt-get install -y -qq tcc mosquitto
+            cmd_deps: sudo apt-get install -y -qq tcc
             cmd_action: CC=tcc unit_tests
 
           - name: "Encryption (MbedTLS) Build & Unit Tests (gcc)"
@@ -70,96 +53,12 @@ jobs:
           - name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
               sudo apt-get install -y -qq curl
-              curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.9.1.tar.gz --output libressl.tar.gz
+              curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-4.1.0.tar.gz --output libressl.tar.gz
               tar -xvz -f libressl.tar.gz
-              cd libressl-3.9.1
+              cd libressl-4.1.0
               ./configure
               sudo make install
             cmd_action: unit_tests_encryption LIBRESSL
-
-          - name: "TPM Tool Build ubuntu-20.04"
-            runs_on: "ubuntu-20.04"
-            cmd_deps: |
-              sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
-              cd ${HOME}
-              git clone https://github.com/tpm2-software/tpm2-tss.git
-              cd ${HOME}/tpm2-tss
-              git checkout 3.2.3
-              ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
-              make -j$(nproc)
-              sudo make install
-              sudo ldconfig
-              sudo udevadm control --reload-rules && sudo udevadm trigger
-              sudo apt-get install -y -qq tpm2-tools opensc
-              cd ${HOME}
-              git clone https://github.com/tpm2-software/tpm2-pkcs11.git
-              cd ${HOME}/tpm2-pkcs11
-              git checkout 1.7.0
-              ./bootstrap && ./configure
-              make -j$(nproc)
-              sudo make install
-              sudo ldconfig
-              sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
-              cd ${HOME}/tpm2-pkcs11/tools/
-              sudo pip3 install pyasn1_modules
-              pip3 install .
-            cmd_action: build_tpm_tool
-
-          - name: "TPM Tool Build ubuntu-22.04"
-            runs_on: "ubuntu-22.04"
-            cmd_deps: |
-              sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
-              cd ${HOME}
-              git clone https://github.com/tpm2-software/tpm2-tss.git
-              cd ${HOME}/tpm2-tss
-              git checkout 3.2.3
-              ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
-              make -j$(nproc)
-              sudo make install
-              sudo ldconfig
-              sudo udevadm control --reload-rules && sudo udevadm trigger
-              sudo apt-get install -y -qq tpm2-tools opensc
-              cd ${HOME}
-              git clone https://github.com/tpm2-software/tpm2-pkcs11.git
-              cd ${HOME}/tpm2-pkcs11
-              git checkout 1.7.0
-              ./bootstrap && ./configure
-              make -j$(nproc)
-              sudo make install
-              sudo ldconfig
-              sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
-              cd ${HOME}/tpm2-pkcs11/tools/
-              sudo pip3 install pyasn1_modules
-              pip3 install .
-            cmd_action: build_tpm_tool
-
-          - name: "TPM Tool Build ubuntu-24.04"
-            runs_on: "ubuntu-24.04"
-            cmd_deps: |
-              sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev libltdl-dev
-              cd ${HOME}
-              git clone https://github.com/tpm2-software/tpm2-tss.git
-              cd ${HOME}/tpm2-tss
-              git checkout 4.1.3
-              ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
-              make -j$(nproc)
-              sudo make install
-              sudo ldconfig
-              sudo udevadm control --reload-rules && sudo udevadm trigger
-              sudo apt-get install -y -qq tpm2-tools python3-tpm2-pytss opensc
-              cd ${HOME}
-              git clone https://github.com/tpm2-software/tpm2-pkcs11.git
-              cd ${HOME}/tpm2-pkcs11
-              git checkout 1.9.1
-              ./bootstrap && ./configure
-              make -j$(nproc)
-              sudo make install
-              sudo ldconfig
-              sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
-              cd ${HOME}/tpm2-pkcs11/tools/
-              sudo pip3 install pyasn1_modules
-              pip3 install .
-            cmd_action: build_tpm_tool
 
           - name: "Release Build"
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
@@ -171,64 +70,245 @@ jobs:
           - name: "Amalgamation Build with Multithreading"
             cmd_action: build_amalgamation_mt
 
-          - name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
-            runs_on: "ubuntu-24.04"
-            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
-            cmd_action: unit_tests_valgrind MBEDTLS
-
-          - name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
-            runs_on: "ubuntu-24.04"
-            cmd_deps: sudo apt-get install -y -qq valgrind openssl mosquitto
-            cmd_action: unit_tests_valgrind OPENSSL
-
-          - name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
-            runs_on: "ubuntu-24.04"
-            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
-            cmd_action: examples_valgrind MBEDTLS MDNSD
-
-          - name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
-            runs_on: "ubuntu-24.04"
-            cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev mosquitto libavahi-client-dev libavahi-common-dev
-            cmd_action: examples_valgrind OPENSSL AVAHI
-
-          - name: "Clang Static Analyzer (clang11)"
-            runs_on: "ubuntu-20.04"
-            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev mosquitto
-            cmd_action: CC=clang-11 CXX=clang++-11 build_clang_analyzer 11
-
-          - name: "Clang Static Analyzer (clang15)"
-            runs_on: "ubuntu-22.04"
-            cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 libmbedtls-dev mosquitto
-            cmd_action: CC=clang-15 CXX=clang++-15 build_clang_analyzer 15
-
-          - name: "Clang Static Analyzer (clang18)"
-            runs_on: "ubuntu-24.04"
-            cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 libmbedtls-dev mosquitto
-            cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18
-
           - name: "Build All Companion Specifications"
             cmd_action: build_all_companion_specs
 
+        include:          
+          # Clang builds for specific Ubuntu versions
+          - os: ubuntu-20.04
+            build:
+              name: "Debug Build & Unit Tests (clang-11)"
+              cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11
+              cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
+
+          - os: ubuntu-22.04
+            build:
+              name: "Debug Build & Unit Tests (clang-15)"
+              cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 && sudo sysctl -w vm.mmap_rnd_bits=28
+              cmd_action: CC=clang-15 CXX=clang++-15 unit_tests
+
+          - os: ubuntu-24.04
+            build:
+              name: "Debug Build & Unit Tests (clang-18)"
+              cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 && sudo sysctl -w vm.mmap_rnd_bits=28
+              cmd_action: CC=clang-18 CXX=clang++-18 unit_tests
+
+          # LWIP Build for specific Ubuntu version
+          - os: ubuntu-24.04
+            build:
+              name: "Debug Build & Unit Tests with lwip (gcc)"
+              cmd_deps: |
+                sudo apt-get install -y -qq build-essential cmake gcc git iproute2 libpcap-dev
+                cd ${HOME}
+                git clone https://github.com/lwip-tcpip/lwip.git
+                cd ${HOME}/lwip
+                git checkout tags/STABLE-2_2_1_RELEASE
+  
+                # Apply the modification to lwipopts.h
+                sed -i '30a\
+                #define MEMP_NUM_TCP_PCB 128\n\
+                #define MEMP_NUM_UDP_PCB 128\n\
+                #define MEMP_NUM_REASSDATA 128\n\
+                #define MEMP_NUM_TCP_PCB_LISTEN 128\n\
+                #define MEMP_NUM_TCP_SEG 128\n\
+                #define MEMP_NUM_PBUF 128\n\
+                #define MEMP_NUM_RAW_PCB 128\n\
+                #define MEMP_NUM_SELECT_CB 128\n\
+                #define MEMP_NUM_NETBUF 128\n\
+                #define MEMP_NUM_NETCONN 128\n\
+                #define PBUF_POOL_SIZE 128\n\
+                #define MEM_SIZE 64000\n\
+                #define LWIP_SOCKET 1\n\
+                #define LWIP_DNS 0' ${HOME}/lwip/contrib/ports/unix/posixlib/lwipopts.h
+  
+                cd ${HOME}/lwip/contrib/ports/unix/posixlib
+                mkdir build
+                cd ${HOME}/lwip/contrib/ports/unix/posixlib/build
+                cmake ..
+                make -j$(nproc)
+                sudo make install
+  
+                cd ${HOME}
+  
+                sudo ip tuntap add dev tap0 mode tap
+                sudo ip link set dev tap0 up
+                sudo ip addr add 192.168.0.1/24 dev tap0
+                sudo sysctl -w net.ipv4.ip_forward=1
+  
+                export PRECONFIGURED_TAPIF=tap0
+                echo 'export PRECONFIGURED_TAPIF=tap0' >> ~/.bashrc
+              cmd_action: unit_tests_lwip
+          
+          # TPM Tool Builds for specific Ubuntu versions
+          - os: ubuntu-20.04
+            build:
+              name: "TPM Tool Build ubuntu-20.04"
+              cmd_deps: |
+                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-tss.git
+                cd ${HOME}/tpm2-tss
+                git checkout 3.2.3
+                ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo udevadm control --reload-rules && sudo udevadm trigger
+                sudo apt-get install -y -qq tpm2-tools opensc
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-pkcs11.git
+                cd ${HOME}/tpm2-pkcs11
+                git checkout 1.7.0
+                ./bootstrap && ./configure
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
+                cd ${HOME}/tpm2-pkcs11/tools/
+                sudo pip3 install pyasn1_modules
+                pip3 install .
+              cmd_action: build_tpm_tool          
+          - os: ubuntu-22.04
+            build:
+              name: "TPM Tool Build ubuntu-22.04"
+              cmd_deps: |
+                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-tss.git
+                cd ${HOME}/tpm2-tss
+                git checkout 3.2.3
+                ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo udevadm control --reload-rules && sudo udevadm trigger
+                sudo apt-get install -y -qq tpm2-tools opensc
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-pkcs11.git
+                cd ${HOME}/tpm2-pkcs11
+                git checkout 1.7.0
+                ./bootstrap && ./configure
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
+                cd ${HOME}/tpm2-pkcs11/tools/
+                sudo pip3 install pyasn1_modules
+                pip3 install .
+              cmd_action: build_tpm_tool          
+          - os: ubuntu-24.04
+            build:
+              name: "TPM Tool Build ubuntu-24.04"
+              cmd_deps: |
+                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev libltdl-dev python3-pyasn1-modules
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-tss.git
+                cd ${HOME}/tpm2-tss
+                git checkout 4.1.3
+                ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo udevadm control --reload-rules && sudo udevadm trigger
+                sudo apt-get install -y -qq tpm2-tools python3-tpm2-pytss opensc
+                cd ${HOME}
+                git clone https://github.com/tpm2-software/tpm2-pkcs11.git
+                cd ${HOME}/tpm2-pkcs11
+                git checkout 1.9.1
+                ./bootstrap && ./configure
+                make -j$(nproc)
+                sudo make install
+                sudo ldconfig
+                sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
+                cd ${HOME}/tpm2-pkcs11/tools/
+                pip3 install --break-system-packages .
+              cmd_action: build_tpm_tool   
+
+          # Run examples for specific Ubuntu versions
+          - os: ubuntu-24.04
+            build:
+              name: "Examples with MbedTLS and mDNSD (gcc)"
+              cmd_deps: sudo apt-get install -y -qq libmbedtls-dev python3-netifaces
+              cmd_action: run_examples MBEDTLS MDNSD
+
+          # Valgrind tests for specific Ubuntu versions
+          - os: ubuntu-24.04
+            build:
+              name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
+              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+              cmd_action: unit_tests_valgrind MBEDTLS          
+
+          - os: ubuntu-24.04
+            build:
+              name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
+              cmd_deps: sudo apt-get install -y -qq valgrind openssl
+              cmd_action: unit_tests_valgrind OPENSSL          
+
+          - os: ubuntu-24.04
+            build:
+              name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
+              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces
+              cmd_action: examples_valgrind MBEDTLS MDNSD          
+
+          - os: ubuntu-24.04
+            build:
+              name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
+              cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev
+              cmd_action: examples_valgrind OPENSSL AVAHI          
+
+          # Clang Static Analyzer Builds
+          - os: ubuntu-20.04
+            build:
+              name: "Clang Static Analyzer (clang11)"
+              cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
+              cmd_action: CC=clang-11 CXX=clang++-11 build_clang_analyzer 11          
+          - os: ubuntu-22.04
+            build:
+              name: "Clang Static Analyzer (clang15)"
+              cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 libmbedtls-dev
+              cmd_action: CC=clang-15 CXX=clang++-15 build_clang_analyzer 15          
+          - os: ubuntu-24.04
+            build:
+              name: "Clang Static Analyzer (clang18)"
+              cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 libmbedtls-dev
+              cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18
+
     name: ${{ matrix.os }}-${{ matrix.build.name }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    # runs-on: self-hosted
+    container:
+      image: ghcr.io/marwinglaser/ci:${{ matrix.os }}
+      options: --privileged
+    services:
+      mosquitto:
+        image: eclipse-mosquitto:1.6-openssl
+    env:
+      OPEN62541_TEST_MQTT_BROKER: opc.mqtt://mosquitto:1883
     steps:
+      - name: Work around disabled ipv6 on actions container networks
+        run: |
+          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+          echo "Current IPv6 status on eth0: $IPV6"
+          [ "$IPV6" = "1" ] || exit
+
+          echo 0 | sudo tee /proc/sys/net/ipv6/conf/eth0/disable_ipv6 > /dev/null
+          IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
+          echo "New IPv6 status on eth0: $IPV6"
+          [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }      
       - uses: actions/checkout@v4
-        if: matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os
         with:
           submodules: true
       - name: Install Dependencies
-        if: matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os
         run: |
           sudo apt-get update
-          sudo apt-get install -y -qq python3-sphinx graphviz check libpcap-dev
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake curl libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev libreadline-dev
           ${{ matrix.build.cmd_deps }}
       - name: ${{ matrix.build.name }}
-        if: matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os
-        run: source tools/ci/ci.sh && ${{ matrix.build.cmd_action }}
+        shell: bash
+        run: source tools/ci/linux/ci.sh && ${{ matrix.build.cmd_action }}
         env:
           ETHERNET_INTERFACE: eth0
       - name: Upload coverage to Codecov
-        if: matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}

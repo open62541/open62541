@@ -17,9 +17,12 @@
 #include "../common/timer.h"
 #include "../common/eventloop_common.h"
 #include "../../deps/mp_printf.h"
-#include "../../deps/open62541_queue.h"
 
-#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+#if !defined(__QNX__)
+# include "../deps/open62541_queue.h"
+#endif
+
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
 
 _UA_BEGIN_DECLS
 
@@ -54,6 +57,7 @@ typedef SSIZE_T ssize_t;
 #define UA_IPV6 1
 #define UA_SOCKET SOCKET
 #define UA_INVALID_SOCKET INVALID_SOCKET
+#define UA_RESET_ERRNO do { } while(0)
 #define UA_ERRNO WSAGetLastError()
 #define UA_INTERRUPTED WSAEINTR
 #define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
@@ -104,7 +108,7 @@ typedef SSIZE_T ssize_t;
 
 #endif
 
-#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
+#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) do { \
     char *errno_str = NULL; \
     FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, \
     NULL, WSAGetLastError(), \
@@ -112,7 +116,7 @@ typedef SSIZE_T ssize_t;
     (LPSTR)&errno_str, 0, NULL); \
     LOG; \
     LocalFree(errno_str); \
-}
+} while (0)
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
 
 /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
@@ -201,6 +205,7 @@ typedef int SOCKET;
 #define UA_IPV6 1
 #define UA_SOCKET int
 #define UA_INVALID_SOCKET -1
+#define UA_RESET_ERRNO do { errno = 0; } while(0)
 #define UA_ERRNO errno
 #define UA_INTERRUPTED EINTR
 #define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
@@ -245,9 +250,9 @@ typedef int SOCKET;
 #define UA_clean_errno(STR_FUN) \
     (errno == 0 ? (char*) "None" : (STR_FUN)(errno))
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG) \
-    { char *errno_str = UA_clean_errno(strerror); LOG; errno = 0; }
+    do { char *errno_str = UA_clean_errno(strerror); LOG; errno = 0; } while (0)
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG) \
-    { const char *errno_str = UA_clean_errno(gai_strerror); LOG; errno = 0; }
+    do { const char *errno_str = UA_clean_errno(gai_strerror); LOG; errno = 0; } while (0)
 
 /* epoll_pwait returns bogus data with the tc compiler */
 #if defined(__linux__) && !defined(__TINYC__)
@@ -348,6 +353,11 @@ struct UA_RegisteredFD {
     UA_FD fd;
     short listenEvents; /* UA_FDEVENT_IN | UA_FDEVENT_OUT*/
 
+    /* Information to reopen listen socket */
+    UA_String hostname;
+    UA_UInt16 port;
+    UA_Boolean reuseaddr;
+
     UA_EventSource *es; /* Backpointer to the EventSource */
     UA_FDCallback eventSourceCB;
 };
@@ -355,6 +365,13 @@ struct UA_RegisteredFD {
 enum ZIP_CMP cmpFD(const UA_FD *a, const UA_FD *b);
 typedef ZIP_HEAD(UA_FDTree, UA_RegisteredFD) UA_FDTree;
 ZIP_FUNCTIONS(UA_FDTree, UA_RegisteredFD, zipPointers, UA_FD, fd, cmpFD)
+
+typedef struct UA_DeregisteredListenFD {
+    LIST_ENTRY(UA_DeregisteredListenFD) pointers;
+    UA_RegisteredFD *listenFd;
+} UA_DeregisteredListenFD;
+
+typedef LIST_HEAD(UA_DeregisteredListenFDList, UA_DeregisteredListenFD) UA_DeregisteredListenFDList;
 
 /* All ConnectionManager in the POSIX EventLoop can be cast to
  * UA_ConnectionManagerPOSIX. They carry a sorted tree of their open
@@ -369,6 +386,9 @@ typedef struct {
     /* Sorted tree of the FDs */
     size_t fdsSize;
     UA_FDTree fds;
+
+    /* Closed listening sockets queued for later reopening */
+    UA_DeregisteredListenFDList listenFDs;
 } UA_POSIXConnectionManager;
 
 typedef struct {
@@ -394,6 +414,10 @@ typedef struct {
     /* Flag determining whether the eventloop is currently within the
      * "run" method */
     volatile UA_Boolean executing;
+
+    /* Indicates that the maximum number of sockets has been reached.
+     * All listening sockets will be closed. */
+    UA_Boolean maxSocketsLimitReached;
 
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
     /* Clocks for the eventloop's time domain */

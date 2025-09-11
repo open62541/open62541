@@ -49,11 +49,51 @@ UA_Timer_init(UA_Timer *t) {
     UA_LOCK_INIT(&t->timerMutex);
 }
 
+/* Global variables, only used behind the mutex */
+static UA_DateTime earliest, latest, adjustedNextTime;
+
+static void *
+findTimer2Batch(void *context, UA_TimerEntry *compare) {
+    UA_TimerEntry *te = (UA_TimerEntry*)context;
+
+    /* NextTime deviation within interval? */
+    if(compare->nextTime < earliest || compare->nextTime > latest)
+        return NULL;
+
+    /* Check if one interval is a multiple of the other */
+    if(te->interval < compare->interval && compare->interval % te->interval != 0)
+        return NULL;
+    if(te->interval > compare->interval && te->interval % compare->interval != 0)
+        return NULL;
+
+    adjustedNextTime = compare->nextTime; /* Candidate found */
+
+    /* Abort when a perfect match is found */
+    return (te->interval == compare->interval) ? te : NULL;
+}
+
+/* Adjust the nextTime to batch cyclic callbacks. Look in an interval around the
+ * original nextTime. Deviate from the original nextTime by at most 1/4 of the
+ * interval and at most by 1s. */
+static void
+batchTimerEntry(UA_Timer *t, UA_TimerEntry *te) {
+    if(te->timerPolicy != UA_TIMERPOLICY_CURRENTTIME)
+        return;
+    UA_UInt64 deviate = te->interval / 4;
+    if(deviate > UA_DATETIME_SEC)
+        deviate = UA_DATETIME_SEC;
+    earliest = te->nextTime - deviate;
+    latest = te->nextTime + deviate;
+    adjustedNextTime = te->nextTime;
+    ZIP_ITER(UA_TimerIdTree, &t->idTree, findTimer2Batch, te);
+    te->nextTime = adjustedNextTime;
+}
+
 /* Adding repeated callbacks: Add an entry with the "nextTime" timestamp in the
  * future. This will be picked up in the next iteration and inserted at the
  * correct place. So that the next execution takes place ät "nextTime". */
 UA_StatusCode
-UA_Timer_add(UA_Timer *t, UA_ApplicationCallback callback,
+UA_Timer_add(UA_Timer *t, UA_Callback callback,
              void *application, void *data, UA_Double interval_ms,
              UA_DateTime now, UA_DateTime *baseTime,
              UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId) {
@@ -86,11 +126,14 @@ UA_Timer_add(UA_Timer *t, UA_ApplicationCallback callback,
 
     /* Set the repeated callback */
     te->interval = interval;
-    te->callback = callback;
+    te->cb = callback;
     te->application = application;
     te->data = data;
     te->nextTime = nextTime;
     te->timerPolicy = timerPolicy;
+
+    /* Adjust the nextTime to batch cyclic callbacks */
+    batchTimerEntry(t, te);
 
     /* Insert into the timer */
     UA_LOCK(&t->timerMutex);
@@ -142,6 +185,9 @@ UA_Timer_modify(UA_Timer *t, UA_UInt64 callbackId,
     te->interval = interval;
     te->timerPolicy = timerPolicy;
 
+    /* Adjust the nextTime to batch cyclic callbacks */
+    batchTimerEntry(t, te);
+
     if(processing)
         te->nextTime -= interval; /* adjust for re-adding after processing */
     else
@@ -168,7 +214,7 @@ UA_Timer_remove(UA_Timer *t, UA_UInt64 callbackId) {
         ZIP_REMOVE(UA_TimerIdTree, &t->idTree, te);
         UA_free(te);
     } else {
-        te->callback = NULL;
+        te->cb = NULL;
     }
 
     UA_UNLOCK(&t->timerMutex);
@@ -185,12 +231,12 @@ processEntryCallback(void *context, UA_TimerEntry *te) {
     UA_Timer *t = tpc->t;
 
     /* Execute the callback */
-    if(te->callback) {
-        te->callback(te->application, te->data);
+    if(te->cb) {
+        te->cb(te->application, te->data);
     }
 
     /* Remove the entry if marked for deletion or a "once" policy */
-    if(!te->callback || te->timerPolicy == UA_TIMERPOLICY_ONCE) {
+    if(!te->cb || te->timerPolicy == UA_TIMERPOLICY_ONCE) {
         ZIP_REMOVE(UA_TimerIdTree, &t->idTree, te);
         UA_free(te);
         return NULL;

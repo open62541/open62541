@@ -24,6 +24,15 @@
 const UA_String UA_SECURITY_POLICY_NONE_URI =
     {47, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#None"};
 
+UA_Boolean isEccPolicy(const UA_SecurityPolicy* const p) {
+    if((0 == strncmp("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256", (const char *) p->policyUri.data, strlen("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256")))
+    || (0 == strncmp("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384", (const char *) p->policyUri.data, strlen("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384")))) {
+        return true;
+    }
+
+    return false;
+}
+
 void
 UA_SecureChannel_init(UA_SecureChannel *channel) {
     /* Normal linked lists are initialized by zeroing out */
@@ -291,7 +300,8 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     /* Add padding to the chunk. Also pad if the securityMode is SIGN_ONLY,
      * since we are using asymmetric communication to exchange keys and thus
      * need to encrypt. */
-    if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
+    if((channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
+    && !isEccPolicy(channel->securityPolicy))
         padChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
                  &buf.data[UA_SECURECHANNEL_CHANNELHEADER_LENGTH + securityHeaderLength],
                  &buf_pos);
@@ -603,7 +613,7 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk) {
     UA_CHECK_STATUS(res, return res);
 
     if(asymHeader.senderCertificate.length > 0) {
-        if(channel->certificateVerification)
+        if(channel->certificateVerification && channel->certificateVerification->verifyCertificate)
             res = channel->certificateVerification->
                 verifyCertificate(channel->certificateVerification,
                                   &asymHeader.senderCertificate);

@@ -356,6 +356,15 @@ START_TEST(printSimpleAttributeOperand) {
     UA_SimpleAttributeOperand_clear(&sao2);
 } END_TEST
 
+START_TEST(parseDateTime) {
+    UA_DateTime dt = UA_DATETIME("2025-05-22T16:33:44Z");
+    ck_assert_int_eq(dt, 133924052240000000);
+    dt = UA_DATETIME("2025-05-22T16:33:44+02:00");
+    ck_assert_int_eq(dt, 133923980240000000);
+    dt = UA_DATETIME("2025-05-22T16:33:44-02:00");
+    ck_assert_int_eq(dt, 133924124240000000);
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test Builtin Type Parsing");
     TCase *tc = tcase_create("test cases");
@@ -376,6 +385,7 @@ int main(void) {
     tcase_add_test(tc, parseRelativePathWithServer);
     tcase_add_test(tc, parseSimpleAttributeOperand);
     tcase_add_test(tc, printSimpleAttributeOperand);
+    tcase_add_test(tc, parseDateTime);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

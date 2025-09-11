@@ -70,17 +70,19 @@ checkAdjustArguments(UA_Server *server, UA_Session *session,
                      UA_Variant *args, UA_StatusCode *inputArgumentResults) {
     /* Verify that we have a Variant containing UA_Argument (scalar or array) in
      * the "InputArguments" node */
-    if(argRequirements->valueSource != UA_VALUESOURCE_DATA)
+    if(argRequirements->valueSourceType != UA_VALUESOURCETYPE_INTERNAL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(!argRequirements->value.data.value.hasValue)
+    if(!argRequirements->valueSource.internal.value.hasValue)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(argRequirements->value.data.value.value.type != &UA_TYPES[UA_TYPES_ARGUMENT])
+
+    const UA_Variant *argVal = &argRequirements->valueSource.internal.value.value;
+    if(argVal->type != &UA_TYPES[UA_TYPES_ARGUMENT])
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Verify the number of arguments. A scalar argument value is interpreted as
      * an array of length 1. */
-    size_t argReqsSize = argRequirements->value.data.value.value.arrayLength;
-    if(UA_Variant_isScalar(&argRequirements->value.data.value.value))
+    size_t argReqsSize = argVal->arrayLength;
+    if(UA_Variant_isScalar(argVal))
         argReqsSize = 1;
     if(argReqsSize > argsSize)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
@@ -89,7 +91,7 @@ checkAdjustArguments(UA_Server *server, UA_Session *session,
 
     /* Type-check every argument against the definition */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
+    UA_Argument *argReqs = (UA_Argument*)argVal->data;
     const char *reason;
     for(size_t i = 0; i < argReqsSize; ++i) {
         /* Incompatible value. Try to correct the type if possible. */
@@ -278,7 +280,8 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
          * of one of its subtypes). */
         const UA_Node *objectType = getNodeType(server, &object->head);
         if(objectType) {
-            found = checkMethodReferenceRecursive(server, &objectType->head, hasComponentRefs, &methodId);
+            found = checkMethodReferenceRecursive(server, &objectType->head,
+                                                  hasComponentRefs, &methodId);
             UA_NODESTORE_RELEASE(server, objectType);
         }
     }
@@ -348,11 +351,9 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
             checkAdjustArguments(server, session, inputArguments, request->inputArgumentsSize,
                                  mutableInputArgs, result->inputArgumentResults);
         UA_NODESTORE_RELEASE(server, (const UA_Node*)inputArguments);
-    } else {
-        if(request->inputArgumentsSize > 0) {
-            result->statusCode = UA_STATUSCODE_BADTOOMANYARGUMENTS;
-            return;
-        }
+    } else if(request->inputArgumentsSize > 0) {
+        result->statusCode = UA_STATUSCODE_BADTOOMANYARGUMENTS;
+        return;
     }
 
     /* Return inputArgumentResults only for BADINVALIDARGUMENT */
@@ -371,12 +372,15 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
     const UA_VariableNode *outputArguments =
         getArgumentsVariableNode(server, &method->head, UA_STRING("OutputArguments"));
 
-    /* Allocate the output arguments array */
+    /* Allocate the output arguments array. Always allocate memory, hence the
+     * +1, even if the length is zero. Because we need a unique outputArguments
+     * pointer as the key for async operations. The memory gets deleted in
+     * UA_Array_delete even if the outputArgumentsSize is zero. */
     size_t outputArgsSize = 0;
     if(outputArguments)
-        outputArgsSize = outputArguments->value.data.value.value.arrayLength;
+        outputArgsSize = outputArguments->valueSource.internal.value.value.arrayLength;
     result->outputArguments = (UA_Variant*)
-        UA_Array_new(outputArgsSize, &UA_TYPES[UA_TYPES_VARIANT]);
+        UA_Array_new(outputArgsSize+1, &UA_TYPES[UA_TYPES_VARIANT]);
     if(!result->outputArguments) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -388,127 +392,21 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* Call the method. If this is an async method, unlock the server lock for
      * the duration of the (long-running) call. */
-#if UA_MULTITHREADING >= 100
-    if(method->async)
-        unlockServer(server);
-#endif
     result->statusCode = method->method(server, &session->sessionId, session->context,
                                         &method->head.nodeId, method->head.context,
                                         &object->head.nodeId, object->head.context,
                                         request->inputArgumentsSize, mutableInputArgs,
                                         result->outputArgumentsSize, result->outputArguments);
-#if UA_MULTITHREADING >= 100
-    if(method->async)
-        lockServer(server);
-#endif
 
     /* TODO: Verify Output matches the argument definition */
 }
 
-#if UA_MULTITHREADING >= 100
+UA_Boolean
+Operation_CallMethod(UA_Server *server, UA_Session *session,
+                     const UA_CallMethodRequest *request,
+                     UA_CallMethodResult *result) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
-static void
-Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
-                          UA_UInt32 requestHandle, size_t opIndex,
-                          UA_CallMethodRequest *opRequest, UA_CallMethodResult *opResult,
-                          UA_AsyncResponse **ar) {
-    /* Get the method node. We only need the nodeClass and executable attribute.
-     * Take all forward hasProperty references to get the input/output argument
-     * definition variables. */
-    const UA_Node *method =
-        UA_NODESTORE_GET_SELECTIVE(server, &opRequest->methodId,
-                                   UA_NODEATTRIBUTESMASK_NODECLASS |
-                                   UA_NODEATTRIBUTESMASK_EXECUTABLE,
-                                   UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASPROPERTY),
-                                   UA_BROWSEDIRECTION_FORWARD);
-    if(!method) {
-        opResult->statusCode = UA_STATUSCODE_BADMETHODINVALID;
-        return;
-    }
-
-    /* Get the object node. We only need the NodeClass attribute. But take all
-     * references for now.
-     *
-     * TODO: Which references do we need actually? */
-    const UA_Node *object =
-        UA_NODESTORE_GET_SELECTIVE(server, &opRequest->objectId,
-                                   UA_NODEATTRIBUTESMASK_NODECLASS,
-                                   UA_REFERENCETYPESET_ALL,
-                                   UA_BROWSEDIRECTION_BOTH);
-    if(!object) {
-        opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        UA_NODESTORE_RELEASE(server, method);
-        return;
-    }
-
-    /* Synchronous execution */
-    if(!method->methodNode.async) {
-        callWithMethodAndObject(server, session, opRequest, opResult,
-                                &method->methodNode, &object->objectNode);
-        goto cleanup;
-    }
-
-    /* <-- Async method call --> */
-
-    /* No AsyncResponse allocated so far */
-    if(!*ar) {
-        opResult->statusCode =
-            UA_AsyncManager_createAsyncResponse(&server->asyncManager, server,
-                            &session->sessionId, requestId, requestHandle,
-                            UA_ASYNCOPERATIONTYPE_CALL, ar);
-        if(opResult->statusCode != UA_STATUSCODE_GOOD)
-            goto cleanup;
-    }
-
-    /* Create the Async Request to be taken by workers */
-    opResult->statusCode =
-        UA_AsyncManager_createAsyncOp(&server->asyncManager,
-                                      server, *ar, opIndex, opRequest);
-
- cleanup:
-    /* Release the method and object node */
-    UA_NODESTORE_RELEASE(server, method);
-    UA_NODESTORE_RELEASE(server, object);
-}
-
-void
-Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
-                  const UA_CallRequest *request, UA_CallResponse *response,
-                  UA_Boolean *finished) {
-    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing CallRequestAsync");
-    if(server->config.maxNodesPerMethodCall != 0 &&
-        request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
-    }
-
-    UA_AsyncResponse *ar = NULL;
-    response->responseHeader.serviceResult =
-        UA_Server_processServiceOperationsAsync(server, session, requestId,
-                  request->requestHeader.requestHandle,
-                  (UA_AsyncServiceOperation)Operation_CallMethodAsync,
-                  &request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT], &ar);
-
-    if(ar) {
-        if(ar->opCountdown > 0) {
-            /* Move all results to the AsyncResponse. The async operation
-             * results will be overwritten when the workers return results. */
-            ar->response.callResponse = *response;
-            UA_CallResponse_init(response);
-            *finished = false;
-        } else {
-            /* If there is a new AsyncResponse, ensure it has at least one
-             * pending operation */
-            UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
-        }
-    }
-}
-#endif
-
-static void
-Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
-                     const UA_CallMethodRequest *request, UA_CallMethodResult *result) {
     /* Get the method node. We only need the nodeClass and executable attribute.
      * Take all forward hasProperty references to get the input/output argument
      * definition variables. */
@@ -520,7 +418,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
                                    UA_BROWSEDIRECTION_FORWARD);
     if(!method) {
         result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
-        return;
+        return true;
     }
 
     /* Get the object node. We only need the NodeClass attribute. But take all
@@ -535,7 +433,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
     if(!object) {
         result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
         UA_NODESTORE_RELEASE(server, method);
-        return;
+        return true;
     }
 
     /* Continue with method and object as context */
@@ -545,24 +443,8 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
     /* Release the method and object node */
     UA_NODESTORE_RELEASE(server, method);
     UA_NODESTORE_RELEASE(server, object);
-}
 
-void Service_Call(UA_Server *server, UA_Session *session,
-                  const UA_CallRequest *request, UA_CallResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing CallRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    if(server->config.maxNodesPerMethodCall != 0 &&
-       request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return;
-    }
-
-    response->responseHeader.serviceResult =
-        UA_Server_processServiceOperations(server, session,
-                  (UA_ServiceOperation)Operation_CallMethod, NULL,
-                  &request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
-                  &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT]);
+    return (result->statusCode != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 }
 
 UA_CallMethodResult
@@ -570,7 +452,13 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     lockServer(server);
-    Operation_CallMethod(server, &server->adminSession, NULL, request, &result);
+    Operation_CallMethod(server, &server->adminSession, request, &result);
+    /* Cancel asynchronous responses right away */
+    if(result.statusCode == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
+        if(server->config.asyncOperationCancelCallback)
+            server->config.asyncOperationCancelCallback(server, result.outputArguments);
+        result.statusCode = UA_STATUSCODE_BADWAITINGFORRESPONSE;
+    }
     unlockServer(server);
     return result;
 }

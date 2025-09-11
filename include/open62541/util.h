@@ -13,6 +13,10 @@
 
 _UA_BEGIN_DECLS
 
+/* Forward Declarations */
+struct UA_Server;
+typedef struct UA_Server UA_Server;
+
 /**
  * .. _utility:
  *
@@ -44,6 +48,7 @@ typedef struct {
  */
 #ifdef UA_ENABLE_PARSING
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+#ifdef UA_ENABLE_JSON_ENCODING
 
 typedef struct {
     const UA_Logger *logger;
@@ -53,6 +58,7 @@ UA_EXPORT UA_StatusCode
 UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
                      UA_EventFilterParserOptions *options);
 
+#endif
 #endif
 #endif
 
@@ -357,12 +363,12 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
                                 const UA_String str);
+#endif
 
 /* The out-string can be pre-allocated. Then the size is adjusted or an error
  * returned. If the out-string is NULL, then memory is allocated for it. */
 UA_EXPORT UA_StatusCode
 UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
-#endif
 
 /**
  * .. _parse-sao:
@@ -428,6 +434,7 @@ UA_AttributeOperand_parse(UA_AttributeOperand *ao,
 UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
                                 const UA_String str);
+#endif
 
 /* The out-string can be pre-allocated. Then the size is adjusted or an error
  * returned. If the out-string is NULL, then memory is allocated for it. */
@@ -442,7 +449,6 @@ UA_AttributeOperand_print(const UA_AttributeOperand *ao,
 UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
                                 UA_String *out);
-#endif
 
 /**
  * Convenience macros for complex types

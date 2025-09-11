@@ -22,8 +22,6 @@
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_AVAHI
 
-#include "../deps/mp_printf.h"
-
 typedef struct serverOnNetwork {
     LIST_ENTRY(serverOnNetwork) pointers;
     UA_ServerOnNetwork serverOnNetwork;
@@ -65,11 +63,11 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
                                                struct serverOnNetwork **addedEntry);
 
 static void
-UA_Discovery_multicastConflict(char *name, UA_DiscoveryManager *dm) {
+UA_Discovery_multicastConflict(UA_String name, UA_DiscoveryManager *dm) {
     /* In case logging is disabled */
     (void)name;
     UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                 "Multicast DNS name conflict detected: '%s'", name);
+                 "Multicast DNS name conflict detected: '%S'", name);
 }
 
 static struct serverOnNetwork *
@@ -84,8 +82,7 @@ mdns_record_add_or_get(UA_DiscoveryManager *dm, UA_String serverName,
         if(maxLen > hash_entry->entry->serverOnNetwork.serverName.length)
             maxLen = hash_entry->entry->serverOnNetwork.serverName.length;
 
-        if(strncmp((char*)hash_entry->entry->serverOnNetwork.serverName.data,
-                   (char*)serverName.data, maxLen) == 0)
+        if(UA_String_equal(&hash_entry->entry->serverOnNetwork.serverName, &serverName))
             return hash_entry->entry;
         hash_entry = hash_entry->next;
     }
@@ -199,9 +196,7 @@ entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
                              "Entry group collision for unknown group.");
                 break;
             }
-            char *name = strndup((const char *)current->serverOnNetwork.serverName.data,
-                                 current->serverOnNetwork.serverName.length);
-            UA_Discovery_multicastConflict(name, dm);
+            UA_Discovery_multicastConflict(current->serverOnNetwork.serverName, dm);
             break;
         }
         case AVAHI_ENTRY_GROUP_FAILURE:
@@ -419,10 +414,6 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName
     return UA_STATUSCODE_GOOD;
 }
 
-#ifndef IN_ZERONET
-#define IN_ZERONET(addr) ((addr & IN_CLASSA_NET) == 0)
-#endif
-
 /* Callback when the client state changes */
 static
 void client_callback(AvahiClient *c, AvahiClientState state, void *userdata) {
@@ -453,29 +444,25 @@ resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIndex interfac
 
         case AVAHI_RESOLVER_FOUND: {
             char a[AVAHI_ADDRESS_STR_MAX];
-            int discoveryLength = 0;
-            char *path = NULL;
-            UA_String serverName = UA_String_fromChars(name);
             avahi_address_snprint(a, sizeof(a), address);
 
             /* Ignore own name */
-            if(UA_String_equal(&mdnsPrivateData.selfMdnsRecord, &serverName)) {
-                UA_String_clear(&serverName);
+            UA_String serverName = UA_STRING((char*)(uintptr_t)name);
+            if(UA_String_equal(&mdnsPrivateData.selfMdnsRecord, &serverName))
+                return;
+
+            struct serverOnNetwork *listEntry;
+            UA_StatusCode res =
+                UA_DiscoveryManager_addEntryToServersOnNetwork(dm, serverName, &listEntry);
+            if(res == UA_STATUSCODE_BADALREADYEXISTS) {
+                UA_LOG_DEBUG(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                             "Server already in ServersOnNetwork: %s", name);
                 return;
             }
-            struct serverOnNetwork *listEntry;
-            UA_StatusCode res = UA_DiscoveryManager_addEntryToServersOnNetwork(
-                dm, serverName, &listEntry);
-            if(res != UA_STATUSCODE_GOOD && res != UA_STATUSCODE_BADALREADYEXISTS) {
+            if(res != UA_STATUSCODE_GOOD) {
                 UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                              "Failed to add server to ServersOnNetwork: %s",
                              UA_StatusCode_name(res));
-                UA_String_clear(&serverName);
-                return;
-            } else if(res == UA_STATUSCODE_BADALREADYEXISTS) {
-                UA_LOG_DEBUG(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                             "Server already in ServersOnNetwork: %s", name);
-                UA_String_clear(&serverName);
                 return;
             }
 
@@ -484,58 +471,37 @@ resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIndex interfac
 
             UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                         "  %s:%u (%s)", host_name, port, a);
+
             /* Add discoveryUrl opc.tcp://[servername]:[port][path] */
-            discoveryLength = strlen("opc.tcp://") + strlen(host_name) + 5 + 1;
-            int listSize = avahi_string_list_length(txt);
-            for(int i = 0; i < listSize; i++) {
+            UA_String path = UA_STRING_NULL;
+            for(; txt; txt = avahi_string_list_get_next(txt)) {
                 char *value = NULL;
                 char *key = NULL;
                 if(avahi_string_list_get_pair(txt, &key, &value, NULL) < 0)
-                    continue;
-                /* Add path if the is more then just a single slash */
-                if(strcmp(key, "path") == 0) {
-                    /* Add path to discovery URL */
-                    discoveryLength += strlen(value);
-                    path = (char *)UA_malloc(strlen(value) + 1);
-                    if(!path) {
-                        UA_LOG_ERROR(dm->sc.server->config.logging,
-                                     UA_LOGCATEGORY_DISCOVERY,
-                                     "Failed to allocate memory for path");
-                        UA_String_clear(&serverName);
-                        return;
-                    }
-                    if(strlen(value) > 1) {
-                        sprintf(path, "%s", value);
-                    } else { /* Ignore empty path */
-                        path[0] = '\0';
-                    }
-                }
+                    break;
 
-                UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                            "  %s = %s", key, value);
+                /* Add path if it is more then just a single slash */
+                if(strcmp(key, "path") == 0 && strlen(value) > 1)
+                    path = UA_STRING_ALLOC(value);
+
                 avahi_free(key);
                 avahi_free(value);
-                txt = avahi_string_list_get_next(txt);
+                if(path.length > 0)
+                    break;
             }
 
-            listEntry->lastSeen = dm->sc.server->config.eventLoop->dateTime_nowMonotonic(
-                dm->sc.server->config.eventLoop);
-            listEntry->serverOnNetwork.discoveryUrl.length = discoveryLength;
-            listEntry->serverOnNetwork.discoveryUrl.data =
-                (UA_Byte *)UA_malloc(discoveryLength);
-            if(!listEntry->serverOnNetwork.discoveryUrl.data) {
-                UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                             "Failed to allocate memory for discoveryUrl");
-                UA_free(path);
-                UA_String_clear(&serverName);
-                return;
-            }
-            sprintf((char *)listEntry->serverOnNetwork.discoveryUrl.data,
-                    "opc.tcp://%s:%u%s", host_name, port, path);
-            UA_free(path);
-            UA_String_clear(&serverName);
+            UA_String_clear(&listEntry->serverOnNetwork.discoveryUrl);
+            UA_String_format(&listEntry->serverOnNetwork.discoveryUrl,
+                             "opc.tcp://%s:%u%S", host_name, port, path);
+            UA_String_clear(&path);
+
+            listEntry->lastSeen =
+                dm->sc.server->config.eventLoop->
+                dateTime_nowMonotonic(dm->sc.server->config.eventLoop);
+
             break;
         }
+
         default:
             UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                         "Invalid avahi resolver event %d", event);
@@ -746,10 +712,11 @@ UA_DiscoveryManager_mdnsCyclicTimer(UA_Server *server, void *data) {
 
 /* Create a service domain with the format [servername]-[hostname]._opcua-tcp._tcp.local. */
 static void
-createServiceDomain(char *outServiceDomain, size_t maxLen,
-                        UA_String servername, UA_String hostname) {
-
+createServiceDomain(UA_String *outServiceDomain,
+                    UA_String servername,
+                    UA_String hostname) {
     /* Can we use hostname and servername with full length? */
+    size_t maxLen = outServiceDomain->length - 1;
     if(hostname.length + servername.length + 1 > maxLen) {
         if(servername.length + 2 > maxLen) {
             servername.length = maxLen;
@@ -761,25 +728,25 @@ createServiceDomain(char *outServiceDomain, size_t maxLen,
 
     size_t offset = 0;
     if(hostname.length > 0) {
-        mp_snprintf(outServiceDomain, maxLen + 1, "%S-%S", servername, hostname);
+        UA_String_format(outServiceDomain, "%S-%S", servername, hostname);
         offset = servername.length + hostname.length + 1;
-        //replace all dots with minus. Otherwise mDNS is not valid
+        /* Replace all dots with minus. Otherwise mDNS is not valid */
         for(size_t i = servername.length+1; i < offset; i++) {
-            if(outServiceDomain[i] == '.')
-                outServiceDomain[i] = '-';
+            if(outServiceDomain->data[i] == '.')
+                outServiceDomain->data[i] = '-';
         }
     } else {
-        mp_snprintf(outServiceDomain, maxLen + 1, "%S", servername);
+        *outServiceDomain = servername;
     }
 }
 
 /* Check if mDNS already has an entry for given hostname and port combination */
 static UA_Boolean
-UA_Discovery_recordExists(UA_DiscoveryManager *dm, const char* serviceDomain,
+UA_Discovery_recordExists(UA_DiscoveryManager *dm, UA_String serviceDomain,
                           unsigned short port, const UA_DiscoveryProtocol protocol) {
     struct serverOnNetwork *current;
     LIST_FOREACH(current, &mdnsPrivateData.serverOnNetwork, pointers) {
-        if(strcmp((char*)current->serverOnNetwork.serverName.data, serviceDomain) == 0)
+        if(UA_String_equal(&current->serverOnNetwork.serverName, &serviceDomain) == 0)
             return true;
     }
     return false;
@@ -787,30 +754,33 @@ UA_Discovery_recordExists(UA_DiscoveryManager *dm, const char* serviceDomain,
 
 static UA_StatusCode
 handle_path(AvahiStringList **txt, const UA_String path) {
-    if (!path.data || path.length == 0) {
+    if(!path.data || path.length == 0) {
         *txt = avahi_string_list_add(*txt, "path=/");
-    } else {
-        char *allocPath = NULL;
-        if (path.data[0] == '/') {
-            allocPath = avahi_strdup((const char*) path.data);
-        } else {
-            size_t pLen = path.length + 2;
-            allocPath = (char *) avahi_malloc(pLen);
-            if(!allocPath)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            snprintf(allocPath, pLen, "/%s", path.data);
-        }
-        size_t pathLen = strlen("path=") + strlen(allocPath) + 1;
-        char *path_kv = (char *) avahi_malloc(pathLen);
-        if(!path_kv) {
-            avahi_free(allocPath);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-        snprintf(path_kv, pathLen, "path=%s", allocPath);
-        *txt = avahi_string_list_add(*txt, path_kv);
-        avahi_free(allocPath);
-        avahi_free(path_kv);
+        return UA_STATUSCODE_GOOD;
     }
+
+    char *allocPath = NULL;
+    if (path.data[0] == '/') {
+        allocPath = avahi_strdup((const char*) path.data);
+    } else {
+        size_t pLen = path.length + 2;
+        allocPath = (char *) avahi_malloc(pLen);
+        if(!allocPath)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        snprintf(allocPath, pLen, "/%s", path.data);
+    }
+    size_t pathLen = strlen("path=") + strlen(allocPath) + 1;
+    char *path_kv = (char *) avahi_malloc(pathLen);
+    if(!path_kv) {
+        avahi_free(allocPath);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    snprintf(path_kv, pathLen, "path=%s", allocPath);
+    *txt = avahi_string_list_add(*txt, path_kv);
+    avahi_free(allocPath);
+    avahi_free(path_kv);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -881,32 +851,29 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     }
 
     /* [servername]-[hostname] */
-    char serviceDomain[63];
-    createServiceDomain(serviceDomain, 63, servername, hostname);
+    UA_Byte serviceDomainBuf[64];
+    UA_String serviceDomain = {64, serviceDomainBuf};
+    createServiceDomain(&serviceDomain, servername, hostname);
 
-    UA_Boolean exists = UA_Discovery_recordExists(dm, serviceDomain,
-                                                  port, protocol);
+    UA_Boolean exists = UA_Discovery_recordExists(dm, serviceDomain, port, protocol);
     if(exists == true)
         return UA_STATUSCODE_GOOD;
 
     UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                "Multicast DNS: add record for domain: %s", serviceDomain);
+                "Multicast DNS: add record for domain: %S", serviceDomain);
 
-    UA_String serverName = UA_String_fromChars(serviceDomain);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(isSelf && mdnsPrivateData.selfMdnsRecord.length == 0) {
-        mdnsPrivateData.selfMdnsRecord = serverName;
-        if(!mdnsPrivateData.selfMdnsRecord.data)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
+        retval = UA_String_copy(&serviceDomain, &mdnsPrivateData.selfMdnsRecord);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
     }
 
-
-    struct serverOnNetwork *listEntry;
     /* The servername is servername + hostname. It is the same which we get
      * through mDNS and therefore we need to match servername */
-    UA_StatusCode retval =
-        UA_DiscoveryManager_addEntryToServersOnNetwork(dm, serverName, &listEntry);
-    if(retval != UA_STATUSCODE_GOOD &&
-       retval != UA_STATUSCODE_BADALREADYEXISTS)
+    struct serverOnNetwork *listEntry;
+    retval = UA_DiscoveryManager_addEntryToServersOnNetwork(dm, serviceDomain, &listEntry);
+    if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADALREADYEXISTS)
         return retval;
 
     /* If entry is already in list, skip initialization of capabilities and txt+srv */
@@ -936,15 +903,13 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
 
         listEntry->txtSet = true;
 
-        const size_t newUrlSize = strlen("opc.tcp://") + hostname.length + strlen(".local") + strlen(":port") + path.length + 1;
-        UA_STACKARRAY(char, newUrl, newUrlSize);
-        memset(newUrl, 0, newUrlSize);
         if(path.length > 0) {
-            mp_snprintf(newUrl, newUrlSize, "opc.tcp://%S.local:%d/%S", hostname, port, path);
+            UA_String_format(&listEntry->serverOnNetwork.discoveryUrl,
+                             "opc.tcp://%S.local:%d/%S", hostname, port, path);
         } else {
-            mp_snprintf(newUrl, newUrlSize, "opc.tcp://%S.local:%d", hostname, port);
+            UA_String_format(&listEntry->serverOnNetwork.discoveryUrl,
+                             "opc.tcp://%S.local:%d", hostname, port);
         }
-        listEntry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
         listEntry->srvSet = true;
     }
 
@@ -953,11 +918,11 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     /* Handle 'path' */
     if(handle_path(&txt, path) != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                     "Failed to add TXT record for %S", serverName);
+                     "Failed to add TXT record for %S", serviceDomain);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     /* Handle 'caps' */
-    if (capabilitiesSize > 0) {
+    if(capabilitiesSize > 0) {
         if(handle_capabilities(&txt, capabilites, capabilitiesSize) != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                          "Failed to add TXT record for %s", serviceDomain);
@@ -979,12 +944,13 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     memcpy(hostnameStr + hostname.length, ".local", strlen(".local"));
     hostnameStr[hostnameLen] = '\0';
 
-    /*Add the service with TXT records using default host and domain */
-    int ret;
-    if((ret = avahi_entry_group_add_service_strlst(
-            listEntry->group, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC,
-            AVAHI_PUBLISH_USE_MULTICAST, serviceDomain, "_opcua-tcp._tcp", NULL, hostnameStr,
-            port, txt)) < 0) {
+    /* Add the service with TXT records using default host and domain */
+    int ret = avahi_entry_group_add_service_strlst(listEntry->group, AVAHI_IF_UNSPEC,
+                                                   AVAHI_PROTO_UNSPEC,
+                                                   AVAHI_PUBLISH_USE_MULTICAST,
+                                                   (char*)serviceDomainBuf, "_opcua-tcp._tcp",
+                                                   NULL, hostnameStr, port, txt);
+    if(ret < 0) {
         if(ret == AVAHI_ERR_COLLISION) {
             UA_Discovery_multicastConflict(serviceDomain, dm);
         } else {
@@ -998,9 +964,9 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     }
     avahi_free(hostnameStr);
 
-    if (avahi_entry_group_commit(listEntry->group) < 0) {
+    if(avahi_entry_group_commit(listEntry->group) < 0) {
         UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                        "Failed to commit entry group for %s", serviceDomain);
+                     "Failed to commit entry group for %s", serviceDomain);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1027,17 +993,14 @@ UA_Discovery_removeRecord(UA_DiscoveryManager *dm, const UA_String servername,
     }
 
     /* [servername]-[hostname] */
-    char serviceDomain[63];
-    createServiceDomain(serviceDomain, 63, servername, hostname);
+    UA_Byte serviceDomainBuf[64];
+    UA_String serviceDomain = {64, serviceDomainBuf};
+    createServiceDomain(&serviceDomain, servername, hostname);
 
     UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                "Multicast DNS: remove record for domain: %s",
-                serviceDomain);
+                "Multicast DNS: remove record for domain: %S", serviceDomain);
 
-    UA_String serverName = UA_String_fromChars(serviceDomain);
-    UA_StatusCode retval =
-        UA_DiscoveryManager_removeEntryFromServersOnNetwork(dm, serverName);
-    return retval;
+    return UA_DiscoveryManager_removeEntryFromServersOnNetwork(dm, serviceDomain);
 }
 
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */

@@ -26,8 +26,6 @@
 #define SET_OID(x, oid) \
     do { x.len = MBEDTLS_OID_SIZE(oid); x.p = (unsigned char *) oid; } while (0)
 
-#define AF_INET         2
-
 typedef struct mbedtls_write_san_node{
     int type;
     char* host;
@@ -176,7 +174,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         /* split into SAN type and value */
         sanType = strtok(subAlt, ":");
         sanValue = (char *)subjectAltName[i].data + strlen(sanType) + 1;
-        sanValueLength = strlen(sanValue);
+        sanValueLength = subjectAltName[i].length - strlen(sanType) - 1;
 
         if(sanType) {
             cur_tmp = (mbedtls_write_san_list*)mbedtls_calloc(1, sizeof(mbedtls_write_san_list));

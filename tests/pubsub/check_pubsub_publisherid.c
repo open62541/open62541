@@ -168,7 +168,6 @@ AddDataSetReader(UA_NodeId *pReaderGroupId, char *pName,
     readerConfig.messageSettings.content.decoded.data = dsReaderMessage;
     if (UseRawEncoding) {
         readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
-        readerConfig.expectedEncoding = UA_PUBSUB_RT_RAW;
     } else {
         readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_NONE;
     }
@@ -1263,7 +1262,8 @@ START_TEST(Test_string_publisherId_file_config) {
     UA_PubSubConfigurationDataType_clear(&config);
 }
     /* load and apply config from ByteString buffer */
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_loadPubSubConfigFromByteString(server, encodedConfigDataBuffer));
+   UA_Server_disableAllPubSubComponents(server);
+   ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_loadPubSubConfigFromByteString(server, encodedConfigDataBuffer));
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableAllPubSubComponents(server));
 

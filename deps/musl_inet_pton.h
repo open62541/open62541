@@ -28,6 +28,15 @@
 #define MUSL_INET_PTON_H
 
 #include <open62541/types.h>
+#include <open62541/config.h>
+
+#if defined(UA_ARCHITECTURE_WIN32)
+#include <winsock2.h>     /* AF_INET */
+#elif defined(UA_ARCHITECTURE_LWIP)
+#include <lwip/sockets.h> /* AF_INET */
+#else
+#include <sys/socket.h>   /* AF_INET */
+#endif
 
 int musl_inet_pton(int af, const char * UA_RESTRICT s, void * UA_RESTRICT a0);
 

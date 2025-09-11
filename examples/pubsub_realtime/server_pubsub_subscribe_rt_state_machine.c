@@ -40,15 +40,15 @@ static UA_String transportProfile =
  * the buffered NetworkMessage will only be updated.
  */
 
-UA_NodeId connectionIdentifier;
-UA_NodeId readerGroupIdentifier;
-UA_NodeId readerIdentifier;
+static UA_NodeId connectionIdentifier;
+static UA_NodeId readerGroupIdentifier;
+static UA_NodeId readerIdentifier;
 
-UA_Server *server;
-pthread_t listenThread;
-int listenSocket;
+static UA_Server *server;
+static pthread_t listenThread;
+static int listenSocket;
 
-UA_DataSetReaderConfig readerConfig;
+static UA_DataSetReaderConfig readerConfig;
 
 static void *
 listenUDP(void *_) {
@@ -145,7 +145,7 @@ listenUDP(void *_) {
     pfd.events = POLLIN;
     while(true) {
         result = poll(&pfd, 1, -1); /* infinite timeout */
-        if(pfd.revents & POLLERR || pfd.revents & POLLHUP || pfd.revents & POLLNVAL)
+        if(result < 0 || pfd.revents & POLLERR || pfd.revents & POLLHUP || pfd.revents & POLLNVAL)
             break;
 
         if(pfd.revents & POLLIN) {
@@ -304,7 +304,6 @@ addDataSetReader(UA_Server *server) {
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-    readerConfig.expectedEncoding = UA_PUBSUB_RT_RAW;
     readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_RAWDATA;
 
     UA_UadpDataSetReaderMessageDataType *dataSetReaderMessage =

@@ -15,6 +15,7 @@
 
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "certificates.h"
 #include "check.h"
 #include "thread_wrapper.h"
@@ -74,7 +75,7 @@ static void setup1(void) {
     revocationList[0] = rootCaCrl;
     revocationList[1] = intermediateCaCrl;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
@@ -136,7 +137,7 @@ static void setup2(void) {
     revocationList[0] = rootCaCrl;
     revocationList[1] = intermediateCaCrl;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
@@ -198,7 +199,7 @@ static void setup3(void) {
     revocationList[0] = rootCaCrl;
     revocationList[1] = intermediateCaCrl;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
@@ -241,12 +242,11 @@ START_TEST(encryption_connect_valid) {
     size_t revocationListSize = 0;
 
     /* Secure client initialization */
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
-    cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
@@ -286,12 +286,11 @@ START_TEST(encryption_connect_revoked) {
     size_t revocationListSize = 0;
 
     /* Secure client initialization */
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
-    cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");

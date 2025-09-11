@@ -1057,6 +1057,20 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
 
 static const UA_NodeId eventQueueOverflowEventType =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE}};
+static const UA_NodeId baseEventType =
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEEVENTTYPE}};
+
+#define OVERFLOWPROPERTIES_COUNT 8
+static UA_QualifiedName overflowPropertyPaths[OVERFLOWPROPERTIES_COUNT] = {
+    {0, UA_STRING_STATIC("EventId")},
+    {0, UA_STRING_STATIC("EventType")},
+    {0, UA_STRING_STATIC("SourceNode")},
+    {0, UA_STRING_STATIC("SourceName")},
+    {0, UA_STRING_STATIC("Time")},
+    {0, UA_STRING_STATIC("ReceiveTime")},
+    {0, UA_STRING_STATIC("Message")},
+    {0, UA_STRING_STATIC("Severity")},
+};
 
 /* The specification states in Part 4 5.12.1.5 that an EventQueueOverflowEvent
  * "is generated when the first Event has to be discarded [...] without
@@ -1084,26 +1098,81 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
     /* A Notification is inserted into the queue which includes only the
      * NodeId of the OverflowEventType. */
 
-    /* Prepare the EventFields first. So we are sure to succeed when the
-     * Notification was allocated. */
+    /* Get the EventFilter */
+    if(mon->parameters.filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
+        return UA_STATUSCODE_BADINTERNALERROR;
+    const UA_EventFilter *ef = (const UA_EventFilter*)
+        mon->parameters.filter.content.decoded.data;
+    if(ef->selectClausesSize == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Allocate the EventFields */
     UA_EventFieldList efl;
     efl.clientHandle = mon->parameters.clientHandle;
-    efl.eventFields = UA_Variant_new();
+    efl.eventFields = (UA_Variant*)UA_calloc(ef->selectClausesSize, sizeof(UA_Variant));
     if(!efl.eventFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_StatusCode ret =
-        UA_Variant_setScalarCopy(efl.eventFields, &eventQueueOverflowEventType,
-                                 &UA_TYPES[UA_TYPES_NODEID]);
-    if(ret != UA_STATUSCODE_GOOD) {
-        UA_Variant_delete(efl.eventFields);
-        return ret;
+    efl.eventFieldsSize = ef->selectClausesSize;
+
+    /* Populate the EventFields */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < ef->selectClausesSize; i++) {
+        UA_Variant *value = &efl.eventFields[i];
+        UA_SimpleAttributeOperand *sao = &ef->selectClauses[i];
+        /* Check if this can be a property of the OverflowEventType */
+        if(!UA_NodeId_equal(&sao->typeDefinitionId, &baseEventType))
+            continue;
+        if(sao->attributeId != UA_ATTRIBUTEID_VALUE)
+            continue;
+        if(sao->browsePathSize != 1)
+            continue;
+
+        /* Find the exact property and set the value  */
+        if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[0])) {
+            /* EventId */
+            UA_ByteString eventid = UA_BYTESTRING_NULL;
+            res |= generateEventId(&eventid);
+            res |= UA_Variant_setScalarCopy(value, &eventid, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            UA_ByteString_clear(&eventid);
+        } else if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[1])) {
+            /* EventType */
+            res |= UA_Variant_setScalarCopy(value, &eventQueueOverflowEventType,
+                                            &UA_TYPES[UA_TYPES_NODEID]);
+        } else if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[2])) {
+            /* SourceNode */
+            UA_NodeId serverId = UA_NS0ID(SERVER);
+            res |= UA_Variant_setScalarCopy(value, &serverId, &UA_TYPES[UA_TYPES_NODEID]);
+        } else if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[3])) {
+            /* SourceName */
+            UA_String sourceName = UA_STRING("Internal/EventQueueOverflow");
+            res |= UA_Variant_setScalarCopy(value, &sourceName, &UA_TYPES[UA_TYPES_STRING]);
+        } else if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[4]) ||
+                  UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[5])) {
+            /* Time / ReceiveTime */
+            UA_EventLoop *el = server->config.eventLoop;
+            UA_DateTime rcvTime = el->dateTime_now(el);
+            UA_Variant_setScalar(value, &rcvTime, &UA_TYPES[UA_TYPES_DATETIME]);
+        } else if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[6])) {
+            /* Message */
+            UA_LocalizedText message;
+            UA_LocalizedText_init(&message);
+            res |= UA_Variant_setScalarCopy(value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+        } else if(UA_QualifiedName_equal(sao->browsePath, &overflowPropertyPaths[7])) {
+            /* Severity */
+            UA_UInt16 severity = 201;
+            res |= UA_Variant_setScalarCopy(value, &severity, &UA_TYPES[UA_TYPES_UINT16]);
+        }
+
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_EventFieldList_clear(&efl);
+            return res;
+        }
     }
-    efl.eventFieldsSize = 1;
 
     /* Allocate the notification */
     UA_Notification *overflowNotification = UA_Notification_new();
     if(!overflowNotification) {
-        UA_Variant_delete(efl.eventFields);
+        UA_EventFieldList_clear(&efl);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -1392,6 +1461,13 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     /* Deregister in Server and Subscription */
     if(mon->registered)
         UA_Server_unregisterMonitoredItem(server, mon);
+
+    /* Cancel outstanding async reads. The status code avoids the sample being
+     * processed. Call _processReady to ensure that the callbacks have been
+     * triggered. */
+    if(mon->outstandingAsyncReads > 0)
+        async_cancel(server, mon, UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST, true);
+    UA_assert(mon->outstandingAsyncReads == 0);
 
     /* Remove the TriggeringLinks */
     if(mon->triggeringLinksSize > 0) {

@@ -162,10 +162,12 @@ struct UA_EventLoop {
     /* Timer Callbacks
      * ~~~~~~~~~~~~~~~
      * Timer callbacks are executed at a defined time or regularly with a
-     * periodic interval. */
+     * periodic interval. The timer subsystem always uses the
+     * monotonic clock. */
 
     /* Time of the next timer. Returns the UA_DATETIME_MAX if no timer is
-     * registered. */
+     * registered. Returns the current monotonic time if a delayed
+     * callback is registered for immediate execution. */
     UA_DateTime (*nextTimer)(UA_EventLoop *el);
 
     /* The execution interval is in ms. The first execution time is baseTime +
@@ -451,10 +453,10 @@ struct UA_InterruptManager {
     (*deregisterInterrupt)(UA_InterruptManager *im, uintptr_t interruptHandle);
 };
 
-#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+#if (defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)) || defined(UA_ARCHITECTURE_WIN32)
 
 /**
- * POSIX EventLop Implementation
+ * POSIX EventLoop Implementation
  * -----------------------------
  * The POSIX compatibility of Win32 is 'close enough'. So a joint implementation
  * is provided. The configuration paramaters must be set before starting the
@@ -493,6 +495,10 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  * the first callback are different between server and client connections.
  *
  * **Configuration parameters for the ConnectionManager (set before start)**
+ *
+ * 0:max-connections [uint32]
+ *    max connections (default: 0 -> unbounded).
+ *    The server sockets get deactivated if the limit is reached.
  *
  * 0:recv-bufsize [uint32]
  *    Size of the buffer that is statically allocated for receiving messages
@@ -772,6 +778,202 @@ UA_EventLoop_new_Zephyr(const UA_Logger *logger);
 
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_Zephyr_TCP(const UA_String eventSourceName);
+
+#elif defined(UA_ARCHITECTURE_LWIP)
+
+struct UA_EventLoopConfiguration;
+typedef struct UA_EventLoopConfiguration UA_EventLoopConfiguration;
+
+/**
+ * Event Loop Configuration
+ * ------------------------
+ * Defines the configuration parameters and optional callback functions for managing
+ * the network interface within the EventLoop.
+ *
+ * The functions for initializing, polling, and shutting down the network interface
+ * are optional. If they are not provided, the initialization and management of the
+ * network interface must be handled externally.
+ *
+ * ** Configuration Parameters for the EventLoop**
+ *
+ * 0:ipaddr [string]
+ *    IPv4 address of the network interface (optional).
+ *
+ * 0:netmask [string]
+ *    Netmask of the network interface (optional).
+ *
+ * 0:gateway [string]
+ *    Gateway of the network interface (optional).
+ */
+
+struct UA_EventLoopConfiguration {
+ UA_KeyValueMap params;
+
+ UA_StatusCode (*netifInit)(UA_EventLoop *el, const UA_String *ipaddr,
+                            const UA_String *netmask, const UA_String *gw);
+ UA_StatusCode (*netifPoll)(UA_EventLoop *el);
+ void (*netifShutdown)(UA_EventLoop *el);
+};
+
+/**
+ * LWIP EventLoop Implementation
+ * -----------------------------
+ * This EventLoop is built on LWIP's socket-like API.
+ * The configuration paramaters must be set before starting the EventLoop.
+ *
+ * **Clock configuration (Linux and BSDs only)**
+ *
+ * 0:clock-source [int32]
+ *    Clock source (default: CLOCK_REALTIME).
+ *
+ * 0:clock-source-monotonic [int32]:
+ *   Clock source used for time intervals. A non-monotonic source can be used as
+ *   well. But expect accordingly longer sleep-times for timed events when the
+ *   clock is set to the past. See the man-page of "clock_gettime" on how to get
+ *   a clock source id for a character-device such as /dev/ptp0. (default:
+ *   CLOCK_MONOTONIC_RAW) */
+
+UA_EXPORT UA_EventLoop *
+UA_EventLoop_new_LWIP(const UA_Logger *logger, UA_EventLoopConfiguration *config);
+
+/**
+ * TCP Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~
+ * Listens on the network and manages TCP connections. This should be available
+ * for all architectures.
+ *
+ * The `openConnection` callback is used to create both client and server
+ * sockets. A server socket listens and accepts incoming connections (creates an
+ * active connection). This is distinguished by the key-value parameters passed
+ * to `openConnection`. Note that a single call to `openConnection` for a server
+ * connection may actually create multiple connections (one per hostname /
+ * device).
+ *
+ * The `connectionCallback` of the server socket and `context` of the server
+ * socket is reused for each new connection. But the key-value parameters for
+ * the first callback are different between server and client connections.
+ *
+ * **Configuration parameters for the ConnectionManager (set before start)**
+ *
+ * 0:recv-bufsize [uint32]
+ *    Size of the buffer that is statically allocated for receiving messages
+ *    (default 64kB).
+ *
+ * 0:send-bufsize [uint32]
+ *    Size of the statically allocated buffer for sending messages. This then
+ *    becomes an upper bound for the message size. If undefined a fresh buffer
+ *    is allocated for every `allocNetworkBuffer` (default: no buffer).
+ *
+ * **Open Connection Parameters:**
+ *
+ * 0:address [string | array of string]
+ *    Hostname or IPv4/v6 address for the connection (scalar parameter required
+ *    for active connections). For listen-connections the address contains the
+ *    local hostnames or IP addresses for listening. If undefined, listen on all
+ *    interfaces INADDR_ANY. (default: undefined)
+ *
+ * 0:port [uint16]
+ *    Port of the target host (required).
+ *
+ * 0:listen [boolean]
+ *    Listen-connection or active-connection (default: false)
+ *
+ * 0:validate [boolean]
+ *    If true, the connection setup will act as a dry-run without actually
+ *    creating any connection but solely validating the provided parameters
+ *    (default: false)
+ *
+ * **Active Connection Connection Callback Parameters (first callback only):**
+ *
+ * 0:remote-address [string]
+ *    Address of the remote side (hostname or IP address).
+ *
+ * **Listen Connection Connection Callback Parameters (first callback only):**
+ *
+ * 0:listen-address [string]
+ *    Local address (IP or hostname) for the new listen-connection.
+ *
+ * 0:listen-port [uint16]
+ *    Port on which the new connection listens.
+ *
+ * **Send Parameters:**
+ *
+ * No additional parameters for sending over an established TCP socket
+ * defined. */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_LWIP_TCP(const UA_String eventSourceName);
+
+/**
+ * UDP Connection Manager
+ * ~~~~~~~~~~~~~~~~~~~~~~
+ * Manages UDP connections. This should be available for all architectures. The
+ * configuration parameters have to set before calling _start to take effect.
+ *
+ * **Configuration parameters for the ConnectionManager (set before start)**
+ *
+ * 0:recv-bufsize [uint32]
+ *    Size of the buffer that is statically allocated for receiving messages
+ *    (default 64kB).
+ *
+ * 0:send-bufsize [uint32]
+ *    Size of the statically allocated buffer for sending messages. This then
+ *    becomes an upper bound for the message size. If undefined a fresh buffer
+ *    is allocated for every `allocNetworkBuffer` (default: no buffer).
+ *
+ * **Open Connection Parameters:**
+ *
+ * 0:listen [boolean]
+ *    Use the connection for listening or for sending (default: false)
+ *
+ * 0:address [string | string array]
+ *    Hostname (or IPv4/v6 address) for sending or receiving. A scalar is
+ *    required for sending. For listening a string array for the list-hostnames
+ *    is possible as well (default: list on all hostnames).
+ *
+ * 0:port [uint16]
+ *    Port for sending or listening (required).
+ *
+ * 0:interface [string]
+ *    Network interface for listening or sending (e.g. when using multicast
+ *    addresses). Can be either the IP address of the network interface
+ *    or the interface name (e.g. 'eth0').
+ *
+ * 0:ttl [uint32]
+ *    Multicast time to live, (optional, default: 1 - meaning multicast is
+ *    available only to the local subnet).
+ *
+ * 0:loopback [boolean]
+ *    Whether or not to use multicast loopback, enabling local interfaces
+ *    belonging to the multicast group to receive packages. (default: enabled).
+ *
+ * 0:reuse [boolean]
+ *    Enables sharing of the same listening address on different sockets
+ *    (default: disabled).
+ *
+ * 0:sockpriority [uint32]
+ *    The socket priority (optional) - only available on linux. packets with a
+ *    higher priority may be processed first depending on the selected device
+ *    queueing discipline. Setting a priority outside the range 0 to 6 requires
+ *    the CAP_NET_ADMIN capability (on Linux).
+ *
+ * 0:validate [boolean]
+ *    If true, the connection setup will act as a dry-run without actually
+ *    creating any connection but solely validating the provided parameters
+ *    (default: false)
+ *
+ * **Connection Callback Parameters:**
+ *
+ * 0:remote-address [string]
+ *    Contains the remote IP address.
+ *
+ * 0:remote-port [uint16]
+ *    Contains the remote port.
+ *
+ * **Send Parameters:**
+ *
+ * No additional parameters for sending over an UDP connection defined. */
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_LWIP_UDP(const UA_String eventSourceName);
 
 #endif
 
