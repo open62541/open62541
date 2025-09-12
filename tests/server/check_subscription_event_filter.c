@@ -12,6 +12,7 @@
 
 #include <open62541/client_config_default.h>
 #include <open62541/client_subscriptions.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include <check.h>
 #include <stdlib.h>
@@ -36,6 +37,8 @@ static UA_SimpleAttributeOperand *selectClauses;
 static UA_Boolean notificationReceived;
 static UA_UInt32 defaultSlectClauseSize = 4;
 static UA_NodeId eventType;
+
+static UA_EventFilterParserOptions options = {&UA_Log_Stdout_};
 
 static void
 addEventType(char* name, UA_NodeId parentNodeId, UA_NodeId requestedId, UA_NodeId* newEventType) {
@@ -381,38 +384,16 @@ setupLiteralOperand(UA_ContentFilterElement *element, size_t count, UA_Variant *
 }
 
 START_TEST(selectFilterValidation) {
-    /* setup event filter */
     UA_EventFilter filter;
     UA_EventFilter_init(&filter);
-    filter.whereClause.elementsSize = 0;
-    filter.whereClause.elements = NULL;
-    filter.selectClauses = UA_SimpleAttributeOperand_new();
-    filter.selectClausesSize = 1;
-    UA_SimpleAttributeOperand_init(filter.selectClauses);
-    filter.selectClauses->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    filter.selectClauses->browsePathSize = 1;
-    filter.selectClauses->browsePath = (UA_QualifiedName*)
-            UA_Array_new(filter.selectClauses->browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    filter.selectClauses->attributeId = UA_ATTRIBUTEID_VALUE;
-
-    filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "FOOBAR");
-    UA_MonitoredItemCreateResult createResult;
-    createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    char *query = "SELECT /FOOBAR";
+    UA_StatusCode res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
     ck_assert_int_eq(createResult.filterResult.encoding, UA_EXTENSIONOBJECT_DECODED);
     ck_assert(createResult.filterResult.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
     UA_EventFilterResult *eventFilterResult = (UA_EventFilterResult *)createResult.filterResult.content.decoded.data;
-    ck_assert_uint_eq(eventFilterResult->selectClauseResultsSize, 1);
-    ck_assert_uint_eq(eventFilterResult->selectClauseResults[0], UA_STATUSCODE_BADNODEIDUNKNOWN);
-    UA_QualifiedName_clear(&filter.selectClauses->browsePath[0]);
-    UA_MonitoredItemCreateResult_clear(&createResult);
-
-    filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "xx");
-    createResult = addMonitoredItem(handler_events_simple, &filter, true);
-    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
-    ck_assert_int_eq(createResult.filterResult.encoding, UA_EXTENSIONOBJECT_DECODED);
-    ck_assert(createResult.filterResult.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
-    eventFilterResult = (UA_EventFilterResult *)createResult.filterResult.content.decoded.data;
     ck_assert_uint_eq(eventFilterResult->selectClauseResultsSize, 1);
     ck_assert_uint_eq(eventFilterResult->selectClauseResults[0], UA_STATUSCODE_BADNODEIDUNKNOWN);
     UA_MonitoredItemCreateResult_clear(&createResult);
@@ -441,19 +422,15 @@ Phase 2:
   Filters: Select(Severity, Message, EventType, SourceNode) Where (!false)
   Expect: Get Notification */
 START_TEST(notOperatorValidation) {
-    /* setup event filter */
     UA_EventFilter filter;
     UA_EventFilter_init(&filter);
-    setupSelectClauses();
-    filter.selectClauses = selectClauses;
-    filter.selectClausesSize = defaultSlectClauseSize;
-    setupContentFilter(&filter.whereClause, 1);
-    setupNotFilter(&filter.whereClause.elements[0]);
-    UA_Boolean condition = true;
-    UA_Variant literalContent;
-    UA_Variant_init(&literalContent);
-    UA_Variant_setScalar(&literalContent, &condition, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    setupLiteralOperand(&filter.whereClause.elements[0], 1, &literalContent);
+
+    /* Phase 1 */
+    char *query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE !TRUE";
+    UA_StatusCode res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
     /* setup event */
     eventType = EventType_A_Layer_1;
@@ -467,11 +444,15 @@ START_TEST(notOperatorValidation) {
     createTestEvent();
     checkForEvent(&createResult, false);
     deleteMonitoredItems();
-    UA_free(filter.whereClause.elements[0].filterOperands->content.decoded.data);
+    UA_EventFilter_clear(&filter);
 
-    condition = false;
-    UA_Variant_setScalarCopy(&literalContent, &condition, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    setupLiteralOperand(&filter.whereClause.elements[0], 1, &literalContent);
+    /* Phase 2 */
+    query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE !FALSE";
+    res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
@@ -496,23 +477,14 @@ Phase 2:
   Expect: Get Notification
 */
 START_TEST(ofTypeOperatorValidation) {
-    /* setup event filter */
     UA_EventFilter filter;
     UA_EventFilter_init(&filter);
-    setupSelectClauses();
-    filter.selectClauses = selectClauses;
-    filter.selectClausesSize = defaultSlectClauseSize;
-    setupContentFilter(&filter.whereClause, 1);
-    setupOfTypeFilter(&filter.whereClause.elements[0]);
-    UA_Variant literalContent;
-    UA_NodeId *nodeId = UA_NodeId_new();
-    UA_NodeId_init(nodeId);
-    *nodeId = EventType_B_Layer_1;
-    UA_Variant_setScalar(&literalContent, nodeId, &UA_TYPES[UA_TYPES_NODEID]);
-    setupLiteralOperand(&filter.whereClause.elements[0], 1, &literalContent);
 
-    /* setup event */
-    eventType = EventType_A_Layer_1;
+    char *query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE OFTYPE ns=1;i=5001";
+    UA_StatusCode res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
     /*  add a monitored item (with filter) */
     UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
@@ -520,7 +492,9 @@ START_TEST(ofTypeOperatorValidation) {
     monitoredItemId = createResult.monitoredItemId;
 
     /*  trigger the event */
+    eventType = EventType_A_Layer_1;
     createTestEvent();
+    checkForEvent(&createResult, false);
 
     /* trigger the event */
     eventType = EventType_B_Layer_1;
@@ -531,21 +505,14 @@ START_TEST(ofTypeOperatorValidation) {
 } END_TEST
 
 START_TEST(ofTypeOperatorValidation_failure) {
-    /* setup event filter */
     UA_EventFilter filter;
     UA_EventFilter_init(&filter);
-    setupSelectClauses();
-    filter.selectClauses = selectClauses;
-    filter.selectClausesSize = defaultSlectClauseSize;
-    setupContentFilter(&filter.whereClause, 1);
-    setupOfTypeFilter(&filter.whereClause.elements[0]);
 
-    UA_Variant literalContent;
-    UA_NodeId *nodeId = UA_NodeId_new();
-    UA_NodeId_init(nodeId);
-    *nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
-    UA_Variant_setScalar(&literalContent, nodeId, &UA_TYPES[UA_TYPES_NODEID]);
-    setupLiteralOperand(&filter.whereClause.elements[0], 1, &literalContent);
+    char *query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE OFTYPE ns=0;i=0";
+    UA_StatusCode res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
     /* setup event */
     eventType = EventType_A_Layer_1;
@@ -571,82 +538,67 @@ START_TEST(andTypeOperatorValidation) {
 } END_TEST
 
 START_TEST(equalOperatorValidation) {
-    /*  setup event filter */
     UA_EventFilter filter;
     UA_EventFilter_init(&filter);
-    setupSelectClauses();
-    filter.selectClauses = selectClauses;
-    filter.selectClausesSize = defaultSlectClauseSize;
-    setupContentFilter(&filter.whereClause, 1);
-    setupEqualsFilter(&filter.whereClause.elements[0], UA_FILTEROPERATOR_EQUALS);
-    /*  setup operands */
-    UA_UInt32 left = 62541;
-    UA_UInt32 right = 62541;
-    UA_Variant literalContent[2];
-    memset(literalContent, 0, sizeof(UA_Variant) * 2);
-    UA_Variant_setScalar(&literalContent[0], &left, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&literalContent[1], &right, &UA_TYPES[UA_TYPES_UINT32]);
-    setupLiteralOperand(&filter.whereClause.elements[0], 2, literalContent);
 
-    /*  setup event */
-    eventType = EventType_A_Layer_1;
+    // Equality success
+    char *query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE 62541 == 62541";
+    UA_StatusCode res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
-    /*  add a monitored item (with filter) */
-    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    UA_MonitoredItemCreateResult createResult =
+        addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
-    /*  trigger the event */
+    eventType = EventType_A_Layer_1;
     createTestEvent();
     checkForEvent(&createResult, true);
     deleteMonitoredItems();
-    UA_free(filter.whereClause.elements->filterOperands[0].content.decoded.data);
-    UA_free(filter.whereClause.elements->filterOperands[1].content.decoded.data);
+    UA_EventFilter_clear(&filter);
 
-    left = 62542;
-    UA_Variant_setScalar(&literalContent[0], &left, &UA_TYPES[UA_TYPES_UINT32]);
-    setupLiteralOperand(&filter.whereClause.elements[0], 2, literalContent);
+    // Equality failure
+    query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE 62542 == 62541";
+    res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
-    /*  trigger the event */
     createTestEvent();
     checkForEvent(&createResult, false);
     deleteMonitoredItems();
-    UA_free(filter.whereClause.elements->filterOperands[0].content.decoded.data);
-    UA_free(filter.whereClause.elements->filterOperands[1].content.decoded.data);
+    UA_EventFilter_clear(&filter);
 
-    /* test types wich need implicit cast */
-    UA_UInt64 left_big = 62541;
-    UA_Variant_setScalar(&literalContent[0], &left_big, &UA_TYPES[UA_TYPES_UINT64]);
-    setupLiteralOperand(&filter.whereClause.elements[0], 2, literalContent);
+    // types wich need implicit cast
+    query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE INT32 62541 == INT64 62541";
+    res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
-    /*  trigger the event */
     createTestEvent();
     checkForEvent(&createResult, true);
     deleteMonitoredItems();
-    UA_free(filter.whereClause.elements->filterOperands[0].content.decoded.data);
-    UA_free(filter.whereClause.elements->filterOperands[1].content.decoded.data);
+    UA_EventFilter_clear(&filter);
 
-    /*  check equal with nodeid */
-    UA_NodeId left_nodeid = UA_NODEID_NUMERIC(0, 14123);
-    UA_NodeId right_nodeid = UA_NODEID_NUMERIC(0, 14123);
-    memset(literalContent, 0, sizeof(UA_Variant) * 2);
-    UA_Variant_setScalarCopy(&literalContent[0], &left_nodeid, &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Variant_setScalarCopy(&literalContent[1], &right_nodeid, &UA_TYPES[UA_TYPES_NODEID]);
-    setupLiteralOperand(&filter.whereClause.elements[0], 2, literalContent);
-    /*  setup event */
-    eventType = EventType_A_Layer_1;
-    /*  add a monitored item (with filter) */
+    // check equal with nodeid
+    query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE NODEID i=14123 == NODEID i=14123";
+    res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
-    /*  trigger the event */
     createTestEvent();
     checkForEvent(&createResult, true);
     deleteMonitoredItems();
@@ -654,30 +606,21 @@ START_TEST(equalOperatorValidation) {
 } END_TEST
 
 START_TEST(orderedCompareOperatorValidation) {
-    /*  setup event filter */
     UA_EventFilter filter;
     UA_EventFilter_init(&filter);
-    setupSelectClauses();
-    filter.selectClauses = selectClauses;
-    filter.selectClausesSize = defaultSlectClauseSize;
-    setupContentFilter(&filter.whereClause, 1);
-    setupEqualsFilter(&filter.whereClause.elements[0], UA_FILTEROPERATOR_LESSTHAN);
-    /*  setup operands */
-    UA_UInt32 left = 100;
-    UA_UInt32 right = 1000;
-    UA_Variant literalContent[2];
-    memset(literalContent, 0, sizeof(UA_Variant) * 2);
-    UA_Variant_setScalarCopy(&literalContent[0], &left, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalarCopy(&literalContent[1], &right, &UA_TYPES[UA_TYPES_UINT32]);
-    setupLiteralOperand(&filter.whereClause.elements[0], 2, literalContent);
-    /*  setup event */
-    eventType = EventType_A_Layer_1;
-    /*  add a monitored item (with filter) */
+
+    char *query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE 100 < 1000";
+
+    UA_StatusCode res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
     UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
-    /*  trigger the event */
+    eventType = EventType_A_Layer_1;
     createTestEvent();
     checkForEvent(&createResult, true);
     deleteMonitoredItems();
@@ -685,32 +628,21 @@ START_TEST(orderedCompareOperatorValidation) {
 } END_TEST
 
 START_TEST(betweenOperatorValidation) {
-    /*  setup event filter */
     UA_EventFilter filter;
     UA_EventFilter_init(&filter);
-    setupSelectClauses();
-    filter.selectClauses = selectClauses;
-    filter.selectClausesSize = defaultSlectClauseSize;
-    setupContentFilter(&filter.whereClause, 1);
-    setupBetweenFilter(&filter.whereClause.elements[0]);
-    /*  setup operands */
-    UA_UInt32 range_element = 40;
-    UA_UInt32 range_start = 10;
-    UA_UInt32 range_stop = 100;
-    UA_Variant literalContent[3];
-    memset(literalContent, 0, sizeof(UA_Variant) * 3);
-    UA_Variant_setScalarCopy(&literalContent[0], &range_element, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalarCopy(&literalContent[1], &range_start, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalarCopy(&literalContent[2], &range_stop, &UA_TYPES[UA_TYPES_UINT32]);
-    setupLiteralOperand(&filter.whereClause.elements[0], 3, literalContent);
-    /*  setup event */
-    eventType = EventType_A_Layer_1;
-    /*  add a monitored item (with filter) */
+
+    char *query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE 40 BETWEEN [10, 100]";
+
+    UA_StatusCode res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
     UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
-    /*  trigger the event */
+    eventType = EventType_A_Layer_1;
     createTestEvent();
     checkForEvent(&createResult, true);
     deleteMonitoredItems();
@@ -718,34 +650,21 @@ START_TEST(betweenOperatorValidation) {
 } END_TEST
 
 START_TEST(inListOperatorValidation) {
-    /*  setup event filter */
     UA_EventFilter filter;
     UA_EventFilter_init(&filter);
-    setupSelectClauses();
-    filter.selectClauses = selectClauses;
-    filter.selectClausesSize = defaultSlectClauseSize;
-    setupContentFilter(&filter.whereClause, 1);
-    setupInListFilter(&filter.whereClause.elements[0], 4);
-    /*  setup operands */
-    UA_UInt32 target_element = 40;
-    UA_UInt32 element_1 = 10;
-    UA_UInt32 element_2 = 100;
-    UA_UInt32 element_3 = 40;
-    UA_Variant literalContent[4];
-    memset(literalContent, 0, sizeof(UA_Variant) * 4);
-    UA_Variant_setScalarCopy(&literalContent[0], &target_element, &UA_TYPES[UA_TYPES_INT32]);
-    UA_Variant_setScalarCopy(&literalContent[1], &element_1, &UA_TYPES[UA_TYPES_INT32]);
-    UA_Variant_setScalarCopy(&literalContent[2], &element_2, &UA_TYPES[UA_TYPES_INT32]);
-    UA_Variant_setScalarCopy(&literalContent[3], &element_3, &UA_TYPES[UA_TYPES_INT32]);
-    setupLiteralOperand(&filter.whereClause.elements[0], 4, literalContent);
-    /*  setup event */
-    eventType = EventType_A_Layer_1;
-    /*  add a monitored item (with filter) */
+
+    char *query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE 40 INLIST [10, 100, 40]";
+
+    UA_StatusCode res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
     UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
-    /*  trigger the event */
+    eventType = EventType_A_Layer_1;
     createTestEvent();
     checkForEvent(&createResult, true);
     deleteMonitoredItems();
