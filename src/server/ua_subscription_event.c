@@ -1123,8 +1123,7 @@ evaluateWhereClause(UA_FilterEvalContext *ctx) {
      * evaluated element. */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     const UA_ContentFilter *cf = &ctx->filter.whereClause;
-    size_t i = cf->elementsSize - 1;
-    for(; i < cf->elementsSize; i--) {
+    for(size_t i = cf->elementsSize - 1; i < cf->elementsSize; i--) {
         UA_ContentFilterElement *cfe = &cf->elements[i];
         res = operatorJumptable[cfe->filterOperator].operatorMethod(ctx, i);
         /* Clean up the operand stack */
@@ -1139,9 +1138,9 @@ evaluateWhereClause(UA_FilterEvalContext *ctx) {
     if(res == UA_STATUSCODE_GOOD && v2t(&ctx->operatorResults[0]) != UA_TERNARY_TRUE)
         res = UA_STATUSCODE_BADNOMATCH;
 
-    /* Clean up the stack */
-    for(size_t j = cf->elementsSize - 1; j > i; j--)
-        UA_Variant_clear(&ctx->operatorResults[j]);
+    /* Clean up the results stack */
+    for(size_t i = 0; i < cf->elementsSize; i++)
+        UA_Variant_clear(&ctx->operatorResults[i]);
     return res;
 }
 
