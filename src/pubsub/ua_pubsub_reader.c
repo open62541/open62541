@@ -428,7 +428,7 @@ UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg) {
     }
 }
 
-void
+UA_StatusCode
 UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                 UA_PubSubState targetState, UA_StatusCode errorReason) {
     UA_ReaderGroup *rg = dsr->linkedReaderGroup;
@@ -442,13 +442,16 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
             beforeStateChangeCallback(server, dsr->head.identifier, &targetState);
     }
 
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = dsr->head.state;
 
     /* Custom state machine */
     if(dsr->config.customStateMachine) {
-        errorReason = dsr->config.customStateMachine(server, dsr->head.identifier,
-                                                     dsr->config.context,
-                                                     &dsr->head.state, targetState);
+        res = dsr->config.customStateMachine(server, dsr->head.identifier,
+                                             dsr->config.context,
+                                             &dsr->head.state, targetState);
+        if(res != UA_STATUSCODE_GOOD)
+            errorReason = res;
         goto finalize_state_machine;
     }
 
@@ -475,7 +478,8 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     default:
         dsr->head.state = UA_PUBSUBSTATE_ERROR;
-        errorReason = UA_STATUSCODE_BADINTERNALERROR;
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        errorReason = res;
         break;
     }
 
@@ -491,7 +495,7 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
 
     /* No state change has happened */
     if(dsr->head.state == oldState)
-        return;
+        return res;
 
     UA_LOG_INFO_PUBSUB(psm->logging, dsr, "%s -> %s",
                        UA_PubSubState_name(oldState),
@@ -502,6 +506,8 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         server->config.pubSubConfig.
             stateChangeCallback(server, dsr->head.identifier,
                                 dsr->head.state, errorReason);
+                                
+    return res;
 }
 
 /* This Method is used to initially set the SubscribedDataSet to
@@ -794,11 +800,6 @@ UA_Server_updateDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
     retVal = validateDSRConfig(psm, dsr);
     if(retVal != UA_STATUSCODE_GOOD)
         goto errout;
-
-    /* Call the state-machine. This can move the connection state from _ERROR to
-     * _DISABLED. */
-    UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_DISABLED,
-                                    UA_STATUSCODE_GOOD);
 
     /* Clean up and return */
     UA_DataSetReaderConfig_clear(&oldConfig);

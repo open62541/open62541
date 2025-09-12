@@ -245,7 +245,8 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 
     /* Trigger the connection state machine. It might open a socket only when
      * the first WriterGroup is attached. */
-    UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
+    if(config->enabled)
+        UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(writerGroupIdentifier)
@@ -530,7 +531,11 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
      * Keep the current child state as the target state for the child. */
     UA_DataSetWriter *writer;
     LIST_FOREACH(writer, &wg->writers, listEntry) {
-        UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
+        if(psm->pubSubInitialSetupMode && writer->config.enabled) {
+            UA_DataSetWriter_setPubSubState(psm, writer, UA_PUBSUBSTATE_OPERATIONAL);
+        } else {
+            UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
+        }
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
@@ -1530,10 +1535,6 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
         }
     }
 #endif
-
-    /* Call the state-machine. This can move the wg state from _ERROR to
-     * _DISABLED. */
-    UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
 
     /* Clean up and return */
     UA_WriterGroupConfig_clear(&oldConfig);
