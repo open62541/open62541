@@ -84,6 +84,16 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
                           &head->nodeId, head->context);
 }
 
+
+static UA_Byte
+getAccessLevel(UA_Server *server, const UA_Session *session,
+               const UA_VariableNode *node) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    if(session == &server->adminSession)
+        return 0xFF; /* the local admin user has all rights */
+    return node->accessLevel;
+}
+
 static UA_Byte
 getUserAccessLevel(UA_Server *server, const UA_Session *session,
                    const UA_VariableNode *node) {
@@ -449,9 +459,14 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
         /* VariableTypes don't have the AccessLevel concept. Always allow
          * reading the value. */
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
-            /* The access to a value variable is granted via the UserAccessLevel
-             * attribute (masked with the AccessLevel attribute) */
-            UA_Byte accessLevel = getUserAccessLevel(server, session, &node->variableNode);
+            /* The access to a value variable is granted via the AccessLevel
+             * and UserAccessLevel attributes */
+            UA_Byte accessLevel = getAccessLevel(server, session, &node->variableNode);
+            if(!(accessLevel & (UA_ACCESSLEVELMASK_READ))) {
+                retval = UA_STATUSCODE_BADNOTREADABLE;
+                break;
+            }
+            accessLevel = getUserAccessLevel(server, session, &node->variableNode);
             if(!(accessLevel & (UA_ACCESSLEVELMASK_READ))) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
@@ -1734,9 +1749,14 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_VALUE:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
-            /* The access to a value variable is granted via the UserAccessLevel
-             * attribute (masked with the AccessLevel attribute) */
-            UA_Byte accessLevel = getUserAccessLevel(server, session, &node->variableNode);
+            /* The access to a value variable is granted via the AccessLevel
+             * and UserAccessLevel attributes */
+            UA_Byte accessLevel = getAccessLevel(server, session, &node->variableNode);
+            if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
+                retval = UA_STATUSCODE_BADNOTWRITABLE;
+                break;
+            }
+            accessLevel = getUserAccessLevel(server, session, &node->variableNode);
             if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
