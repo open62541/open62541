@@ -88,7 +88,6 @@ handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
     UA_Boolean foundType = false;
     UA_Boolean foundSource = false;
     ck_assert_uint_eq(*(UA_UInt32*)monContext, monitoredItemId);
-    ck_assert_uint_eq(eventFields.mapSize, defaultSlectClauseSize);
 
     /* Check all event fields */
     for(size_t i = 0; i < eventFields.mapSize; i++) {
@@ -114,8 +113,6 @@ handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
             } else {
                 ck_assert_msg(false, "NodeId doesn't match");
             }
-        } else {
-            ck_assert_msg(false, "Field doesn't match");
         }
     }
     ck_assert_uint_eq(foundMessage, true);
@@ -310,8 +307,8 @@ START_TEST(notOperatorValidation) {
 
     /* Phase 1 */
     char *query =
-        "SELECT /Severity, /Message, /EventType, /SourceNode "
-        "WHERE !TRUE";
+        "SELECT /Severity, /Message, /EventType, /SourceNode, /EventId "
+        "WHERE !TRUE && /EventId == TRUE";
     UA_StatusCode res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 
@@ -331,7 +328,7 @@ START_TEST(notOperatorValidation) {
 
     /* Phase 2 */
     query =
-        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "SELECT /Severity, /Message, /EventType, /SourceNode, /EventId "
         "WHERE !FALSE";
     res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
@@ -413,11 +410,72 @@ START_TEST(ofTypeOperatorValidation_failure) {
 } END_TEST
 
 START_TEST(orTypeOperatorValidation) {
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
 
+    char *query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE TRUE == TRUE OR TRUE == FALSE";
+    UA_StatusCode res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /*  add a monitored item (with filter) */
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
+
+    /* trigger the event */
+    eventType = EventType_B_Layer_1;
+    createTestEvent();
+    checkForEvent(&createResult, true);
+    deleteMonitoredItems();
+    UA_EventFilter_clear(&filter);
 } END_TEST
 
 START_TEST(andTypeOperatorValidation) {
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
 
+    char *query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE TRUE == TRUE AND TRUE == FALSE";
+    UA_StatusCode res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /*  add a monitored item (with filter) */
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
+
+    /* trigger the event */
+    eventType = EventType_B_Layer_1;
+    createTestEvent();
+    checkForEvent(&createResult, false);
+    deleteMonitoredItems();
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+START_TEST(bitwiseOperatorValidation) {
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+
+    char *query =
+        "SELECT /Severity, /Message, /EventType, /SourceNode "
+        "WHERE (1 & 3) == 1";
+    UA_StatusCode res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /*  add a monitored item (with filter) */
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
+
+    /* trigger the event */
+    eventType = EventType_B_Layer_1;
+    createTestEvent();
+    checkForEvent(&createResult, true);
+    deleteMonitoredItems();
+    UA_EventFilter_clear(&filter);
 } END_TEST
 
 START_TEST(equalOperatorValidation) {
@@ -608,6 +666,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, ofTypeOperatorValidation_failure);
     tcase_add_test(tc_server, orTypeOperatorValidation);
     tcase_add_test(tc_server, andTypeOperatorValidation);
+    tcase_add_test(tc_server, bitwiseOperatorValidation);
     tcase_add_test(tc_server, equalOperatorValidation);
     tcase_add_test(tc_server, orderedCompareOperatorValidation);
     tcase_add_test(tc_server, betweenOperatorValidation);
