@@ -97,7 +97,10 @@ void
 UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm);
 
 UA_UInt32
-UA_DiscoveryManager_getMdnsConnectionCount(void);
+UA_DiscoveryManager_getMdnsRecvConnectionCount(void);
+
+UA_UInt32
+UA_DiscoveryManager_getMdnsSendConnectionCount(void);
 
 UA_UInt32
 UA_DiscoveryManager_getServerOnNetworkRecordIdCounter(UA_DiscoveryManager *dm);
