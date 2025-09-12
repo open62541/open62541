@@ -80,28 +80,6 @@ static void addEventTypes(void){
 }
 
 static void
-setupSelectClauses(void) {
-    /* Check for severity (set manually), message (set manually), eventType
-     * (automatic) and sourceNode (automatic) */
-    selectClauses = (UA_SimpleAttributeOperand *)
-        UA_Array_new(defaultSlectClauseSize, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
-    ck_assert_ptr_ne(selectClauses, NULL);
-    for(size_t i = 0; i < defaultSlectClauseSize; ++i) {
-        UA_SimpleAttributeOperand_init(&selectClauses[i]);
-        selectClauses[i].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-        selectClauses[i].browsePathSize = 1;
-        selectClauses[i].attributeId = UA_ATTRIBUTEID_VALUE;
-        selectClauses[i].browsePath = (UA_QualifiedName *)
-            UA_Array_new(selectClauses[i].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-        ck_assert_ptr_ne(selectClauses[i].browsePath, NULL);
-    }
-    selectClauses[0].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
-    selectClauses[1].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
-    selectClauses[2].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "EventType");
-    selectClauses[3].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "SourceNode");
-}
-
-static void
 handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
                       UA_UInt32 monId, void *monContext,
                       const UA_KeyValueMap eventFields) {
@@ -286,101 +264,6 @@ checkForEvent(UA_MonitoredItemCreateResult *createResult, UA_Boolean expect){
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, expect);
     ck_assert_uint_eq(createResult->revisedQueueSize, 1);
-}
-
-/*  helper functions for the generation of the content-filter */
-static void
-setupContentFilter(UA_ContentFilter *contentFilter, size_t elements){
-    UA_ContentFilter_init(contentFilter);
-    contentFilter->elementsSize = elements;
-    contentFilter->elements  = (UA_ContentFilterElement *)
-        UA_Array_new(contentFilter->elementsSize, &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENT]);
-    ck_assert_ptr_ne(contentFilter->elements, NULL);
-    for(size_t i = 0; i < contentFilter->elementsSize; ++i) {
-        UA_ContentFilterElement_init(&contentFilter->elements[i]);
-    }
-}
-
-static void
-setupOperandArrays(UA_ContentFilterElement *contentFilterElement){
-    contentFilterElement->filterOperands = (UA_ExtensionObject*)
-        UA_Array_new(contentFilterElement->filterOperandsSize, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
-    ck_assert_ptr_ne(contentFilterElement->filterOperands, NULL);
-    for(size_t n =0; n< contentFilterElement->filterOperandsSize; ++n) {
-        UA_ExtensionObject_init(&contentFilterElement->filterOperands[n]);
-    }
-}
-
-static void
-setupNotFilter(UA_ContentFilterElement *element){
-    element->filterOperator = UA_FILTEROPERATOR_NOT;
-    element->filterOperandsSize = 1;
-    setupOperandArrays(element);
-}
-
-static void
-setupOfTypeFilter(UA_ContentFilterElement *element){
-    element->filterOperator = UA_FILTEROPERATOR_OFTYPE;
-    element->filterOperandsSize = 1;
-    setupOperandArrays(element);
-}
-
-static void
-setupEqualsFilter(UA_ContentFilterElement *element, UA_FilterOperator compareOperator){
-    switch(compareOperator) {
-    case UA_FILTEROPERATOR_EQUALS:
-        element->filterOperator = UA_FILTEROPERATOR_EQUALS;
-        break;
-    case UA_FILTEROPERATOR_LESSTHAN:
-        element->filterOperator = UA_FILTEROPERATOR_LESSTHAN;
-        break;
-    case UA_FILTEROPERATOR_GREATERTHAN:
-        element->filterOperator = UA_FILTEROPERATOR_GREATERTHAN;
-        break;
-    default:
-        element->filterOperator = UA_FILTEROPERATOR_EQUALS;
-        break;
-    }
-    element->filterOperandsSize = 2;
-    setupOperandArrays(element);
-}
-
-static void
-setupBetweenFilter(UA_ContentFilterElement *element){
-    element->filterOperator = UA_FILTEROPERATOR_BETWEEN;
-    element->filterOperandsSize = 3;
-    setupOperandArrays(element);
-}
-
-static void
-setupInListFilter(UA_ContentFilterElement *element, UA_UInt16 elements){
-    element->filterOperator = UA_FILTEROPERATOR_INLIST;
-    element->filterOperandsSize = elements;
-    setupOperandArrays(element);
-}
-
-/*static void
-setupElementOperand(UA_ContentFilterElement *element, size_t count, UA_UInt32 *indexes){
-    for(size_t i = 0; i < count; ++i) {
-        element->filterOperands[i].content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
-        element->filterOperands[i].encoding = UA_EXTENSIONOBJECT_DECODED;
-        UA_ElementOperand *firstElementOperand = UA_ElementOperand_new();
-        UA_ElementOperand_init(firstElementOperand);
-        firstElementOperand->index = indexes[i];
-        element->filterOperands[i].content.decoded.data = firstElementOperand;
-    }
-}*/
-
-static void
-setupLiteralOperand(UA_ContentFilterElement *element, size_t count, UA_Variant *literals){
-    for(size_t i = 0; i < count; ++i) {
-        element->filterOperands[i].content.decoded.type = &UA_TYPES[UA_TYPES_LITERALOPERAND];
-        element->filterOperands[i].encoding = UA_EXTENSIONOBJECT_DECODED;
-        UA_LiteralOperand *literalOperand = UA_LiteralOperand_new();
-        UA_LiteralOperand_init(literalOperand);
-        literalOperand->value = literals[i];
-        element->filterOperands[i].content.decoded.data = literalOperand;
-    }
 }
 
 START_TEST(selectFilterValidation) {
