@@ -150,6 +150,137 @@ UA_Server_getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
 }
 
 UA_StatusCode
+addCustomTypeArray(UA_Server *server,
+                   const UA_DataType *typeArray,
+                   size_t typeArraySize)
+{
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    /* Allocate container entry */
+    UA_DataTypeArray *newEntry =
+        (UA_DataTypeArray*)UA_calloc(1, sizeof(UA_DataTypeArray));
+    if(!newEntry)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    newEntry->next = NULL;
+    newEntry->cleanup = true;
+    newEntry->typesSize = typeArraySize;
+
+    /* Allocate array of UA_DataType */
+    newEntry->types = (UA_DataType*)UA_calloc(typeArraySize, sizeof(UA_DataType));
+    if(!newEntry->types) {
+        UA_free(newEntry);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    for(size_t i = 0; i < typeArraySize; i++) {
+        const UA_DataType *src = &typeArray[i];
+        UA_DataType *dst = (UA_DataType*)(uintptr_t)&newEntry->types[i];
+        memcpy(dst, src, sizeof(UA_DataType));
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+        if(src->typeName) {
+            size_t len = strlen(src->typeName) + 1;
+            char *name = (char*)UA_malloc(len);
+            if(!name) {
+                goto cleanup;
+            }
+            memcpy(name, src->typeName, len);
+            dst->typeName = name;
+        }
+#endif
+
+        dst->members = NULL;
+        if(src->membersSize > 0 && src->members) {
+            dst->members = (UA_DataTypeMember*)UA_calloc(src->membersSize,
+                                                         sizeof(UA_DataTypeMember));
+            if(!dst->members) {
+                goto cleanup;
+            }
+
+            for(size_t m = 0; m < src->membersSize; m++) {
+                const UA_DataTypeMember *sm = &src->members[m];
+                UA_DataTypeMember *dm = &dst->members[m];
+                memcpy(dm, sm, sizeof(UA_DataTypeMember));
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+                if(sm->memberName) {
+                    size_t len = strlen(sm->memberName) + 1;
+                    char *mn = (char*)UA_malloc(len);
+                    if(!mn) {
+                        goto cleanup;
+                    }
+                    memcpy(mn, sm->memberName, len);
+                    dm->memberName = mn;
+                }
+#endif
+            }
+        }
+    }
+
+    for(size_t i = 0; i < typeArraySize; i++) {
+        UA_DataType *dst = (UA_DataType*)(uintptr_t)&newEntry->types[i];
+        const UA_DataType *src = &typeArray[i];
+
+        if(src->membersSize == 0 || !src->members)
+            continue;
+
+        for(size_t m = 0; m < src->membersSize; m++) {
+            const UA_DataTypeMember *sm = &src->members[m];
+            UA_DataTypeMember *dm = &dst->members[m];
+
+            const UA_DataType *origPtr = sm->memberType;
+            if(!origPtr) {
+                dm->memberType = NULL;
+                continue;
+            }
+
+            if(origPtr >= typeArray && origPtr < typeArray + typeArraySize) {
+                size_t idx = (size_t)(origPtr - typeArray);
+                dm->memberType = &newEntry->types[idx];
+            } else {
+                dm->memberType = origPtr;
+            }
+        }
+    }
+
+    newEntry->next = config->customDataTypes;
+    config->customDataTypes = newEntry;
+
+    return UA_STATUSCODE_GOOD;
+
+cleanup:
+    for(size_t i = 0; i < newEntry->typesSize; i++) {
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+        if(newEntry->types[i].typeName)
+            UA_free((char*)(uintptr_t)newEntry->types[i].typeName);
+#endif
+        if(newEntry->types[i].members) {
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+            for(size_t m = 0; m < newEntry->types[i].membersSize; m++) {
+                if(newEntry->types[i].members[m].memberName)
+                    UA_free((char*)(uintptr_t)newEntry->types[i].members[m].memberName);
+            }
+#endif
+            UA_free(newEntry->types[i].members);
+        }
+    }
+    UA_free((void*)(uintptr_t)newEntry->types);
+    UA_free(newEntry);
+
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
+
+UA_StatusCode
+UA_Server_addCustomTypeArray(UA_Server *server, UA_DataType *typeArray, size_t typeArraySize) {
+    lockServer(server);
+    UA_StatusCode res = addCustomTypeArray(server, typeArray, typeArraySize);
+    unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
     UA_BrowseDescription bd;
