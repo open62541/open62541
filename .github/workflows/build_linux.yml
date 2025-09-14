@@ -93,6 +93,14 @@ jobs:
               cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 && sudo sysctl -w vm.mmap_rnd_bits=28
               cmd_action: CC=clang-18 CXX=clang++-18 unit_tests
 
+          # Libwebsockets Build for specific Ubuntu version
+          - os: ubuntu-24.04
+            build:
+              name: "Debug Build & Unit Tests with libwebsockets (gcc)"
+              cmd_deps: |
+                sudo apt-get install -y -qq build-essential cmake gcc git iproute2 libpcap-dev libwebsockets-dev
+              cmd_action: unit_tests_libwebsockets
+
           # LWIP Build for specific Ubuntu version
           - os: ubuntu-24.04
             build:
