@@ -4,6 +4,7 @@
  *
  *    Copyright 2017-2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017-2019 (c) Fraunhofer IOSB (Author: Mark Giraud)
+ *    Copyright (c) 2025 Construction Future Lab gGmbH (Author: Jianbin Liu)
  */
 
 #include <open62541/types.h>
@@ -1702,9 +1703,9 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
             client->sessionState = UA_SESSIONSTATE_CREATED;
 
-        /* Delete outstanding async services - the RequestId is no longer valid. Do
-         * this after setting the Session state. Otherwise we send out new Publish
-         * Requests immediately. */
+        /* Delete outstanding async services - the RequestId is no longer valid.
+         * Do this after setting the Session state. Otherwise we send out new
+         * Publish Requests immediately. */
         __Client_AsyncService_removeAll(client, UA_STATUSCODE_BADSECURECHANNELCLOSED);
 
         /* Clean up the channel and set the status to CLOSED */
@@ -1717,8 +1718,23 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
            client->connectStatus == UA_STATUSCODE_GOOD)
             client->connectStatus = fallbackEndpointUrl(client);
 
-        /* Try to reconnect */
-        goto continue_connect;
+        /* Shutdown-aware behavior:
+         * If we are in a normal reconnect scenario (oldState was CONNECTING
+         * and connectStatus is GOOD), proceed to continue_connect to trigger
+         * reconnection logic. Otherwise, skip reconnection during shutdown or
+         * intentional close to avoid noisy logs. */
+        UA_Boolean wantReconnect =
+            (oldState == UA_SECURECHANNELSTATE_CONNECTING &&
+             client->connectStatus == UA_STATUSCODE_GOOD);
+
+        if(wantReconnect)
+            goto continue_connect;
+
+        /* Notify application about state change and exit gracefully without
+         * reconnecting */
+        notifyClientState(client);
+        unlockClient(client);
+        return;
     }
 
     /* Update the SecureChannel state */
@@ -1771,15 +1787,35 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     res |= UA_SecureChannel_persistBuffer(&client->channel);
 
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                     "Processing the message returned the error code %s",
-                     UA_StatusCode_name(res));
+        /* If we are shutting down or the channel is already closing/closed,
+         * certain return codes are expected and should not be treated as
+         * errors. */
+        UA_Boolean benign_shutdown =
+            (res == UA_STATUSCODE_BADINVALIDSTATE ||
+             res == UA_STATUSCODE_BADCONNECTIONCLOSED ||
+             res == UA_STATUSCODE_BADSECURECHANNELCLOSED) &&
+            (client->channel.state == UA_SECURECHANNELSTATE_CLOSING ||
+             client->connectStatus == UA_STATUSCODE_BADCONNECTIONCLOSED);
 
-        /* If processing the buffer fails before the SecureChannel has opened,
-         * then the client cannot recover. Set the connectStatus to reflect
-         * this. The application is notified when the socket has closed. */
-        if(client->channel.state != UA_SECURECHANNELSTATE_OPEN)
-            client->connectStatus = res;
+        if(benign_shutdown) {
+            UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "Processing message during shutdown (%s) — treat as "
+                         "benign.", UA_StatusCode_name(res));
+
+            /* Do NOT update connectStatus here. During shutdown this would
+             * only generate additional noisy state transitions without any
+             * benefit. */
+        } else {
+            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "Processing the message returned the error code %s",
+                         UA_StatusCode_name(res));
+
+            /* If processing the buffer fails before the SecureChannel has 
+             * opened, then the client cannot recover. Reflect this in 
+             * connectStatus so the application can react appropriately. */
+            if(client->channel.state != UA_SECURECHANNELSTATE_OPEN)
+                client->connectStatus = res;
+        }
 
         /* Close the SecureChannel, but don't notify the client right away.
          * Return immediately. notifyClientState will be called in the next
@@ -1794,6 +1830,15 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
  continue_connect:
+    /* Safety check: do not proceed with connection activity if the channel
+     * is already closing. This avoids reconnect attempts during shutdown
+     * and keeps the logs clean. */
+    if(client->channel.state == UA_SECURECHANNELSTATE_CLOSING) {
+        notifyClientState(client);
+        unlockClient(client);
+        return;
+    }
+
     /* Trigger the next action from our end to fully open up the connection */
     if(!isFullyConnected(client))
         connectActivity(client);
