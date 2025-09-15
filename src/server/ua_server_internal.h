@@ -447,7 +447,7 @@ allocProcessServiceOperations(UA_Server *server, UA_Session *session,
                               const UA_DataType *requestOperationsType,
                               size_t *responseOperations,
                               const UA_DataType *responseOperationsType)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /*********************/
 /* Locking/Unlocking */
@@ -636,12 +636,12 @@ typedef struct {
     size_t size;     /* used space */
 } RefTree;
 
-UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_init(RefTree *rt);
 
 void RefTree_clear(RefTree *rt);
 
-UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_addNodeId(RefTree *rt, const UA_NodeId *target, UA_Boolean *duplicate);
 
 UA_Boolean

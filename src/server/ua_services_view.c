@@ -219,7 +219,7 @@ RefTree_clear(RefTree *rt) {
 }
 
 /* Double the capacity of the reftree */
-static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_double(RefTree *rt) {
     size_t capacity = rt->capacity * 2;
     UA_assert(capacity > 0);
@@ -461,7 +461,7 @@ typedef struct {
     UA_ReferenceDescription *descr;
 } RefResult;
 
-static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 RefResult_init(RefResult *rr) {
     memset(rr, 0, sizeof(RefResult));
     rr->descr = (UA_ReferenceDescription*)
@@ -473,7 +473,7 @@ RefResult_init(RefResult *rr) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 RefResult_double(RefResult *rr) {
     size_t newSize = rr->capacity * 2;
     UA_ReferenceDescription *rd = (UA_ReferenceDescription*)

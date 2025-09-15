@@ -184,7 +184,7 @@ typedef struct {
 #define ENCODE_DIRECT_XML(SRC, TYPE) \
     TYPE##_encodeXml(ctx, (const UA_##TYPE*)SRC, NULL)
 
-static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -194,7 +194,7 @@ xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
     return UA_STATUSCODE_GOOD;
 }
 
-static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeXmlElemNameBegin(CtxXml *ctx, const char* name) {
     if(ctx->depth >= UA_XML_ENCODING_MAX_RECURSION - 1)
         return UA_STATUSCODE_BADENCODINGERROR;
@@ -206,7 +206,7 @@ writeXmlElemNameBegin(CtxXml *ctx, const char* name) {
     return ret;
 }
 
-static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeXmlElemNameEnd(CtxXml *ctx, const char* name) {
     if(ctx->depth == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
@@ -218,7 +218,7 @@ writeXmlElemNameEnd(CtxXml *ctx, const char* name) {
     return ret;
 }
 
-static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeXmlElement(CtxXml *ctx, const char *name,
                 const void *value, const UA_DataType *type) {
     status ret = UA_STATUSCODE_GOOD;

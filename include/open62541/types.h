@@ -1428,7 +1428,7 @@ UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
  * to the allocated memory. */
 UA_StatusCode UA_EXPORT
 UA_Array_copy(const void *src, size_t size, void **dst,
-              const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+              const UA_DataType *type);
 
 /* Resizes (and reallocates) an array. The last entries are initialized to zero
  * if the array length is increased. If the array length is decreased, the last
@@ -1438,20 +1438,20 @@ UA_Array_copy(const void *src, size_t size, void **dst,
  * success. The array remains untouched in case of an internal error. */
 UA_StatusCode UA_EXPORT
 UA_Array_resize(void **p, size_t *size, size_t newSize,
-                const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                const UA_DataType *type);
 
 /* Append a scalar value at the end of the array. The content is moved (shallow
  * copy) and the original value location is _init'ed if appending is successful.
  * Otherwise similar to UA_Array_resize. */
 UA_StatusCode UA_EXPORT
 UA_Array_append(void **p, size_t *size, void *newElem,
-                const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                const UA_DataType *type);
 
 /* Append a copy of the given element at the end of the array. The memory of the
  * newValue argument is not written. Otherwise similar to UA_Array_append. */
 UA_StatusCode UA_EXPORT
 UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
-                    const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                    const UA_DataType *type);
 
 /* Deletes an array by calling _clear on the element and freeing the memory */
 void UA_EXPORT

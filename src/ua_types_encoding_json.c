@@ -55,7 +55,7 @@
 #define ENCODE_DIRECT_JSON(SRC, TYPE) \
     TYPE##_encodeJson(ctx, (const UA_##TYPE*)SRC, NULL)
 
-static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeChar(CtxJson *ctx, char c) {
     if(ctx->pos >= ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -65,7 +65,7 @@ writeChar(CtxJson *ctx, char c) {
     return UA_STATUSCODE_GOOD;
 }
 
-static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeChars(CtxJson *ctx, const char *c, size_t len) {
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -76,7 +76,7 @@ writeChars(CtxJson *ctx, const char *c, size_t len) {
 }
 
 #define WRITE_JSON_ELEMENT(ELEM)                            \
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT status                  \
+    UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT status                  \
     writeJson##ELEM(CtxJson *ctx)
 
 static WRITE_JSON_ELEMENT(Quote) {
@@ -223,7 +223,7 @@ static const char* UA_JSONKEY_INNERDIAGNOSTICINFO = "InnerDiagnosticInfo";
 
 /* Writes null terminated string to output buffer (current ctx->pos). Writes
  * comma in front of key if needed. Encapsulates key in quotes. */
-status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeJsonKey(CtxJson *ctx, const char* key) {
     status ret = writeJsonBeforeElement(ctx, true);
     ctx->commaNeeded[ctx->depth] = true;
@@ -1707,7 +1707,7 @@ DECODE_JSON(QualifiedName) {
     return decodeFields(ctx, entries, 2);
 }
 
-UA_FUNC_ATTR_WARN_UNUSED_RESULT status
+UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT status
 lookAheadForKey(ParseCtx *ctx, const char *key, size_t *resultIndex) {
     /* The current index must point to the beginning of an object.
      * This has to be ensured by the caller. */
