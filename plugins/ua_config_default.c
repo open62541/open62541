@@ -908,8 +908,17 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
                        const UA_ByteString certificate, const UA_ByteString privateKey,
                        UA_Boolean onlySecure, UA_ApplicationType applicationType,
                        UA_Logger *logging) {
+    /* None */
+    UA_StatusCode retval = UA_SecurityPolicy_None(sp + *length, certificate, logging);
+    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#None with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
     /* Basic256Sha256 */
-    UA_StatusCode retval = UA_SecurityPolicy_Basic256Sha256(sp + *length, certificate, privateKey, logging);
+    retval = UA_SecurityPolicy_Basic256Sha256(sp + *length, certificate, privateKey, logging);
     *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(logging, UA_LOGCATEGORY_USERLAND,
@@ -950,15 +959,6 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
     /* Don't add "unsecure" SecurityPolicies */
     if(onlySecure)
         return;
-
-    /* None */
-    retval = UA_SecurityPolicy_None(sp + *length, certificate, logging);
-    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(logging, UA_LOGCATEGORY_USERLAND,
-                       "Could not add SecurityPolicy#None with error code %s",
-                       UA_StatusCode_name(retval));
-    }
 
 #ifdef UA_INCLUDE_INSECURE_POLICIES
     /* Basic128Rsa15 should no longer be used */
