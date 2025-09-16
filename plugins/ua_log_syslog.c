@@ -10,7 +10,6 @@
 #if defined(__linux__) || defined(__unix__)
 
 #include <syslog.h>
-#include <stdio.h>
 #include "mp_printf.h"
 
 static const char *syslogLevelNames[6] = {"trace", "debug", "info",
@@ -64,7 +63,7 @@ UA_Log_Syslog_log(void *context, UA_LogLevel level, UA_LogCategory category,
         syslog(LOG_WARNING, "Log message too long for syslog");
         return;
     }
-    pos = vsnprintf(&logbuf[pos], LOGBUFSIZE - (size_t)pos, msg, args);
+    pos = mp_vsnprintf(&logbuf[pos], LOGBUFSIZE - (size_t)pos, msg, args);
     if(pos < 0) {
         syslog(LOG_WARNING, "Log message too long for syslog");
         return;
