@@ -1049,6 +1049,10 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
+/* Clean up type definition with heap-allocated data */
+UA_EXPORT void
+UA_DataType_clear(UA_DataType *type);
+
 /* Datatype arrays with custom type definitions can be added in a linked list to
  * the client or server configuration. */
 typedef struct UA_DataTypeArray {
