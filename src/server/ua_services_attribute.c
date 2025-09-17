@@ -506,7 +506,10 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
     /* Reading has failed? */
     if(retval == UA_STATUSCODE_GOOD) {
         v->hasValue = true;
-    } else {
+    } else if(retval != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
+        /* Signal that reading has failed. Otherwise keep the status returned
+         * from the value source. Ignore the async processing sentinel
+         * status. */
         v->hasStatus = true;
         v->status = retval;
     }
