@@ -203,7 +203,11 @@ typedef enum {
     UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING, /* shutdown begins now */
     UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED,
 
-    /* Processing of a service request or response.
+    /* Processing of a service request or response. The server-side processing
+     * of a request can be asynchronous. The existence of a yet-unfinished async
+     * operation from the request is signaled with the _SERVICE_ASYNC enum. The
+     * _SERVICE_END enum is signalled eventually, once all async operations from
+     * the service request are completed.
      *
      * 0:securechannel-id [UInt32]
      *    Identifier of the SecureChannel to which the Session is connected.
@@ -216,6 +220,7 @@ typedef enum {
      * 0:service-type [NodeId]
      *    DataType identifier for the Request (server) or Response (client). */
     UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN,
+    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC,
     UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END
 } UA_ApplicationNotificationType;
 

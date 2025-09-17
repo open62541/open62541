@@ -346,8 +346,10 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     UA_Boolean done = processServiceInternal(server, channel, session,
                                              requestId, sd, request, response);
 
-    /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END */
-    nt = UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END;
+    /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END if the service was
+     * completed synchronously. For async completion of a service, this gets
+     * called eventually in ua_server_async.c. */
+    nt = (done) ? UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END : UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC;
     if(config->serviceNotificationCallback)
         config->serviceNotificationCallback(server, nt, notifyPayloadMap);
     if(config->globalNotificationCallback)
