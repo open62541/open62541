@@ -283,9 +283,14 @@ checkTimeouts(UA_Server *server, void *_) {
     /* Loop over the waiting ops */
     UA_AsyncOperation *op = NULL, *op_tmp = NULL;
     TAILQ_FOREACH_SAFE(op, &am->waitingOps, pointers, op_tmp) {
-        /* The timeout has not passed. Also for all elements following in the queue. */
-        if(tNow <= op->handling.response->timeout)
-            break;
+        /* Check the timeout */
+        if(op->asyncOperationType <= UA_ASYNCOPERATIONTYPE_WRITE_REQUEST) {
+            if(tNow <= op->handling.response->timeout)
+                continue;
+        } else {
+            if(tNow <= op->handling.callback.timeout)
+                continue;
+        }
 
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Operation was removed due to a timeout");
@@ -424,9 +429,10 @@ persistAsyncResponseOperation(UA_Server *server, UA_AsyncOperation *op,
 static UA_StatusCode
 persistAsyncDirectOperation(UA_Server *server, UA_AsyncOperation *op,
                             UA_AsyncOperationType opType, void *context,
-                            uintptr_t callback) {
+                            uintptr_t callback, UA_DateTime timeout) {
     /* Set up the async operation */
     op->asyncOperationType = opType;
+    op->handling.callback.timeout = timeout;
     op->handling.callback.context = context;
     op->handling.callback.method.read = (UA_ServerAsyncReadResultCallback)callback;
 
@@ -577,12 +583,18 @@ read_async(UA_Server *server, UA_Session *session, const UA_ReadValueId *operati
     if(!op)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    UA_DateTime timeoutDate = UA_INT64_MAX;
+    if(timeout > 0) {
+        UA_EventLoop *el = server->config.eventLoop;
+        const UA_DateTime tNow = el->dateTime_nowMonotonic(el);
+        timeoutDate = tNow + (timeout * UA_DATETIME_MSEC);
+    }
+
     /* Call the operation */
-    UA_Boolean done = Operation_Read(server, session, ttr, operation,
-                                     &op->output.directRead);
+    UA_Boolean done = Operation_Read(server, session, ttr, operation, &op->output.directRead);
     if(!done)
         return persistAsyncDirectOperation(server, op, UA_ASYNCOPERATIONTYPE_READ_DIRECT,
-                                           context, (uintptr_t)callback);
+                                           context, (uintptr_t)callback, timeoutDate);
 
     callback(server, context, &op->output.directRead);
     UA_DataValue_clear(&op->output.directRead);
@@ -687,13 +699,20 @@ write_async(UA_Server *server, UA_Session *session, const UA_WriteValue *operati
     if(!op)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    UA_DateTime timeoutDate = UA_INT64_MAX;
+    if(timeout > 0) {
+        UA_EventLoop *el = server->config.eventLoop;
+        const UA_DateTime tNow = el->dateTime_nowMonotonic(el);
+        timeoutDate = tNow + (timeout * UA_DATETIME_MSEC);
+    }
+
     /* Call the operation */
     op->context.writeValue = *operation; /* Stable pointer */
     UA_Boolean done = Operation_Write(server, session, &op->context.writeValue,
                                       &op->output.directWrite);
     if(!done)
         return persistAsyncDirectOperation(server, op, UA_ASYNCOPERATIONTYPE_WRITE_DIRECT,
-                                           context, (uintptr_t)callback);
+                                           context, (uintptr_t)callback, timeoutDate);
 
     /* Done, return right away */
     callback(server, context, op->output.directWrite);
@@ -799,12 +818,19 @@ call_async(UA_Server *server, UA_Session *session, const UA_CallMethodRequest *o
     if(!op)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    UA_DateTime timeoutDate = UA_INT64_MAX;
+    if(timeout > 0) {
+        UA_EventLoop *el = server->config.eventLoop;
+        const UA_DateTime tNow = el->dateTime_nowMonotonic(el);
+        timeoutDate = tNow + (timeout * UA_DATETIME_MSEC);
+    }
+
     /* Call the operation */
     UA_Boolean done = Operation_CallMethod(server, session, operation,
                                            &op->output.directCall);
     if(!done)
         return persistAsyncDirectOperation(server, op, UA_ASYNCOPERATIONTYPE_CALL_DIRECT,
-                                           context, (uintptr_t)callback);
+                                           context, (uintptr_t)callback, timeoutDate);
 
     /* Done, return right away */
     callback(server, context, &op->output.directCall);
