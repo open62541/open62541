@@ -46,6 +46,7 @@ typedef struct UA_AsyncOperation {
 
         /* The operation was called directly */
         struct {
+            UA_DateTime timeout;
             void *context;
             union {
                 UA_ServerAsyncReadResultCallback read;
