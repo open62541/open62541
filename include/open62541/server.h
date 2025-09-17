@@ -198,6 +198,27 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
     UA_Server_removeCallback(server, callbackId)
 
 /**
+ * Application Notification
+ * ------------------------
+ * The server defines callbacks to notify the application on defined triggering
+ * points. These callbacks are executed with the (re-entrant) server-mutex held.
+ *
+ * The different types of callback are disambiguated by their type enum. Besides
+ * the global notification callback (which is always triggered), the server
+ * configuration contains specialized callbacks that trigger only for specific
+ * notifications. This can reduce the burden of high-frequency notifications.
+ *
+ * If a specialized notification callback is set, it always gets called before
+ * the global notification callback for the same triggering point.
+ *
+ * See the section on the :ref:`Application Notification` enum for more
+ * documentation on the notifications and their defined payload. */
+
+typedef void (*UA_ServerNotificationCallback)(UA_Server *server,
+                                              UA_ApplicationNotificationType type,
+                                              const UA_KeyValueMap payload);
+
+/**
  * .. _server-session-handling:
  *
  * Session Handling
@@ -1982,6 +2003,15 @@ struct UA_ServerConfig {
      * be destroyed when the config is cleaned up. */
     UA_EventLoop *eventLoop;
     UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
+
+    /* Application Notification
+     * ~~~~~~~~~~~~~~~~~~~~~~~~
+     * The notification callbacks can be NULL. The global callback receives all
+     * notifications. The specialized callbacks receive only the subset
+     * indicated by their name. */
+    UA_ServerNotificationCallback globalNotificationCallback;
+    UA_ServerNotificationCallback lifecycleNotificationCallback;
+    UA_ServerNotificationCallback serviceNotificationCallback;
 
     /* Networking
      * ~~~~~~~~~~
