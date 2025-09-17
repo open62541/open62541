@@ -322,9 +322,36 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     /* The session can be NULL if not required */
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 
+    /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN */
+    UA_KeyValuePair notifyPayload[4];
+    UA_KeyValueMap notifyPayloadMap = {4, notifyPayload};
+    UA_ServerConfig *config = &server->config;
+    if(config->globalNotificationCallback || config->serviceNotificationCallback) {
+        notifyPayload[0].key = (UA_QualifiedName){0, UA_STRING_STATIC("securechannel-id")};
+        UA_Variant_setScalar(&notifyPayload[0].value, &channel->securityToken.channelId, &UA_TYPES[UA_TYPES_UINT32]);
+        notifyPayload[1].key = (UA_QualifiedName){0, UA_STRING_STATIC("session-id")};
+        UA_Variant_setScalar(&notifyPayload[1].value, &session->sessionId, &UA_TYPES[UA_TYPES_NODEID]);
+        notifyPayload[2].key = (UA_QualifiedName){0, UA_STRING_STATIC("request-id")};
+        UA_Variant_setScalar(&notifyPayload[2].value, &requestId, &UA_TYPES[UA_TYPES_UINT32]);
+        notifyPayload[3].key = (UA_QualifiedName){0, UA_STRING_STATIC("service-type")};
+        UA_Variant_setScalar(&notifyPayload[3].value, (void*)(uintptr_t)&sd->requestType->typeId, &UA_TYPES[UA_TYPES_NODEID]);
+    }
+    UA_ApplicationNotificationType nt = UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN;
+    if(config->serviceNotificationCallback)
+        config->serviceNotificationCallback(server, nt, notifyPayloadMap);
+    if(config->globalNotificationCallback)
+        config->globalNotificationCallback(server, nt, notifyPayloadMap);
+
     /* Process the service */
     UA_Boolean done = processServiceInternal(server, channel, session,
                                              requestId, sd, request, response);
+
+    /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END */
+    nt = UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END;
+    if(config->serviceNotificationCallback)
+        config->serviceNotificationCallback(server, nt, notifyPayloadMap);
+    if(config->globalNotificationCallback)
+        config->globalNotificationCallback(server, nt, notifyPayloadMap);
 
     /* Update the service statistics */
 #ifdef UA_ENABLE_DIAGNOSTICS
