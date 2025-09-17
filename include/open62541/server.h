@@ -22,6 +22,16 @@
 #include <open62541/types.h>
 #include <open62541/client.h>
 
+#include <open62541/plugin/log.h>
+#include <open62541/plugin/certificategroup.h>
+#include <open62541/plugin/eventloop.h>
+#include <open62541/plugin/accesscontrol.h>
+#include <open62541/plugin/securitypolicy.h>
+
+#ifdef UA_ENABLE_HISTORIZING
+#include <open62541/plugin/historydatabase.h>
+#endif
+
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/server_pubsub.h>
 #endif
@@ -1898,17 +1908,6 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
  * 4. After shutdown of the server, clean up the configuration (free memory)
  *
  * The :ref:`tutorials` provide a good starting point for this. */
-
-#include <open62541/plugin/log.h>
-#include <open62541/plugin/certificategroup.h>
-#include <open62541/plugin/nodestore.h>
-#include <open62541/plugin/eventloop.h>
-#include <open62541/plugin/accesscontrol.h>
-#include <open62541/plugin/securitypolicy.h>
-
-#ifdef UA_ENABLE_HISTORIZING
-#include <open62541/plugin/historydatabase.h>
-#endif
 
 struct UA_ServerConfig {
     void *context; /* Used to attach custom data to a server config. This can
