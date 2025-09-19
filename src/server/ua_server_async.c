@@ -104,11 +104,56 @@ UA_AsyncResponse_delete(UA_AsyncResponse *ar) {
 }
 
 static void
+notifyServiceEnd(UA_Server *server, UA_AsyncResponse *ar,
+                 UA_Session *session, UA_SecureChannel *sc) {
+    /* Nothing to do? */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    if(!config->globalNotificationCallback && !config->serviceNotificationCallback)
+        return;
+
+    /* Collect the payload */
+    UA_NodeId sessionId = (session) ? session->sessionId : UA_NODEID_NULL;
+    UA_UInt32 secureChannelId = (sc) ? sc->securityToken.channelId : 0;
+    UA_NodeId serviceTypeId;
+    if(ar->responseType == &UA_TYPES[UA_TYPES_CALLRESPONSE]) {
+        serviceTypeId = UA_TYPES[UA_TYPES_CALLREQUEST].typeId;
+    } else if(ar->responseType == &UA_TYPES[UA_TYPES_READRESPONSE]) {
+        serviceTypeId = UA_TYPES[UA_TYPES_READREQUEST].typeId;
+    } else /* if(ar->responseType == &UA_TYPES[UA_TYPES_WRITERESPONSE]) */ {
+        serviceTypeId = UA_TYPES[UA_TYPES_WRITEREQUEST].typeId;
+    }
+
+    UA_KeyValuePair notifyPayload[4];
+    UA_KeyValueMap notifyPayloadMap = {4, notifyPayload};
+    UA_ApplicationNotificationType nt = UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END;
+    notifyPayload[0].key = (UA_QualifiedName){0, UA_STRING_STATIC("securechannel-id")};
+    UA_Variant_setScalar(&notifyPayload[0].value, &secureChannelId, &UA_TYPES[UA_TYPES_UINT32]);
+    notifyPayload[1].key = (UA_QualifiedName){0, UA_STRING_STATIC("session-id")};
+    UA_Variant_setScalar(&notifyPayload[1].value, &sessionId, &UA_TYPES[UA_TYPES_NODEID]);
+    notifyPayload[2].key = (UA_QualifiedName){0, UA_STRING_STATIC("request-id")};
+    UA_Variant_setScalar(&notifyPayload[2].value, &ar->requestId, &UA_TYPES[UA_TYPES_UINT32]);
+    notifyPayload[3].key = (UA_QualifiedName){0, UA_STRING_STATIC("service-type")};
+    UA_Variant_setScalar(&notifyPayload[3].value, &serviceTypeId, &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* Notify the application */
+    if(config->serviceNotificationCallback)
+        config->serviceNotificationCallback(server, nt, notifyPayloadMap);
+    if(config->globalNotificationCallback)
+        config->globalNotificationCallback(server, nt, notifyPayloadMap);
+}
+
+static void
 sendAsyncResponse(UA_Server *server, UA_AsyncResponse *ar) {
     UA_assert(ar->opCountdown == 0);
 
     /* Get the session */
     UA_Session *session = getSessionById(server, &ar->sessionId);
+    UA_SecureChannel *channel = (session) ? session->channel : NULL;
+
+    /* Notify that processing the service has ended */
+    notifyServiceEnd(server, ar, session, channel);
+
+    /* Check the session */
     if(!session) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Async Service: Session %N no longer exists", ar->sessionId);
@@ -116,7 +161,6 @@ sendAsyncResponse(UA_Server *server, UA_AsyncResponse *ar) {
     }
 
     /* Check the channel */
-    UA_SecureChannel *channel = session->channel;
     if(!channel) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "Async Service Response cannot be sent. "

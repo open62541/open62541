@@ -22,6 +22,16 @@
 #include <open62541/types.h>
 #include <open62541/client.h>
 
+#include <open62541/plugin/log.h>
+#include <open62541/plugin/certificategroup.h>
+#include <open62541/plugin/eventloop.h>
+#include <open62541/plugin/accesscontrol.h>
+#include <open62541/plugin/securitypolicy.h>
+
+#ifdef UA_ENABLE_HISTORIZING
+#include <open62541/plugin/historydatabase.h>
+#endif
+
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/server_pubsub.h>
 #endif
@@ -186,6 +196,27 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 #define UA_Server_removeRepeatedCallback(server, callbackId) \
     UA_Server_removeCallback(server, callbackId)
+
+/**
+ * Application Notification
+ * ------------------------
+ * The server defines callbacks to notify the application on defined triggering
+ * points. These callbacks are executed with the (re-entrant) server-mutex held.
+ *
+ * The different types of callback are disambiguated by their type enum. Besides
+ * the global notification callback (which is always triggered), the server
+ * configuration contains specialized callbacks that trigger only for specific
+ * notifications. This can reduce the burden of high-frequency notifications.
+ *
+ * If a specialized notification callback is set, it always gets called before
+ * the global notification callback for the same triggering point.
+ *
+ * See the section on the :ref:`Application Notification` enum for more
+ * documentation on the notifications and their defined payload. */
+
+typedef void (*UA_ServerNotificationCallback)(UA_Server *server,
+                                              UA_ApplicationNotificationType type,
+                                              const UA_KeyValueMap payload);
 
 /**
  * .. _server-session-handling:
@@ -1899,17 +1930,6 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
  *
  * The :ref:`tutorials` provide a good starting point for this. */
 
-#include <open62541/plugin/log.h>
-#include <open62541/plugin/certificategroup.h>
-#include <open62541/plugin/nodestore.h>
-#include <open62541/plugin/eventloop.h>
-#include <open62541/plugin/accesscontrol.h>
-#include <open62541/plugin/securitypolicy.h>
-
-#ifdef UA_ENABLE_HISTORIZING
-#include <open62541/plugin/historydatabase.h>
-#endif
-
 struct UA_ServerConfig {
     void *context; /* Used to attach custom data to a server config. This can
                     * then be retrieved e.g. in a callback that forwards a
@@ -1983,6 +2003,15 @@ struct UA_ServerConfig {
      * be destroyed when the config is cleaned up. */
     UA_EventLoop *eventLoop;
     UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
+
+    /* Application Notification
+     * ~~~~~~~~~~~~~~~~~~~~~~~~
+     * The notification callbacks can be NULL. The global callback receives all
+     * notifications. The specialized callbacks receive only the subset
+     * indicated by their name. */
+    UA_ServerNotificationCallback globalNotificationCallback;
+    UA_ServerNotificationCallback lifecycleNotificationCallback;
+    UA_ServerNotificationCallback serviceNotificationCallback;
 
     /* Networking
      * ~~~~~~~~~~
