@@ -428,6 +428,8 @@ serviceFaultId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_SERVICEFAULT_ENCODING_DEFA
 static UA_StatusCode
 processMSGResponse(UA_Client *client, UA_UInt32 requestId,
                    const UA_ByteString *msg) {
+    UA_ClientConfig *config = &client->config;
+
     /* Find the callback */
     AsyncServiceCall *ac;
     LIST_FOREACH(ac, &client->asyncServiceCalls, pointers) {
@@ -441,7 +443,7 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
      * be verified by the Client since only the Client knows if it is valid or
      * not. */
     if(!ac) {
-        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_CLIENT,
                        "Request with unknown RequestId %u", requestId);
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
@@ -468,11 +470,11 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
         UA_init(response, ac->responseType);
         if(UA_NodeId_equal(&responseTypeId, &serviceFaultId)) {
             /* Decode as a ServiceFault, i.e. only the response header */
-            UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_INFO(config->logging, UA_LOGCATEGORY_CLIENT,
                         "Received a ServiceFault response");
             responseType = &UA_TYPES[UA_TYPES_SERVICEFAULT];
         } else {
-            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_CLIENT,
                          "Service response type does not match");
             retval = UA_STATUSCODE_BADCOMMUNICATIONERROR;
             goto process; /* Do not decode */
@@ -481,23 +483,23 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
 
     /* Decode the response */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-    UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_DEBUG(config->logging, UA_LOGCATEGORY_CLIENT,
                  "Decode a message of type %s", responseType->typeName);
 #else
-    UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_DEBUG(config->logging, UA_LOGCATEGORY_CLIENT,
                  "Decode a message of type %" PRIu32,
                  responseTypeId.identifier.numeric);
 #endif
 
     UA_DecodeBinaryOptions opt;
     memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
-    opt.customTypes = client->config.customDataTypes;
+    opt.customTypes = config->customDataTypes;
     retval = UA_decodeBinaryInternal(msg, &offset, response, responseType, &opt);
 
  process:
     /* Process the received MSG response */
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_CLIENT,
                        "Could not decode the response with RequestId %u with status %s",
                        (unsigned)requestId, UA_StatusCode_name(retval));
         response->responseHeader.serviceResult = retval;
@@ -511,17 +513,17 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
         /* Clean up the session information and reset the state */
         cleanupSession(client);
 
-        if(client->config.noNewSession) {
+        if(config->noNewSession) {
             /* Configuration option to not create a new Session. Disconnect the
              * client. */
             client->connectStatus = response->responseHeader.serviceResult;
-            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_CLIENT,
                          "Session cannot be activated with StatusCode %s. "
                          "The client is configured not to create a new Session.",
                          UA_StatusCode_name(client->connectStatus));
             closeSecureChannel(client);
         } else {
-            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_CLIENT,
                            "Session no longer valid. A new Session is created for the next "
                            "Service request but we do not re-send the current request.");
         }
