@@ -1378,6 +1378,10 @@ createSessionCallback(UA_Client *client, void *userdata,
             goto cleanup;
     }
 
+    /* Copy the SessionId */
+    UA_NodeId_clear(&client->sessionId);
+    res |= UA_NodeId_copy(&sessionResponse->sessionId, &client->sessionId);
+
     /* Copy nonce and AuthenticationToken */
     UA_ByteString_clear(&client->serverSessionNonce);
     UA_NodeId_clear(&client->authenticationToken);
@@ -2388,6 +2392,7 @@ sendCloseSession(UA_Client *client) {
 
 void
 cleanupSession(UA_Client *client) {
+    UA_NodeId_clear(&client->sessionId);
     UA_NodeId_clear(&client->authenticationToken);
     client->requestHandle = 0;
 

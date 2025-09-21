@@ -151,6 +151,7 @@ struct UA_Client {
     uintptr_t reverseConnectionIds[16];
 
     /* Session */
+    UA_NodeId sessionId;
     UA_SessionState sessionState;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle; /* Unique handles >100,000 are generated if the
