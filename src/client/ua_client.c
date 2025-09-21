@@ -255,6 +255,15 @@ UA_Client_clear(UA_Client *client) {
     client->namespaces = NULL;
     client->namespacesSize = 0;
 
+    /* Call the application notification callback */
+    UA_ClientConfig *config = &client->config;
+    if(config->lifecycleNotificationCallback)
+        config->lifecycleNotificationCallback(client, UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED,
+                                              UA_KEYVALUEMAP_NULL);
+    if(config->globalNotificationCallback)
+        config->globalNotificationCallback(client, UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED,
+                                           UA_KEYVALUEMAP_NULL);
+
 #if UA_MULTITHREADING >= 100
     UA_LOCK_DESTROY(&client->clientMutex);
 #endif
@@ -1006,10 +1015,11 @@ UA_StatusCode
 __UA_Client_startup(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
-    UA_EventLoop *el = client->config.eventLoop;
+    UA_ClientConfig *config = &client->config;
+    UA_EventLoop *el = config->eventLoop;
     UA_CHECK_ERROR(el != NULL,
                    return UA_STATUSCODE_BADINTERNALERROR,
-                   client->config.logging, UA_LOGCATEGORY_CLIENT,
+                   config->logging, UA_LOGCATEGORY_CLIENT,
                    "No EventLoop configured");
 
     /* Set up the repeated timer callback for checking the internal state. Like
@@ -1029,6 +1039,14 @@ __UA_Client_startup(UA_Client *client) {
         rv = el->start(el);
         UA_CHECK_STATUS(rv, return rv);
     }
+
+    /* Call the application notification callback */
+    if(config->lifecycleNotificationCallback)
+        config->lifecycleNotificationCallback(client, UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STARTED,
+                                              UA_KEYVALUEMAP_NULL);
+    if(config->globalNotificationCallback)
+        config->globalNotificationCallback(client, UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STARTED,
+                                           UA_KEYVALUEMAP_NULL);
 
     return UA_STATUSCODE_GOOD;
 }

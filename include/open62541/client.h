@@ -540,6 +540,25 @@ UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId);
     UA_Client_removeCallback(server, callbackId);
 
 /**
+ * Application Notification
+ * ------------------------
+ * The client defines callbacks to notify the application on defined triggering
+ * points. These callbacks are executed with the (re-entrant) client-mutex held.
+ *
+ * The different types of callback are disambiguated by their type enum. Besides
+ * the global notification callback (which is always triggered), the client
+ * configuration contains specialized callbacks that trigger only for specific
+ * notifications. This can reduce the burden of high-frequency notifications.
+ *
+ * See the section on the :ref:`Application Notification` enum for more
+ * documentation on the notifications and their defined payload. */
+
+typedef void (*UA_ClientNotificationCallback)(UA_Client *client,
+                                              UA_ApplicationNotificationType type,
+                                              const UA_KeyValueMap payload);
+
+
+/**
  * .. _client-config:
  *
  * Client Configuration
@@ -661,6 +680,14 @@ struct UA_ClientConfig {
     UA_ConnectionConfig localConnectionConfig;
     UA_UInt32 connectivityCheckInterval;     /* Connectivity check interval in ms.
                                               * 0 = background task disabled */
+
+    /* Application Notification
+     * ~~~~~~~~~~~~~~~~~~~~~~~~
+     * The notification callbacks can be NULL. The global callback receives all
+     * notifications. The specialized callbacks receive only the subset
+     * indicated by their name. */
+    UA_ClientNotificationCallback globalNotificationCallback;
+    UA_ClientNotificationCallback lifecycleNotificationCallback;
 
     /* EventLoop */
     UA_EventLoop *eventLoop;
