@@ -347,6 +347,7 @@ browseRecursiveCallback(void *context, UA_ReferenceTarget *t) {
     /* Add the current node if we don't want to skip it as a start node and it
      * matches the nodeClassMask filter Recurse into the children in any
      * case. */
+    void *res = NULL;
     const UA_NodeHead *head = &node->head;
     if((brc->includeStartNodes || brc->depth > 0)  &&
        matchClassMask(node, brc->nodeClassMask)) {
@@ -358,7 +359,6 @@ browseRecursiveCallback(void *context, UA_ReferenceTarget *t) {
 
     /* Recurse */
     brc->depth++;
-    void *res = NULL;
     for(size_t i = 0; i < head->referencesSize && !res; i++) {
         UA_NodeReferenceKind *rk = &head->references[i];
 
