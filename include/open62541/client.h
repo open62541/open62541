@@ -688,6 +688,7 @@ struct UA_ClientConfig {
      * indicated by their name. */
     UA_ClientNotificationCallback globalNotificationCallback;
     UA_ClientNotificationCallback lifecycleNotificationCallback;
+    UA_ClientNotificationCallback serviceNotificationCallback;
 
     /* EventLoop */
     UA_EventLoop *eventLoop;

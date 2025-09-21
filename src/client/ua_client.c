@@ -529,10 +529,46 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
         }
     }
 
-    /* Call the async callback. This is the only thread with access to ac. So we
-     * can just unlock for the callback into userland. */
-    if(ac->callback)
+    /* Prepare the notification payload */
+    UA_ApplicationNotificationType nt;
+    UA_KeyValuePair notifyPayload[4];
+    UA_KeyValueMap notifyPayloadMap = {4, notifyPayload};
+    if(config->globalNotificationCallback || config->serviceNotificationCallback) {
+        notifyPayload[0].key = (UA_QualifiedName){0, UA_STRING_STATIC("securechannel-id")};
+        UA_Variant_setScalar(&notifyPayload[0].value,
+                             &client->channel.securityToken.channelId,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+        notifyPayload[1].key = (UA_QualifiedName){0, UA_STRING_STATIC("session-id")};
+        UA_Variant_setScalar(&notifyPayload[1].value, &client->sessionId, &UA_TYPES[UA_TYPES_NODEID]);
+        notifyPayload[2].key = (UA_QualifiedName){0, UA_STRING_STATIC("request-id")};
+        UA_Variant_setScalar(&notifyPayload[2].value, &requestId, &UA_TYPES[UA_TYPES_UINT32]);
+        notifyPayload[3].key = (UA_QualifiedName){0, UA_STRING_STATIC("service-type")};
+        UA_Variant_setScalar(&notifyPayload[3].value,
+                             (void *)(uintptr_t)&ac->responseType->typeId,
+                             &UA_TYPES[UA_TYPES_NODEID]);
+    }
+
+    if(ac->callback) {
+        /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN before the
+         * service response is processed asynchronously */
+        nt = UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN;
+        if(config->serviceNotificationCallback)
+            config->serviceNotificationCallback(client, nt, notifyPayloadMap);
+        if(config->globalNotificationCallback)
+            config->globalNotificationCallback(client, nt, notifyPayloadMap);
+
+        /* Call the async callback */
         ac->callback(client, ac->userdata, requestId, response);
+    }
+
+    /* Always notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END that the
+     * service was processed. For the synchronous case this gets called before
+     * the response is returned together with the main control flow. */
+    nt = UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END;
+    if(config->serviceNotificationCallback)
+        config->serviceNotificationCallback(client, nt, notifyPayloadMap);
+    if(config->globalNotificationCallback)
+        config->globalNotificationCallback(client, nt, notifyPayloadMap);
 
     /* Clean up */
     UA_NodeId_clear(&responseTypeId);
