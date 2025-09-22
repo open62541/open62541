@@ -1286,7 +1286,6 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
         UA_ServerConfig_clear(conf);
         return retval;
     }
-    conf->securityPolicyNoneDiscoveryOnly = true;
 
     return UA_STATUSCODE_GOOD;
 }
