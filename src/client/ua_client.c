@@ -122,14 +122,15 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
 #endif
 
     /* Initialize the namespace mapping */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     size_t initialNs = 2 + config->namespacesSize;
     client->namespaces = (UA_String*)UA_calloc(initialNs, sizeof(UA_String));
     if(!client->namespaces)
         goto error;
+
     client->namespacesSize = initialNs;
     client->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
     client->namespaces[1] = UA_STRING_NULL; /* Gets set when we connect to the server */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < config->namespacesSize; i++) {
         res |= UA_String_copy(&client->namespaces[i+2], &config->namespaces[i]);
     }
