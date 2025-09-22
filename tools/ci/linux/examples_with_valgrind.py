@@ -196,19 +196,19 @@ for example in examples:
         print(f"Processing {example} failed with valgrind issues")
         exit(exit_code)
     if not args_cli.no_valgrind and exit_code != 0:
-        print(f"The application returned exit code {exit_code} but valgrind has no issue")
+        print(f"The application {example} returned exit code {exit_code} but valgrind has no issue")
 
     if args_cli.no_valgrind and exit_code != 0:
-        print(f"The application returned exit code {exit_code}")
+        print(f"The application {example} returned exit code {exit_code}")
         exit(exit_code)
 
     # terminate the server and client
     if server_process:
-        print(f"Sending SIGKILL to server {server_process.pid}")
+        print(f"Sending SIGKILL to server {server_process.pid} for application {example}")
         server_process.kill()
         server_process.wait()
     
     if client_process:
-        print(f"Sending SIGKILL to client {client_process.pid}")
+        print(f"Sending SIGKILL to client {client_process.pid} for application {example}")
         client_process.kill()
         client_process.wait()
