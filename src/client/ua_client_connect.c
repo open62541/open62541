@@ -900,19 +900,18 @@ activateSessionAsync(UA_Client *client) {
 
     UA_SecurityPolicy *utsp = NULL;
     UA_SecureChannel *channel = &client->channel;
+    static const UA_String noneUri = UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
+    UA_String tokenSecurityPolicyUri = (utp->securityPolicyUri.length > 0) ?
+        utp->securityPolicyUri : client->endpoint.securityPolicyUri;
 
-    if(request.userIdentityToken.content.decoded.type ==
-       &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN])
+    if(request.userIdentityToken.content.decoded.type == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN])
         goto utp_done;
 
     /* Does the UserTokenPolicy have encryption? If not specifically defined in
      * the UserTokenPolicy, then the SecurityPolicy of the underlying endpoint
      * (SecureChannel) is used. */
-    UA_String tokenSecurityPolicyUri = (utp->securityPolicyUri.length > 0) ?
-        utp->securityPolicyUri : client->endpoint.securityPolicyUri;
-    const UA_String none = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
-    if(UA_String_equal(&none, &tokenSecurityPolicyUri)) {
-        if(UA_String_equal(&none, &client->channel.securityPolicy->policyUri)) {
+    if(UA_String_equal(&noneUri, &tokenSecurityPolicyUri)) {
+        if(UA_String_equal(&noneUri, &client->channel.securityPolicy->policyUri)) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "!!! Warning !!! AuthenticationToken is transmitted "
                            "without encryption");
@@ -1721,8 +1720,14 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
            client->connectStatus == UA_STATUSCODE_GOOD)
             client->connectStatus = fallbackEndpointUrl(client);
 
-        /* Try to reconnect */
-        goto continue_connect;
+        /* Try to reconnect. Duplicate the code instead of continue_connect to
+         * pacify compiler warnings. */
+        /* goto continue_connect; */
+        if(!isFullyConnected(client))
+            connectActivity(client);
+        notifyClientState(client);
+        unlockClient(client);
+        return;
     }
 
     /* Update the SecureChannel state */
@@ -1797,7 +1802,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
- continue_connect:
+    /* continue_connect: */
     /* Trigger the next action from our end to fully open up the connection */
     if(!isFullyConnected(client))
         connectActivity(client);
