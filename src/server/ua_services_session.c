@@ -698,6 +698,19 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
  * accepts the new SecureChannel it shall reject requests sent via the old
  * SecureChannel. */
 
+#define UA_SESSION_REJECT                                               \
+    do {                                                                \
+        server->serverDiagnosticsSummary.rejectedSessionCount++;        \
+        return;                                                         \
+    } while(0)
+
+#define UA_SECURITY_REJECT                                              \
+    do {                                                                \
+        server->serverDiagnosticsSummary.securityRejectedSessionCount++; \
+        server->serverDiagnosticsSummary.rejectedSessionCount++;        \
+        return;                                                         \
+    } while(0)
+
 void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         const UA_ActivateSessionRequest *req,
@@ -714,7 +727,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "ActivateSession: Session not found");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        goto rejected;
+        UA_SESSION_REJECT;
     }
 
     /* Part 4, §5.6.3: When the ActivateSession Service is called for the
@@ -727,7 +740,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                "ActivateSession: The Session has to be initially activated "
                                "on the SecureChannel that created it");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        goto rejected;
+        UA_SESSION_REJECT;
     }
 
     /* Has the session timed out? */
@@ -737,7 +750,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: The Session has timed out");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        goto rejected;
+        UA_SESSION_REJECT;
     }
 
     /* Check the client signature */
@@ -753,7 +766,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                    "ActivateSession: Client signature check failed "
                                    "with StatusCode %s",
                                    UA_StatusCode_name(resp->responseHeader.serviceResult));
-            goto securityRejected;
+            UA_SECURITY_REJECT;
         }
     }
 
@@ -763,7 +776,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                  &ed, &utp, &tokenSp);
     if(!ed || !tokenSp) {
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        goto rejected;
+        UA_SESSION_REJECT;
     }
 
     /* Decrypt (or validate the signature) of the UserToken. The DataType of the
@@ -795,7 +808,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
            &issuedToken->tokenData);
     } /* else Anonymous */
     if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-        goto securityRejected;
+        UA_SECURITY_REJECT;
 
     /* Callback into userland access control */
     resp->responseHeader.serviceResult = server->config.accessControl.
@@ -807,7 +820,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                "ActivateSession: The AccessControl "
                                "plugin denied the activation with the StatusCode %s",
                                UA_StatusCode_name(resp->responseHeader.serviceResult));
-        goto securityRejected;
+        UA_SECURITY_REJECT;
     }
 
     /* Attach the session to the currently used channel if the session isn't
@@ -828,7 +841,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_Session_detachFromSecureChannel(session);
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Could not generate the server nonce");
-        goto rejected;
+        UA_SESSION_REJECT;
     }
 
     /* Set the Locale */
@@ -844,7 +857,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
             UA_Session_detachFromSecureChannel(session);
             UA_LOG_WARNING_SESSION(server->config.logging, session,
                                    "ActivateSession: Could not store the Session LocaleIds");
-            goto rejected;
+            UA_SESSION_REJECT;
         }
         UA_Array_delete(session->localeIds, session->localeIdsSize,
                         &UA_TYPES[UA_TYPES_STRING]);
@@ -881,14 +894,12 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
 #ifdef UA_ENABLE_DIAGNOSTICS
-    /* Add the ClientUserId to the diagnostics history */
+    /* Add the ClientUserId to the diagnostics history. Ignoring errors in _appendCopy. */
     UA_SessionSecurityDiagnosticsDataType *ssd = &session->securityDiagnostics;
-    UA_StatusCode res =
-        UA_Array_appendCopy((void**)&ssd->clientUserIdHistory,
-                            &ssd->clientUserIdHistorySize,
-                            &ssd->clientUserIdOfSession,
-                            &UA_TYPES[UA_TYPES_STRING]);
-    (void)res;
+    UA_Array_appendCopy((void**)&ssd->clientUserIdHistory,
+                        &ssd->clientUserIdHistorySize,
+                        &ssd->clientUserIdOfSession,
+                        &UA_TYPES[UA_TYPES_STRING]);
 
     /* Store the auth mechanism */
     UA_String_clear(&ssd->authenticationMechanism);
@@ -909,12 +920,6 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_LOG_INFO_SESSION(server->config.logging, session,
                         "ActivateSession: Session activated with ClientUserId \"%S\"",
                         session->clientUserIdOfSession);
-    return;
-
-securityRejected:
-    server->serverDiagnosticsSummary.securityRejectedSessionCount++;
-rejected:
-    server->serverDiagnosticsSummary.rejectedSessionCount++;
 }
 
 void
