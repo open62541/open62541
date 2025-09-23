@@ -643,6 +643,13 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
         add_cc_flag("-fPIC")
     endif()
 
+    # Hardened build (stack protection, etc.)
+    # See the GCC docs on which precise flags this enables.
+    if(UA_ENABLE_HARDENING)
+        check_add_cc_flag("-fhardened")
+    endif()
+
+    # Threading support
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
         check_add_cc_flag("-pthread")
     endif()
@@ -664,10 +671,6 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
             check_add_cc_flag("-fprofile-arcs")
             check_add_cc_flag("-ftest-coverage")
         endif()
-    endif()
-
-    if(UA_ENABLE_HARDENING)
-        check_add_cc_flag("-fhardened") # See the GCC docs on which precise flags this enables
     endif()
 
     # Inter Procedural Optimization / Link Time Optimization (should be same as -flto)
