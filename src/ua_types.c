@@ -877,6 +877,7 @@ nodeIdSize(const UA_NodeId *id, u8 *nsStr, u8 *numIdStr, UA_String nsUri,
 static u8 *
 printNodeIdBody(const UA_NodeId *id, UA_String nsUri, u8* nsStr, u8* numIdStr, u8 *pos,
                 const UA_NamespaceMapping *nsMapping, UA_Escaping idEsc) {
+    size_t len;
     /* Encode the namespace */
     if(nsUri.length > 0) {
         memcpy(pos, "nsu=", 4);
@@ -886,7 +887,7 @@ printNodeIdBody(const UA_NodeId *id, UA_String nsUri, u8* nsStr, u8* numIdStr, u
     } else if(id->namespaceIndex > 0) {
         memcpy(pos, "ns=", 3);
         pos += 3;
-        size_t len = strlen((char*)nsStr);
+        len = strlen((char*)nsStr);
         memcpy(pos, nsStr, len);
         pos += len;
         *pos++ = ';';
@@ -897,7 +898,7 @@ printNodeIdBody(const UA_NodeId *id, UA_String nsUri, u8* nsStr, u8* numIdStr, u
     case UA_NODEIDTYPE_NUMERIC:
         memcpy(pos, "i=", 2);
         pos += 2;
-        size_t len = strlen((char*)numIdStr);
+        len = strlen((char*)numIdStr);
         memcpy(pos, numIdStr, len);
         pos += len;
         break;
