@@ -2150,9 +2150,7 @@ Variant_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void *p, const UA_DataTyp
      * means for us, that somebody made an extra effort to explicitly get an
      * ExtensionObject. So we keep it. As an added advantage we will generate
      * the same JSON again when encoding again. */
-    UA_Boolean isBuiltin =
-        (eo.content.decoded.type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
-    if(isBuiltin)
+    if(eo.content.decoded.type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO)
         goto use_eo;
 
     /* Unwrap the ExtensionObject */
