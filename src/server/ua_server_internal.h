@@ -31,6 +31,10 @@
 
 _UA_BEGIN_DECLS
 
+#ifdef UA_ENABLE_RBAC
+#include "ua_server_rbac.h"
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 
@@ -224,6 +228,11 @@ struct UA_Server {
     /* Namespaces */
     size_t namespacesSize;
     UA_String *namespaces;
+
+#ifdef UA_ENABLE_RBAC
+    size_t rolesSize;
+    UA_Role *roles;
+#endif /* UA_ENABLE_RBAC */
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
