@@ -79,7 +79,7 @@ static void
 batchTimerEntry(UA_Timer *t, UA_TimerEntry *te) {
     if(te->timerPolicy != UA_TIMERPOLICY_CURRENTTIME)
         return;
-    UA_UInt64 deviate = te->interval / 4;
+    UA_DateTime deviate = te->interval / 4;
     if(deviate > UA_DATETIME_SEC)
         deviate = UA_DATETIME_SEC;
     earliest = te->nextTime - deviate;

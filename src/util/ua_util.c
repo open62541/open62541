@@ -832,11 +832,11 @@ UA_String_unescape(UA_String *str, UA_Boolean copyEscape, UA_Escaping esc) {
                 byte <<= 4;
 
                 if(pos[2] >= 'a')
-                    byte += pos[2] - ('a' - 10);
+                    byte += (u8)(pos[2] - ('a' - 10));
                 else if(pos[2] >= 'A')
-                    byte += pos[2] - ('A' - 10);
+                    byte += (u8)(pos[2] - ('A' - 10));
                 else
-                    byte += pos[2] - '0';
+                    byte += (u8)(pos[2] - '0');
 
                 pos += 2;
                 *writepos++ = byte;
