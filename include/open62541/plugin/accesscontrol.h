@@ -4,6 +4,7 @@
  *
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2025 (c) Andreas Ebner
  */
 
 #ifndef UA_PLUGIN_ACCESS_CONTROL_H_
@@ -12,6 +13,35 @@
 #include <open62541/util.h>
 
 _UA_BEGIN_DECLS
+
+#ifdef UA_ENABLE_RBAC
+typedef struct {
+    UA_NodeId roleId;
+    UA_QualifiedName roleName;
+    size_t imrtSize;
+    UA_IdentityMappingRuleType *imrt;
+    UA_Boolean applicationsExclude;
+    size_t applicationsSize;
+    UA_String *applications;
+    UA_Boolean endpointsExclude;
+    size_t endpointsSize;
+    UA_EndpointType *endpoints;
+    UA_Boolean customConfiguration;
+} UA_Role;
+
+void UA_EXPORT
+UA_Role_init(UA_Role *role);
+
+void UA_EXPORT
+UA_Role_clear(UA_Role *role);
+
+UA_StatusCode UA_EXPORT
+UA_Role_copy(const UA_Role *src, UA_Role *dst);
+
+UA_Boolean UA_EXPORT
+UA_Role_equal(const UA_Role *r1, const UA_Role *r2);
+
+#endif /* UA_ENABLE_RBAC */
 
 struct UA_AccessControl;
 typedef struct UA_AccessControl UA_AccessControl;
