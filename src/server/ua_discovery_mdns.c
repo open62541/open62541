@@ -1147,7 +1147,7 @@ UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm) {
 
 UA_UInt32
 UA_DiscoveryManager_getMdnsConnectionCount(void) {
-    return mdnsPrivateData.mdnsRecvConnectionsSize + (mdnsPrivateData.mdnsSendConnection != 0);
+    return (UA_UInt32)(mdnsPrivateData.mdnsRecvConnectionsSize + (mdnsPrivateData.mdnsSendConnection != 0));
 }
 
 void

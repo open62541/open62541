@@ -155,7 +155,7 @@ START_TEST(connectTCP) {
 
 #if !defined(UA_ARCHITECTURE_LWIP)
     /* Set up the TCP EventLoop parameters */
-    UA_UInt32 maxSockets = listenSockets + 1; /* Max number of server sockets (default: 0 -> unbounded) */
+    UA_UInt32 maxSockets = (UA_UInt32)(listenSockets + 1); /* Max number of server sockets (default: 0 -> unbounded) */
     UA_KeyValueMap_setScalar(&cm->eventSource.params, UA_QUALIFIEDNAME(0, "max-connections"),
                              (void *)&maxSockets, &UA_TYPES[UA_TYPES_UINT32]);
 #endif
