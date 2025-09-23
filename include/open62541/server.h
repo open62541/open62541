@@ -2138,6 +2138,11 @@ struct UA_ServerConfig {
     UA_CertificateGroup sessionPKI;
 
     /* See the AccessControl Plugin API */
+    /* TODO Add more advanced ACP Description*/
+#ifdef UA_ENABLE_RBAC
+    size_t rolesSize;
+    UA_Role *roles;
+#endif
     UA_AccessControl accessControl;
 
     /* Nodes and Node Lifecycle
@@ -2317,6 +2322,52 @@ struct UA_ServerConfig {
                                                 UA_ByteString *password);
 #endif
 };
+
+#ifdef UA_ENABLE_RBAC
+
+/* Role Management API
+ * ~~~~~~~~~~~~~~~~~~~
+ * Functions for managing roles in the server's role-based access control system.
+ */
+
+//UA_StatusCode UA_EXPORT
+//UA_Server_getRoles(UA_Server *server, UA_String roleName, UA_String namespaceUri, UA_NodeId *outNewRoleId);
+
+/* TODO: Define proper return types for these functions */
+/*
+const UA_Role * UA_EXPORT
+UA_Server_getRolesById(UA_Server *server, UA_NodeId roleId);
+
+const UA_Role * UA_EXPORT
+UA_Server_getRolesByName(UA_Server *server, UA_String roleName, UA_String namespaceUri);
+*/
+
+UA_StatusCode UA_EXPORT
+UA_Server_addRole(UA_Server *server, UA_String roleName, UA_String namespaceUri, 
+                  const UA_Role *role, UA_NodeId *outNewRoleId);
+
+UA_StatusCode UA_EXPORT
+UA_Server_removeRole(UA_Server *server, UA_NodeId roleId);
+
+UA_StatusCode UA_EXPORT
+UA_Server_addRoleIdentity(UA_Server *server, UA_NodeId roleId, UA_IdentityCriteriaType ict);
+
+UA_StatusCode UA_EXPORT
+UA_Server_removeRoleIdentity(UA_Server *server, UA_NodeId roleId, UA_IdentityCriteriaType ict);
+
+UA_StatusCode UA_EXPORT
+UA_Server_addRoleApplication(UA_Server *server, UA_NodeId roleId, UA_String uri);
+
+UA_StatusCode UA_EXPORT
+UA_Server_removeRoleApplication(UA_Server *server, UA_NodeId roleId, UA_String uri);
+
+UA_StatusCode UA_EXPORT
+UA_Server_addRoleEndpoint(UA_Server *server, UA_NodeId roleId, UA_EndpointType endpoint);
+
+UA_StatusCode UA_EXPORT
+UA_Server_removeRoleEndpoint(UA_Server *server, UA_NodeId roleId, UA_EndpointType endpoint);
+
+#endif /* UA_ENABLE_RBAC */
 
 void UA_EXPORT
 UA_ServerConfig_clear(UA_ServerConfig *config);
