@@ -489,6 +489,19 @@ UA_KeyValueMap_setScalar(UA_KeyValueMap *map,
     return UA_KeyValueMap_set(map, key, &v);
 }
 
+UA_StatusCode
+UA_KeyValueMap_setScalarShallow(UA_KeyValueMap *map, const UA_QualifiedName key,
+                                void *UA_RESTRICT p, const UA_DataType *type) {
+    if(p == NULL || type == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_Variant v;
+    UA_Variant_init(&v);
+    v.type = type;
+    v.arrayLength = 0;
+    v.data = p;
+    return UA_KeyValueMap_setShallow(map, key, &v);
+}
+
 const UA_Variant *
 UA_KeyValueMap_get(const UA_KeyValueMap *map,
                    const UA_QualifiedName key) {
