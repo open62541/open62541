@@ -102,6 +102,13 @@ UA_DataType_toStructureDefinition(const UA_DataType *type,
 
 
 /**
+ * Memory Handling
+ * --------------- */
+
+/* Force casting a pointer. Attention, unsafe! */
+#define UA_FORCE_CAST_PTR(t, p) ((t)(uintptr_t)p)
+
+/**
  * Key Value Map
  * -------------
  * Helper functions to work with configuration parameters in an array of
