@@ -477,7 +477,7 @@ UA_KeyValueMap_setShallow(UA_KeyValueMap *map,
 UA_StatusCode
 UA_KeyValueMap_setScalar(UA_KeyValueMap *map,
                          const UA_QualifiedName key,
-                         void * UA_RESTRICT p,
+                         const void * UA_RESTRICT p,
                          const UA_DataType *type) {
     if(p == NULL || type == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -485,7 +485,7 @@ UA_KeyValueMap_setScalar(UA_KeyValueMap *map,
     UA_Variant_init(&v);
     v.type = type;
     v.arrayLength = 0;
-    v.data = p;
+    v.data = (void*)(uintptr_t)p;
     return UA_KeyValueMap_set(map, key, &v);
 }
 

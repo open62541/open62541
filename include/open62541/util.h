@@ -155,7 +155,7 @@ UA_KeyValueMap_setShallow(UA_KeyValueMap *map,
 UA_EXPORT UA_StatusCode
 UA_KeyValueMap_setScalar(UA_KeyValueMap *map,
                          const UA_QualifiedName key,
-                         void * UA_RESTRICT p,
+                         const void * UA_RESTRICT p,
                          const UA_DataType *type);
 
 UA_EXPORT UA_StatusCode
