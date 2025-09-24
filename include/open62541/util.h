@@ -109,6 +109,7 @@ UA_DataType_toStructureDefinition(const UA_DataType *type,
  * methods below that accept a `const UA_KeyValueMap` as an argument also accept
  * NULL for that argument and treat it as an empty map. */
 
+/* The layout is identical to UA_AdditionalParametersType (casting possible) */
 typedef struct {
     size_t mapSize;
     UA_KeyValuePair *map;
@@ -156,6 +157,12 @@ UA_KeyValueMap_setScalar(UA_KeyValueMap *map,
                          const UA_QualifiedName key,
                          void * UA_RESTRICT p,
                          const UA_DataType *type);
+
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_setScalarShallow(UA_KeyValueMap *map,
+                                const UA_QualifiedName key,
+                                void * UA_RESTRICT p,
+                                const UA_DataType *type);
 
 /* Returns a pointer to the value or NULL if the key is not found */
 UA_EXPORT const UA_Variant *
