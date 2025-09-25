@@ -4,6 +4,7 @@
  *
  *    Copyright 2017-2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017-2019 (c) Fraunhofer IOSB (Author: Mark Giraud)
+ *    Copyright 2025 (c) Siemens AG (Author: Tin Raic)
  */
 
 #include <open62541/types.h>
@@ -242,7 +243,6 @@ encryptUserIdentityToken(UA_Client *client, UA_SecurityPolicy *utsp,
     }
 
     /* Create a temp channel context */
-
     void *channelContext;
     UA_StatusCode retval = utsp->channelModule.
         newContext(utsp, &client->endpoint.serverCertificate, &channelContext);
@@ -252,50 +252,58 @@ encryptUserIdentityToken(UA_Client *client, UA_SecurityPolicy *utsp,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Compute the encrypted length (at least one byte padding) */
-    size_t plainTextBlockSize = utsp->asymmetricModule.cryptoModule.
-        encryptionAlgorithm.getRemotePlainTextBlockSize(channelContext);
-    size_t encryptedBlockSize = utsp->asymmetricModule.cryptoModule.
-        encryptionAlgorithm.getRemoteBlockSize(channelContext);
-    UA_UInt32 length = (UA_UInt32)(tokenData->length + client->serverSessionNonce.length);
-    UA_UInt32 totalLength = length + 4; /* Including the length field */
-    size_t blocks = totalLength / plainTextBlockSize;
-    if(totalLength % plainTextBlockSize != 0)
-        blocks++;
-    size_t encryptedLength = blocks * encryptedBlockSize;
-
-    /* Allocate memory for encryption overhead */
-    UA_ByteString encrypted;
-    retval = UA_ByteString_allocBuffer(&encrypted, encryptedLength);
-    if(retval != UA_STATUSCODE_GOOD) {
-        utsp->channelModule.deleteContext(channelContext);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(UA_SecurityPolicy_isEccPolicy(utsp->policyUri)) {
+        retval = encryptUserIdentityTokenEcc(client->config.logging, tokenData,
+                                             client->serverSessionNonce,
+                                             client->serverEphemeralPubKey, utsp,
+                                             channelContext);
+        UA_ByteString_clear(&client->serverEphemeralPubKey);
+    } else {
+        /* Compute the encrypted length (at least one byte padding) */
+        size_t plainTextBlockSize = utsp->asymmetricModule.cryptoModule.
+            encryptionAlgorithm.getRemotePlainTextBlockSize(channelContext);
+        size_t encryptedBlockSize = utsp->asymmetricModule.cryptoModule.
+            encryptionAlgorithm.getRemoteBlockSize(channelContext);
+        UA_UInt32 length = (UA_UInt32)(tokenData->length + client->serverSessionNonce.length);
+        UA_UInt32 totalLength = length + 4; /* Including the length field */
+        size_t blocks = totalLength / plainTextBlockSize;
+        if(totalLength % plainTextBlockSize != 0)
+            blocks++;
+        size_t encryptedLength = blocks * encryptedBlockSize;
+    
+        /* Allocate memory for encryption overhead */
+        UA_ByteString encrypted;
+        retval = UA_ByteString_allocBuffer(&encrypted, encryptedLength);
+        if(retval != UA_STATUSCODE_GOOD) {
+            utsp->channelModule.deleteContext(channelContext);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+    
+        UA_Byte *pos = encrypted.data;
+        const UA_Byte *end = &encrypted.data[encrypted.length];
+        retval = UA_UInt32_encodeBinary(&length, &pos, end);
+        memcpy(pos, tokenData->data, tokenData->length);
+        memcpy(&pos[tokenData->length], client->serverSessionNonce.data,
+               client->serverSessionNonce.length);
+        UA_assert(retval == UA_STATUSCODE_GOOD);
+    
+        /* Add padding
+         *
+         * 7.36.2.2 Legacy Encrypted Token Secret Format: A Client should not add any
+         * padding after the secret. If a Client adds padding then all bytes shall
+         * be zero. A Server shall check for padding added by Clients and ensure
+         * that all padding bytes are zeros. */
+        size_t paddedLength = plainTextBlockSize * blocks;
+        for(size_t i = totalLength; i < paddedLength; i++)
+            encrypted.data[i] = 0;
+        encrypted.length = paddedLength;
+    
+        retval = utsp->asymmetricModule.cryptoModule.encryptionAlgorithm.
+            encrypt(channelContext, &encrypted);
+        encrypted.length = encryptedLength;
+        UA_ByteString_clear(tokenData);
+        *tokenData = encrypted;
     }
-
-    UA_Byte *pos = encrypted.data;
-    const UA_Byte *end = &encrypted.data[encrypted.length];
-    retval = UA_UInt32_encodeBinary(&length, &pos, end);
-    memcpy(pos, tokenData->data, tokenData->length);
-    memcpy(&pos[tokenData->length], client->serverSessionNonce.data,
-           client->serverSessionNonce.length);
-    UA_assert(retval == UA_STATUSCODE_GOOD);
-
-    /* Add padding
-     *
-     * 7.36.2.2 Legacy Encrypted Token Secret Format: A Client should not add any
-     * padding after the secret. If a Client adds padding then all bytes shall
-     * be zero. A Server shall check for padding added by Clients and ensure
-     * that all padding bytes are zeros. */
-    size_t paddedLength = plainTextBlockSize * blocks;
-    for(size_t i = totalLength; i < paddedLength; i++)
-        encrypted.data[i] = 0;
-    encrypted.length = paddedLength;
-
-    retval = utsp->asymmetricModule.cryptoModule.encryptionAlgorithm.
-        encrypt(channelContext, &encrypted);
-    encrypted.length = encryptedLength;
-    UA_ByteString_clear(tokenData);
-    *tokenData = encrypted;
 
     /* Delete the temporary channel context */
     utsp->channelModule.deleteContext(channelContext);
@@ -787,6 +795,31 @@ readNamespacesArrayAsync(UA_Client *client) {
 }
 
 static void
+extractEphemeralKeyFromAddHeader(UA_Client *client, UA_ExtensionObject *ah) {
+    UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_SESSION,
+                 "Server Ephemeral Key in the response");
+
+    /* KeyValueMap has the identical structure the UA_AdditionalParametersType */
+    UA_KeyValueMap *map = (UA_KeyValueMap*)ah->content.decoded.data;
+
+    /* TODO: Handle the ECDHPolicyUri */
+
+    /* Get the Ephemeral Key */
+    UA_EphemeralKeyType *ephKey = (UA_EphemeralKeyType*)(uintptr_t)
+        UA_KeyValueMap_getScalar(map, UA_QUALIFIEDNAME(0, "ECDHKey"),
+                                 &UA_TYPES[UA_TYPES_EPHEMERALKEYTYPE]);
+    if(!ephKey)
+        return; /* TODO: Security error? */
+
+    /* Move the Ephemeral Key into the client */
+    UA_ByteString_clear(&client->serverEphemeralPubKey);
+    client->serverEphemeralPubKey = ephKey->publicKey;
+    UA_ByteString_init(&ephKey->publicKey);
+
+    /* TODO: Validate the signature of the ephemeral key */
+}
+
+static void
 responseActivateSession(UA_Client *client, void *userdata,
                         UA_UInt32 requestId, void *response) {
     UA_LOCK_ASSERT(&client->clientMutex);
@@ -830,6 +863,11 @@ responseActivateSession(UA_Client *client, void *userdata,
     UA_ByteString_clear(&client->serverSessionNonce);
     client->serverSessionNonce = ar->serverNonce;
     UA_ByteString_init(&ar->serverNonce);
+
+    /* Extract the server's ephemeral public key from the additional header */
+    UA_ExtensionObject *ah = &ar->responseHeader.additionalHeader;
+    if(UA_ExtensionObject_hasDecodedType(ah, &UA_TYPES[UA_TYPES_ADDITIONALPARAMETERSTYPE]))
+        extractEphemeralKeyFromAddHeader(client, ah);
 
     client->sessionState = UA_SESSIONSTATE_ACTIVATED;
     notifyClientState(client);
@@ -1390,6 +1428,12 @@ createSessionCallback(UA_Client *client, void *userdata,
                           &client->authenticationToken);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
+
+
+    /* Extract the server's ephemeral public key from the response */
+    UA_ExtensionObject *ah = &sessionResponse->responseHeader.additionalHeader;
+    if(UA_ExtensionObject_hasDecodedType(ah, &UA_TYPES[UA_TYPES_ADDITIONALPARAMETERSTYPE]))
+        extractEphemeralKeyFromAddHeader(client, ah);
 
     /* Activate the new Session */
     client->sessionState = UA_SESSIONSTATE_CREATED;
@@ -2414,6 +2458,9 @@ cleanupSession(UA_Client *client) {
 #endif
 
     client->sessionState = UA_SESSIONSTATE_CLOSED;
+
+    /* Clean the latest server's ephemeral public key received in the Activate Session response. */
+    UA_ByteString_clear(&client->serverEphemeralPubKey);
 }
 
 static void
