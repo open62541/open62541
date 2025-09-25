@@ -10,6 +10,7 @@
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
+ *    Copyright 2025 (c) Siemens AG (Author: Tin Raic)
  */
 
 #ifndef UA_UTIL_H_
@@ -19,6 +20,9 @@
 #include <open62541/types.h>
 #include <open62541/util.h>
 #include <open62541/statuscodes.h>
+
+#include <open62541/plugin/log.h>
+#include <open62541/plugin/securitypolicy.h>
 
 #include "../ua_types_encoding_binary.h"
 
@@ -417,6 +421,26 @@ UA_ENCODING_HELPERS(ExtensionObject, EXTENSIONOBJECT)
 UA_ENCODING_HELPERS(DataValue, DATAVALUE)
 UA_ENCODING_HELPERS(Variant, VARIANT)
 UA_ENCODING_HELPERS(DiagnosticInfo, DIAGNOSTICINFO)
+
+/******************/
+/* ECC Encryption */
+/******************/
+
+/* ECC Encrypted Secret node ID identifier, arbitrarily chosen*/
+#define NODE_IDENTIFIER_NUMERIC_ECCENCRYPTEDSEC 335
+
+UA_Boolean UA_SecurityPolicy_isEccPolicy(UA_String policyURI);
+
+UA_StatusCode
+encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
+                            const UA_ByteString serverSessionNonce,
+                            const UA_ByteString serverEphemeralPubKey,
+                            UA_SecurityPolicy *sp, void *tempChannelContext);
+
+UA_StatusCode
+decryptUserTokenEcc(UA_Logger *logger, UA_ByteString sessionServerNonce,
+                    const UA_SecurityPolicy *sp, const UA_String encryptionAlgorithm,
+                    UA_EccEncryptedSecret *es);
 
 _UA_END_DECLS
 

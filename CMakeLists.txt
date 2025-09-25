@@ -847,6 +847,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/util/ua_util.c
+                ${PROJECT_SOURCE_DIR}/src/util/ua_ecc_encryptedsecret.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel_crypto.c
                 # server
