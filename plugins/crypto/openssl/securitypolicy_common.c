@@ -42,9 +42,10 @@ modification history
 #define SHA1_DIGEST_LENGTH 20          /* 160 bits */
 #define RSA_DECRYPT_BUFFER_LENGTH 2048 /* bytes */
 
-/* Strings for ECC policies */
+/* Label strings for ECC policies */
 UA_String serverLabel = UA_STRING_STATIC("opcua-server");
 UA_String clientLabel = UA_STRING_STATIC("opcua-client");
+UA_String sessionLabel = UA_STRING_STATIC("opcua-secret");
 
 /* Cast to prevent warnings in LibreSSL */
 #define SHA256EVP() ((EVP_MD *)(uintptr_t)EVP_sha256())
@@ -1700,11 +1701,21 @@ UA_OpenSSL_ECC_DeriveKeys (const int curveID,
     UA_ByteString* label = NULL;
     const UA_ByteString * remoteEphPubKey = NULL;
 
+    /* (Temporary) measure to signal salt generation for sessions */
+    /* out should always be allocated before this check, so it shouldn't cause problems */
+    if (out->data[0] == 0x03 && out->data[1] == 0x03 && out->data[2] == 0x04 ) {
+        label = &sessionLabel;
+        if (applicationType == UA_APPLICATIONTYPE_SERVER) {
+            remoteEphPubKey = key2;
+        } else {
+            remoteEphPubKey = key1; 
+        }
+    }
     /* Comparing from the second byte since the first byte has 0x04 from the encoding */
-    if (memcmp(&keyPubEnc[1], key1->data, key1->length) == 0) {
+    else if (memcmp(&keyPubEnc[1], key1->data, key1->length) == 0) {
         /* Key 1 is local ephemeral public key => generating remote keys */
         remoteEphPubKey = key2;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
+        if (applicationType == UA_APPLICATIONTYPE_SERVER) {
             label = &clientLabel;
         } else {
             label = &serverLabel;
@@ -1713,7 +1724,7 @@ UA_OpenSSL_ECC_DeriveKeys (const int curveID,
     else if (memcmp(&keyPubEnc[1], key2->data, key2->length) == 0) {
         /* Key 2 is local ephemeral public key => generating local keys */
         remoteEphPubKey = key1;
-        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
+        if (applicationType == UA_APPLICATIONTYPE_SERVER) {
             label = &serverLabel;
         } else {
             label = &clientLabel;
