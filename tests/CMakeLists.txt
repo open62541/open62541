@@ -78,6 +78,7 @@ endif()
 
 # Use additional plugins for testing
 set(test_plugin_sources
+    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/test_helpers.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
