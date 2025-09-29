@@ -1714,7 +1714,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        CHECK_USERWRITEMASK(UA_WRITEMASK_ARRRAYDIMENSIONS);
+        CHECK_USERWRITEMASK(UA_WRITEMASK_ARRAYDIMENSIONS);
         CHECK_DATATYPE_ARRAY(UINT32);
         GET_NODETYPE;
         retval = writeArrayDimensionsAttribute(server, session, &node->variableNode,
