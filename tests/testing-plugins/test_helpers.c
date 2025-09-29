@@ -5,6 +5,12 @@
 #include "test_helpers.h"
 #include <open62541/server_config_default.h>
 
+static void
+testServerNotificationCallback(UA_Server *server,
+                               UA_ApplicationNotificationType type,
+                               const UA_KeyValueMap payload) {
+}
+
 UA_Server * UA_Server_newForUnitTest(void) {
     UA_Server *server = UA_Server_new();
     if(!server)
@@ -39,6 +45,7 @@ UA_Server_newForUnitTestWithSecurityPolicies(UA_UInt16 portNumber,
     config.eventLoop->dateTime_now = UA_DateTime_now_fake;
     config.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
     config.tcpReuseAddr = true;
+    config.globalNotificationCallback = testServerNotificationCallback;
     return UA_Server_newWithConfig(&config);
 }
 
@@ -57,9 +64,16 @@ UA_Server_newForUnitTestWithSecurityPolicies_Filestore(UA_UInt16 portNumber,
     config.eventLoop->dateTime_now = UA_DateTime_now_fake;
     config.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
     config.tcpReuseAddr = true;
+    config.globalNotificationCallback = testServerNotificationCallback;
     return UA_Server_newWithConfig(&config);
 }
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+
+static void
+testClientNotificationCallback(UA_Client *client,
+                               UA_ApplicationNotificationType type,
+                               const UA_KeyValueMap payload) {
+}
 
 UA_Client *
 UA_Client_newForUnitTest(void) {
@@ -74,6 +88,8 @@ UA_Client_newForUnitTest(void) {
 
     /* Increase the timeouts (needed for valgrind CI tests) */
     config->timeout = 10 * 60 * 1000;
+
+    config->globalNotificationCallback = testClientNotificationCallback;
 
     return client;
 }
