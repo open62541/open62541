@@ -906,7 +906,7 @@ UA_Server_cleanupRBAC(UA_Server *server) {
 
 /* RBAC Query Functions */
 
-const UA_Role * UA_EXPORT
+UA_EXPORT const UA_Role *
 UA_Server_getRolesById(UA_Server *server, UA_NodeId roleId) {
     if(!server)
         return NULL;
@@ -924,7 +924,7 @@ UA_Server_getRolesById(UA_Server *server, UA_NodeId roleId) {
     return role;
 }
 
-const UA_Role * UA_EXPORT
+UA_EXPORT const UA_Role *
 UA_Server_getRolesByName(UA_Server *server, UA_String roleName, UA_String namespaceUri) {
     if(!server)
         return NULL;
