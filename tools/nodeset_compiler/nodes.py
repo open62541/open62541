@@ -14,9 +14,18 @@ from datatypes import QualifiedName, LocalizedText, NodeId
 
 __all__ = ['Reference', 'RefOrAlias', 'Node', 'ReferenceTypeNode',
            'ObjectNode', 'VariableNode', 'VariableTypeNode',
-           'MethodNode', 'ObjectTypeNode', 'DataTypeNode', 'ViewNode']
+           'MethodNode', 'ObjectTypeNode', 'DataTypeNode', 'ViewNode', 'Argument']
 
 logger = logging.getLogger(__name__)
+
+class Argument:
+    def __init__(self):
+        self.name = None
+        self.dataTypeIdentifier = None
+        self.valueRank = None
+
+    def __repr__(self):
+        return f"Argument(name={self.name}, dataTypeIdentifier={self.dataTypeIdentifier}, valueRank={self.valueRank})"
 
 class Reference:
     # all either nodeids or strings with an alias
@@ -323,6 +332,7 @@ class DataTypeNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
         self.isAbstract = False
+        self.definition = None
         if xmlelement:
             DataTypeNode.parseXML(self, xmlelement)
 
@@ -331,7 +341,11 @@ class DataTypeNode(Node):
         for (at, av) in xmlelement.attributes.items():
             if at == "IsAbstract":
                 self.isAbstract = "false" not in av.lower()
-
+        for x in xmlelement.childNodes:
+            if x.nodeType != x.ELEMENT_NODE:
+                continue
+            if x.localName == "Definition":
+                self.definition = x
 class ViewNode(Node):
     def __init__(self, xmlelement=None):
         Node.__init__(self)
