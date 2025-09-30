@@ -2330,17 +2330,14 @@ struct UA_ServerConfig {
  * Functions for managing roles in the server's role-based access control system.
  */
 
-//UA_StatusCode UA_EXPORT
-//UA_Server_getRoles(UA_Server *server, UA_String roleName, UA_String namespaceUri, UA_NodeId *outNewRoleId);
-
-/* TODO: Define proper return types for these functions */
-/*
 const UA_Role * UA_EXPORT
 UA_Server_getRolesById(UA_Server *server, UA_NodeId roleId);
 
 const UA_Role * UA_EXPORT
 UA_Server_getRolesByName(UA_Server *server, UA_String roleName, UA_String namespaceUri);
-*/
+
+UA_StatusCode UA_EXPORT
+UA_Server_getRoles(UA_Server *server, size_t *rolesSize, UA_NodeId **roleIds);
 
 UA_StatusCode UA_EXPORT
 UA_Server_addRole(UA_Server *server, UA_String roleName, UA_String namespaceUri, 

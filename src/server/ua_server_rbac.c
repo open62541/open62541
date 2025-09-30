@@ -213,7 +213,8 @@ initializeStandardRoles(UA_Server *server) {
     UA_Role_init(&anonymousRole);
     anonymousRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
     anonymousRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(2 * sizeof(UA_IdentityMappingRuleType));
-    if(!anonymousRole.imrt) return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!anonymousRole.imrt) 
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     anonymousRole.imrtSize = 2;
     UA_IdentityMappingRuleType_init(&anonymousRole.imrt[0]);
     anonymousRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_ANONYMOUS;
@@ -231,7 +232,8 @@ initializeStandardRoles(UA_Server *server) {
     UA_Role_init(&authenticatedUserRole);
     authenticatedUserRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
     authenticatedUserRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!authenticatedUserRole.imrt) return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!authenticatedUserRole.imrt) 
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     authenticatedUserRole.imrtSize = 1;
     UA_IdentityMappingRuleType_init(&authenticatedUserRole.imrt[0]);
     authenticatedUserRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
@@ -246,7 +248,8 @@ initializeStandardRoles(UA_Server *server) {
     UA_Role_init(&observerRole);
     observerRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
     observerRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!observerRole.imrt) return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!observerRole.imrt) 
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     observerRole.imrtSize = 1;
     UA_IdentityMappingRuleType_init(&observerRole.imrt[0]);
     observerRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
@@ -261,7 +264,8 @@ initializeStandardRoles(UA_Server *server) {
     UA_Role_init(&operatorRole);
     operatorRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
     operatorRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!operatorRole.imrt) return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!operatorRole.imrt) 
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     operatorRole.imrtSize = 1;
     UA_IdentityMappingRuleType_init(&operatorRole.imrt[0]);
     operatorRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
@@ -276,7 +280,8 @@ initializeStandardRoles(UA_Server *server) {
     UA_Role_init(&engineerRole);
     engineerRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER);
     engineerRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!engineerRole.imrt) return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!engineerRole.imrt) 
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     engineerRole.imrtSize = 1;
     UA_IdentityMappingRuleType_init(&engineerRole.imrt[0]);
     engineerRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
@@ -291,7 +296,8 @@ initializeStandardRoles(UA_Server *server) {
     UA_Role_init(&supervisorRole);
     supervisorRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR);
     supervisorRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!supervisorRole.imrt) return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!supervisorRole.imrt) 
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     supervisorRole.imrtSize = 1;
     UA_IdentityMappingRuleType_init(&supervisorRole.imrt[0]);
     supervisorRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
@@ -306,7 +312,8 @@ initializeStandardRoles(UA_Server *server) {
     UA_Role_init(&configureAdminRole);
     configureAdminRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN);
     configureAdminRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!configureAdminRole.imrt) return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!configureAdminRole.imrt) 
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     configureAdminRole.imrtSize = 1;
     UA_IdentityMappingRuleType_init(&configureAdminRole.imrt[0]);
     configureAdminRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
@@ -321,7 +328,8 @@ initializeStandardRoles(UA_Server *server) {
     UA_Role_init(&securityAdminRole);
     securityAdminRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
     securityAdminRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!securityAdminRole.imrt) return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(!securityAdminRole.imrt) 
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     securityAdminRole.imrtSize = 1;
     UA_IdentityMappingRuleType_init(&securityAdminRole.imrt[0]);
     securityAdminRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
@@ -381,6 +389,32 @@ findRoleByName(UA_Server *server, const UA_String *roleName,
     return NULL;
 }
 
+static UA_Boolean
+isWellKnownRole(const UA_NodeId *roleId) {
+    if(roleId->namespaceIndex != 0 || roleId->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return false;
+        
+    UA_UInt32 standardRoleIds[] = {
+        UA_NS0ID_WELLKNOWNROLE_ANONYMOUS,
+        UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER,
+        UA_NS0ID_WELLKNOWNROLE_OBSERVER,
+        UA_NS0ID_WELLKNOWNROLE_OPERATOR,
+        UA_NS0ID_WELLKNOWNROLE_ENGINEER,
+        UA_NS0ID_WELLKNOWNROLE_SUPERVISOR,
+        UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN,
+        UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN,
+        UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERADMIN,
+        UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERPUSH,
+        UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERACCESS
+    };
+    
+    for(size_t i = 0; i < 11; i++) {
+        if(roleId->identifier.numeric == standardRoleIds[i])
+            return true;
+    }
+    return false;
+}
+
 //TODO: In the information model we handover name  and namespaceUri --> Why no QualifiedName?
 UA_StatusCode UA_EXPORT
 UA_Server_addRole(UA_Server *server, UA_String roleName, 
@@ -393,78 +427,50 @@ UA_Server_addRole(UA_Server *server, UA_String roleName,
     UA_LOCK(&server->serviceMutex);
 #endif
 
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_Role *newRole = NULL;
+    const UA_NodeId *targetNodeId = NULL;
+    UA_NodeId generatedNodeId = UA_NODEID_NULL;
+
+    /* Check if role name already exists */
     UA_Role *existing = findRoleByName(server, &roleName, &namespaceUri);
     if(existing) {
-#if UA_MULTITHREADING >= 100
-        UA_UNLOCK(&server->serviceMutex);
-#endif
-        return UA_STATUSCODE_BADNODEIDEXISTS;
+        res = UA_STATUSCODE_BADNODEIDEXISTS;
+        goto cleanup;
     }
 
-    const UA_NodeId *targetNodeId = NULL;
-    UA_NodeId generatedNodeId;
     if(role && !UA_NodeId_isNull(&role->roleId)) {
         const UA_Node *existingNode = UA_NODESTORE_GET(server, &role->roleId);
         if(existingNode) {
             UA_NODESTORE_RELEASE(server, existingNode);
             
-            bool isStandardRole = false;
-            if(role->roleId.namespaceIndex == 0) {
-                UA_UInt32 standardRoleIds[] = {
-                    UA_NS0ID_WELLKNOWNROLE_ANONYMOUS,
-                    UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER,
-                    UA_NS0ID_WELLKNOWNROLE_OBSERVER,
-                    UA_NS0ID_WELLKNOWNROLE_OPERATOR,
-                    UA_NS0ID_WELLKNOWNROLE_ENGINEER,
-                    UA_NS0ID_WELLKNOWNROLE_SUPERVISOR,
-                    UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN,
-                    UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN
-                };
-                for(size_t i = 0; i < 8; i++) {
-                    if(role->roleId.identifierType == UA_NODEIDTYPE_NUMERIC && 
-                       role->roleId.identifier.numeric == standardRoleIds[i]) {
-                        isStandardRole = true;
-                        break;
-                    }
-                }
-            }
-            
-            if(!isStandardRole) {
-#if UA_MULTITHREADING >= 100
-                UA_UNLOCK(&server->serviceMutex);
-#endif
-                return UA_STATUSCODE_BADNODEIDEXISTS;
+            /* well-known roles that exist in NS0 */
+            if(!isWellKnownRole(&role->roleId)) {
+                res = UA_STATUSCODE_BADNODEIDEXISTS;
+                goto cleanup;
             }
         }
         targetNodeId = &role->roleId;
     } else {
-        /* Generate new NodeId - TODO more specific namespace handling */
+        /* Generate new NodeId TODO more carefull handling of namespace*/
         generatedNodeId = UA_NODEID_NUMERIC(1, 0);
         targetNodeId = &generatedNodeId;
     }
 
-    UA_Role *newRoles = (UA_Role*)
-        UA_realloc(server->roles, 
-                   (server->rolesSize + 1) * sizeof(UA_Role));
+    UA_Role *newRoles = (UA_Role*)UA_realloc(server->roles, 
+                                             (server->rolesSize + 1) * sizeof(UA_Role));
     if(!newRoles) {
-#if UA_MULTITHREADING >= 100
-        UA_UNLOCK(&server->serviceMutex);
-#endif
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
     }
 
     server->roles = newRoles;
-    UA_Role *newRole = &server->roles[server->rolesSize];
+    newRole = &server->roles[server->rolesSize];
     
-    UA_StatusCode res;
     if(role) {
         res = UA_Role_copy(role, newRole);
-        if(res != UA_STATUSCODE_GOOD) {
-#if UA_MULTITHREADING >= 100
-            UA_UNLOCK(&server->serviceMutex);
-#endif
-            return res;
-        }
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
         
         UA_QualifiedName_clear(&newRole->roleName);
         UA_QualifiedName_init(&newRole->roleName);
@@ -474,48 +480,34 @@ UA_Server_addRole(UA_Server *server, UA_String roleName,
     
     UA_NodeId_clear(&newRole->roleId);
     res = UA_NodeId_copy(targetNodeId, &newRole->roleId);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_Role_clear(newRole);
-#if UA_MULTITHREADING >= 100
-        UA_UNLOCK(&server->serviceMutex);
-#endif
-        return res;
-    }
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     res = UA_String_copy(&roleName, &newRole->roleName.name);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_Role_clear(newRole);
-#if UA_MULTITHREADING >= 100
-        UA_UNLOCK(&server->serviceMutex);
-#endif
-        return res;
-    }
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
-    /* Set namespace index - use role's namespace if valid NodeId provided, otherwise default */
-    if(role && !UA_NodeId_isNull(&role->roleId) && role->roleId.namespaceIndex == 0) {
-        newRole->roleName.namespaceIndex = 0;
-    } else {
-        /* Set namespace index (TODO: resolve from namespaceUri) */
-        newRole->roleName.namespaceIndex = 1;
-    }
+    /* Set namespace index from role NodeId */
+    newRole->roleName.namespaceIndex = newRole->roleId.namespaceIndex;
 
     server->rolesSize++;
     
     res = UA_NodeId_copy(&newRole->roleId, outNewRoleId);
     if(res != UA_STATUSCODE_GOOD) {
+        server->rolesSize--; /* Rollback size increment */
+        goto cleanup;
+    }
+
+cleanup:
+    if(res != UA_STATUSCODE_GOOD && newRole) {
         UA_Role_clear(newRole);
-        server->rolesSize--;
-#if UA_MULTITHREADING >= 100
-        UA_UNLOCK(&server->serviceMutex);
-#endif
-        return res;
     }
 
 #if UA_MULTITHREADING >= 100
     UA_UNLOCK(&server->serviceMutex);
 #endif
 
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 UA_StatusCode UA_EXPORT
@@ -910,6 +902,98 @@ UA_Server_cleanupRBAC(UA_Server *server) {
 #if UA_MULTITHREADING >= 100
     UA_UNLOCK(&server->serviceMutex);
 #endif
+}
+
+/* RBAC Query Functions */
+
+const UA_Role * UA_EXPORT
+UA_Server_getRolesById(UA_Server *server, UA_NodeId roleId) {
+    if(!server)
+        return NULL;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    UA_Role *role = findRoleById(server, &roleId);
+
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return role;
+}
+
+const UA_Role * UA_EXPORT
+UA_Server_getRolesByName(UA_Server *server, UA_String roleName, UA_String namespaceUri) {
+    if(!server)
+        return NULL;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    UA_Role *role = findRoleByName(server, &roleName, &namespaceUri);
+
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return role;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_getRoles(UA_Server *server, size_t *rolesSize, UA_NodeId **roleIds) {
+    if(!server || !rolesSize || !roleIds)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    *rolesSize = 0;
+    *roleIds = NULL;
+
+    if(server->rolesSize == 0) {
+#if UA_MULTITHREADING >= 100
+        UA_UNLOCK(&server->serviceMutex);
+#endif
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Allocate array for role NodeIds */
+    *roleIds = (UA_NodeId*)UA_malloc(server->rolesSize * sizeof(UA_NodeId));
+    if(!*roleIds) {
+#if UA_MULTITHREADING >= 100
+        UA_UNLOCK(&server->serviceMutex);
+#endif
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Copy all role NodeIds */
+    for(size_t i = 0; i < server->rolesSize; i++) {
+        UA_StatusCode res = UA_NodeId_copy(&server->roles[i].roleId, &(*roleIds)[i]);
+        if(res != UA_STATUSCODE_GOOD) {
+            /* Clean up on error */
+            for(size_t j = 0; j < i; j++) {
+                UA_NodeId_clear(&(*roleIds)[j]);
+            }
+            UA_free(*roleIds);
+            *roleIds = NULL;
+#if UA_MULTITHREADING >= 100
+            UA_UNLOCK(&server->serviceMutex);
+#endif
+            return res;
+        }
+    }
+
+    *rolesSize = server->rolesSize;
+
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif /* UA_ENABLE_RBAC */
