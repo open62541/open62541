@@ -57,6 +57,19 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            UA_CreateSubscriptionResponse *response) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    /* Check with AccessControl if the creation is allowed */
+    if(server->config.accessControl.allowCreateSubscription) {
+        if(!server->config.accessControl.
+           allowCreateSubscription(server, &server->config.accessControl,
+                                   &session->sessionId, session->context)) {
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
+            return true;
+        }
+    } else {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return true;
+    }
+
     /* Check limits for the number of subscriptions */
     if(((server->config.maxSubscriptions != 0) &&
         (server->subscriptionsSize >= server->config.maxSubscriptions)) ||

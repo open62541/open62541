@@ -221,6 +221,12 @@ allowBrowseNode_default(UA_Server *server, UA_AccessControl *ac,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static UA_Boolean
+allowCreateSubscription_default(UA_Server *server, UA_AccessControl *ac,
+                                const UA_NodeId *sessionId, void *sessionContext) {
+    return true;
+}
+
+static UA_Boolean
 allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *oldSessionId, void *oldSessionContext,
                                   const UA_NodeId *newSessionId, void *newSessionContext) {
@@ -315,6 +321,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
     ac->allowBrowseNode = allowBrowseNode_default;
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    ac->allowCreateSubscription = allowCreateSubscription_default;
     ac->allowTransferSubscription = allowTransferSubscription_default;
 #endif
 
