@@ -383,9 +383,14 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
     }
 
     /* Make the async call */
-    return __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
-                                    ua_Subscriptions_delete_handler, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE],
-                                    dsc, requestId);
+    UA_StatusCode status = __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
+                                                    ua_Subscriptions_delete_handler, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE],
+                                                    dsc, requestId);
+    if (status != UA_STATUSCODE_GOOD) {
+        UA_DeleteSubscriptionsRequest_clear(&dsc->request);
+        UA_free(dsc);
+    }
+    return status;
 }
 
 UA_DeleteSubscriptionsResponse
@@ -910,9 +915,13 @@ UA_Client_MonitoredItems_delete_async(UA_Client *client,
     cc->userCallback = callback;
     cc->userData = userdata;
 
-    return __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
-                                    ua_MonitoredItems_delete_handler,
-                                    &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE], cc, requestId);
+    UA_StatusCode status = __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
+                                                    ua_MonitoredItems_delete_handler,
+                                                    &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE], cc, requestId);
+    if (status != UA_STATUSCODE_GOOD) {
+        UA_DeleteMonitoredItemsRequest_delete(req_copy);
+        UA_free(cc);
+    }
 }
 
 UA_StatusCode
