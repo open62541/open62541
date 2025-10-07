@@ -19,12 +19,13 @@
  * 
  * Reference: OPC 10000-18: UA Part 18: Role-Based Security
  * https://reference.opcfoundation.org/Core/Part18/v105/docs/
+ * 
+ * This file implements the RBAC method callbacks for the OPC UA namespace 0:
+ * - Role Management: AddRole, RemoveRole methods using UA_Server_addRole/removeRole API
+ * - Identity Management: AddIdentity, RemoveIdentity methods using UA_Server_addRoleIdentity/removeRoleIdentity API
+ * - Application Management: AddApplication, RemoveApplication methods using UA_Server_addRoleApplication/removeRoleApplication API
+ * - Endpoint Management: AddEndpoint, RemoveEndpoint methods using UA_Server_addRoleEndpoint/removeRoleEndpoint API
  */
-
-/* TODO: Implement RBAC information model nodes */
-/* TODO: Implement user management methods */
-/* TODO: Implement identity mapping rules */
-/* TODO: Implement endpoint role assignments */
 
 /* Forward declarations */
 UA_StatusCode initNS0RBAC(UA_Server *server);
@@ -153,6 +154,38 @@ addIdentityMethodCallback(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     
+    if(input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "AddIdentity: Invalid parameter type, expected IdentityMappingRuleType");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    
+    UA_ExtensionObject *extObj = (UA_ExtensionObject*)input[0].data;
+    
+    if(!extObj->content.decoded.data || 
+       extObj->content.decoded.type != &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE]) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "AddIdentity: Invalid IdentityMappingRuleType data");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    
+    UA_IdentityMappingRuleType *rule = (UA_IdentityMappingRuleType*)extObj->content.decoded.data;
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "AddIdentity: Rule CriteriaType=%u, Criteria=%.*s",
+                rule->criteriaType, (int)rule->criteria.length, rule->criteria.data);
+    
+    UA_StatusCode retval = UA_Server_addRoleIdentity(server, *objectId, rule->criteriaType);
+    
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "AddIdentity: Failed to add identity, status: %s", UA_StatusCode_name(retval));
+        return retval;
+    }
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "AddIdentity: Successfully added identity criteria");
+    
     return UA_STATUSCODE_GOOD;
 }
 
@@ -171,6 +204,38 @@ removeIdentityMethodCallback(UA_Server *server,
                      "RemoveIdentity: Expected 1 input parameter, got %zu", inputSize);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
+    
+    if(input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "RemoveIdentity: Invalid parameter type, expected IdentityMappingRuleType");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    
+    UA_ExtensionObject *extObj = (UA_ExtensionObject*)input[0].data;
+    
+    if(!extObj->content.decoded.data || 
+       extObj->content.decoded.type != &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE]) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "RemoveIdentity: Invalid IdentityMappingRuleType data");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    
+    UA_IdentityMappingRuleType *rule = (UA_IdentityMappingRuleType*)extObj->content.decoded.data;
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "RemoveIdentity: Rule CriteriaType=%u, Criteria=%.*s",
+                rule->criteriaType, (int)rule->criteria.length, rule->criteria.data);
+    
+    UA_StatusCode retval = UA_Server_removeRoleIdentity(server, *objectId, rule->criteriaType);
+    
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "RemoveIdentity: Failed to remove identity, status: %s", UA_StatusCode_name(retval));
+        return retval;
+    }
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "RemoveIdentity: Successfully removed identity criteria");
     
     return UA_STATUSCODE_GOOD;
 }
@@ -191,6 +256,29 @@ addApplicationMethodCallback(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     
+    if(input[0].type != &UA_TYPES[UA_TYPES_STRING]) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "AddApplication: Invalid parameter type, expected String");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    
+    UA_String *applicationUri = (UA_String*)input[0].data;
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "AddApplication: ApplicationUri=%.*s",
+                (int)applicationUri->length, applicationUri->data);
+    
+    UA_StatusCode retval = UA_Server_addRoleApplication(server, *objectId, *applicationUri);
+    
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "AddApplication: Failed to add application, status: %s", UA_StatusCode_name(retval));
+        return retval;
+    }
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "AddApplication: Successfully added application");
+    
     return UA_STATUSCODE_GOOD;
 }
 
@@ -209,6 +297,29 @@ removeApplicationMethodCallback(UA_Server *server,
                      "RemoveApplication: Expected 1 input parameter, got %zu", inputSize);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
+    
+    if(input[0].type != &UA_TYPES[UA_TYPES_STRING]) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "RemoveApplication: Invalid parameter type, expected String");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    
+    UA_String *applicationUri = (UA_String*)input[0].data;
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "RemoveApplication: ApplicationUri=%.*s",
+                (int)applicationUri->length, applicationUri->data);
+    
+    UA_StatusCode retval = UA_Server_removeRoleApplication(server, *objectId, *applicationUri);
+    
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "RemoveApplication: Failed to remove application, status: %s", UA_StatusCode_name(retval));
+        return retval;
+    }
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "RemoveApplication: Successfully removed application");
     
     return UA_STATUSCODE_GOOD;
 }
@@ -229,6 +340,38 @@ addEndpointMethodCallback(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     
+    if(input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "AddEndpoint: Invalid parameter type, expected EndpointType");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    
+    UA_ExtensionObject *extObj = (UA_ExtensionObject*)input[0].data;
+    
+    if(!extObj->content.decoded.data || 
+       extObj->content.decoded.type != &UA_TYPES[UA_TYPES_ENDPOINTTYPE]) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "AddEndpoint: Invalid EndpointType data");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    
+    UA_EndpointType *endpoint = (UA_EndpointType*)extObj->content.decoded.data;
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "AddEndpoint: EndpointUrl=%.*s",
+                (int)endpoint->endpointUrl.length, endpoint->endpointUrl.data);
+    
+    UA_StatusCode retval = UA_Server_addRoleEndpoint(server, *objectId, *endpoint);
+    
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "AddEndpoint: Failed to add endpoint, status: %s", UA_StatusCode_name(retval));
+        return retval;
+    }
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "AddEndpoint: Successfully added endpoint");
+    
     return UA_STATUSCODE_GOOD;
 }
 
@@ -247,6 +390,38 @@ removeEndpointMethodCallback(UA_Server *server,
                      "RemoveEndpoint: Expected 1 input parameter, got %zu", inputSize);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
+    
+    if(input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "RemoveEndpoint: Invalid parameter type, expected EndpointType");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    
+    UA_ExtensionObject *extObj = (UA_ExtensionObject*)input[0].data;
+    
+    if(!extObj->content.decoded.data || 
+       extObj->content.decoded.type != &UA_TYPES[UA_TYPES_ENDPOINTTYPE]) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "RemoveEndpoint: Invalid EndpointType data");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    
+    UA_EndpointType *endpoint = (UA_EndpointType*)extObj->content.decoded.data;
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "RemoveEndpoint: EndpointUrl=%.*s",
+                (int)endpoint->endpointUrl.length, endpoint->endpointUrl.data);
+    
+    UA_StatusCode retval = UA_Server_removeRoleEndpoint(server, *objectId, *endpoint);
+    
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "RemoveEndpoint: Failed to remove endpoint, status: %s", UA_StatusCode_name(retval));
+        return retval;
+    }
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "RemoveEndpoint: Successfully removed endpoint");
     
     return UA_STATUSCODE_GOOD;
 }
