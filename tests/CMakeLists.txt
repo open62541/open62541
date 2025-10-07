@@ -275,6 +275,10 @@ ua_add_test(server/check_server_jobs.c)
 ua_add_test(server/check_server_userspace.c)
 ua_add_test(server/check_node_inheritance.c)
 
+if(UA_ENABLE_RBAC)
+    ua_add_test(server/check_server_rbac.c)
+endif()
+
 if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_local_monitored_item.c)
 endif()
