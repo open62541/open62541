@@ -52,7 +52,6 @@ jobs:
 
           - name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
-              sudo apt-get install -y -qq 
               curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-4.1.0.tar.gz --output libressl.tar.gz
               tar -xvz -f libressl.tar.gz
               cd libressl-4.1.0
@@ -65,15 +64,12 @@ jobs:
             cmd_action: build_release
 
           - name: "Amalgamation Build"
-            cmd_deps: sudo apt-get install -y -qq
             cmd_action: build_amalgamation
 
           - name: "Amalgamation Build with Multithreading"
-            cmd_deps: sudo apt-get install -y -qq
             cmd_action: build_amalgamation_mt
 
           - name: "Build All Companion Specifications"
-            cmd_deps: sudo apt-get install -y -qq
             cmd_action: build_all_companion_specs
 
         include:          
