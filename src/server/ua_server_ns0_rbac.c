@@ -9,6 +9,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
+#include <open62541/plugin/accesscontrol.h>
 #include "open62541/namespace0_generated.h"
 #include "open62541/nodeids.h"
 
@@ -45,19 +46,49 @@ addRoleMethodCallback(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     
-    UA_NodeId *roleId = (UA_NodeId*)input[0].data;
-    UA_String *roleName = (UA_String*)input[1].data;
+    if(input[0].type != &UA_TYPES[UA_TYPES_STRING] ||
+       input[1].type != &UA_TYPES[UA_TYPES_STRING]) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "AddRole: Invalid parameter types");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    
+    UA_String *roleName = (UA_String*)input[0].data;
+    UA_String *namespaceUri = (UA_String*)input[1].data;
     
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "AddRole: RoleId=%s, RoleName=%.*s",
-                UA_NodeId_print(roleId, NULL),
-                (int)roleName->length, roleName->data);
+                "AddRole: RoleName=%.*s, NamespaceUri=%.*s",
+                (int)roleName->length, roleName->data,
+                (int)namespaceUri->length, namespaceUri->data);
     
-    /* TODO: Implement actual role addition logic */
-    /* - Validate roleId and roleName */
-    /* - Check if role already exists */
-    /* - Add role to internal role management */
-    /* - Add role object to RoleSet */
+    UA_Role role;
+    UA_Role_init(&role);
+    role.customConfiguration = true;
+    
+    UA_QualifiedName_init(&role.roleName);
+    UA_String_copy(roleName, &role.roleName.name);
+    
+    UA_NodeId newRoleId = UA_NODEID_NULL;
+    UA_StatusCode retval = UA_Server_addRole(server, *roleName, *namespaceUri, &role, &newRoleId);
+    
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "AddRole: Failed to add role, status: %s", UA_StatusCode_name(retval));
+        UA_Role_clear(&role);
+        return retval;
+    }
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "AddRole: Successfully added role with NodeId: %s",
+                UA_NodeId_print(&newRoleId, NULL));
+    
+    /* Set output parameter with the new role NodeId */
+    if(outputSize >= 1) {
+        UA_Variant_setScalarCopy(&output[0], &newRoleId, &UA_TYPES[UA_TYPES_NODEID]);
+    }
+    
+    UA_Role_clear(&role);
+    UA_NodeId_clear(&newRoleId);
     
     return UA_STATUSCODE_GOOD;
 }
@@ -79,18 +110,29 @@ removeRoleMethodCallback(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     
+    if(input[0].type != &UA_TYPES[UA_TYPES_NODEID]) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "RemoveRole: Invalid parameter type, expected NodeId");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    
     UA_NodeId *roleId = (UA_NodeId*)input[0].data;
     
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "RemoveRole: RoleId=%s",
                 UA_NodeId_print(roleId, NULL));
     
-    /* TODO: Implement actual role removal logic */
-    /* - Validate roleId */
-    /* - Check if role exists */
-    /* - Check if role is in use by any users */
-    /* - Remove role from internal role management */
-    /* - Remove role object from RoleSet */
+    UA_StatusCode retval = UA_Server_removeRole(server, *roleId);
+    
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "RemoveRole: Failed to remove role, status: %s", UA_StatusCode_name(retval));
+        return retval;
+    }
+    
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "RemoveRole: Successfully removed role with NodeId: %s",
+                UA_NodeId_print(roleId, NULL));
     
     return UA_STATUSCODE_GOOD;
 }
