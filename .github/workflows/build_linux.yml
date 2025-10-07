@@ -10,54 +10,54 @@ jobs:
         os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
         build:
           - name: "Debug Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq curl
+            cmd_deps: sudo apt-get install -y -qq
             cmd_action: unit_tests
           - name: "Debug Build & Unit Tests (gcc, 32bit)"
             cmd_deps: |
               sudo dpkg --add-architecture i386
               sudo apt-get update
-              sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386 libxml2-dev:i386 curl
+              sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386 libxml2-dev:i386
             cmd_action: unit_tests_32
 
           - name: "Debug Build & Unit Tests without Subscriptions (gcc)"
-            cmd_deps: sudo apt-get install -y -qq curl
+            cmd_deps: sudo apt-get install -y -qq
             cmd_action: unit_tests_nosub
 
           - name: "Debug Build & Unit Tests with Diagnostics (gcc)"
-            cmd_deps: sudo apt-get install -y -qq curl
+            cmd_deps: sudo apt-get install -y -qq
             cmd_action: unit_tests_diag
 
           - name: "Debug Build & Unit Tests with multithreading (gcc)"
-            cmd_deps: sudo apt-get install -y -qq curl
+            cmd_deps: sudo apt-get install -y -qq
             cmd_action: unit_tests_mt
 
           - name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
-            cmd_deps: sudo apt-get install -y -qq curl
+            cmd_deps: sudo apt-get install -y -qq
             cmd_action: unit_tests_alarms
 
           - name: "Debug Build & Unit Tests (tcc)"
-            cmd_deps: sudo apt-get install -y -qq tcc curl
+            cmd_deps: sudo apt-get install -y -qq tcc
             cmd_action: CC=tcc unit_tests
 
           - name: "Encryption (MbedTLS) Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev curl
+            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: unit_tests_encryption MBEDTLS
 
           - name: "PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev curl
+            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: unit_tests_encryption_mbedtls_pubsub
 
           - name: "PubSub SKS Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev curl
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
             cmd_action: unit_tests_pubsub_sks
 
           - name: "Encryption (OpenSSL) Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq openssl curl
+            cmd_deps: sudo apt-get install -y -qq openssl
             cmd_action: unit_tests_encryption OPENSSL
 
           - name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
-              sudo apt-get install -y -qq curl
+              sudo apt-get install -y -qq
               curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-4.1.0.tar.gz --output libressl.tar.gz
               tar -xvz -f libressl.tar.gz
               cd libressl-4.1.0
@@ -66,19 +66,19 @@ jobs:
             cmd_action: unit_tests_encryption LIBRESSL
 
           - name: "Release Build"
-            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev curl
+            cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: build_release
 
           - name: "Amalgamation Build"
-            cmd_deps: sudo apt-get install -y -qq curl
+            cmd_deps: sudo apt-get install -y -qq
             cmd_action: build_amalgamation
 
           - name: "Amalgamation Build with Multithreading"
-            cmd_deps: sudo apt-get install -y -qq curl
+            cmd_deps: sudo apt-get install -y -qq
             cmd_action: build_amalgamation_mt
 
           - name: "Build All Companion Specifications"
-            cmd_deps: sudo apt-get install -y -qq curl
+            cmd_deps: sudo apt-get install -y -qq
             cmd_action: build_all_companion_specs
 
         include:          
@@ -86,19 +86,19 @@ jobs:
           - os: ubuntu-20.04
             build:
               name: "Debug Build & Unit Tests (clang-11)"
-              cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 curl
+              cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11
               cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
 
           - os: ubuntu-22.04
             build:
               name: "Debug Build & Unit Tests (clang-15)"
-              cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 curl && sudo sysctl -w vm.mmap_rnd_bits=28
+              cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 && sudo sysctl -w vm.mmap_rnd_bits=28
               cmd_action: CC=clang-15 CXX=clang++-15 unit_tests
 
           - os: ubuntu-24.04
             build:
               name: "Debug Build & Unit Tests (clang-18)"
-              cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 curl && sudo sysctl -w vm.mmap_rnd_bits=28
+              cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 && sudo sysctl -w vm.mmap_rnd_bits=28
               cmd_action: CC=clang-18 CXX=clang++-18 unit_tests
 
           # LWIP Build for specific Ubuntu version
@@ -106,7 +106,7 @@ jobs:
             build:
               name: "Debug Build & Unit Tests with lwip (gcc)"
               cmd_deps: |
-                sudo apt-get install -y -qq build-essential cmake gcc git iproute2 libpcap-dev curl
+                sudo apt-get install -y -qq build-essential cmake gcc git iproute2 libpcap-dev
                 cd ${HOME}
                 git clone https://github.com/lwip-tcpip/lwip.git
                 cd ${HOME}/lwip
@@ -152,7 +152,7 @@ jobs:
             build:
               name: "TPM Tool Build ubuntu-20.04"
               cmd_deps: |
-                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev curl
+                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
                 cd ${HOME}
                 git clone https://github.com/tpm2-software/tpm2-tss.git
                 cd ${HOME}/tpm2-tss
@@ -180,7 +180,7 @@ jobs:
             build:
               name: "TPM Tool Build ubuntu-22.04"
               cmd_deps: |
-                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev curl
+                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
                 cd ${HOME}
                 git clone https://github.com/tpm2-software/tpm2-tss.git
                 cd ${HOME}/tpm2-tss
@@ -208,7 +208,7 @@ jobs:
             build:
               name: "TPM Tool Build ubuntu-24.04"
               cmd_deps: |
-                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev libltdl-dev python3-pyasn1-modules curl
+                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev libltdl-dev python3-pyasn1-modules
                 cd ${HOME}
                 git clone https://github.com/tpm2-software/tpm2-tss.git
                 cd ${HOME}/tpm2-tss
@@ -236,49 +236,49 @@ jobs:
           - os: ubuntu-24.04
             build:
               name: "Examples with MbedTLS and mDNSD (gcc)"
-              cmd_deps: sudo apt-get install -y -qq libmbedtls-dev python3-netifaces curl
+              cmd_deps: sudo apt-get install -y -qq libmbedtls-dev python3-netifaces
               cmd_action: run_examples MBEDTLS MDNSD
 
           # Valgrind tests for specific Ubuntu versions
           - os: ubuntu-24.04
             build:
               name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev curl
+              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
               cmd_action: unit_tests_valgrind MBEDTLS          
 
           - os: ubuntu-24.04
             build:
               name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind openssl curl
+              cmd_deps: sudo apt-get install -y -qq valgrind openssl
               cmd_action: unit_tests_valgrind OPENSSL          
 
           - os: ubuntu-24.04
             build:
               name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces curl
+              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev python3-netifaces
               cmd_action: examples_valgrind MBEDTLS MDNSD          
 
           - os: ubuntu-24.04
             build:
               name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev curl
+              cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev python3-netifaces libavahi-client-dev libavahi-common-dev
               cmd_action: examples_valgrind OPENSSL AVAHI          
 
           # Clang Static Analyzer Builds
           - os: ubuntu-20.04
             build:
               name: "Clang Static Analyzer (clang11)"
-              cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev curl
+              cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
               cmd_action: CC=clang-11 CXX=clang++-11 build_clang_analyzer 11          
           - os: ubuntu-22.04
             build:
               name: "Clang Static Analyzer (clang15)"
-              cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 libmbedtls-dev curl
+              cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 libmbedtls-dev
               cmd_action: CC=clang-15 CXX=clang++-15 build_clang_analyzer 15          
           - os: ubuntu-24.04
             build:
               name: "Clang Static Analyzer (clang18)"
-              cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 libmbedtls-dev curl
+              cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 libmbedtls-dev
               cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18
 
     name: ${{ matrix.os }}-${{ matrix.build.name }}
@@ -309,7 +309,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev libreadline-dev
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev libreadline-dev curl
           ${{ matrix.build.cmd_deps }}
       - name: ${{ matrix.build.name }}
         shell: bash
