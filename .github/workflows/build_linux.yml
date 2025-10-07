@@ -10,7 +10,6 @@ jobs:
         os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
         build:
           - name: "Debug Build & Unit Tests (gcc)"
-            cmd_deps: sudo apt-get install -y -qq
             cmd_action: unit_tests
           - name: "Debug Build & Unit Tests (gcc, 32bit)"
             cmd_deps: |
@@ -20,19 +19,15 @@ jobs:
             cmd_action: unit_tests_32
 
           - name: "Debug Build & Unit Tests without Subscriptions (gcc)"
-            cmd_deps: sudo apt-get install -y -qq
             cmd_action: unit_tests_nosub
 
           - name: "Debug Build & Unit Tests with Diagnostics (gcc)"
-            cmd_deps: sudo apt-get install -y -qq
             cmd_action: unit_tests_diag
 
           - name: "Debug Build & Unit Tests with multithreading (gcc)"
-            cmd_deps: sudo apt-get install -y -qq
             cmd_action: unit_tests_mt
 
           - name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
-            cmd_deps: sudo apt-get install -y -qq
             cmd_action: unit_tests_alarms
 
           - name: "Debug Build & Unit Tests (tcc)"
@@ -57,7 +52,7 @@ jobs:
 
           - name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
-              sudo apt-get install -y -qq
+              sudo apt-get install -y -qq 
               curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-4.1.0.tar.gz --output libressl.tar.gz
               tar -xvz -f libressl.tar.gz
               cd libressl-4.1.0
@@ -309,7 +304,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev libreadline-dev curl
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake curl libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev libreadline-dev curl
           ${{ matrix.build.cmd_deps }}
       - name: ${{ matrix.build.name }}
         shell: bash
