@@ -20,6 +20,8 @@ equalBrowseName(UA_String *bn, char *n) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
+static const UA_NodeId subDiagArray = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY}};
+
 /****************************/
 /* Subscription Diagnostics */
 /****************************/
@@ -191,6 +193,8 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
     UA_NodeId refId = UA_NS0ID(HASCOMPONENT);
     UA_QualifiedName browseName = UA_QUALIFIEDNAME(0, subIdStr);
     UA_NodeId typeId = UA_NS0ID(SUBSCRIPTIONDIAGNOSTICSTYPE);
+    UA_CallbackValueSource subDiagSource = {readSubscriptionDiagnostics, NULL};
+
     /* Assign a random free NodeId */
     UA_StatusCode res = addNode(server, UA_NODECLASS_VARIABLE, UA_NODEID_NUMERIC(1, 0),
                                 bpr.targets[0].targetId.nodeId,
@@ -200,7 +204,6 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Add a second reference from the overall SubscriptionDiagnosticsArray variable */
-    const UA_NodeId subDiagArray = UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY);
     res = addRefWithSession(server, session,  &subDiagArray, &refId, &sub->ns0Id, true);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -216,7 +219,6 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
         goto cleanup;
 
     /* Add the callback to all variables  */
-    UA_CallbackValueSource subDiagSource = {readSubscriptionDiagnostics, NULL};
     for(size_t i = 0; i < childrenSize; i++) {
         setVariableNode_callbackValueSource(server, children[i].nodeId, subDiagSource);
         setNodeContext(server, children[i].nodeId, sub);
@@ -482,6 +484,7 @@ createSessionObject(UA_Server *server, UA_Session *session) {
     size_t childrenSize = 0;
     UA_ReferenceTypeSet refTypes;
     UA_NodeId hasComponent = UA_NS0ID(HASCOMPONENT);
+    UA_CallbackValueSource sessionDiagSource = {readSessionDiagnostics, NULL};
 
     /* Create an object for the session. Instantiates all the mandatory children. */
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
@@ -501,6 +504,7 @@ createSessionObject(UA_Server *server, UA_Session *session) {
     res = referenceTypeIndices(server, &hasComponent, &refTypes, false);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
+
     res = browseRecursive(server, 1, &session->sessionId,
                           UA_BROWSEDIRECTION_FORWARD, &refTypes,
                           UA_NODECLASS_VARIABLE, false, &childrenSize, &children);
@@ -508,7 +512,6 @@ createSessionObject(UA_Server *server, UA_Session *session) {
         goto cleanup;
 
     /* Add the callback to all variables  */
-    UA_CallbackValueSource sessionDiagSource = {readSessionDiagnostics, NULL};
     for(size_t i = 0; i < childrenSize; i++) {
         setVariableNode_callbackValueSource(server, children[i].nodeId, sessionDiagSource);
     }

@@ -135,9 +135,6 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
                 c->head.logIdString, newGroup->head.identifier);
     newGroup->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(psm->logging, newGroup, "ReaderGroup created (State: %s)",
-                       UA_PubSubState_name(newGroup->head.state));
-
     /* Validate the connection settings */
     retval = UA_ReaderGroup_connect(psm, newGroup, true);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -185,9 +182,13 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
         }
     }
 
+    UA_LOG_INFO_PUBSUB(psm->logging, newGroup, "ReaderGroup created (State: %s)",
+                   UA_PubSubState_name(newGroup->head.state));
+
     /* Trigger the connection state machine. It might open a socket only when
      * the first ReaderGroup is attached. */
-    UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
+    if(rgc->enabled)
+        UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(readerGroupId)
@@ -378,7 +379,11 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
      * Keep the current child state as the target state for the child. */
     UA_DataSetReader *dsr;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state, UA_STATUSCODE_GOOD);
+        if(psm->pubSubInitialSetupMode && dsr->config.enabled) {
+            UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_PREOPERATIONAL, UA_STATUSCODE_GOOD);
+        } else {
+            UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state, UA_STATUSCODE_GOOD);
+        }
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
@@ -1177,10 +1182,6 @@ UA_Server_updateReaderGroupConfig(UA_Server *server, const UA_NodeId rgId,
         }
     }
 #endif
-
-    /* Call the state-machine. This can move the rg state from _ERROR to
-     * _DISABLED. */
-    UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
 
     /* Clean up and return */
     UA_ReaderGroupConfig_clear(&oldConfig);

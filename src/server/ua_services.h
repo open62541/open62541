@@ -162,9 +162,18 @@ Service_Read(UA_Server *server, UA_Session *session,
              UA_ReadResponse *response);
 
 UA_Boolean
+Operation_Read(UA_Server *server, UA_Session *session,
+               UA_TimestampsToReturn ttr,
+               const UA_ReadValueId *rvi, UA_DataValue *dv);
+
+UA_Boolean
 Service_Write(UA_Server *server, UA_Session *session,
               const UA_WriteRequest *request,
               UA_WriteResponse *response);
+
+UA_Boolean
+Operation_Write(UA_Server *server, UA_Session *session,
+                const UA_WriteValue *wv, UA_StatusCode *result);
 
 #ifdef UA_ENABLE_HISTORIZING
 UA_Boolean
@@ -184,6 +193,11 @@ UA_Boolean
 Service_Call(UA_Server *server, UA_Session *session,
              const UA_CallRequest *request,
              UA_CallResponse *response);
+
+UA_Boolean
+Operation_CallMethod(UA_Server *server, UA_Session *session,
+                     const UA_CallMethodRequest *request,
+                     UA_CallMethodResult *result);
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS

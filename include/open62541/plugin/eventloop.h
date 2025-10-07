@@ -456,7 +456,7 @@ struct UA_InterruptManager {
 #if (defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)) || defined(UA_ARCHITECTURE_WIN32)
 
 /**
- * POSIX EventLop Implementation
+ * POSIX EventLoop Implementation
  * -----------------------------
  * The POSIX compatibility of Win32 is 'close enough'. So a joint implementation
  * is provided. The configuration paramaters must be set before starting the
@@ -495,6 +495,10 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  * the first callback are different between server and client connections.
  *
  * **Configuration parameters for the ConnectionManager (set before start)**
+ *
+ * 0:max-connections [uint32]
+ *    max connections (default: 0 -> unbounded).
+ *    The server sockets get deactivated if the limit is reached.
  *
  * 0:recv-bufsize [uint32]
  *    Size of the buffer that is statically allocated for receiving messages

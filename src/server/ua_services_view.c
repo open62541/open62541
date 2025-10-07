@@ -219,7 +219,7 @@ RefTree_clear(RefTree *rt) {
 }
 
 /* Double the capacity of the reftree */
-static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_double(RefTree *rt) {
     size_t capacity = rt->capacity * 2;
     UA_assert(capacity > 0);
@@ -347,6 +347,7 @@ browseRecursiveCallback(void *context, UA_ReferenceTarget *t) {
     /* Add the current node if we don't want to skip it as a start node and it
      * matches the nodeClassMask filter Recurse into the children in any
      * case. */
+    void *res = NULL;
     const UA_NodeHead *head = &node->head;
     if((brc->includeStartNodes || brc->depth > 0)  &&
        matchClassMask(node, brc->nodeClassMask)) {
@@ -358,7 +359,6 @@ browseRecursiveCallback(void *context, UA_ReferenceTarget *t) {
 
     /* Recurse */
     brc->depth++;
-    void *res = NULL;
     for(size_t i = 0; i < head->referencesSize && !res; i++) {
         UA_NodeReferenceKind *rk = &head->references[i];
 
@@ -461,7 +461,7 @@ typedef struct {
     UA_ReferenceDescription *descr;
 } RefResult;
 
-static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 RefResult_init(RefResult *rr) {
     memset(rr, 0, sizeof(RefResult));
     rr->descr = (UA_ReferenceDescription*)
@@ -473,7 +473,7 @@ RefResult_init(RefResult *rr) {
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 RefResult_double(RefResult *rr) {
     size_t newSize = rr->capacity * 2;
     UA_ReferenceDescription *rd = (UA_ReferenceDescription*)

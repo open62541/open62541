@@ -80,7 +80,7 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
                         UA_EncodeBinaryOptions *options,
                         UA_exchangeEncodeBuffer exchangeCallback,
                         void *exchangeHandle)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /* Decodes a scalar value described by type from binary encoding. Decoding is
  * reentrant and can be safely called from signal handlers or interrupts.
@@ -102,7 +102,7 @@ UA_StatusCode
 UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
                         void *dst, const UA_DataType *type,
                         const UA_DecodeBinaryOptions *options)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 const UA_DataType *
 UA_findDataTypeByBinary(const UA_NodeId *typeId);

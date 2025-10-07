@@ -42,9 +42,9 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # number from the latest release plus the "-undefined" label. Will be
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
-set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 13)
-set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
+set(OPEN62541_VER_MINOR 5)
+set(OPEN62541_VER_PATCH 0)
+set(OPEN62541_VER_LABEL "-rc1") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
 # Overwrite the version information based on git if available and we are the main cmake project.
@@ -602,14 +602,20 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
         check_add_cc_flag("-Wunused-command-line-argument") # Warning for command line args instead of error
     endif()
 
-    check_add_cc_flag("-Wno-static-in-inline") # Clang doesn't like the use of static inline methods inside static inline methods
-    check_add_cc_flag("-Wno-overlength-strings") # May happen in the nodeset compiler when complex values are directly encoded
-    check_add_cc_flag("-Wno-unused-parameter") # some methods may require unused arguments to cast to a method pointer
-    check_add_cc_flag("-Wno-maybe-uninitialized") # too many false positives
+    # Some methods need unused arguments to conform with a defined method pointer signature
+    check_add_cc_flag("-Wno-unused-parameter")
+
+    # Overlength strings may occur in generated code and are not harmful
+    check_add_cc_flag("-Wno-overlength-strings")
 
     # Use a strict subset of the C and C++ languages
-
     check_add_cc_flag("-Wc++-compat")
+
+    # Wc++-compat enables additional goto/jump restrictions.
+    # But modern compilers do a detailed analysis of values
+    # are actually used uninitialized after a jump:
+    # TODO: The following flag should not be required
+    check_add_cc_flag("-Wno-jump-misses-init")
 
     # Check that format strings (printf/scanf) are sane
     check_add_cc_flag("-Wformat")
@@ -643,6 +649,13 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
         add_cc_flag("-fPIC")
     endif()
 
+    # Hardened build (stack protection, etc.)
+    # See the GCC docs on which precise flags this enables.
+    if(UA_ENABLE_HARDENING)
+        check_add_cc_flag("-fhardened")
+    endif()
+
+    # Threading support
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
         check_add_cc_flag("-pthread")
     endif()
@@ -664,10 +677,6 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
             check_add_cc_flag("-fprofile-arcs")
             check_add_cc_flag("-ftest-coverage")
         endif()
-    endif()
-
-    if(UA_ENABLE_HARDENING)
-        check_add_cc_flag("-fhardened") # See the GCC docs on which precise flags this enables
     endif()
 
     # Inter Procedural Optimization / Link Time Optimization (should be same as -flto)
@@ -832,11 +841,13 @@ if(UA_ENABLE_ENCRYPTION AND UA_ARCHITECTURE_WIN32)
 endif()
 
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
+                ${PROJECT_SOURCE_DIR}/src/ua_types_definition.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/util/ua_util.c
+                ${PROJECT_SOURCE_DIR}/src/util/ua_ecc_encryptedsecret.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel_crypto.c
                 # server
@@ -850,6 +861,10 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_event.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_method.c
@@ -866,6 +881,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_util.c
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
@@ -926,6 +942,7 @@ if(UA_ENABLE_PUBSUB)
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_readergroup.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_manager.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_ns0_sks.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_securitygroup.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c)
@@ -941,22 +958,6 @@ if(UA_ENABLE_XML_ENCODING)
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_xml.c)
 else()
     message(WARNING "UA_ENABLE_XML_ENCODING is not enabled. Value attributes will not be extracted from XML.")
-endif()
-
-if(UA_ENABLE_SUBSCRIPTIONS)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
-                            ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c)
-    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-        if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
-            message(FATAL_ERROR "Events require at least the reduced Namespace Zero")
-        endif()
-        list(APPEND lib_sources
-                    ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_event.c
-                    ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_eventfilter.c)
-        if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
-            list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c)
-        endif()
-    endif()
 endif()
 
 if(UA_DEBUG_DUMP_PKGS)
@@ -1247,6 +1248,11 @@ set(UA_NS0_TYPES_BSD ${UA_SCHEMA_DIR}/Opc.Ua.Types.bsd)
 if(UA_ENABLE_DATATYPES_ALL)
     unset(UA_NS0_DATATYPES)
 endif()
+
+# Regenerate the variables in open62541Config.cmake
+unset(open62541_TOOLS_DIR CACHE)
+unset(open62541_SCHEMA_DIR CACHE)
+unset(open62541_NS0_NODESETS CACHE)
 
 set(UA_NS0_NODESET_FILES "")
 foreach(f ${UA_NS0_NODESETS})

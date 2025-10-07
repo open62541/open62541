@@ -444,10 +444,40 @@ UA_KeyValueMap_set(UA_KeyValueMap *map,
                                &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
 }
 
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_setShallow(UA_KeyValueMap *map,
+                          const UA_QualifiedName key,
+                          UA_Variant *value) {
+    if(map == NULL || value == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* Key exists already */
+    UA_Variant *target;
+    const UA_Variant *v = UA_KeyValueMap_get(map, key);
+    if(v) {
+        target = (UA_Variant*)(uintptr_t)v;
+        UA_Variant_clear(target);
+    } else {
+        /* Append to the array */
+        UA_KeyValuePair pair;
+        pair.key = key;
+        UA_Variant_init(&pair.value);
+        UA_StatusCode res =
+            UA_Array_appendCopy((void**)&map->map, &map->mapSize, &pair,
+                                &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        target = &map->map[map->mapSize-1].value;
+    }
+
+    *target = *value;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 UA_KeyValueMap_setScalar(UA_KeyValueMap *map,
                          const UA_QualifiedName key,
-                         void * UA_RESTRICT p,
+                         const void * UA_RESTRICT p,
                          const UA_DataType *type) {
     if(p == NULL || type == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -455,8 +485,21 @@ UA_KeyValueMap_setScalar(UA_KeyValueMap *map,
     UA_Variant_init(&v);
     v.type = type;
     v.arrayLength = 0;
-    v.data = p;
+    v.data = (void*)(uintptr_t)p;
     return UA_KeyValueMap_set(map, key, &v);
+}
+
+UA_StatusCode
+UA_KeyValueMap_setScalarShallow(UA_KeyValueMap *map, const UA_QualifiedName key,
+                                void *UA_RESTRICT p, const UA_DataType *type) {
+    if(p == NULL || type == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_Variant v;
+    UA_Variant_init(&v);
+    v.type = type;
+    v.arrayLength = 0;
+    v.data = p;
+    return UA_KeyValueMap_setShallow(map, key, &v);
 }
 
 const UA_Variant *
@@ -802,11 +845,11 @@ UA_String_unescape(UA_String *str, UA_Boolean copyEscape, UA_Escaping esc) {
                 byte <<= 4;
 
                 if(pos[2] >= 'a')
-                    byte += pos[2] - ('a' - 10);
+                    byte += (u8)(pos[2] - ('a' - 10));
                 else if(pos[2] >= 'A')
-                    byte += pos[2] - ('A' - 10);
+                    byte += (u8)(pos[2] - ('A' - 10));
                 else
-                    byte += pos[2] - '0';
+                    byte += (u8)(pos[2] - '0');
 
                 pos += 2;
                 *writepos++ = byte;
@@ -913,8 +956,6 @@ UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Escaping esc) {
     s->length += escapedLength;
     return UA_STATUSCODE_GOOD;
 }
-
-#ifdef UA_ENABLE_PARSING
 
 static UA_StatusCode
 moveTmpToOut(UA_String *tmp, UA_String *out) {
@@ -1151,8 +1192,6 @@ UA_ReadValueId_print(const UA_ReadValueId *rvi, UA_String *out) {
 
     return moveTmpToOut(&tmp, out);
 }
-
-#endif
 
 /************************/
 /* Cryptography Helpers */

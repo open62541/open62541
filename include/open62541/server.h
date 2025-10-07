@@ -22,17 +22,24 @@
 #include <open62541/types.h>
 #include <open62541/client.h>
 
+#include <open62541/plugin/log.h>
+#include <open62541/plugin/certificategroup.h>
+#include <open62541/plugin/eventloop.h>
+#include <open62541/plugin/accesscontrol.h>
+#include <open62541/plugin/securitypolicy.h>
+
+#ifdef UA_ENABLE_HISTORIZING
+#include <open62541/plugin/historydatabase.h>
+#endif
+
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/server_pubsub.h>
 #endif
 
-/* Forward declarations */
-typedef void (*UA_Server_AsyncOperationNotifyCallback)(UA_Server *server);
-
+/* Forward Declarations */
 struct UA_Nodestore;
 typedef struct UA_Nodestore UA_Nodestore;
 
-/* Forward Declarations */
 struct UA_ServerConfig;
 typedef struct UA_ServerConfig UA_ServerConfig;
 
@@ -189,6 +196,27 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 #define UA_Server_removeRepeatedCallback(server, callbackId) \
     UA_Server_removeCallback(server, callbackId)
+
+/**
+ * Application Notification
+ * ------------------------
+ * The server defines callbacks to notify the application on defined triggering
+ * points. These callbacks are executed with the (re-entrant) server-mutex held.
+ *
+ * The different types of callback are disambiguated by their type enum. Besides
+ * the global notification callback (which is always triggered), the server
+ * configuration contains specialized callbacks that trigger only for specific
+ * notifications. This can reduce the burden of high-frequency notifications.
+ *
+ * If a specialized notification callback is set, it always gets called before
+ * the global notification callback for the same triggering point.
+ *
+ * See the section on the :ref:`Application Notification` enum for more
+ * documentation on the notifications and their defined payload. */
+
+typedef void (*UA_ServerNotificationCallback)(UA_Server *server,
+                                              UA_ApplicationNotificationType type,
+                                              const UA_KeyValueMap payload);
 
 /**
  * .. _server-session-handling:
@@ -608,10 +636,10 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
  *
  * The received event-fields map could look like this::
  *
- *   0:/Severity   => UInt16(1000)
- *   0:/Message    => LocalizedText("en-US", "My Event Message")
- *   0:/EventType  => NodeId(i=50831)
- *   0:/SourceNode => NodeId(i=2253)
+ *   /Severity   => UInt16(1000)
+ *   /Message    => LocalizedText("en-US", "My Event Message")
+ *   /EventType  => NodeId(i=50831)
+ *   /SourceNode => NodeId(i=2253)
  *
  * The order of the keys is identical to the order of SimpleAttributeOperands in
  * the select-clause. This feature requires the build flag ``UA_ENABLE_PARSING``
@@ -1289,57 +1317,184 @@ UA_Server_setAsyncWriteResult(UA_Server *server, const UA_DataValue *value,
                               UA_StatusCode result);
 
 /**
+ * The server supports asynchronous "local" read/write/call operations. The user
+ * supplies a result-callback that gets called either synchronously (if the
+ * operation terminates right away) or asynchronously at a later time. The
+ * result-callback is called exactly one time for each operation, also if the
+ * operation is cancelled. In this case a StatusCode like
+ * ``UA_STATUSCODE_BADTIMEOUT`` or ``UA_STATUSCODE_BADSHUTDOWN`` is set.
+ *
+ * If an operation returns asynchronously, then the result-callback is executed
+ * only in the next iteration of the Eventloop. An exception to this is
+ * UA_Server_cancelAsync, which can optionally call the result-callback right
+ * away (e.g. as part of a cleanup where the context of the result-callback gets
+ * removed).
+ *
+ * Async operations incur a small overhead since memory is allocated to persist
+ * the operation over time.
+ *
+ * The operation timeout is defined in milliseconds. A timeout of zero means
+ * infinite. */
+
+typedef void(*UA_ServerAsyncReadResultCallback)
+    (UA_Server *server, void *asyncOpContext, const UA_DataValue *result);
+typedef void(*UA_ServerAsyncWriteResultCallback)
+    (UA_Server *server, void *asyncOpContext, UA_StatusCode result);
+typedef void(*UA_ServerAsyncMethodResultCallback)
+    (UA_Server *server, void *asyncOpContext, const UA_CallMethodResult *result);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_read_async(UA_Server *server, const UA_ReadValueId *operation,
+                     UA_TimestampsToReturn timestamps,
+                     UA_ServerAsyncReadResultCallback callback,
+                     void *asyncOpContext, UA_UInt32 timeout);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_write_async(UA_Server *server, const UA_WriteValue *operation,
+                      UA_ServerAsyncWriteResultCallback callback,
+                      void *asyncOpContext, UA_UInt32 timeout);
+
+#ifdef UA_ENABLE_METHODCALLS
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_call_async(UA_Server *server, const UA_CallMethodRequest *operation,
+                     UA_ServerAsyncMethodResultCallback callback,
+                     void *asyncOpContext, UA_UInt32 timeout);
+#endif
+
+/**
+ * Local async operations can be manually cancelled (besides an internal cancel
+ * due to a timeout or server shutdown). The local async operations to be
+ * cancelled are selected by matching their asyncOpContext pointer. This can
+ * cancel multiple operations that use the same context pointer.
+ *
+ * For operations where the async result was not yet set, the
+ * asyncOperationCancelCallback from the server-config gets called and the
+ * cancel-status is set in the operation result.
+ *
+ * For async operations where the result has already been set, but not yet
+ * notified with the result-callback (to be done in the next EventLoop
+ * iteration), the asyncOperationCancelCallback is not called and no cancel
+ * status is set in the result.
+ *
+ * Each operation's result-callback gets called exactly once. When the operation
+ * is cancelled, the result-callback can be called synchronously using the
+ * synchronousResultCallback flag. Otherwise the result gets returned "normally"
+ * in the next EventLoop iteration. The synchronous option ensures that all
+ * (matching) async operations are fully cancelled right away. This can be
+ * important in a cleanup situation where the asyncOpContext is no longer valid
+ * in the future. */
+
+void UA_EXPORT UA_THREADSAFE
+UA_Server_cancelAsync(UA_Server *server, void *asyncOpContext,
+                      UA_StatusCode status,
+                      UA_Boolean synchronousResultCallback);
+
+/**
  * .. _events:
  *
  * Events
  * ------
- * The method ``UA_Server_createEvent`` creates an event and represents it as
- * node. The node receives a unique `EventId` which is automatically added to
- * the node. The method returns a `NodeId` to the object node which represents
- * the event through ``outNodeId``. The `NodeId` can be used to set the
- * attributes of the event. The generated `NodeId` is always numeric.
- * ``outNodeId`` cannot be ``NULL``.
+ * Events are emitted by objects in the OPC UA information model. Starting at
+ * the source-node, the events "bubble up" in the hierarchy of objects and are
+ * caught by MonitoredItems listening for them.
  *
- * Note: In order to see an event in UAExpert, the field `Time` must be given a
- * value!
+ * EventTypes are special ObjectTypeNodes that describe the (data) fields of an
+ * event instance. An EventType can simply contain a flat list of VariableNodes.
+ * But (deep) nesting of objects and variables is also allowed. The individual
+ * MonitoredItems then contain an EventFilter (with a select-clause) that
+ * defines the event fields to be transmitted to a particular client.
  *
- * The method ``UA_Server_triggerEvent`` "triggers" an event by adding it to all
- * monitored items of the specified origin node and those of all its parents.
- * Any filters specified by the monitored items are automatically applied. Using
- * this method deletes the node generated by ``UA_Server_createEvent``. The
- * `EventId` for the new event is generated automatically and is returned
- * through ``outEventId``. ``NULL`` can be passed if the `EventId` is not
- * needed. ``deleteEventNode`` specifies whether the node representation of the
- * event should be deleted after invoking the method. This can be useful if
- * events with the similar attributes are triggered frequently. ``UA_TRUE``
- * would cause the node to be deleted. */
+ * In open62541, there are three possible sources for the event fields. When the
+ * select-clause of an EventFilter is resolved, the sources are evaluated in the
+ * following order:
+ *
+ * 1. An key-value map that defines event fields. The key of its entries is a
+ *    "path-string", a :ref:``human-readable encoding of a
+ *    SimpleAttributeOperand<parse-sao>`. For example ``/SourceNode`` or
+ *    ``/EventType``.
+ * 2. An NodeId pointing to an ObjectNode that instantiates an EventType. The
+ *    ``SimpleAttributeOperands`` from the EventFilter are resolved in its
+ *    context.
+ * 3. The event fields defined as mandatory for the *BaseEventType* have a
+ *    default that gets used if they are not defined otherwise:
+ *
+ *    /EventId
+ *       ByteString to uniquely identify the event instance
+ *       (default: random 16-byte ByteString)
+ *
+ *    /EventType
+ *       NodeId of the EventType (default: argument of ``_createEvent``)
+ *
+ *    /SourceNode
+ *       NodeId of the emitting node (default: argument of ``_createEvent``)
+ *
+ *    /SourceName
+ *       LocalizedText with the DisplayName of the source node
+ *       (default: read from the information model)
+ *
+ *    /Time
+ *       DateTime with the timestamp when the event occurred
+ *       (default: current time)
+ *
+ *    /ReceiveTime
+ *       DateTime when the server received the information about the event from an
+ *       underlying device (default: current time)
+ *
+ *    /Message
+ *       LocalizedText with a human-readable description of the event (default:
+ *       argument of ``_createEvent``)
+ *
+ *    /Severity
+ *       UInt16 for the urgency of the event defined to be between 1 (lowest) and
+ *       1000 (catastrophic) (default: argument of ``_createEvent``)
+ *
+ * An event field that is missing from all sources resolves to an empty variant.
+ *
+ * It is typically faster to define event-fields in the key-value map than to
+ * look them up from an event instance in the information model. This is
+ * particularly important for events emitted at a high frequency. */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-/* Creates a node representation of an event
- *
- * @param server The server object
- * @param eventType The type of the event for which a node should be created
- * @param outNodeId The NodeId of the newly created node for the event
- * @return The StatusCode of the UA_Server_createEvent method */
+/* Create an event in the server. The eventFields and eventInstance pointer can
+ * be NULL and are then not considered as a source of event fields. The
+ * outEventId pointer can be NULL. If set, the EventId of a successfully created
+ * Event gets copied into the argument. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
-                      UA_NodeId *outNodeId);
+UA_Server_createEvent(UA_Server *server, const UA_NodeId sourceNode,
+                      const UA_NodeId eventType, UA_UInt16 severity,
+                      const UA_LocalizedText message,
+                      const UA_KeyValueMap *eventFields,
+                      const UA_NodeId *eventInstance,
+                      UA_ByteString *outEventId);
 
-/* Triggers a node representation of an event by applying EventFilters and
- * adding the event to the appropriate queues.
+/* Extended version of the _createEvent API. The members of the
+ * UA_EventDescription structure have the same meaning as above.
  *
- * @param server The server object
- * @param eventNodeId The NodeId of the node representation of the event which
- *        should be triggered
- * @param outEvent the EventId of the new event
- * @param deleteEventNode Specifies whether the node representation of the event
- *        should be deleted
- * @return The StatusCode of the UA_Server_triggerEvent method */
+ * In addition, the extended version allows the filtering of Events to be only
+ * transmitted to a particular Session/Subscription/MonitoredItem. The filtering
+ * criteria can be NULL. But the subscriptionId requires a sessionId and the
+ * monitoredItemId requires a subscriptionId as context. */
+
+typedef struct {
+    /* Event fields */
+    UA_NodeId sourceNode;
+    UA_NodeId eventType;
+    UA_UInt16 severity;
+    UA_LocalizedText message;
+    const UA_KeyValueMap *eventFields;
+    const UA_NodeId *eventInstance;
+
+    /* Restrict who can receive the event */
+    const UA_NodeId *sessionId;
+    const UA_UInt32 *subscriptionId;
+    const UA_UInt32 *monitoredItemId;
+} UA_EventDescription;
+
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
-                       const UA_NodeId originId, UA_ByteString *outEventId,
-                       const UA_Boolean deleteEventNode);
+UA_Server_createEventEx(UA_Server *server,
+                        const UA_EventDescription *ed,
+                        UA_ByteString *outEventId);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
@@ -1794,17 +1949,6 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
  *
  * The :ref:`tutorials` provide a good starting point for this. */
 
-#include <open62541/plugin/log.h>
-#include <open62541/plugin/certificategroup.h>
-#include <open62541/plugin/nodestore.h>
-#include <open62541/plugin/eventloop.h>
-#include <open62541/plugin/accesscontrol.h>
-#include <open62541/plugin/securitypolicy.h>
-
-#ifdef UA_ENABLE_HISTORIZING
-#include <open62541/plugin/historydatabase.h>
-#endif
-
 struct UA_ServerConfig {
     void *context; /* Used to attach custom data to a server config. This can
                     * then be retrieved e.g. in a callback that forwards a
@@ -1869,7 +2013,7 @@ struct UA_ServerConfig {
      *
      * See the section on :ref:`generic-types`. Examples for working with custom
      * data types are provided in ``/examples/custom_datatype/``. */
-    const UA_DataTypeArray *customDataTypes;
+    UA_DataTypeArray *customDataTypes;
 
     /* EventLoop
      * ~~~~~~~~~
@@ -1878,6 +2022,15 @@ struct UA_ServerConfig {
      * be destroyed when the config is cleaned up. */
     UA_EventLoop *eventLoop;
     UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
+
+    /* Application Notification
+     * ~~~~~~~~~~~~~~~~~~~~~~~~
+     * The notification callbacks can be NULL. The global callback receives all
+     * notifications. The specialized callbacks receive only the subset
+     * indicated by their name. */
+    UA_ServerNotificationCallback globalNotificationCallback;
+    UA_ServerNotificationCallback lifecycleNotificationCallback;
+    UA_ServerNotificationCallback serviceNotificationCallback;
 
     /* Networking
      * ~~~~~~~~~~

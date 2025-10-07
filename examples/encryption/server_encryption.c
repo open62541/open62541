@@ -30,6 +30,8 @@ int main(int argc, char* argv[]) {
     signal(SIGTERM, stopHandler);
     UA_ByteString certificate = UA_BYTESTRING_NULL;
     UA_ByteString privateKey = UA_BYTESTRING_NULL;
+    bool onlySecure = false;
+    bool allowDiscovery = false;
     if(argc >= 3) {
         /* Load certificate and private key */
         certificate = loadFile(argv[1]);
@@ -38,7 +40,9 @@ int main(int argc, char* argv[]) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Missing arguments. Arguments are "
                      "<server-certificate.der> <private-key.der> "
-                     "[<trustlist1.crl>, ...]");
+                     "[<trustlist1.crl>, ...] "
+                     "[--onlySecure] "
+                     "[--allowDiscovery]");
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "Trying to create a certificate.");
         UA_String subject[3] = {UA_STRING_STATIC("C=DE"),
@@ -67,6 +71,16 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    for(int argpos = 1; argpos < argc; argpos++) {
+        if(strcmp(argv[argpos], "--onlySecure") == 0) {
+            onlySecure = true;
+            continue;
+        }
+        if(strcmp(argv[argpos], "--allowDiscovery") == 0) {
+            allowDiscovery = true;
+            continue;
+        }
+    }
 
     /* Load the trustlist */
     size_t trustListSize = 0;
@@ -87,12 +101,28 @@ int main(int argc, char* argv[]) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-    UA_StatusCode retval =
-        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
-                                                       &certificate, &privateKey,
-                                                       trustList, trustListSize,
-                                                       issuerList, issuerListSize,
-                                                       revocationList, revocationListSize);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(onlySecure) {
+        retval = UA_ServerConfig_setDefaultWithSecureSecurityPolicies(config, 4840,
+                                                                      &certificate, &privateKey,
+                                                                      trustList, trustListSize,
+                                                                      issuerList, issuerListSize,
+                                                                      revocationList, revocationListSize);
+    } else {
+        retval = UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
+                                                                &certificate, &privateKey,
+                                                                trustList, trustListSize,
+                                                                issuerList, issuerListSize,
+                                                                revocationList, revocationListSize);
+    }
+
+    /* Adds the None policy to the security policy list, but does not provide a None endpoint.
+     * This enables a client to retrieve the server certificate and
+     * all endpoints offered by a server. */
+    if(onlySecure && allowDiscovery) {
+        UA_ServerConfig_addSecurityPolicyNone(config, &certificate);
+        config->securityPolicyNoneDiscoveryOnly = true;
+    }
 
     /* Accept all certificates */
     config->secureChannelPKI.clear(&config->secureChannelPKI);

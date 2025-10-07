@@ -51,7 +51,7 @@ decodeJsonStructure(ParseCtx *ctx, void *dst, const UA_DataType *type);
 #define ENCODE_DIRECT_JSON(SRC, TYPE) \
     TYPE##_encodeJson(ctx, (const UA_##TYPE*)SRC, NULL)
 
-static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeChar(CtxJson *ctx, char c) {
     if(ctx->pos >= ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -61,7 +61,7 @@ writeChar(CtxJson *ctx, char c) {
     return UA_STATUSCODE_GOOD;
 }
 
-static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeChars(CtxJson *ctx, const char *c, size_t len) {
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -72,7 +72,7 @@ writeChars(CtxJson *ctx, const char *c, size_t len) {
 }
 
 #define WRITE_JSON_ELEMENT(ELEM)                            \
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT status                  \
+    UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT status                  \
     writeJson##ELEM(CtxJson *ctx)
 
 static WRITE_JSON_ELEMENT(Quote) {
@@ -207,7 +207,7 @@ static const char* UA_JSONKEY_INNERDIAGNOSTICINFO = "InnerDiagnosticInfo";
 
 /* Writes null terminated string to output buffer (current ctx->pos). Writes
  * comma in front of key if needed. Encapsulates key in quotes. */
-status UA_FUNC_ATTR_WARN_UNUSED_RESULT
+status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 writeJsonKey(CtxJson *ctx, const char* key) {
     status ret = writeJsonBeforeElement(ctx, true);
     ctx->commaNeeded[ctx->depth] = true;
@@ -2150,9 +2150,7 @@ Variant_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void *p, const UA_DataTyp
      * means for us, that somebody made an extra effort to explicitly get an
      * ExtensionObject. So we keep it. As an added advantage we will generate
      * the same JSON again when encoding again. */
-    UA_Boolean isBuiltin =
-        (eo.content.decoded.type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
-    if(isBuiltin)
+    if(eo.content.decoded.type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO)
         goto use_eo;
 
     /* Unwrap the ExtensionObject */

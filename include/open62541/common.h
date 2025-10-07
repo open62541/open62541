@@ -184,6 +184,47 @@ typedef enum {
 } UA_Order;
 
 /**
+ * .. _application-notification:
+ *
+ * Application Notification
+ * ------------------------
+ *
+ * The ApplicationNotification enum indicates the type of notification for the
+ * server/client in which the corresponding callback is configured.
+ *
+ * The notification comes with a key-value map for the payload. Future
+ * additional payload members are added to the end of the payload. So that the
+ * names, type and also index of the payload members is stable. */
+
+typedef enum {
+    /* Lifetime notifications, no payload */
+    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STARTED,
+    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_SHUTDOWN, /* preparing shutdown */
+    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING, /* shutdown begins now */
+    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED,
+
+    /* Processing of a service request or response. The server-side processing
+     * of a request can be asynchronous. The existence of a yet-unfinished async
+     * operation from the request is signaled with the _SERVICE_ASYNC enum. The
+     * _SERVICE_END enum is signalled eventually, once all async operations from
+     * the service request are completed.
+     *
+     * 0:securechannel-id [UInt32]
+     *    Identifier of the SecureChannel to which the Session is connected.
+     * 0:session-id [NodeId]
+     *    Identifier of the Session for/from which the Service is requested.
+     *    This is the ns=0;i=0 NodeId if no Session is bound to the receiving
+     *    SecureChannel.
+     * 0:request-id [UInt32]
+     *    Identifier of the RequestId for the Request/Response pair.
+     * 0:service-type [NodeId]
+     *    DataType identifier for the Request (server) or Response (client). */
+    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN,
+    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC,
+    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END
+} UA_ApplicationNotificationType;
+
+/**
  * Connection State
  * ---------------- */
 
@@ -194,9 +235,10 @@ typedef enum {
                                       fully established */
     UA_CONNECTIONSTATE_ESTABLISHED,/* The socket is open and the connection
                                     * configured */
-    UA_CONNECTIONSTATE_CLOSING     /* The socket is closing down */
+    UA_CONNECTIONSTATE_CLOSING,    /* The socket is closing down */
+    UA_CONNECTIONSTATE_BLOCKING,   /* Listening disabled (e.g. max connections reached) */
+    UA_CONNECTIONSTATE_REOPENING   /* Listening resumed after being blocked */
 } UA_ConnectionState;
-
 
 typedef enum {
     UA_SECURECHANNELSTATE_CLOSED = 0,

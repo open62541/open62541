@@ -253,13 +253,6 @@ struct UA_Server {
     UA_Lock serviceMutex;
 #endif
 
-    /* This gets transmitted as part of the ReadRequest and was part of
-     * Operation_Read. Use the following variable to pass the argument to
-     * Operation_Read in order to have the same internal API for all async
-     * operations. This is save as the Read-Request is always behind the server
-     * mutex. */
-    UA_TimestampsToReturn ttr;
-
     /* Statistics */
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
@@ -454,7 +447,7 @@ allocProcessServiceOperations(UA_Server *server, UA_Session *session,
                               const UA_DataType *requestOperationsType,
                               size_t *responseOperations,
                               const UA_DataType *responseOperationsType)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /*********************/
 /* Locking/Unlocking */
@@ -506,10 +499,6 @@ UA_StatusCode
 setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                      UA_NodeTypeLifecycle lifecycle);
 
-void
-Operation_Write(UA_Server *server, UA_Session *session,
-                const UA_WriteValue *wv, UA_StatusCode *result);
-
 UA_StatusCode
 writeAttribute(UA_Server *server, UA_Session *session,
                const UA_NodeId *nodeId, const UA_AttributeId attributeId,
@@ -558,33 +547,6 @@ readObjectProperty(UA_Server *server, const UA_NodeId objectId,
 
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
-UA_Subscription *
-getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-
-UA_StatusCode
-createEvent(UA_Server *server, const UA_NodeId eventType,
-            UA_NodeId *outNodeId);
-
-UA_StatusCode
-triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
-             const UA_NodeId origin, UA_ByteString *outEventId,
-             const UA_Boolean deleteEventNode);
-
-/* Filters the given event with the given filter and writes the results into a
- * notification */
-UA_StatusCode
-filterEvent(UA_Server *server, UA_Session *session,
-            const UA_NodeId *eventNode, UA_EventFilter *filter,
-            UA_EventFieldList *efl, UA_EventFilterResult *result);
-
-#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
-
-#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 /* Returns a configured SecurityPolicy with encryption. Use Basic256Sha256 if
  * available. Otherwise use any encrypted SecurityPolicy. */
@@ -674,12 +636,12 @@ typedef struct {
     size_t size;     /* used space */
 } RefTree;
 
-UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_init(RefTree *rt);
 
 void RefTree_clear(RefTree *rt);
 
-UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_addNodeId(RefTree *rt, const UA_NodeId *target, UA_Boolean *duplicate);
 
 UA_Boolean

@@ -279,72 +279,6 @@ static const UA_String jsonEncoding = {sizeof("Default JSON")-1, (UA_Byte*)"Defa
         break;                                                  \
     }
 
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-static const UA_DataType *
-findDataType(const UA_Node *node, const UA_DataTypeArray *customTypes) {
-    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
-        if(UA_NodeId_equal(&UA_TYPES[i].typeId, &node->head.nodeId)) {
-            return &UA_TYPES[i];
-        }
-    }
-
-    // lookup custom type
-    while(customTypes) {
-        for(size_t i = 0; i < customTypes->typesSize; ++i) {
-            if(UA_NodeId_equal(&customTypes->types[i].typeId, &node->head.nodeId))
-                return &customTypes->types[i];
-        }
-        customTypes = customTypes->next;
-    }
-    return NULL;
-}
-
-static UA_StatusCode
-getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
-    UA_StatusCode retval =
-        UA_NodeId_copy(&type->binaryEncodingId, &def->defaultEncodingId);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    switch(type->typeKind) {
-        case UA_DATATYPEKIND_STRUCTURE:
-            def->structureType = UA_STRUCTURETYPE_STRUCTURE;
-            def->baseDataType = UA_NS0ID(STRUCTURE);
-            break;
-        case UA_DATATYPEKIND_OPTSTRUCT:
-            def->structureType = UA_STRUCTURETYPE_STRUCTUREWITHOPTIONALFIELDS;
-            def->baseDataType = UA_NS0ID(STRUCTURE);
-            break;
-        case UA_DATATYPEKIND_UNION:
-            def->structureType = UA_STRUCTURETYPE_UNION;
-            def->baseDataType = UA_NS0ID(UNION);
-            break;
-        default:
-            return UA_STATUSCODE_BADENCODINGERROR;
-    }
-    def->fieldsSize = type->membersSize;
-    def->fields = (UA_StructureField *)
-        UA_calloc(def->fieldsSize, sizeof(UA_StructureField));
-    if(!def->fields) {
-        UA_NodeId_clear(&def->defaultEncodingId);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    for(size_t cnt = 0; cnt < def->fieldsSize; cnt++) {
-        const UA_DataTypeMember *m = &type->members[cnt];
-        def->fields[cnt].valueRank = (m->isArray) ? UA_VALUERANK_ONE_DIMENSION : UA_VALUERANK_SCALAR;
-        def->fields[cnt].arrayDimensions = NULL;
-        def->fields[cnt].arrayDimensionsSize = 0;
-        def->fields[cnt].name = UA_STRING((char *)(uintptr_t)m->memberName);
-        def->fields[cnt].description.locale = UA_STRING_NULL;
-        def->fields[cnt].description.text = UA_STRING_NULL;
-        def->fields[cnt].dataType = m->memberType->typeId;
-        def->fields[cnt].maxStringLength = 0;
-        def->fields[cnt].isOptional = m->isOptional;
-    }
-    return UA_STATUSCODE_GOOD;
-}
-#endif
-
 /* Returns whether the operation is done or an async operation has been
  * triggered. */
 static UA_Boolean
@@ -482,7 +416,7 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
         retval = UA_Variant_setScalarCopy(&v->value, &node->variableNode.accessLevel,
                                           &UA_TYPES[UA_TYPES_BYTE]);
         break;
-    case UA_ATTRIBUTEID_ACCESSLEVELEX:
+    case UA_ATTRIBUTEID_ACCESSLEVELEX: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         /* The normal AccessLevelEx contains the lowest 8 bits from the normal AccessLevel.
          * In our case, all other bits are zero. */
@@ -492,6 +426,7 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
                                           &UA_TYPES[UA_TYPES_UINT32]);
 
         break;
+    }
     case UA_ATTRIBUTEID_USERACCESSLEVEL: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         UA_Byte userAccessLevel = getUserAccessLevel(server, session, &node->variableNode);
@@ -526,22 +461,31 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
     case UA_ATTRIBUTEID_DATATYPEDEFINITION: {
         CHECK_NODECLASS(UA_NODECLASS_DATATYPE);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        const UA_DataType *type = findDataType(node, server->config.customDataTypes);
+        /* Find the DataType */
+        const UA_DataType *type =
+            UA_findDataTypeWithCustom(&node->head.nodeId, server->config.customDataTypes);
         if(!type) {
             retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
             break;
         }
 
+        /* Create the StructureDefinition */
         if(UA_DATATYPEKIND_STRUCTURE == type->typeKind ||
            UA_DATATYPEKIND_OPTSTRUCT == type->typeKind ||
            UA_DATATYPEKIND_UNION == type->typeKind) {
-            UA_StructureDefinition def;
-            retval = getStructureDefinition(type, &def);
-            if(UA_STATUSCODE_GOOD != retval)
+            UA_StructureDefinition *def = UA_StructureDefinition_new();
+            if(!def) {
+                retval = UA_STATUSCODE_BADOUTOFMEMORY;
                 break;
-            retval = UA_Variant_setScalarCopy(&v->value, &def,
-                                              &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
-            UA_free(def.fields);
+            }
+
+            retval = UA_DataType_toStructureDefinition(type, def);
+            if(UA_STATUSCODE_GOOD != retval) {
+                UA_free(def);
+                break;
+            }
+
+            UA_Variant_setScalar(&v->value, def, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
             break;
         }
 #endif
@@ -562,7 +506,10 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
     /* Reading has failed? */
     if(retval == UA_STATUSCODE_GOOD) {
         v->hasValue = true;
-    } else {
+    } else if(retval != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
+        /* Signal that reading has failed. Otherwise keep the status returned
+         * from the value source. Ignore the async processing sentinel
+         * status. */
         v->hasStatus = true;
         v->status = retval;
     }
@@ -590,8 +537,9 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
     return (retval != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 }
 
-static UA_Boolean
+UA_Boolean
 Operation_Read(UA_Server *server, UA_Session *session,
+               UA_TimestampsToReturn ttr,
                const UA_ReadValueId *rvi, UA_DataValue *dv) {
     /* Get the node (with only the selected attribute if the NodeStore supports that) */
     UA_UInt32 attrMask = attributeId2AttributeMask((UA_AttributeId)rvi->attributeId);
@@ -605,60 +553,15 @@ Operation_Read(UA_Server *server, UA_Session *session,
     }
 
     /* Perform the read operation */
-    UA_Boolean done = ReadWithNodeMaybeAsync(node, server, session, server->ttr, rvi, dv);
+    UA_Boolean done = ReadWithNodeMaybeAsync(node, server, session, ttr, rvi, dv);
     UA_NODESTORE_RELEASE(server, node);
     return done;
-}
-
-static const UA_AsyncServiceDescription readDescription = {
-    &UA_TYPES[UA_TYPES_READRESPONSE],
-    (UA_AsyncServiceOperation)Operation_Read,
-    offsetof(UA_ReadRequest, nodesToReadSize),
-    &UA_TYPES[UA_TYPES_READVALUEID],
-    offsetof(UA_ReadResponse, resultsSize),
-    &UA_TYPES[UA_TYPES_DATAVALUE]
-};
-
-UA_Boolean
-Service_Read(UA_Server *server, UA_Session *session,
-             const UA_ReadRequest *request, UA_ReadResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing ReadRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    /* Check if the timestampstoreturn is valid */
-    if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
-        return true;
-    }
-
-    /* Check if maxAge is valid */
-    if(request->maxAge < 0) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
-        return true;
-    }
-
-    /* Check if there are too many operations */
-    if(server->config.maxNodesPerRead != 0 &&
-       request->nodesToReadSize > server->config.maxNodesPerRead) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return true;
-    }
-
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    server->ttr = request->timestampsToReturn;
-    response->responseHeader.serviceResult =
-        allocProcessServiceOperations_async(server, session, &readDescription,
-                                            request, response);
-
-    /* Signal an async operation */
-    return (response->responseHeader.serviceResult != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 }
 
 UA_DataValue
 readWithSession(UA_Server *server, UA_Session *session,
                 const UA_ReadValueId *item,
-                UA_TimestampsToReturn timestampsToReturn) {
+                UA_TimestampsToReturn ttr) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_DataValue dv;
@@ -672,8 +575,7 @@ readWithSession(UA_Server *server, UA_Session *session,
         return dv;
     }
 
-    server->ttr = timestampsToReturn;
-    UA_Boolean done = Operation_Read(server, session, item, &dv);
+    UA_Boolean done = Operation_Read(server, session, ttr, item, &dv);
     if(!done) {
         if(server->config.asyncOperationCancelCallback)
             server->config.asyncOperationCancelCallback(server, &dv);
@@ -1871,23 +1773,9 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-void
+UA_Boolean
 Operation_Write(UA_Server *server, UA_Session *session,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
-    UA_assert(session != NULL);
-    *result = UA_Server_editNode(server, session, &wv->nodeId, wv->attributeId,
-                                 UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                                 (UA_EditNodeCallback)copyAttributeIntoNode,
-                                 (void*)(uintptr_t)wv);
-    /* If writing is async, signal that we can no longer receive the statuscode */
-    if(*result == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY &&
-       server->config.asyncOperationCancelCallback)
-        server->config.asyncOperationCancelCallback(server, &wv->value);
-}
-
-static UA_Boolean
-Operation_WriteAsync(UA_Server *server, UA_Session *session,
-                     const UA_WriteValue *wv, UA_StatusCode *result) {
     UA_assert(session != NULL);
     *result = UA_Server_editNode(server, session, &wv->nodeId, wv->attributeId,
                                  UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
@@ -1896,43 +1784,17 @@ Operation_WriteAsync(UA_Server *server, UA_Session *session,
     return (*result != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
 }
 
-static const UA_AsyncServiceDescription writeDescription = {
-    &UA_TYPES[UA_TYPES_WRITERESPONSE],
-    (UA_AsyncServiceOperation)Operation_WriteAsync,
-    offsetof(UA_WriteRequest, nodesToWriteSize),
-    &UA_TYPES[UA_TYPES_WRITEVALUE],
-    offsetof(UA_WriteResponse, resultsSize),
-    &UA_TYPES[UA_TYPES_STATUSCODE]
-};
-
-UA_Boolean
-Service_Write(UA_Server *server, UA_Session *session,
-              const UA_WriteRequest *request,
-              UA_WriteResponse *response) {
-    UA_assert(session != NULL);
-    UA_LOG_DEBUG_SESSION(server->config.logging, session,
-                         "Processing WriteRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex);
-
-    if(server->config.maxNodesPerWrite != 0 &&
-       request->nodesToWriteSize > server->config.maxNodesPerWrite) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
-        return true;
-    }
-
-    response->responseHeader.serviceResult =
-        allocProcessServiceOperations_async(server, session, &writeDescription,
-                                            request, response);
-
-    /* Signal an async operation */
-    return (response->responseHeader.serviceResult != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
-}
-
 UA_StatusCode
 UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     lockServer(server);
     Operation_Write(server, &server->adminSession, value, &res);
+    /* If writing is async, signal that we can no longer receive the statuscode */
+    if(res == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
+        if(server->config.asyncOperationCancelCallback)
+            server->config.asyncOperationCancelCallback(server, &value->value);
+        res = UA_STATUSCODE_BADWAITINGFORRESPONSE;
+    }
     unlockServer(server);
     return res;
 }
@@ -1973,6 +1835,12 @@ writeAttribute(UA_Server *server, UA_Session *session,
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     Operation_Write(server, session, &wvalue, &res);
+    /* If writing is async, signal that we can no longer receive the statuscode */
+    if(res == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
+        if(server->config.asyncOperationCancelCallback)
+            server->config.asyncOperationCancelCallback(server, &wvalue.value);
+        res = UA_STATUSCODE_BADWAITINGFORRESPONSE;
+    }
     return res;
 }
 
