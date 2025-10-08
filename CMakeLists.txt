@@ -592,6 +592,12 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     # Use a strict subset of the C and C++ languages
     check_add_cc_flag("-Wc++-compat")
 
+    # Wc++-compat enables additional goto/jump restrictions.
+    # But modern compilers do a detailed analysis of values
+    # are actually used uninitialized after a jump:
+    # TODO: The following flag should not be required
+    check_add_cc_flag("-Wno-jump-misses-init")
+
     # Check that format strings (printf/scanf) are sane
     check_add_cc_flag("-Wformat")
     check_add_cc_flag("-Wformat-security")
