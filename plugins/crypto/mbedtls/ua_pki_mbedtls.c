@@ -42,7 +42,7 @@ UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l
     const unsigned char *ss2 = s2;
     /* handle special case */
     if(l1 == 0)
-        return (NULL);
+        return NULL;
     if(l2 == 0)
         return s1;
 
