@@ -221,7 +221,89 @@ typedef enum {
      *    DataType identifier for the Request (server) or Response (client). */
     UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN,
     UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC,
-    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END
+    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END,
+
+    /* (Server only) Signals the creation or modification of a Subscription.
+     *
+     * 0:session-id [NodeId]
+     *    Identifier of the Session for which the Subscription is created.
+     *    If the subscription is not bound to any Session, then the NodeId
+     *    ns=0;i=0 is returned.
+     * 0:subscription-id [UInt32]
+     *    Identifier of the Subscription (unique for the Session).
+     * 0:publishing-interval [Double]
+     *    Frequence at which accumulated notifications are sent out.
+     * 0:lifetime-count [UInt32]
+     *    Number of consecutive publishing interval with a missing
+     *    PublishRequest before the Subscription is starved (deleted).
+     * 0:max-keepalive-count [UInt32]
+     *    Number of consecutive publishing intervals without a PublishResponse
+     *    before a keepalive is sent.
+     * 0:max-notifications-per-publish [UInt32]
+     *    Number of notifications that can be in a PublishResponse.
+     * 0:priority [Byte]
+     *    Higher-priority subscriptions send out PublishResponses first.
+     * 0:publishing-enabled [Boolean]
+     *    What the name says. */
+    UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_CREATED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_MODIFIED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_PUBLISHINGMODE,
+
+    /* (Server only) Signals the deletion of a Subscription.
+     *
+     * 0:session-id [NodeId]
+     *    Identifier of the Session for which the Subscription is created.
+     * 0:subscription-id [UInt32]
+     *    Identifier of the subscription (unique for the Session). */
+    UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_DELETED,
+
+    /* (Server only) Signals the creation or modification of a MonitoredItem.
+     *
+     * 0:session-id [NodeId]
+     *    Identifier of the Session for which the Subscription is created.
+     *    If the subscription is not bound to any Session, then the NodeId
+     *    ns=0;i=0 is returned.
+     * 0:subscription-id [UInt32]
+     *    Identifier of the Subscription (unique for the Session).
+     * 0:monitoreditem-id [UInt32]
+     *    Identifier of the MonitoredItem (unique for the Subscription).
+     * 0:target-node [NodeId]
+     *    Identifier of the Node that is monitored.
+     * 0:attribute-id [UInt32]
+     *    Node-attribute that is being monitored.
+     *    Conforms to the values from the UA_AttributeId enum.
+     * 0:index-range [String]
+     *    Defines if only part of an array value is monitored.
+     * 0:timestamps-to-return [TimestampsToReturn]
+     *    Enum with the options SOURCE | SERVER | BOTH | NEITHER.
+     * 0:monitorimg-mode [MonitoringMode]
+     *    Enum with the options DISABLED | SAMPLING | REPORTING.
+     * 0:client-handle [UInt32]
+     *   Client-supplied identifier of the MonitoredItem.
+     * 0:samping-interval [Double]
+     *    Interval to evaluate the MonitoredItem in milliseconds.
+     * 0:filter [Empty | DataChangeFilter | EventFilter | AggregateFilter]
+     *    The filter used to emit notifications.
+     * 0:queue-size [UInt32]
+     *    Maximum number of notifications waiting to be published.
+     * 0:discard-oldest [Boolean]
+     *    When the queue overflows, delete the newest or the oldest
+     *    notification. */
+    UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED,
+    UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_MODIFIED,
+    UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_MONITORINGMODE,
+
+    /* (Server only) Signals the deletion of a MonitoredItem.
+     *
+     * 0:session-id [NodeId]
+     *    Identifier of the Session for which the Subscription is created.
+     *    If the subscription is not bound to any Session, then the NodeId
+     *    ns=0;i=0 is returned.
+     * 0:subscription-id [UInt32]
+     *    Identifier of the subscription (unique for the Session).
+     * 0:monitoreditem-id [UInt32]
+     *    Identifier of the MonitoredItem (unique for the Subscription). */
+    UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE
 } UA_ApplicationNotificationType;
 
 /**
