@@ -154,9 +154,15 @@ UA_Client_Subscriptions_create_async(UA_Client *client,
     cc->clientData = sub;
 
     /* Send the request as asynchronous service call */
-    return __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
-                                    ua_Subscriptions_create_handler, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE],
-                                    cc, requestId);
+    UA_StatusCode res =
+        __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
+                                 ua_Subscriptions_create_handler, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE],
+                                 cc, requestId);
+    if (res != UA_STATUSCODE_GOOD) {
+        UA_free(cc);
+        UA_free(sub);
+    }
+    return res;
 }
 
 static UA_Client_Subscription *
@@ -378,9 +384,14 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
     }
 
     /* Make the async call */
-    return __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
-                                    ua_Subscriptions_delete_handler, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE],
-                                    dsc, requestId);
+    res = __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSREQUEST],
+                                   ua_Subscriptions_delete_handler, &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE],
+                                   dsc, requestId);
+    if (res != UA_STATUSCODE_GOOD) {
+        UA_DeleteSubscriptionsRequest_clear(&dsc->request);
+        UA_free(dsc);
+    }
+    return res;
 }
 
 UA_DeleteSubscriptionsResponse
@@ -666,11 +677,16 @@ createDataChanges_async(UA_Client *client, const UA_CreateMonitoredItemsRequest 
         return res;
     }
 
-    return __Client_AsyncService(client, &data->request,
-                                 &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
-                                 ua_MonitoredItems_create_async_handler,
-                                 &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE],
-                                 data, requestId);
+    res = __Client_AsyncService(client, &data->request,
+                                &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
+                                ua_MonitoredItems_create_async_handler,
+                                &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE],
+                                data, requestId);
+    if (res != UA_STATUSCODE_GOOD) {
+        MonitoredItems_CreateData_clear(client, data);
+        UA_free(data);
+    }
+    return res;
 }
 
 UA_CreateMonitoredItemsResponse
@@ -905,9 +921,15 @@ UA_Client_MonitoredItems_delete_async(UA_Client *client,
     cc->userCallback = callback;
     cc->userData = userdata;
 
-    return __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
-                                    ua_MonitoredItems_delete_handler,
-                                    &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE], cc, requestId);
+    UA_StatusCode res =
+        __UA_Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSREQUEST],
+                                 ua_MonitoredItems_delete_handler,
+                                 &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE], cc, requestId);
+    if (res != UA_STATUSCODE_GOOD) {
+        UA_DeleteMonitoredItemsRequest_delete(req_copy);
+        UA_free(cc);
+    }
+    return res;
 }
 
 UA_StatusCode
