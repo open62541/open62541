@@ -90,10 +90,9 @@ isReservedPercent(u8 c) {
 
 static UA_INLINE UA_Boolean
 isReservedPercentExtended(u8 c) {
-    return (isReservedPercent(c) || c == '#' || c == '[' ||
-            c == ']' || c == '&' || c == '(' || c == ')' ||
-            c == ',' || c == '<' || c == '>' || c == '`' ||
-            c == '/' || c == '\\' || c == '"' || c == '\'' );
+    return (isReservedPercent(c) || c == ':' || c == '#' || c == '[' || c == ']' ||
+            c == '&' || c == '(' || c == ')' || c == ',' || c == '<' || c == '>' ||
+            c == '`' || c == '/' || c == '\\' || c == '"' || c == '\'' );
 }
 
 /* Unescape string. The copyEscape boolean indicates whether a copy of the
