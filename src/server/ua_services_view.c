@@ -675,14 +675,17 @@ browseWithContinuation(UA_Server *server, UA_Session *session,
         return true;
     }
 
-    if(session != &server->adminSession &&
-       !server->config.accessControl.
-         allowBrowseNode(server, &server->config.accessControl,
-                         &session->sessionId, session->sessionHandle,
-                         &descr->nodeId, node->head.context)) {
-        result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
-        UA_NODESTORE_RELEASE(server, node);
-        return true;
+    if(session != &server->adminSession) {
+        UA_UNLOCK(&server->serviceMutex);
+        UA_Boolean allowed = server->config.accessControl.allowBrowseNode(
+            server, &server->config.accessControl, &session->sessionId,
+            session->sessionHandle, &descr->nodeId, node->head.context);
+        UA_LOCK(&server->serviceMutex);
+        if(!allowed) {
+            result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+            UA_NODESTORE_RELEASE(server, node);
+            return true;
+        }
     }
 
     RefResult rr;
