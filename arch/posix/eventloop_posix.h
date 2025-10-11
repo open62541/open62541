@@ -174,6 +174,8 @@ _UA_END_DECLS
 /* POSIX Definitions */
 /*********************/
 
+#include <time.h>
+
 /*---------------------*/
 /* Network Definitions */
 /*---------------------*/
