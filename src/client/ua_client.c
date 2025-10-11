@@ -532,18 +532,21 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
 
     /* Prepare the notification payload */
     UA_ApplicationNotificationType nt;
-    UA_KeyValuePair notifyPayload[4];
+    static UA_THREAD_LOCAL UA_KeyValuePair notifyPayload[4] = {
+        {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
+        {{0, UA_STRING_STATIC("session-id")}, {0}},
+        {{0, UA_STRING_STATIC("request-id")}, {0}},
+        {{0, UA_STRING_STATIC("service-type")}, {0}}
+    };
     UA_KeyValueMap notifyPayloadMap = {4, notifyPayload};
     if(config->globalNotificationCallback || config->serviceNotificationCallback) {
-        notifyPayload[0].key = (UA_QualifiedName){0, UA_STRING_STATIC("securechannel-id")};
         UA_Variant_setScalar(&notifyPayload[0].value,
                              &client->channel.securityToken.channelId,
                              &UA_TYPES[UA_TYPES_UINT32]);
-        notifyPayload[1].key = (UA_QualifiedName){0, UA_STRING_STATIC("session-id")};
-        UA_Variant_setScalar(&notifyPayload[1].value, &client->sessionId, &UA_TYPES[UA_TYPES_NODEID]);
-        notifyPayload[2].key = (UA_QualifiedName){0, UA_STRING_STATIC("request-id")};
-        UA_Variant_setScalar(&notifyPayload[2].value, &requestId, &UA_TYPES[UA_TYPES_UINT32]);
-        notifyPayload[3].key = (UA_QualifiedName){0, UA_STRING_STATIC("service-type")};
+        UA_Variant_setScalar(&notifyPayload[1].value, &client->sessionId,
+                             &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Variant_setScalar(&notifyPayload[2].value, &requestId,
+                             &UA_TYPES[UA_TYPES_UINT32]);
         UA_Variant_setScalar(&notifyPayload[3].value,
                              (void *)(uintptr_t)&ac->responseType->typeId,
                              &UA_TYPES[UA_TYPES_NODEID]);
