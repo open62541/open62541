@@ -229,17 +229,14 @@ UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
     certGroup->getTrustList((UA_CertificateGroup*)(uintptr_t)certGroup, &trustList);
 
     /* Set up the parameters */
-    UA_KeyValuePair params[1];
-    size_t paramsSize = 1;
+    static UA_THREAD_LOCAL UA_KeyValuePair params[1] = {
+        {{0, UA_STRING_STATIC("max-trust-listsize")}, {0}}
+    };
+    UA_KeyValueMap paramsMap = {1, params};
 
     UA_ServerConfig *config = UA_Server_getConfig(transaction->server);
-
-    params[0].key = UA_QUALIFIEDNAME(0, "max-trust-listsize");
-    UA_Variant_setScalar(&params[0].value, &config->maxTrustListSize, &UA_TYPES[UA_TYPES_UINT32]);
-
-    UA_KeyValueMap paramsMap;
-    paramsMap.map = params;
-    paramsMap.mapSize = paramsSize;
+    UA_Variant_setScalar(&params[0].value, &config->maxTrustListSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
 
     UA_CertificateGroup_Memorystore(&transaction->certGroups[transaction->certGroupSize-1],
         (UA_NodeId*)(uintptr_t)&certGroup->certificateGroupId, &trustList, certGroup->logging, &paramsMap);
