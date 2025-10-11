@@ -274,7 +274,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
                                "Service %" PRIu32 " refused on a non-activated session",
                                sd->requestType->binaryEncodingId.identifier.numeric);
 #endif
-        UA_Server_removeSession(server, session, UA_SHUTDOWNREASON_ABORT);
+        UA_Session_remove(server, session, UA_SHUTDOWNREASON_ABORT);
         rh->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
         return true;
     }

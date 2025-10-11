@@ -322,15 +322,16 @@ getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
                 const UA_NodeId *token, UA_Session **session);
 
 UA_StatusCode
-UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
-                        const UA_CreateSessionRequest *request, UA_Session **session);
+UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
+                  const UA_CreateSessionRequest *request,
+                  UA_Session **session);
 
 void
-UA_Server_removeSession(UA_Server *server, UA_Session *session,
-                        UA_ShutdownReason shutdownReason);
+UA_Session_remove(UA_Server *server, UA_Session *session,
+                  UA_ShutdownReason shutdownReason);
 
 void
-UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic);
+cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic);
 
 UA_Session *
 getSessionByToken(UA_Server *server, const UA_NodeId *token);

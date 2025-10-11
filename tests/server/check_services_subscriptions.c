@@ -37,7 +37,7 @@ createSession(void) {
     UA_CreateSessionRequest_init(&request);
     request.requestedSessionTimeout = UA_UINT32_MAX;
     lockServer(server);
-    UA_StatusCode retval = UA_Server_createSession(server, NULL, &request, &session);
+    UA_StatusCode retval = UA_Session_create(server, NULL, &request, &session);
     unlockServer(server);
     ck_assert_uint_eq(retval, 0);
 }

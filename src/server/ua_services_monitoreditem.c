@@ -585,7 +585,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     newMon->lastValue.status = ~(UA_StatusCode)0;
 
     /* Register the Monitoreditem in the server and subscription */
-    UA_Server_registerMonitoredItem(server, newMon);
+    UA_MonitoredItem_register(server, newMon);
 
     UA_LOG_INFO_SUBSCRIPTION(server->config.logging, cmc->sub,
                              "MonitoredItem %" PRIi32 " | "
@@ -597,7 +597,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
 
     /* Notify the application. Do this before setting the MonitoringMode.
      * Because this can trigger a _sample internally. */
-    notifyMonitoredItem(server, newMon, UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED);
+    notifyMonitoredItem(server, newMon,
+                        UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED);
 
     /* Activate the MonitoredItem */
     result->statusCode = UA_MonitoredItem_setMonitoringMode(server, newMon,

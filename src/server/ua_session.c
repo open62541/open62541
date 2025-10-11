@@ -253,17 +253,14 @@ UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry,
 UA_StatusCode
 UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId) {
     lockServer(server);
-    session_list_entry *entry;
-    UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
-    LIST_FOREACH(entry, &server->sessions, pointers) {
-        if(UA_NodeId_equal(&entry->session.sessionId, sessionId)) {
-            UA_Server_removeSession(server, &entry->session, UA_SHUTDOWNREASON_CLOSE);
-            res = UA_STATUSCODE_GOOD;
-            break;
-        }
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
     }
+    UA_Session_remove(server, session, UA_SHUTDOWNREASON_CLOSE);
     unlockServer(server);
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Session Attributes */

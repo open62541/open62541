@@ -74,8 +74,8 @@ removeSessionCallback(UA_Server *server, session_list_entry *entry) {
 }
 
 void
-UA_Server_removeSession(UA_Server *server, UA_Session *session,
-                        UA_ShutdownReason shutdownReason) {
+UA_Session_remove(UA_Server *server, UA_Session *session,
+                  UA_ShutdownReason shutdownReason) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Remove the Subscriptions */
@@ -148,7 +148,7 @@ UA_Server_removeSession(UA_Server *server, UA_Session *session,
 }
 
 void
-UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
+cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     session_list_entry *sentry, *temp;
     LIST_FOREACH_SAFE(sentry, &server->sessions, pointers, temp) {
@@ -157,7 +157,7 @@ UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
             continue;
         UA_LOG_INFO_SESSION(server->config.logging, &sentry->session,
                             "Session has timed out");
-        UA_Server_removeSession(server, &sentry->session, UA_SHUTDOWNREASON_TIMEOUT);
+        UA_Session_remove(server, &sentry->session, UA_SHUTDOWNREASON_TIMEOUT);
     }
 }
 
@@ -324,8 +324,8 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, const UA_SecurityPolicy *sp,
 
 /* Creates and adds a session. But it is not yet attached to a secure channel. */
 UA_StatusCode
-UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
-                        const UA_CreateSessionRequest *request, UA_Session **session) {
+UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
+                  const UA_CreateSessionRequest *request, UA_Session **session) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(server->sessionCount >= server->config.maxSessions) {
@@ -424,7 +424,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Create the Session */
     UA_Session *newSession = NULL;
     response->responseHeader.serviceResult =
-        UA_Server_createSession(server, channel, request, &newSession);
+        UA_Session_create(server, channel, request, &newSession);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "Processing CreateSessionRequest failed");
@@ -466,7 +466,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                  &response->serverEndpoints,
                                  &response->serverEndpointsSize);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Server_removeSession(server, newSession, UA_SHUTDOWNREASON_REJECT);
+        UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
         return;
     }
 
@@ -498,7 +498,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Server_removeSession(server, newSession, UA_SHUTDOWNREASON_REJECT);
+        UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
         return;
     }
 
@@ -1098,7 +1098,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
 #endif
 
     /* Remove the sesison */
-    UA_Server_removeSession(server, session, UA_SHUTDOWNREASON_CLOSE);
+    UA_Session_remove(server, session, UA_SHUTDOWNREASON_CLOSE);
 }
 
 UA_Boolean

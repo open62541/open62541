@@ -1269,7 +1269,7 @@ removeMonitoredItemBackPointer(UA_Server *server, UA_Session *session,
 }
 
 void
-UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
+UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(mon->registered)
