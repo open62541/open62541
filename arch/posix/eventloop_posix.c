@@ -11,10 +11,6 @@
 
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
 
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
-#include <time.h>
-#endif
-
 /*********/
 /* Timer */
 /*********/
@@ -170,33 +166,27 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Starting the EventLoop");
 
-    /* Setting the clock source */
+    /* Setting custom clock source */
+    el->clockSource = CLOCK_REALTIME;
+#ifdef CLOCK_MONOTONIC_RAW
+    el->clockSourceMonotonic = CLOCK_MONOTONIC_RAW;
+#else
+    el->clockSourceMonotonic = CLOCK_MONOTONIC;
+#endif
+
     const UA_Int32 *cs = (const UA_Int32*)
         UA_KeyValueMap_getScalar(&el->eventLoop.params,
                                  UA_QUALIFIEDNAME(0, "clock-source"),
                                  &UA_TYPES[UA_TYPES_INT32]);
+    if(cs)
+        el->clockSource = *cs;
+
     const UA_Int32 *csm = (const UA_Int32*)
         UA_KeyValueMap_getScalar(&el->eventLoop.params,
                                  UA_QUALIFIEDNAME(0, "clock-source-monotonic"),
                                  &UA_TYPES[UA_TYPES_INT32]);
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
-    el->clockSource = CLOCK_REALTIME;
-    if(cs)
-        el->clockSource = *cs;
-
-# ifdef CLOCK_MONOTONIC_RAW
-    el->clockSourceMonotonic = CLOCK_MONOTONIC_RAW;
-# else
-    el->clockSourceMonotonic = CLOCK_MONOTONIC;
-# endif
     if(csm)
         el->clockSourceMonotonic = *csm;
-#else
-    if(cs || csm) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "Eventloop\t| Cannot set a custom clock source");
-    }
-#endif
 
     /* Create the self-pipe */
     int err = UA_EventLoopPOSIX_pipe(el->selfpipe);
@@ -463,7 +453,7 @@ UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
 
 static UA_DateTime
 UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+#if defined(UA_ARCHITECTURE_POSIX)
     UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
     struct timespec ts;
     int res = clock_gettime(pel->clockSource, &ts);
@@ -477,7 +467,7 @@ UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
 
 static UA_DateTime
 UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+#if defined(UA_ARCHITECTURE_POSIX)
     UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
     struct timespec ts;
     int res = clock_gettime(pel->clockSourceMonotonic, &ts);
