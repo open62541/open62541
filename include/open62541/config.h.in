@@ -215,13 +215,16 @@
  * Thread-local variables
  * ---------------------- */
 #if UA_MULTITHREADING >= 100
-# if defined(__GNUC__) /* Also covers clang */
+# if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#  define UA_THREAD_LOCAL _Thread_local /* C11 or newer */
+# elif defined(__GNUC__) || defined(__clang__)
 #  define UA_THREAD_LOCAL __thread
 # elif defined(_MSC_VER)
 #  define UA_THREAD_LOCAL __declspec(thread)
+# else
+#  error "No thread-local storage keyword available on this compiler."
 # endif
-#endif
-#ifndef UA_THREAD_LOCAL
+#else
 # define UA_THREAD_LOCAL
 #endif
 
