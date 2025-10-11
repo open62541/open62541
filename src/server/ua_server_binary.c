@@ -123,8 +123,6 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
     TAILQ_REMOVE(&server->channels, channel, serverEntry);
     TAILQ_REMOVE(&bpm->channels, channel, componentEntry);
 
-    UA_SecureChannel_clear(channel);
-
     /* Update the statistics */
     UA_SecureChannelStatistics *scs = &server->secureChannelStatistics;
     scs->currentChannelCount--;
