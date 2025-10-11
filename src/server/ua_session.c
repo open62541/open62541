@@ -252,7 +252,7 @@ UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId) {
     UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
     LIST_FOREACH(entry, &server->sessions, pointers) {
         if(UA_NodeId_equal(&entry->session.sessionId, sessionId)) {
-            UA_Server_removeSession(server, entry, UA_SHUTDOWNREASON_CLOSE);
+            UA_Server_removeSession(server, &entry->session, UA_SHUTDOWNREASON_CLOSE);
             res = UA_STATUSCODE_GOOD;
             break;
         }

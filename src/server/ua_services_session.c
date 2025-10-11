@@ -27,10 +27,8 @@ removeSessionCallback(UA_Server *server, session_list_entry *entry) {
 }
 
 void
-UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
+UA_Server_removeSession(UA_Server *server, UA_Session *session,
                         UA_ShutdownReason shutdownReason) {
-    UA_Session *session = &sentry->session;
-
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Remove the Subscriptions */
@@ -58,13 +56,14 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     UA_Session_detachFromSecureChannel(session);
 
     /* Deactivate the session */
-    if(sentry->session.activated) {
-        sentry->session.activated = false;
+    if(session->activated) {
+        session->activated = false;
         server->activeSessionCount--;
     }
 
     /* Detach the session from the session manager and make the capacity
      * available */
+    session_list_entry *sentry = container_of(session, session_list_entry, session);
     LIST_REMOVE(sentry, pointers);
     server->sessionCount--;
 
@@ -98,20 +97,6 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     el->addDelayedCallback(el, &sentry->cleanupCallback);
 }
 
-UA_StatusCode
-UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
-                               UA_ShutdownReason shutdownReason) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    session_list_entry *entry;
-    LIST_FOREACH(entry, &server->sessions, pointers) {
-        if(UA_NodeId_equal(&entry->session.authenticationToken, token)) {
-            UA_Server_removeSession(server, entry, shutdownReason);
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-    return UA_STATUSCODE_BADSESSIONIDINVALID;
-}
-
 void
 UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -122,7 +107,7 @@ UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
             continue;
         UA_LOG_INFO_SESSION(server->config.logging, &sentry->session,
                             "Session has timed out");
-        UA_Server_removeSession(server, sentry, UA_SHUTDOWNREASON_TIMEOUT);
+        UA_Server_removeSession(server, &sentry->session, UA_SHUTDOWNREASON_TIMEOUT);
     }
 }
 
@@ -426,8 +411,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                  &response->serverEndpoints,
                                  &response->serverEndpointsSize);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Server_removeSessionByToken(server, &newSession->authenticationToken,
-                                       UA_SHUTDOWNREASON_REJECT);
+        UA_Server_removeSession(server, newSession, UA_SHUTDOWNREASON_REJECT);
         return;
     }
 
@@ -459,8 +443,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Server_removeSessionByToken(server, &newSession->authenticationToken,
-                                       UA_SHUTDOWNREASON_REJECT);
+        UA_Server_removeSession(server, newSession, UA_SHUTDOWNREASON_REJECT);
         return;
     }
 
@@ -1057,9 +1040,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
 #endif
 
     /* Remove the sesison */
-    response->responseHeader.serviceResult =
-        UA_Server_removeSessionByToken(server, &session->authenticationToken,
-                                       UA_SHUTDOWNREASON_CLOSE);
+    UA_Server_removeSession(server, session, UA_SHUTDOWNREASON_CLOSE);
 }
 
 UA_Boolean

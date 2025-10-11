@@ -326,12 +326,8 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
                         const UA_CreateSessionRequest *request, UA_Session **session);
 
 void
-UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
+UA_Server_removeSession(UA_Server *server, UA_Session *session,
                         UA_ShutdownReason shutdownReason);
-
-UA_StatusCode
-UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
-                               UA_ShutdownReason shutdownReason);
 
 void
 UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic);
