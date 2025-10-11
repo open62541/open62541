@@ -434,7 +434,7 @@ UA_Server_delete(UA_Server *server) {
 
     session_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &server->sessions, pointers, temp) {
-        UA_Server_removeSession(server, &current->session, UA_SHUTDOWNREASON_CLOSE);
+        UA_Session_remove(server, &current->session, UA_SHUTDOWNREASON_CLOSE);
     }
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
@@ -494,7 +494,7 @@ static void
 serverHouseKeeping(UA_Server *server, void *_) {
     lockServer(server);
     UA_EventLoop *el = server->config.eventLoop;
-    UA_Server_cleanupSessions(server, el->dateTime_nowMonotonic(el));
+    cleanupSessions(server, el->dateTime_nowMonotonic(el));
     unlockServer(server);
 }
 
