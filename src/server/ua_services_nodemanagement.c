@@ -1311,9 +1311,9 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     }
 
     /* Set the context *and* mark the node as constructed */
-    retval = UA_Server_editNode(server, &server->adminSession, nodeId,
-                                0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                                (UA_EditNodeCallback)setConstructedNodeContext, context);
+    retval = editNode(server, &server->adminSession, nodeId,
+                      0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
+                      (UA_EditNodeCallback)setConstructedNodeContext, context);
     if(retval != UA_STATUSCODE_GOOD)
         goto local_destructor;
 
@@ -1361,9 +1361,9 @@ setReferenceTypeSubtypes(UA_Server *server, const UA_ReferenceTypeNode *node) {
     /* Add the ReferenceTypeIndex of this node */
     const UA_ReferenceTypeSet *newRefSet = &node->subTypes;
     for(size_t i = 0; i < parentsSize; i++) {
-        UA_Server_editNode(server, &server->adminSession, &parents[i].nodeId,
-                           0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                           addReferenceTypeSubtype, (void*)(uintptr_t)newRefSet);
+        editNode(server, &server->adminSession, &parents[i].nodeId,
+                 0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
+                 addReferenceTypeSubtype, (void*)(uintptr_t)newRefSet);
     }
 
     UA_Array_delete(parents, parentsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
@@ -1930,9 +1930,9 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
         UA_NODESTORE_RELEASE(server, member);
 
         /* Set the constructed flag to false */
-        UA_Server_editNode(server, &server->adminSession, &refTree->targets[i].nodeId,
-                           0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                           (UA_EditNodeCallback)setDeconstructedNode, NULL);
+        editNode(server, &server->adminSession, &refTree->targets[i].nodeId,
+                 0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
+                 (UA_EditNodeCallback)setDeconstructedNode, NULL);
     }
 }
 
@@ -2508,10 +2508,10 @@ setVariableNode_internalValueSource(UA_Server *server, const UA_NodeId nodeId,
     struct SetInternalValueContext ctx;
     ctx.value = value;
     ctx.notifications = notifications;
-    return UA_Server_editNode(server, &server->adminSession, &nodeId,
-                              UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
-                              UA_BROWSEDIRECTION_INVALID,
-                              (UA_EditNodeCallback)setInternalValueSourceCB, &ctx);
+    return editNode(server, &server->adminSession, &nodeId,
+                    UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
+                    UA_BROWSEDIRECTION_INVALID,
+                    (UA_EditNodeCallback)setInternalValueSourceCB, &ctx);
 }
 
 UA_StatusCode
@@ -2569,10 +2569,10 @@ UA_Server_setVariableNode_externalValueSource(UA_Server *server, const UA_NodeId
     struct SetExternalValueContext ctx;
     ctx.value = value;
     ctx.notifications = notifications;
-    UA_StatusCode res = UA_Server_editNode(server, &server->adminSession, &nodeId,
-                                           UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
-                                           UA_BROWSEDIRECTION_INVALID,
-                                           (UA_EditNodeCallback)setExternalValueSourceCB, &ctx);
+    UA_StatusCode res = editNode(server, &server->adminSession, &nodeId,
+                                 UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
+                                 UA_BROWSEDIRECTION_INVALID,
+                                 (UA_EditNodeCallback)setExternalValueSourceCB, &ctx);
     unlockServer(server);
     return res;
 }
@@ -2604,10 +2604,10 @@ setCallbackValueSourceCB(UA_Server *server, UA_Session *session,
 UA_StatusCode
 setVariableNode_callbackValueSource(UA_Server *server, const UA_NodeId nodeId,
                                     const UA_CallbackValueSource evs) {
-    return UA_Server_editNode(server, &server->adminSession, &nodeId,
-                              UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
-                              UA_BROWSEDIRECTION_INVALID,
-                              (UA_EditNodeCallback)setCallbackValueSourceCB, (void*)(uintptr_t)&evs);
+    return editNode(server, &server->adminSession, &nodeId, UA_NODEATTRIBUTESMASK_VALUE,
+                    UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
+                    (UA_EditNodeCallback)setCallbackValueSourceCB,
+                    (void*)(uintptr_t)&evs);
 }
 
 UA_StatusCode
@@ -2920,10 +2920,10 @@ setMethodNode_callback(UA_Server *server,
                        const UA_NodeId methodNodeId,
                        UA_MethodCallback methodCallback) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    return UA_Server_editNode(server, &server->adminSession, &methodNodeId,
-                              0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                              (UA_EditNodeCallback)editMethodCallback,
-                              (void*)(uintptr_t)methodCallback);
+    return editNode(server, &server->adminSession, &methodNodeId,
+                    0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
+                    (UA_EditNodeCallback)editMethodCallback,
+                    (void*)(uintptr_t)methodCallback);
 }
 
 UA_StatusCode
@@ -2987,10 +2987,10 @@ setNodeTypeLifecycleCallback(UA_Server *server, UA_Session *session,
 UA_StatusCode
 setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                      UA_NodeTypeLifecycle lifecycle) {
-    return UA_Server_editNode(server, &server->adminSession, &nodeId,
-                              0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                              (UA_EditNodeCallback)setNodeTypeLifecycleCallback,
-                              &lifecycle);
+    return editNode(server, &server->adminSession, &nodeId, 0,
+                    UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
+                    (UA_EditNodeCallback)setNodeTypeLifecycleCallback,
+                    &lifecycle);
 }
 
 UA_StatusCode
