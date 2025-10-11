@@ -416,45 +416,6 @@ notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
         server->config.subscriptionNotificationCallback(server, type, notifyMonMap);
     if(server->config.globalNotificationCallback)
         server->config.globalNotificationCallback(server, type, notifyMonMap);
-
-}
-
-static void
-notifyDeleteMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
-    /* Nothing to do? */
-    if(!server->config.globalNotificationCallback &&
-       !server->config.subscriptionNotificationCallback)
-        return;
-
-    /* Set up the key-value map */
-    static UA_THREAD_LOCAL UA_KeyValuePair notifyDelMonData[3] = {
-        {{0, UA_STRING_STATIC("session-id")}, {0}},
-        {{0, UA_STRING_STATIC("subscription-id")}, {0}},
-        {{0, UA_STRING_STATIC("monitoreditem-id")}, {0}},
-    };
-    UA_KeyValueMap notifyDelMonMap = {3, notifyDelMonData};
-
-    UA_Subscription *sub = mon->subscription;
-    UA_assert(sub); /* always defined */
-    UA_NodeId sessionId = (sub->session) ? sub->session->sessionId : UA_NODEID_NULL;
-
-    UA_Variant_setScalar(&notifyDelMonData[0].value, &sessionId,
-                         &UA_TYPES[UA_TYPES_NODEID]);
-    UA_Variant_setScalar(&notifyDelMonData[1].value, &sub->subscriptionId,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifyDelMonData[2].value, &mon->monitoredItemId,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-
-    /* Notify the application */
-    if(server->config.subscriptionNotificationCallback)
-        server->config.subscriptionNotificationCallback(
-            server, UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE,
-            notifyDelMonMap);
-    if(server->config.globalNotificationCallback)
-        server->config.globalNotificationCallback(
-            server, UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE,
-            notifyDelMonMap);
-
 }
 
 static void
@@ -605,7 +566,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                                                             request->monitoringMode);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         /* Notify again if the MonitoringMode could not be set */
-        notifyDeleteMonitoredItem(server, newMon);
+        notifyMonitoredItem(server, newMon,
+                            UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE);
         UA_MonitoredItem_delete(server, newMon);
         return;
     }
@@ -1006,7 +968,8 @@ Operation_DeleteMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
         *result = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
         return;
     }
-    notifyDeleteMonitoredItem(server, mon);
+    notifyMonitoredItem(server, mon,
+                        UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE);
     UA_MonitoredItem_delete(server, mon);
 }
 
@@ -1058,7 +1021,8 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
 
     UA_StatusCode res = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
     if(mon) {
-        notifyDeleteMonitoredItem(server, mon);
+        notifyMonitoredItem(server, mon,
+                            UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE);
         UA_MonitoredItem_delete(server, mon);
         res = UA_STATUSCODE_GOOD;
     }
