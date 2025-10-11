@@ -117,7 +117,7 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
      * outstanding Publish requests whose RequestId is valid only for the
      * SecureChannel. */
     while(channel->sessions)
-        UA_Session_detachFromSecureChannel(channel->sessions);
+        UA_Session_detachFromSecureChannel(server, channel->sessions);
 
     /* Detach the channel from the server list */
     TAILQ_REMOVE(&server->channels, channel, serverEntry);

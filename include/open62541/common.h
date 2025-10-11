@@ -243,6 +243,33 @@ typedef enum {
     UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED,
     UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_CLOSED,
 
+    /* (Server only) Give background information for Sessions. The _DEACTIVATE
+     * notification occurs when a Sesssion is unbound from its original
+     * SecureChannel. Either because the SecureChannel is closed or because the
+     * session is activated on another SecureChannel.
+     *
+     * 0:session-id [NodeId]
+     *   Identifier of the Session.
+     * 0:securechannel-id [UInt32]
+     *   Identifier of the SecureChannel on which the Session is activated.
+     *   Zero if the Session is not bound to any SecureChannel.
+     * 0:session-name [String]
+     *   Name of the Session as defined by the client.
+     * 0:client-description [ApplicationDescription]
+     *   Name of the Session as defined by the client.
+     * 0:client-user-id [String]
+     *   User identifier used to activate the session. This is extracted from
+     *   the UserIdentityToken (e.g. username but not the password).
+     * 0:locale-ids [Array of String]
+     *   List of preferred languages.
+     *
+     * Any additional attributes set via UA_Server_setSessionAttribute are
+     * appended to the above list. */
+    UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CREATED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SESSION_ACTIVATED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SESSION_DEACTIVATED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED,
+
     /* Processing of a service request or response. The server-side processing
      * of a request can be asynchronous. The existence of a yet-unfinished async
      * operation from the request is signaled with the _SERVICE_ASYNC enum. The

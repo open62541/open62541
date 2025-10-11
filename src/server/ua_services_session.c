@@ -17,6 +17,53 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
+void
+notifySession(UA_Server *server, UA_Session *session,
+              UA_ApplicationNotificationType type) {
+    /* Nothing to do */
+    if(!server->config.globalNotificationCallback &&
+       !server->config.sessionNotificationCallback)
+        return;
+
+    /* Set up the payload */
+    size_t payloadSize = 6;
+    if(session->attributes)
+        payloadSize += session->attributes->mapSize;
+    UA_STACKARRAY(UA_KeyValuePair, payloadData, payloadSize);
+    UA_KeyValueMap payloadMap = {payloadSize, payloadData};
+    payloadData[0].key = UA_QUALIFIEDNAME(0, "session-id");
+    UA_Variant_setScalar(&payloadData[0].value, &session->sessionId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    payloadData[1].key = UA_QUALIFIEDNAME(0, "securechannel-id");
+    UA_UInt32 secureChannelId = 0;
+    if(session->channel)
+        secureChannelId = session->channel->securityToken.channelId;
+    UA_Variant_setScalar(&payloadData[1].value, &secureChannelId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    payloadData[2].key = UA_QUALIFIEDNAME(0, "session-name");
+    UA_Variant_setScalar(&payloadData[2].value, &session->sessionName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    payloadData[3].key = UA_QUALIFIEDNAME(0, "client-description");
+    UA_Variant_setScalar(&payloadData[3].value, &session->clientDescription,
+                         &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    payloadData[4].key = UA_QUALIFIEDNAME(0, "client-user-id");
+    UA_Variant_setScalar(&payloadData[4].value, &session->clientUserIdOfSession,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    payloadData[5].key = UA_QUALIFIEDNAME(0, "locale-ids");
+    UA_Variant_setArray(&payloadData[5].value, session->localeIds,
+                        session->localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
+
+    if(session->attributes)
+        memcpy(&payloadData[6], session->attributes->map,
+               sizeof(UA_KeyValuePair) * session->attributes->mapSize);
+
+    /* Call the notification callback */
+    if(server->config.sessionNotificationCallback)
+        server->config.sessionNotificationCallback(server, type, payloadMap);
+    if(server->config.globalNotificationCallback)
+        server->config.globalNotificationCallback(server, type, payloadMap);
+}
+
 /* Delayed callback to free the session memory */
 static void
 removeSessionCallback(UA_Server *server, session_list_entry *entry) {
@@ -53,7 +100,7 @@ UA_Server_removeSession(UA_Server *server, UA_Session *session,
     }
 
     /* Detach the Session from the SecureChannel */
-    UA_Session_detachFromSecureChannel(session);
+    UA_Session_detachFromSecureChannel(server, session);
 
     /* Deactivate the session */
     if(session->activated) {
@@ -87,6 +134,9 @@ UA_Server_removeSession(UA_Server *server, UA_Session *session,
         UA_assert(false);
         break;
     }
+
+    /* Notify the application */
+    notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED);
 
     /* Add a delayed callback to remove the session when the currently
      * scheduled jobs have completed */
@@ -301,7 +351,7 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Attach the session to the channel. But don't activate for now. */
     if(channel)
-        UA_Session_attachToSecureChannel(&newentry->session, channel);
+        UA_Session_attachToSecureChannel(server, &newentry->session, channel);
 
     UA_EventLoop *el = server->config.eventLoop;
     UA_DateTime now = el->dateTime_now(el);
@@ -312,6 +362,11 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
     LIST_INSERT_HEAD(&server->sessions, newentry, pointers);
     server->sessionCount++;
 
+    /* Notify the application */
+    notifySession(server, &newentry->session,
+                  UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CREATED);
+
+    /* Return */
     *session = &newentry->session;
     return UA_STATUSCODE_GOOD;
 }
@@ -894,7 +949,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * channel than it is attached to. */
     if(!session->channel || session->channel != channel) {
         /* Attach the new SecureChannel, the old channel will be detached if present */
-        UA_Session_attachToSecureChannel(session, channel);
+        UA_Session_attachToSecureChannel(server, session, channel);
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "ActivateSession: Session attached to new channel");
     }
@@ -904,7 +959,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     resp->responseHeader.serviceResult |=
         UA_ByteString_copy(&session->serverNonce, &resp->serverNonce);
     if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Session_detachFromSecureChannel(session);
+        UA_Session_detachFromSecureChannel(server, session);
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Could not generate the server nonce");
         UA_SESSION_REJECT;
@@ -920,7 +975,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
             UA_Array_copy(req->localeIds, req->localeIdsSize,
                           (void**)&tmpLocaleIds, &UA_TYPES[UA_TYPES_STRING]);
         if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-            UA_Session_detachFromSecureChannel(session);
+            UA_Session_detachFromSecureChannel(server, session);
             UA_LOG_WARNING_SESSION(server->config.logging, session,
                                    "ActivateSession: Could not store the Session LocaleIds");
             UA_SESSION_REJECT;
@@ -993,6 +1048,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     default: break;
     }
 #endif
+
+    /* Notify the application */
+    notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_ACTIVATED);
 
     /* Log the user for which the Session was activated */
     UA_LOG_INFO_SESSION(server->config.logging, session,
