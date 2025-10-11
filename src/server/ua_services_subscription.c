@@ -58,7 +58,7 @@ notifySubscriptionCreated(UA_Server *server, UA_Subscription *sub,
        !server->config.globalNotificationCallback)
         return;
 
-    static UA_KeyValuePair createSubData[8] = {
+    static UA_THREAD_LOCAL UA_KeyValuePair createSubData[8] = {
         {{0, UA_STRING_STATIC("session-id")}, {0}},
         {{0, UA_STRING_STATIC("subscription-id")}, {0}},
         {{0, UA_STRING_STATIC("publishing-interval")}, {0}},
@@ -68,7 +68,7 @@ notifySubscriptionCreated(UA_Server *server, UA_Subscription *sub,
         {{0, UA_STRING_STATIC("priority")}, {0}},
         {{0, UA_STRING_STATIC("publishing-enabled")}, {0}}
     };
-    static UA_KeyValueMap createSubMap = {8, createSubData};
+    UA_KeyValueMap createSubMap = {8, createSubData};
 
     UA_NodeId sessionId = (sub->session) ? sub->session->sessionId : UA_NODEID_NULL;
     UA_Boolean enabled = (sub->state = UA_SUBSCRIPTIONSTATE_ENABLED);
@@ -437,11 +437,11 @@ Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
     /* Notify the application */
     if(server->config.subscriptionNotificationCallback ||
        server->config.globalNotificationCallback) {
-        static UA_KeyValuePair deleteSubData[2] = {
+        static UA_THREAD_LOCAL UA_KeyValuePair deleteSubData[2] = {
             {{0, UA_STRING_STATIC("session-id")}, {0}},
             {{0, UA_STRING_STATIC("subscription-id")}, {0}}
         };
-        static UA_KeyValueMap deleteSubMap = {8, deleteSubData};
+        UA_KeyValueMap deleteSubMap = {8, deleteSubData};
 
         UA_NodeId sessionId = (sub->session) ? sub->session->sessionId : UA_NODEID_NULL;
         UA_Variant_setScalar(&deleteSubData[0].value, &sessionId,

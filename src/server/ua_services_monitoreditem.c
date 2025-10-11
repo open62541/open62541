@@ -359,7 +359,7 @@ notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
         return;
 
     /* Set up the key-value map */
-    static UA_KeyValuePair notifyMonData[13] = {
+    static UA_THREAD_LOCAL UA_KeyValuePair notifyMonData[13] = {
         {{0, UA_STRING_STATIC("session-id")}, {0}},
         {{0, UA_STRING_STATIC("subscription-id")}, {0}},
         {{0, UA_STRING_STATIC("monitoreditem-id")}, {0}},
@@ -374,7 +374,7 @@ notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
         {{0, UA_STRING_STATIC("queue-size")}, {0}},
         {{0, UA_STRING_STATIC("discard-oldest")}, {0}},
     };
-    static UA_KeyValueMap notifyMonMap = {13, notifyMonData};
+    UA_KeyValueMap notifyMonMap = {13, notifyMonData};
 
     UA_Subscription *sub = mon->subscription;
     UA_assert(sub); /* always defined */
@@ -427,12 +427,12 @@ notifyDeleteMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
         return;
 
     /* Set up the key-value map */
-    static UA_KeyValuePair notifyDelMonData[3] = {
+    static UA_THREAD_LOCAL UA_KeyValuePair notifyDelMonData[3] = {
         {{0, UA_STRING_STATIC("session-id")}, {0}},
         {{0, UA_STRING_STATIC("subscription-id")}, {0}},
         {{0, UA_STRING_STATIC("monitoreditem-id")}, {0}},
     };
-    static UA_KeyValueMap notifyDelMonMap = {3, notifyDelMonData};
+    UA_KeyValueMap notifyDelMonMap = {3, notifyDelMonData};
 
     UA_Subscription *sub = mon->subscription;
     UA_assert(sub); /* always defined */
