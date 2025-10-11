@@ -203,6 +203,46 @@ typedef enum {
     UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING, /* shutdown begins now */
     UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED,
 
+    /* (Server only) Give background information after a SecureChannel is opened
+     * or closed.
+     *
+     * 0:securechannel-id [UInt32]
+     *    Identifier of the SecureChannel to which the Session is connected.
+     * 0:connection-manager-name [String]
+     *    Name of the ConnectionManager (configured in the EventLoop) from which
+     *    the connction was opened.
+     * 0:connection-id [UInt64]
+     *    Identifier of the connection in the context of the EventLoop. This is
+     *    often the socket identifier, but that is not necessarily the case.
+     * 0:remote-addresss [String]
+     *   Address (hostname or IP that opened the SecureChannel.
+     *
+     * 0:protocol-version [UInt32]
+     *   The version of the UACP protocol requested by the Client.
+     * 0:recv-buffer-size [UInt32]
+     *   The largest buffer (chunk size) we can receive over the channel.
+     * 0:recv-max-message-size [UInt32]
+     *   The maximum size of received messages.
+     * 0:recv-max-chunk-count [UInt32]
+     *   The maximum number of chunks for received messages.
+     * 0:send-buffer-size [UInt32]
+     *   The largest buffer (chunk size) we can send over the channel.
+     * 0:send-max-message-size [UInt32]
+     *   The maximum size of sent messages.
+     * 0:send-max-chunk-count [UInt32]
+     *   The maximum number of chunks for sent messages.
+     * 0:endpoint-url
+     *   The target EndpointUri (for the server) indicated by the client.
+     *
+     * 0:security-mode [MessageSecurityMode]
+     *   The SecurityChannel can be unsigned, signed or signed+encrypted.
+     * 0:security-policy-uri [String]
+     *   Uri of the SecurityPolicy for this SecyrityChannel.
+     * 0:remote-certificate [ByteString]
+     *   Certificate used by the remote side during OpenSecureChannel. */
+    UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_CLOSED,
+
     /* Processing of a service request or response. The server-side processing
      * of a request can be asynchronous. The existence of a yet-unfinished async
      * operation from the request is signaled with the _SERVICE_ASYNC enum. The

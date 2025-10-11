@@ -152,6 +152,10 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
         break;
     }
 
+    /* Notify the application */
+    notifySecureChannel(server, channel,
+                        UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_CLOSED);
+
     /* Clean up the SecureChannel. This is the only place where
      * UA_SecureChannel_clear must be called within the server code-base. */
     UA_SecureChannel_clear(channel);
