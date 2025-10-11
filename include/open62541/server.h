@@ -2011,6 +2011,7 @@ struct UA_ServerConfig {
      * indicated by their name. */
     UA_ServerNotificationCallback globalNotificationCallback;
     UA_ServerNotificationCallback lifecycleNotificationCallback;
+    UA_ServerNotificationCallback secureChannelNotificationCallback;
     UA_ServerNotificationCallback serviceNotificationCallback;
     UA_ServerNotificationCallback subscriptionNotificationCallback;
 

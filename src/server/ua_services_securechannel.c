@@ -10,12 +10,80 @@
  *    Copyright 2023 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Phuong Nguyen)
  */
 
+#include <open62541/types.h>
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
-/* This contains the SecureChannel Services to be called after validation and
- * decoding of the message. The main SecureChannel logic is handled in
- * /src/ua_securechannel.* and /src/server/ua_server_binary.c. */
+void
+notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                    UA_ApplicationNotificationType type) {
+    /* Nothing to do? */
+    if(!server->config.globalNotificationCallback &&
+       !server->config.secureChannelNotificationCallback)
+        return;
+
+    /* Prepare the payload */
+    static UA_THREAD_LOCAL UA_KeyValuePair notifySCData[15] = {
+        {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
+        {{0, UA_STRING_STATIC("connection-manager-name")}, {0}},
+        {{0, UA_STRING_STATIC("connection-id")}, {0}},
+        {{0, UA_STRING_STATIC("remote-address")}, {0}},
+        {{0, UA_STRING_STATIC("protocol-version")}, {0}},
+        {{0, UA_STRING_STATIC("recv-buffer-size")}, {0}},
+        {{0, UA_STRING_STATIC("recv-max-message-size")}, {0}},
+        {{0, UA_STRING_STATIC("recv-max-chunk-count")}, {0}},
+        {{0, UA_STRING_STATIC("send-buffer-size")}, {0}},
+        {{0, UA_STRING_STATIC("send-max-message-size")}, {0}},
+        {{0, UA_STRING_STATIC("send-max-chunk-count")}, {0}},
+        {{0, UA_STRING_STATIC("endpoint-url")}, {0}},
+        {{0, UA_STRING_STATIC("security-mode")}, {0}},
+        {{0, UA_STRING_STATIC("security-policy-url")}, {0}},
+        {{0, UA_STRING_STATIC("remote-certificate")}, {0}}
+    };
+    UA_KeyValueMap notifySCMap = {15, notifySCData};
+
+    UA_Variant_setScalar(&notifySCData[0].value, &channel->securityToken.channelId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[1].value,
+                         &channel->connectionManager->eventSource.name,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_UInt64 connectionId = channel->connectionId;
+    UA_Variant_setScalar(&notifySCData[2].value, &connectionId,
+                         &UA_TYPES[UA_TYPES_UINT64]);
+    UA_Variant_setScalar(&notifySCData[3].value, &channel->remoteAddress,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&notifySCData[4].value, &channel->config.protocolVersion,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[5].value, &channel->config.recvBufferSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[6].value, &channel->config.localMaxMessageSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[7].value, &channel->config.localMaxChunkCount,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[8].value, &channel->config.sendBufferSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[9].value, &channel->config.remoteMaxMessageSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[10].value, &channel->config.remoteMaxChunkCount,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[11].value, &channel->endpointUrl,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&notifySCData[12].value, &channel->securityMode,
+                         &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
+    UA_String securityPolicyUri = UA_STRING_NULL;
+    if(channel->securityPolicy)
+        securityPolicyUri = channel->securityPolicy->policyUri;
+    UA_Variant_setScalar(&notifySCData[13].value, &securityPolicyUri,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&notifySCData[14].value, &channel->remoteCertificate,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    /* Notify the application */
+    if(server->config.secureChannelNotificationCallback)
+        server->config.secureChannelNotificationCallback(server, type, notifySCMap);
+    if(server->config.globalNotificationCallback)
+        server->config.globalNotificationCallback(server, type, notifySCMap);
+}
 
 void
 Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
@@ -110,6 +178,10 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
                             "and a revised lifetime of %.2fs",
                             channel->securityPolicy->policyUri,
                             (UA_Float)response->securityToken.revisedLifetime / 1000);
+
+        /* Notify the application about the open SecureChannel */
+        notifySecureChannel(server, channel,
+                            UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED);
     } else {
         UA_LOG_INFO_CHANNEL(server->config.logging, channel, "SecureChannel renewed "
                             "with a revised lifetime of %.2fs",
