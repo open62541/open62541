@@ -167,13 +167,6 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
                  "Starting the EventLoop");
 
     /* Setting custom clock source */
-    el->clockSource = CLOCK_REALTIME;
-#ifdef CLOCK_MONOTONIC_RAW
-    el->clockSourceMonotonic = CLOCK_MONOTONIC_RAW;
-#else
-    el->clockSourceMonotonic = CLOCK_MONOTONIC;
-#endif
-
     const UA_Int32 *cs = (const UA_Int32*)
         UA_KeyValueMap_getScalar(&el->eventLoop.params,
                                  UA_QUALIFIEDNAME(0, "clock-source"),
@@ -185,8 +178,23 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
         UA_KeyValueMap_getScalar(&el->eventLoop.params,
                                  UA_QUALIFIEDNAME(0, "clock-source-monotonic"),
                                  &UA_TYPES[UA_TYPES_INT32]);
-    if(csm)
+    if(csm) {
+        if(el->clockSourceMonotonic != *csm && el->timer.idTree.root) {
+            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                           "Eventloop\t| Setting a different monotonic clock, ",
+                           "but existing timers have been registered with a "
+                           "different clock source");
+        }
         el->clockSourceMonotonic = *csm;
+    }
+
+#if !defined(UA_ARCHITECTURE_POSIX)
+    if(cs || csm) {
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                       "Eventloop\t| Setting a different clock source ",
+                       "not supported for this architecture");
+    }
+#endif
 
     /* Create the self-pipe */
     int err = UA_EventLoopPOSIX_pipe(el->selfpipe);
@@ -563,6 +571,17 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     /* Set the public EventLoop content */
     el->eventLoop.logger = logger;
 
+    /* Initialize the clock source to the default */
+#if defined(UA_ARCHITECTURE_POSIX)
+    el->clockSource = CLOCK_REALTIME;
+# ifdef CLOCK_MONOTONIC_RAW
+    el->clockSourceMonotonic = CLOCK_MONOTONIC_RAW;
+# else
+    el->clockSourceMonotonic = CLOCK_MONOTONIC;
+# endif
+#endif
+
+    /* Set the method pointers for the interface */
     el->eventLoop.start = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_start;
     el->eventLoop.stop = (void (*)(UA_EventLoop*))UA_EventLoopPOSIX_stop;
     el->eventLoop.free = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_free;
