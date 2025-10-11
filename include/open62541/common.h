@@ -315,13 +315,6 @@ typedef enum {
     UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_CREATED,
     UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_MODIFIED,
     UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_PUBLISHINGMODE,
-
-    /* (Server only) Signals the deletion of a Subscription.
-     *
-     * 0:session-id [NodeId]
-     *    Identifier of the Session for which the Subscription is created.
-     * 0:subscription-id [UInt32]
-     *    Identifier of the subscription (unique for the Session). */
     UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_DELETED,
 
     /* (Server only) Signals the creation or modification of a MonitoredItem.
@@ -359,17 +352,6 @@ typedef enum {
     UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED,
     UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_MODIFIED,
     UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_MONITORINGMODE,
-
-    /* (Server only) Signals the deletion of a MonitoredItem.
-     *
-     * 0:session-id [NodeId]
-     *    Identifier of the Session for which the Subscription is created.
-     *    If the subscription is not bound to any Session, then the NodeId
-     *    ns=0;i=0 is returned.
-     * 0:subscription-id [UInt32]
-     *    Identifier of the subscription (unique for the Session).
-     * 0:monitoreditem-id [UInt32]
-     *    Identifier of the MonitoredItem (unique for the Subscription). */
     UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE
 } UA_ApplicationNotificationType;
 

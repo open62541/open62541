@@ -52,8 +52,8 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
 }
 
 static void
-notifySubscriptionCreated(UA_Server *server, UA_Subscription *sub,
-                          UA_ApplicationNotificationType type) {
+notifySubscription(UA_Server *server, UA_Subscription *sub,
+                   UA_ApplicationNotificationType type) {
     if(!server->config.subscriptionNotificationCallback &&
        !server->config.globalNotificationCallback)
         return;
@@ -165,8 +165,8 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                              (long unsigned)sub->notificationsPerPublish);
 
     /* Notify the application */
-    notifySubscriptionCreated(server, sub,
-                              UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_CREATED);
+    notifySubscription(server, sub,
+                       UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_CREATED);
 
     /* Prepare the response */
     response->subscriptionId = sub->subscriptionId;
@@ -233,8 +233,8 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
     }
 
     /* Notify the application */
-    notifySubscriptionCreated(server, sub,
-                              UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_MODIFIED);
+    notifySubscription(server, sub,
+                       UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_MODIFIED);
 
     /* Set the response */
     response->revisedPublishingInterval = sub->publishingInterval;
@@ -270,8 +270,8 @@ Operation_SetPublishingMode(UA_Server *server, UA_Session *session,
     Subscription_resetLifetime(sub);
 
     /* Notify the application */
-    notifySubscriptionCreated(server, sub,
-                              UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_PUBLISHINGMODE);
+    notifySubscription(server, sub,
+                       UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_PUBLISHINGMODE);
 }
 
 UA_Boolean
@@ -426,6 +426,10 @@ Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
         return;
     }
 
+    /* Notify the application */
+    notifySubscription(server, sub,
+                       UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_DELETED);
+
     /* Delete the Subscription */
     UA_Subscription_delete(server, sub);
     *result = UA_STATUSCODE_GOOD;
@@ -433,29 +437,6 @@ Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Subscription %" PRIu32 " | Subscription deleted",
                          *subscriptionId);
-
-    /* Notify the application */
-    if(server->config.subscriptionNotificationCallback ||
-       server->config.globalNotificationCallback) {
-        static UA_THREAD_LOCAL UA_KeyValuePair deleteSubData[2] = {
-            {{0, UA_STRING_STATIC("session-id")}, {0}},
-            {{0, UA_STRING_STATIC("subscription-id")}, {0}}
-        };
-        UA_KeyValueMap deleteSubMap = {8, deleteSubData};
-
-        UA_NodeId sessionId = (sub->session) ? sub->session->sessionId : UA_NODEID_NULL;
-        UA_Variant_setScalar(&deleteSubData[0].value, &sessionId,
-                             &UA_TYPES[UA_TYPES_NODEID]);
-        UA_Variant_setScalar(&deleteSubData[1].value, &sub->subscriptionId,
-                             &UA_TYPES[UA_TYPES_UINT32]);
-
-        UA_ApplicationNotificationType nt =
-            UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_DELETED;
-        if(server->config.subscriptionNotificationCallback)
-            server->config.subscriptionNotificationCallback(server, nt, deleteSubMap);
-        if(server->config.globalNotificationCallback)
-            server->config.globalNotificationCallback(server, nt, deleteSubMap);
-    }
 }
 
 UA_Boolean
