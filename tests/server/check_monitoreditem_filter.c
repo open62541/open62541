@@ -170,10 +170,11 @@ setDouble(UA_Client *thisClient, UA_NodeId node, UA_Double value) {
 }
 
 static UA_StatusCode
-waitForNotification(UA_UInt32 notifications, UA_UInt32 maxTries) {
+waitForNotification(UA_UInt32 notifications) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     pauseServer();
-    for(UA_UInt32 i = 0; i < maxTries; ++i) {
+#define MAXWAIT_TRIES 20
+    for(UA_UInt32 i = 0; i < MAXWAIT_TRIES; ++i) {
         UA_fakeSleep((UA_UInt32)publishingInterval + 100);
         UA_Server_run_iterate(server, false);
         retval = UA_Client_run_iterate(client, 0);
@@ -228,7 +229,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     // Do we get initial value ?
     notificationReceived = false;
     countNotificationReceived = 0;
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -238,9 +239,9 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
@@ -249,9 +250,9 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
@@ -261,7 +262,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 40.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -304,11 +305,11 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 39.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, false);
     ck_assert_uint_eq(countNotificationReceived, 0);
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, false);
     ck_assert_uint_eq(countNotificationReceived, 0);
 
@@ -318,9 +319,9 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetLater) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -382,7 +383,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     // Do we get initial value ?
     notificationReceived = false;
     countNotificationReceived = 0;
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -392,9 +393,9 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(0, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(0, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, false);
     ck_assert_uint_eq(countNotificationReceived, 0);
 
@@ -404,9 +405,9 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -416,7 +417,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 40.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -459,9 +460,9 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
@@ -470,9 +471,9 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
@@ -526,7 +527,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLaterMissingEURange) {
     // Do we get initial value ?
     notificationReceived = false;
     countNotificationReceived = 0;
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -536,9 +537,9 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLaterMissingEURange) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
@@ -547,9 +548,9 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLaterMissingEURange) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
@@ -559,7 +560,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLaterMissingEURange) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 40.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -604,9 +605,9 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLaterMissingEURange) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
@@ -615,9 +616,9 @@ START_TEST(Server_MonitoredItemsPercentFilterSetLaterMissingEURange) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
@@ -671,7 +672,7 @@ START_TEST(Server_MonitoredItemsNoFilter) {
     // Do we get initial value ?
     notificationReceived = false;
     countNotificationReceived = 0;
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -681,9 +682,9 @@ START_TEST(Server_MonitoredItemsNoFilter) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived,  2);
 
@@ -692,9 +693,9 @@ START_TEST(Server_MonitoredItemsNoFilter) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(2, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
@@ -748,7 +749,7 @@ START_TEST(Server_MonitoredItemsSetEmpty) {
     // Do we get initial value ?
     notificationReceived = false;
     countNotificationReceived = 0;
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -761,7 +762,7 @@ START_TEST(Server_MonitoredItemsSetEmpty) {
     UA_Variant_init(&variant);
     UA_StatusCode res = UA_Client_writeValueAttribute(client, outNodeId, &variant);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived,  1);
 
@@ -859,7 +860,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreate) {
     // Do we get initial value ?
     notificationReceived = false;
     countNotificationReceived = 0;
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -869,9 +870,9 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreate) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 41.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(0, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(0, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, false);
     ck_assert_uint_eq(countNotificationReceived, 0);
 
@@ -881,9 +882,9 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreate) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeId, 43.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(setDouble(client, outNodeId, 44.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -947,7 +948,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreateMissingEURange) {
     // Do we get initial value ? (must fail)
     notificationReceived = false;
     countNotificationReceived = 0;
-    ck_assert_uint_eq(waitForNotification(0, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, false);
     ck_assert_uint_eq(countNotificationReceived, 0);
 
@@ -1008,7 +1009,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
     // Do we get initial value ?
     notificationReceived = false;
     countNotificationReceived = 0;
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
 
@@ -1016,7 +1017,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeIdAnalogItem, 45.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, false);
     ck_assert_uint_eq(countNotificationReceived, 0);
 
@@ -1024,7 +1025,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreate) {
     notificationReceived = false;
     countNotificationReceived = 0;
     ck_assert_uint_eq(setDouble(client, outNodeIdAnalogItem, 90.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 1);
     ck_assert(fuzzyLastValueIsEqualTo(90.0));
@@ -1085,7 +1086,7 @@ START_TEST(Server_MonitoredItemsPercentFilterSetOnCreateDeadBandValueOutOfRange)
     // Do we get initial value ? (must fail)
     notificationReceived = false;
     countNotificationReceived = 0;
-    ck_assert_uint_eq(waitForNotification(0, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(0), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, false);
     ck_assert_uint_eq(countNotificationReceived, 0);
 
