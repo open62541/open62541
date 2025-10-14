@@ -494,64 +494,76 @@ UA_Server_writeExecutable(UA_Server *server, const UA_NodeId nodeId,
  *
  * Method Service Set
  * ------------------
- * The Method Service Set defines the means to invoke methods. A MethodNode
- * shall be a component of an ObjectNode or of an ObjectTypeNode. For calling
- * a method, both methodId and objectId (for object or object type) need to be
- * defined by their NodeId. The latter hereby specifies the scope of the method
- * and requires the Call service to resolve the given methodId to the NodeId of
- * the method that is actually owned by the given object or object type.
  *
- * Consider the following information model example::
+ * The Method Service Set defines the means to invoke methods. A MethodNode is a
+ * component of an ObjectNode or of an ObjectTypeNode. The input and output
+ * arguments of a method are a list of ``UA_Variant``. The type- and
+ * size-requirements of the arguments can be retrieved from the
+ * **InputArguments** and **OutputArguments** variable below the MethodNode.
  *
- *      ObjectType                       ObjectType                           Object
- *    Creature (i=10)  <|-isSubTypeOf-  Insect (i=20)  <-hasTypeDefinition-  Ant (i=30)
- *          |                                |                                  |
- *     hasComponent                     hasComponent                       hasComponent
- *          |                                |                                  |
- *          v                                v                                  v
- *       Methods                          Methods                            Methods
- *     * Walk (i=11)                    * Walk (i=21)                      * Walk (i=31)
- *     * Fly (i=12)                     * Fly (i=22)
- *     * Amount (i=13)                  * Amount (i=23)                    * Amount (i=33)
+ * For calling a method, both ``methodId`` and ``objectId`` need to be defined
+ * by their NodeId. This is required because the same MethodNode can be
+ * referenced from multiple objects.
  *
+ * In this server implementation, when an object is instantiated from a an
+ * ObjectType, all (mandatory) methods are automatically added to the new object
+ * instance. This is done by adding an additional reference to the original
+ * MethodNode. It is however possible to add a custom MethodNode directly to the
+ * object instance. It is also possible to remove a (optional) MethodNode that
+ * exists in the ObjectType from an instance.
  *
- * Now the following table shows what methodId - objectId combinations are
- * allowed to be used as parameters for the Call service and to what they
- * resolve to:
+ * The ``methodId`` can point to a MethodNode that exists in the ObjectType but
+ * not in the object instance. It is resolved to the actual MethodNode of the
+ * object instance by taking the *BrowseName* attribute of the
+ * ``methodId``-MethodNode and looking up the member of the ``objectId`` object
+ * with the same BrowseName.
  *
- * ========  ========  =======================================  =================
- * objectId  methodId  corresponds to in OO-languages           resolved methodId
- * ========  ========  =======================================  =================
- * i=30      i=31      ``Ant a; a.Walk();``                     i=31
- * i=30      i=21      ``Ant a; Insect i = a; i.Walk();``       i=31
- * i=30      i=11      ``Ant a; Creature c = a; c.Walk();``     i=31
- * i=20      i=23      ``Insect::Amount();   // class method``  i=23
- * i=10      i=13      ``Creature::Amount(); // class method``  i=13
- * ========  ========  =======================================  =================
+ * The resolved MethodNode then is used to
  *
- * The following table shows some methodId - objectId combinations that are not
- * allowed:
+ * - Check permissions for the current Session to call the method
+ * - Obtain the ``UA_MethodCallback`` to execute
+ * - Forwarded as ``methodId`` to said callback
+ *
+ * To showcase the resolution of the MethodNode with an example, consider this
+ * information model::
+ *
+ *      ObjectType                      ObjectType                     Object
+ *    Creature (i=10)  <-isSubTypeOf-  Insect (i=20)  <-hasTypeDef-   Ant (i=30)
+ *          |                               |                            |
+ *     hasComponent                    hasComponent                 hasComponent
+ *          |                               |                            |
+ *          v                               v                            v
+ *       Methods                         Methods                      Methods
+ *    - Walk (i=11)                   - Walk (i=21)                - Walk (i=31)
+ *    - Fly (i=12)                    - Fly (i=22)                 - Amount (i=33)
+ *    - Amount (i=13)                 - Amount (i=23)
+ *
+ * The following table shows what ``methodId`` - ``objectId`` combinations are
+ * allowed to be used as parameters for the Call service and the resolved
+ * ``methodId``.
+ *
+ * ========  ========  ====================================  =================
+ * objectId  methodId  Corresponds to in OO-languages        Resolved methodId
+ * ========  ========  ====================================  =================
+ * i=30      i=31      ``Ant a; a.Walk();``                  i=31
+ * i=30      i=21      ``Ant a; Insect i = a; i.Walk();``    i=31
+ * i=30      i=11      ``Ant a; Creature c = a; c.Walk();``  i=31
+ * i=20      i=23      ``Insect::Amount();``                 i=23
+ * i=10      i=13      ``Creature::Amount();``               i=13
+ * ========  ========  ====================================  =================
+ *
+ * The next table shows ``methodId`` - ``objectId`` combinations that are not
+ * allowed. Note that an ObjecType cannot execute a methodId from a subtype or
+ * instance.
  *
  * ========  ========  =====================================================
- * objectId  methodId  reason
+ * objectId  methodId  Reason
  * ========  ========  =====================================================
  * i=30      i=22      Object "Ant" does not own a method "Fly"
  * i=30      i=12      Object "Ant" does not own a method "Fly"
  * i=10      i=23      The method is not owned by the object type "Creature"
  * i=20      i=13      The method is not owned by the object type "Insect"
- * ========  ========  =====================================================
- *
- * Please note, that the Call service always resolves the given methodId
- * parameter according the rules shown above. So regardless which methodId
- * has been given always the resolved method:
- *
- * * is used to check permissions on
- * * is used to obtain the ``UA_MethodCallback`` to execute
- * * is given as methodId to said callback
- *
- * The input and output arguments of a method are a list of ``UA_Variant``. The
- * type- and size-requirements of the arguments can be retrieved from the
- * **InputArguments** and **OutputArguments** variable below the MethodNode. */
+ * ========  ========  ===================================================== */
 
 #ifdef UA_ENABLE_METHODCALLS
 UA_CallMethodResult UA_EXPORT UA_THREADSAFE
