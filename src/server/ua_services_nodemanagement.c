@@ -461,21 +461,19 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
     return retval;
 }
 
-/* Search for an instance of "browseName" in node searchInstance. Used during
- * copyChildNodes to find overwritable/mergable nodes. Does not touch
- * outInstanceNodeId if no child is found. */
-static UA_StatusCode
+UA_StatusCode
 findChildByBrowsename(UA_Server *server, UA_Session *session,
-                      const UA_NodeId *searchInstance,
+                      const UA_NodeId parentId,
+                      UA_NodeClass nodeClassMask,
                       const UA_QualifiedName *browseName,
                       UA_NodeId *outInstanceNodeId) {
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
-    bd.nodeId = *searchInstance;
+    bd.nodeId = parentId;
     bd.referenceTypeId = UA_NS0ID(AGGREGATES);
     bd.includeSubtypes = true;
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-    bd.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
+    bd.nodeClassMask = nodeClassMask;
     bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
 
     UA_BrowseResult br;
@@ -606,8 +604,11 @@ copyChild(UA_Server *server, UA_Session *session,
 
     /* Is there an existing child with the browsename? */
     UA_NodeId existingChild = UA_NODEID_NULL;
-    UA_StatusCode retval = findChildByBrowsename(server, session, destinationNodeId,
-                                                 &rd->browseName, &existingChild);
+    UA_NodeClass childNodeClass =
+        UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
+    UA_StatusCode retval = findChildByBrowsename(server, session, *destinationNodeId,
+                                                 childNodeClass, &rd->browseName,
+                                                 &existingChild);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
