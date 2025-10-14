@@ -461,40 +461,112 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
     return retval;
 }
 
-UA_StatusCode
-findChildByBrowsename(UA_Server *server, UA_Session *session,
-                      const UA_NodeId parentId,
-                      UA_NodeClass nodeClassMask,
-                      const UA_QualifiedName *browseName,
-                      UA_NodeId *outInstanceNodeId) {
-    UA_BrowseDescription bd;
-    UA_BrowseDescription_init(&bd);
-    bd.nodeId = parentId;
-    bd.referenceTypeId = UA_NS0ID(AGGREGATES);
-    bd.includeSubtypes = true;
-    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
-    bd.nodeClassMask = nodeClassMask;
-    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+struct findChildContext {
+    UA_Server *server;
+    UA_QualifiedName browseName;
+    UA_UInt32 browseNameHash;
+    UA_NodeClass nodeClassMask;
+    UA_NodeId *outInstanceNodeId;
+};
 
-    UA_BrowseResult br;
-    UA_BrowseResult_init(&br);
-    UA_UInt32 maxrefs = 0;
-    Operation_Browse(server, session, &maxrefs, &bd, &br);
-    if(br.statusCode != UA_STATUSCODE_GOOD)
-        return br.statusCode;
+static void *
+findChildCallback(void *context, UA_ReferenceTarget *t) {
+    struct findChildContext *ctx = (struct findChildContext*)context;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < br.referencesSize; ++i) {
-        UA_ReferenceDescription *rd = &br.references[i];
-        if(rd->browseName.namespaceIndex == browseName->namespaceIndex &&
-           UA_String_equal(&rd->browseName.name, &browseName->name)) {
-            retval = UA_NodeId_copy(&rd->nodeId.nodeId, outInstanceNodeId);
-            break;
-        }
+    /* No ExpandedNodeId pointing to another server */
+    if(!UA_NodePointer_isLocal(t->targetId))
+        return NULL;
+
+    /* Compare the hash (fast) */
+    if(t->targetNameHash != ctx->browseNameHash)
+        return NULL;
+
+    /* Get the node to compare the full attributes */
+    const UA_Node *refTarget =
+        UA_NODESTORE_GETFROMREF_SELECTIVE(ctx->server, t->targetId,
+                                          UA_NODEATTRIBUTESMASK_BROWSENAME,
+                                          UA_REFERENCETYPESET_NONE,
+                                          UA_BROWSEDIRECTION_INVALID);
+    if(!refTarget)
+        return NULL;
+
+    /* Compare NodeClass and BrowseName */
+    if(!(refTarget->head.nodeClass & ctx->nodeClassMask) ||
+       !UA_QualifiedName_equal(&ctx->browseName, &refTarget->head.browseName)) {
+        UA_NODESTORE_RELEASE(ctx->server, refTarget);
+        return NULL;
     }
 
-    UA_BrowseResult_clear(&br);
-    return retval;
+    UA_NODESTORE_RELEASE(ctx->server, refTarget);
+
+    /* Copy the child NodeId and return a sentinel value */
+    UA_NodeId origId = UA_NodePointer_toNodeId(t->targetId);
+    UA_StatusCode res = UA_NodeId_copy(&origId, ctx->outInstanceNodeId);
+    return (res == UA_STATUSCODE_GOOD) ? (void*)0x01 : (void*)0x02;
+}
+
+UA_StatusCode
+findChildByBrowsename(UA_Server *server, UA_Session *session,
+                      const UA_NodeId parentId, UA_NodeClass nodeClassMask,
+                      const UA_QualifiedName *browseName,
+                      UA_NodeId *outInstanceNodeId) {
+    /* Setup the context */
+    struct findChildContext ctx;
+    ctx.server = server;
+    ctx.browseName = *browseName;
+    ctx.browseNameHash = UA_QualifiedName_hash(browseName);
+    ctx.nodeClassMask = nodeClassMask;
+    ctx.outInstanceNodeId = outInstanceNodeId;
+
+    /* Begin with HasComponent references only. This is the most common case as
+     * a "fast path". If this fails also look for subtypes of HasComponent. */
+    UA_Boolean subTypes = false;
+    UA_ReferenceTypeSet refTypes = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASCOMPONENT);
+
+    /* Get the parent node */
+    const UA_Node *parent = NULL;
+    void *found = NULL;
+ check_references:
+     parent = UA_NODESTORE_GET_SELECTIVE(server, &parentId,
+                                         UA_NODEATTRIBUTESMASK_NONE,
+                                         refTypes, UA_BROWSEDIRECTION_FORWARD);
+    if(!parent)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
+    /* Loop over the references to find a match */
+    for(size_t i = 0; i < parent->head.referencesSize; i++) {
+        UA_NodeReferenceKind *rk = &parent->head.references[i];
+        if(rk->isInverse)
+            continue;
+        if(!UA_ReferenceTypeSet_contains(&refTypes, rk->referenceTypeIndex))
+            continue;
+        found = UA_NodeReferenceKind_iterate(rk, findChildCallback, &ctx);
+        if(found)
+            break;
+    }
+
+    UA_NODESTORE_RELEASE(server, parent);
+
+    /* Error */
+    if(found == (void *)0x02)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* A matching method node was found */
+    if(UA_LIKELY(found != NULL))
+        return UA_STATUSCODE_GOOD;
+
+    /* Nothing found. Consider subtypes of HasComponent references also. */
+    if(!subTypes) {
+        UA_NodeId hasComponentId = UA_NS0ID(HASCOMPONENT);
+        UA_StatusCode res = referenceTypeIndices(server, &hasComponentId,
+                                                 &refTypes, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        subTypes = true;
+        goto check_references;
+    }
+
+    return UA_STATUSCODE_BADNOTFOUND;
 }
 
 static const UA_ExpandedNodeId mandatoryId =
@@ -604,22 +676,24 @@ copyChild(UA_Server *server, UA_Session *session,
 
     /* Is there an existing child with the browsename? */
     UA_NodeId existingChild = UA_NODEID_NULL;
-    UA_NodeClass childNodeClass =
-        UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
+    UA_NodeClass childNodeClass = (UA_NodeClass)
+        (UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD);
     UA_StatusCode retval = findChildByBrowsename(server, session, *destinationNodeId,
                                                  childNodeClass, &rd->browseName,
                                                  &existingChild);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
 
-    /* Have a child with that browseName. Deep-copy missing members. */
-    if(!UA_NodeId_isNull(&existingChild)) {
+    /* Existing child with that browseName. Deep-copy missing members. */
+    if(retval == UA_STATUSCODE_GOOD) {
         if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
            rd->nodeClass == UA_NODECLASS_OBJECT)
             retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &existingChild);
         UA_NodeId_clear(&existingChild);
         return retval;
     }
+
+    /* An error occurred (besides not finding an existing child) */
+    if(retval != UA_STATUSCODE_BADNOTFOUND)
+        return retval;
 
     /* Is the child mandatory? If not, ask callback whether child should be instantiated.
      * If not, skip. */
