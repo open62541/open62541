@@ -711,9 +711,8 @@ copyChild(UA_Server *server, UA_Session *session,
            isNodeInTree(server, destinationNodeId, &nodeId_typesFolder, &reftypes_aggregates)) {
             /* hasModellingRule-reference is required (configured or node in an
              * instance declaration) */
-            UA_ReferenceTypeSet reftypes_hasmodelling =
-                UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASMODELLINGRULE);
-            reftypes_skipped = UA_ReferenceTypeSet_union(reftypes_skipped, reftypes_hasmodelling);
+            UA_ReferenceTypeSet_add(&reftypes_skipped,
+                                    UA_REFERENCETYPEINDEX_HASMODELLINGRULE);
         }
         UA_Node_deleteReferencesSubset(node, &reftypes_skipped);
 
