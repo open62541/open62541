@@ -866,9 +866,8 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     if(cp.browseDescription.resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
         /* Get the node with additional reference types if we need to lookup the
          * TypeDefinition */
-        bc.resultRefs = UA_ReferenceTypeSet_union(bc.resultRefs,
-              UA_ReferenceTypeSet_union(UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION),
-                                        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE)));
+        UA_ReferenceTypeSet_add(&bc.resultRefs, UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
+        UA_ReferenceTypeSet_add(&bc.resultRefs, UA_REFERENCETYPEINDEX_HASSUBTYPE);
     }
     result->statusCode = RefResult_init(&bc.rr);
     if(result->statusCode != UA_STATUSCODE_GOOD)
@@ -1032,9 +1031,8 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
     if(cp->browseDescription.resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
         /* Get the node with additional reference types if we need to lookup the
          * TypeDefinition */
-        bc.resultRefs = UA_ReferenceTypeSet_union(bc.resultRefs,
-              UA_ReferenceTypeSet_union(UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION),
-                                        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE)));
+        UA_ReferenceTypeSet_add(&bc.resultRefs, UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
+        UA_ReferenceTypeSet_add(&bc.resultRefs, UA_REFERENCETYPEINDEX_HASSUBTYPE);
     }
     result->statusCode = RefResult_init(&bc.rr);
     if(result->statusCode != UA_STATUSCODE_GOOD)
