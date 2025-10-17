@@ -94,8 +94,6 @@ getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    UA_assert(subTypesSize < 1000);
-
     UA_ReferenceTypeSet reftypes_interface =
         UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
     UA_ExpandedNodeId *interfaces = NULL;
@@ -107,8 +105,6 @@ getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
         UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_NODEID]);
         return retval;
     }
-
-    UA_assert(interfacesSize < 1000);
 
     UA_NodeId *hierarchy = (UA_NodeId*)
         UA_malloc(sizeof(UA_NodeId) * (1 + subTypesSize + interfacesSize));
@@ -137,8 +133,6 @@ getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
 
     *typeHierarchy = hierarchy;
     *typeHierarchySize = subTypesSize + interfacesSize + 1;
-
-    UA_assert(*typeHierarchySize < 1000);
 
     UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
     UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
