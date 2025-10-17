@@ -10,11 +10,13 @@
  *    Copyright 2016 (c) LEvertz
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Julian Grothoff
- *    Copyright 2020 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
+ *    Copyright 2020 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin
+ * Lang)
  */
 
-#include "ua_services.h"
+#include "ua_nodes.h"
 #include "ua_server_internal.h"
+#include "ua_services.h"
 
 #ifdef UA_ENABLE_METHODCALLS /* conditional compilation */
 
@@ -70,12 +72,13 @@ checkAdjustArguments(UA_Server *server, UA_Session *session,
                      UA_Variant *args, UA_StatusCode *inputArgumentResults) {
     /* Verify that we have a Variant containing UA_Argument (scalar or array) in
      * the "InputArguments" node */
-    if(argRequirements->valueSourceType != UA_VALUESOURCETYPE_INTERNAL)
+    if( UA_VariableNode_getValueSourceType(argRequirements) != UA_VALUESOURCETYPE_INTERNAL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    if(!argRequirements->valueSource.internal.value.hasValue)
+    const UA_ValueSource *source = UA_VariableNode_getValueSource(argRequirements);
+    if(!source->internal.value.hasValue)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    const UA_Variant *argVal = &argRequirements->valueSource.internal.value.value;
+    const UA_Variant *argVal = &source->internal.value.value;
     if(argVal->type != &UA_TYPES[UA_TYPES_ARGUMENT])
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -378,7 +381,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
      * UA_Array_delete even if the outputArgumentsSize is zero. */
     size_t outputArgsSize = 0;
     if(outputArguments)
-        outputArgsSize = outputArguments->valueSource.internal.value.value.arrayLength;
+        outputArgsSize = UA_VariableNode_getValueSource(outputArguments)->internal.value.value.arrayLength;
     result->outputArguments = (UA_Variant*)
         UA_Array_new(outputArgsSize+1, &UA_TYPES[UA_TYPES_VARIANT]);
     if(!result->outputArguments) {

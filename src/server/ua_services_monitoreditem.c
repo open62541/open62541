@@ -19,6 +19,7 @@
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
+#include "ua_nodes.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
 #include "ua_subscription.h"
@@ -292,8 +293,9 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                 if(samplingInterval < 0 && mon->subscription)
                     samplingInterval = mon->subscription->publishingInterval;
                 /* Adjust if smaller than the allowed minimum for the variable */
-                if(samplingInterval < vn->minimumSamplingInterval)
-                    params->samplingInterval = vn->minimumSamplingInterval;
+                UA_Double nodeMinimumSamplingInterval = UA_VariableNode_getMinimumSamplingInterval(vn);
+                if(samplingInterval < nodeMinimumSamplingInterval)
+                    params->samplingInterval = nodeMinimumSamplingInterval;
             }
             UA_NODESTORE_RELEASE(server, node);
         }
