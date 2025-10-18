@@ -350,6 +350,28 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
         goto cleanup;
     }
 
+    /* Check the NodeClass */
+    if(method->head.nodeClass != UA_NODECLASS_METHOD ||
+       object->head.nodeClass != UA_NODECLASS_OBJECT) {
+        opResult->statusCode = UA_STATUSCODE_BADNODECLASSINVALID;
+        goto cleanup;
+    }
+
+    /* Check the access rights */
+    UA_Boolean executable = method->methodNode.executable;
+    if(session != &server->adminSession) {
+        executable = executable && server->config.accessControl.
+            getUserExecutableOnObject(server, &server->config.accessControl,
+                                      &session->sessionId, session->sessionHandle,
+                                      &opRequest->methodId, method->head.context,
+                                      &opRequest->objectId, object->head.context);
+    }
+
+    if(!executable) {
+        opResult->statusCode = UA_STATUSCODE_BADNOTEXECUTABLE;
+        goto cleanup;
+    }
+
     /* <-- Async method call --> */
 
     /* No AsyncResponse allocated so far */
