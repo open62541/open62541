@@ -244,7 +244,7 @@ START_TEST(callMethodWithEmptyArgument) {
 
 START_TEST(callObjectTypeMethodOnInstance) {
 /* Minimal nodeset does not add any method nodes we may call here */
-#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_SUBSCRIPTIONS)
     /* replace callback function on target method with ours */
     UA_Server_setMethodNodeCallback(
         server,
@@ -337,7 +337,7 @@ START_TEST(callObjectTypeMethodOnInstance2) {
 
 START_TEST(callObjectTypeMethod) {
 /* Minimal nodeset does not add any method nodes we may call here */
-#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_SUBSCRIPTIONS)
     /* replace callback function on target method with ours */
     UA_Server_setMethodNodeCallback(
         server,
