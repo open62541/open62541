@@ -630,12 +630,11 @@ addRef(UA_Server *server, const UA_NodeId sourceId,
 
 static UA_StatusCode
 addInterfaceChildren(UA_Server *server, UA_Session *session,
-                     const UA_NodeId *nodeId, const UA_NodeId *typeId) {
+                     const UA_NodeId *nodeId) {
     /* Get the hierarchy of the type and all its supertypes */
     UA_NodeId *hierarchy = NULL;
     size_t hierarchySize = 0;
-    UA_StatusCode retval = getAllInterfaceChildNodeIds(server, nodeId, typeId,
-                                                       &hierarchy, &hierarchySize);
+    UA_StatusCode retval = getAllInterfaces(server, nodeId, &hierarchy, &hierarchySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -879,11 +878,11 @@ addTypeChildren(UA_Server *server, UA_Session *session,
     /* Get the hierarchy of the type and all its supertypes */
     UA_NodeId *hierarchy = NULL;
     size_t hierarchySize = 0;
-    UA_StatusCode retval = getParentTypeAndInterfaceHierarchy(server, typeId,
-                                                              &hierarchy, &hierarchySize);
+    UA_StatusCode retval =
+        getTypeAndInterfaceHierarchy(server, typeId, true,
+                                     &hierarchy, &hierarchySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    UA_assert(hierarchySize < 1000);
 
     /* Copy members of the type and supertypes (and instantiate them) */
     for(size_t i = 0; i < hierarchySize; ++i) {
@@ -1625,7 +1624,7 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
 
     /* Add (mandatory) child nodes from the HasInterface references */
     if(node->head.nodeClass == UA_NODECLASS_OBJECT) {
-        retval = addInterfaceChildren(server, session, nodeId, &type->head.nodeId);
+        retval = addInterfaceChildren(server, session, nodeId);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_SESSION(server->config.logging, session,
                                 "AddNode (%N): Adding child nodes "

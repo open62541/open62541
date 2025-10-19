@@ -400,15 +400,17 @@ UA_StatusCode
 referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
                      UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes);
 
-/* Returns the recursive type and interface hierarchy of the node */
+/* Returns the recursive type hierarchy for an Object/ObjectType or
+ * Variable/VariableType. Does not return interfaces. */
 UA_StatusCode
-getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
-                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
+getTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *leafNode,
+                             UA_Boolean includeLeaf, UA_NodeId **typeHierarchy,
+                             size_t *typeHierarchySize);
 
 /* Returns the recursive interface hierarchy of the node */
 UA_StatusCode
-getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode, const UA_NodeId *objectTypeNode,
-                                   UA_NodeId **interfaceChildNodes, size_t *interfaceChildNodesSize);
+getAllInterfaces(UA_Server *server, const UA_NodeId *objectNode,
+                 UA_NodeId **interfaceNodes, size_t *interfaceNodesSize);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
