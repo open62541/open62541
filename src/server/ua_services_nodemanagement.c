@@ -664,6 +664,117 @@ addInterfaceChildren(UA_Server *server, UA_Session *session,
 }
 
 static UA_StatusCode
+copyObjectVariableChild(UA_Server *server, UA_Session *session,
+                        const UA_NodeId *destinationNodeId,
+                        const UA_ReferenceDescription *rd) {
+    /* Make a copy of the node */
+    UA_Node *node;
+    UA_StatusCode res = UA_NODESTORE_GETCOPY(server, &rd->nodeId.nodeId, &node);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Remove the context of the copied node */
+    node->head.context = NULL;
+    node->head.constructed = false;
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    node->head.monitoredItems = NULL;
+#endif
+
+    /* The value source callbacks are copied by default. But we don't want
+     * to keep it here. */
+    if(node->head.nodeClass == UA_NODECLASS_VARIABLE ||
+       node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
+        if(node->variableNode.valueSourceType == UA_VALUESOURCETYPE_INTERNAL ||
+           node->variableNode.valueSourceType == UA_VALUESOURCETYPE_EXTERNAL) {
+            memset(&node->variableNode.valueSource.internal.notifications, 0,
+                   sizeof(UA_ValueSourceNotifications));
+        } else {
+            memset(&node->variableNode.valueSource.callback, 0,
+                   sizeof(UA_CallbackValueSource));
+
+        }
+        node->variableNode.valueSourceType = UA_VALUESOURCETYPE_INTERNAL;
+    }
+
+    /* Reset the NodeId (random numeric id will be assigned in the nodestore) */
+    UA_NodeId_clear(&node->head.nodeId);
+    node->head.nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
+    if(server->config.nodeLifecycle &&
+       server->config.nodeLifecycle->generateChildNodeId) {
+        res = server->config.nodeLifecycle->
+            generateChildNodeId(server, &session->sessionId, session->context,
+                                &rd->nodeId.nodeId, destinationNodeId,
+                                &rd->referenceTypeId, &node->head.nodeId);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_NODESTORE_DELETE(server, node);
+            return res;
+        }
+    }
+
+    /* Remove references, they are re-created from scratch in
+     * addnode_finish. For now we keep all the modelling rule references and
+     * delete all others. */
+
+    /* TODO: Be more clever in removing references that are re-added during
+     * addnode_finish. That way, we can call addnode_finish also on children
+     * that were manually added by the user during addnode_begin and
+     * addnode_finish. */
+    const UA_NodeId nodeId_typesFolder = UA_NS0ID(TYPESFOLDER);
+    const UA_ReferenceTypeSet reftypes_aggregates =
+        UA_REFTYPESET(UA_REFERENCETYPEINDEX_AGGREGATES);
+    UA_ReferenceTypeSet reftypes_skipped =
+        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
+    if(server->config.modellingRulesOnInstances ||
+       isNodeInTree(server, destinationNodeId,
+                    &nodeId_typesFolder, &reftypes_aggregates)) {
+        /* hasModellingRule-reference is required (configured or node in an
+         * instance declaration) */
+        UA_ReferenceTypeSet_add(&reftypes_skipped,
+                                UA_REFERENCETYPEINDEX_HASMODELLINGRULE);
+    }
+    UA_Node_deleteReferencesSubset(node, &reftypes_skipped);
+
+    /* Add the node to the nodestore */
+    UA_NodeId newNodeId = UA_NODEID_NULL;
+    res = UA_NODESTORE_INSERT(server, node, &newNodeId);
+    /* node = NULL; The pointer is no longer valid */
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Add the node references */
+    res = addNode_addRefs(server, session, &newNodeId, destinationNodeId,
+                          &rd->referenceTypeId, &rd->typeDefinition.nodeId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    if(rd->nodeClass == UA_NODECLASS_VARIABLE) {
+        res = checkSetIsDynamicVariable(server, session, &newNodeId);
+        if(res != UA_STATUSCODE_GOOD)
+            goto errout;
+    }
+
+    /* For the new child, recursively copy the members of the original. No
+     * typechecking is performed here. Assuming that the original is
+     * consistent. */
+    res = copyAllChildren(server, session, &rd->nodeId.nodeId, &newNodeId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Check if its a dynamic variable, add all type and/or interface
+     * children and call the constructor */
+    res = addNode_finish(server, session, &newNodeId);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+ errout:
+    /* Clean up */
+    if(res != UA_STATUSCODE_GOOD)
+        deleteNode(server, newNodeId, true);
+    UA_NodeId_clear(&newNodeId);
+    return res;
+}
+
+static UA_StatusCode
 copyChild(UA_Server *server, UA_Session *session,
           const UA_NodeId *destinationNodeId,
           const UA_ReferenceDescription *rd) {
@@ -722,117 +833,7 @@ copyChild(UA_Server *server, UA_Session *session,
     /* Child is a variable or object */
     if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
        rd->nodeClass == UA_NODECLASS_OBJECT) {
-        /* Make a copy of the node */
-        UA_Node *node;
-        retval = UA_NODESTORE_GETCOPY(server, &rd->nodeId.nodeId, &node);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-
-        /* Remove the context of the copied node */
-        node->head.context = NULL;
-        node->head.constructed = false;
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-        node->head.monitoredItems = NULL;
-#endif
-
-        /* The value source callbacks are copied by default. But we don't want
-         * to keep it here. */
-        if(node->head.nodeClass == UA_NODECLASS_VARIABLE ||
-           node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
-            if(node->variableNode.valueSourceType == UA_VALUESOURCETYPE_INTERNAL ||
-               node->variableNode.valueSourceType == UA_VALUESOURCETYPE_EXTERNAL) {
-                memset(&node->variableNode.valueSource.internal.notifications, 0,
-                       sizeof(UA_ValueSourceNotifications));
-            } else {
-                memset(&node->variableNode.valueSource.callback, 0,
-                       sizeof(UA_CallbackValueSource));
-
-            }
-            node->variableNode.valueSourceType = UA_VALUESOURCETYPE_INTERNAL;
-        }
-
-        /* Reset the NodeId (random numeric id will be assigned in the nodestore) */
-        UA_NodeId_clear(&node->head.nodeId);
-        node->head.nodeId.namespaceIndex = destinationNodeId->namespaceIndex;
-
-        if(server->config.nodeLifecycle &&
-           server->config.nodeLifecycle->generateChildNodeId) {
-            retval = server->config.nodeLifecycle->
-                generateChildNodeId(server, &session->sessionId, session->context,
-                                    &rd->nodeId.nodeId, destinationNodeId,
-                                    &rd->referenceTypeId, &node->head.nodeId);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_NODESTORE_DELETE(server, node);
-                return retval;
-            }
-        }
-
-        /* Remove references, they are re-created from scratch in
-         * addnode_finish. For now we keep all the modelling rule references and
-         * delete all others. */
-
-        /* TODO: Be more clever in removing references that are re-added during
-         * addnode_finish. That way, we can call addnode_finish also on children
-         * that were manually added by the user during addnode_begin and
-         * addnode_finish. */
-        const UA_NodeId nodeId_typesFolder = UA_NS0ID(TYPESFOLDER);
-        const UA_ReferenceTypeSet reftypes_aggregates =
-            UA_REFTYPESET(UA_REFERENCETYPEINDEX_AGGREGATES);
-        UA_ReferenceTypeSet reftypes_skipped =
-            UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
-        if(server->config.modellingRulesOnInstances ||
-           isNodeInTree(server, destinationNodeId, &nodeId_typesFolder, &reftypes_aggregates)) {
-            /* hasModellingRule-reference is required (configured or node in an
-             * instance declaration) */
-            UA_ReferenceTypeSet_add(&reftypes_skipped,
-                                    UA_REFERENCETYPEINDEX_HASMODELLINGRULE);
-        }
-        UA_Node_deleteReferencesSubset(node, &reftypes_skipped);
-
-        /* Add the node to the nodestore */
-        UA_NodeId newNodeId = UA_NODEID_NULL;
-        retval = UA_NODESTORE_INSERT(server, node, &newNodeId);
-        /* node = NULL; The pointer is no longer valid */
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-
-        /* Add the node references */
-        retval = addNode_addRefs(server, session, &newNodeId, destinationNodeId,
-                                 &rd->referenceTypeId, &rd->typeDefinition.nodeId);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_NODESTORE_REMOVE(server, &newNodeId);
-            UA_NodeId_clear(&newNodeId);
-            return retval;
-        }
-
-        if(rd->nodeClass == UA_NODECLASS_VARIABLE) {
-            retval = checkSetIsDynamicVariable(server, session, &newNodeId);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_NODESTORE_REMOVE(server, &newNodeId);
-                return retval;
-            }
-        }
-
-        /* For the new child, recursively copy the members of the original. No
-         * typechecking is performed here. Assuming that the original is
-         * consistent. */
-        retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &newNodeId);
-        if(retval != UA_STATUSCODE_GOOD) {
-            deleteNode(server, newNodeId, true);
-            return retval;
-        }
-
-        /* Check if its a dynamic variable, add all type and/or interface
-         * children and call the constructor */
-        retval = addNode_finish(server, session, &newNodeId);
-        if(retval != UA_STATUSCODE_GOOD) {
-            deleteNode(server, newNodeId, true);
-            return retval;
-        }
-
-        /* Clean up.  Because it can happen that a string is assigned as ID at
-         * generateChildNodeId. */
-        UA_NodeId_clear(&newNodeId);
+        retval = copyObjectVariableChild(server, session, destinationNodeId, rd);
     }
 
     return retval;
