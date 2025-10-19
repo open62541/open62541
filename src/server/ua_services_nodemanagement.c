@@ -508,28 +508,29 @@ findChildCallback(void *context, UA_ReferenceTarget *t) {
 UA_StatusCode
 findChildByBrowsename(UA_Server *server, UA_Session *session,
                       const UA_NodeId parentId, UA_NodeClass nodeClassMask,
+                      const UA_Byte refType, const UA_NodeId refTypeId,
                       const UA_QualifiedName *browseName,
-                      UA_NodeId *outInstanceNodeId) {
+                      UA_NodeId *outChildNodeId) {
+    /* Begin with HasComponent references only. This is the most common case as
+     * a "fast path". If this fails also look for subtypes of HasComponent. */
+    UA_Boolean subTypes = false;
+    UA_ReferenceTypeSet refTypes = UA_REFTYPESET(refType);
+
     /* Setup the context */
     struct findChildContext ctx;
     ctx.server = server;
     ctx.browseName = *browseName;
     ctx.browseNameHash = UA_QualifiedName_hash(browseName);
     ctx.nodeClassMask = nodeClassMask;
-    ctx.outInstanceNodeId = outInstanceNodeId;
-
-    /* Begin with HasComponent references only. This is the most common case as
-     * a "fast path". If this fails also look for subtypes of HasComponent. */
-    UA_Boolean subTypes = false;
-    UA_ReferenceTypeSet refTypes = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASCOMPONENT);
+    ctx.outInstanceNodeId = outChildNodeId;
 
     /* Get the parent node */
-    const UA_Node *parent = NULL;
     void *found = NULL;
- check_references:
-     parent = UA_NODESTORE_GET_SELECTIVE(server, &parentId,
-                                         UA_NODEATTRIBUTESMASK_NONE,
-                                         refTypes, UA_BROWSEDIRECTION_FORWARD);
+    const UA_Node *parent;
+ get_parent:
+    parent = UA_NODESTORE_GET_SELECTIVE(server, &parentId,
+                                        UA_NODEATTRIBUTESMASK_NONE,
+                                        refTypes, UA_BROWSEDIRECTION_FORWARD);
     if(!parent)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
@@ -547,26 +548,22 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
 
     UA_NODESTORE_RELEASE(server, parent);
 
+    /* Also consider subtypes of for references*/
+    if(!found && !subTypes) {
+        UA_StatusCode res =
+            referenceTypeIndices(server, &refTypeId, &refTypes, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        subTypes = true;
+        goto get_parent;
+    }
+
     /* Error */
     if(found == (void *)0x02)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* A matching method node was found */
-    if(UA_LIKELY(found != NULL))
-        return UA_STATUSCODE_GOOD;
-
-    /* Nothing found. Consider subtypes of HasComponent references also. */
-    if(!subTypes) {
-        UA_NodeId hasComponentId = UA_NS0ID(HASCOMPONENT);
-        UA_StatusCode res = referenceTypeIndices(server, &hasComponentId,
-                                                 &refTypes, true);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-        subTypes = true;
-        goto check_references;
-    }
-
-    return UA_STATUSCODE_BADNOTFOUND;
+    /* Done */
+    return (found) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOTFOUND;
 }
 
 static const UA_ExpandedNodeId mandatoryId =
@@ -678,8 +675,10 @@ copyChild(UA_Server *server, UA_Session *session,
     UA_NodeId existingChild = UA_NODEID_NULL;
     UA_NodeClass childNodeClass = (UA_NodeClass)
         (UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD);
-    UA_StatusCode retval = findChildByBrowsename(server, session, *destinationNodeId,
-                                                 childNodeClass, &rd->browseName,
+    UA_StatusCode retval = findChildByBrowsename(server, session,
+                                                 *destinationNodeId, childNodeClass,
+                                                 UA_REFERENCETYPEINDEX_AGGREGATES,
+                                                 UA_NS0ID(AGGREGATES), &rd->browseName,
                                                  &existingChild);
 
     /* Existing child with that browseName. Deep-copy missing members. */

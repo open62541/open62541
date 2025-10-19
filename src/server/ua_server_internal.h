@@ -353,15 +353,14 @@ UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *node
                    UA_BrowseDirection referenceDirections,
                    UA_EditNodeCallback callback, void *data);
 
-/* Search for a child (with an AGGREGATES reference or subtype thereof) with a
- * given browseName in a node. Returns the first match. Does not touch
- * outInstanceNodeId if no child is found. */
+/* Search for a child with a given browseNamee. Returns the first match. Does
+ * not touch outChildNodeId if no child is found. */
 UA_StatusCode
 findChildByBrowsename(UA_Server *server, UA_Session *session,
-                      const UA_NodeId parentId,
-                      UA_NodeClass nodeClassMask,
+                      const UA_NodeId parentId, UA_NodeClass nodeClassMask,
+                      const UA_Byte refType, const UA_NodeId refTypeId,
                       const UA_QualifiedName *browseName,
-                      UA_NodeId *outInstanceNodeId);
+                      UA_NodeId *outChildNodeId);
 
 /*********************/
 /* Utility Functions */
