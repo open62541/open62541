@@ -345,7 +345,7 @@ browseRecursiveCallback(void *context, UA_ReferenceTarget *t) {
         return NULL;
 
     /* Add the current node if we don't want to skip it as a start node and it
-     * matches the nodeClassMask filter Recurse into the children in any
+     * matches the nodeClassMask filter. Recurse into the children in any
      * case. */
     void *res = NULL;
     const UA_NodeHead *head = &node->head;
