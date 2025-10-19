@@ -81,179 +81,127 @@ UA_Node_hasSubTypeOrInstances(const UA_NodeHead *head) {
 }
 
 UA_StatusCode
-getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
-                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
-    UA_ReferenceTypeSet reftypes_subtype =
-        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
-    UA_ExpandedNodeId *subTypes = NULL;
-    size_t subTypesSize = 0;
-    UA_StatusCode retval = browseRecursive(server, 1, typeNode,
-                                           UA_BROWSEDIRECTION_INVERSE,
-                                           &reftypes_subtype, UA_NODECLASS_UNSPECIFIED,
-                                           false, &subTypesSize, &subTypes);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+getTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *leafNode,
+                             UA_Boolean includeLeaf, UA_NodeId **typeHierarchy,
+                             size_t *typeHierarchySize) {
+    UA_ReferenceTypeSet hastype = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
+    UA_ReferenceTypeSet hassubtype = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
+    UA_ReferenceTypeSet hasinterface = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
 
-    UA_ReferenceTypeSet reftypes_interface =
-        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
-    UA_ExpandedNodeId *interfaces = NULL;
-    size_t interfacesSize = 0;
-    retval = browseRecursive(server, 1, typeNode, UA_BROWSEDIRECTION_FORWARD,
-                             &reftypes_interface, UA_NODECLASS_UNSPECIFIED,
-                             false, &interfacesSize, &interfaces);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_NODEID]);
-        return retval;
+    /* Initialize the tree and add the leaf */
+    RefTree rt;
+    UA_StatusCode res = RefTree_init(&rt);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = RefTree_addNodeId(&rt, leafNode, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Get all types */
+    res = browseRecursiveRefTree(server, &rt, UA_BROWSEDIRECTION_FORWARD, &hastype,
+                                 UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Get all super types */
+    res = browseRecursiveRefTree(server, &rt, UA_BROWSEDIRECTION_INVERSE, &hassubtype,
+                                 UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Get all interfaces */
+    res = browseRecursiveRefTree(server, &rt, UA_BROWSEDIRECTION_FORWARD, &hasinterface,
+                                 UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE);
+
+ errout:
+    if(res != UA_STATUSCODE_GOOD || rt.size == 0) {
+        RefTree_clear(&rt);
+        return res;
     }
 
-    UA_NodeId *hierarchy = (UA_NodeId*)
-        UA_malloc(sizeof(UA_NodeId) * (1 + subTypesSize + interfacesSize));
-    if(!hierarchy) {
-        UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-        UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    /* Make the array of ExpandedNodeId into an array of NodeId */
+    UA_NodeId *outArray = (UA_NodeId*)rt.targets;
+    size_t pos = 0;
+    for(size_t i = 0; i < rt.size; i++) {
+        UA_NodeId *n = &outArray[pos];
+        UA_ExpandedNodeId *e = &rt.targets[i];
+        if(!UA_ExpandedNodeId_isLocal(e)) {
+            UA_ExpandedNodeId_clear(e);
+            continue;
+        }
+        *n = e->nodeId;
+        UA_String_clear(&e->namespaceUri);
+        pos++;
     }
 
-    retval = UA_NodeId_copy(typeNode, hierarchy);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(hierarchy);
-        UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-        UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    for(size_t i = 0; i < subTypesSize; i++) {
-        hierarchy[i+1] = subTypes[i].nodeId;
-        UA_NodeId_init(&subTypes[i].nodeId);
-    }
-    for(size_t i = 0; i < interfacesSize; i++) {
-        hierarchy[i+1+subTypesSize] = interfaces[i].nodeId;
-        UA_NodeId_init(&interfaces[i].nodeId);
-    }
-
-    *typeHierarchy = hierarchy;
-    *typeHierarchySize = subTypesSize + interfacesSize + 1;
-
-    UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-    UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    *typeHierarchySize = pos;
+    *typeHierarchy = outArray;
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
-                            const UA_NodeId *objectTypeNode,
-                            UA_NodeId **interfaceChildNodes,
-                            size_t *interfaceChildNodesSize) {
-    if(interfaceChildNodesSize == NULL || interfaceChildNodes == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    *interfaceChildNodesSize = 0;
-    *interfaceChildNodes = NULL;
+getAllInterfaces(UA_Server *server, const UA_NodeId *objectNode,
+                 UA_NodeId **interfaceNodes, size_t *interfaceNodesSize) {
+    UA_ReferenceTypeSet hastype = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
+    UA_ReferenceTypeSet hassubtype = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
+    UA_ReferenceTypeSet hasinterface = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
 
-    UA_ExpandedNodeId *hasInterfaceCandidates = NULL;
-    size_t hasInterfaceCandidatesSize = 0;
-    UA_ReferenceTypeSet reftypes_subtype =
-        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
+    /* Initialize the tree and add the leaf */
+    size_t beforeInterfaces = 0;
+    RefTree rt;
+    UA_StatusCode res = RefTree_init(&rt);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = RefTree_addNodeId(&rt, objectNode, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
 
-    UA_StatusCode retval =
-        browseRecursive(server, 1, objectTypeNode, UA_BROWSEDIRECTION_INVERSE,
-                        &reftypes_subtype, UA_NODECLASS_OBJECTTYPE,
-                        true, &hasInterfaceCandidatesSize,
-                        &hasInterfaceCandidates);
+    /* Get all types */
+    res = browseRecursiveRefTree(server, &rt, UA_BROWSEDIRECTION_FORWARD, &hastype,
+                                 UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
 
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    /* Get all super types */
+    res = browseRecursiveRefTree(server, &rt, UA_BROWSEDIRECTION_INVERSE, &hassubtype,
+                                 UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
 
-    /* The interface could also have been added manually before calling UA_Server_addNode_finish
-     * This can be handled by adding the object node as a start node for the HasInterface lookup */
-    UA_ExpandedNodeId *resizedHasInterfaceCandidates = (UA_ExpandedNodeId*)
-        UA_realloc(hasInterfaceCandidates,
-                   (hasInterfaceCandidatesSize + 1) * sizeof(UA_ExpandedNodeId));
+    /* Get all interfaces */
+    beforeInterfaces = rt.size; /* Return only the interfaces */
+    res = browseRecursiveRefTree(server, &rt, UA_BROWSEDIRECTION_FORWARD, &hasinterface,
+                                 UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE);
 
-    if(!resizedHasInterfaceCandidates) {
-        if(hasInterfaceCandidates)
-            UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize,
-                            &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+ errout:
+    if(res != UA_STATUSCODE_GOOD || rt.size == 0) {
+        RefTree_clear(&rt);
+        return res;
     }
 
-    hasInterfaceCandidates = resizedHasInterfaceCandidates;
-    hasInterfaceCandidatesSize += 1;
-    UA_ExpandedNodeId_init(&hasInterfaceCandidates[hasInterfaceCandidatesSize - 1]);
-
-    UA_ExpandedNodeId_init(&hasInterfaceCandidates[hasInterfaceCandidatesSize - 1]);
-    UA_NodeId_copy(objectNode, &hasInterfaceCandidates[hasInterfaceCandidatesSize - 1].nodeId);
-
-    size_t outputIndex = 0;
-
-    for(size_t i = 0; i < hasInterfaceCandidatesSize; ++i) {
-        UA_ReferenceTypeSet reftypes_interface =
-            UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
-        UA_ExpandedNodeId *interfaceChildren = NULL;
-        size_t interfacesChildrenSize = 0;
-        retval = browseRecursive(server, 1, &hasInterfaceCandidates[i].nodeId,
-                                 UA_BROWSEDIRECTION_FORWARD,
-                                 &reftypes_interface, UA_NODECLASS_OBJECTTYPE,
-                                 false, &interfacesChildrenSize, &interfaceChildren);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize,
-                            &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-            if(*interfaceChildNodesSize) {
-                UA_Array_delete(*interfaceChildNodes, *interfaceChildNodesSize,
-                                &UA_TYPES[UA_TYPES_NODEID]);
-                *interfaceChildNodesSize = 0;
-            }
-            return retval;
-        }
-
-        UA_assert(interfacesChildrenSize < 1000);
-
-        if(interfacesChildrenSize == 0) {
+    /* Make the array of ExpandedNodeId into an array of NodeId */
+    UA_NodeId *outArray = (UA_NodeId*)rt.targets;
+    size_t pos = 0;
+    for(size_t i = 0; i < rt.size; i++) {
+        UA_NodeId *n = &outArray[pos];
+        UA_ExpandedNodeId *e = &rt.targets[i];
+        if(i < beforeInterfaces || !UA_ExpandedNodeId_isLocal(e)) {
+            UA_ExpandedNodeId_clear(e);
             continue;
         }
-
-        if(!*interfaceChildNodes) {
-            *interfaceChildNodes = (UA_NodeId*)
-                UA_calloc(interfacesChildrenSize, sizeof(UA_NodeId));
-            *interfaceChildNodesSize = interfacesChildrenSize;
-
-            if(!*interfaceChildNodes) {
-                UA_Array_delete(interfaceChildren, interfacesChildrenSize,
-                                &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-                UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize,
-                                &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-        } else {
-            UA_NodeId *resizedInterfaceChildNodes = (UA_NodeId*)
-                UA_realloc(*interfaceChildNodes,
-                           ((*interfaceChildNodesSize + interfacesChildrenSize) * sizeof(UA_NodeId)));
-
-            if(!resizedInterfaceChildNodes) {
-                UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize,
-                                &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-                UA_Array_delete(interfaceChildren, interfacesChildrenSize,
-                                &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-
-            const size_t oldSize = *interfaceChildNodesSize;
-            *interfaceChildNodesSize += interfacesChildrenSize;
-            *interfaceChildNodes = resizedInterfaceChildNodes;
-
-            for(size_t j = oldSize; j < *interfaceChildNodesSize; ++j)
-                UA_NodeId_init(&(*interfaceChildNodes)[j]);
-        }
-
-        for(size_t j = 0; j < interfacesChildrenSize; j++) {
-            (*interfaceChildNodes)[outputIndex++] = interfaceChildren[j].nodeId;
-        }
-
-        UA_assert(*interfaceChildNodesSize < 1000);
-        UA_Array_delete(interfaceChildren, interfacesChildrenSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+        *n = e->nodeId;
+        UA_String_clear(&e->namespaceUri);
+        pos++;
     }
 
-    UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    /* No interfaces found */
+    if(pos == 0) {
+        RefTree_clear(&rt);
+        outArray = NULL;
+    }
 
+    *interfaceNodesSize = pos;
+    *interfaceNodes = outArray;
     return UA_STATUSCODE_GOOD;
 }
 
