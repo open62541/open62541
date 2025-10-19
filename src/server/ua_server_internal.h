@@ -660,6 +660,15 @@ RefTree_contains(RefTree *rt, const UA_ExpandedNodeId *target);
 UA_Boolean
 RefTree_containsNodeId(RefTree *rt, const UA_NodeId *target);
 
+/* Browse recursive starting from all nodes already in the rt. Add matching
+ * targets to the rt and continue. Does not clean up the rt in case of an
+ * error. */
+UA_StatusCode
+browseRecursiveRefTree(UA_Server *server, RefTree *rt,
+                       UA_BrowseDirection browseDirection,
+                       const UA_ReferenceTypeSet *refTypes,
+                       UA_UInt32 nodeClassMask);
+
 /***************************************/
 /* Check Information Model Consistency */
 /***************************************/
