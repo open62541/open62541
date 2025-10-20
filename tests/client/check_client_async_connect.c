@@ -82,6 +82,8 @@ START_TEST(Client_connect_async) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_BrowseRequest_clear(&bReq);
+    ck_assert_uint_eq(connected, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Client_disconnectAsync(client);
     while(connected) {
         UA_Server_run_iterate(server, false);
