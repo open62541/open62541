@@ -13,11 +13,12 @@
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017-2018 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Christian von Arnim
- *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
- *    Copyright 2017 (c) Henrik Norrman
- *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and
+ * umati) Copyright 2017 (c) Henrik Norrman Copyright 2021 (c) Fraunhofer IOSB (Author:
+ * Andreas Ebner)
  */
 
+#include "ua_nodes.h"
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
@@ -192,7 +193,8 @@ static UA_StatusCode
 setDefaultValue(UA_Server *server, const UA_VariableNode *node) {
     /* Get the DataType */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    const UA_DataType *type = UA_Server_findDataType(server, &node->dataType);
+    const UA_NodeId *dataType = UA_VariableNode_getDataType(node);
+    const UA_DataType *type = UA_Server_findDataType(server, dataType);
     if(!type) {
         /* No description for the DataType found. It is possible that an
          * abstract DataType is used, e.g. UInteger. Browse to see if there is a
@@ -204,7 +206,7 @@ setDefaultValue(UA_Server *server, const UA_VariableNode *node) {
         UA_ReferenceTypeSet refs = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
         UA_ExpandedNodeId *typeCandidates = NULL;
         size_t typeCandidatesSize = 0;
-        res = browseRecursive(server, 1, &node->dataType,
+        res = browseRecursive(server, 1, dataType,
                               UA_BROWSEDIRECTION_BOTH, &refs,
                               UA_NODECLASS_DATATYPE, false,
                               &typeCandidatesSize, &typeCandidates);
@@ -239,7 +241,8 @@ setDefaultValue(UA_Server *server, const UA_VariableNode *node) {
     /* Set up the value with the default content */
     UA_Variant val;
     UA_Variant_init(&val);
-    if(node->valueRank < 0) {
+    UA_Int32 valueRank = UA_VariableNode_getValueRank(node);
+    if(valueRank < 0) {
         /* Set a scalar */
         void *data = UA_new(type);
         if(!data)
@@ -282,7 +285,8 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
                       const UA_VariableNode *node,
                       const UA_VariableTypeNode *vt) {
     /* Check the datatype against the vt */
-    if(!compatibleDataTypes(server, &node->dataType, &vt->dataType)) {
+    const UA_NodeId *dataType = UA_VariableNode_getDataType(node);
+    if(!compatibleDataTypes(server, dataType, &vt->dataType)) {
         logAddNode(server->config.logging, session, &node->head.nodeId,
                    "The value of is incompatible with "
                    "the datatype of the VariableType");
@@ -290,24 +294,27 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     }
 
     /* Check valueRank against array dimensions */
-    if(!compatibleValueRankArrayDimensions(server, session, node->valueRank,
-                                           node->arrayDimensionsSize)) {
+    UA_Int32 valueRank = UA_VariableNode_getValueRank(node);
+    size_t arrayDimensionsSize = UA_VariableNode_getArrayDimensionsSize(node);
+    if(!compatibleValueRankArrayDimensions(server, session, valueRank,
+                                           arrayDimensionsSize)) {
         logAddNode(server->config.logging, session, &node->head.nodeId,
                    "The value rank of is incompatible with its array dimensions");
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
     /* Check valueRank against the vt */
-    if(!compatibleValueRanks(node->valueRank, vt->valueRank)) {
+    if(!compatibleValueRanks(valueRank, vt->valueRank)) {
         logAddNode(server->config.logging, session, &node->head.nodeId,
                    "The value rank is incompatible "
                    "with the value rank of the VariableType");
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
+    const UA_UInt32 *arrayDimensions = UA_VariableNode_getArrayDimensions(node);
     /* Check array dimensions against the vt */
     if(!compatibleArrayDimensions(vt->arrayDimensionsSize, vt->arrayDimensions,
-                                  node->arrayDimensionsSize, node->arrayDimensions)) {
+                                  arrayDimensionsSize, arrayDimensions)) {
         logAddNode(server->config.logging, session, &node->head.nodeId,
                    "The array dimensions are incompatible with the "
                    "array dimensions of the VariableType");
@@ -328,10 +335,11 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
         return retval;
 
     /* We have a value. Write it back to perform checks and adjustments. */
+    UA_ValueSourceType valueSourceType = UA_VariableNode_getValueSource(node)->type;
     const char *reason;
-    if(node->valueSourceType == UA_VALUESOURCETYPE_INTERNAL && value.hasValue) {
-        if(!compatibleValue(server, session, &node->dataType, node->valueRank,
-                            node->arrayDimensionsSize, node->arrayDimensions,
+    if (valueSourceType == UA_VALUESOURCETYPE_INTERNAL && value.hasValue) {
+        if(!compatibleValue(server, session, dataType, valueRank,
+                            arrayDimensionsSize, arrayDimensions,
                             &value.value, NULL, &reason)) {
             retval = writeAttribute(server, session, &node->head.nodeId,
                                     UA_ATTRIBUTEID_VALUE, &value.value,
@@ -343,7 +351,7 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
 
     /* Only BaseDataType (Variant) can have empty values */
     if(!value.hasValue &&
-       !UA_NodeId_equal(&node->dataType, &UA_TYPES[UA_TYPES_VARIANT].typeId)) {
+       !UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_VARIANT].typeId)) {
         /* Warn if that is configured */
         if(server->config.allowEmptyVariables != UA_RULEHANDLING_ACCEPT)
             UA_LOG_DEBUG_SESSION(server->config.logging, session,
@@ -371,9 +379,9 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
 
     /* Type-check the value */
     UA_Boolean compatible =
-        compatibleValue(server, session, &node->dataType,
-            node->valueRank, node->arrayDimensionsSize,
-            node->arrayDimensions, &value.value, NULL, &reason);
+        compatibleValue(server, session, dataType,
+            valueRank, arrayDimensionsSize,
+            arrayDimensions, &value.value, NULL, &reason);
     if(!compatible) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "AddNode (%N): The VariableNode value has "
@@ -436,7 +444,8 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
     UA_DataValue_clear(&dv);
 
     /* If no datatype is given, use the datatype of the vt */
-    if(UA_NodeId_isNull(&node->dataType)) {
+    const UA_NodeId *dataType = UA_VariableNode_getDataType(node);
+    if(UA_NodeId_isNull(dataType)) {
         logAddNode(server->config.logging, session, &node->head.nodeId,
                    "No datatype given; Copy the datatype attribute "
                    "from the TypeDefinition");
@@ -448,7 +457,8 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
     }
 
     /* Use the ArrayDimensions of the vt */
-    if(node->arrayDimensionsSize == 0 && vt->arrayDimensionsSize > 0) {
+    size_t arrayDimensionsSize = UA_VariableNode_getArrayDimensionsSize(node);
+    if(arrayDimensionsSize == 0 && vt->arrayDimensionsSize > 0) {
         UA_Variant v;
         UA_Variant_init(&v);
         UA_Variant_setArray(&v, vt->arrayDimensions, vt->arrayDimensionsSize,
@@ -666,16 +676,17 @@ copyChild(UA_Server *server, UA_Session *session,
          * to keep it here. */
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE ||
            node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
-            if(node->variableNode.valueSourceType == UA_VALUESOURCETYPE_INTERNAL ||
-               node->variableNode.valueSourceType == UA_VALUESOURCETYPE_EXTERNAL) {
-                memset(&node->variableNode.valueSource.internal.notifications, 0,
+            UA_ValueSource *valueSource = (UA_ValueSource *) (uintptr_t) UA_Node_Variable_or_VariableType_getValueSource (node);
+            if(valueSource->type == UA_VALUESOURCETYPE_INTERNAL ||
+               valueSource->type == UA_VALUESOURCETYPE_EXTERNAL) {
+                memset(&valueSource->source.internal.notifications, 0,
                        sizeof(UA_ValueSourceNotifications));
             } else {
-                memset(&node->variableNode.valueSource.callback, 0,
+                memset(&valueSource->source.callback, 0,
                        sizeof(UA_CallbackValueSource));
 
             }
-            node->variableNode.valueSourceType = UA_VALUESOURCETYPE_INTERNAL;
+            valueSource->type = UA_VALUESOURCETYPE_INTERNAL;
         }
 
         /* Reset the NodeId (random numeric id will be assigned in the nodestore) */
@@ -1084,12 +1095,15 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
         goto create_error;
 
     /* Create a current source timestamp for values that don't have any */
-    if(node->head.nodeClass == UA_NODECLASS_VARIABLE &&
-       node->variableNode.valueSourceType == UA_VALUESOURCETYPE_INTERNAL &&
-       !node->variableNode.valueSource.internal.value.hasSourceTimestamp) {
-        UA_EventLoop *el = server->config.eventLoop;
-        node->variableNode.valueSource.internal.value.sourceTimestamp = el->dateTime_now(el);
-        node->variableNode.valueSource.internal.value.hasSourceTimestamp = true;
+    if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
+        UA_ValueSource *valueSource = (UA_ValueSource *) (uintptr_t) UA_VariableNode_getValueSource (&node->variableNode);
+        if (valueSource->type == UA_VALUESOURCETYPE_INTERNAL &&
+            !valueSource->source.internal.value.hasSourceTimestamp)
+        {
+            UA_EventLoop *el = server->config.eventLoop;
+            valueSource->source.internal.value.sourceTimestamp = el->dateTime_now(el);
+            valueSource->source.internal.value.hasSourceTimestamp = true;
+        }
     }
 
     /* Add the node to the nodestore */
@@ -1380,7 +1394,7 @@ setVariableNodeDynamic(UA_Server *server, const UA_NodeId *nodeId,
         return UA_STATUSCODE_BADNODEIDINVALID;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE)
-        ((UA_VariableNode*)node)->isDynamic = isDynamic;
+        UA_VariableNode_setDynamic ((UA_VariableNode *)node, isDynamic);
     else
         res = UA_STATUSCODE_BADINTERNALERROR;
     UA_NODESTORE_RELEASE(server, node);
@@ -2463,42 +2477,11 @@ setInternalValueSourceCB(UA_Server *server, UA_Session *session,
                          UA_VariableNode *vn, const void *ctx) {
     const struct SetInternalValueContext *ivc =
         (const struct SetInternalValueContext*)ctx;
-
     /* Check the node class */
     if(vn->head.nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-
-    /* Make a copy of the supplied value */
-    UA_DataValue val;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(ivc->value) {
-        res = UA_DataValue_copy(ivc->value, &val);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
-    }
-
-    /* Replace the previous internal value */
-    if(vn->valueSourceType == UA_VALUESOURCETYPE_INTERNAL) {
-        if(ivc->value) {
-            UA_DataValue_clear(&vn->valueSource.internal.value);
-            vn->valueSource.internal.value = val;
-        }
-    } else {
-        if(ivc->value)
-            vn->valueSource.internal.value = val;
-        else
-            UA_DataValue_init(&vn->valueSource.internal.value);
-        vn->valueSourceType = UA_VALUESOURCETYPE_INTERNAL;
-    }
-
-    /* Set the notification callbacks */
-    if(ivc->notifications)
-        vn->valueSource.internal.notifications = *ivc->notifications;
-    else
-        memset(&vn->valueSource.internal.notifications, 0,
-               sizeof(UA_ValueSourceNotifications));
-
-    return UA_STATUSCODE_GOOD;
+    UA_ValueSource *source = (UA_ValueSource *) (uintptr_t) UA_VariableNode_getValueSource (vn);
+    return UA_ValueSource_setInternal(source, ivc->value, ivc->notifications);
 }
 
 UA_StatusCode
@@ -2542,21 +2525,8 @@ setExternalValueSourceCB(UA_Server *server, UA_Session *session,
     /* Check the node class */
     if(vn->head.nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-
-    /* Clean the previous internal value */
-    if(vn->valueSourceType == UA_VALUESOURCETYPE_INTERNAL && evc->value)
-        UA_DataValue_clear(&vn->valueSource.internal.value);
-
-    /* Set the value */
-    vn->valueSourceType = UA_VALUESOURCETYPE_EXTERNAL;
-    vn->valueSource.external.value = evc->value;
-    if(evc->notifications)
-        vn->valueSource.external.notifications = *evc->notifications;
-    else
-        memset(&vn->valueSource.external.notifications, 0,
-               sizeof(UA_ValueSourceNotifications));
-
-    return UA_STATUSCODE_GOOD;
+    UA_ValueSource *source = (UA_ValueSource *) (uintptr_t) UA_VariableNode_getValueSource (vn);
+    return UA_ValueSource_setExternal(source, evc->value, evc->notifications);
 }
 
 UA_StatusCode
@@ -2589,16 +2559,8 @@ setCallbackValueSourceCB(UA_Server *server, UA_Session *session,
     /* Check the node class */
     if(vn->head.nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-
-    /* Clean up the internal value */
-    if(vn->valueSourceType == UA_VALUESOURCETYPE_INTERNAL)
-        UA_DataValue_clear(&vn->valueSource.internal.value);
-
-    /* Replace the value source */
-    vn->valueSource.callback = *evs;
-    vn->valueSourceType = UA_VALUESOURCETYPE_CALLBACK;
-
-    return UA_STATUSCODE_GOOD;
+    UA_ValueSource *source = (UA_ValueSource *) (uintptr_t) UA_VariableNode_getValueSource (vn);
+    return UA_ValueSource_setCallback(source, evs);
 }
 
 UA_StatusCode

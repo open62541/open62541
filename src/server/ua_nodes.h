@@ -7,18 +7,45 @@
 
 _UA_BEGIN_DECLS
 
+UA_StatusCode UA_ValueSource_setInternal (
+  UA_ValueSource* valueSource,
+  const UA_DataValue *value,
+  const UA_ValueSourceNotifications *notifications
+);
+
+UA_StatusCode UA_ValueSource_setExternal(
+  UA_ValueSource* valueSource,
+  UA_DataValue **value,
+  const UA_ValueSourceNotifications *notifications
+);
+
+UA_StatusCode UA_ValueSource_setCallback(
+  UA_ValueSource* valueSource,
+  const UA_CallbackValueSource *callbackValueSource
+);
+
 const UA_NodeId* UA_Node_Variable_or_VariableType_getDataType(const UA_Node *node);
 
+UA_StatusCode UA_Node_Variable_or_VariableType_setDataType(
+  UA_Node *node,
+  const UA_NodeId *dataType
+);
+
 UA_Int32 UA_Node_Variable_or_VariableType_getValueRank(const UA_Node* node);
+
+void UA_Node_Variable_or_VariableType_setValueRank(UA_Node* node, UA_Int32 valueRank);
 
 size_t UA_Node_Variable_or_VariableType_getArrayDimensionsSize(const UA_Node *node);
 
 const UA_UInt32* UA_Node_Variable_or_VariableType_getArrayDimensions(const UA_Node *node);
 
-UA_ValueSourceType UA_Node_Variable_or_VariableType_getValueSourceType(const UA_Node* node);
+UA_StatusCode UA_Node_Variable_or_VariableType_setArrayDimensions(
+  UA_Node *node,
+  size_t arrayDimensionsSize,
+  const UA_UInt32 *arrayDimensions
+);
 
 const UA_ValueSource *UA_Node_Variable_or_VariableType_getValueSource(const UA_Node* node);
-
 
 // UA_VariableNode
 
@@ -26,8 +53,22 @@ UA_INLINE const UA_NodeId* UA_VariableNode_getDataType(const UA_VariableNode* no
   return UA_Node_Variable_or_VariableType_getDataType ((const UA_Node *) node);
 }
 
+UA_INLINE UA_StatusCode UA_VariableNode_setDataType(
+  UA_VariableNode *node,
+  const UA_NodeId *dataType
+) {
+  return UA_Node_Variable_or_VariableType_setDataType(
+    (UA_Node *)node,
+    dataType
+  );
+}
+
 UA_INLINE UA_Int32 UA_VariableNode_getValueRank(const UA_VariableNode* node) {
   return UA_Node_Variable_or_VariableType_getValueRank((const UA_Node *) node);
+}
+
+UA_INLINE void UA_VariableNode_setValueRank(UA_VariableNode* node, UA_Int32 valueRank) {
+  UA_Node_Variable_or_VariableType_setValueRank((UA_Node *) node, valueRank);
 }
 
 UA_INLINE size_t UA_VariableNode_getArrayDimensionsSize(const UA_VariableNode* node) {
@@ -38,12 +79,20 @@ UA_INLINE const UA_UInt32* UA_VariableNode_getArrayDimensions(const UA_VariableN
   return UA_Node_Variable_or_VariableType_getArrayDimensions((const UA_Node *) node);
 }
 
-UA_INLINE UA_ValueSourceType UA_VariableNode_getValueSourceType(const UA_VariableNode* node) {
-  return UA_Node_Variable_or_VariableType_getValueSourceType ((const UA_Node *) node);
+UA_INLINE UA_StatusCode UA_VariableNode_setArrayDimensions(
+  UA_VariableNode *node,
+  size_t arrayDimensionsSize,
+  const UA_UInt32 *arrayDimensions
+) {
+  return UA_Node_Variable_or_VariableType_setArrayDimensions(
+    (UA_Node *)node,
+    arrayDimensionsSize,
+    arrayDimensions
+  );
 }
 
 UA_INLINE const UA_ValueSource *UA_VariableNode_getValueSource(const UA_VariableNode* node) {
-  return UA_Node_Variable_or_VariableType_getValueSource ((const UA_Node *) node);
+  return UA_Node_Variable_or_VariableType_getValueSource((const UA_Node *) node);
 }
 
 UA_Byte UA_VariableNode_getAccessLevel(const UA_VariableNode* node);
@@ -60,8 +109,7 @@ void UA_VariableNode_setHistorizing(const UA_VariableNode* node, UA_Boolean hist
 
 UA_Boolean UA_VariableNode_isDynamic(const UA_VariableNode* node);
 
-
-
+void UA_VariableNode_setDynamic(UA_VariableNode* node, UA_Boolean isDynamic);
 
 _UA_END_DECLS
 

@@ -1205,23 +1205,27 @@ UA_Node_insertOrUpdateDescription(UA_NodeHead *head,
 }
 
 UA_Byte UA_VariableNode_getAccessLevel(const UA_VariableNode* node) {
-    return node->privateAttr.accessLevel;
+    return node->attr.accessLevel;
 }
 
 void UA_VariableNode_setAccessLevel(UA_VariableNode* node, UA_Byte accessLevel) {
-    node->privateAttr.accessLevel = accessLevel;
+    node->attr.accessLevel = accessLevel;
 }
 
 UA_Double UA_VariableNode_getMinimumSamplingInterval(const UA_VariableNode* node) {
-    return node->privateAttr.minimumSamplingInterval;
+    return node->attr.minimumSamplingInterval;
 }
 
 UA_Boolean UA_VariableNode_getHistorizing(const UA_VariableNode* node) {
-    return node->privateAttr.historizing;
+    return node->attr.historizing;
 }
 
 UA_Boolean UA_VariableNode_isDynamic(const UA_VariableNode* node) {
-    return node->privateAttr.isDynamic;
+    return node->attr.isDynamic;
+}
+
+void UA_VariableNode_setDynamic(UA_VariableNode* node, UA_Boolean isDynamic) {
+    node->attr.isDynamic = isDynamic;
 }
 
 /*
@@ -1230,42 +1234,131 @@ UA_Boolean UA_VariableNode_isDynamic(const UA_VariableNode* node) {
  */
 
 const UA_NodeId* UA_Node_Variable_or_VariableType_getDataType(const UA_Node *node) {
-   return &node->variableNode.privateAttr.dataType;
+   return &node->variableNode.attr.dataType;
 }
 
+UA_StatusCode UA_Node_Variable_or_VariableType_setDataType(
+  UA_Node *node,
+  const UA_NodeId *dataType
+)
+{
+    UA_NodeId dtCopy = node->variableNode.attr.dataType;
+    UA_StatusCode retval = UA_NodeId_copy(dataType, &node->variableNode.attr.dataType);
+    if(retval != UA_STATUSCODE_GOOD) {
+        node->variableNode.attr.dataType = dtCopy;
+        return retval;
+    }
+    UA_NodeId_clear(&dtCopy);
+    return UA_STATUSCODE_GOOD;
+}
+
+
 UA_Int32 UA_Node_Variable_or_VariableType_getValueRank(const UA_Node* node) {
-   return node->variableNode.privateAttr.valueRank;
+   return node->variableNode.attr.valueRank;
+}
+
+void UA_Node_Variable_or_VariableType_setValueRank(UA_Node* node, UA_Int32 valueRank) {
+    node->variableNode.attr.valueRank = valueRank;
 }
 
 size_t UA_Node_Variable_or_VariableType_getArrayDimensionsSize(const UA_Node *node) {
-    return node->variableNode.privateAttr.arrayDimensionsSize;
+    return node->variableNode.attr.arrayDimensionsSize;
 }
 
 const UA_UInt32* UA_Node_Variable_or_VariableType_getArrayDimensions(const UA_Node *node) {
-    return node->variableNode.privateAttr.arrayDimensions;
+    return node->variableNode.attr.arrayDimensions;
 }
 
-UA_ValueSourceType UA_Node_Variable_or_VariableType_getValueSourceType(const UA_Node* node) {
-    return node->variableNode.privateAttr.valueSourceType;
+UA_StatusCode UA_Node_Variable_or_VariableType_setArrayDimensions (
+  UA_Node *node,
+  size_t arrayDimensionsSize,
+  const UA_UInt32 *arrayDimensions
+)
+{
+    UA_UInt32 *oldArrayDimensions = node->variableNode.attr.arrayDimensions;
+    size_t oldArrayDimensionsSize = node->variableNode.attr.arrayDimensionsSize;
+    UA_StatusCode retval = UA_Array_copy(arrayDimensions, arrayDimensionsSize,
+                           (void**) &node->variableNode.attr.arrayDimensions,
+                           &UA_TYPES[UA_TYPES_UINT32]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_Array_delete (oldArrayDimensions, oldArrayDimensionsSize, &UA_TYPES[UA_TYPES_UINT32]);
+    node->variableNode.attr.arrayDimensionsSize = arrayDimensionsSize;
+    return UA_STATUSCODE_GOOD;
 }
+
 
 const UA_ValueSource *UA_Node_Variable_or_VariableType_getValueSource(const UA_Node* node) {
-    return &node->variableNode.privateAttr.valueSource;
+    return &node->variableNode.attr.valueSource;
 }
 
+UA_StatusCode UA_ValueSource_setInternal (
+  UA_ValueSource* valueSource,
+  const UA_DataValue *value,
+  const UA_ValueSourceNotifications *notifications
+) {
+    /* Make a copy of the supplied value */
+    UA_DataValue val;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if (value) {
+        res = UA_DataValue_copy(value, &val);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
 
+    /* Replace the previous internal value */
+    if(valueSource->type == UA_VALUESOURCETYPE_INTERNAL) {
+        if(value) {
+            UA_DataValue_clear(&valueSource->source.internal.value);
+            valueSource->source.internal.value = val;
+        }
+    } else {
+        if(value)
+            valueSource->source.internal.value = val;
+        else
+            UA_DataValue_init(&valueSource->source.internal.value);
+        valueSource->type = UA_VALUESOURCETYPE_INTERNAL;
+    }
 
+    /* Set the notification callbacks */
+    if(notifications)
+        valueSource->source.internal.notifications = *notifications;
+    else
+        memset(&valueSource->source.internal.notifications, 0,
+               sizeof(UA_ValueSourceNotifications));
 
+    return UA_STATUSCODE_GOOD;
+}
 
+UA_StatusCode UA_ValueSource_setExternal(
+  UA_ValueSource* valueSource,
+  UA_DataValue **value,
+  const UA_ValueSourceNotifications *notifications
+) {
+    if(valueSource->type == UA_VALUESOURCETYPE_INTERNAL && value)
+        UA_DataValue_clear(&valueSource->source.internal.value);
 
+    /* Set the value */
+    valueSource->type = UA_VALUESOURCETYPE_EXTERNAL;
+    valueSource->source.external.value = value;
+    if(notifications)
+        valueSource->source.external.notifications = *notifications;
+    else
+        memset(&valueSource->source.external.notifications, 0,
+               sizeof(UA_ValueSourceNotifications));
+    return UA_STATUSCODE_GOOD;
+}
 
+UA_StatusCode UA_ValueSource_setCallback(
+  UA_ValueSource* valueSource,
+  const UA_CallbackValueSource *callbackValueSource
+) {
+    /* Clean up the internal value */
+    if(valueSource->type == UA_VALUESOURCETYPE_INTERNAL)
+        UA_DataValue_clear(&valueSource->source.internal.value);
 
-
-
-
-
-
-
-
-
-
+    /* Replace the value source */
+    valueSource->source.callback = *callbackValueSource;
+    valueSource->type = UA_VALUESOURCETYPE_CALLBACK;
+    return UA_STATUSCODE_GOOD;
+}

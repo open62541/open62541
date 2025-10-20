@@ -300,6 +300,11 @@ typedef union {
         UA_ValueSourceNotifications notifications;
     } external;
     UA_CallbackValueSource callback;
+} UA_ValueSourceKind;
+
+typedef struct UA_ValueSource {
+  UA_ValueSourceType type;
+  UA_ValueSourceKind source;
 } UA_ValueSource;
 
 /**
@@ -314,7 +319,6 @@ typedef union {
     UA_UInt32 *arrayDimensions;                                         \
                                                                         \
     /* The current value */                                             \
-    UA_ValueSourceType valueSourceType;                                 \
     UA_ValueSource valueSource;                                         \
 
 typedef struct {
@@ -331,7 +335,7 @@ typedef struct {
                                * background. Only dynamic variables conserve source
                                * and server timestamp for the value attribute.
                                * Static variables have timestamps of "now". */
-    } privateAttr;
+    } attr;
 } UA_VariableNode;
 
 /**
