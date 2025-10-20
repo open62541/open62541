@@ -290,6 +290,23 @@ struct UA_NodeHead {
 #endif
 };
 
+typedef union {
+    struct {
+        UA_DataValue value;
+        UA_ValueSourceNotifications notifications;
+    } internal;
+    struct {
+        UA_DataValue **value; /* double-pointer */
+        UA_ValueSourceNotifications notifications;
+    } external;
+    UA_CallbackValueSource callback;
+} UA_ValueSourceKind;
+
+typedef struct UA_ValueSource {
+  UA_ValueSourceType type;
+  UA_ValueSourceKind source;
+} UA_ValueSource;
+
 /**
  * VariableNode
  * ------------ */
@@ -302,32 +319,23 @@ struct UA_NodeHead {
     UA_UInt32 *arrayDimensions;                                         \
                                                                         \
     /* The current value */                                             \
-    UA_ValueSourceType valueSourceType;                                 \
-    union {                                                             \
-        struct {                                                        \
-            UA_DataValue value;                                         \
-            UA_ValueSourceNotifications notifications;                  \
-        } internal;                                                     \
-        struct {                                                        \
-            UA_DataValue **value; /* double-pointer */                  \
-            UA_ValueSourceNotifications notifications;                  \
-        } external;                                                     \
-        UA_CallbackValueSource callback;                                \
-    } valueSource;
+    UA_ValueSource valueSource;                                         \
 
 typedef struct {
     UA_NodeHead head;
-    UA_NODE_VARIABLEATTRIBUTES
-    UA_Byte accessLevel;
-    UA_Double minimumSamplingInterval;
-    UA_Boolean historizing;
+    struct {
+        UA_NODE_VARIABLEATTRIBUTES
+        UA_Byte accessLevel;
+        UA_Double minimumSamplingInterval;
+        UA_Boolean historizing;
 
-    /* Members specific to open62541 */
-    UA_Boolean isDynamic; /* Some variables are "static" in the sense that they
-                           * are not attached to a dynamic process in the
-                           * background. Only dynamic variables conserve source
-                           * and server timestamp for the value attribute.
-                           * Static variables have timestamps of "now". */
+        /* Members specific to open62541 */
+        UA_Boolean isDynamic; /* Some variables are "static" in the sense that they
+                               * are not attached to a dynamic process in the
+                               * background. Only dynamic variables conserve source
+                               * and server timestamp for the value attribute.
+                               * Static variables have timestamps of "now". */
+    } attr;
 } UA_VariableNode;
 
 /**
@@ -336,11 +344,13 @@ typedef struct {
 
 typedef struct {
     UA_NodeHead head;
-    UA_NODE_VARIABLEATTRIBUTES
-    UA_Boolean isAbstract;
+    struct {
+      UA_NODE_VARIABLEATTRIBUTES
+      UA_Boolean isAbstract;
 
-    /* Members specific to open62541 */
-    UA_NodeTypeLifecycle lifecycle;
+      /* Members specific to open62541 */
+      UA_NodeTypeLifecycle lifecycle;
+    }attr;
 } UA_VariableTypeNode;
 
 /**

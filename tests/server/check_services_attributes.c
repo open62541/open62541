@@ -6,13 +6,15 @@
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
-#include "testing_clock.h"
-#include "test_helpers.h"
+#include <ua_nodes.h>
 
 #include <check.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+
+#include "test_helpers.h"
+#include "testing_clock.h"
 
 #ifdef __clang__
 //required for ck_assert_ptr_eq and const casting
@@ -172,9 +174,11 @@ static UA_VariableNode* makeCompareSequence(void) {
         UA_NODESTORE_NEW(server, UA_NODECLASS_VARIABLE);
 
     UA_Int32 myInteger = 42;
-    UA_Variant_setScalarCopy(&node->valueSource.internal.value.value,
+
+    UA_ValueSource *valueSource = (UA_ValueSource *) (uintptr_t) UA_VariableNode_getValueSource(node);
+    UA_Variant_setScalarCopy(&valueSource->source.internal.value.value,
                              &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    node->valueSource.internal.value.hasValue = true;
+    valueSource->source.internal.value.hasValue = true;
 
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     UA_QualifiedName_copy(&myIntegerName, &node->head.browseName);
@@ -558,7 +562,7 @@ START_TEST(ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp) {
 
     UA_Double* respval = (UA_Double*) resp.value.data;
     UA_VariableNode *compNode = makeCompareSequence();
-    UA_Double comp = (UA_Double) compNode->minimumSamplingInterval;
+    UA_Double comp = (UA_Double) UA_VariableNode_getMinimumSamplingInterval(compNode);
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_DOUBLE] == resp.value.type);
     ck_assert(*respval == comp);
