@@ -49,11 +49,11 @@ const UA_ValueSource *UA_Node_Variable_or_VariableType_getValueSource(const UA_N
 
 // UA_VariableNode
 
-UA_INLINE const UA_NodeId* UA_VariableNode_getDataType(const UA_VariableNode* node) {
+static UA_INLINE const UA_NodeId* UA_VariableNode_getDataType(const UA_VariableNode* node) {
   return UA_Node_Variable_or_VariableType_getDataType ((const UA_Node *) node);
 }
 
-UA_INLINE UA_StatusCode UA_VariableNode_setDataType(
+static UA_INLINE UA_StatusCode UA_VariableNode_setDataType(
   UA_VariableNode *node,
   const UA_NodeId *dataType
 ) {
@@ -63,23 +63,23 @@ UA_INLINE UA_StatusCode UA_VariableNode_setDataType(
   );
 }
 
-UA_INLINE UA_Int32 UA_VariableNode_getValueRank(const UA_VariableNode* node) {
+static UA_INLINE UA_Int32 UA_VariableNode_getValueRank(const UA_VariableNode* node) {
   return UA_Node_Variable_or_VariableType_getValueRank((const UA_Node *) node);
 }
 
-UA_INLINE void UA_VariableNode_setValueRank(UA_VariableNode* node, UA_Int32 valueRank) {
+static UA_INLINE void UA_VariableNode_setValueRank(UA_VariableNode* node, UA_Int32 valueRank) {
   UA_Node_Variable_or_VariableType_setValueRank((UA_Node *) node, valueRank);
 }
 
-UA_INLINE size_t UA_VariableNode_getArrayDimensionsSize(const UA_VariableNode* node) {
+static UA_INLINE size_t UA_VariableNode_getArrayDimensionsSize(const UA_VariableNode* node) {
   return UA_Node_Variable_or_VariableType_getArrayDimensionsSize((const UA_Node *) node);
 }
 
-UA_INLINE const UA_UInt32* UA_VariableNode_getArrayDimensions(const UA_VariableNode* node) {
+static UA_INLINE const UA_UInt32* UA_VariableNode_getArrayDimensions(const UA_VariableNode* node) {
   return UA_Node_Variable_or_VariableType_getArrayDimensions((const UA_Node *) node);
 }
 
-UA_INLINE UA_StatusCode UA_VariableNode_setArrayDimensions(
+static UA_INLINE UA_StatusCode UA_VariableNode_setArrayDimensions(
   UA_VariableNode *node,
   size_t arrayDimensionsSize,
   const UA_UInt32 *arrayDimensions
@@ -91,7 +91,7 @@ UA_INLINE UA_StatusCode UA_VariableNode_setArrayDimensions(
   );
 }
 
-UA_INLINE const UA_ValueSource *UA_VariableNode_getValueSource(const UA_VariableNode* node) {
+static UA_INLINE const UA_ValueSource *UA_VariableNode_getValueSource(const UA_VariableNode* node) {
   return UA_Node_Variable_or_VariableType_getValueSource((const UA_Node *) node);
 }
 
@@ -105,17 +105,17 @@ void UA_VariableNode_setMinimumSamplingInterval(UA_VariableNode* node, UA_Double
 
 UA_Boolean UA_VariableNode_getHistorizing(const UA_VariableNode* node);
 
-void UA_VariableNode_setHistorizing(const UA_VariableNode* node, UA_Boolean historizing);
+void UA_VariableNode_setHistorizing(UA_VariableNode* node, UA_Boolean historizing);
 
 UA_Boolean UA_VariableNode_isDynamic(const UA_VariableNode* node);
 
 void UA_VariableNode_setDynamic(UA_VariableNode* node, UA_Boolean isDynamic);
 
-UA_INLINE const UA_NodeId* UA_VariableTypeNode_getDataType(const UA_VariableTypeNode* node) {
+static UA_INLINE const UA_NodeId* UA_VariableTypeNode_getDataType(const UA_VariableTypeNode* node) {
   return UA_Node_Variable_or_VariableType_getDataType ((const UA_Node *) node);
 }
 
-UA_INLINE UA_StatusCode UA_VariableTypeNode_setDataType(
+static UA_INLINE UA_StatusCode UA_VariableTypeNode_setDataType(
   UA_VariableTypeNode *node,
   const UA_NodeId *dataType
 ) {
@@ -125,23 +125,23 @@ UA_INLINE UA_StatusCode UA_VariableTypeNode_setDataType(
   );
 }
 
-UA_INLINE UA_Int32 UA_VariableTypeNode_getValueRank(const UA_VariableTypeNode* node) {
+static UA_INLINE UA_Int32 UA_VariableTypeNode_getValueRank(const UA_VariableTypeNode* node) {
   return UA_Node_Variable_or_VariableType_getValueRank((const UA_Node *) node);
 }
 
-UA_INLINE void UA_VariableTypeNode_setValueRank(UA_VariableTypeNode* node, UA_Int32 valueRank) {
+static UA_INLINE void UA_VariableTypeNode_setValueRank(UA_VariableTypeNode* node, UA_Int32 valueRank) {
   UA_Node_Variable_or_VariableType_setValueRank((UA_Node *) node, valueRank);
 }
 
-UA_INLINE size_t UA_VariableTypeNode_getArrayDimensionsSize(const UA_VariableTypeNode* node) {
+static UA_INLINE size_t UA_VariableTypeNode_getArrayDimensionsSize(const UA_VariableTypeNode* node) {
   return UA_Node_Variable_or_VariableType_getArrayDimensionsSize((const UA_Node *) node);
 }
 
-UA_INLINE const UA_UInt32* UA_VariableTypeNode_getArrayDimensions(const UA_VariableTypeNode* node) {
+static UA_INLINE const UA_UInt32* UA_VariableTypeNode_getArrayDimensions(const UA_VariableTypeNode* node) {
   return UA_Node_Variable_or_VariableType_getArrayDimensions((const UA_Node *) node);
 }
 
-UA_INLINE UA_StatusCode UA_VariableTypeNode_setArrayDimensions(
+static UA_INLINE UA_StatusCode UA_VariableTypeNode_setArrayDimensions(
   UA_VariableTypeNode *node,
   size_t arrayDimensionsSize,
   const UA_UInt32 *arrayDimensions
@@ -153,7 +153,7 @@ UA_INLINE UA_StatusCode UA_VariableTypeNode_setArrayDimensions(
   );
 }
 
-UA_INLINE const UA_ValueSource *UA_VariableTypeNode_getValueSource(const UA_VariableTypeNode* node) {
+static UA_INLINE const UA_ValueSource *UA_VariableTypeNode_getValueSource(const UA_VariableTypeNode* node) {
   return UA_Node_Variable_or_VariableType_getValueSource((const UA_Node *) node);
 }
 

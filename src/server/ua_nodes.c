@@ -1221,8 +1221,16 @@ UA_Double UA_VariableNode_getMinimumSamplingInterval(const UA_VariableNode* node
     return node->attr.minimumSamplingInterval;
 }
 
+void UA_VariableNode_setMinimumSamplingInterval(UA_VariableNode* node, UA_Double minimumSamplingInterval) {
+    node->attr.minimumSamplingInterval = minimumSamplingInterval;
+}
+
 UA_Boolean UA_VariableNode_getHistorizing(const UA_VariableNode* node) {
     return node->attr.historizing;
+}
+
+void UA_VariableNode_setHistorizing(UA_VariableNode* node, UA_Boolean historizing) {
+    node->attr.historizing = historizing;
 }
 
 UA_Boolean UA_VariableNode_isDynamic(const UA_VariableNode* node) {
