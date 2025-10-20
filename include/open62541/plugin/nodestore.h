@@ -344,11 +344,13 @@ typedef struct {
 
 typedef struct {
     UA_NodeHead head;
-    UA_NODE_VARIABLEATTRIBUTES
-    UA_Boolean isAbstract;
+    struct {
+      UA_NODE_VARIABLEATTRIBUTES
+      UA_Boolean isAbstract;
 
-    /* Members specific to open62541 */
-    UA_NodeTypeLifecycle lifecycle;
+      /* Members specific to open62541 */
+      UA_NodeTypeLifecycle lifecycle;
+    }attr;
 } UA_VariableTypeNode;
 
 /**

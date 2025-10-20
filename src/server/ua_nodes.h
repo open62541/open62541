@@ -111,6 +111,60 @@ UA_Boolean UA_VariableNode_isDynamic(const UA_VariableNode* node);
 
 void UA_VariableNode_setDynamic(UA_VariableNode* node, UA_Boolean isDynamic);
 
+UA_INLINE const UA_NodeId* UA_VariableTypeNode_getDataType(const UA_VariableTypeNode* node) {
+  return UA_Node_Variable_or_VariableType_getDataType ((const UA_Node *) node);
+}
+
+UA_INLINE UA_StatusCode UA_VariableTypeNode_setDataType(
+  UA_VariableTypeNode *node,
+  const UA_NodeId *dataType
+) {
+  return UA_Node_Variable_or_VariableType_setDataType(
+    (UA_Node *)node,
+    dataType
+  );
+}
+
+UA_INLINE UA_Int32 UA_VariableTypeNode_getValueRank(const UA_VariableTypeNode* node) {
+  return UA_Node_Variable_or_VariableType_getValueRank((const UA_Node *) node);
+}
+
+UA_INLINE void UA_VariableTypeNode_setValueRank(UA_VariableTypeNode* node, UA_Int32 valueRank) {
+  UA_Node_Variable_or_VariableType_setValueRank((UA_Node *) node, valueRank);
+}
+
+UA_INLINE size_t UA_VariableTypeNode_getArrayDimensionsSize(const UA_VariableTypeNode* node) {
+  return UA_Node_Variable_or_VariableType_getArrayDimensionsSize((const UA_Node *) node);
+}
+
+UA_INLINE const UA_UInt32* UA_VariableTypeNode_getArrayDimensions(const UA_VariableTypeNode* node) {
+  return UA_Node_Variable_or_VariableType_getArrayDimensions((const UA_Node *) node);
+}
+
+UA_INLINE UA_StatusCode UA_VariableTypeNode_setArrayDimensions(
+  UA_VariableTypeNode *node,
+  size_t arrayDimensionsSize,
+  const UA_UInt32 *arrayDimensions
+) {
+  return UA_Node_Variable_or_VariableType_setArrayDimensions(
+    (UA_Node *)node,
+    arrayDimensionsSize,
+    arrayDimensions
+  );
+}
+
+UA_INLINE const UA_ValueSource *UA_VariableTypeNode_getValueSource(const UA_VariableTypeNode* node) {
+  return UA_Node_Variable_or_VariableType_getValueSource((const UA_Node *) node);
+}
+
+UA_Boolean UA_VariableTypeNode_getIsAbstract(const UA_VariableTypeNode* node);
+
+void UA_VariableTypeNode_setIsAbstract(UA_VariableTypeNode* node, UA_Boolean isAbstract);
+
+const UA_NodeTypeLifecycle *UA_VariableTypeNode_getNodeTypeLifecycle(const UA_VariableTypeNode* node);
+
+void UA_VariableTypeNode_setNodeTypeLifecycle(UA_VariableTypeNode* node, const UA_NodeTypeLifecycle *lifecycle);
+
 _UA_END_DECLS
 
 #endif  // UA_NODES_H

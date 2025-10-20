@@ -128,7 +128,7 @@ readIsAbstractAttribute(const UA_Node *node, UA_Variant *v) {
         isAbstract = &node->objectTypeNode.isAbstract;
         break;
     case UA_NODECLASS_VARIABLETYPE:
-        isAbstract = &node->variableTypeNode.isAbstract;
+        isAbstract = &node->variableTypeNode.attr.isAbstract;
         break;
     case UA_NODECLASS_DATATYPE:
         isAbstract = &node->dataTypeNode.isAbstract;
@@ -401,32 +401,40 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
                                             timestampsToReturn, &id->indexRange, v);
         break;
     }
-    case UA_ATTRIBUTEID_DATATYPE:
+    case UA_ATTRIBUTEID_DATATYPE: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        retval = UA_Variant_setScalarCopy(&v->value, &node->variableTypeNode.dataType,
+        const UA_NodeId *dataType = UA_Node_Variable_or_VariableType_getDataType(node);
+        retval = UA_Variant_setScalarCopy(&v->value, dataType,
                                           &UA_TYPES[UA_TYPES_NODEID]);
         break;
-    case UA_ATTRIBUTEID_VALUERANK:
+    }
+    case UA_ATTRIBUTEID_VALUERANK: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        retval = UA_Variant_setScalarCopy(&v->value, &node->variableTypeNode.valueRank,
+        UA_Int32 valueRank = UA_Node_Variable_or_VariableType_getValueRank(node);
+        retval = UA_Variant_setScalarCopy(&v->value, &valueRank,
                                           &UA_TYPES[UA_TYPES_INT32]);
         break;
+    }
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        retval = UA_Variant_setArrayCopy(&v->value, node->variableTypeNode.arrayDimensions,
-                                         node->variableTypeNode.arrayDimensionsSize,
+        size_t arrayDimensionsSize = UA_Node_Variable_or_VariableType_getArrayDimensionsSize(node);
+        const UA_UInt32 *arrayDimensions = UA_Node_Variable_or_VariableType_getArrayDimensions(node);
+        retval = UA_Variant_setArrayCopy(&v->value, arrayDimensions,
+                                         arrayDimensionsSize,
                                          &UA_TYPES[UA_TYPES_UINT32]);
         break;
-    case UA_ATTRIBUTEID_ACCESSLEVEL:
+    case UA_ATTRIBUTEID_ACCESSLEVEL: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
-        retval = UA_Variant_setScalarCopy(&v->value, &node->variableNode.attr.accessLevel,
+        UA_Byte accessLevel = UA_VariableNode_getAccessLevel(&node->variableNode);
+        retval = UA_Variant_setScalarCopy(&v->value, &accessLevel,
                                           &UA_TYPES[UA_TYPES_BYTE]);
+    }
         break;
     case UA_ATTRIBUTEID_ACCESSLEVELEX: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         /* The normal AccessLevelEx contains the lowest 8 bits from the normal AccessLevel.
          * In our case, all other bits are zero. */
-        const UA_Byte accessLevel = *((const UA_Byte*)(&node->variableNode.attr.accessLevel));
+        const UA_Byte accessLevel = UA_VariableNode_getAccessLevel(&node->variableNode);
         UA_UInt32 accessLevelEx = accessLevel & 0xFF;
         retval = UA_Variant_setScalarCopy(&v->value, &accessLevelEx,
                                           &UA_TYPES[UA_TYPES_UINT32]);
@@ -1178,8 +1186,12 @@ writeArrayDimensionsAttribute(UA_Server *server, UA_Session *session,
 
     /* Check if the array dimensions match with the wildcards in the
      * variabletype (dimension length 0) */
-    if(type->arrayDimensions &&
-       !compatibleArrayDimensions(type->arrayDimensionsSize, type->arrayDimensions,
+
+    size_t typeArrayDimensionsSize = UA_VariableTypeNode_getArrayDimensionsSize(type);
+    const UA_UInt32 *typeArrayDimensions = UA_VariableTypeNode_getArrayDimensions(type);
+
+    if(typeArrayDimensions &&
+       !compatibleArrayDimensions(typeArrayDimensionsSize, typeArrayDimensions,
                                   arrayDimensionsSize, arrayDimensions)) {
        UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
                     "Array dimensions in the variable type do not match");
@@ -1216,7 +1228,7 @@ writeValueRank(UA_Server *server, UA_Session *session,
     UA_assert(node != NULL);
     UA_assert(type != NULL);
 
-    UA_Int32 constraintValueRank = type->valueRank;
+    UA_Int32 constraintValueRank = UA_VariableTypeNode_getValueRank(type);
 
     /* If this is a variabletype, there must be no instances or subtypes of it
      * when we do the change */
@@ -1270,7 +1282,8 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Does the new type match the constraints of the variabletype? */
-    if(!compatibleDataTypes(server, dataType, &type->dataType))
+    const UA_NodeId *typeDataType = UA_VariableTypeNode_getDataType(type);
+    if(!compatibleDataTypes(server, dataType, typeDataType))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Check if the current value would match the new type */
@@ -1456,7 +1469,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     case UA_VALUESOURCETYPE_EXTERNAL:
     case UA_VALUESOURCETYPE_INTERNAL: {
         UA_DataValue *oldValue = (valueSourceType == UA_VALUESOURCETYPE_INTERNAL) ?
-            &valueSource->source.internal.value :
+            (UA_DataValue *) (intptr_t) &valueSource->source.internal.value :
             (UA_DataValue*)UA_atomic_load((void**) valueSource->source.external.value);
         retval = writeInternalValueAttribute(oldValue, &adjustedValue, rangeptr);
         if(retval == UA_STATUSCODE_GOOD &&
@@ -1515,7 +1528,7 @@ writeIsAbstract(UA_Node *node, UA_Boolean value) {
         node->referenceTypeNode.isAbstract = value;
         break;
     case UA_NODECLASS_VARIABLETYPE:
-        node->variableTypeNode.isAbstract = value;
+        UA_VariableTypeNode_setIsAbstract(&node->variableTypeNode, value);
         break;
     case UA_NODECLASS_DATATYPE:
         node->dataTypeNode.isAbstract = value;

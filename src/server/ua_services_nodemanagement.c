@@ -286,7 +286,8 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
                       const UA_VariableTypeNode *vt) {
     /* Check the datatype against the vt */
     const UA_NodeId *dataType = UA_VariableNode_getDataType(node);
-    if(!compatibleDataTypes(server, dataType, &vt->dataType)) {
+    const UA_NodeId *vtDataType = UA_VariableTypeNode_getDataType(vt);
+    if(!compatibleDataTypes(server, dataType, vtDataType)) {
         logAddNode(server->config.logging, session, &node->head.nodeId,
                    "The value of is incompatible with "
                    "the datatype of the VariableType");
@@ -304,7 +305,8 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     }
 
     /* Check valueRank against the vt */
-    if(!compatibleValueRanks(valueRank, vt->valueRank)) {
+    UA_Int32 vtValueRank = UA_VariableTypeNode_getValueRank(vt);
+    if(!compatibleValueRanks(valueRank, vtValueRank)) {
         logAddNode(server->config.logging, session, &node->head.nodeId,
                    "The value rank is incompatible "
                    "with the value rank of the VariableType");
@@ -312,8 +314,11 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     }
 
     const UA_UInt32 *arrayDimensions = UA_VariableNode_getArrayDimensions(node);
+
+    size_t vtArrayDimensionsSize = UA_VariableTypeNode_getArrayDimensionsSize(vt);
+    const UA_UInt32 *vtArrayDimensions = UA_VariableTypeNode_getArrayDimensions(vt);
     /* Check array dimensions against the vt */
-    if(!compatibleArrayDimensions(vt->arrayDimensionsSize, vt->arrayDimensions,
+    if(!compatibleArrayDimensions(vtArrayDimensionsSize, vtArrayDimensions,
                                   arrayDimensionsSize, arrayDimensions)) {
         logAddNode(server->config.logging, session, &node->head.nodeId,
                    "The array dimensions are incompatible with the "
@@ -450,18 +455,20 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
                    "No datatype given; Copy the datatype attribute "
                    "from the TypeDefinition");
         retval = writeAttribute(server, session, &node->head.nodeId,
-                                UA_ATTRIBUTEID_DATATYPE, &vt->dataType,
+                                UA_ATTRIBUTEID_DATATYPE, UA_VariableTypeNode_getDataType(vt),
                                 &UA_TYPES[UA_TYPES_NODEID]);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
 
     /* Use the ArrayDimensions of the vt */
+    size_t vtArrayDimensionsSize = UA_VariableTypeNode_getArrayDimensionsSize(vt);
+    UA_UInt32 *vtArrayDimensions = (UA_UInt32 *) (uintptr_t) UA_VariableTypeNode_getArrayDimensions(vt);
     size_t arrayDimensionsSize = UA_VariableNode_getArrayDimensionsSize(node);
-    if(arrayDimensionsSize == 0 && vt->arrayDimensionsSize > 0) {
+    if(arrayDimensionsSize == 0 && vtArrayDimensionsSize > 0) {
         UA_Variant v;
         UA_Variant_init(&v);
-        UA_Variant_setArray(&v, vt->arrayDimensions, vt->arrayDimensionsSize,
+        UA_Variant_setArray(&v, vtArrayDimensions, vtArrayDimensionsSize,
                             &UA_TYPES[UA_TYPES_UINT32]);
         retval = writeAttribute(server, session, &node->head.nodeId,
                                 UA_ATTRIBUTEID_ARRAYDIMENSIONS, &v,
@@ -944,7 +951,7 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         /* See if the type has the correct node class. For type-nodes, we know
          * that type has the same nodeClass from checkParentReference. */
         if(head->nodeClass == UA_NODECLASS_VARIABLE &&
-           type->variableTypeNode.isAbstract) {
+           UA_VariableTypeNode_getIsAbstract(&type->variableTypeNode)) {
             /* Get subtypes of the parent reference types */
             UA_ReferenceTypeSet refTypes1, refTypes2;
             retval |= referenceTypeIndices(server, &parentReferences[0], &refTypes1, true);
@@ -1315,7 +1322,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     if(type && node->head.nodeClass == UA_NODECLASS_OBJECT)
         lifecycle = &type->objectTypeNode.lifecycle;
     else if(type && node->head.nodeClass == UA_NODECLASS_VARIABLE)
-        lifecycle = &type->variableTypeNode.lifecycle;
+        lifecycle = UA_VariableTypeNode_getNodeTypeLifecycle(&type->variableTypeNode);
     if(lifecycle && lifecycle->constructor) {
         retval = lifecycle->constructor(server, &session->sessionId,
                                         session->context, &type->head.nodeId,
@@ -1917,7 +1924,7 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
                if(member->head.nodeClass == UA_NODECLASS_OBJECT)
                   lifecycle = &type->objectTypeNode.lifecycle;
                else
-                  lifecycle = &type->variableTypeNode.lifecycle;
+                  lifecycle = UA_VariableTypeNode_getNodeTypeLifecycle(&type->variableTypeNode);
 
                /* Call the destructor */
                if(lifecycle->destructor) {
@@ -2939,7 +2946,7 @@ setNodeTypeLifecycleCallback(UA_Server *server, UA_Session *session,
     if(node->head.nodeClass == UA_NODECLASS_OBJECTTYPE) {
         node->objectTypeNode.lifecycle = *lifecycle;
     } else if(node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
-        node->variableTypeNode.lifecycle = *lifecycle;
+        UA_VariableTypeNode_setNodeTypeLifecycle(&node->variableTypeNode, lifecycle);
     } else {
         return UA_STATUSCODE_BADNODECLASSINVALID;
     }

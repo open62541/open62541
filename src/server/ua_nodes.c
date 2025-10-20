@@ -385,6 +385,20 @@ UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
 
 /* General node handling methods. There is no UA_Node_new() method here.
  * Creating nodes is part of the Nodestore layer */
+static void UA_Node_Variable_or_VariableType_clearAttributes(UA_Node* node)
+{
+    UA_VariableNode *vn = &node->variableNode;
+    UA_NodeId_clear (&vn->attr.dataType);
+    UA_Array_delete(vn->attr.arrayDimensions, vn->attr.arrayDimensionsSize,
+                     &UA_TYPES[UA_TYPES_INT32]);
+    vn->attr.arrayDimensions = NULL;
+    vn->attr.arrayDimensionsSize = 0;
+
+    if(vn->attr.valueSource.type == UA_VALUESOURCETYPE_INTERNAL)
+        UA_DataValue_clear(&vn->attr.valueSource.source.internal.value);
+
+}
+
 
 void UA_Node_clear(UA_Node *node) {
     /* Delete references */
@@ -419,14 +433,7 @@ void UA_Node_clear(UA_Node *node) {
         break;
     case UA_NODECLASS_VARIABLE:
     case UA_NODECLASS_VARIABLETYPE: {
-        // UA_VariableNode *p = &node->variableNode;
-        // UA_NodeId_clear(&p->dataType);
-        // UA_Array_delete(p->arrayDimensions, p->arrayDimensionsSize,
-        //                 &UA_TYPES[UA_TYPES_INT32]);
-        // p->arrayDimensions = NULL;
-        // p->arrayDimensionsSize = 0;
-        // if(p->valueSourceType == UA_VALUESOURCETYPE_INTERNAL)
-        //     UA_DataValue_clear(&p->valueSource.internal.value);
+        UA_Node_Variable_or_VariableType_clearAttributes(node);
         break;
     }
     case UA_NODECLASS_REFERENCETYPE: {
@@ -451,40 +458,38 @@ UA_ObjectNode_copy(const UA_ObjectNode *src, UA_ObjectNode *dst) {
 
 static UA_StatusCode
 UA_CommonVariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
-    // UA_StatusCode retval =
-    //     UA_Array_copy(src->arrayDimensions, src->arrayDimensionsSize,
-    //                   (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
-    // if(retval != UA_STATUSCODE_GOOD)
-    //     return retval;
-    // dst->arrayDimensionsSize = src->arrayDimensionsSize;
-    // retval = UA_NodeId_copy(&src->dataType, &dst->dataType);
-    // dst->valueRank = src->valueRank;
-    // dst->valueSourceType = src->valueSourceType;
-    // dst->valueSource = src->valueSource;
-    // if(src->valueSourceType == UA_VALUESOURCETYPE_INTERNAL)
-    //     retval |= UA_DataValue_copy(&src->valueSource.internal.value,
-    //                                 &dst->valueSource.internal.value);
-    // else if(src->valueSourceType == UA_VALUESOURCETYPE_EXTERNAL)
-    //     retval |= UA_DataValue_copy(*src->valueSource.external.value,
-    //                                 &dst->valueSource.internal.value);
-    // return retval;
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode retval =
+        UA_Array_copy(src->attr.arrayDimensions, src->attr.arrayDimensionsSize,
+                      (void**)&dst->attr.arrayDimensions, &UA_TYPES[UA_TYPES_INT32]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    dst->attr.arrayDimensionsSize = src->attr.arrayDimensionsSize;
+    retval = UA_NodeId_copy(&src->attr.dataType, &dst->attr.dataType);
+    dst->attr.valueRank = src->attr.valueRank;
+
+    dst->attr.valueSource = src->attr.valueSource;
+    if(src->attr.valueSource.type == UA_VALUESOURCETYPE_INTERNAL)
+        retval |= UA_DataValue_copy(&src->attr.valueSource.source.internal.value,
+                                    &dst->attr.valueSource.source.internal.value);
+    else if(src->attr.valueSource.type == UA_VALUESOURCETYPE_EXTERNAL)
+        retval |= UA_DataValue_copy(*src->attr.valueSource.source.external.value,
+                                    &dst->attr.valueSource.source.internal.value);
+    return retval;
 }
 
-static UA_StatusCode
-UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
-    // dst->accessLevel = src->accessLevel;
-    // dst->minimumSamplingInterval = src->minimumSamplingInterval;
-    // dst->historizing = src->historizing;
-    // dst->isDynamic = src->isDynamic;
-    // return UA_CommonVariableNode_copy(src, dst);
-    return UA_STATUSCODE_GOOD;
+static UA_StatusCode UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
+    dst->attr.accessLevel = src->attr.accessLevel;
+    dst->attr.minimumSamplingInterval = src->attr.minimumSamplingInterval;
+    dst->attr.historizing = src->attr.historizing;
+    dst->attr.isDynamic = src->attr.isDynamic;
+    return UA_CommonVariableNode_copy(src, dst);
 }
+
 
 static UA_StatusCode
 UA_VariableTypeNode_copy(const UA_VariableTypeNode *src,
                          UA_VariableTypeNode *dst) {
-    dst->isAbstract = src->isAbstract;
+    dst->attr.isAbstract = src->attr.isAbstract;
     return UA_CommonVariableNode_copy((const UA_VariableNode*)src, (UA_VariableNode*)dst);
 }
 
@@ -782,7 +787,7 @@ copyVariableNodeAttributes(UA_VariableNode *vnode,
 static UA_StatusCode
 copyVariableTypeNodeAttributes(UA_VariableTypeNode *vtnode,
                                const UA_VariableTypeAttributes *attr) {
-    vtnode->isAbstract = attr->isAbstract;
+    vtnode->attr.isAbstract = attr->isAbstract;
     return copyCommonVariableAttributes((UA_VariableNode*)vtnode,
                                         (const UA_VariableAttributes*)attr);
 }
@@ -1226,6 +1231,22 @@ UA_Boolean UA_VariableNode_isDynamic(const UA_VariableNode* node) {
 
 void UA_VariableNode_setDynamic(UA_VariableNode* node, UA_Boolean isDynamic) {
     node->attr.isDynamic = isDynamic;
+}
+
+UA_Boolean UA_VariableTypeNode_getIsAbstract(const UA_VariableTypeNode* node) {
+    return node->attr.isAbstract;
+}
+
+void UA_VariableTypeNode_setIsAbstract(UA_VariableTypeNode* node, UA_Boolean isAbstract) {
+    node->attr.isAbstract = isAbstract;
+}
+
+const UA_NodeTypeLifecycle *UA_VariableTypeNode_getNodeTypeLifecycle(const UA_VariableTypeNode* node) {
+   return &node->attr.lifecycle;
+}
+
+void UA_VariableTypeNode_setNodeTypeLifecycle(UA_VariableTypeNode* node, const UA_NodeTypeLifecycle *lifecycle) {
+    node->attr.lifecycle = *lifecycle;
 }
 
 /*
