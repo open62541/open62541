@@ -63,6 +63,13 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     session->localeIds = NULL;
     session->localeIdsSize = 0;
 
+#ifdef UA_ENABLE_RBAC
+    UA_Array_delete(session->roles, session->rolesSize,
+                    &UA_TYPES[UA_TYPES_NODEID]);
+    session->roles = NULL;
+    session->rolesSize = 0;
+#endif
+
 #ifdef UA_ENABLE_DIAGNOSTICS
     UA_SessionDiagnosticsDataType_clear(&session->diagnostics);
     UA_SessionSecurityDiagnosticsDataType_clear(&session->securityDiagnostics);

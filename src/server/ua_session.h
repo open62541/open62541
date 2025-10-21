@@ -68,6 +68,11 @@ struct UA_Session {
     size_t localeIdsSize;
     UA_String *localeIds;
 
+#ifdef UA_ENABLE_RBAC
+    size_t rolesSize;
+    UA_NodeId *roles;
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The queue is ordered according to the priority byte (higher bytes come
      * first). When a late subscription finally publishes, then it is pushed to

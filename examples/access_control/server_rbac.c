@@ -125,6 +125,74 @@ int main(void) {
                 "OperatorRole added via API with NodeId ns=%d;i=%d",
                 operatorRoleId.namespaceIndex, operatorRoleId.identifier.numeric);
 
+    /* Step 3: Demonstrate RolePermissions API
+     * Set specific permissions for roles on nodes */
+    
+    /* Example 3a: Grant multiple permissions using bitmask (BROWSE | READ) 
+     * on ServerStatus variable for OperatorRole */
+    UA_NodeId serverStatusId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
+    UA_UInt32 permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    retval = UA_Server_addRolePermissions(server, serverStatusId, operatorRoleId, 
+                                          permissions, false);
+    if(retval == UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                    "Added BROWSE|READ permissions for OperatorRole on ServerStatus");
+    } else {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                       "Failed to add permissions: %s (API not yet implemented)", 
+                       UA_StatusCode_name(retval));
+    }
+    
+    /* Example 3b: Remove a specific permission (demonstrates removal API) */
+    retval = UA_Server_removeRolePermissions(server, serverStatusId, operatorRoleId, 
+                                             UA_PERMISSIONTYPE_WRITE, false);
+    if(retval == UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                    "Removed WRITE permission for OperatorRole on ServerStatus");
+    } else {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                       "Failed to remove WRITE permission: %s (API not yet implemented)", 
+                       UA_StatusCode_name(retval));
+    }
+
+    /* Step 4: Demonstrate Session Roles Management API
+     * Assign roles dynamically to the admin session */
+    
+    UA_NodeId adminSessionId = UA_NODEID_GUID(0, (UA_Guid){.data1 = 1});
+    
+    /* Prepare roles to assign to the session */
+    UA_NodeId rolesToSet[2];
+    size_t rolesToSetSize = 0;
+    
+    /* Add the OperatorRole we created in Step 2 */
+    rolesToSet[rolesToSetSize++] = operatorRoleId;
+    
+    /* Add the MaintenanceRole from Step 1 */
+    const UA_Role *maintenanceRole = UA_Server_getRoleByName(server, 
+                                                              UA_STRING("MaintenanceRole"), 
+                                                              UA_STRING_NULL);
+    if(maintenanceRole) {
+        retval = UA_NodeId_copy(&maintenanceRole->roleId, &rolesToSet[rolesToSetSize]);
+        if(retval == UA_STATUSCODE_GOOD) {
+            rolesToSetSize++;
+        }
+    }
+    
+    /* Assign the roles to the admin session */
+    retval = UA_Server_setSessionRoles(server, &adminSessionId, rolesToSetSize, rolesToSet);
+    if(retval == UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                    "Successfully assigned %zu role(s) to admin session", rolesToSetSize);
+    } else {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                       "Failed to assign session roles: %s", UA_StatusCode_name(retval));
+    }
+    
+    /* Cleanup: Clear the copied MaintenanceRole ID */
+    if(rolesToSetSize > 1) {
+        UA_NodeId_clear(&rolesToSet[1]);
+    }
+
     if(!running)
         goto cleanup;
 

@@ -71,7 +71,7 @@ END_TEST
 
 START_TEST(Server_rbacGetRolesById) {
     UA_NodeId roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
-    const UA_Role *role = UA_Server_getRolesById(server, roleId);
+    const UA_Role *role = UA_Server_getRoleById(server, roleId);
     
     ck_assert_ptr_nonnull(role);
     ck_assert(UA_NodeId_equal(&role->roleId, &roleId));
@@ -81,7 +81,7 @@ END_TEST
 START_TEST(Server_rbacGetRolesByName) {
     UA_String roleName = UA_STRING("Anonymous");
     UA_String namespaceUri = UA_STRING_NULL;
-    const UA_Role *role = UA_Server_getRolesByName(server, roleName, namespaceUri);
+    const UA_Role *role = UA_Server_getRoleByName(server, roleName, namespaceUri);
     
     ck_assert_ptr_nonnull(role);
     ck_assert(UA_String_equal(&role->roleName.name, &roleName));
@@ -113,7 +113,7 @@ START_TEST(Server_rbacAddRoleViaAPI) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(!UA_NodeId_isNull(&newRoleId));
     
-    const UA_Role *role = UA_Server_getRolesById(server, newRoleId);
+    const UA_Role *role = UA_Server_getRoleById(server, newRoleId);
     ck_assert_ptr_nonnull(role);
     ck_assert(UA_String_equal(&role->roleName.name, &roleName));
     
@@ -139,7 +139,7 @@ START_TEST(Server_rbacRemoveRoleViaAPI) {
     retval = UA_Server_addRole(server, roleName, namespaceUri, NULL, &newRoleId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    const UA_Role *roleBeforeRemove = UA_Server_getRolesById(server, newRoleId);
+    const UA_Role *roleBeforeRemove = UA_Server_getRoleById(server, newRoleId);
     ck_assert_ptr_nonnull(roleBeforeRemove);
     
     retval = UA_Server_removeRole(server, newRoleId);
@@ -164,20 +164,20 @@ START_TEST(Server_rbacIdentityManagement) {
                                               UA_STRING_NULL, NULL, &newRoleId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    const UA_Role *role = UA_Server_getRolesById(server, newRoleId);
+    const UA_Role *role = UA_Server_getRoleById(server, newRoleId);
     ck_assert_ptr_nonnull(role);
     size_t initialSize = role->imrtSize;
     
     retval = UA_Server_addRoleIdentity(server, newRoleId, UA_IDENTITYCRITERIATYPE_ANONYMOUS);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    role = UA_Server_getRolesById(server, newRoleId);
+    role = UA_Server_getRoleById(server, newRoleId);
     ck_assert_uint_eq(role->imrtSize, initialSize + 1);
     
     retval = UA_Server_removeRoleIdentity(server, newRoleId, UA_IDENTITYCRITERIATYPE_ANONYMOUS);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    role = UA_Server_getRolesById(server, newRoleId);
+    role = UA_Server_getRoleById(server, newRoleId);
     ck_assert_uint_eq(role->imrtSize, initialSize);
     
     UA_NodeId_clear(&newRoleId);
@@ -190,7 +190,7 @@ START_TEST(Server_rbacApplicationManagement) {
                                               UA_STRING_NULL, NULL, &newRoleId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    const UA_Role *role = UA_Server_getRolesById(server, newRoleId);
+    const UA_Role *role = UA_Server_getRoleById(server, newRoleId);
     ck_assert_ptr_nonnull(role);
     size_t initialSize = role->applicationsSize;
     
@@ -198,13 +198,13 @@ START_TEST(Server_rbacApplicationManagement) {
     retval = UA_Server_addRoleApplication(server, newRoleId, appUri);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    role = UA_Server_getRolesById(server, newRoleId);
+    role = UA_Server_getRoleById(server, newRoleId);
     ck_assert_uint_eq(role->applicationsSize, initialSize + 1);
     
     retval = UA_Server_removeRoleApplication(server, newRoleId, appUri);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    role = UA_Server_getRolesById(server, newRoleId);
+    role = UA_Server_getRoleById(server, newRoleId);
     ck_assert_uint_eq(role->applicationsSize, initialSize);
     
     UA_NodeId_clear(&newRoleId);
@@ -271,11 +271,11 @@ START_TEST(Server_rbacNamespaceHandling) {
     retval = UA_Server_addRole(server, UA_STRING("CustomRole1"), UA_STRING_NULL, NULL, &roleId1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    const UA_Role *role1 = UA_Server_getRolesById(server, roleId1);
+    const UA_Role *role1 = UA_Server_getRoleById(server, roleId1);
     ck_assert_ptr_nonnull(role1);
     ck_assert_uint_eq(role1->roleName.namespaceIndex, 1);
     
-    const UA_Role *foundRole1 = UA_Server_getRolesByName(server, UA_STRING("CustomRole1"), UA_STRING_NULL);
+    const UA_Role *foundRole1 = UA_Server_getRoleByName(server, UA_STRING("CustomRole1"), UA_STRING_NULL);
     ck_assert_ptr_nonnull(foundRole1);
     ck_assert(UA_NodeId_equal(&foundRole1->roleId, &roleId1));
     
@@ -286,21 +286,21 @@ START_TEST(Server_rbacNamespaceHandling) {
     retval = UA_Server_addRole(server, UA_STRING("CustomRole2"), customNsUri, NULL, &roleId2);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    const UA_Role *role2 = UA_Server_getRolesById(server, roleId2);
+    const UA_Role *role2 = UA_Server_getRoleById(server, roleId2);
     ck_assert_ptr_nonnull(role2);
     ck_assert_uint_eq(role2->roleName.namespaceIndex, customNsIdx);
     
-    const UA_Role *foundRole2 = UA_Server_getRolesByName(server, UA_STRING("CustomRole2"), customNsUri);
+    const UA_Role *foundRole2 = UA_Server_getRoleByName(server, UA_STRING("CustomRole2"), customNsUri);
     ck_assert_ptr_nonnull(foundRole2);
     ck_assert(UA_NodeId_equal(&foundRole2->roleId, &roleId2));
     
-    const UA_Role *notFound = UA_Server_getRolesByName(server, UA_STRING("CustomRole2"), UA_STRING_NULL);
+    const UA_Role *notFound = UA_Server_getRoleByName(server, UA_STRING("CustomRole2"), UA_STRING_NULL);
     ck_assert_ptr_null(notFound);
     
     retval = UA_Server_addRole(server, UA_STRING("CustomRole3"), customNsUri, NULL, &roleId3);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    const UA_Role *role3 = UA_Server_getRolesById(server, roleId3);
+    const UA_Role *role3 = UA_Server_getRoleById(server, roleId3);
     ck_assert_uint_eq(role3->roleName.namespaceIndex, role2->roleName.namespaceIndex);
     
     UA_NodeId duplicateRoleId;
@@ -314,12 +314,12 @@ START_TEST(Server_rbacNamespaceHandling) {
     retval = UA_Server_addRole(server, UA_STRING("CustomRole2"), differentNsUri, NULL, &roleId4);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    const UA_Role *role4 = UA_Server_getRolesById(server, roleId4);
+    const UA_Role *role4 = UA_Server_getRoleById(server, roleId4);
     ck_assert_uint_eq(role4->roleName.namespaceIndex, differentNsIdx);
     ck_assert(role4->roleName.namespaceIndex != role2->roleName.namespaceIndex);
     
-    const UA_Role *foundInNs1 = UA_Server_getRolesByName(server, UA_STRING("CustomRole2"), customNsUri);
-    const UA_Role *foundInNs2 = UA_Server_getRolesByName(server, UA_STRING("CustomRole2"), differentNsUri);
+    const UA_Role *foundInNs1 = UA_Server_getRoleByName(server, UA_STRING("CustomRole2"), customNsUri);
+    const UA_Role *foundInNs2 = UA_Server_getRoleByName(server, UA_STRING("CustomRole2"), differentNsUri);
     ck_assert_ptr_nonnull(foundInNs1);
     ck_assert_ptr_nonnull(foundInNs2);
     ck_assert(!UA_NodeId_equal(&foundInNs1->roleId, &foundInNs2->roleId));
@@ -332,7 +332,7 @@ START_TEST(Server_rbacNamespaceHandling) {
     retval = UA_Server_readBrowseName(server, roleId2, &browseName2);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    role2 = UA_Server_getRolesById(server, roleId2);
+    role2 = UA_Server_getRoleById(server, roleId2);
     ck_assert_uint_eq(browseName2.namespaceIndex, role2->roleName.namespaceIndex);
     UA_QualifiedName_clear(&browseName2);
     
@@ -359,7 +359,7 @@ START_TEST(Server_rbacBrowseNameNamespaceMatches) {
                                               UA_STRING_NULL, NULL, &roleId1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    const UA_Role *role1 = UA_Server_getRolesById(server, roleId1);
+    const UA_Role *role1 = UA_Server_getRoleById(server, roleId1);
     ck_assert_ptr_nonnull(role1);
     ck_assert_uint_eq(role1->roleName.namespaceIndex, 1); /* Default namespace */
     
@@ -384,7 +384,7 @@ START_TEST(Server_rbacBrowseNameNamespaceMatches) {
                                 customNsUri, NULL, &roleId2);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    const UA_Role *role2 = UA_Server_getRolesById(server, roleId2);
+    const UA_Role *role2 = UA_Server_getRoleById(server, roleId2);
     ck_assert_ptr_nonnull(role2);
     ck_assert_uint_eq(role2->roleName.namespaceIndex, customNsIdx);
     
@@ -401,7 +401,7 @@ START_TEST(Server_rbacBrowseNameNamespaceMatches) {
     
     /* Test 3: Well-known role in NS0 */
     UA_NodeId anonymousRoleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
-    const UA_Role *anonymousRole = UA_Server_getRolesById(server, anonymousRoleId);
+    const UA_Role *anonymousRole = UA_Server_getRoleById(server, anonymousRoleId);
     ck_assert_ptr_nonnull(anonymousRole);
     
     UA_QualifiedName browseNameAnonymous;
@@ -442,10 +442,155 @@ START_TEST(Server_rbacNamespaceRemoval) {
     retval = UA_Server_readBrowseName(server, roleId, &browseName);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
     
-    const UA_Role *notFound = UA_Server_getRolesById(server, roleId);
+    const UA_Role *notFound = UA_Server_getRoleById(server, roleId);
     ck_assert_ptr_null(notFound);
     
     UA_NodeId_clear(&roleId);
+}
+END_TEST
+
+START_TEST(Server_rbacSessionRoleManagement) {
+    /* Use the adminSession which is always available */
+    UA_NodeId adminSessionId = UA_NODEID_GUID(0, 
+        (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
+    
+    /* Initially, admin session should have no roles */
+    size_t rolesSize = 0;
+    UA_NodeId *roles = NULL;
+    UA_StatusCode retval = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rolesSize, 0);
+    ck_assert_ptr_null(roles);
+    
+    /* Set two roles for the session */
+    UA_NodeId rolesToSet[2];
+    rolesToSet[0] = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
+    rolesToSet[1] = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+    
+    retval = UA_Server_setSessionRoles(server, &adminSessionId, 2, rolesToSet);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify roles were set correctly */
+    retval = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rolesSize, 2);
+    ck_assert_ptr_nonnull(roles);
+    
+    /* Check that the roles match */
+    bool foundObserver = false;
+    bool foundOperator = false;
+    for(size_t i = 0; i < rolesSize; i++) {
+        if(UA_NodeId_equal(&roles[i], &rolesToSet[0]))
+            foundObserver = true;
+        if(UA_NodeId_equal(&roles[i], &rolesToSet[1]))
+            foundOperator = true;
+    }
+    ck_assert(foundObserver);
+    ck_assert(foundOperator);
+    
+    UA_Array_delete(roles, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    
+    /* Update to a different set of roles */
+    UA_NodeId newRoles[1];
+    newRoles[0] = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER);
+    
+    retval = UA_Server_setSessionRoles(server, &adminSessionId, 1, newRoles);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify the update */
+    retval = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rolesSize, 1);
+    ck_assert(UA_NodeId_equal(&roles[0], &newRoles[0]));
+    
+    UA_Array_delete(roles, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    
+    /* Clear all roles by setting empty array */
+    retval = UA_Server_setSessionRoles(server, &adminSessionId, 0, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify roles were cleared */
+    retval = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rolesSize, 0);
+    ck_assert_ptr_null(roles);
+    
+    /* Test error handling: invalid session ID */
+    UA_NodeId invalidSessionId = UA_NODEID_NUMERIC(0, 999999);
+    retval = UA_Server_getSessionRoles(server, &invalidSessionId, &rolesSize, &roles);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSESSIONIDINVALID);
+    
+    /* Test error handling: invalid role ID */
+    UA_NodeId invalidRole = UA_NODEID_NUMERIC(0, 999999);
+    retval = UA_Server_setSessionRoles(server, &adminSessionId, 1, &invalidRole);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
+}
+END_TEST
+
+START_TEST(Server_rbacAddSessionRole) {
+    /* Use the admin session */
+    UA_NodeId adminSessionId = UA_NODEID_GUID(0, 
+        (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
+    
+    /* Initially, session should have no roles */
+    size_t rolesSize = 0;
+    UA_NodeId *roles = NULL;
+    UA_StatusCode retval = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rolesSize, 0);
+    
+    /* Add first role */
+    UA_NodeId observerRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
+    retval = UA_Server_addSessionRole(server, &adminSessionId, observerRole);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify first role was added */
+    retval = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rolesSize, 1);
+    ck_assert(UA_NodeId_equal(&roles[0], &observerRole));
+    UA_Array_delete(roles, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    
+    /* Add second role */
+    UA_NodeId operatorRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+    retval = UA_Server_addSessionRole(server, &adminSessionId, operatorRole);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify both roles are present */
+    retval = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rolesSize, 2);
+    
+    bool foundObserver = false;
+    bool foundOperator = false;
+    for(size_t i = 0; i < rolesSize; i++) {
+        if(UA_NodeId_equal(&roles[i], &observerRole))
+            foundObserver = true;
+        if(UA_NodeId_equal(&roles[i], &operatorRole))
+            foundOperator = true;
+    }
+    ck_assert(foundObserver);
+    ck_assert(foundOperator);
+    UA_Array_delete(roles, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    
+    /* Try to add the same role again (should be idempotent) */
+    retval = UA_Server_addSessionRole(server, &adminSessionId, observerRole);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify still only 2 roles */
+    retval = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rolesSize, 2);
+    UA_Array_delete(roles, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    
+    /* Test error handling: invalid role */
+    UA_NodeId invalidRole = UA_NODEID_NUMERIC(0, 999999);
+    retval = UA_Server_addSessionRole(server, &adminSessionId, invalidRole);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    
+    /* Cleanup */
+    retval = UA_Server_setSessionRoles(server, &adminSessionId, 0, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
 
@@ -467,6 +612,8 @@ static Suite *testSuite_Server_RBAC(void) {
     tcase_add_test(tc_rbac, Server_rbacNamespaceHandling);
     tcase_add_test(tc_rbac, Server_rbacBrowseNameNamespaceMatches);
     tcase_add_test(tc_rbac, Server_rbacNamespaceRemoval);
+    tcase_add_test(tc_rbac, Server_rbacSessionRoleManagement);
+    tcase_add_test(tc_rbac, Server_rbacAddSessionRole);
     suite_add_tcase(s, tc_rbac);
     return s;
 }
