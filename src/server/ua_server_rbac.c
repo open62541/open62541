@@ -386,25 +386,41 @@ findRoleById(UA_Server *server, const UA_NodeId *roleId) {
 static UA_Role*
 findRoleByName(UA_Server *server, const UA_String *roleName, 
                const UA_String *namespaceUri) {
-    UA_UInt16 searchNsIdx = 1;
+    UA_QualifiedName searchName;
+    searchName.name = *roleName;
     
     if(namespaceUri && namespaceUri->length > 0) {
+        /* Specific namespace requested */
         size_t tempNsIdx = 0;
         UA_StatusCode res = UA_Server_getNamespaceByName(server, *namespaceUri, &tempNsIdx);
         if(res != UA_STATUSCODE_GOOD)
             return NULL;
-        searchNsIdx = (UA_UInt16)tempNsIdx;
+        searchName.namespaceIndex = (UA_UInt16)tempNsIdx;
+        
+        for(size_t i = 0; i < server->rolesSize; i++) {
+            if(UA_QualifiedName_equal(&server->roles[i].roleName, &searchName))
+                return &server->roles[i];
+        }
+        return NULL;
+    } else {
+        /* No specific namespace - search in NS0 (well-known roles) and NS1 (default server namespace)
+         * According to OPC UA Part 18 v1.05 Section 4.2.2:
+         * "If namespaceUri is null or empty then the resulting BrowseName will be qualified by the Server's NamespaceUri"
+         * This means default is NS1, but we also check NS0 for well-known roles */
+        searchName.namespaceIndex = 0;
+        for(size_t i = 0; i < server->rolesSize; i++) {
+            if(UA_QualifiedName_equal(&server->roles[i].roleName, &searchName))
+                return &server->roles[i];
+        }
+        
+        /* Not found in NS0, try NS1 (default server namespace) */
+        searchName.namespaceIndex = 1;
+        for(size_t i = 0; i < server->rolesSize; i++) {
+            if(UA_QualifiedName_equal(&server->roles[i].roleName, &searchName))
+                return &server->roles[i];
+        }
+        return NULL;
     }
-    
-    UA_QualifiedName searchName;
-    searchName.namespaceIndex = searchNsIdx;
-    searchName.name = *roleName;
-    
-    for(size_t i = 0; i < server->rolesSize; i++) {
-        if(UA_QualifiedName_equal(&server->roles[i].roleName, &searchName))
-            return &server->roles[i];
-    }
-    return NULL;
 }
 
 static UA_Boolean
@@ -491,12 +507,17 @@ UA_Server_addRole(UA_Server *server, UA_String roleName,
         goto cleanup;
     }
 
+    /* Determine the NodeId for the role
+     * - Well-known roles: use their predefined NodeId
+     * - Custom roles: generate a unique NodeId in namespace 0
+     * Note: All roles (well-known and custom) MUST have a NodeId in namespace 0 */
     if(role && !UA_NodeId_isNull(&role->roleId)) {
+        /* Role has a specific NodeId (typically well-known role) */
         const UA_Node *existingNode = UA_NODESTORE_GET(server, &role->roleId);
         if(existingNode) {
             UA_NODESTORE_RELEASE(server, existingNode);
             
-            /* well-known roles that exist in NS0 */
+            /* Only well-known roles are allowed to have existing NodeIds in NS0 */
             if(!isWellKnownRole(&role->roleId)) {
                 res = UA_STATUSCODE_BADNODEIDEXISTS;
                 goto cleanup;
@@ -504,10 +525,17 @@ UA_Server_addRole(UA_Server *server, UA_String roleName,
         }
         targetNodeId = &role->roleId;
     } else {
-        /* Request a NodeId in namespace 0 with identifier 0
-         * The server will automatically generate a unique identifier 
-         * Note: Custom roles are always represented in NS0, regardless of their BrowseName namespace */
-        generatedNodeId = UA_NODEID_NUMERIC(0, 0);
+        /* Generate a unique NodeId for custom role (reused in NS0 representation) */
+        UA_UInt32 identifier;
+        do {
+            identifier = UA_UInt32_random();
+            generatedNodeId = UA_NODEID_NUMERIC(0, identifier);
+            const UA_Node *existingNode = UA_NODESTORE_GET(server, &generatedNodeId);
+            if(!existingNode)
+                break; 
+            UA_NODESTORE_RELEASE(server, existingNode);
+        } while(true);
+        
         targetNodeId = &generatedNodeId;
     }
 
@@ -541,14 +569,21 @@ UA_Server_addRole(UA_Server *server, UA_String roleName,
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    /* Set BrowseName namespace index from NamespaceUri parameter (not from NodeId!) */
-    newRole->roleName.namespaceIndex = browseNameNsIdx;
+    /* Set BrowseName namespace index
+     * - Well-known roles: always in NS0 (namespace 0)
+     * - Custom roles: from NamespaceUri parameter */
+    if(isWellKnownRole(targetNodeId)) {
+        newRole->roleName.namespaceIndex = 0;
+    } else {
+        newRole->roleName.namespaceIndex = browseNameNsIdx;
+    }
 
     server->rolesSize++;
     roleAdded = true;
 
 #ifdef UA_ENABLE_RBAC_INFORMATIONMODEL
-    /* Add NS0 representation only for custom roles (not well-known roles) */
+    /* Add NS0 representation only for custom roles (not well-known roles)
+     * Note: newRole->roleId is already set (either predefined or generated above) */
     if(!isWellKnownRole(&newRole->roleId)) {
         res = addRoleRepresentation(server, newRole);
         if(res != UA_STATUSCODE_GOOD)
