@@ -2325,43 +2325,152 @@ struct UA_ServerConfig {
 
 #ifdef UA_ENABLE_RBAC
 
-/* Role Management API
- * ~~~~~~~~~~~~~~~~~~~
- * Functions for managing roles in the server's role-based access control system.
- */
+/**
+ * Role-Based Access Control (RBAC)
+ * ---------------------------------
+ * OPC UA supports role-based access control as specified in Part 18 and Part 3.
+ * 
+ * Roles define groups of permissions that can be assigned to users, applications,
+ * or endpoints. Each role can have:
+ * - Identities: Criteria for user authentication (Anonymous, Username, Certificate, etc.)
+ * - Applications: Application URIs that are granted this role
+ * - Endpoints: Endpoint URLs that are granted this role
+ *
+ * Node-level permissions are controlled through RolePermissions attributes that
+ * specify which operations (Browse, Read, Write, etc.) are allowed for specific
+ * roles. According to OPC UA Part 3, Section 5.2.9:
+ * - If RolePermissions are not specified for a node, the DefaultRolePermissions
+ *   from the NamespaceMetadata object are used
+ * - Permissions are defined using a combination of a Role (by NodeId) and
+ *   specific PermissionTypes (Browse, Read, Write, etc.)
+ *
+ * Role Management
+ * ~~~~~~~~~~~~~~~
+ * Functions for managing roles in the server. */
 
-UA_EXPORT const UA_Role *
-UA_Server_getRolesById(UA_Server *server, UA_NodeId roleId);
+UA_EXPORT UA_THREADSAFE const UA_Role *
+UA_Server_getRoleById(UA_Server *server, UA_NodeId roleId);
 
-UA_EXPORT const UA_Role *
-UA_Server_getRolesByName(UA_Server *server, UA_String roleName, UA_String namespaceUri);
+UA_EXPORT UA_THREADSAFE const UA_Role *
+UA_Server_getRoleByName(UA_Server *server, UA_String roleName, UA_String namespaceUri);
 
-UA_StatusCode UA_EXPORT UA_Server_getRoles(UA_Server *server, size_t *rolesSize, UA_NodeId **roleIds);
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getRoles(UA_Server *server, size_t *rolesSize, UA_NodeId **roleIds);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addRole(UA_Server *server, UA_String roleName, UA_String namespaceUri, 
                   const UA_Role *role, UA_NodeId *outNewRoleId);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeRole(UA_Server *server, UA_NodeId roleId);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addRoleIdentity(UA_Server *server, UA_NodeId roleId, UA_IdentityCriteriaType ict);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeRoleIdentity(UA_Server *server, UA_NodeId roleId, UA_IdentityCriteriaType ict);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addRoleApplication(UA_Server *server, UA_NodeId roleId, UA_String uri);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeRoleApplication(UA_Server *server, UA_NodeId roleId, UA_String uri);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addRoleEndpoint(UA_Server *server, UA_NodeId roleId, UA_EndpointType endpoint);
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeRoleEndpoint(UA_Server *server, UA_NodeId roleId, UA_EndpointType endpoint);
+
+/**
+ * Node RolePermissions Management
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Functions for managing role-based permissions on individual nodes. */
+
+/* Add role permissions to a specific node.
+ * 
+ * Sets or updates the permissions for a specific role on the given node.
+ * The permissionType parameter specifies which operation type (Browse, Read,
+ * Write, etc.) should be configured for the role on this node.
+ * 
+ * @param server The server instance
+ * @param nodeId The NodeId of the node to modify
+ * @param roleId The NodeId of the role
+ * @param permissionType The specific permission type to grant
+ *        (e.g., UA_PERMISSIONTYPE_BROWSE)
+ * @param recursive If true, applies the permission to all child nodes via
+ *        hierarchical references
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                             const UA_NodeId roleId, UA_PermissionType permissionType,
+                             UA_Boolean recursive);
+
+/* Remove role permissions from a specific node.
+ * 
+ * Removes the permission entry for the specified role and permission type from
+ * the node. After removal, the role will no longer have this specific
+ * permission for this node and will fall back to the namespace defaults.
+ * 
+ * @param server The server instance
+ * @param nodeId The NodeId of the node to modify
+ * @param roleId The NodeId of the role whose permissions should be removed
+ * @param permissionType The specific permission type to remove
+ *        (e.g., UA_PERMISSIONTYPE_WRITE)
+ * @param recursive If true, removes the permission from all child nodes via
+ *        hierarchical references
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                                const UA_NodeId roleId, UA_PermissionType permissionType,
+                                UA_Boolean recursive);
+
+/**
+ * Session Roles Management
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Functions for managing the roles assigned to a session at runtime. */
+
+/* Get the roles assigned to a session.
+ * 
+ * Returns an array of Role NodeIds currently assigned to the session.
+ * The caller is responsible for freeing the returned array.
+ * 
+ * @param server The server instance
+ * @param sessionId The NodeId of the session
+ * @param rolesSize Output parameter for the number of roles
+ * @param roleIds Output parameter for the array of Role NodeIds (must be freed by caller)
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
+                          size_t *rolesSize, UA_NodeId **roleIds);
+
+/* Set the roles for a session.
+ * 
+ * Replaces all currently assigned roles with the provided set of roles.
+ * This is typically called during session activation after evaluating
+ * the user's identity against the configured role identity mappings.
+ * 
+ * @param server The server instance
+ * @param sessionId The NodeId of the session
+ * @param rolesSize Number of roles to assign
+ * @param roleIds Array of Role NodeIds to assign to the session
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
+                          size_t rolesSize, const UA_NodeId *roleIds);
+
+/* Add a single role to a session.
+ * 
+ * Appends a role to the session's current set of roles if not already present.
+ * This allows incremental role assignment without replacing all existing roles.
+ * 
+ * @param server The server instance
+ * @param sessionId The NodeId of the session
+ * @param roleId The NodeId of the role to add
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_addSessionRole(UA_Server *server, const UA_NodeId *sessionId,
+                         const UA_NodeId roleId);
 
 #endif /* UA_ENABLE_RBAC */
 
