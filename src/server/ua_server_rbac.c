@@ -369,6 +369,7 @@ initializeRolesFromConfig(UA_Server *server) {
         if(res != UA_STATUSCODE_GOOD) {
             return res;
         }
+        UA_NodeId_clear(&roleId);
     }
 
     return UA_STATUSCODE_GOOD;

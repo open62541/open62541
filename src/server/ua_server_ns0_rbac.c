@@ -90,7 +90,10 @@ readRoleEndpoints(UA_Server *server, const UA_NodeId *sessionId, void *sessionCo
 
 /* Add Role object to NS0 
  * Note: role->roleId MUST already be set by caller (UA_Server_addRole)
- * This function simply creates the NS0 information model representation */
+ * This function creates the NS0 information model representation and sets DataSources 
+ * 
+ * RoleType has only ONE mandatory property: Identities (ModellingRule=Mandatory)
+ * All other properties (Applications, Endpoints, etc.) are Optional and must be added manually */
 UA_StatusCode
 addRoleRepresentation(UA_Server *server, UA_Role *role) {
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -102,9 +105,13 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
     if(UA_NodeId_isNull(&role->roleId))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     
+
+    
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     
-    /* Add Role object instance using the pre-assigned roleId */
+    /* Add Role object instance using the pre-assigned roleId
+     * Note: When instantiating RoleType, only MANDATORY properties are created automatically
+     * In this case, only "Identities" is mandatory (ModellingRule i=78) */
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName.locale = UA_STRING("en-US");
     oAttr.displayName.text = role->roleName.name;
@@ -119,39 +126,55 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
     if(res != UA_STATUSCODE_GOOD)
         return res;
     
-    /* Add Identities variable with DataSource callback */
+    /* Find and configure DataSource for Identities property (created by RoleType instantiation) */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = role->roleId;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.includeSubtypes = false;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.nodeClassMask = UA_NODECLASS_VARIABLE;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    
+    UA_BrowseResult br = UA_Server_browse(server, 100, &bd);
+    
+    UA_NodeId identitiesNodeId = UA_NODEID_NULL;
+    UA_String identitiesStr = UA_STRING("Identities");
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        if(UA_String_equal(&br.references[i].browseName.name, &identitiesStr)) {
+            UA_NodeId_copy(&br.references[i].nodeId.nodeId, &identitiesNodeId);
+            break;
+        }
+    }
+    UA_BrowseResult_clear(&br);
+    
+    if(UA_NodeId_isNull(&identitiesNodeId)) {
+        UA_Server_deleteNode(server, role->roleId, true);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    
     UA_NodeId *roleIdContext = UA_NodeId_new();
     if(!roleIdContext) {
+        UA_NodeId_clear(&identitiesNodeId);
         UA_Server_deleteNode(server, role->roleId, true);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     UA_NodeId_copy(&role->roleId, roleIdContext);
     
-    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
-    vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Identities");
-    vAttr.dataType = UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE].typeId;
-    vAttr.valueRank = UA_VALUERANK_ONE_OR_MORE_DIMENSIONS;
-    vAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
-    
     UA_DataSource identitiesDataSource;
     identitiesDataSource.read = readRoleIdentities;
     identitiesDataSource.write = NULL;
     
-    UA_NodeId identitiesNodeId;
-    res = UA_Server_addDataSourceVariableNode(server, UA_NODEID_NULL,
-                                              role->roleId,
-                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                              UA_QUALIFIEDNAME(0, "Identities"),
-                                              UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
-                                              vAttr, identitiesDataSource,
-                                              roleIdContext, &identitiesNodeId);
+    res = UA_Server_setVariableNode_dataSource(server, identitiesNodeId, identitiesDataSource);
+    res |= UA_Server_setNodeContext(server, identitiesNodeId, roleIdContext);
+    UA_NodeId_clear(&identitiesNodeId);
     if(res != UA_STATUSCODE_GOOD) {
         UA_NodeId_delete(roleIdContext);
         UA_Server_deleteNode(server, role->roleId, true);
         return res;
     }
     
-    /* Add Applications variable with DataSource callback */
+    /* Add optional Applications property with DataSource (not mandatory in RoleType) */
     UA_NodeId *roleIdContext2 = UA_NodeId_new();
     if(!roleIdContext2) {
         UA_Server_deleteNode(server, role->roleId, true);
@@ -159,9 +182,11 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
     }
     UA_NodeId_copy(&role->roleId, roleIdContext2);
     
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Applications");
     vAttr.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
     vAttr.valueRank = UA_VALUERANK_ONE_OR_MORE_DIMENSIONS;
+    vAttr.accessLevel = UA_ACCESSLEVELMASK_READ;
     
     UA_DataSource applicationsDataSource;
     applicationsDataSource.read = readRoleApplications;
@@ -176,11 +201,12 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
                                               vAttr, applicationsDataSource,
                                               roleIdContext2, &applicationsNodeId);
     if(res != UA_STATUSCODE_GOOD) {
+        UA_NodeId_delete(roleIdContext2);
         UA_Server_deleteNode(server, role->roleId, true);
         return res;
     }
     
-    /* Add Endpoints variable with DataSource callback */
+    /* Add optional Endpoints property with DataSource (not mandatory in RoleType) */
     UA_NodeId *roleIdContext3 = UA_NodeId_new();
     if(!roleIdContext3) {
         UA_Server_deleteNode(server, role->roleId, true);
@@ -205,6 +231,7 @@ addRoleRepresentation(UA_Server *server, UA_Role *role) {
                                               vAttr, endpointsDataSource,
                                               roleIdContext3, &endpointsNodeId);
     if(res != UA_STATUSCODE_GOOD) {
+        UA_NodeId_delete(roleIdContext3);
         UA_Server_deleteNode(server, role->roleId, true);
         return res;
     }
