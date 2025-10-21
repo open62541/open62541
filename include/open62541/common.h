@@ -203,6 +203,73 @@ typedef enum {
     UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING, /* shutdown begins now */
     UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED,
 
+    /* (Server only) Give background information after a SecureChannel is opened
+     * or closed.
+     *
+     * 0:securechannel-id [UInt32]
+     *    Identifier of the SecureChannel to which the Session is connected.
+     * 0:connection-manager-name [String]
+     *    Name of the ConnectionManager (configured in the EventLoop) from which
+     *    the connction was opened.
+     * 0:connection-id [UInt64]
+     *    Identifier of the connection in the context of the EventLoop. This is
+     *    often the socket identifier, but that is not necessarily the case.
+     * 0:remote-addresss [String]
+     *   Address (hostname or IP that opened the SecureChannel.
+     *
+     * 0:protocol-version [UInt32]
+     *   The version of the UACP protocol requested by the Client.
+     * 0:recv-buffer-size [UInt32]
+     *   The largest buffer (chunk size) we can receive over the channel.
+     * 0:recv-max-message-size [UInt32]
+     *   The maximum size of received messages.
+     * 0:recv-max-chunk-count [UInt32]
+     *   The maximum number of chunks for received messages.
+     * 0:send-buffer-size [UInt32]
+     *   The largest buffer (chunk size) we can send over the channel.
+     * 0:send-max-message-size [UInt32]
+     *   The maximum size of sent messages.
+     * 0:send-max-chunk-count [UInt32]
+     *   The maximum number of chunks for sent messages.
+     * 0:endpoint-url
+     *   The target EndpointUri (for the server) indicated by the client.
+     *
+     * 0:security-mode [MessageSecurityMode]
+     *   The SecurityChannel can be unsigned, signed or signed+encrypted.
+     * 0:security-policy-uri [String]
+     *   Uri of the SecurityPolicy for this SecyrityChannel.
+     * 0:remote-certificate [ByteString]
+     *   Certificate used by the remote side during OpenSecureChannel. */
+    UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_CLOSED,
+
+    /* (Server only) Give background information for Sessions. The _DEACTIVATE
+     * notification occurs when a Sesssion is unbound from its original
+     * SecureChannel. Either because the SecureChannel is closed or because the
+     * session is activated on another SecureChannel.
+     *
+     * 0:session-id [NodeId]
+     *   Identifier of the Session.
+     * 0:securechannel-id [UInt32]
+     *   Identifier of the SecureChannel on which the Session is activated.
+     *   Zero if the Session is not bound to any SecureChannel.
+     * 0:session-name [String]
+     *   Name of the Session as defined by the client.
+     * 0:client-description [ApplicationDescription]
+     *   Name of the Session as defined by the client.
+     * 0:client-user-id [String]
+     *   User identifier used to activate the session. This is extracted from
+     *   the UserIdentityToken (e.g. username but not the password).
+     * 0:locale-ids [Array of String]
+     *   List of preferred languages.
+     *
+     * Any additional attributes set via UA_Server_setSessionAttribute are
+     * appended to the above list. */
+    UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CREATED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SESSION_ACTIVATED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SESSION_DEACTIVATED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED,
+
     /* Processing of a service request or response. The server-side processing
      * of a request can be asynchronous. The existence of a yet-unfinished async
      * operation from the request is signaled with the _SERVICE_ASYNC enum. The
@@ -248,13 +315,7 @@ typedef enum {
     UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_CREATED,
     UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_MODIFIED,
     UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_PUBLISHINGMODE,
-
-    /* (Server only) Signals the deletion of a Subscription.
-     *
-     * 0:session-id [NodeId]
-     *    Identifier of the Session for which the Subscription is created.
-     * 0:subscription-id [UInt32]
-     *    Identifier of the subscription (unique for the Session). */
+    UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_TRANSFERRED,
     UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_DELETED,
 
     /* (Server only) Signals the creation or modification of a MonitoredItem.
@@ -292,17 +353,6 @@ typedef enum {
     UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED,
     UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_MODIFIED,
     UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_MONITORINGMODE,
-
-    /* (Server only) Signals the deletion of a MonitoredItem.
-     *
-     * 0:session-id [NodeId]
-     *    Identifier of the Session for which the Subscription is created.
-     *    If the subscription is not bound to any Session, then the NodeId
-     *    ns=0;i=0 is returned.
-     * 0:subscription-id [UInt32]
-     *    Identifier of the subscription (unique for the Session).
-     * 0:monitoreditem-id [UInt32]
-     *    Identifier of the MonitoredItem (unique for the Subscription). */
     UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE
 } UA_ApplicationNotificationType;
 

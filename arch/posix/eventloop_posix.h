@@ -174,6 +174,8 @@ _UA_END_DECLS
 /* POSIX Definitions */
 /*********************/
 
+#include <time.h>
+
 /*---------------------*/
 /* Network Definitions */
 /*---------------------*/
@@ -419,11 +421,9 @@ typedef struct {
      * All listening sockets will be closed. */
     UA_Boolean maxSocketsLimitReached;
 
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
     /* Clocks for the eventloop's time domain */
     UA_Int32 clockSource;
     UA_Int32 clockSourceMonotonic;
-#endif
 
 #if defined(UA_HAVE_EPOLL)
     UA_FD epollfd;

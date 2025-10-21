@@ -123,19 +123,26 @@ notifyServiceEnd(UA_Server *server, UA_AsyncResponse *ar,
         serviceTypeId = UA_TYPES[UA_TYPES_WRITEREQUEST].typeId;
     }
 
-    UA_KeyValuePair notifyPayload[4];
-    UA_KeyValueMap notifyPayloadMap = {4, notifyPayload};
-    UA_ApplicationNotificationType nt = UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END;
-    notifyPayload[0].key = (UA_QualifiedName){0, UA_STRING_STATIC("securechannel-id")};
-    UA_Variant_setScalar(&notifyPayload[0].value, &secureChannelId, &UA_TYPES[UA_TYPES_UINT32]);
-    notifyPayload[1].key = (UA_QualifiedName){0, UA_STRING_STATIC("session-id")};
-    UA_Variant_setScalar(&notifyPayload[1].value, &sessionId, &UA_TYPES[UA_TYPES_NODEID]);
-    notifyPayload[2].key = (UA_QualifiedName){0, UA_STRING_STATIC("request-id")};
-    UA_Variant_setScalar(&notifyPayload[2].value, &ar->requestId, &UA_TYPES[UA_TYPES_UINT32]);
-    notifyPayload[3].key = (UA_QualifiedName){0, UA_STRING_STATIC("service-type")};
-    UA_Variant_setScalar(&notifyPayload[3].value, &serviceTypeId, &UA_TYPES[UA_TYPES_NODEID]);
-
     /* Notify the application */
+    static UA_THREAD_LOCAL UA_KeyValuePair notifyPayload[4] = {
+        {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
+        {{0, UA_STRING_STATIC("session-id")}, {0}},
+        {{0, UA_STRING_STATIC("request-id")}, {0}},
+        {{0, UA_STRING_STATIC("service-type")}, {0}}
+    };
+    UA_KeyValueMap notifyPayloadMap = {4, notifyPayload};
+    if(config->serviceNotificationCallback || config->globalNotificationCallback) {
+        UA_Variant_setScalar(&notifyPayload[0].value, &secureChannelId,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&notifyPayload[1].value, &sessionId,
+                             &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Variant_setScalar(&notifyPayload[2].value, &ar->requestId,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&notifyPayload[3].value, &serviceTypeId,
+                             &UA_TYPES[UA_TYPES_NODEID]);
+    }
+
+    UA_ApplicationNotificationType nt = UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END;
     if(config->serviceNotificationCallback)
         config->serviceNotificationCallback(server, nt, notifyPayloadMap);
     if(config->globalNotificationCallback)

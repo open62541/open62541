@@ -96,9 +96,10 @@ struct UA_SecureChannel {
     UA_SecureChannelRenewState renewState;
     UA_MessageSecurityMode securityMode;
     UA_ShutdownReason shutdownReason;
-    UA_ConnectionConfig config;
 
+    UA_ConnectionConfig config;
     UA_String endpointUrl;
+    UA_String remoteAddress;
 
     /* Connection handling in the EventLoop */
     UA_ConnectionManager *connectionManager;

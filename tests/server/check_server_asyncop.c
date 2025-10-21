@@ -265,9 +265,11 @@ START_TEST(Async_read) {
     ck_assert_uint_eq(clientCounter, 1);
 
     /* Iterate and pick up the async response to be sent out */
-    UA_fakeSleep(1000);
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
+    while(clientCounter == 1) {
+        UA_fakeSleep(1000);
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 0);
+    }
     ck_assert_uint_eq(clientCounter, 2);
 
     running = true;
