@@ -348,6 +348,79 @@ START_TEST(Server_rbacNamespaceHandling) {
 }
 END_TEST
 
+START_TEST(Server_rbacBrowseNameNamespaceMatches) {
+    /* Test that BrowseName namespace in NS0 matches the role's BrowseName namespace
+     * This is critical: the user specifies the namespace via NamespaceUri parameter,
+     * and the NS0 representation must preserve this namespace */
+    
+    /* Test 1: Role in default namespace (nsIdx=1) */
+    UA_NodeId roleId1;
+    UA_StatusCode retval = UA_Server_addRole(server, UA_STRING("TestRole1"), 
+                                              UA_STRING_NULL, NULL, &roleId1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    const UA_Role *role1 = UA_Server_getRolesById(server, roleId1);
+    ck_assert_ptr_nonnull(role1);
+    ck_assert_uint_eq(role1->roleName.namespaceIndex, 1); /* Default namespace */
+    
+    /* Read BrowseName from NS0 node */
+    UA_QualifiedName browseName1;
+    retval = UA_Server_readBrowseName(server, roleId1, &browseName1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify: NS0 BrowseName namespace MUST match role's BrowseName namespace */
+    ck_assert_uint_eq(browseName1.namespaceIndex, role1->roleName.namespaceIndex);
+    ck_assert_uint_eq(browseName1.namespaceIndex, 1);
+    ck_assert(UA_String_equal(&browseName1.name, &role1->roleName.name));
+    UA_QualifiedName_clear(&browseName1);
+    
+    /* Test 2: Role in custom namespace */
+    UA_String customNsUri = UA_STRING("http://example.com/TestNamespace");
+    UA_UInt16 customNsIdx = UA_Server_addNamespace(server, "http://example.com/TestNamespace");
+    ck_assert(customNsIdx >= 2);
+    
+    UA_NodeId roleId2;
+    retval = UA_Server_addRole(server, UA_STRING("TestRole2"), 
+                                customNsUri, NULL, &roleId2);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    const UA_Role *role2 = UA_Server_getRolesById(server, roleId2);
+    ck_assert_ptr_nonnull(role2);
+    ck_assert_uint_eq(role2->roleName.namespaceIndex, customNsIdx);
+    
+    /* Read BrowseName from NS0 node */
+    UA_QualifiedName browseName2;
+    retval = UA_Server_readBrowseName(server, roleId2, &browseName2);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify: NS0 BrowseName namespace MUST match role's BrowseName namespace */
+    ck_assert_uint_eq(browseName2.namespaceIndex, role2->roleName.namespaceIndex);
+    ck_assert_uint_eq(browseName2.namespaceIndex, customNsIdx);
+    ck_assert(UA_String_equal(&browseName2.name, &role2->roleName.name));
+    UA_QualifiedName_clear(&browseName2);
+    
+    /* Test 3: Well-known role in NS0 */
+    UA_NodeId anonymousRoleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    const UA_Role *anonymousRole = UA_Server_getRolesById(server, anonymousRoleId);
+    ck_assert_ptr_nonnull(anonymousRole);
+    
+    UA_QualifiedName browseNameAnonymous;
+    retval = UA_Server_readBrowseName(server, anonymousRoleId, &browseNameAnonymous);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Well-known roles should have BrowseName in NS0 */
+    ck_assert_uint_eq(browseNameAnonymous.namespaceIndex, 0);
+    ck_assert_uint_eq(anonymousRole->roleName.namespaceIndex, 0);
+    UA_QualifiedName_clear(&browseNameAnonymous);
+    
+    /* Cleanup */
+    UA_Server_removeRole(server, roleId1);
+    UA_Server_removeRole(server, roleId2);
+    UA_NodeId_clear(&roleId1);
+    UA_NodeId_clear(&roleId2);
+}
+END_TEST
+
 START_TEST(Server_rbacNamespaceRemoval) {
     UA_String customNsUri = UA_STRING("http://test.com/Namespace1");
     UA_UInt16 customNsIdx = UA_Server_addNamespace(server, "http://test.com/Namespace1");
@@ -392,6 +465,7 @@ static Suite *testSuite_Server_RBAC(void) {
     tcase_add_test(tc_rbac, Server_rbacProtectMandatoryRoles);
     tcase_add_test(tc_rbac, Server_rbacAllowModifyingOptionalRoles);
     tcase_add_test(tc_rbac, Server_rbacNamespaceHandling);
+    tcase_add_test(tc_rbac, Server_rbacBrowseNameNamespaceMatches);
     tcase_add_test(tc_rbac, Server_rbacNamespaceRemoval);
     suite_add_tcase(s, tc_rbac);
     return s;
