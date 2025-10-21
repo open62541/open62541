@@ -42,7 +42,7 @@ readRoleIdentities(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
     UA_LOCK_ASSERT(&server->serviceMutex);
     
     UA_NodeId roleId = *(UA_NodeId*)nodeContext;
-    const UA_Role *role = UA_Server_getRolesById(server, roleId);
+    const UA_Role *role = UA_Server_getRoleById(server, roleId);
     if(!role)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     
@@ -60,7 +60,7 @@ readRoleApplications(UA_Server *server, const UA_NodeId *sessionId, void *sessio
     UA_LOCK_ASSERT(&server->serviceMutex);
     
     UA_NodeId roleId = *(UA_NodeId*)nodeContext;
-    const UA_Role *role = UA_Server_getRolesById(server, roleId);
+    const UA_Role *role = UA_Server_getRoleById(server, roleId);
     if(!role)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     
@@ -78,7 +78,7 @@ readRoleEndpoints(UA_Server *server, const UA_NodeId *sessionId, void *sessionCo
     UA_LOCK_ASSERT(&server->serviceMutex);
     
     UA_NodeId roleId = *(UA_NodeId*)nodeContext;
-    const UA_Role *role = UA_Server_getRolesById(server, roleId);
+    const UA_Role *role = UA_Server_getRoleById(server, roleId);
     if(!role)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     

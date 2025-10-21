@@ -1046,7 +1046,7 @@ UA_Server_cleanupRBAC(UA_Server *server) {
 /* RBAC Query Functions */
 
 UA_EXPORT const UA_Role *
-UA_Server_getRolesById(UA_Server *server, UA_NodeId roleId) {
+UA_Server_getRoleById(UA_Server *server, UA_NodeId roleId) {
     if(!server)
         return NULL;
 
@@ -1064,7 +1064,7 @@ UA_Server_getRolesById(UA_Server *server, UA_NodeId roleId) {
 }
 
 UA_EXPORT const UA_Role *
-UA_Server_getRolesByName(UA_Server *server, UA_String roleName, UA_String namespaceUri) {
+UA_Server_getRoleByName(UA_Server *server, UA_String roleName, UA_String namespaceUri) {
     if(!server)
         return NULL;
 
@@ -1133,6 +1133,199 @@ UA_Server_getRoles(UA_Server *server, size_t *rolesSize, UA_NodeId **roleIds) {
 #endif
 
     return UA_STATUSCODE_GOOD;
+}
+
+/*******************************/
+/* Node RolePermissions API    */
+/*******************************/
+
+UA_StatusCode
+UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                             const UA_NodeId roleId, UA_PermissionType permissionType,
+                             UA_Boolean recursive) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    /* TODO: Implement node role permissions management */
+
+    UA_StatusCode res = UA_STATUSCODE_BADNOTIMPLEMENTED;
+
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return res;
+}
+
+UA_StatusCode
+UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                                const UA_NodeId roleId, UA_PermissionType permissionType,
+                                UA_Boolean recursive) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    /* TODO: Implement node role permissions removal*/
+    
+    UA_StatusCode res = UA_STATUSCODE_BADNOTIMPLEMENTED;
+
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return res;
+}
+
+/* Session Roles Management */
+
+UA_StatusCode
+UA_Server_getSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
+                          size_t *rolesSize, UA_NodeId **roleIds) {
+    if(!server || !sessionId || !rolesSize || !roleIds)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session) {
+        res = UA_STATUSCODE_BADSESSIONIDINVALID;
+        goto cleanup;
+    }
+
+    /* Deep copy the roles array */
+    if(session->rolesSize > 0) {
+        res = UA_Array_copy(session->roles, session->rolesSize,
+                           (void**)roleIds, &UA_TYPES[UA_TYPES_NODEID]);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+        *rolesSize = session->rolesSize;
+    } else {
+        *rolesSize = 0;
+        *roleIds = NULL;
+    }
+
+cleanup:
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return res;
+}
+
+UA_StatusCode
+UA_Server_setSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
+                          size_t rolesSize, const UA_NodeId *roleIds) {
+    if(!server || !sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    if(rolesSize > 0 && !roleIds)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session) {
+        res = UA_STATUSCODE_BADSESSIONIDINVALID;
+        goto cleanup;
+    }
+
+    /* Validate that all role IDs exist */
+    for(size_t i = 0; i < rolesSize; i++) {
+        const UA_Role *role = findRoleById(server, &roleIds[i]);
+        if(!role) {
+            res = UA_STATUSCODE_BADNODEIDUNKNOWN;
+            goto cleanup;
+        }
+    }
+
+    UA_Array_delete(session->roles, session->rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    session->roles = NULL;
+    session->rolesSize = 0;
+
+    if(rolesSize > 0) {
+        res = UA_Array_copy(roleIds, rolesSize,
+                           (void**)&session->roles, &UA_TYPES[UA_TYPES_NODEID]);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+        session->rolesSize = rolesSize;
+    }
+
+cleanup:
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return res;
+}
+
+UA_StatusCode
+UA_Server_addSessionRole(UA_Server *server, const UA_NodeId *sessionId,
+                         const UA_NodeId roleId) {
+    if(!server || !sessionId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session) {
+        res = UA_STATUSCODE_BADSESSIONIDINVALID;
+        goto cleanup;
+    }
+
+    /* Validate that the role exists */
+    const UA_Role *role = findRoleById(server, &roleId);
+    if(!role) {
+        res = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        goto cleanup;
+    }
+
+    /* Check if role is already assigned */
+    for(size_t i = 0; i < session->rolesSize; i++) {
+        if(UA_NodeId_equal(&session->roles[i], &roleId)) {
+            goto cleanup;
+        }
+    }
+
+    UA_NodeId *newRoles = (UA_NodeId*)
+        UA_realloc(session->roles, (session->rolesSize + 1) * sizeof(UA_NodeId));
+    if(!newRoles) {
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
+
+    session->roles = newRoles;
+
+    res = UA_NodeId_copy(&roleId, &session->roles[session->rolesSize]);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    session->rolesSize++;
+
+cleanup:
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return res;
 }
 
 #endif /* UA_ENABLE_RBAC */
