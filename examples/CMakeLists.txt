@@ -157,6 +157,10 @@ if(UA_ENABLE_NODEMANAGEMENT)
     endif()
 endif()
 
+if(UA_ENABLE_RBAC)
+    add_example(rbac_server access_control/server_rbac.c)
+endif()
+
 if(UA_ENABLE_DISCOVERY_MULTICAST)
     add_example(discovery_server_lds discovery/server_lds.c)
     add_example(discovery_server_register discovery/server_register.c)
