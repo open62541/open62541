@@ -86,6 +86,11 @@ parser.add_argument('--backend',
                     choices=['open62541', 'graphviz'],
                     help='Backend for the output files (default: %(default)s)')
 
+parser.add_argument('--method-callbacks',
+                    action='store_true',
+                    dest="method_callbacks",
+                    help='Generate Method Callback Stubs')
+
 args = parser.parse_args()
 
 # Set up logging
@@ -219,7 +224,7 @@ logger.info(f"Generating Code for Backend: {args.backend}")
 if args.backend == "open62541":
     # Create the C code with the open62541 backend of the compiler
     from backend_open62541 import generateOpen62541Code
-    generateOpen62541Code(ns, args.outputFile, args.internal_headers, args.typesArray)
+    generateOpen62541Code(ns, args.outputFile, args.internal_headers, args.typesArray, args.method_callbacks)
 elif args.backend == "graphviz":
     from backend_graphviz import generateGraphvizCode
     generateGraphvizCode(ns, filename=args.outputFile)
