@@ -176,8 +176,8 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     addWriterGroup(server);
     addDataSetWriter(server);
 
-    /* Enable the PubSubComponents */
-    UA_Server_enableAllPubSubComponents(server);
+ 
+    
 
     /* Run the server */
     UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
