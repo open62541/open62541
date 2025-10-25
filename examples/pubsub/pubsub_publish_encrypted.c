@@ -127,8 +127,8 @@ run(UA_String *transportProfile,
     addWriterGroup(server);
     addDataSetWriter(server);
 
-    /* Enable the PubSubComponents */
-    UA_Server_enableAllPubSubComponents(server);
+  
+    
     UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
