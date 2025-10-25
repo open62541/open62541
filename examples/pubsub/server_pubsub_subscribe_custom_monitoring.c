@@ -185,7 +185,7 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     addDataSetReader(server, messageReceiveTimeout);
     addSubscribedVariables(server, readerIdentifier);
 
-    UA_Server_enableAllPubSubComponents(server);
+    
     UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
 }
