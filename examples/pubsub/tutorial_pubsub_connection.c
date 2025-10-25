@@ -55,8 +55,6 @@ int main(void) {
                     "The PubSub Connection was created successfully!");
     }
 
-    /* Enable the PubSubComponents */
-    UA_Server_enableAllPubSubComponents(server);
     retval = UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
