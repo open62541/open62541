@@ -357,7 +357,7 @@ int main(int argc, char **argv) {
     addDataSetReader(server);
     addSubscribedVariables(server, subscribedDataSetIdent);
 
-    UA_Server_enableAllPubSubComponents(server);
+    
     UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
