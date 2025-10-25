@@ -486,7 +486,7 @@ int main(int argc, char **argv) {
     addWriterGroup(server, topic, interval);
     addDataSetWriter(server, topic);
 
-    UA_Server_enableAllPubSubComponents(server);
+    
     UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
