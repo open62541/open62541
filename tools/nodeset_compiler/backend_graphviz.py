@@ -1,4 +1,4 @@
-from nodeset import *
+from .nodeset import *
 import graphviz as gv
 import codecs
 

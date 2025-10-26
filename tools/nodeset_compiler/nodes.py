@@ -10,7 +10,7 @@
 
 
 import logging
-from datatypes import QualifiedName, LocalizedText, NodeId
+from .datatypes import QualifiedName, LocalizedText, NodeId
 
 __all__ = ['Reference', 'RefOrAlias', 'Node', 'ReferenceTypeNode',
            'ObjectNode', 'VariableNode', 'VariableTypeNode',

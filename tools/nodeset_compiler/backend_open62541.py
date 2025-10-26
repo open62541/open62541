@@ -12,9 +12,9 @@
 ###    Copyright 2019 (c) Andrea Minosu
 ###    Copyright 2021 (c) Wind River Systems, Inc.
 
-from datatypes import NodeId
-from nodes import *
-from nodeset import *
+from .datatypes import NodeId
+from .nodes import *
+from .nodeset import *
 
 import re
 from os.path import basename
