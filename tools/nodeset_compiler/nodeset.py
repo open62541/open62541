@@ -12,11 +12,13 @@ import xml.dom.minidom as dom
 import logging
 import codecs
 import re
-from datatypes import NodeId
-from nodes import *
-from opaque_type_mapping import opaque_type_mapping
+from collections import OrderedDict
 
-from type_parser import CSVBSDTypeParser
+from .datatypes import NodeId
+from .nodes import *
+from .opaque_type_mapping import opaque_type_mapping
+from .type_parser import CSVBSDTypeParser
+
 import io
 import tempfile
 import base64

@@ -8,13 +8,18 @@
 ###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
+if __name__ == "__main__" and __package__ is None:
+    import os, sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    __package__ = "nodeset_compiler"
 
 import logging
 import argparse
 import sys
 import xml.etree.ElementTree as etree
-from datatypes import NodeId
-from nodeset import *
+
+from .datatypes import NodeId
+from .nodeset import *
 
 # Parse the arguments
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -218,10 +223,10 @@ logger.info(f"Generating Code for Backend: {args.backend}")
 
 if args.backend == "open62541":
     # Create the C code with the open62541 backend of the compiler
-    from backend_open62541 import generateOpen62541Code
+    from .backend_open62541 import generateOpen62541Code
     generateOpen62541Code(ns, args.outputFile, args.internal_headers, args.typesArray)
 elif args.backend == "graphviz":
-    from backend_graphviz import generateGraphvizCode
+    from .backend_graphviz import generateGraphvizCode
     generateGraphvizCode(ns, filename=args.outputFile)
 else:
     logger.error(f"Unsupported backend: {args.backend}")
