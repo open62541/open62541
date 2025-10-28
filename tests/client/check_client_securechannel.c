@@ -124,9 +124,9 @@ START_TEST(SecureChannel_timeout_fail) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
+    pauseServer();
     UA_fakeSleep(cconfig->secureChannelLifeTime + 1);
-    /* TODO: Manually trigger an eventloop iteration (stop sleeping in select) for the server thread */
-    UA_realSleep(500 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed
+    runServer();
 
     UA_Variant val;
     UA_Variant_init(&val);
