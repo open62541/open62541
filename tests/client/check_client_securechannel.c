@@ -184,7 +184,9 @@ START_TEST(SecureChannel_reconnect) {
 
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_fakeSleep(cconfig->secureChannelLifeTime + 1);
-    UA_realSleep(50 + 1);
+    pauseServer();
+    UA_Server_run_iterate(server, true);
+    runServer();
 
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
