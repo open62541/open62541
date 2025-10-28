@@ -284,7 +284,6 @@ START_TEST(Server_publishCallback) {
     /* Sleep until the publishing interval times out */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
-    UA_realSleep(100);
 
     TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         if ((sub->subscriptionId == subscriptionId1) || (sub->subscriptionId == subscriptionId2))
