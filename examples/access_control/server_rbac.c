@@ -16,16 +16,7 @@
 #include <signal.h>
 #include <stdlib.h>
 
-static volatile UA_Boolean running = true;
-
-static void stopHandler(int sig) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received signal %d", sig);
-    running = false;
-}
-
 int main(void) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
 
     /* Step 1: Configure an initial custom role via ServerConfig
      * This role will be configured BEFORE the server is created */
@@ -193,14 +184,10 @@ int main(void) {
         UA_NodeId_clear(&rolesToSet[1]);
     }
 
-    if(!running)
-        goto cleanup;
-
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Server is running...");
-    
-    /* Run the server main loop */
-    while(running)
-        retval = UA_Server_run_iterate(server, true);
+
+    /* Run the server until interrupted */
+    UA_Server_runUntilInterrupt(server);
 
 cleanup:
     UA_NodeId_clear(&operatorRoleId);
