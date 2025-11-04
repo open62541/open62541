@@ -291,6 +291,11 @@ struct UA_NodeHead {
     /* Members specific to open62541 */
     void *context;
     UA_Boolean constructed; /* Constructors were called */
+#ifdef UA_ENABLE_RBAC
+    UA_PermissionIndex permissionIndex; /* Index into server's rolePermissions array.
+                                          * UA_PERMISSION_INDEX_INVALID means no specific
+                                          * permissions configured (use defaults). */
+#endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_MonitoredItem *monitoredItems; /* MonitoredItems for Events and immediate
                                        * DataChanges (no sampling interval). */
