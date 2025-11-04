@@ -79,10 +79,10 @@ processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
     return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy, &appInstCert);
 }
 
-void
-Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                          UA_OpenSecureChannelRequest *request,
-                          UA_OpenSecureChannelResponse *response) {
+static void
+Service_OpenSecureChannel_inner(UA_Server *server, UA_SecureChannel *channel,
+                                UA_OpenSecureChannelRequest *request,
+                                UA_OpenSecureChannelResponse *response) {
     UA_ServerConfig *sc = &server->config;
     UA_EventLoop *el = server->config.eventLoop;
     const UA_SecurityPolicy *sp = channel->securityPolicy;
@@ -206,6 +206,44 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
                             "lifetime of %.2fs",
                             (UA_Float)response->securityToken.revisedLifetime / 1000);
     }
+}
+
+void
+Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                          UA_OpenSecureChannelRequest *request,
+                          UA_OpenSecureChannelResponse *response) {
+    /* Call the main OpenSecureChannel implementation */
+    Service_OpenSecureChannel_inner(server, channel, request, response);
+
+    /* Create the audit event for the new SecureChannel, also when the creation
+     * or renewal fails. */
+    UA_KeyValuePair auditPayload[12] = {
+        {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+        {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+        {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+        {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+        {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+        {{0, UA_STRING_STATIC("/SecureChannelId")}, {0}},             /* 5 */
+        {{0, UA_STRING_STATIC("/ClientCertificate")}, {0}},           /* 6 */
+        {{0, UA_STRING_STATIC("/ClientCertificateThumbprint")}, {0}}, /* 7 */
+        {{0, UA_STRING_STATIC("/RequestType")}, {0}},                 /* 8 */
+        {{0, UA_STRING_STATIC("/SecurityPolicyUri")}, {0}},           /* 9 */
+        {{0, UA_STRING_STATIC("/SecurityMode")}, {0}},                /* 10 */
+        {{0, UA_STRING_STATIC("/RequestedLifetime")}, {0}},           /* 11 */
+    };
+
+    UA_DateTime actionTimestamp = UA_DateTime_now();
+    UA_Boolean status = (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD);
+    UA_ByteString certThumbprint = {20, channel->remoteCertificateThumbprint};
+    UA_Variant_setScalar(&auditPayload[0].value, &actionTimestamp, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_Variant_setScalar(&auditPayload[1].value, &status, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    // ...
+    UA_Variant_setScalar(&auditPayload[6].value, &channel->remoteCertificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&auditPayload[7].value, &certThumbprint, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    // ...
+
+    UA_KeyValueMap auditPayloadMap = {12, auditPayload};
+    auditEvent(server, UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL_OPEN, auditPayloadMap);
 }
 
 /* The server does not send a CloseSecureChannel response */
