@@ -2125,6 +2125,7 @@ struct UA_ServerConfig {
     UA_ServerNotificationCallback sessionNotificationCallback;
     UA_ServerNotificationCallback serviceNotificationCallback;
     UA_ServerNotificationCallback subscriptionNotificationCallback;
+    UA_ServerNotificationCallback auditNotificationCallback;
 
     /* Networking
      * ~~~~~~~~~~

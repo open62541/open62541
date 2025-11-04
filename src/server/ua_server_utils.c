@@ -389,6 +389,74 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
     return cg->verifyCertificate(cg, &certificate);
 }
 
+/************/
+/* Auditing */
+/************/
+
+void
+auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
+           const UA_KeyValueMap payload) {
+    UA_ServerConfig *config = &server->config;
+
+    /* Call the server notification callback */
+    if(config->auditNotificationCallback)
+        config->auditNotificationCallback(server, type, payload);
+    if(config->globalNotificationCallback)
+        config->globalNotificationCallback(server, type, payload);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    /* Create the Event in the information model */
+    UA_EventDescription ed;
+    memset(&ed, 0, sizeof(UA_EventDescription));
+    ed.sourceNode = UA_NS0ID(SERVER);
+    ed.eventFields = &payload;
+    switch(type) {
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT:
+        ed.eventType = UA_NS0ID(AUDITEVENTTYPE);
+        break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY:
+        ed.eventType = UA_NS0ID(AUDITSECURITYEVENTTYPE);
+        break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL:
+        ed.eventType = UA_NS0ID(AUDITCHANNELEVENTTYPE);
+        break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL_OPEN:
+        ed.eventType = UA_NS0ID(AUDITOPENSECURECHANNELEVENTTYPE);
+        break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION:
+        ed.eventType = UA_NS0ID(AUDITSESSIONEVENTTYPE);
+        break;
+    default:
+        return;
+
+        /*
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CREATE           = 0x1121,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_ACTIVATE         = 0x1122,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CANCEL           = 0x1124,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE              = 0x1140,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_DATAMISMATCH = 0x1141,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_EXPIRED      = 0x1142,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_INVALID      = 0x1143,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_UNTRUSTED    = 0x1144,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_REVOKED      = 0x1145,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_MISMATCH     = 0x1146,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE                              = 0x1200,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_ADD                          = 0x1210,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_DELETE                       = 0x1220,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_ADDREFERENCES                = 0x1240,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_DELETEREFERENCES             = 0x1280,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE                            = 0x1400,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_WRITE                      = 0x1410,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_HISTORY                    = 0x1420,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD                     = 0x1440,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT                            = 0x1800,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT_UPDATEMETHOD               = 0x1810
+        */
+    }
+    createEvent(server, &ed, NULL);
+ #endif
+}
+
 /*********************************/
 /* Default attribute definitions */
 /*********************************/

@@ -399,6 +399,11 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
 /* Utility Functions */
 /*********************/
 
+void
+auditEvent(UA_Server *server,
+           UA_ApplicationNotificationType type,
+           const UA_KeyValueMap payload);
+
 void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
 
 void setupNs1Uri(UA_Server *server);
