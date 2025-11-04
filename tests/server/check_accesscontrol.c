@@ -112,9 +112,8 @@ static void setCustomAccessControl(UA_ServerConfig* config) {
 }
 
 START_TEST(Server_sessionParameter) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     setCustomAccessControl(config);
     UA_Server_run_startup(server);
 
