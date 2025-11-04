@@ -73,13 +73,23 @@ struct UA_AccessControl {
      *
      * Note that this callback can be called several times for a Session. For
      * example when a Session is recovered (activated) on a new
-     * SecureChannel. */
+     * SecureChannel.
+     *
+     * When UA_ENABLE_RBAC is enabled, the plugin should also populate the
+     * session roles based on the identity mapping rules. The roleIds array
+     * should be allocated by the plugin and will be freed by the server.
+     * Set rolesSize to 0 and roleIds to NULL if no roles should be assigned. */
     UA_StatusCode (*activateSession)(UA_Server *server, UA_AccessControl *ac,
                                      const UA_EndpointDescription *endpointDescription,
                                      const UA_ByteString *secureChannelRemoteCertificate,
                                      const UA_NodeId *sessionId,
                                      const UA_ExtensionObject *userIdentityToken,
-                                     void **sessionContext);
+                                     void **sessionContext
+#ifdef UA_ENABLE_RBAC
+                                     , size_t *rolesSize,
+                                     UA_NodeId **roleIds
+#endif
+                                     );
 
     /* Deauthenticate a session and cleanup */
     void (*closeSession)(UA_Server *server, UA_AccessControl *ac,
