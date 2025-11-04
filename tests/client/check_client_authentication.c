@@ -191,7 +191,7 @@ START_TEST(client_connect_none_username_basic256Sha256) {
         privateKey.length = CLIENT_KEY_DER_LENGTH;
         privateKey.data = CLIENT_KEY_DER_DATA;
 
-        UA_Client *client = UA_Client_new();
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_ClientConfig *cc = UA_Client_getConfig(client);
 
         /* Set securityMode and securityPolicyUri */
@@ -222,55 +222,54 @@ START_TEST(client_connect_none_username_basic256Sha256) {
 END_TEST
 
 START_TEST(client_connect_basic256Sha256_anonymous) {
-        /*
-         * Attempt to connect an endpoint with Basic256Sha256 security policy
-         * and anonymous identity token.
-         * The client is configured to only have the None and Basic256Sha256 security
-         * policy in securityPolicies and an empty authSecurityPolicies array.
-         */
+    /*
+     * Attempt to connect an endpoint with Basic256Sha256 security policy
+     * and anonymous identity token.
+     * The client is configured to only have the None and Basic256Sha256 security
+     * policy in securityPolicies and an empty authSecurityPolicies array.
+     */
 
-        /* Load client certificate and private key for the SecureChannel */
-        UA_ByteString certificate;
-        certificate.length = CLIENT_CERT_DER_LENGTH;
-        certificate.data = CLIENT_CERT_DER_DATA;
+    /* Load client certificate and private key for the SecureChannel */
+    UA_ByteString certificate;
+    certificate.length = CLIENT_CERT_DER_LENGTH;
+    certificate.data = CLIENT_CERT_DER_DATA;
 
-        UA_ByteString privateKey;
-        privateKey.length = CLIENT_KEY_DER_LENGTH;
-        privateKey.data = CLIENT_KEY_DER_DATA;
+    UA_ByteString privateKey;
+    privateKey.length = CLIENT_KEY_DER_LENGTH;
+    privateKey.data = CLIENT_KEY_DER_DATA;
 
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
 
-        /* Set securityMode and securityPolicyUri */
-        cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-        cc->securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    /* Set securityMode and securityPolicyUri */
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    cc->securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
 
-        UA_ClientConfig_setDefault(cc);
-        cc->securityPolicies = (UA_SecurityPolicy*)UA_realloc(cc->securityPolicies, sizeof(UA_SecurityPolicy) * 2);
-        UA_SecurityPolicy_Basic256Sha256(&cc->securityPolicies[1], certificate, privateKey, cc->logging);
-        cc->securityPoliciesSize = 2;
+    UA_ClientConfig_setDefault(cc);
+    cc->securityPolicies = (UA_SecurityPolicy*)UA_realloc(cc->securityPolicies, sizeof(UA_SecurityPolicy) * 2);
+    UA_SecurityPolicy_Basic256Sha256(&cc->securityPolicies[1], certificate, privateKey, cc->logging);
+    cc->securityPoliciesSize = 2;
 
-        UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
-        /* Set the ApplicationUri used in the certificate */
-        UA_String_clear(&cc->clientDescription.applicationUri);
-        cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
+    /* Set the ApplicationUri used in the certificate */
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
 
-        /* Use empty security policies array */
-        for(size_t i = 0; i < cc->authSecurityPoliciesSize; ++i)
-            cc->authSecurityPolicies[i].clear(&cc->authSecurityPolicies[i]);
-        UA_free(cc->authSecurityPolicies);
-        cc->authSecurityPolicies = NULL;
-        cc->authSecurityPoliciesSize = 0;
+    /* Use empty security policies array */
+    for(size_t i = 0; i < cc->authSecurityPoliciesSize; ++i)
+        cc->authSecurityPolicies[i].clear(&cc->authSecurityPolicies[i]);
+    UA_free(cc->authSecurityPolicies);
+    cc->authSecurityPolicies = NULL;
+    cc->authSecurityPoliciesSize = 0;
 
-        UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
 
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-    }
-END_TEST
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
