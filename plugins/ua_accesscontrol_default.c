@@ -43,7 +43,12 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
                         const UA_ByteString *secureChannelRemoteCertificate,
                         const UA_NodeId *sessionId,
                         const UA_ExtensionObject *userIdentityToken,
-                        void **sessionContext) {
+                        void **sessionContext
+#ifdef UA_ENABLE_RBAC
+                        , size_t *rolesSize,
+                        UA_NodeId **roleIds
+#endif
+                        ) {
     AccessControlContext *context = (AccessControlContext*)ac->context;
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
@@ -146,6 +151,108 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         /* Unsupported token type */
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
     }
+
+#ifdef UA_ENABLE_RBAC
+    /* Evaluate roles based on identity mapping rules
+     * The default implementation assigns roles by evaluating all configured
+     * roles' identity mapping rules against the current identity token.
+     * 
+     * Applications can override this by providing their own activateSession
+     * implementation that evaluates roles according to custom logic. */
+    if(rolesSize && roleIds) {
+        *rolesSize = 0;
+        *roleIds = NULL;
+        
+        /* Determine identity criteria for matching */
+        UA_IdentityCriteriaType identityType = UA_IDENTITYCRITERIATYPE_ANONYMOUS;
+        UA_String userName = UA_STRING_NULL;
+        
+        if(tokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
+            identityType = UA_IDENTITYCRITERIATYPE_ANONYMOUS;
+        } else if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+            identityType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
+            const UA_UserNameIdentityToken *userToken = 
+                (UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
+            userName = userToken->userName;
+        } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+            identityType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
+            /* For X509, could extract username from certificate if needed */
+        }
+        
+        /* Get all roles from the server and evaluate their identity mapping rules */
+        size_t allRolesSize = 0;
+        UA_NodeId *allRoleIds = NULL;
+        UA_StatusCode res = UA_Server_getRoles(server, &allRolesSize, &allRoleIds);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        
+        /* Count matching roles first */
+        size_t matchCount = 0;
+        for(size_t i = 0; i < allRolesSize; i++) {
+            const UA_Role *role = UA_Server_getRoleById(server, allRoleIds[i]);
+            if(!role)
+                continue;
+                
+            /* Check if any identity mapping rule matches */
+            for(size_t j = 0; j < role->imrtSize; j++) {
+                UA_Boolean match = false;
+                
+                /* Match by criteria type */
+                if(role->imrt[j].criteriaType == identityType) {
+                    if(role->imrt[j].criteria.length == 0) {
+                        match = true;
+                    } else if(identityType == UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER &&
+                              userName.length > 0) {
+                        match = UA_String_equal(&userName, &role->imrt[j].criteria);
+                    }
+                }
+                
+                if(match) {
+                    matchCount++;
+                    break;
+                }
+            }
+        }
+        
+        if(matchCount > 0) {
+            *roleIds = (UA_NodeId*)UA_malloc(matchCount * sizeof(UA_NodeId));
+            if(!*roleIds) {
+                UA_Array_delete(allRoleIds, allRolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            }
+            
+            size_t idx = 0;
+            for(size_t i = 0; i < allRolesSize; i++) {
+                const UA_Role *role = UA_Server_getRoleById(server, allRoleIds[i]);
+                if(!role)
+                    continue;
+                    
+                /* Check if any identity mapping rule matches */
+                for(size_t j = 0; j < role->imrtSize; j++) {
+                    UA_Boolean match = false;
+                    
+                    if(role->imrt[j].criteriaType == identityType) {
+                        if(role->imrt[j].criteria.length == 0) {
+                            match = true;
+                        } else if(identityType == UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER &&
+                                  userName.length > 0) {
+                            match = UA_String_equal(&userName, &role->imrt[j].criteria);
+                        }
+                    }
+                    
+                    if(match) {
+                        UA_NodeId_copy(&allRoleIds[i], &(*roleIds)[idx]);
+                        idx++;
+                        break;
+                    }
+                }
+            }
+            *rolesSize = matchCount;
+        }
+        
+        UA_Array_delete(allRoleIds, allRolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    }
+#endif
 
     return UA_STATUSCODE_GOOD;
 }
