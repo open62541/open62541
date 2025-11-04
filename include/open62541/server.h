@@ -2140,8 +2140,19 @@ struct UA_ServerConfig {
     /* See the AccessControl Plugin API */
     /* TODO Add more advanced ACP Description*/
 #ifdef UA_ENABLE_RBAC
+    /* Role definitions */
     size_t rolesSize;
     UA_Role *roles;
+    
+    /* Role-Permission Configuration
+     * Array of permission configurations. Each entry defines permissions
+     * for a set of roles. Nodes reference these entries via their
+     * permissionIndex field in UA_NodeHead.
+     * 
+     * Index 0 is typically reserved for default/unrestricted permissions.
+     * UA_PERMISSION_INDEX_INVALID in a node means use default behavior. */
+    size_t rolePermissionsSize;
+    UA_RolePermissions *rolePermissions;
 #endif
     UA_AccessControl accessControl;
 
@@ -2471,6 +2482,85 @@ UA_Server_setSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addSessionRole(UA_Server *server, const UA_NodeId *sessionId,
                          const UA_NodeId roleId);
+
+/**
+ * Role Permission Configuration Management
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Functions for managing the global role-permission configuration array.
+ * Nodes reference entries in this array via their permissionIndex field. */
+
+/* Add a new role-permission configuration entry.
+ * 
+ * Creates a new entry in the server's rolePermissions array that defines
+ * permissions for multiple roles. Nodes can then reference this entry
+ * via their permissionIndex field.
+ * 
+ * Example: To create a configuration where Role1 has READ|BROWSE and 
+ * Role2 has READ|WRITE permissions, pass 2 entries.
+ * 
+ * @param server The server instance
+ * @param entriesSize Number of role-permission entries in this configuration
+ * @param entries Array of UA_RolePermissionEntry defining role->permissions mappings
+ * @param outIndex Output parameter for the created configuration index (can be NULL)
+ * @return UA_STATUSCODE_GOOD on success, index of the new entry in outIndex */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_addRolePermissionConfig(UA_Server *server,
+                                  size_t entriesSize, const UA_RolePermissionEntry *entries,
+                                  UA_PermissionIndex *outIndex);
+
+/* Get role-permission configuration at a specific index.
+ * 
+ * Retrieves the configuration entry at the given index.
+ * The returned pointer is read-only and valid only while the server is running.
+ * 
+ * @param server The server instance
+ * @param index The index in the rolePermissions array
+ * @return Pointer to the configuration entry, or NULL if index is invalid */
+const UA_RolePermissions *
+UA_Server_getRolePermissionConfig(UA_Server *server, UA_PermissionIndex index);
+
+/* Update role-permission configuration at a specific index.
+ * 
+ * Modifies an existing entry in the rolePermissions array.
+ * All nodes referencing this index will be affected.
+ * 
+ * @param server The server instance
+ * @param index The index in the rolePermissions array to update
+ * @param entriesSize Number of role-permission entries
+ * @param entries Array of UA_RolePermissionEntry defining role->permissions mappings
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_updateRolePermissionConfig(UA_Server *server, UA_PermissionIndex index,
+                                     size_t entriesSize, const UA_RolePermissionEntry *entries);
+
+/* Set the permission index for a node.
+ * 
+ * Assigns a permission configuration index to a node, referencing an entry
+ * in the server's rolePermissions array. Use UA_PERMISSION_INDEX_INVALID
+ * to clear the permission configuration (use default behavior).
+ * 
+ * @param server The server instance
+ * @param nodeId The NodeId of the node to modify
+ * @param permissionIndex Index into the rolePermissions array
+ * @param recursive If true, applies the same index to all child nodes
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_PermissionIndex permissionIndex,
+                                 UA_Boolean recursive);
+
+/* Get the permission index of a node.
+ * 
+ * Returns the current permission configuration index of a node.
+ * UA_PERMISSION_INDEX_INVALID means no specific configuration is set.
+ * 
+ * @param server The server instance
+ * @param nodeId The NodeId of the node
+ * @param permissionIndex Output parameter for the permission index
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_PermissionIndex *permissionIndex);
 
 #endif /* UA_ENABLE_RBAC */
 
