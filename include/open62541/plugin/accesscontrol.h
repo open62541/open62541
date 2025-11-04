@@ -15,6 +15,33 @@
 _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_RBAC
+
+/* Permission Index Type
+ * Configurable size for the permission index stored in nodes */
+#if UA_PERMISSION_INDEX_SIZE == 16
+typedef UA_UInt16 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFF
+#elif UA_PERMISSION_INDEX_SIZE == 32
+typedef UA_UInt32 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFF
+#elif UA_PERMISSION_INDEX_SIZE == 64
+typedef UA_UInt64 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFFFFFFFFFF
+#else
+#error "UA_PERMISSION_INDEX_SIZE must be 16, 32, or 64"
+#endif
+
+typedef struct {
+    UA_NodeId roleId;
+    UA_PermissionType permissions;
+} UA_RolePermissionEntry;
+
+
+typedef struct {
+    size_t entriesSize;
+    UA_RolePermissionEntry *entries;
+} UA_RolePermissions;
+
 typedef struct {
     UA_NodeId roleId;
     UA_QualifiedName roleName;
@@ -40,6 +67,15 @@ UA_Role_copy(const UA_Role *src, UA_Role *dst);
 
 UA_Boolean UA_EXPORT
 UA_Role_equal(const UA_Role *r1, const UA_Role *r2);
+
+void UA_EXPORT
+UA_RolePermissions_init(UA_RolePermissions *rp);
+
+void UA_EXPORT
+UA_RolePermissions_clear(UA_RolePermissions *rp);
+
+UA_StatusCode UA_EXPORT
+UA_RolePermissions_copy(const UA_RolePermissions *src, UA_RolePermissions *dst);
 
 #endif /* UA_ENABLE_RBAC */
 

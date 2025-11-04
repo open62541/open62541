@@ -65,6 +65,15 @@
 #cmakedefine UA_ENABLE_ENCRYPTION_MBEDTLS
 #cmakedefine UA_ENABLE_GDS_PUSHMANAGEMENT
 #cmakedefine UA_ENABLE_RBAC
+
+/* RBAC Permission Index Size
+ * Defines the size of the permission index stored in each node.
+ * Options: 16 (default), 32, 64
+ * The index references a position in the server's rolePermissions array. */
+#ifndef UA_PERMISSION_INDEX_SIZE
+#define UA_PERMISSION_INDEX_SIZE 16
+#endif
+
 #cmakedefine UA_ENABLE_TPM2_SECURITY
 #cmakedefine UA_ENABLE_ENCRYPTION_OPENSSL
 #cmakedefine UA_ENABLE_ENCRYPTION_LIBRESSL

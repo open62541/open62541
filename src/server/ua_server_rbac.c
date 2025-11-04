@@ -19,6 +19,62 @@ UA_StatusCode removeRoleRepresentation(UA_Server *server, const UA_NodeId *roleI
 /* UA_Role Type functions */
 
 void UA_EXPORT
+UA_RolePermissions_init(UA_RolePermissions *rp) {
+    if(!rp)
+        return;
+    rp->entriesSize = 0;
+    rp->entries = NULL;
+}
+
+void UA_EXPORT
+UA_RolePermissions_clear(UA_RolePermissions *rp) {
+    if(!rp)
+        return;
+    if(rp->entries) {
+        for(size_t i = 0; i < rp->entriesSize; i++) {
+            UA_NodeId_clear(&rp->entries[i].roleId);
+        }
+        UA_free(rp->entries);
+        rp->entries = NULL;
+    }
+    rp->entriesSize = 0;
+}
+
+UA_StatusCode UA_EXPORT
+UA_RolePermissions_copy(const UA_RolePermissions *src, UA_RolePermissions *dst) {
+    if(!src || !dst)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    
+    UA_RolePermissions_init(dst);
+    
+    if(src->entriesSize > 0 && src->entries) {
+        dst->entries = (UA_RolePermissionEntry*)
+            UA_malloc(src->entriesSize * sizeof(UA_RolePermissionEntry));
+        if(!dst->entries)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        
+        dst->entriesSize = src->entriesSize;
+        for(size_t i = 0; i < src->entriesSize; i++) {
+            UA_StatusCode res = UA_NodeId_copy(&src->entries[i].roleId, 
+                                               &dst->entries[i].roleId);
+            if(res != UA_STATUSCODE_GOOD) {
+                /* Cleanup on error */
+                for(size_t j = 0; j < i; j++) {
+                    UA_NodeId_clear(&dst->entries[j].roleId);
+                }
+                UA_free(dst->entries);
+                dst->entries = NULL;
+                dst->entriesSize = 0;
+                return res;
+            }
+            dst->entries[i].permissions = src->entries[i].permissions;
+        }
+    }
+    
+    return UA_STATUSCODE_GOOD;
+}
+
+void UA_EXPORT
 UA_Role_init(UA_Role *role) {
     if(!role)
         return;
@@ -1319,6 +1375,258 @@ UA_Server_addSessionRole(UA_Server *server, const UA_NodeId *sessionId,
         goto cleanup;
 
     session->rolesSize++;
+
+cleanup:
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return res;
+}
+
+/* Role Permission Configuration Management */
+
+UA_StatusCode
+UA_Server_addRolePermissionConfig(UA_Server *server,
+                                  size_t entriesSize, const UA_RolePermissionEntry *entries,
+                                  UA_PermissionIndex *outIndex) {
+    if(!server || (entriesSize > 0 && !entries))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    
+    /* Check if we've reached the maximum index value */
+    if(server->config.rolePermissionsSize >= UA_PERMISSION_INDEX_INVALID) {
+        res = UA_STATUSCODE_BADOUTOFRANGE;
+        goto cleanup;
+    }
+
+    /* Validate that all role IDs exist */
+    for(size_t i = 0; i < entriesSize; i++) {
+        const UA_Role *role = findRoleById(server, &entries[i].roleId);
+        if(!role) {
+            res = UA_STATUSCODE_BADNODEIDUNKNOWN;
+            goto cleanup;
+        }
+    }
+
+    /* Allocate new entry */
+    UA_RolePermissions *newArray = (UA_RolePermissions*)
+        UA_realloc(server->config.rolePermissions,
+                   (server->config.rolePermissionsSize + 1) * sizeof(UA_RolePermissions));
+    if(!newArray) {
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
+
+    server->config.rolePermissions = newArray;
+    UA_PermissionIndex newIndex = (UA_PermissionIndex)server->config.rolePermissionsSize;
+    
+    /* Initialize the new entry */
+    UA_RolePermissions *entry = &server->config.rolePermissions[newIndex];
+    UA_RolePermissions_init(entry);
+    
+    /* Copy entries */
+    if(entriesSize > 0) {
+        entry->entries = (UA_RolePermissionEntry*)
+            UA_malloc(entriesSize * sizeof(UA_RolePermissionEntry));
+        if(!entry->entries) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+        
+        entry->entriesSize = entriesSize;
+        for(size_t i = 0; i < entriesSize; i++) {
+            res = UA_NodeId_copy(&entries[i].roleId, &entry->entries[i].roleId);
+            if(res != UA_STATUSCODE_GOOD) {
+                /* Cleanup on error */
+                for(size_t j = 0; j < i; j++) {
+                    UA_NodeId_clear(&entry->entries[j].roleId);
+                }
+                UA_free(entry->entries);
+                entry->entries = NULL;
+                entry->entriesSize = 0;
+                goto cleanup;
+            }
+            entry->entries[i].permissions = entries[i].permissions;
+        }
+    }
+    
+    server->config.rolePermissionsSize++;
+    
+    if(outIndex)
+        *outIndex = newIndex;
+
+cleanup:
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return res;
+}
+
+const UA_RolePermissions *
+UA_Server_getRolePermissionConfig(UA_Server *server, UA_PermissionIndex index) {
+    if(!server || index >= server->config.rolePermissionsSize)
+        return NULL;
+    
+    return &server->config.rolePermissions[index];
+}
+
+UA_StatusCode
+UA_Server_updateRolePermissionConfig(UA_Server *server, UA_PermissionIndex index,
+                                     size_t entriesSize, const UA_RolePermissionEntry *entries) {
+    if(!server || (entriesSize > 0 && !entries))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    
+    if(index >= server->config.rolePermissionsSize)
+        return UA_STATUSCODE_BADOUTOFRANGE;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    
+    /* Validate that all role IDs exist */
+    for(size_t i = 0; i < entriesSize; i++) {
+        const UA_Role *role = findRoleById(server, &entries[i].roleId);
+        if(!role) {
+            res = UA_STATUSCODE_BADNODEIDUNKNOWN;
+            goto cleanup;
+        }
+    }
+
+    UA_RolePermissions *config = &server->config.rolePermissions[index];
+    
+    /* Clear old entries */
+    if(config->entries) {
+        for(size_t i = 0; i < config->entriesSize; i++) {
+            UA_NodeId_clear(&config->entries[i].roleId);
+        }
+        UA_free(config->entries);
+        config->entries = NULL;
+        config->entriesSize = 0;
+    }
+    
+    /* Copy new entries */
+    if(entriesSize > 0) {
+        config->entries = (UA_RolePermissionEntry*)
+            UA_malloc(entriesSize * sizeof(UA_RolePermissionEntry));
+        if(!config->entries) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+        
+        config->entriesSize = entriesSize;
+        for(size_t i = 0; i < entriesSize; i++) {
+            res = UA_NodeId_copy(&entries[i].roleId, &config->entries[i].roleId);
+            if(res != UA_STATUSCODE_GOOD) {
+                /* Cleanup on error */
+                for(size_t j = 0; j < i; j++) {
+                    UA_NodeId_clear(&config->entries[j].roleId);
+                }
+                UA_free(config->entries);
+                config->entries = NULL;
+                config->entriesSize = 0;
+                goto cleanup;
+            }
+            config->entries[i].permissions = entries[i].permissions;
+        }
+    }
+
+cleanup:
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return res;
+}
+
+UA_StatusCode
+UA_Server_setNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_PermissionIndex permissionIndex,
+                                 UA_Boolean recursive) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    
+    /* Validate the index if not INVALID */
+    if(permissionIndex != UA_PERMISSION_INDEX_INVALID &&
+       permissionIndex >= server->config.rolePermissionsSize)
+        return UA_STATUSCODE_BADOUTOFRANGE;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    
+    /* Get the node */
+    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
+    if(!node) {
+        res = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        goto cleanup_unlock;
+    }
+    
+    /* Get an editable copy */
+    UA_Node *nodeCopy = UA_NODESTORE_GET_EDIT(server, &nodeId);
+    if(!nodeCopy) {
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup_release;
+    }
+    
+    /* Modify the permission index */
+    nodeCopy->head.permissionIndex = permissionIndex;
+    
+    /* Replace the node */
+    res = UA_NODESTORE_REPLACE(server, nodeCopy);
+    if(res != UA_STATUSCODE_GOOD) {
+        goto cleanup_release;
+    }
+    
+    /* Handle recursive application */
+    if(recursive) {
+        /* TODO: Implement recursive permission index setting
+         * This would traverse all hierarchical references and apply
+         * the same permission index to child nodes */
+    }
+
+cleanup_release:
+    UA_NODESTORE_RELEASE(server, node);
+    
+cleanup_unlock:
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_PermissionIndex *permissionIndex) {
+    if(!server || !permissionIndex)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    
+    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
+    if(!node) {
+        res = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        goto cleanup;
+    }
+    
+    *permissionIndex = node->head.permissionIndex;
+    
+    UA_NODESTORE_RELEASE(server, node);
 
 cleanup:
 #if UA_MULTITHREADING >= 100
