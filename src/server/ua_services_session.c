@@ -929,17 +929,42 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_SECURITY_REJECT;
 
     /* Callback into userland access control */
+#ifdef UA_ENABLE_RBAC
+    size_t rolesSize = 0;
+    UA_NodeId *roleIds = NULL;
+    resp->responseHeader.serviceResult = server->config.accessControl.
+        activateSession(server, &server->config.accessControl, ed,
+                        &channel->remoteCertificate, &session->sessionId,
+                        &req->userIdentityToken, &session->context,
+                        &rolesSize, &roleIds);
+#else
     resp->responseHeader.serviceResult = server->config.accessControl.
         activateSession(server, &server->config.accessControl, ed,
                         &channel->remoteCertificate, &session->sessionId,
                         &req->userIdentityToken, &session->context);
+#endif
     if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: The AccessControl "
                                "plugin denied the activation with the StatusCode %s",
                                UA_StatusCode_name(resp->responseHeader.serviceResult));
+#ifdef UA_ENABLE_RBAC
+        if(roleIds)
+            UA_Array_delete(roleIds, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+#endif
         UA_SECURITY_REJECT;
     }
+
+#ifdef UA_ENABLE_RBAC
+    if(rolesSize > 0 && roleIds) {
+        UA_Array_delete(session->roles, session->rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+        session->roles = roleIds;
+        session->rolesSize = rolesSize;
+        
+        UA_LOG_INFO_SESSION(server->config.logging, session,
+                            "ActivateSession: Assigned %zu role(s) to session", rolesSize);
+    }
+#endif
 
     /* Attach the session to the currently used channel if the session isn't
      * attached to a channel or if the session is activated on a different
