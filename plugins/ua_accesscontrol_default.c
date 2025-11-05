@@ -53,6 +53,13 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
 
         /* No userdata atm */
         *sessionContext = NULL;
+
+        /* Set the clientUserId to the empty string for anonymous */
+        UA_String emptyStr = UA_STRING_NULL;
+        UA_Variant userIdVar;
+        UA_Variant_setScalar(&userIdVar, &emptyStr, &UA_TYPES[UA_TYPES_STRING]);
+        UA_Server_setSessionParameter(server, sessionId, "clientUserId", &userIdVar);
+
         return UA_STATUSCODE_GOOD;
     }
 
@@ -76,6 +83,13 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
 
         /* No userdata atm */
         *sessionContext = NULL;
+
+        /* Set the clientUserId to the empty string for anonymous */
+        UA_String emptyStr = UA_STRING_NULL;
+        UA_Variant userIdVar;
+        UA_Variant_setScalar(&userIdVar, &emptyStr, &UA_TYPES[UA_TYPES_STRING]);
+        UA_Server_setSessionParameter(server, sessionId, "clientUserId", &userIdVar);
+
         return UA_STATUSCODE_GOOD;
     }
 
@@ -99,8 +113,8 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         UA_Boolean match = false;
         if(context->loginCallback) {
             if(context->loginCallback(&userToken->userName, &userToken->password,
-               context->usernamePasswordLoginSize, context->usernamePasswordLogin,
-               sessionContext, context->loginContext) == UA_STATUSCODE_GOOD)
+                                      context->usernamePasswordLoginSize, context->usernamePasswordLogin,
+                                      sessionContext, context->loginContext) == UA_STATUSCODE_GOOD)
                 match = true;
         } else {
             for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
@@ -114,11 +128,10 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         if(!match)
             return UA_STATUSCODE_BADUSERACCESSDENIED;
 
-        /* For the CTT, recognize whether two sessions are  */
-        UA_ByteString *username = UA_ByteString_new();
-        if(username)
-            UA_ByteString_copy(&userToken->userName, username);
-        *sessionContext = username;
+        /* Set the clientUserId to the username */
+        UA_Variant userIdVar;
+        UA_Variant_setScalar(&userIdVar, (void*)(uintptr_t)&userToken->userName, &UA_TYPES[UA_TYPES_STRING]);
+        UA_Server_setSessionParameter(server, sessionId, "clientUserId", &userIdVar);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -133,9 +146,18 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         if(!context->verifyX509.verifyCertificate)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-        return context->verifyX509.
+        UA_Boolean verified =
+            context->verifyX509.
             verifyCertificate(context->verifyX509.context,
                               &userToken->certificateData);
+        if(!verified)
+            return false;
+
+        /* Set the clientUserId to the certificate data */
+        UA_Variant userIdVar;
+        UA_Variant_setScalar(&userIdVar, (void*)(uintptr_t)&userToken->certificateData, &UA_TYPES[UA_TYPES_BYTESTRING]);
+        UA_Server_setSessionParameter(server, sessionId, "clientUserId", &userIdVar);
+        return true;
     }
 
     /* Unsupported token type */
@@ -145,8 +167,6 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
 static void
 closeSession_default(UA_Server *server, UA_AccessControl *ac,
                      const UA_NodeId *sessionId, void *sessionContext) {
-    if(sessionContext)
-        UA_ByteString_delete((UA_ByteString*)sessionContext);
 }
 
 static UA_UInt32
@@ -218,12 +238,20 @@ static UA_Boolean
 allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *oldSessionId, void *oldSessionContext,
                                   const UA_NodeId *newSessionId, void *newSessionContext) {
-    if(oldSessionContext == newSessionContext)
-        return true;
-    if(oldSessionContext && newSessionContext)
-        return UA_ByteString_equal((UA_ByteString*)oldSessionContext,
-                                   (UA_ByteString*)newSessionContext);
-    return false;
+    UA_Variant userId1;
+    UA_Variant userId2;
+    UA_Variant_init(&userId1);
+    UA_Variant_init(&userId2);
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    res |= UA_Server_getSessionParameter(server, oldSessionId, "userClientId", &userId1);
+    res |= UA_Server_getSessionParameter(server, newSessionId, "userClientId", &userId2);
+
+    UA_Boolean allow = (res == UA_STATUSCODE_GOOD &&
+                        UA_order(&userId1, &userId2, &UA_TYPES[UA_TYPES_VARIANT]) == UA_ORDER_EQ);
+    UA_Variant_clear(&userId1);
+    UA_Variant_clear(&userId2);
+    return allow;
 }
 #endif
 
