@@ -459,6 +459,8 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
                                const UA_Boolean *sendInitialValues,
                                const UA_UInt32 *subscriptionId,
                                UA_TransferResult *result) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     /* Get the subscription. This requires a server-wide lookup instead of the
      * usual session-wide lookup. */
     UA_Subscription *sub = getSubscriptionById(server, *subscriptionId);
@@ -484,7 +486,6 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
 
     /* Check with AccessControl if the transfer is allowed */
     if(server->config.accessControl.allowTransferSubscription) {
-        UA_LOCK_ASSERT(&server->serviceMutex, 1);
         if(!server->config.accessControl.
            allowTransferSubscription(server, &server->config.accessControl,
                                      oldSession ? &oldSession->sessionId : NULL,
