@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/client.h>
+#include <open62541/client_highlevel.h>
 #include <open62541/client_config_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
@@ -163,6 +164,50 @@ START_TEST(Server_sessionParameter) {
     UA_Server_delete(server);
 } END_TEST
 
+static UA_Byte
+customGetUserAccessLevel(UA_Server *server, UA_AccessControl *ac,
+                         const UA_NodeId *sessionId, void *sessionContext,
+                         const UA_NodeId *nodeId, void *nodeContext) {
+    UA_QualifiedName key = UA_QUALIFIEDNAME(1, "test");
+    UA_Variant variant;
+    double value = 11.11;
+    UA_Variant_setScalar(&variant, &value, &UA_TYPES[UA_TYPES_DOUBLE]);
+    UA_StatusCode status = UA_Server_setSessionAttribute(server, sessionId, key, &variant);
+    ck_assert_uint_eq(status, UA_STATUSCODE_GOOD);
+    return 0xFF;
+}
+
+START_TEST(Server_setSessionParameter) {
+    server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    setCustomAccessControl(config);
+    config->accessControl.getUserAccessLevel = customGetUserAccessLevel;
+
+    UA_Server_run_startup(server);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant val;
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    running = false;
+    THREAD_JOIN(server_thread);
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+} END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client_user = tcase_create("Client User/Password");
@@ -175,6 +220,7 @@ static Suite* testSuite_Client(void) {
 
     TCase *tc_server = tcase_create("Server-Side Access Control");
     tcase_add_test(tc_server, Server_sessionParameter);
+    tcase_add_test(tc_server, Server_setSessionParameter);
     suite_add_tcase(s,tc_server);
     return s;
 }
