@@ -118,8 +118,6 @@ struct UA_ConditionSource {
 #define CONDITION_FIELD_ENGINEERINGUNITS                       "EngineeringUnits"
 #define CONDITION_FIELD_EXPIRATION_DATE                        "ExpirationDate"
 
-#define REFRESHEVENT_START_IDX                                 0
-#define REFRESHEVENT_END_IDX                                   1
 #define REFRESHEVENT_SEVERITY_DEFAULT                          100
 #define EXPIRATION_LIMIT_DEFAULT_VALUE                         15
 
@@ -1923,9 +1921,6 @@ UA_ConditionList_delete(UA_Server *server) {
         LIST_REMOVE(source, listEntry);
         UA_free(source);
     }
-    /* Free memory allocated for RefreshEvents NodeIds */
-    UA_NodeId_clear(&server->refreshEvents[REFRESHEVENT_START_IDX]);
-    UA_NodeId_clear(&server->refreshEvents[REFRESHEVENT_END_IDX]);
 }
 
 /* Get the ConditionId based on the EventId (all branches of one condition
