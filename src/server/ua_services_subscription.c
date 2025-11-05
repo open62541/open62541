@@ -482,12 +482,19 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     }
 
     /* Check with AccessControl if the transfer is allowed */
-    if(!server->config.accessControl.allowTransferSubscription ||
-       !server->config.accessControl.
-       allowTransferSubscription(server, &server->config.accessControl,
-                                 oldSession ? &oldSession->sessionId : NULL,
-                                 oldSession ? oldSession->sessionHandle : NULL,
-                                 &session->sessionId, session->sessionHandle)) {
+    UA_Boolean transferAllowed =
+        (server->config.accessControl.allowTransferSubscription != NULL);
+    if(transferAllowed) {
+        UA_UNLOCK(&server->serviceMutex);
+        transferAllowed = server->config.accessControl.
+            allowTransferSubscription(server, &server->config.accessControl,
+                                      oldSession ? &oldSession->sessionId : NULL,
+                                      oldSession ? oldSession->sessionHandle : NULL,
+                                      &session->sessionId, session->sessionHandle);
+        UA_LOCK(&server->serviceMutex);
+    }
+
+    if(!transferAllowed) {
         result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;
     }
