@@ -1,5 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * 
+ * Copyright (c) 2025 Construction Future Lab gGmbH (Author: Jianbin Liu)
+ */
 /**
  * This client requests all the available servers from the discovery server (see server_lds.c)
  * and then calls GetEndpoints on the returned list of servers.
@@ -11,8 +14,8 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-
-#define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
+#include <unistd.h>
+#include <string.h>
 
 int main(void) {
 
@@ -20,13 +23,24 @@ int main(void) {
      * Example for calling FindServersOnNetwork
      */
 
-    {
+    // Use actual hostname in URL to prevent EndpointUrl mismatch warning from OPC UA strict string comparison
+    char hostname[128];
+    char discoveryServerEndpoint[256];
+    if(gethostname(hostname, sizeof(hostname)) != 0) {
+            perror("gethostname failed");
+            return EXIT_FAILURE;
+    }
+    snprintf(discoveryServerEndpoint, sizeof(discoveryServerEndpoint),
+                "opc.tcp://%s:4840", hostname);
+    printf("📡 Connecting to Discovery Server: %s\n", discoveryServerEndpoint);
+
+    {   
         UA_ServerOnNetwork *serverOnNetwork = NULL;
         size_t serverOnNetworkSize = 0;
 
         UA_Client *client = UA_Client_new();
         UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-        UA_StatusCode retval = UA_Client_findServersOnNetwork(client, DISCOVERY_SERVER_ENDPOINT, 0, 0,
+        UA_StatusCode retval = UA_Client_findServersOnNetwork(client, discoveryServerEndpoint, 0, 0,
                                                               0, NULL, &serverOnNetworkSize, &serverOnNetwork);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -34,7 +48,7 @@ int main(void) {
                          "Is the discovery server started? StatusCode %s",
                          UA_StatusCode_name(retval));
             UA_Client_delete(client);
-            return EXIT_SUCCESS;
+            return EXIT_FAILURE;
         }
 
         // output all the returned/registered servers
@@ -66,7 +80,9 @@ int main(void) {
     {
         UA_Client *client = UA_Client_new();
         UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-        retval = UA_Client_findServers(client, DISCOVERY_SERVER_ENDPOINT, 0, NULL, 0, NULL,
+        /*These discovery services internally open/close a short-lived connection,
+          no need for UA_Client_connect()*/
+        retval = UA_Client_findServers(client, discoveryServerEndpoint, 0, NULL, 0, NULL,
                                        &applicationDescriptionArraySize, &applicationDescriptionArray);
         UA_Client_delete(client);
     }
@@ -136,6 +152,13 @@ int main(void) {
         UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
         char *discoveryUrl = (char *) UA_malloc(sizeof(char) * description->discoveryUrls[0].length + 1);
+        // Add memory allocation check
+        if(!discoveryUrl) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT,
+                        "Failed to allocate memory for discovery URL");
+            UA_Client_delete(client);
+            continue; //Continue with next server
+        }
         memcpy(discoveryUrl, description->discoveryUrls[0].data, description->discoveryUrls[0].length);
         discoveryUrl[description->discoveryUrls[0].length] = '\0';
 
@@ -144,12 +167,14 @@ int main(void) {
         //TODO: adapt to the new async getEndpoint
         retval = UA_Client_getEndpoints(client, discoveryUrl, &endpointArraySize, &endpointArray);
         UA_free(discoveryUrl);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_Client_disconnect(client);
+        if(retval != UA_STATUSCODE_GOOD || endpointArray == NULL) {
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT,
+                        "Failed to get endpoints or returned NULL array. StatusCode: %s",
+                        UA_StatusCode_name(retval));
             UA_Client_delete(client);
-            break;
+            continue;
         }
-
+        
         for(size_t j = 0; j < endpointArraySize; j++) {
             UA_EndpointDescription *endpoint = &endpointArray[j];
             printf("\n\tEndpoint[%lu]:", (unsigned long) j);

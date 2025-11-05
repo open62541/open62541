@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout open62541
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: recursive
       
@@ -44,7 +44,7 @@ jobs:
           languages: ${{ matrix.language }}
       
       - name: Debug Build
-        run: source tools/ci/ci.sh && unit_tests
+        run: source tools/ci/linux/ci.sh && unit_tests
         env:
           ETHERNET_INTERFACE: eth0
       

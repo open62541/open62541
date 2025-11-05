@@ -31,12 +31,6 @@
  * state changes and also the integration which is expected between the
  * components.
  *
- * We distinguish between `enabled` and `disabled` states. The disabled states
- * or `Disabled` and `Error`. The difference is that disabled states need to
- * manually enabled (via the _enable method call). The other states are either
- * Operational or return automatically to the Operational state once the
- * prerequisites are met.
- * 
  * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
  * |**Component**   |       |**Disabled**        |**Paused**      |**Pre-Operational** |**Operational** |**Error**       |
  * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
@@ -474,7 +468,7 @@ DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr
                                     size_t targetsSize, const UA_FieldTargetDataType *targets);
 
 /* Returns an error reason if the target state is `Error` */
-void
+UA_StatusCode
 UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                 UA_PubSubState targetState, UA_StatusCode errorReason);
 
@@ -642,6 +636,11 @@ struct UA_PubSubManager {
     size_t reserveIdsSize;
     UA_ReserveIdTree reserveIds;
 
+    /* During the initial activation of the PubSub subsystem (e.g. when loading a configuration file), special behaviour
+     * is required within the PubSub state machine transitions. This global flag can be set to indicate that the
+     * configuration phase is active, and it is evaluated during the state changes of the PubSub components. */
+    UA_Boolean pubSubInitialSetupMode;
+
 #ifdef UA_ENABLE_PUBSUB_SKS
     LIST_HEAD(, UA_PubSubKeyStorage) pubSubKeyList;
 
@@ -695,6 +694,11 @@ UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now);
 
 UA_StatusCode
 initPubSubNS0(UA_Server *server);
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+UA_StatusCode
+initPubSubNS0_SKS(UA_Server *server);
+#endif
 
 UA_StatusCode
 addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection);

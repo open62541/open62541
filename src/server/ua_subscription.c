@@ -1055,9 +1055,6 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-static const UA_NodeId eventQueueOverflowEventType =
-    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE}};
-
 /* The specification states in Part 4 5.12.1.5 that an EventQueueOverflowEvent
  * "is generated when the first Event has to be discarded [...] without
  * discarding any other event". So only generate one for all deleted events. */
@@ -1084,33 +1081,52 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
     /* A Notification is inserted into the queue which includes only the
      * NodeId of the OverflowEventType. */
 
-    /* Prepare the EventFields first. So we are sure to succeed when the
-     * Notification was allocated. */
-    UA_EventFieldList efl;
-    efl.clientHandle = mon->parameters.clientHandle;
-    efl.eventFields = UA_Variant_new();
-    if(!efl.eventFields)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_StatusCode ret =
-        UA_Variant_setScalarCopy(efl.eventFields, &eventQueueOverflowEventType,
-                                 &UA_TYPES[UA_TYPES_NODEID]);
-    if(ret != UA_STATUSCODE_GOOD) {
-        UA_Variant_delete(efl.eventFields);
-        return ret;
-    }
-    efl.eventFieldsSize = 1;
+    /* Get the EventFilter */
+    if(mon->parameters.filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
+        return UA_STATUSCODE_BADINTERNALERROR;
+    const UA_EventFilter *ef = (const UA_EventFilter*)
+        mon->parameters.filter.content.decoded.data;
+    if(ef->selectClausesSize == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* Allocate the notification */
-    UA_Notification *overflowNotification = UA_Notification_new();
-    if(!overflowNotification) {
-        UA_Variant_delete(efl.eventFields);
+    /* Initialize the notification */
+    UA_Notification *n = UA_Notification_new();
+    if(!n)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+    n->isOverflowEvent = true;
+    n->mon = mon;
+    n->data.event.clientHandle = mon->parameters.clientHandle;
 
-    /* Set the notification fields */
-    overflowNotification->isOverflowEvent = true;
-    overflowNotification->mon = mon;
-    overflowNotification->data.event = efl;
+    /* The session is needed to evaluate the select-clause. But used only for
+     * limited reads on the source node. So we can use the admin-session here if
+     * the subscription is detached. */
+    UA_Session *session = (sub->session) ? sub->session : &server->adminSession;
+
+    /* Set up the context for the filter evaluation */
+    static UA_String sourceName = UA_STRING_STATIC("Internal/EventQueueOverflow");
+    UA_KeyValuePair fields[1];
+    fields[0].key = (UA_QualifiedName){1, UA_STRING_STATIC("/SourceName")};
+    UA_Variant_setScalar(&fields[0].value, &sourceName, &UA_TYPES[UA_TYPES_STRING]);
+    UA_KeyValueMap fieldMap = {1, fields};
+
+    UA_FilterEvalContext ctx;
+    UA_FilterEvalContext_init(&ctx);
+    ctx.server = server;
+    ctx.session = session;
+    ctx.filter = *ef;
+    ctx.ed.sourceNode = UA_NS0ID(SERVER);
+    ctx.ed.eventType = UA_NS0ID(EVENTQUEUEOVERFLOWEVENTTYPE);
+    ctx.ed.severity = 201; /* TODO: Can this be configured? */
+    ctx.ed.message = UA_LOCALIZEDTEXT(NULL, NULL);
+    ctx.ed.eventFields = &fieldMap;
+
+    /* Evaluate the select clause to populate the notification */
+    UA_StatusCode res = evaluateSelectClause(&ctx, &n->data.event);
+    UA_FilterEvalContext_reset(&ctx);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(n);
+        return res;
+    }
 
     /* Insert before the removed notification. This is either first in the
      * queue (if the oldest notification was removed) or before the new event
@@ -1118,7 +1134,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
      *
      * Ensure that the following is consistent with UA_Notification_enqueueMon
      * and UA_Notification_enqueueSub! */
-    TAILQ_INSERT_BEFORE(indicator, overflowNotification, monEntry);
+    TAILQ_INSERT_BEFORE(indicator, n, monEntry);
     ++mon->eventOverflows;
     ++mon->queueSize;
 
@@ -1128,24 +1144,24 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
 
     if(TAILQ_NEXT(indicator, subEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL) {
         /* Insert just before the indicator */
-        TAILQ_INSERT_BEFORE(indicator, overflowNotification, subEntry);
+        TAILQ_INSERT_BEFORE(indicator, n, subEntry);
     } else {
         /* The indicator was not reporting or not added yet. */
         if(!mon->parameters.discardOldest) {
             /* Add last to the per-Subscription queue */
             TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue,
-                              overflowNotification, subEntry);
+                              n, subEntry);
         } else {
             /* Find the oldest reported element. Add before that. */
             while(indicator) {
                 indicator = TAILQ_PREV(indicator, NotificationQueue, monEntry);
                 if(!indicator) {
                     TAILQ_INSERT_TAIL(&mon->subscription->notificationQueue,
-                                      overflowNotification, subEntry);
+                                      n, subEntry);
                     break;
                 }
                 if(TAILQ_NEXT(indicator, subEntry) != UA_SUBSCRIPTION_QUEUE_SENTINEL) {
-                    TAILQ_INSERT_BEFORE(indicator, overflowNotification, subEntry);
+                    TAILQ_INSERT_BEFORE(indicator, n, subEntry);
                     break;
                 }
             }
@@ -1253,7 +1269,7 @@ removeMonitoredItemBackPointer(UA_Server *server, UA_Session *session,
 }
 
 void
-UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
+UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(mon->registered)
@@ -1392,6 +1408,13 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     /* Deregister in Server and Subscription */
     if(mon->registered)
         UA_Server_unregisterMonitoredItem(server, mon);
+
+    /* Cancel outstanding async reads. The status code avoids the sample being
+     * processed. Call _processReady to ensure that the callbacks have been
+     * triggered. */
+    if(mon->outstandingAsyncReads > 0)
+        async_cancel(server, mon, UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST, true);
+    UA_assert(mon->outstandingAsyncReads == 0);
 
     /* Remove the TriggeringLinks */
     if(mon->triggeringLinksSize > 0) {
@@ -1567,9 +1590,9 @@ UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
     if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER ||
        mon->parameters.samplingInterval == 0.0) {
         /* Add to the linked list in the node */
-        res = UA_Server_editNode(server, sub->session, &mon->itemToMonitor.nodeId,
-                                 0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                                 addMonitoredItemBackpointer, mon);
+        res = editNode(server, sub->session, &mon->itemToMonitor.nodeId, 0,
+                       UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
+                       addMonitoredItemBackpointer, mon);
         if(res == UA_STATUSCODE_GOOD)
             mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_EVENT;
     } else if(mon->parameters.samplingInterval == sub->publishingInterval) {
@@ -1605,9 +1628,9 @@ UA_MonitoredItem_unregisterSampling(UA_Server *server, UA_MonitoredItem *mon) {
     case UA_MONITOREDITEMSAMPLINGTYPE_EVENT: {
         /* Removing is always done with the AdminSession. So it also works when
          * the Subscription has been detached from its Session. */
-        UA_Server_editNode(server, &server->adminSession, &mon->itemToMonitor.nodeId,
-                           0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
-                           removeMonitoredItemBackPointer, mon);
+        editNode(server, &server->adminSession, &mon->itemToMonitor.nodeId, 0,
+                 UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
+                 removeMonitoredItemBackPointer, mon);
         break;
     }
 

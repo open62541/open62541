@@ -77,6 +77,7 @@ UA_Policy_EccNistP256_New_Context(UA_SecurityPolicy *securityPolicy,
 
     context->applicationType = applicationType;
     context->logger = logger;
+    context->channelContext = NULL;
     securityPolicy->policyContext = context;
 
     return UA_STATUSCODE_GOOD;
@@ -102,6 +103,7 @@ UA_Policy_EccNistP256_Clear_Context(UA_SecurityPolicy *policy) {
     EVP_PKEY_free(pc->localPrivateKey);
     EVP_PKEY_free(pc->csrLocalPrivateKey);
     UA_ByteString_clear(&pc->localCertThumbprint);
+    policy->channelModule.deleteContext(pc->channelContext);
     UA_free(pc);
 
     return;
@@ -188,36 +190,54 @@ UA_ChannelModule_EccNistP256_New_Context(const UA_SecurityPolicy *securityPolicy
     if(securityPolicy == NULL || remoteCertificate == NULL || channelContext == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    Channel_Context_EccNistP256 *context =
+    Channel_Context_EccNistP256 *newContext =
         (Channel_Context_EccNistP256 *)UA_calloc(1,
             sizeof(Channel_Context_EccNistP256));
-    if(context == NULL) {
+    if(newContext == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     UA_StatusCode retval =
-        UA_copyCertificate(&context->remoteCertificate, remoteCertificate);
+        UA_copyCertificate(&newContext->remoteCertificate, remoteCertificate);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(context);
+        UA_free(newContext);
         return retval;
     }
 
     /* decode to X509 */
-    context->remoteCertificateX509 = UA_OpenSSL_LoadCertificate(&context->remoteCertificate);
-    if (context->remoteCertificateX509 == NULL) {
-        UA_ByteString_clear (&context->remoteCertificate);
-        UA_free (context);
+    newContext->remoteCertificateX509 = UA_OpenSSL_LoadCertificate(&newContext->remoteCertificate);
+    if (newContext->remoteCertificateX509 == NULL) {
+        UA_ByteString_clear (&newContext->remoteCertificate);
+        UA_free (newContext);
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
     }
 
-    context->policyContext =
-        (Policy_Context_EccNistP256 *)(securityPolicy->policyContext);
+    Policy_Context_EccNistP256 * policyContext = (Policy_Context_EccNistP256 *)(securityPolicy->policyContext);
 
-    /* This reference is needed in UA_Sym_EccNistP256_generateNonce to get
-     * access to the localEphemeralKeyPair variable in the channelContext */
-    context->policyContext->channelContext = context;
+    if (policyContext != NULL) {
 
-    *channelContext = context;
+        Channel_Context_EccNistP256 *oldContext = (Channel_Context_EccNistP256 *) policyContext->channelContext;
+        
+        if (oldContext != NULL) {
+            /* This probably means that a temporary channel context is being created. 
+             * Otherwise, the old channel context should be deleted and set to NULL.*/
+            newContext->localEphemeralKeyPair = oldContext->localEphemeralKeyPair;
+            /* Increase the reference counter since the old and the new context point at the same key pair */
+            EVP_PKEY_up_ref(oldContext->localEphemeralKeyPair);
+        }
+    }
+
+    newContext->policyContext = policyContext;
+
+    /* Only assign pointer to the new channel context from the policy context if there is no pointer to the existing channel context.
+     * The reason is not losing the existing channel context when creating a temporary channel context.
+     * If the policy context should point to the new channel context, the old channel context should be cleared 
+     * and the pointer set to NULL. */ 
+    if (policyContext->channelContext == NULL) {
+        policyContext->channelContext = newContext;
+    }
+
+    *channelContext = newContext;
 
     UA_LOG_INFO(
         securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
@@ -233,6 +253,7 @@ UA_ChannelModule_EccNistP256_Delete_Context(void *channelContext) {
     if(channelContext != NULL) {
         Channel_Context_EccNistP256 *cc =
             (Channel_Context_EccNistP256 *)channelContext;
+
         X509_free(cc->remoteCertificateX509);
         UA_ByteString_clear(&cc->remoteCertificate);
         UA_ByteString_clear(&cc->localSymSigningKey);
@@ -243,8 +264,12 @@ UA_ChannelModule_EccNistP256_Delete_Context(void *channelContext) {
         UA_ByteString_clear(&cc->remoteSymIv);
         EVP_PKEY_free(cc->localEphemeralKeyPair);
 
-        /* Remove reference */
-        cc->policyContext->channelContext = NULL;
+        /* Remove reference, but only if the given parameter points to the same channel context 
+         * as the pointer from the policy context. Otherwise, it could mean that only a temporary 
+         * context is being deleted and we don't want to dereference the old context. */
+        if (cc->policyContext->channelContext == cc) {
+            cc->policyContext->channelContext = NULL;
+        }
 
         UA_LOG_INFO(
             cc->policyContext->logger, UA_LOGCATEGORY_SECURITYPOLICY,

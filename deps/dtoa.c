@@ -35,7 +35,7 @@
 #define fracmask  0x000FFFFFFFFFFFFFU
 #define expmask   0x7FF0000000000000U
 #define hiddenbit 0x0010000000000000U
-#define signmask  0x8000000000000000U
+//#define signmask  0x8000000000000000U
 #define expbias   (1023 + 52)
 
 #define absv(n) ((n) < 0 ? -(n) : (n))

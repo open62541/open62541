@@ -139,16 +139,18 @@ UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
 
  finalize_state_machine:
 
+    /* No state change has happened */
+    if(dsw->head.state == oldState)
+        return res;
+
+    UA_LOG_INFO_PUBSUB(psm->logging, dsw, "%s -> %s",
+                       UA_PubSubState_name(oldState),
+                       UA_PubSubState_name(dsw->head.state));
+
     /* Inform application about state change */
-    if(dsw->head.state != oldState) {
-        UA_LOG_INFO_PUBSUB(psm->logging, dsw, "%s -> %s",
-                           UA_PubSubState_name(oldState),
-                           UA_PubSubState_name(dsw->head.state));
-        if(server->config.pubSubConfig.stateChangeCallback != 0) {
-            server->config.pubSubConfig.
-                stateChangeCallback(server, dsw->head.identifier, dsw->head.state, res);
-        }
-    }
+    if(server->config.pubSubConfig.stateChangeCallback)
+        server->config.pubSubConfig.
+            stateChangeCallback(server, dsw->head.identifier, dsw->head.state, res);
 
     return res;
 }
@@ -282,6 +284,11 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
 
     if(writerIdentifier)
         UA_NodeId_copy(&dsw->head.identifier, writerIdentifier);
+
+    /* Enable the DataSetReader immediately if the enabled flag is set */
+    if(dswConfig->enabled)
+        UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_OPERATIONAL);
+
     return res;
 }
 
@@ -823,10 +830,6 @@ UA_Server_updateDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
         UA_DataSetWriterConfig_clear(&dsw->config);
         dsw->config = newConfig;
     }
-
-    /* Call the state-machine. This can move the connection state from _ERROR to
-     * _DISABLED. */
-    UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
 
     unlockServer(server);
     return res;

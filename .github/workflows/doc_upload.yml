@@ -10,10 +10,10 @@ jobs:
   Documentation-Generation-And-Upload:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.x' # Version range or exact version of a Python version to use, using SemVer's version range syntax
           architecture: 'x64' # optional x64 or x86. Defaults to x64 if not specified
@@ -23,9 +23,9 @@ jobs:
           sudo apt-get install -y -qq graphviz texlive-fonts-recommended texlive-latex-extra texlive-plain-generic texlive-latex-recommended latexmk texlive-fonts-extra
           pip install -r doc/requirements.txt
       - name: Build Documentation
-        run: source tools/ci/ci.sh && build_docs_pdf
+        run: source tools/ci/linux/ci.sh && build_docs_pdf
       - name: Checkout Website Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: open62541/open62541-www
           path: open62541-www

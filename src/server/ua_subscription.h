@@ -101,6 +101,10 @@ typedef TAILQ_HEAD(NotificationMessageQueue, UA_NotificationMessageEntry)
 /* MonitoredItem */
 /*****************/
 
+/* Maximum number of outstanding async reads per MonitoredItem.
+ * This protects against unbounded memory usage. */
+#define UA_MONITOREDITEM_ASYNC_MAX 8
+
 /* The type of sampling for MonitoredItems depends on the sampling interval.
  *
  * >0: Cyclic callback
@@ -157,6 +161,7 @@ struct UA_MonitoredItem {
                                                             * interval */
     } sampling;
     UA_DataValue lastValue;
+    UA_UInt32 outstandingAsyncReads; /* at most UA_MONITOREDITEM_ASYNC_MAX */
 
     /* Triggering Links */
     size_t triggeringLinksSize;
@@ -173,7 +178,7 @@ struct UA_MonitoredItem {
 void UA_MonitoredItem_init(UA_MonitoredItem *mon);
 void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
-void UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon);
 
 /* Register sampling. Either by adding a repeated callback or by adding the
  * MonitoredItem to a linked list in the node. */
@@ -316,6 +321,9 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
 void
 Subscription_resetLifetime(UA_Subscription *sub);
 
+UA_Subscription *
+getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
+
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub,
                                  UA_UInt32 monitoredItemId);
@@ -347,13 +355,6 @@ typedef struct UA_ConditionSource UA_ConditionSource;
 #define UA_EVENTFILTER_MAXOPERANDS 64 /* Max operands per operator */
 #define UA_EVENTFILTER_MAXSELECT   64 /* Max select clauses */
 
-UA_StatusCode
-UA_MonitoredItem_addEvent(UA_Server *server, UA_MonitoredItem *mon,
-                          const UA_NodeId *event);
-
-UA_StatusCode
-generateEventId(UA_ByteString *generatedId);
-
 /* Static validation when the filter is registered */
 UA_StatusCode
 UA_SimpleAttributeOperandValidation(UA_Server *server,
@@ -365,24 +366,73 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
                                   size_t operatorsCount,
                                   const UA_ContentFilterElement *ef);
 
+/* If the sessionId, subscriptionId or monitoredItemId are non-NULL, they are
+ * used to filter the subscriptions and monitoreditems that emit the event. */
+UA_StatusCode
+createEvent(UA_Server *server, const UA_EventDescription *ed,
+            UA_ByteString *outEventId);
+
+typedef struct {
+    UA_Server *server;
+    UA_Session *session;
+    UA_EventDescription ed; /* shallow copy */
+    UA_EventFilter filter;  /* shallow copy */
+
+    /* Don't reread or regenerate values that have already been gotten during
+     * the same filter evaluation */
+    UA_KeyValueMap fieldCache;
+
+    /* Generated / cached EventId */
+    UA_ByteString eventId;
+    UA_Byte eventIdBuf[16];
+
+    /* <-- Variables used only by evaluateWhereClause --> */
+
+    UA_Variant operatorResults[UA_EVENTFILTER_MAXELEMENTS];
+
+    /* The operand stack contains temporary variants. Cleaned up after the
+     * evaluation of each operator. */
+    size_t top;
+    UA_Variant operandStack[UA_EVENTFILTER_MAXOPERANDS];
+} UA_FilterEvalContext;
+
+/* The _reset method resets the filter between evaluations for different
+ * MonitoredItems. The EventId is reset *only* if eventId.data != eventIdBuf.
+ * This does not lead to memleaks and ensures we do not regenerate random
+ * EventIds for the same event on different MonitoredItems. */
+void UA_FilterEvalContext_init(UA_FilterEvalContext *ctx);
+void UA_FilterEvalContext_reset(UA_FilterEvalContext *ctx);
+
+UA_StatusCode
+resolveSAO(UA_FilterEvalContext *ctx, const UA_SimpleAttributeOperand *sao,
+           UA_Variant *out);
+
+/* Retrieve or generate the unique EventId and cache it. Takes the EventId from
+ * the EventDescription if explicitly set by the user. If successful,
+ * ctx->eventId contains the cached EventId */
+UA_StatusCode cacheEventId(UA_FilterEvalContext *ctx);
+
 /* Evaluate content filter, exported only for unit testing */
 UA_StatusCode
-evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eventNode,
-                    const UA_ContentFilter *contentFilter,
-                    UA_ContentFilterResult *contentFilterResult);
+evaluateWhereClause(UA_FilterEvalContext *ctx);
 
-#endif
+/* Applies the select clause and resolves the result fields */
+UA_StatusCode
+evaluateSelectClause(UA_FilterEvalContext *ctx, UA_EventFieldList *efl);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /***********/
 /* Helpers */
 /***********/
 
 /* Setting an integer value within bounds */
-#define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
+#define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST)   \
+    do { \
         if(SRC > BOUNDS.max) DST = BOUNDS.max;         \
         else if(SRC < BOUNDS.min) DST = BOUNDS.min;    \
         else DST = SRC;                                \
-    }
+    } while (0)
 
 /* Logging
  * See a description of the tricks used in ua_session.h */

@@ -680,7 +680,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
             if(n < 0) {
                 /* An error we cannot recover from? */
                 if(UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_WOULDBLOCK &&
-                   UA_ERRNO != UA_AGAIN)
+                   UA_ERRNO != UA_AGAIN && UA_ERRNO != UA_INPROGRESS)
                     goto shutdown;
 
                 /* Poll for the socket resources to become available and retry
@@ -744,10 +744,6 @@ TCP_openPassiveConnection(UA_LWIPConnectionManager *pcm, const UA_KeyValueMap *p
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     if(reuseaddrTmp)
         reuseaddr = *reuseaddrTmp;
-
-#ifdef UA_ENABLE_ALLOW_REUSEADDR
-    reuseaddr = true;
-#endif
 
     /* Undefined or empty addresses array -> listen on all interfaces */
     if(addrsSize == 0) {

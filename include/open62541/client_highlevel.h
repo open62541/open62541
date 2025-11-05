@@ -337,7 +337,7 @@ UA_Client_translateBrowsePathToNodeIds(UA_Client *client,
 /**
  * Node Management
  * ~~~~~~~~~~~~~~~
- * See the section on :ref:`server-side node management <addnodes>`. */
+ * See the section on :ref:`server-side node management <server-node-management>`. */
 
 UA_StatusCode UA_EXPORT
 UA_Client_addReference(UA_Client *client, const UA_NodeId sourceNodeId,

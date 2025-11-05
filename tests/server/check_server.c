@@ -21,8 +21,16 @@
 
 static UA_Server *server = NULL;
 
+static void
+serverNotificationCallback(UA_Server *server, UA_ApplicationNotificationType type,
+                           const UA_KeyValueMap payload) {
+
+}
+
 static void setup(void) {
     server = UA_Server_newForUnitTest();
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->globalNotificationCallback = serverNotificationCallback;
     ck_assert(server != NULL);
 }
 

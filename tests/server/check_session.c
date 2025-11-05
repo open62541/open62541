@@ -114,6 +114,34 @@ START_TEST(Session_updateLifetime_ShallWork) {
 }
 END_TEST
 
+/* Check that the service-notification-callback is correctly set */
+static void
+serverNotificationCallback(UA_Server *server, UA_ApplicationNotificationType type,
+                           const UA_KeyValueMap payload) {
+    UA_assert(payload.mapSize > 0);
+    UA_assert(UA_Variant_hasScalarType(&payload.map[1].value, &UA_TYPES[UA_TYPES_NODEID]));
+}
+
+START_TEST(Session_notificationCallback) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Configure the notification callback */
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->serviceNotificationCallback = serverNotificationCallback;
+
+    /* Call a service */
+    UA_Variant val;
+    retval = UA_Client_readValueAttribute(client, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Session_setSessionAttribute_ShallWork) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
@@ -133,7 +161,7 @@ START_TEST(Session_setSessionAttribute_ShallWork) {
     UA_NodeId_copy(&createRes.authenticationToken, &client->authenticationToken);
 
     /* Set an attribute for the session. */
-    UA_QualifiedName key = UA_QUALIFIEDNAME(1, "myAttribute");;
+    UA_QualifiedName key = UA_QUALIFIEDNAME(1, "myAttribute");
     UA_Variant *variant = UA_Variant_new();
     UA_Variant_init(variant);
     status s = UA_Server_setSessionAttribute(server, &createRes.sessionId, key, variant);
@@ -165,6 +193,7 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session, Session_close_before_activate);
     tcase_add_test(tc_session, Session_init_ShallWork);
     tcase_add_test(tc_session, Session_updateLifetime_ShallWork);
+    tcase_add_test(tc_session, Session_notificationCallback);
     tcase_add_test(tc_session, Session_setSessionAttribute_ShallWork);
     suite_add_tcase(s,tc_session);
     return s;

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- * Copyright (c) 2017-2022 Fraunhofer IOSB (Author: Andreas Ebner)
+ * Copyright (c) 2017-2025 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019, 2022, 2024 Fraunhofer IOSB (Author: Julius Pfrommer)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
@@ -131,6 +131,10 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
      * numerical NodeId. */
     if(cId)
         UA_NodeId_copy(&c->head.identifier, cId);
+
+    /* Enable the Connection immediately if the enabled flag is set */
+    if(cc->enabled)
+        UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -366,26 +370,37 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
     if(c->head.transientState)
         return ret;
 
+    /* No state change has happened */
+    if(c->head.state == oldState)
+        return ret;
+
+    UA_LOG_INFO_PUBSUB(psm->logging, c, "%s -> %s",
+                       UA_PubSubState_name(oldState),
+                       UA_PubSubState_name(c->head.state));
+
     /* Inform application about state change */
-    if(c->head.state != oldState) {
-        UA_LOG_INFO_PUBSUB(psm->logging, c, "%s -> %s",
-                           UA_PubSubState_name(oldState),
-                           UA_PubSubState_name(c->head.state));
-        if(server->config.pubSubConfig.stateChangeCallback) {
-            server->config.pubSubConfig.
-                stateChangeCallback(server, c->head.identifier, targetState, ret);
-        }
+    if(server->config.pubSubConfig.stateChangeCallback) {
+        server->config.pubSubConfig.
+            stateChangeCallback(server, c->head.identifier, c->head.state, ret);
     }
 
-    /* Update Reader and WriterGroups state. This will set them to PAUSED (if
-     * they were operational) as the Connection is now non-operational. */
-    UA_ReaderGroup *readerGroup;
-    LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
-        UA_ReaderGroup_setPubSubState(psm, readerGroup, readerGroup->head.state);
+    /* Children evaluate their state machine after the state change of the parent.
+     * Keep the current child state as the target state for the child. */
+    UA_ReaderGroup *rg;
+    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+        if(psm->pubSubInitialSetupMode && rg->config.enabled) {
+            UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
+        } else {
+            UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
+        }
     }
-    UA_WriterGroup *writerGroup;
-    LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
-        UA_WriterGroup_setPubSubState(psm, writerGroup, writerGroup->head.state);
+    UA_WriterGroup *wg;
+    LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+        if(psm->pubSubInitialSetupMode && wg->config.enabled) {
+            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
+        } else {
+            UA_WriterGroup_setPubSubState(psm, wg, wg->head.state);
+        }
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
@@ -600,8 +615,7 @@ PubSubSendChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 static UA_StatusCode
 UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                UA_Boolean validate) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
@@ -692,8 +706,7 @@ UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
 static UA_StatusCode
 UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                UA_Boolean validate) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
@@ -756,8 +769,7 @@ UA_PubSubConnection_canConnect(UA_PubSubConnection *c) {
 static UA_StatusCode
 UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             UA_Boolean validate) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
     if(!el) {
@@ -934,10 +946,6 @@ UA_Server_updatePubSubConnectionConfig(UA_Server *server,
         UA_LOG_ERROR_PUBSUB(psm->logging, c, "The connection parameters did not validate");
         goto errout;
     }
-
-    /* Call the state-machine. This can move the connection state from _ERROR to
-     * _DISABLED. */
-    UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
 
     UA_PubSubConnectionConfig_clear(&oldConfig);
     unlockServer(server);

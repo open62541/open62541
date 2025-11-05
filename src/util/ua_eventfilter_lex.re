@@ -79,7 +79,7 @@ UA_EventFilter_lex(const UA_ByteString content, size_t *offset,
     const u8 *pos = &content.data[*offset];
     const u8 *end = &content.data[content.length];
     const u8 *m, *b; /* marker, match begin */
-    /*!stags:re2c format = 'const u8 *@@;'; */
+    /*!stags:re2c format = 'const u8 *@@ = NULL;'; */
     const UA_DataType *lt; /* literal type */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_ByteString match;

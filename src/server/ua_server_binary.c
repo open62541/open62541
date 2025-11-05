@@ -117,13 +117,11 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
      * outstanding Publish requests whose RequestId is valid only for the
      * SecureChannel. */
     while(channel->sessions)
-        UA_Session_detachFromSecureChannel(channel->sessions);
+        UA_Session_detachFromSecureChannel(server, channel->sessions);
 
     /* Detach the channel from the server list */
     TAILQ_REMOVE(&server->channels, channel, serverEntry);
     TAILQ_REMOVE(&bpm->channels, channel, componentEntry);
-
-    UA_SecureChannel_clear(channel);
 
     /* Update the statistics */
     UA_SecureChannelStatistics *scs = &server->secureChannelStatistics;
@@ -153,6 +151,10 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
         UA_assert(false);
         break;
     }
+
+    /* Notify the application */
+    notifySecureChannel(server, channel,
+                        UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_CLOSED);
 
     /* Clean up the SecureChannel. This is the only place where
      * UA_SecureChannel_clear must be called within the server code-base. */
@@ -482,16 +484,16 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_init(&response, sd->responseType);
     response.responseHeader.requestHandle = request.requestHeader.requestHandle;
 
-    /* Process the request */
     lockServer(server);
-    UA_Boolean async =
-        UA_Server_processRequest(server, channel, requestId, sd, &request, &response);
-    unlockServer(server);
+
+    /* Process the request */
+    UA_Boolean done = processRequest(server, channel, requestId, sd, &request, &response);
 
     /* Send response if not async */
-    if(UA_LIKELY(!async)) {
+    if(UA_LIKELY(done))
         retval = sendResponse(server, channel, requestId, &response, sd->responseType);
-    }
+
+    unlockServer(server);
 
     /* Clean up */
     UA_clear(&request, sd->requestType);
@@ -622,7 +624,8 @@ configServerSecureChannel(void *application, UA_SecureChannel *channel,
 
 static UA_StatusCode
 createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *cm,
-                          uintptr_t connectionId, UA_SecureChannel **outChannel) {
+                          uintptr_t connectionId, const UA_KeyValueMap *params,
+                          UA_SecureChannel **outChannel) {
     UA_Server *server = bpm->sc.server;
     UA_ServerConfig *config = &server->config;
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -662,6 +665,16 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     channel->processOPNHeaderApplication = server;
     channel->connectionManager = cm;
     channel->connectionId = connectionId;
+
+    /* The remote addresss is given in the very first callback from the
+     * ConnectionManager. */
+    if(params) {
+        const UA_String *address = (const UA_String *)
+            UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "remote-address"),
+                                     &UA_TYPES[UA_TYPES_STRING]);
+        if(address)
+            UA_String_copy(address, &channel->remoteAddress);
+    }
 
     /* Set the SecureChannel identifier already here. So we get the right
      * identifier for logging right away. The rest of the SecurityToken is set
@@ -802,7 +815,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(serverSocket) {
         /* A new connection is opening. This is the only place where
          * createSecureChannel is used. */
-        retval = createServerSecureChannel(bpm, cm, connectionId, &channel);
+        retval = createServerSecureChannel(bpm, cm, connectionId, params, &channel);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(bpm->logging, UA_LOGCATEGORY_SERVER,
                            "TCP %lu\t| Could not accept the connection with status %s",
@@ -1273,7 +1286,8 @@ serverReverseConnectCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectio
      * createSecureChannel is used. */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!context->channel) {
-        retval = createServerSecureChannel(bpm, cm, connectionId, &context->channel);
+        retval = createServerSecureChannel(bpm, cm, connectionId, params,
+                                           &context->channel);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(bpm->logging, UA_LOGCATEGORY_SERVER,
                            "TCP %lu\t| Could not accept the reverse "

@@ -94,13 +94,18 @@ struct UA_Session {
 
 void UA_Session_init(UA_Session *session);
 void UA_Session_clear(UA_Session *session, UA_Server *server);
-void UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel);
-void UA_Session_detachFromSecureChannel(UA_Session *session);
+void UA_Session_attachToSecureChannel(UA_Server *server, UA_Session *session,
+                                      UA_SecureChannel *channel);
+void UA_Session_detachFromSecureChannel(UA_Server *server, UA_Session *session);
 UA_StatusCode UA_Session_generateNonce(UA_Session *session);
 
 /* If any activity on a session happens, the timeout is extended */
 void UA_Session_updateLifetime(UA_Session *session, UA_DateTime now,
                                UA_DateTime nowMonotonic);
+
+void
+notifySession(UA_Server *server, UA_Session *session,
+              UA_ApplicationNotificationType type);
 
 /**
  * Subscription handling
@@ -142,6 +147,7 @@ UA_Session_dequeuePublishReq(UA_Session *session);
  * string of length zero). */
 
 #define UA_LOG_SESSION_INTERNAL(LOGGER, LEVEL, SESSION, MSG, ...)       \
+    do {                                                                \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
         UA_String sessionName = (SESSION) ? (SESSION)->sessionName: UA_STRING_NULL; \
         unsigned long sockId = ((SESSION) && (SESSION)->channel) ?      \
@@ -150,8 +156,9 @@ UA_Session_dequeuePublishReq(UA_Session *session);
             (SESSION)->channel->securityToken.channelId : 0;            \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
                        "TCP %lu\t| SC %" PRIu32 "\t| Session \"%S\"\t| " MSG "%.0s", \
-                       sockId, chanId, sessionName, __VA_ARGS__);   \
-    }
+                       sockId, chanId, sessionName, __VA_ARGS__);       \
+    }                                                                   \
+    } while (0)
 
 #define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, TRACE, SESSION, __VA_ARGS__, ""))

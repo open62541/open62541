@@ -10,6 +10,7 @@
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
+ *    Copyright 2025 (c) Siemens AG (Author: Tin Raic)
  */
 
 #ifndef UA_UTIL_H_
@@ -20,12 +21,21 @@
 #include <open62541/util.h>
 #include <open62541/statuscodes.h>
 
+#include <open62541/plugin/log.h>
+#include <open62541/plugin/securitypolicy.h>
+
 #include "../ua_types_encoding_binary.h"
 
 _UA_BEGIN_DECLS
 
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x
+
+/* Often-used macro to get the beginning of the parent data structure */
+#ifndef container_of
+# define container_of(ptr, type, member) \
+    (type *)((uintptr_t)ptr - offsetof(type,member))
+#endif
 
 /* Try if the type of the value can be adjusted "in situ" to the target type.
  * That can be done, for example, to map between int32 and an enum.
@@ -86,10 +96,9 @@ isReservedPercent(u8 c) {
 
 static UA_INLINE UA_Boolean
 isReservedPercentExtended(u8 c) {
-    return (isReservedPercent(c) || c == '#' || c == '[' ||
-            c == ']' || c == '&' || c == '(' || c == ')' ||
-            c == ',' || c == '<' || c == '>' || c == '`' ||
-            c == '/' || c == '\\' || c == '"' || c == '\'' );
+    return (isReservedPercent(c) || c == ':' || c == '#' || c == '[' || c == ']' ||
+            c == '&' || c == '(' || c == ')' || c == ',' || c == '<' || c == '>' ||
+            c == '`' || c == '/' || c == '\\' || c == '"' || c == '\'' );
 }
 
 /* Unescape string. The copyEscape boolean indicates whether a copy of the
@@ -253,7 +262,7 @@ isTrue(uint8_t expr) {
 #endif
 
 void
-UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes);
+UA_cleanupDataTypeWithCustom(UA_DataTypeArray *customTypes);
 
 /* Get the number of optional fields contained in an structure type */
 size_t UA_EXPORT
@@ -417,6 +426,26 @@ UA_ENCODING_HELPERS(ExtensionObject, EXTENSIONOBJECT)
 UA_ENCODING_HELPERS(DataValue, DATAVALUE)
 UA_ENCODING_HELPERS(Variant, VARIANT)
 UA_ENCODING_HELPERS(DiagnosticInfo, DIAGNOSTICINFO)
+
+/******************/
+/* ECC Encryption */
+/******************/
+
+/* ECC Encrypted Secret node ID identifier, arbitrarily chosen*/
+#define NODE_IDENTIFIER_NUMERIC_ECCENCRYPTEDSEC 335
+
+UA_Boolean UA_SecurityPolicy_isEccPolicy(UA_String policyURI);
+
+UA_StatusCode
+encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
+                            const UA_ByteString serverSessionNonce,
+                            const UA_ByteString serverEphemeralPubKey,
+                            UA_SecurityPolicy *sp, void *tempChannelContext);
+
+UA_StatusCode
+decryptUserTokenEcc(UA_Logger *logger, UA_ByteString sessionServerNonce,
+                    const UA_SecurityPolicy *sp, const UA_String encryptionAlgorithm,
+                    UA_EccEncryptedSecret *es);
 
 _UA_END_DECLS
 

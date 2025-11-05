@@ -45,6 +45,8 @@ typedef struct UA_Client_MonitoredItem {
         UA_Client_EventNotificationCallback eventCallback;
     } handler;
     UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
+
+    UA_KeyValueMap eventFields; /* Cached names */
 } UA_Client_MonitoredItem;
 
 ZIP_HEAD(MonitorItemsTree, UA_Client_MonitoredItem);
@@ -149,12 +151,18 @@ struct UA_Client {
     uintptr_t reverseConnectionIds[16];
 
     /* Session */
+    UA_NodeId sessionId;
     UA_SessionState sessionState;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle; /* Unique handles >100,000 are generated if the
                               * request header contains a zero-handle. */
     UA_ByteString serverSessionNonce;
     UA_ByteString clientSessionNonce;
+
+    /* For authentication with an ECC SecurityPolicy. This is needed to save the
+     * server's ephemeral public key between the session creation (when the key
+     * is received) and session activation, when the key is used. */
+    UA_ByteString serverEphemeralPubKey;
 
     /* Connectivity check */
     UA_DateTime lastConnectivityCheck;

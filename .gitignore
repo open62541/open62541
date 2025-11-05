@@ -82,3 +82,17 @@ debian/*
 .cache/
 # project local vim settings
 .vim/
+# IDE specific settings
+.idea/
+*.iml
+*.iws
+*.ipr
+# Eclipse
+.metadata
+.recommenders
+# NetBeans
+nbproject/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/

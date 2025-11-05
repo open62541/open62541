@@ -107,7 +107,7 @@ UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
 
         /* Premature end of input. Fill up the block with padding. */
         if(i + 1 == len) {
-            len = (len + 3) & ~0x03; /* Next multiple of four */
+            len = (len + 3) & ~0x03U; /* Next multiple of four */
             for(i++; i < len; i++)
                 pad++;
             for(; count < 4; count++)

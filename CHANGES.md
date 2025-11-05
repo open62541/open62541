@@ -3,6 +3,29 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Event API uses string-encoded of BrowsePaths
+
+The select-clause of EventFilters defines the fields to be returned in
+event-notifications. The clause is made up of SimpleAttributeOperand structures.
+The API now supports a key-value maps with string-encoded SimpleAttributeOperands
+(in addition to an instance of the EventType in the informationmodel) as the
+source of the event's fields. The key-value map significantly reduces the
+computational overhead associated with Events.
+
+The above has lead to breaking API changes in
+
+- Server-side monitoring of local events
+- Server-side creation of events (with a key-value map for the event properties)
+- Client-side monitoring of remove events
+
+### PubSub Components are enabled automatically if the enabled-flag is set
+
+The component configuration structure now includes the enabled flag. If the flag
+is true, the state-machine gets triggered automatically after the creation of
+the component. This is the same for the C-API, the information model methods and
+for loading the configuration from a binary file. If child-components are added
+at the same time, the children get enabled before the parents.
+
 ### Client async methods are typed
 
 For more of the client async service calls, specialized callback types were

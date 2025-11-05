@@ -41,7 +41,7 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     deleteNode(server, session->sessionId, true);
 #endif
 
-    UA_Session_detachFromSecureChannel(session);
+    UA_Session_detachFromSecureChannel(server, session);
     UA_ApplicationDescription_clear(&session->clientDescription);
     UA_NodeId_clear(&session->authenticationToken);
     UA_String_clear(&session->clientUserIdOfSession);
@@ -71,9 +71,10 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
 }
 
 void
-UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
+UA_Session_attachToSecureChannel(UA_Server *server, UA_Session *session,
+                                 UA_SecureChannel *channel) {
     /* Ensure the Session is not attached to another SecureChannel */
-    UA_Session_detachFromSecureChannel(session);
+    UA_Session_detachFromSecureChannel(server, session);
 
     /* Add to singly-linked list */
     session->next = channel->sessions;
@@ -84,7 +85,7 @@ UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel)
 }
 
 void
-UA_Session_detachFromSecureChannel(UA_Session *session) {
+UA_Session_detachFromSecureChannel(UA_Server *server, UA_Session *session) {
     /* Clean up the response queue. Their RequestId is bound to the
      * SecureChannel so they cannot be reused. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -111,6 +112,10 @@ UA_Session_detachFromSecureChannel(UA_Session *session) {
 
     /* Reset the backpointer */
     session->channel = NULL;
+
+    /* Notify the application */
+    notifySession(server, session,
+                  UA_APPLICATIONNOTIFICATIONTYPE_SESSION_DEACTIVATED);
 }
 
 UA_StatusCode
@@ -248,17 +253,14 @@ UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry,
 UA_StatusCode
 UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId) {
     lockServer(server);
-    session_list_entry *entry;
-    UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
-    LIST_FOREACH(entry, &server->sessions, pointers) {
-        if(UA_NodeId_equal(&entry->session.sessionId, sessionId)) {
-            UA_Server_removeSession(server, entry, UA_SHUTDOWNREASON_CLOSE);
-            res = UA_STATUSCODE_GOOD;
-            break;
-        }
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
     }
+    UA_Session_remove(server, session, UA_SHUTDOWNREASON_CLOSE);
     unlockServer(server);
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Session Attributes */

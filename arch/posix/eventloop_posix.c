@@ -11,10 +11,6 @@
 
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
 
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
-#include <time.h>
-#endif
-
 /*********/
 /* Timer */
 /*********/
@@ -170,31 +166,33 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Starting the EventLoop");
 
-    /* Setting the clock source */
+    /* Setting custom clock source */
     const UA_Int32 *cs = (const UA_Int32*)
         UA_KeyValueMap_getScalar(&el->eventLoop.params,
                                  UA_QUALIFIEDNAME(0, "clock-source"),
                                  &UA_TYPES[UA_TYPES_INT32]);
+    if(cs)
+        el->clockSource = *cs;
+
     const UA_Int32 *csm = (const UA_Int32*)
         UA_KeyValueMap_getScalar(&el->eventLoop.params,
                                  UA_QUALIFIEDNAME(0, "clock-source-monotonic"),
                                  &UA_TYPES[UA_TYPES_INT32]);
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
-    el->clockSource = CLOCK_REALTIME;
-    if(cs)
-        el->clockSource = *cs;
-
-# ifdef CLOCK_MONOTONIC_RAW
-    el->clockSourceMonotonic = CLOCK_MONOTONIC_RAW;
-# else
-    el->clockSourceMonotonic = CLOCK_MONOTONIC;
-# endif
-    if(csm)
+    if(csm) {
+        if(el->clockSourceMonotonic != *csm && el->timer.idTree.root) {
+            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                           "Eventloop\t| Setting a different monotonic clock, ",
+                           "but existing timers have been registered with a "
+                           "different clock source");
+        }
         el->clockSourceMonotonic = *csm;
-#else
+    }
+
+#if !defined(UA_ARCHITECTURE_POSIX)
     if(cs || csm) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "Eventloop\t| Cannot set a custom clock source");
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                       "Eventloop\t| Setting a different clock source ",
+                       "not supported for this architecture");
     }
 #endif
 
@@ -463,7 +461,7 @@ UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
 
 static UA_DateTime
 UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+#if defined(UA_ARCHITECTURE_POSIX)
     UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
     struct timespec ts;
     int res = clock_gettime(pel->clockSource, &ts);
@@ -477,7 +475,7 @@ UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
 
 static UA_DateTime
 UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+#if defined(UA_ARCHITECTURE_POSIX)
     UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
     struct timespec ts;
     int res = clock_gettime(pel->clockSourceMonotonic, &ts);
@@ -573,6 +571,17 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     /* Set the public EventLoop content */
     el->eventLoop.logger = logger;
 
+    /* Initialize the clock source to the default */
+#if defined(UA_ARCHITECTURE_POSIX)
+    el->clockSource = CLOCK_REALTIME;
+# ifdef CLOCK_MONOTONIC_RAW
+    el->clockSourceMonotonic = CLOCK_MONOTONIC_RAW;
+# else
+    el->clockSourceMonotonic = CLOCK_MONOTONIC;
+# endif
+#endif
+
+    /* Set the method pointers for the interface */
     el->eventLoop.start = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_start;
     el->eventLoop.stop = (void (*)(UA_EventLoop*))UA_EventLoopPOSIX_stop;
     el->eventLoop.free = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_free;

@@ -92,23 +92,32 @@ UA_findDataType(const UA_NodeId *typeId) {
 }
 
 void
-UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
-    while (customTypes) {
-        const UA_DataTypeArray *next = customTypes->next;
-        if (customTypes->cleanup) {
-            for(size_t i = 0; i < customTypes->typesSize; ++i) {
-                const UA_DataType *type = &customTypes->types[i];
+UA_DataType_clear(UA_DataType *type) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-                UA_free((void*)(uintptr_t)type->typeName);
-                for(size_t j = 0; j < type->membersSize; ++j) {
-                    const UA_DataTypeMember *m = &type->members[j];
-                    UA_free((void*)(uintptr_t)m->memberName);
-                }
+    UA_free((void*)(uintptr_t)type->typeName);
+    for(size_t j = 0; j < type->membersSize; ++j) {
+        UA_DataTypeMember *m = &type->members[j];
+        UA_free((void*)(uintptr_t)m->memberName);
+    }
 #endif
-                UA_free((void*)type->members);
+    UA_NodeId_clear(&type->typeId);
+    UA_NodeId_clear(&type->binaryEncodingId);
+    UA_NodeId_clear(&type->xmlEncodingId);
+    UA_free(type->members);
+    memset(type, 0, sizeof(UA_DataType));
+}
+
+void
+UA_cleanupDataTypeWithCustom(UA_DataTypeArray *customTypes) {
+    while(customTypes) {
+        UA_DataTypeArray *next = customTypes->next;
+        if(customTypes->cleanup) {
+            for(size_t i = 0; i < customTypes->typesSize; ++i) {
+                UA_DataType *type = &customTypes->types[i];
+                UA_DataType_clear(type);
             }
-            UA_free((void*)(uintptr_t)customTypes->types);
-            UA_free((void*)(uintptr_t)customTypes);
+            UA_free(customTypes->types);
+            UA_free(customTypes);
         }
         customTypes = next;
     }
@@ -449,6 +458,7 @@ UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
     return t;
 }
 
+#ifdef UA_ENABLE_PARSING
 UA_StatusCode
 UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
     if(str.length == 0)
@@ -594,6 +604,17 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
     *dst = dt;
     return UA_STATUSCODE_GOOD;
 }
+
+UA_DateTime
+UA_DATETIME(const char *chars) {
+    UA_DateTime dst;
+    UA_StatusCode res =
+        UA_DateTime_parse(&dst, UA_STRING((char*)(uintptr_t)chars));
+    if(res != UA_STATUSCODE_GOOD)
+        UA_DateTime_init(&dst);
+    return dst;
+}
+#endif
 
 /* Guid */
 static const u8 hexmapLower[16] =
@@ -855,6 +876,8 @@ nodeIdSize(const UA_NodeId *id, u8 *nsStr, u8 *numIdStr, UA_String nsUri,
 static u8 *
 printNodeIdBody(const UA_NodeId *id, UA_String nsUri, u8* nsStr, u8* numIdStr, u8 *pos,
                 const UA_NamespaceMapping *nsMapping, UA_Escaping idEsc) {
+    size_t len;
+
     /* Encode the namespace */
     if(nsUri.length > 0) {
         memcpy(pos, "nsu=", 4);
@@ -864,7 +887,7 @@ printNodeIdBody(const UA_NodeId *id, UA_String nsUri, u8* nsStr, u8* numIdStr, u
     } else if(id->namespaceIndex > 0) {
         memcpy(pos, "ns=", 3);
         pos += 3;
-        size_t len = strlen((char*)nsStr);
+        len = strlen((char*)nsStr);
         memcpy(pos, nsStr, len);
         pos += len;
         *pos++ = ';';
@@ -875,7 +898,7 @@ printNodeIdBody(const UA_NodeId *id, UA_String nsUri, u8* nsStr, u8* numIdStr, u
     case UA_NODEIDTYPE_NUMERIC:
         memcpy(pos, "i=", 2);
         pos += 2;
-        size_t len = strlen((char*)numIdStr);
+        len = strlen((char*)numIdStr);
         memcpy(pos, numIdStr, len);
         pos += len;
         break;

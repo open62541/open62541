@@ -40,15 +40,15 @@ static UA_String transportProfile =
  * the buffered NetworkMessage will only be updated.
  */
 
-UA_NodeId connectionIdentifier;
-UA_NodeId readerGroupIdentifier;
-UA_NodeId readerIdentifier;
+static UA_NodeId connectionIdentifier;
+static UA_NodeId readerGroupIdentifier;
+static UA_NodeId readerIdentifier;
 
-UA_Server *server;
-pthread_t listenThread;
-int listenSocket;
+static UA_Server *server;
+static pthread_t listenThread;
+static int listenSocket;
 
-UA_DataSetReaderConfig readerConfig;
+static UA_DataSetReaderConfig readerConfig;
 
 static void *
 listenUDP(void *_) {

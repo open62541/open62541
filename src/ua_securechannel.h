@@ -96,9 +96,10 @@ struct UA_SecureChannel {
     UA_SecureChannelRenewState renewState;
     UA_MessageSecurityMode securityMode;
     UA_ShutdownReason shutdownReason;
-    UA_ConnectionConfig config;
 
+    UA_ConnectionConfig config;
     UA_String endpointUrl;
+    UA_String remoteAddress;
 
     /* Connection handling in the EventLoop */
     UA_ConnectionManager *connectionManager;
@@ -366,12 +367,14 @@ UA_Boolean isEccPolicy(const UA_SecurityPolicy* const p);
  * string of length zero). */
 
 #define UA_LOG_CHANNEL_INTERNAL(LOGGER, LEVEL, CHANNEL, MSG, ...)       \
+    do {                                                                \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SECURECHANNEL,            \
                        "TCP %lu\t| SC %" PRIu32 "\t| " MSG "%.0s", \
                        (long unsigned)(CHANNEL)->connectionId,          \
                        (CHANNEL)->securityToken.channelId, __VA_ARGS__); \
-    }
+    } \
+    } while (0)
 
 #define UA_LOG_TRACE_CHANNEL(LOGGER, CHANNEL, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_CHANNEL_INTERNAL(LOGGER, TRACE, CHANNEL, __VA_ARGS__, ""))

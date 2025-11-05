@@ -295,17 +295,14 @@ UA_Int64 UA_EXPORT UA_DateTime_localTimeUtcOffset(void);
  * not absolute time. */
 UA_DateTime UA_EXPORT UA_DateTime_nowMonotonic(void);
 
+#ifdef UA_ENABLE_PARSING
 /* Parse the humand-readable DateTime format */
 UA_StatusCode UA_EXPORT
 UA_DateTime_parse(UA_DateTime *dst, const UA_String str);
 
-UA_INLINABLE(UA_DateTime
-             UA_DATETIME(const char *chars), {
-    UA_DateTime dst;
-    UA_DateTime_parse(&dst, UA_STRING((char*)(uintptr_t)chars));
-    return dst;
-})
-
+/* Returns zero if parsing fails */
+UA_EXPORT UA_DateTime UA_DATETIME(const char *chars);
+#endif
 
 /* Represents a Datetime as a structure */
 typedef struct UA_DateTimeStruct {
@@ -1055,15 +1052,19 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
+/* Clean up type definition with heap-allocated data */
+UA_EXPORT void
+UA_DataType_clear(UA_DataType *type);
+
 /* Datatype arrays with custom type definitions can be added in a linked list to
  * the client or server configuration. */
 typedef struct UA_DataTypeArray {
-    const struct UA_DataTypeArray *next;
-    const size_t typesSize;
-    const UA_DataType *types;
-    UA_Boolean cleanup; /* Free the array structure and its content
-                           when the client or server configuration
-                           containing it is cleaned up */
+    struct UA_DataTypeArray *next;
+    size_t typesSize;
+    UA_DataType *types;
+    UA_Boolean cleanup; /* Free the array structure and its content when the
+                         * client or server configuration containing it is
+                         * cleaned up */
 } UA_DataTypeArray;
 
 /* Returns the offset and type of a structure member. The return value is false
@@ -1434,7 +1435,7 @@ UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
  * to the allocated memory. */
 UA_StatusCode UA_EXPORT
 UA_Array_copy(const void *src, size_t size, void **dst,
-              const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+              const UA_DataType *type);
 
 /* Resizes (and reallocates) an array. The last entries are initialized to zero
  * if the array length is increased. If the array length is decreased, the last
@@ -1444,20 +1445,20 @@ UA_Array_copy(const void *src, size_t size, void **dst,
  * success. The array remains untouched in case of an internal error. */
 UA_StatusCode UA_EXPORT
 UA_Array_resize(void **p, size_t *size, size_t newSize,
-                const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                const UA_DataType *type);
 
 /* Append a scalar value at the end of the array. The content is moved (shallow
  * copy) and the original value location is _init'ed if appending is successful.
  * Otherwise similar to UA_Array_resize. */
 UA_StatusCode UA_EXPORT
 UA_Array_append(void **p, size_t *size, void *newElem,
-                const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                const UA_DataType *type);
 
 /* Append a copy of the given element at the end of the array. The memory of the
  * newValue argument is not written. Otherwise similar to UA_Array_append. */
 UA_StatusCode UA_EXPORT
 UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
-                    const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                    const UA_DataType *type);
 
 /* Deletes an array by calling _clear on the element and freeing the memory */
 void UA_EXPORT

@@ -11,10 +11,58 @@
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2018-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
+ *    Copyright 2025 (c) Siemens AG (Author: Tin Raic)
  */
 
 #include "ua_server_internal.h"
 #include "ua_services.h"
+
+void
+notifySession(UA_Server *server, UA_Session *session,
+              UA_ApplicationNotificationType type) {
+    /* Nothing to do */
+    if(!server->config.globalNotificationCallback &&
+       !server->config.sessionNotificationCallback)
+        return;
+
+    /* Set up the payload */
+    size_t payloadSize = 6;
+    if(session->attributes)
+        payloadSize += session->attributes->mapSize;
+    UA_STACKARRAY(UA_KeyValuePair, payloadData, payloadSize);
+    UA_KeyValueMap payloadMap = {payloadSize, payloadData};
+    payloadData[0].key = UA_QUALIFIEDNAME(0, "session-id");
+    UA_Variant_setScalar(&payloadData[0].value, &session->sessionId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    payloadData[1].key = UA_QUALIFIEDNAME(0, "securechannel-id");
+    UA_UInt32 secureChannelId = 0;
+    if(session->channel)
+        secureChannelId = session->channel->securityToken.channelId;
+    UA_Variant_setScalar(&payloadData[1].value, &secureChannelId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    payloadData[2].key = UA_QUALIFIEDNAME(0, "session-name");
+    UA_Variant_setScalar(&payloadData[2].value, &session->sessionName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    payloadData[3].key = UA_QUALIFIEDNAME(0, "client-description");
+    UA_Variant_setScalar(&payloadData[3].value, &session->clientDescription,
+                         &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    payloadData[4].key = UA_QUALIFIEDNAME(0, "client-user-id");
+    UA_Variant_setScalar(&payloadData[4].value, &session->clientUserIdOfSession,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    payloadData[5].key = UA_QUALIFIEDNAME(0, "locale-ids");
+    UA_Variant_setArray(&payloadData[5].value, session->localeIds,
+                        session->localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
+
+    if(session->attributes)
+        memcpy(&payloadData[6], session->attributes->map,
+               sizeof(UA_KeyValuePair) * session->attributes->mapSize);
+
+    /* Call the notification callback */
+    if(server->config.sessionNotificationCallback)
+        server->config.sessionNotificationCallback(server, type, payloadMap);
+    if(server->config.globalNotificationCallback)
+        server->config.globalNotificationCallback(server, type, payloadMap);
+}
 
 /* Delayed callback to free the session memory */
 static void
@@ -26,10 +74,8 @@ removeSessionCallback(UA_Server *server, session_list_entry *entry) {
 }
 
 void
-UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
-                        UA_ShutdownReason shutdownReason) {
-    UA_Session *session = &sentry->session;
-
+UA_Session_remove(UA_Server *server, UA_Session *session,
+                  UA_ShutdownReason shutdownReason) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Remove the Subscriptions */
@@ -54,16 +100,17 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     }
 
     /* Detach the Session from the SecureChannel */
-    UA_Session_detachFromSecureChannel(session);
+    UA_Session_detachFromSecureChannel(server, session);
 
     /* Deactivate the session */
-    if(sentry->session.activated) {
-        sentry->session.activated = false;
+    if(session->activated) {
+        session->activated = false;
         server->activeSessionCount--;
     }
 
     /* Detach the session from the session manager and make the capacity
      * available */
+    session_list_entry *sentry = container_of(session, session_list_entry, session);
     LIST_REMOVE(sentry, pointers);
     server->sessionCount--;
 
@@ -88,6 +135,9 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
         break;
     }
 
+    /* Notify the application */
+    notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED);
+
     /* Add a delayed callback to remove the session when the currently
      * scheduled jobs have completed */
     sentry->cleanupCallback.callback = (UA_Callback)removeSessionCallback;
@@ -97,22 +147,8 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     el->addDelayedCallback(el, &sentry->cleanupCallback);
 }
 
-UA_StatusCode
-UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
-                               UA_ShutdownReason shutdownReason) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    session_list_entry *entry;
-    LIST_FOREACH(entry, &server->sessions, pointers) {
-        if(UA_NodeId_equal(&entry->session.authenticationToken, token)) {
-            UA_Server_removeSession(server, entry, shutdownReason);
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-    return UA_STATUSCODE_BADSESSIONIDINVALID;
-}
-
 void
-UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
+cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     session_list_entry *sentry, *temp;
     LIST_FOREACH_SAFE(sentry, &server->sessions, pointers, temp) {
@@ -121,7 +157,7 @@ UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
             continue;
         UA_LOG_INFO_SESSION(server->config.logging, &sentry->session,
                             "Session has timed out");
-        UA_Server_removeSession(server, sentry, UA_SHUTDOWNREASON_TIMEOUT);
+        UA_Session_remove(server, &sentry->session, UA_SHUTDOWNREASON_TIMEOUT);
     }
 }
 
@@ -223,10 +259,73 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     return retval;
 }
 
+static UA_StatusCode
+addEphemeralKeyAdditionalHeader(UA_Server *server, const UA_SecurityPolicy *sp,
+                                void *channelContext, UA_ExtensionObject *ah) {
+    /* Allocate additional parameters */
+    UA_AdditionalParametersType *ap = UA_AdditionalParametersType_new();
+    if(!ap)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Set the additional parameters in the additional header. They also get
+     * cleaned up from there in the error case. */
+    UA_ExtensionObject_setValue(ah, ap, &UA_TYPES[UA_TYPES_ADDITIONALPARAMETERSTYPE]);
+
+    /* UA_KeyValueMap has the identical layout. And better helper methods. */
+    UA_KeyValueMap *map = (UA_KeyValueMap*)ap;
+
+    /* Add the PolicyUri to the map */
+    UA_StatusCode res =
+        UA_KeyValueMap_setScalar(map, UA_QUALIFIEDNAME(0, "ECDHPolicyUri"),
+                                 &sp->policyUri, &UA_TYPES[UA_TYPES_STRING]);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Allocate the EphemeralKey structure */
+    UA_EphemeralKeyType *ephKey = UA_EphemeralKeyType_new();
+    if(!ephKey)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Add the EphemeralKeyto the map */
+    res = UA_KeyValueMap_setScalarShallow(map, UA_QUALIFIEDNAME(0, "ECDHKey"),
+                                          ephKey, &UA_TYPES[UA_TYPES_EPHEMERALKEYTYPE]);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Allocate the ephemeral key buffer to the exact size of the ephemeral key
+     * for the used ECC policy so that the nonce generation function knows that
+     * it needs to generate an ephemeral key and not some other random byte
+     * string.
+     *
+     * TODO: There should be a more stable way to signal the generation of an
+     * ephemeral key */
+    res = UA_ByteString_allocBuffer(&ephKey->publicKey,
+                                    sp->symmetricModule.secureChannelNonceLength);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Generate the ephemeral key
+     * TODO: Don't we have to persist the key locally? */
+    res = sp->symmetricModule.generateNonce(sp->policyContext, &ephKey->publicKey);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Create the signature
+     * TODO: Check whether the symmetric or asymmetric signing algorithm is
+     * needed here */
+    size_t signatureSize = sp->symmetricModule.cryptoModule.signatureAlgorithm.
+        getLocalSignatureSize(channelContext);
+    res = UA_ByteString_allocBuffer(&ephKey->signature, signatureSize);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    return sp->symmetricModule.cryptoModule.signatureAlgorithm.
+        sign(channelContext, &ephKey->publicKey, &ephKey->signature);
+}
+
 /* Creates and adds a session. But it is not yet attached to a secure channel. */
 UA_StatusCode
-UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
-                        const UA_CreateSessionRequest *request, UA_Session **session) {
+UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
+                  const UA_CreateSessionRequest *request, UA_Session **session) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(server->sessionCount >= server->config.maxSessions) {
@@ -252,7 +351,7 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Attach the session to the channel. But don't activate for now. */
     if(channel)
-        UA_Session_attachToSecureChannel(&newentry->session, channel);
+        UA_Session_attachToSecureChannel(server, &newentry->session, channel);
 
     UA_EventLoop *el = server->config.eventLoop;
     UA_DateTime now = el->dateTime_now(el);
@@ -263,6 +362,11 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
     LIST_INSERT_HEAD(&server->sessions, newentry, pointers);
     server->sessionCount++;
 
+    /* Notify the application */
+    notifySession(server, &newentry->session,
+                  UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CREATED);
+
+    /* Return */
     *session = &newentry->session;
     return UA_STATUSCODE_GOOD;
 }
@@ -320,7 +424,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Create the Session */
     UA_Session *newSession = NULL;
     response->responseHeader.serviceResult =
-        UA_Server_createSession(server, channel, request, &newSession);
+        UA_Session_create(server, channel, request, &newSession);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "Processing CreateSessionRequest failed");
@@ -362,8 +466,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                  &response->serverEndpoints,
                                  &response->serverEndpointsSize);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Server_removeSessionByToken(server, &newSession->authenticationToken,
-                                       UA_SHUTDOWNREASON_REJECT);
+        UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
         return;
     }
 
@@ -378,14 +481,24 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult |=
             UA_ByteString_copy(&sp->localCertificate, &response->serverCertificate);
 
+    /* If ECC policy, create an ephemeral key to be returned in the response */
+    if(sp && UA_SecurityPolicy_isEccPolicy(sp->policyUri)) {
+        response->responseHeader.serviceResult =
+            addEphemeralKeyAdditionalHeader(server, sp, channel->channelContext,
+                                            &response->responseHeader.additionalHeader);
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+            return;
+        UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SESSION,
+                    "[CreateSession] Ephemeral Key created");
+    }
+
     /* Sign the signature */
     response->responseHeader.serviceResult |=
        signCreateSessionResponse(server, channel, request, response);
 
     /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Server_removeSessionByToken(server, &newSession->authenticationToken,
-                                       UA_SHUTDOWNREASON_REJECT);
+        UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
         return;
     }
 
@@ -698,6 +811,19 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
  * accepts the new SecureChannel it shall reject requests sent via the old
  * SecureChannel. */
 
+#define UA_SESSION_REJECT                                               \
+    do {                                                                \
+        server->serverDiagnosticsSummary.rejectedSessionCount++;        \
+        return;                                                         \
+    } while(0)
+
+#define UA_SECURITY_REJECT                                              \
+    do {                                                                \
+        server->serverDiagnosticsSummary.securityRejectedSessionCount++; \
+        server->serverDiagnosticsSummary.rejectedSessionCount++;        \
+        return;                                                         \
+    } while(0)
+
 void
 Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         const UA_ActivateSessionRequest *req,
@@ -714,7 +840,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "ActivateSession: Session not found");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        goto rejected;
+        UA_SESSION_REJECT;
     }
 
     /* Part 4, §5.6.3: When the ActivateSession Service is called for the
@@ -727,7 +853,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                "ActivateSession: The Session has to be initially activated "
                                "on the SecureChannel that created it");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        goto rejected;
+        UA_SESSION_REJECT;
     }
 
     /* Has the session timed out? */
@@ -737,7 +863,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: The Session has timed out");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        goto rejected;
+        UA_SESSION_REJECT;
     }
 
     /* Check the client signature */
@@ -753,7 +879,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                    "ActivateSession: Client signature check failed "
                                    "with StatusCode %s",
                                    UA_StatusCode_name(resp->responseHeader.serviceResult));
-            goto securityRejected;
+            UA_SECURITY_REJECT;
         }
     }
 
@@ -763,18 +889,26 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                  &ed, &utp, &tokenSp);
     if(!ed || !tokenSp) {
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        goto rejected;
+        UA_SESSION_REJECT;
     }
 
     /* Decrypt (or validate the signature) of the UserToken. The DataType of the
      * UserToken was already checked in selectEndpointAndTokenPolicy */
     if(utp->tokenType == UA_USERTOKENTYPE_USERNAME) {
         /* If it is a UserNameIdentityToken, the password may be encrypted */
-       UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken *)
+        UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken *)
            req->userIdentityToken.content.decoded.data;
-       resp->responseHeader.serviceResult =
-           decryptUserToken(server, session, channel, tokenSp,
-                            userToken->encryptionAlgorithm, &userToken->password);
+        /* Differentiate between ECC policy decrpytion and RSA decryption.
+         * With ECC policies, the password is EccEncryptedSecret */
+        if(UA_SecurityPolicy_isEccPolicy(tokenSp->policyUri)) {
+            resp->responseHeader.serviceResult =
+                decryptUserTokenEcc(server->config.logging, session->serverNonce, tokenSp,
+                                    userToken->encryptionAlgorithm, &userToken->password);
+        } else {
+            resp->responseHeader.serviceResult =
+            decryptUserToken(server, session, channel, tokenSp,
+                             userToken->encryptionAlgorithm, &userToken->password);
+        }
     } else if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
         /* If it is a X509IdentityToken, check the userTokenSignature. Note this
          * only validates that the user has the corresponding private key for
@@ -795,7 +929,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
            &issuedToken->tokenData);
     } /* else Anonymous */
     if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-        goto securityRejected;
+        UA_SECURITY_REJECT;
 
     /* Callback into userland access control */
     resp->responseHeader.serviceResult = server->config.accessControl.
@@ -807,7 +941,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                "ActivateSession: The AccessControl "
                                "plugin denied the activation with the StatusCode %s",
                                UA_StatusCode_name(resp->responseHeader.serviceResult));
-        goto securityRejected;
+        UA_SECURITY_REJECT;
     }
 
     /* Attach the session to the currently used channel if the session isn't
@@ -815,7 +949,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * channel than it is attached to. */
     if(!session->channel || session->channel != channel) {
         /* Attach the new SecureChannel, the old channel will be detached if present */
-        UA_Session_attachToSecureChannel(session, channel);
+        UA_Session_attachToSecureChannel(server, session, channel);
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "ActivateSession: Session attached to new channel");
     }
@@ -825,10 +959,10 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     resp->responseHeader.serviceResult |=
         UA_ByteString_copy(&session->serverNonce, &resp->serverNonce);
     if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Session_detachFromSecureChannel(session);
+        UA_Session_detachFromSecureChannel(server, session);
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Could not generate the server nonce");
-        goto rejected;
+        UA_SESSION_REJECT;
     }
 
     /* Set the Locale */
@@ -841,10 +975,10 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
             UA_Array_copy(req->localeIds, req->localeIdsSize,
                           (void**)&tmpLocaleIds, &UA_TYPES[UA_TYPES_STRING]);
         if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-            UA_Session_detachFromSecureChannel(session);
+            UA_Session_detachFromSecureChannel(server, session);
             UA_LOG_WARNING_SESSION(server->config.logging, session,
                                    "ActivateSession: Could not store the Session LocaleIds");
-            goto rejected;
+            UA_SESSION_REJECT;
         }
         UA_Array_delete(session->localeIds, session->localeIdsSize,
                         &UA_TYPES[UA_TYPES_STRING]);
@@ -856,6 +990,18 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     nowMonotonic = el->dateTime_nowMonotonic(el);
     UA_DateTime now = el->dateTime_now(el);
     UA_Session_updateLifetime(session, now, nowMonotonic);
+
+    /* If ECC policy, create the new ephemeral key to be returned in the ActivateSession response */
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(sp && UA_SecurityPolicy_isEccPolicy(sp->policyUri)) {
+        resp->responseHeader.serviceResult =
+            addEphemeralKeyAdditionalHeader(server, sp, channel->channelContext,
+                                            &resp->responseHeader.additionalHeader);
+        if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+            UA_SECURITY_REJECT;
+        UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SESSION,
+                     "[ActivateSession] Ephemeral Key created");
+    }
 
     /* Activate the session */
     if(!session->activated) {
@@ -881,14 +1027,12 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
 #ifdef UA_ENABLE_DIAGNOSTICS
-    /* Add the ClientUserId to the diagnostics history */
+    /* Add the ClientUserId to the diagnostics history. Ignoring errors in _appendCopy. */
     UA_SessionSecurityDiagnosticsDataType *ssd = &session->securityDiagnostics;
-    UA_StatusCode res =
-        UA_Array_appendCopy((void**)&ssd->clientUserIdHistory,
-                            &ssd->clientUserIdHistorySize,
-                            &ssd->clientUserIdOfSession,
-                            &UA_TYPES[UA_TYPES_STRING]);
-    (void)res;
+    UA_Array_appendCopy((void**)&ssd->clientUserIdHistory,
+                        &ssd->clientUserIdHistorySize,
+                        &ssd->clientUserIdOfSession,
+                        &UA_TYPES[UA_TYPES_STRING]);
 
     /* Store the auth mechanism */
     UA_String_clear(&ssd->authenticationMechanism);
@@ -905,16 +1049,13 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 #endif
 
+    /* Notify the application */
+    notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_ACTIVATED);
+
     /* Log the user for which the Session was activated */
     UA_LOG_INFO_SESSION(server->config.logging, session,
                         "ActivateSession: Session activated with ClientUserId \"%S\"",
                         session->clientUserIdOfSession);
-    return;
-
-securityRejected:
-    server->serverDiagnosticsSummary.securityRejectedSessionCount++;
-rejected:
-    server->serverDiagnosticsSummary.rejectedSessionCount++;
 }
 
 void
@@ -957,19 +1098,16 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
 #endif
 
     /* Remove the sesison */
-    response->responseHeader.serviceResult =
-        UA_Server_removeSessionByToken(server, &session->authenticationToken,
-                                       UA_SHUTDOWNREASON_CLOSE);
+    UA_Session_remove(server, session, UA_SHUTDOWNREASON_CLOSE);
 }
 
-void Service_Cancel(UA_Server *server, UA_Session *session,
-                    const UA_CancelRequest *request, UA_CancelResponse *response) {
+UA_Boolean
+Service_Cancel(UA_Server *server, UA_Session *session,
+               const UA_CancelRequest *request, UA_CancelResponse *response) {
     /* If multithreading is disabled, then there are no async services. If all
      * services are answered "right away", then there are no services that can
      * be cancelled. */
-#if UA_MULTITHREADING >= 100
     response->cancelCount = UA_AsyncManager_cancel(server, session, request->requestHandle);
-#endif
 
     /* Publish requests for Subscriptions are stored separately */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -1000,4 +1138,6 @@ void Service_Cancel(UA_Server *server, UA_Session *session,
         response->cancelCount++;
     }
 #endif
+
+    return true;
 }

@@ -366,7 +366,7 @@ setTimeToLive(UA_SOCKET sockfd, UA_UInt32 messageTTL,
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef __linux__
+#if defined(UA_ARCHITECTURE_POSIX)
 static UA_StatusCode
 setSocketPriority(UA_SOCKET sockfd, UA_UInt32 socketPriority,
                   const UA_Logger *logger) {
@@ -431,7 +431,7 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *params,
     if(enableReuse)
         res |=  UA_EventLoopLWIP_setReusable(socket);
 
-#ifdef __linux__
+#if defined(UA_ARCHITECTURE_POSIX)
     const UA_UInt32 *socketPriority = (const UA_UInt32*)
         UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_SOCKPRIO].name,
                                  &UA_TYPES[UA_TYPES_UINT32]);
@@ -606,15 +606,9 @@ UDP_connectionSocketCallback(UA_LWIPConnectionManager *pcm, UDP_FD *conn,
 
     /* Receive */
     struct sockaddr_storage source;
-#ifndef _WIN32
     socklen_t sourceSize = (socklen_t)sizeof(struct sockaddr_storage);
     ssize_t ret = UA_recvfrom(conn->rfd.fd, (char*)response.data, response.length,
                            MSG_DONTWAIT, (struct sockaddr*)&source, &sourceSize);
-#else
-    int sourceSize = (int)sizeof(struct sockaddr_storage);
-    int ret = UA_recvfrom(conn->rfd.fd, (char*)response.data, (int)response.length,
-                       MSG_DONTWAIT, (struct sockaddr*)&source, &sourceSize);
-#endif
 
     /* Receive has failed */
     if(ret <= 0) {
@@ -971,7 +965,8 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                 /* An error we cannot recover from? */
                 if(UA_ERRNO != UA_INTERRUPTED &&
                    UA_ERRNO != UA_WOULDBLOCK &&
-                   UA_ERRNO != UA_AGAIN) {
+                   UA_ERRNO != UA_AGAIN &&
+                   UA_ERRNO != UA_INPROGRESS) {
                     UA_LOG_SOCKET_ERRNO_WRAP(
                        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                                     "UDP %u\t| Send failed with error %s",

@@ -278,11 +278,13 @@ mdns_append_path_to_url(UA_String *url, const char *path) {
     size_t newUrlLen = url->length + pathLen; //size of the new url string incl. the path 
     /* todo: malloc may fail: return a statuscode */
     char *newUrl = (char *)UA_malloc(url->length + pathLen);
-    memcpy(newUrl, url->data, url->length);
-    memcpy(newUrl + url->length, path, pathLen);
-    UA_String_clear(url);
-    url->length = newUrlLen;
-    url->data = (UA_Byte *) newUrl;
+    if (newUrl) {
+        memcpy(newUrl, url->data, url->length);
+        memcpy(newUrl + url->length, path, pathLen);
+        UA_String_clear(url);
+        url->length = newUrlLen;
+        url->data = (UA_Byte *) newUrl;
+    }
 }
 
 static void
@@ -968,10 +970,6 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName
     return UA_STATUSCODE_GOOD;
 }
 
-#ifndef IN_ZERONET
-#define IN_ZERONET(addr) ((addr & IN_CLASSA_NET) == 0)
-#endif
-
 /* Create multicast 224.0.0.251:5353 socket */
 static void
 discovery_createMulticastSocket(UA_DiscoveryManager *dm) {
@@ -1149,7 +1147,7 @@ UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm) {
 
 UA_UInt32
 UA_DiscoveryManager_getMdnsConnectionCount(void) {
-    return mdnsPrivateData.mdnsRecvConnectionsSize + (mdnsPrivateData.mdnsSendConnection != 0);
+    return (UA_UInt32)(mdnsPrivateData.mdnsRecvConnectionsSize + (mdnsPrivateData.mdnsSendConnection != 0));
 }
 
 void

@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
+ *    Copyright 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  * based on
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2014, 2017 (c) Florian Palm
@@ -18,61 +19,100 @@
 
 #include "open62541_queue.h"
 #include "../util/ua_util_internal.h"
+#include "ua_session.h"
 
 _UA_BEGIN_DECLS
-
-#if UA_MULTITHREADING >= 100
 
 struct UA_AsyncResponse;
 typedef struct UA_AsyncResponse UA_AsyncResponse;
 
+typedef enum {
+    UA_ASYNCOPERATIONTYPE_CALL_REQUEST  = 0,
+    UA_ASYNCOPERATIONTYPE_READ_REQUEST  = 1,
+    UA_ASYNCOPERATIONTYPE_WRITE_REQUEST = 2,
+    UA_ASYNCOPERATIONTYPE_CALL_DIRECT   = (0 + 4),
+    UA_ASYNCOPERATIONTYPE_READ_DIRECT   = (1 + 4),
+    UA_ASYNCOPERATIONTYPE_WRITE_DIRECT  = (2 + 4)
+} UA_AsyncOperationType;
+
 /* A single operation (of a larger request) */
 typedef struct UA_AsyncOperation {
     TAILQ_ENTRY(UA_AsyncOperation) pointers;
-    UA_CallMethodRequest request;
-    UA_CallMethodResult response;
-    size_t index;             /* Index of the operation in the array of ops in
-                               * request/response */
-    UA_AsyncResponse *parent; /* Always non-NULL. The parent is only removed
-                               * when its operations are removed */
+    UA_AsyncOperationType asyncOperationType;
+
+    union {
+        /* The operation is part of a service request */
+        UA_AsyncResponse *response;
+
+        /* The operation was called directly */
+        struct {
+            UA_DateTime timeout;
+            void *context;
+            union {
+                UA_ServerAsyncReadResultCallback read;
+                UA_ServerAsyncWriteResultCallback write;
+                UA_ServerAsyncMethodResultCallback call;
+            } method;
+        } callback;
+    } handling;
+
+    /* For service requests: the pointer to the output value in the response
+     * For direct calls: the memory for the output value */
+    union {
+        UA_CallMethodResult *call;
+        UA_StatusCode *write;
+        UA_DataValue *read;
+        UA_CallMethodResult directCall;
+        UA_StatusCode directWrite;
+        UA_DataValue directRead;
+    } output;
+
+    union {
+        /* Forward the pointer to writeValue to the operationCallback. So the
+         * pointer is stable and the memory location unique, also when the
+         * original request has been freed. But this uses a shallow copy. So
+         * don't access the writeValue after the operationCallback. */
+        UA_WriteValue writeValue;
+    } context;
 } UA_AsyncOperation;
 
 struct UA_AsyncResponse {
     TAILQ_ENTRY(UA_AsyncResponse) pointers; /* Insert new at the end */
+
     UA_UInt32 requestId;
-    UA_NodeId sessionId;
     UA_UInt32 requestHandle;
     UA_DateTime timeout;
-    UA_AsyncOperationType operationType;
+    UA_NodeId sessionId;
+    UA_UInt32 opCountdown; /* Counter for outstanding operations. The AR can
+                            * only be deleted when all have returned. */
+
+    const UA_DataType *responseType;
     union {
         UA_CallResponse callResponse;
         UA_ReadResponse readResponse;
         UA_WriteResponse writeResponse;
     } response;
-    UA_UInt32 opCountdown; /* Counter for outstanding operations. The AR can
-                            * only be deleted when all have returned. */
 };
 
-typedef TAILQ_HEAD(UA_AsyncOperationQueue, UA_AsyncOperation) UA_AsyncOperationQueue;
-
 typedef struct {
-    TAILQ_HEAD(, UA_AsyncResponse) asyncResponses;
+    /* Forward the request id here as the "UA_Service" method signature does not
+     * contain it */
+    UA_UInt32 currentRequestId;
+    UA_UInt32 currentRequestHandle;
 
-    /* Operations for the workers. The queues are all FIFO: Put in at the tail,
-     * take out at the head.*/
-    UA_Lock queueLock; /* Either take this lock free-standing (with no other
-                        * locks). Or take server->serviceMutex first and then
-                        * the queueLock. Never take the server->serviceMutex
-                        * when the queueLock is already acquired (deadlock)! */
-    UA_AsyncOperationQueue newQueue;        /* New operations for the workers */
-    UA_AsyncOperationQueue dispatchedQueue; /* Operations taken by a worker. When a result is
-                                             * returned, we search for the op here to see if it
-                                             * is still "alive" (not timed out). */
-    size_t opsCount; /* How many operations are transient (in one of the three queues)? */
+    /* Async responses */
+    TAILQ_HEAD(, UA_AsyncResponse) waitingResponses;
+    TAILQ_HEAD(, UA_AsyncResponse) readyResponses;
+
+    /* Async operations (some direct, some part of an async response) */
+    TAILQ_HEAD(, UA_AsyncOperation) waitingOps;
+    TAILQ_HEAD(, UA_AsyncOperation) readyOps;
+    size_t opsCount; /* Both waiting and ready */
 
     UA_UInt64 checkTimeoutCallbackId; /* Registered repeated callbacks */
 
-    UA_DelayedCallback dc; /* Delayed callback to have the main thread send out responses */
+    UA_DelayedCallback dc; /* Delayed callback to have the main thread handle
+                            * ready operations and responses */
 } UA_AsyncManager;
 
 void UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server);
@@ -80,48 +120,29 @@ void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server);
 void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server);
 void UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server);
 
-UA_StatusCode
-UA_AsyncManager_createAsyncResponse(UA_AsyncManager *am, UA_Server *server,
-                                    const UA_NodeId *sessionId,
-                                    const UA_UInt32 requestId,
-                                    const UA_UInt32 requestHandle,
-                                    const UA_AsyncOperationType operationType,
-                                    UA_AsyncResponse **outAr);
-
-/* Only remove the AsyncResponse when the operation count is zero */
-void
-UA_AsyncManager_removeAsyncResponse(UA_AsyncManager *am, UA_AsyncResponse *ar);
-
-UA_StatusCode
-UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
-                              UA_AsyncResponse *ar, size_t opIndex,
-                              const UA_CallMethodRequest *opRequest);
-
-/* Send out the response with status set. Also removes all outstanding
- * operations from the dispatch queue. The queuelock needs to be taken before
- * calling _cancel. */
+/* Cancel all outstanding operations for matching session+requestHandle.
+ * Then sends out the responses with a StatusCode. */
 UA_UInt32
 UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle);
 
-typedef void (*UA_AsyncServiceOperation)(UA_Server *server, UA_Session *session,
-                                         UA_UInt32 requestId, UA_UInt32 requestHandle,
-                                         size_t opIndex, const void *requestOperation,
-                                         void *responseOperation, UA_AsyncResponse **ar);
-
-/* Creates an AsyncResponse in-situ when an async operation is encountered. If
- * that is the case, the sync responses are moved to the AsyncResponse. */
+/* Internal async API */
 UA_StatusCode
-UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
-                                        UA_UInt32 requestId, UA_UInt32 requestHandle,
-                                        UA_AsyncServiceOperation operationCallback,
-                                        const size_t *requestOperations,
-                                        const UA_DataType *requestOperationsType,
-                                        size_t *responseOperations,
-                                        const UA_DataType *responseOperationsType,
-                                        UA_AsyncResponse **ar)
-UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+read_async(UA_Server *server, UA_Session *session, const UA_ReadValueId *operation,
+           UA_TimestampsToReturn ttr, UA_ServerAsyncReadResultCallback callback,
+           void *context, UA_UInt32 timeout);
 
-#endif /* UA_MULTITHREADING >= 100 */
+UA_StatusCode
+write_async(UA_Server *server, UA_Session *session, const UA_WriteValue *operation,
+            UA_ServerAsyncWriteResultCallback callback, void *context,
+            UA_UInt32 timeout);
+
+UA_StatusCode
+call_async(UA_Server *server, UA_Session *session, const UA_CallMethodRequest *operation,
+           UA_ServerAsyncMethodResultCallback callback, void *context, UA_UInt32 timeout);
+
+void
+async_cancel(UA_Server *server, void *context, UA_StatusCode status,
+             UA_Boolean cancelSynchronous);
 
 _UA_END_DECLS
 

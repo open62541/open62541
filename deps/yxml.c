@@ -116,7 +116,7 @@ typedef enum {
 
 /* Set the given char value to ch (0<=ch<=255). */
 static inline void yxml_setchar(char *dest, unsigned ch) {
-	*(unsigned char *)dest = ch;
+	*(unsigned char *)dest = (unsigned char)ch;
 }
 
 /* Similar to yxml_setchar(), but will convert ch (any valid unicode point) to
@@ -186,7 +186,7 @@ static yxml_ret_t yxml_pushstack(yxml_t *x, char **res, unsigned ch) {
 		return YXML_ESTACK;
 	x->stacklen++;
 	*res = (char *)x->stack+x->stacklen;
-	x->stack[x->stacklen] = ch;
+	x->stack[x->stacklen] = (unsigned char)ch;
 	x->stacklen++;
 	x->stack[x->stacklen] = 0;
 	return YXML_OK;
@@ -195,7 +195,7 @@ static yxml_ret_t yxml_pushstack(yxml_t *x, char **res, unsigned ch) {
 static yxml_ret_t yxml_pushstackc(yxml_t *x, unsigned ch) {
 	if(x->stacklen+1 >= x->stacksize)
 		return YXML_ESTACK;
-	x->stack[x->stacklen] = ch;
+	x->stack[x->stacklen] = (unsigned char)ch;
 	x->stacklen++;
 	x->stack[x->stacklen] = 0;
 	return YXML_OK;

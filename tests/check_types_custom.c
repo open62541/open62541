@@ -3,6 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/types.h>
+#include <open62541/util.h>
+
+#include "util/ua_util_internal.h"
 
 #include <stdlib.h>
 #include <check.h>
@@ -62,7 +65,7 @@ static UA_DataTypeMember members[3] = {
     }
 };
 
-static const UA_DataType PointType = {
+static UA_DataType PointType = {
     UA_TYPENAME("Point")             /* .typeName */
     {1, UA_NODEIDTYPE_NUMERIC, {1}}, /* .typeId */
     {1, UA_NODEIDTYPE_NUMERIC, {17}}, /* .binaryEncodingId, the numeric
@@ -78,7 +81,7 @@ static const UA_DataType PointType = {
     members
 };
 
-const UA_DataTypeArray customDataTypes = {NULL, 1, &PointType, UA_FALSE};
+static UA_DataTypeArray customDataTypes = {NULL, 1, &PointType, UA_FALSE};
 
 typedef struct {
     UA_Int16 a;
@@ -122,7 +125,7 @@ static UA_DataTypeMember Opt_members[4] = {
         }
 };
 
-static const UA_DataType OptType = {
+static UA_DataType OptType = {
         UA_TYPENAME("Opt")             /* .typeName */
         {1, UA_NODEIDTYPE_NUMERIC, {4242}}, /* .typeId */
         {1, UA_NODEIDTYPE_NUMERIC, {5}}, /* .binaryEncodingId, the numeric
@@ -138,7 +141,7 @@ static const UA_DataType OptType = {
         Opt_members
 };
 
-const UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType, UA_FALSE};
+static UA_DataTypeArray customDataTypesOptStruct = {&customDataTypes, 2, &OptType, UA_FALSE};
 
 typedef struct {
     UA_String description;
@@ -181,7 +184,7 @@ static UA_DataTypeMember ArrayOptStruct_members[4] = {
     }
 };
 
-static const UA_DataType ArrayOptType = {
+static UA_DataType ArrayOptType = {
     UA_TYPENAME("OptArray")             /* .tyspeName */
     {1, UA_NODEIDTYPE_NUMERIC, {4243}},     /* .typeId */
     {1, UA_NODEIDTYPE_NUMERIC, {1337}}, /* .binaryEncodingId, the numeric
@@ -197,7 +200,7 @@ static const UA_DataType ArrayOptType = {
     ArrayOptStruct_members
 };
 
-const UA_DataTypeArray customDataTypesOptArrayStruct = {&customDataTypesOptStruct, 3, &ArrayOptType, UA_FALSE};
+static UA_DataTypeArray customDataTypesOptArrayStruct = {&customDataTypesOptStruct, 3, &ArrayOptType, UA_FALSE};
 
 typedef enum {UA_UNISWITCH_NONE = 0, UA_UNISWITCH_OPTIONA = 1, UA_UNISWITCH_OPTIONB = 2} UA_UniSwitch;
 
@@ -226,7 +229,7 @@ static UA_DataTypeMember Uni_members[2] = {
         }
 };
 
-static const UA_DataType UniType = {
+static UA_DataType UniType = {
         UA_TYPENAME("Uni")
         {1, UA_NODEIDTYPE_NUMERIC, {4245}},
         {1, UA_NODEIDTYPE_NUMERIC, {13338}},
@@ -239,7 +242,7 @@ static const UA_DataType UniType = {
         Uni_members
 };
 
-const UA_DataTypeArray customDataTypesUnion = {&customDataTypesOptArrayStruct, 2, &UniType, UA_FALSE};
+static UA_DataTypeArray customDataTypesUnion = {&customDataTypesOptArrayStruct, 2, &UniType, UA_FALSE};
 
 typedef enum {
     UA_SELFCONTAININGUNIONSWITCH_NONE = 0,
@@ -260,7 +263,7 @@ struct UA_SelfContainingUnion {
     } fields;
 };
 
-extern const UA_DataType selfContainingUnionType;
+extern UA_DataType selfContainingUnionType;
 
 static UA_DataTypeMember SelfContainingUnion_members[2] = {
 {
@@ -278,7 +281,7 @@ static UA_DataTypeMember SelfContainingUnion_members[2] = {
     false                                             /* .isOptional */
 },};
 
-const UA_DataType selfContainingUnionType = {
+UA_DataType selfContainingUnionType = {
     UA_TYPENAME("SelfContainingStruct") /* .typeName */
     {2, UA_NODEIDTYPE_NUMERIC, {4002LU}}, /* .typeId */
     {2, UA_NODEIDTYPE_NUMERIC, {0}}, /* .binaryEncodingId */
@@ -291,7 +294,7 @@ const UA_DataType selfContainingUnionType = {
     SelfContainingUnion_members  /* .members */
 };
 
-const UA_DataTypeArray customDataTypesSelfContainingUnion = {NULL, 1, &selfContainingUnionType, UA_FALSE};
+static UA_DataTypeArray customDataTypesSelfContainingUnion = {NULL, 1, &selfContainingUnionType, UA_FALSE};
 
 START_TEST(parseCustomScalar) {
     Point p;
@@ -324,6 +327,53 @@ START_TEST(parseCustomScalar) {
 
     UA_Variant_clear(&var2);
     UA_ByteString_clear(&buf);
+} END_TEST
+
+START_TEST(customScalarStructureDefinition) {
+    /* Roundtrip from StructureDefinition back to UA_DataType */
+    UA_StructureDefinition pointDef;
+    UA_DataType pointTypeCopy;
+    UA_StatusCode retval = UA_DataType_toStructureDefinition(&PointType, &pointDef);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_DataType_fromStructureDefinition(&pointTypeCopy, &pointDef,
+                                                 UA_NODEID_NULL, UA_STRING_NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    Point p;
+    p.x = 1.0;
+    p.y = 2.0;
+    p.z = 3.0;
+
+    /* Encode with the original type */
+    size_t buflen = UA_calcSizeBinary(&p, &PointType, NULL);
+    UA_ByteString buf;
+    retval = UA_ByteString_allocBuffer(&buf, buflen);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_encodeBinary(&p, &PointType, &buf, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Decoding and encoding with the copied type should yield the same */
+    char p2[64]; // Unknown memsize
+    retval = UA_decodeBinary(&buf, p2, &pointTypeCopy, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    size_t buf2len = UA_calcSizeBinary(p2, &pointTypeCopy, NULL);
+    UA_ByteString buf2;
+    retval = UA_ByteString_allocBuffer(&buf2, buf2len);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_encodeBinary(p2, &pointTypeCopy, &buf2, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    ck_assert(UA_ByteString_equal(&buf, &buf2));
+
+    UA_ByteString_clear(&buf);
+    UA_ByteString_clear(&buf2);
+
+    UA_StructureDefinition_clear(&pointDef);
+    UA_DataType_clear(&pointTypeCopy);
 } END_TEST
 
 START_TEST(parseCustomScalarExtensionObject) {
@@ -695,6 +745,7 @@ int main(void) {
     Suite *s  = suite_create("Test Custom DataType Encoding");
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, parseCustomScalar);
+    tcase_add_test(tc, customScalarStructureDefinition);
     tcase_add_test(tc, parseCustomScalarExtensionObject);
     tcase_add_test(tc, parseCustomArray);
     tcase_add_test(tc, parseCustomStructureWithOptionalFields);
