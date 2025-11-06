@@ -1677,9 +1677,9 @@ isConditionSourceInMonitoredItem(UA_Server *server, const UA_MonitoredItem *moni
 
     /* TODO: check also other hierarchical references */
     UA_ReferenceTypeSet refs = UA_REFTYPESET(UA_REFERENCETYPEINDEX_ORGANIZES);
-    refs = UA_ReferenceTypeSet_union(refs, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASCOMPONENT));
-    refs = UA_ReferenceTypeSet_union(refs, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASEVENTSOURCE));
-    refs = UA_ReferenceTypeSet_union(refs, UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASNOTIFIER));
+    UA_ReferenceTypeSet_add(&refs, UA_REFERENCETYPEINDEX_HASCOMPONENT);
+    UA_ReferenceTypeSet_add(&refs, UA_REFERENCETYPEINDEX_HASEVENTSOURCE);
+    UA_ReferenceTypeSet_add(&refs, UA_REFERENCETYPEINDEX_HASNOTIFIER);
     return isNodeInTree(server, conditionSource, &monitoredItem->itemToMonitor.nodeId, &refs);
 }
 

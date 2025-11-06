@@ -274,8 +274,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
                                "Service %" PRIu32 " refused on a non-activated session",
                                sd->requestType->binaryEncodingId.identifier.numeric);
 #endif
-        UA_Server_removeSessionByToken(server, &session->authenticationToken,
-                                       UA_SHUTDOWNREASON_ABORT);
+        UA_Session_remove(server, session, UA_SHUTDOWNREASON_ABORT);
         rh->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
         return true;
     }
@@ -323,18 +322,24 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 
     /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN */
-    UA_KeyValuePair notifyPayload[4];
-    UA_KeyValueMap notifyPayloadMap = {4, notifyPayload};
     UA_ServerConfig *config = &server->config;
+    static UA_THREAD_LOCAL UA_KeyValuePair notifyPayload[4] = {
+        {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
+        {{0, UA_STRING_STATIC("session-id")}, {0}},
+        {{0, UA_STRING_STATIC("request-id")}, {0}},
+        {{0, UA_STRING_STATIC("service-type")}, {0}}
+    };
+    UA_KeyValueMap notifyPayloadMap = {4, notifyPayload};
     if(config->globalNotificationCallback || config->serviceNotificationCallback) {
-        notifyPayload[0].key = (UA_QualifiedName){0, UA_STRING_STATIC("securechannel-id")};
-        UA_Variant_setScalar(&notifyPayload[0].value, &channel->securityToken.channelId, &UA_TYPES[UA_TYPES_UINT32]);
-        notifyPayload[1].key = (UA_QualifiedName){0, UA_STRING_STATIC("session-id")};
-        UA_Variant_setScalar(&notifyPayload[1].value, &session->sessionId, &UA_TYPES[UA_TYPES_NODEID]);
-        notifyPayload[2].key = (UA_QualifiedName){0, UA_STRING_STATIC("request-id")};
-        UA_Variant_setScalar(&notifyPayload[2].value, &requestId, &UA_TYPES[UA_TYPES_UINT32]);
-        notifyPayload[3].key = (UA_QualifiedName){0, UA_STRING_STATIC("service-type")};
-        UA_Variant_setScalar(&notifyPayload[3].value, (void*)(uintptr_t)&sd->requestType->typeId, &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Variant_setScalar(&notifyPayload[0].value, &channel->securityToken.channelId,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&notifyPayload[1].value, &session->sessionId,
+                             &UA_TYPES[UA_TYPES_NODEID]);
+        UA_Variant_setScalar(&notifyPayload[2].value, &requestId,
+                             &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&notifyPayload[3].value,
+                             (void *)(uintptr_t)&sd->requestType->typeId,
+                             &UA_TYPES[UA_TYPES_NODEID]);
     }
     UA_ApplicationNotificationType nt = UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN;
     if(config->serviceNotificationCallback)
@@ -349,7 +354,8 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END if the service was
      * completed synchronously. For async completion of a service, this gets
      * called eventually in ua_server_async.c. */
-    nt = (done) ? UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END : UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC;
+    nt = (done) ? UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END :
+        UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC;
     if(config->serviceNotificationCallback)
         config->serviceNotificationCallback(server, nt, notifyPayloadMap);
     if(config->globalNotificationCallback)

@@ -17,6 +17,53 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
+void
+notifySession(UA_Server *server, UA_Session *session,
+              UA_ApplicationNotificationType type) {
+    /* Nothing to do */
+    if(!server->config.globalNotificationCallback &&
+       !server->config.sessionNotificationCallback)
+        return;
+
+    /* Set up the payload */
+    size_t payloadSize = 6;
+    if(session->attributes)
+        payloadSize += session->attributes->mapSize;
+    UA_STACKARRAY(UA_KeyValuePair, payloadData, payloadSize);
+    UA_KeyValueMap payloadMap = {payloadSize, payloadData};
+    payloadData[0].key = UA_QUALIFIEDNAME(0, "session-id");
+    UA_Variant_setScalar(&payloadData[0].value, &session->sessionId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    payloadData[1].key = UA_QUALIFIEDNAME(0, "securechannel-id");
+    UA_UInt32 secureChannelId = 0;
+    if(session->channel)
+        secureChannelId = session->channel->securityToken.channelId;
+    UA_Variant_setScalar(&payloadData[1].value, &secureChannelId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    payloadData[2].key = UA_QUALIFIEDNAME(0, "session-name");
+    UA_Variant_setScalar(&payloadData[2].value, &session->sessionName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    payloadData[3].key = UA_QUALIFIEDNAME(0, "client-description");
+    UA_Variant_setScalar(&payloadData[3].value, &session->clientDescription,
+                         &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    payloadData[4].key = UA_QUALIFIEDNAME(0, "client-user-id");
+    UA_Variant_setScalar(&payloadData[4].value, &session->clientUserIdOfSession,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    payloadData[5].key = UA_QUALIFIEDNAME(0, "locale-ids");
+    UA_Variant_setArray(&payloadData[5].value, session->localeIds,
+                        session->localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
+
+    if(session->attributes)
+        memcpy(&payloadData[6], session->attributes->map,
+               sizeof(UA_KeyValuePair) * session->attributes->mapSize);
+
+    /* Call the notification callback */
+    if(server->config.sessionNotificationCallback)
+        server->config.sessionNotificationCallback(server, type, payloadMap);
+    if(server->config.globalNotificationCallback)
+        server->config.globalNotificationCallback(server, type, payloadMap);
+}
+
 /* Delayed callback to free the session memory */
 static void
 removeSessionCallback(UA_Server *server, session_list_entry *entry) {
@@ -27,10 +74,8 @@ removeSessionCallback(UA_Server *server, session_list_entry *entry) {
 }
 
 void
-UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
-                        UA_ShutdownReason shutdownReason) {
-    UA_Session *session = &sentry->session;
-
+UA_Session_remove(UA_Server *server, UA_Session *session,
+                  UA_ShutdownReason shutdownReason) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Remove the Subscriptions */
@@ -55,16 +100,17 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     }
 
     /* Detach the Session from the SecureChannel */
-    UA_Session_detachFromSecureChannel(session);
+    UA_Session_detachFromSecureChannel(server, session);
 
     /* Deactivate the session */
-    if(sentry->session.activated) {
-        sentry->session.activated = false;
+    if(session->activated) {
+        session->activated = false;
         server->activeSessionCount--;
     }
 
     /* Detach the session from the session manager and make the capacity
      * available */
+    session_list_entry *sentry = container_of(session, session_list_entry, session);
     LIST_REMOVE(sentry, pointers);
     server->sessionCount--;
 
@@ -89,6 +135,9 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
         break;
     }
 
+    /* Notify the application */
+    notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED);
+
     /* Add a delayed callback to remove the session when the currently
      * scheduled jobs have completed */
     sentry->cleanupCallback.callback = (UA_Callback)removeSessionCallback;
@@ -98,22 +147,8 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     el->addDelayedCallback(el, &sentry->cleanupCallback);
 }
 
-UA_StatusCode
-UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
-                               UA_ShutdownReason shutdownReason) {
-    UA_LOCK_ASSERT(&server->serviceMutex);
-    session_list_entry *entry;
-    LIST_FOREACH(entry, &server->sessions, pointers) {
-        if(UA_NodeId_equal(&entry->session.authenticationToken, token)) {
-            UA_Server_removeSession(server, entry, shutdownReason);
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-    return UA_STATUSCODE_BADSESSIONIDINVALID;
-}
-
 void
-UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
+cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     session_list_entry *sentry, *temp;
     LIST_FOREACH_SAFE(sentry, &server->sessions, pointers, temp) {
@@ -122,7 +157,7 @@ UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
             continue;
         UA_LOG_INFO_SESSION(server->config.logging, &sentry->session,
                             "Session has timed out");
-        UA_Server_removeSession(server, sentry, UA_SHUTDOWNREASON_TIMEOUT);
+        UA_Session_remove(server, &sentry->session, UA_SHUTDOWNREASON_TIMEOUT);
     }
 }
 
@@ -289,8 +324,8 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, const UA_SecurityPolicy *sp,
 
 /* Creates and adds a session. But it is not yet attached to a secure channel. */
 UA_StatusCode
-UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
-                        const UA_CreateSessionRequest *request, UA_Session **session) {
+UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
+                  const UA_CreateSessionRequest *request, UA_Session **session) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(server->sessionCount >= server->config.maxSessions) {
@@ -316,7 +351,7 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Attach the session to the channel. But don't activate for now. */
     if(channel)
-        UA_Session_attachToSecureChannel(&newentry->session, channel);
+        UA_Session_attachToSecureChannel(server, &newentry->session, channel);
 
     UA_EventLoop *el = server->config.eventLoop;
     UA_DateTime now = el->dateTime_now(el);
@@ -327,6 +362,11 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
     LIST_INSERT_HEAD(&server->sessions, newentry, pointers);
     server->sessionCount++;
 
+    /* Notify the application */
+    notifySession(server, &newentry->session,
+                  UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CREATED);
+
+    /* Return */
     *session = &newentry->session;
     return UA_STATUSCODE_GOOD;
 }
@@ -384,7 +424,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Create the Session */
     UA_Session *newSession = NULL;
     response->responseHeader.serviceResult =
-        UA_Server_createSession(server, channel, request, &newSession);
+        UA_Session_create(server, channel, request, &newSession);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "Processing CreateSessionRequest failed");
@@ -426,8 +466,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                  &response->serverEndpoints,
                                  &response->serverEndpointsSize);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Server_removeSessionByToken(server, &newSession->authenticationToken,
-                                       UA_SHUTDOWNREASON_REJECT);
+        UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
         return;
     }
 
@@ -459,8 +498,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Server_removeSessionByToken(server, &newSession->authenticationToken,
-                                       UA_SHUTDOWNREASON_REJECT);
+        UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
         return;
     }
 
@@ -911,7 +949,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * channel than it is attached to. */
     if(!session->channel || session->channel != channel) {
         /* Attach the new SecureChannel, the old channel will be detached if present */
-        UA_Session_attachToSecureChannel(session, channel);
+        UA_Session_attachToSecureChannel(server, session, channel);
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "ActivateSession: Session attached to new channel");
     }
@@ -921,7 +959,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     resp->responseHeader.serviceResult |=
         UA_ByteString_copy(&session->serverNonce, &resp->serverNonce);
     if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Session_detachFromSecureChannel(session);
+        UA_Session_detachFromSecureChannel(server, session);
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Could not generate the server nonce");
         UA_SESSION_REJECT;
@@ -937,7 +975,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
             UA_Array_copy(req->localeIds, req->localeIdsSize,
                           (void**)&tmpLocaleIds, &UA_TYPES[UA_TYPES_STRING]);
         if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-            UA_Session_detachFromSecureChannel(session);
+            UA_Session_detachFromSecureChannel(server, session);
             UA_LOG_WARNING_SESSION(server->config.logging, session,
                                    "ActivateSession: Could not store the Session LocaleIds");
             UA_SESSION_REJECT;
@@ -1011,6 +1049,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 #endif
 
+    /* Notify the application */
+    notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_ACTIVATED);
+
     /* Log the user for which the Session was activated */
     UA_LOG_INFO_SESSION(server->config.logging, session,
                         "ActivateSession: Session activated with ClientUserId \"%S\"",
@@ -1057,9 +1098,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
 #endif
 
     /* Remove the sesison */
-    response->responseHeader.serviceResult =
-        UA_Server_removeSessionByToken(server, &session->authenticationToken,
-                                       UA_SHUTDOWNREASON_CLOSE);
+    UA_Session_remove(server, session, UA_SHUTDOWNREASON_CLOSE);
 }
 
 UA_Boolean

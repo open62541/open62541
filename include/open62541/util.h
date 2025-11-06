@@ -336,12 +336,12 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * the following (in addition to whitespaces and unprintable ASCII control
  * codes).::
  *
- *    ' ' - %20     '(' - %28     '>' - %3E
- *    '"' - %22     ')' - %29     '[' - %5B
- *    '#' - %23     ',' - %2C     '\' - %5C
- *    '%' - %25     '/' - %2F     ']' - %5D
- *    '&' - %26     ';' - %3B     '`' - %60
- *    ''' - %27     '<' - %3C
+ *    ' ' - %20     '(' - %28     '<' - %3C
+ *    '"' - %22     ')' - %29     '>' - %3E
+ *    '#' - %23     ',' - %2C     '[' - %5B
+ *    '%' - %25     '/' - %2F     '\' - %5C
+ *    '&' - %26     ':' - %3A     ']' - %5D
+ *    ''' - %27     ';' - %3B     '`' - %60
  *
  * .. _relativepath:
  *

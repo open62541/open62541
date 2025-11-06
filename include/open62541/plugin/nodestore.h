@@ -85,6 +85,13 @@ UA_REFTYPESET(UA_Byte index) {
     return set;
 }
 
+static UA_INLINE void
+UA_ReferenceTypeSet_add(UA_ReferenceTypeSet *set,
+                        UA_Byte newIndex) {
+    UA_Byte i = newIndex / 32, j = newIndex % 32;
+    set->bits[i] |= ((UA_UInt32)1) << j;
+}
+
 static UA_INLINE UA_ReferenceTypeSet
 UA_ReferenceTypeSet_union(const UA_ReferenceTypeSet setA,
                           const UA_ReferenceTypeSet setB) {

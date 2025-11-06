@@ -345,7 +345,7 @@ browseRecursiveCallback(void *context, UA_ReferenceTarget *t) {
         return NULL;
 
     /* Add the current node if we don't want to skip it as a start node and it
-     * matches the nodeClassMask filter Recurse into the children in any
+     * matches the nodeClassMask filter. Recurse into the children in any
      * case. */
     void *res = NULL;
     const UA_NodeHead *head = &node->head;
@@ -426,6 +426,42 @@ browseRecursive(UA_Server *server, size_t startNodesSize, const UA_NodeId *start
     } else {
         RefTree_clear(&rt);
     }
+    return brc.status;
+}
+
+UA_StatusCode
+browseRecursiveRefTree(UA_Server *server, RefTree *rt, UA_BrowseDirection browseDirection,
+                       const UA_ReferenceTypeSet *refTypes, UA_UInt32 nodeClassMask) {
+    struct BrowseRecursiveContext brc;
+    brc.server = server;
+    brc.rt = rt;
+    brc.depth = 0;
+    brc.refTypes = *refTypes;
+    brc.nodeClassMask = nodeClassMask;
+    brc.status = UA_STATUSCODE_GOOD;
+    brc.includeStartNodes = false;
+
+    for(size_t i = 0; i < rt->size && brc.status == UA_STATUSCODE_GOOD; i++) {
+        UA_ReferenceTarget target;
+        UA_ExpandedNodeId current = rt->targets[i];
+        target.targetId = UA_NodePointer_fromExpandedNodeId(&current);
+
+        /* Call the inner recursive browse separately for the search direction.
+         * Otherwise we might take one step up and another step down in the
+         * search tree. */
+        if(browseDirection == UA_BROWSEDIRECTION_FORWARD ||
+           browseDirection == UA_BROWSEDIRECTION_BOTH) {
+            brc.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+            browseRecursiveCallback(&brc, &target);
+        }
+
+        if(browseDirection == UA_BROWSEDIRECTION_INVERSE ||
+           browseDirection == UA_BROWSEDIRECTION_BOTH) {
+            brc.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+            browseRecursiveCallback(&brc, &target);
+        }
+    }
+
     return brc.status;
 }
 
@@ -866,9 +902,8 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     if(cp.browseDescription.resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
         /* Get the node with additional reference types if we need to lookup the
          * TypeDefinition */
-        bc.resultRefs = UA_ReferenceTypeSet_union(bc.resultRefs,
-              UA_ReferenceTypeSet_union(UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION),
-                                        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE)));
+        UA_ReferenceTypeSet_add(&bc.resultRefs, UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
+        UA_ReferenceTypeSet_add(&bc.resultRefs, UA_REFERENCETYPEINDEX_HASSUBTYPE);
     }
     result->statusCode = RefResult_init(&bc.rr);
     if(result->statusCode != UA_STATUSCODE_GOOD)
@@ -1032,9 +1067,8 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
     if(cp->browseDescription.resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
         /* Get the node with additional reference types if we need to lookup the
          * TypeDefinition */
-        bc.resultRefs = UA_ReferenceTypeSet_union(bc.resultRefs,
-              UA_ReferenceTypeSet_union(UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION),
-                                        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE)));
+        UA_ReferenceTypeSet_add(&bc.resultRefs, UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
+        UA_ReferenceTypeSet_add(&bc.resultRefs, UA_REFERENCETYPEINDEX_HASSUBTYPE);
     }
     result->statusCode = RefResult_init(&bc.rr);
     if(result->statusCode != UA_STATUSCODE_GOOD)

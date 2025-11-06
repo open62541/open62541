@@ -204,8 +204,9 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
     UA_ByteString_clear(&channel->localNonce);
     UA_ByteString_clear(&channel->remoteNonce);
 
-    /* Clean up endpointUrl */
+    /* Clean up endpointUrl and remoteAddress */
     UA_String_clear(&channel->endpointUrl);
+    UA_String_clear(&channel->remoteAddress);
 
     /* Delete remaining chunks */
     UA_SecureChannel_deleteBuffered(channel);
