@@ -12,6 +12,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2023 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_TYPES_H_
@@ -1052,6 +1053,9 @@ struct UA_DataType {
 /* Clean up type definition with heap-allocated data */
 UA_EXPORT void
 UA_DataType_clear(UA_DataType *type);
+
+UA_EXPORT UA_StatusCode
+UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2);
 
 /* Datatype arrays with custom type definitions can be added in a linked list to
  * the client or server configuration. */
