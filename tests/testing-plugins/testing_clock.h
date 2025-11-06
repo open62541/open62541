@@ -18,9 +18,6 @@
 /* Forwards the testing clock by the given duration in ms */
 void UA_fakeSleep(UA_UInt32 duration);
 
-/* Sleep for the duration in milliseconds. Used to wait for workers to complete. */
-void UA_realSleep(UA_UInt32 duration);
-
 /* To be hooked into the EventLoop for unit tests that need deterministic timings */
 UA_DateTime UA_DateTime_now_fake(UA_EventLoop *el);
 

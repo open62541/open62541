@@ -508,8 +508,6 @@ START_TEST(requestPastKey) {
 END_TEST
 
 START_TEST(requestUnknownStartingTokenId){
-    UA_fakeSleep(1000);
-    UA_realSleep(4000);
     UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
