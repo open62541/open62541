@@ -107,6 +107,57 @@ UA_DataType_clear(UA_DataType *type) {
     memset(type, 0, sizeof(UA_DataType));
 }
 
+UA_StatusCode
+UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    memcpy(t2, t1, sizeof(UA_DataType));
+    t2->members = NULL;
+    t2->membersSize = 0;
+
+    /* Copy the typename */
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    size_t nameLen = strlen(t1->typeName) + 1;
+    char *t2Name = (char*)UA_malloc(nameLen);
+    if(!t2Name) {
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto errout;
+    }
+    memcpy(t2Name, t1->typeName, nameLen);
+    *(void**)(uintptr_t)&t2->typeName = t2Name;
+#endif
+
+
+    /* Copy the members */
+    if(t1->membersSize > 0) {
+        t2->members = (UA_DataTypeMember*)
+            UA_calloc(t1->membersSize, sizeof(UA_DataTypeMember));
+        if(!t2->members) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto errout;
+        }
+        for(size_t i = 0; i < t1->membersSize; i++) {
+            const UA_DataTypeMember *m1 = &t1->members[i];
+            UA_DataTypeMember *m2 = &t2->members[i];
+            memcpy(m2, m1, sizeof(UA_DataTypeMember));
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+            nameLen = strlen(m1->memberName) + 1;
+            char *mName = (char*)UA_malloc(nameLen);
+            if(!mName) {
+                res = UA_STATUSCODE_BADOUTOFMEMORY;
+                goto errout;
+            }
+            memcpy(mName, m1->memberName, nameLen);
+            *(void**)(uintptr_t)&m2->memberName = mName;
+#endif
+        }
+    }
+
+ errout:
+    if(res != UA_STATUSCODE_GOOD)
+        UA_DataType_clear(t2);
+    return res;
+}
+
 void
 UA_cleanupDataTypeWithCustom(UA_DataTypeArray *customTypes) {
     while(customTypes) {
