@@ -523,7 +523,7 @@ mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain, const ch
     xht_free(h);
     mdnsd_set_raw(mdnsPrivateData.mdnsDaemon, r, (char *) packet,
                   (unsigned short) txtRecordLength);
-    UA_free(packet);
+    MDNSD_free(packet);
 }
 
 static mdns_record_t *
