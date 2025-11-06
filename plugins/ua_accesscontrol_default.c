@@ -108,8 +108,8 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         UA_Boolean match = false;
         if(context->loginCallback) {
             if(context->loginCallback(&userToken->userName, &userToken->password,
-               context->usernamePasswordLoginSize, context->usernamePasswordLogin,
-               sessionContext, context->loginContext) == UA_STATUSCODE_GOOD)
+                                      context->usernamePasswordLoginSize, context->usernamePasswordLogin,
+                                      sessionContext, context->loginContext) == UA_STATUSCODE_GOOD)
                 match = true;
         } else {
             for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
