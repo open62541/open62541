@@ -21,7 +21,7 @@
  * ^^^^^^^^^^^^^^^^^^^^^^^^^^^
  * As a starting point, assume that a variable for a value of type
  * :ref:`datetime` has been created in the server with the identifier
- * "ns=1,s=current-time". Assuming that our application gets triggered when a
+ * "ns=1,s=current-time-value-callback". Assuming that our application gets triggered when a
  * new value arrives from the underlying process, we can just write into the
  * variable. */
 
@@ -47,9 +47,9 @@ addCurrentTimeVariable(UA_Server *server) {
 
     UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time-value-callback");
     UA_QualifiedName currentName = UA_QUALIFIEDNAME(1, "current-time-value-callback");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_NodeId variableTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
+    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
+    UA_NodeId variableTypeNodeId = UA_NS0ID(BASEDATAVARIABLETYPE);
     UA_Server_addVariableNode(server, currentNodeId, parentNodeId,
                               parentReferenceNodeId, currentName,
                               variableTypeNodeId, attr, NULL, NULL);
@@ -134,9 +134,9 @@ addCurrentTimeDataSourceVariable(UA_Server *server) {
 
     UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time-datasource");
     UA_QualifiedName currentName = UA_QUALIFIEDNAME(1, "current-time-datasource");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_NodeId variableTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
+    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
+    UA_NodeId variableTypeNodeId = UA_NS0ID(BASEDATAVARIABLETYPE);
 
     UA_DataSource timeDataSource;
     timeDataSource.read = readCurrentTime;
@@ -147,19 +147,6 @@ addCurrentTimeDataSourceVariable(UA_Server *server) {
                                         timeDataSource, NULL, NULL);
 }
 
-static UA_DataValue *externalValue;
-
-static void
-addCurrentTimeExternalDataSource(UA_Server *server) {
-    UA_NodeId currentNodeId = UA_NODEID_STRING(1, "current-time-external-source");
-
-    UA_ValueBackend valueBackend;
-    valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-    valueBackend.backend.external.value = &externalValue;
-
-    UA_Server_setVariableNode_valueBackend(server, currentNodeId, valueBackend);
-}
-
 /** It follows the main server code, making use of the above definitions. */
 
 int main(void) {
@@ -168,7 +155,6 @@ int main(void) {
     addCurrentTimeVariable(server);
     addValueCallbackToCurrentTimeVariable(server);
     addCurrentTimeDataSourceVariable(server);
-    addCurrentTimeExternalDataSource(server);
 
     UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);

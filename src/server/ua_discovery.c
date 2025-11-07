@@ -14,21 +14,21 @@
  */
 
 #include <open62541/client.h>
+#include <open62541/client_highlevel_async.h>
 #include "ua_discovery.h"
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 
 void
-UA_DiscoveryManager_setState(UA_Server *server,
-                             UA_DiscoveryManager *dm,
+UA_DiscoveryManager_setState(UA_DiscoveryManager *dm,
                              UA_LifecycleState state) {
     /* Check if open connections remain */
     if(state == UA_LIFECYCLESTATE_STOPPING ||
        state == UA_LIFECYCLESTATE_STOPPED) {
         state = UA_LIFECYCLESTATE_STOPPED;
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-        if(dm->mdnsRecvConnectionsSize != 0 || dm->mdnsSendConnection != 0)
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD 
+        if(UA_DiscoveryManager_getMdnsConnectionCount() > 0)
             state = UA_LIFECYCLESTATE_STOPPING;
 #endif
 
@@ -45,22 +45,21 @@ UA_DiscoveryManager_setState(UA_Server *server,
     /* Set the new state and notify */
     dm->sc.state = state;
     if(dm->sc.notifyState)
-        dm->sc.notifyState(server, &dm->sc, state);
+        dm->sc.notifyState(&dm->sc, state);
 }
 
 static UA_StatusCode
-UA_DiscoveryManager_free(UA_Server *server,
-                         struct UA_ServerComponent *sc) {
+UA_DiscoveryManager_clear(struct UA_ServerComponent *sc) {
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
 
     if(sc->state != UA_LIFECYCLESTATE_STOPPED) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(sc->server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Cannot delete the DiscoveryManager because "
                      "it is not stopped");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    registeredServer_list_entry *rs, *rs_tmp;
+    registeredServer *rs, *rs_tmp;
     LIST_FOREACH_SAFE(rs, &dm->registeredServers, pointers, rs_tmp) {
         LIST_REMOVE(rs, pointers);
         UA_RegisteredServer_clear(&rs->registeredServer);
@@ -68,28 +67,9 @@ UA_DiscoveryManager_free(UA_Server *server,
     }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    serverOnNetwork_list_entry *son, *son_tmp;
-    LIST_FOREACH_SAFE(son, &dm->serverOnNetwork, pointers, son_tmp) {
-        LIST_REMOVE(son, pointers);
-        UA_ServerOnNetwork_clear(&son->serverOnNetwork);
-        if(son->pathTmp)
-            UA_free(son->pathTmp);
-        UA_free(son);
-    }
-
-    UA_String_clear(&dm->selfFqdnMdnsRecord);
-
-    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_SIZE; i++) {
-        serverOnNetwork_hash_entry* currHash = dm->serverOnNetworkHash[i];
-        while(currHash) {
-            serverOnNetwork_hash_entry* nextHash = currHash->next;
-            UA_free(currHash);
-            currHash = nextHash;
-        }
-    }
+    UA_DiscoveryManager_clearMdns(dm);
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
-    UA_free(dm);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -98,17 +78,17 @@ UA_DiscoveryManager_free(UA_Server *server,
  * removed. If there is no semaphore file, then the registration will be removed
  * if it is older than 60 minutes. */
 static void
-UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
-                                    void *data) {
+UA_DiscoveryManager_cleanupTimedOut(UA_Server *server, void *data) {
+    UA_EventLoop *el = server->config.eventLoop;
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)data;
 
     /* TimedOut gives the last DateTime at which we must have seen the
      * registered server. Otherwise it is timed out. */
-    UA_DateTime timedOut = UA_DateTime_nowMonotonic();
+    UA_DateTime timedOut = el->dateTime_nowMonotonic(el);
     if(server->config.discoveryCleanupTimeout)
         timedOut -= server->config.discoveryCleanupTimeout * UA_DATETIME_SEC;
 
-    registeredServer_list_entry *current, *temp;
+    registeredServer *current, *temp;
     LIST_FOREACH_SAFE(current, &dm->registeredServers, pointers, temp) {
         UA_Boolean semaphoreDeleted = false;
 
@@ -134,19 +114,15 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
             current->lastSeen < timedOut)) {
             if(semaphoreDeleted) {
                 UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                            "Registration of server with URI %.*s is removed because "
-                            "the semaphore file '%.*s' was deleted",
-                            (int)current->registeredServer.serverUri.length,
-                            current->registeredServer.serverUri.data,
-                            (int)current->registeredServer.semaphoreFilePath.length,
-                            current->registeredServer.semaphoreFilePath.data);
+                            "Registration of server with URI %S is removed because "
+                            "the semaphore file '%S' was deleted",
+                            current->registeredServer.serverUri,
+                            current->registeredServer.semaphoreFilePath);
             } else {
                 // cppcheck-suppress unreadVariable
                 UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                            "Registration of server with URI %.*s has timed out "
-                            "and is removed",
-                            (int)current->registeredServer.serverUri.length,
-                            current->registeredServer.serverUri.data);
+                            "Registration of server with URI %S has timed out "
+                            "and is removed", current->registeredServer.serverUri);
             }
             LIST_REMOVE(current, pointers);
             UA_RegisteredServer_clear(&current->registeredServer);
@@ -154,45 +130,52 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
             dm->registeredServersSize--;
         }
     }
+}
 
+static void
+UA_DiscoveryManager_cyclicTimer(UA_Server *server, void *data) {
+    UA_DiscoveryManager_cleanupTimedOut(server, data);
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    /* Send out multicast */
-    sendMulticastMessages(dm);
+    UA_DiscoveryManager_mdnsCyclicTimer(server, data);
 #endif
 }
 
 static UA_StatusCode
-UA_DiscoveryManager_start(UA_Server *server,
-                          struct UA_ServerComponent *sc) {
+UA_DiscoveryManager_start(struct UA_ServerComponent *sc,
+                          UA_Server *server) {
     if(sc->state != UA_LIFECYCLESTATE_STOPPED)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    sc->server = server; /* Set the backpointer */
+
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
-    UA_StatusCode res = addRepeatedCallback(server, UA_DiscoveryManager_cleanupTimedOut,
-                                            dm, 1000.0, &dm->discoveryCallbackId);
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    UA_DiscoveryManager_resetServerOnNetworkRecordCounter(dm);
+#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
+
+    UA_StatusCode res =
+        addRepeatedCallback(server, UA_DiscoveryManager_cyclicTimer,
+                            dm, 1000.0, &dm->discoveryCallbackId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    dm->logging = server->config.logging;
-    dm->serverConfig = &server->config;
-
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.mdnsEnabled)
-        startMulticastDiscoveryServer(server);
+        UA_DiscoveryManager_startMulticast(dm);
 #endif
 
-    UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STARTED);
+    UA_DiscoveryManager_setState(dm, UA_LIFECYCLESTATE_STARTED);
     return UA_STATUSCODE_GOOD;
 }
 
 static void
-UA_DiscoveryManager_stop(UA_Server *server,
-                         struct UA_ServerComponent *sc) {
+UA_DiscoveryManager_stop(struct UA_ServerComponent *sc) {
     if(sc->state != UA_LIFECYCLESTATE_STARTED)
         return;
 
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
-    removeCallback(server, dm->discoveryCallbackId);
+    removeCallback(dm->sc.server, dm->discoveryCallbackId);
 
     /* Cancel all outstanding register requests */
     for(size_t i = 0; i < UA_MAXREGISTERREQUESTS; i++) {
@@ -202,28 +185,24 @@ UA_DiscoveryManager_stop(UA_Server *server,
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.mdnsEnabled)
-        stopMulticastDiscoveryServer(server);
+    if(sc->server->config.mdnsEnabled)
+        UA_DiscoveryManager_stopMulticast(dm);
 #endif
 
-    UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STOPPED);
+    UA_DiscoveryManager_setState(dm, UA_LIFECYCLESTATE_STOPPED);
 }
 
 UA_ServerComponent *
-UA_DiscoveryManager_new(UA_Server *server) {
+UA_DiscoveryManager_new(void) {
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
         UA_calloc(1, sizeof(UA_DiscoveryManager));
     if(!dm)
         return NULL;
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
-#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
-
     dm->sc.name = UA_STRING("discovery");
     dm->sc.start = UA_DiscoveryManager_start;
     dm->sc.stop = UA_DiscoveryManager_stop;
-    dm->sc.free = UA_DiscoveryManager_free;
+    dm->sc.clear = UA_DiscoveryManager_clear;
     return &dm->sc;
 }
 
@@ -232,8 +211,7 @@ UA_DiscoveryManager_new(UA_Server *server) {
 /********************************/
 
 static void
-asyncRegisterRequest_clear(void *app, void *context) {
-    UA_Server *server = (UA_Server*)app;
+asyncRegisterRequest_clear(void *_, void *context) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)context;
     UA_DiscoveryManager *dm = ar->dm;
 
@@ -243,7 +221,7 @@ asyncRegisterRequest_clear(void *app, void *context) {
     memset(ar, 0, sizeof(asyncRegisterRequest));
 
     /* The Discovery manager is fully stopped? */
-    UA_DiscoveryManager_setState(server, dm, dm->sc.state);
+    UA_DiscoveryManager_setState(dm, dm->sc.state);
 }
 
 static void
@@ -261,7 +239,7 @@ asyncRegisterRequest_clearAsync(asyncRegisterRequest *ar) {
 static void
 setupRegisterRequest(asyncRegisterRequest *ar, UA_RequestHeader *rh,
                      UA_RegisteredServer *rs) {
-    UA_ServerConfig *sc = ar->dm->serverConfig;
+    UA_ServerConfig *sc = &ar->dm->sc.server->config;
 
     rh->timeoutHint = 10000;
 
@@ -285,7 +263,7 @@ static void
 registerAsyncResponse(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, void *resp) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)userdata;
-    const UA_ServerConfig *sc = ar->dm->serverConfig;
+    const UA_ServerConfig *sc = &ar->dm->sc.server->config;
     UA_Response *response = (UA_Response*)resp;
     const char *regtype = (ar->register2) ? "RegisterServer2" : "RegisterServer";
 
@@ -339,7 +317,7 @@ discoveryClientStateCallback(UA_Client *client,
                              UA_StatusCode connectStatus) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)
         UA_Client_getContext(client);
-    UA_ServerConfig *sc = ar->dm->serverConfig;
+    UA_ServerConfig *sc = &ar->dm->sc.server->config;
 
     /* Connection failed */
     if(connectStatus != UA_STATUSCODE_GOOD) {
@@ -355,7 +333,7 @@ discoveryClientStateCallback(UA_Client *client,
                 asyncRegisterRequest_clearAsync(ar); /* Clean up */
             } else {
                 ar->connectSuccess = false;
-                __UA_Client_connect(client, true);   /* Reconnect */
+                UA_Client_connectAsync(client, NULL);   /* Reconnect */
             }
         }
         return;
@@ -374,8 +352,10 @@ discoveryClientStateCallback(UA_Client *client,
     UA_Client_getConnectionAttribute_scalar(client, UA_QUALIFIEDNAME(0, "securityMode"),
                                             &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE],
                                             &msm);
-#ifdef UA_ENABLE_ENCRYPTION 
-    if(msm != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+#ifdef UA_ENABLE_ENCRYPTION
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    if(cc->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT &&
+       msm != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return;
 #endif
 
@@ -472,10 +452,14 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
     cc->stateCallback = discoveryClientStateCallback;
     cc->clientContext = ar;
 
-    /* Use encryption by default */
+    /* If it's not already set, use encryption by default */
+    if(cc->securityMode == UA_MESSAGESECURITYMODE_INVALID) {
 #ifdef UA_ENABLE_ENCRYPTION
-    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+        cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+#else
+        cc->securityMode = UA_MESSAGESECURITYMODE_NONE;
 #endif
+    }
 
     /* Open only a SecureChannel */
     cc->noSession = true;
@@ -504,7 +488,7 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
     /* Connect asynchronously. The register service is called once the
      * connection is open. */
     ar->connectSuccess = false;
-    return __UA_Client_connect(ar->client, true);
+    return UA_Client_connectAsync(ar->client, NULL);
 }
 
 UA_StatusCode
@@ -512,8 +496,7 @@ UA_Server_registerDiscovery(UA_Server *server, UA_ClientConfig *cc,
                             const UA_String discoveryServerUrl,
                             const UA_String semaphoreFilePath) {
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                "Registering at the DiscoveryServer: %.*s",
-                (int)discoveryServerUrl.length, discoveryServerUrl.data);
+                "Registering at the DiscoveryServer: %S", discoveryServerUrl);
     lockServer(server);
     UA_StatusCode res =
         UA_Server_register(server, cc, false, discoveryServerUrl, semaphoreFilePath);
@@ -525,8 +508,7 @@ UA_StatusCode
 UA_Server_deregisterDiscovery(UA_Server *server, UA_ClientConfig *cc,
                               const UA_String discoveryServerUrl) {
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                "Deregistering at the DiscoveryServer: %.*s",
-                (int)discoveryServerUrl.length, discoveryServerUrl.data);
+                "Deregistering at the DiscoveryServer: %S", discoveryServerUrl);
     lockServer(server);
     UA_StatusCode res =
         UA_Server_register(server, cc, true, discoveryServerUrl, UA_STRING_NULL);

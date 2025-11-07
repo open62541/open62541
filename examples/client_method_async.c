@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <signal.h>
 
-UA_Boolean running = true;
+static UA_Boolean running = true;
 static void InitCallMulti(UA_Client* client);
 
 #ifdef UA_ENABLE_METHODCALLS
@@ -88,12 +88,11 @@ static void InitCallMulti(UA_Client* client) {
     UA_Variant_setScalar(&input, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "**** Initiating CallRequest 3");
-    UA_Client_call_asyncMulti(client,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-        UA_NODEID_NUMERIC(1, 62542), 1, &input,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-        UA_NODEID_NUMERIC(1, 62541), 1, &input,
-        (UA_ClientAsyncServiceCallback)methodCalled, NULL, &reqId);
+    UA_Client_call_asyncMulti(client, UA_NS0ID(OBJECTSFOLDER),
+                              UA_NODEID_NUMERIC(1, 62542), 1, &input,
+                              UA_NS0ID(OBJECTSFOLDER), UA_NODEID_NUMERIC(1, 62541), 1,
+                              &input, (UA_ClientAsyncServiceCallback)methodCalled,
+                              NULL, &reqId);
     UA_String_clear(&stringValue);
 }
 #endif
@@ -151,8 +150,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
             return;
 
         /* Add a MonitoredItem */
-        UA_NodeId target =
-            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+        UA_NodeId target = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
         UA_MonitoredItemCreateRequest monRequest =
             UA_MonitoredItemCreateRequest_default(target);
 
@@ -166,7 +164,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
                         monResponse.monitoredItemId);
 #endif
 
-#ifdef UA_ENABLE_METHODCALLS		
+#ifdef UA_ENABLE_METHODCALLS
         UA_UInt32 reqId = 0;
         UA_Variant input;
         UA_Variant_init(&input);
@@ -176,7 +174,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         /* Initiate Call 1 */
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "**** Initiating CallRequest 1");
-        UA_Client_call_async(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_Client_call_async(client, UA_NS0ID(OBJECTSFOLDER),
                              UA_NODEID_NUMERIC(1, 62541), 1, &input,
                              methodCalled, NULL, &reqId);
         UA_String_clear(&stringValue);
@@ -187,7 +185,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         UA_Variant_setScalar(&input, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
 
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "**** Initiating CallRequest 2");
-        UA_Client_call_async(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_Client_call_async(client, UA_NS0ID(OBJECTSFOLDER),
                              UA_NODEID_NUMERIC(1, 62542), 1, &input,
                              methodCalled, NULL, &reqId);
         UA_String_clear(&stringValue);

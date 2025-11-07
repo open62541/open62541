@@ -11,7 +11,7 @@
 
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
-#include "ua_types_encoding_binary.h"
+#include "../ua_types_encoding_binary.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
@@ -21,7 +21,7 @@
     TYPE v2 = *(const TYPE*)data2;                              \
     TYPE diff = (v1 > v2) ? (TYPE)(v1 - v2) : (TYPE)(v2 - v1);  \
     return ((UA_Double)diff > deadband);                        \
-} while(false);
+} while(false)
 
 static UA_Boolean
 detectScalarDeadBand(const void *data1, const void *data2,
@@ -76,7 +76,7 @@ detectVariantDeadband(const UA_Variant *value, const UA_Variant *oldValue,
 
 static UA_Boolean
 detectValueChange(UA_Server *server, UA_MonitoredItem *mon, const UA_DataValue *dv) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Status changes are always reported */
     if(dv->hasStatus != mon->lastValue.hasStatus ||
@@ -127,22 +127,24 @@ detectValueChange(UA_Server *server, UA_MonitoredItem *mon, const UA_DataValue *
 UA_StatusCode
 UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredItem *mon,
                                               const UA_DataValue *dv) {
-    /* Allocate a new notification */
-    UA_Notification *newNot = UA_Notification_new();
-    if(!newNot)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* Prepare the notification */
-    newNot->mon = mon;
-    newNot->data.dataChange.clientHandle = mon->parameters.clientHandle;
-    UA_StatusCode retval = UA_DataValue_copy(dv, &newNot->data.dataChange.value);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(newNot);
+    /* Copy the value */
+    UA_DataValue valueCopy;
+    UA_StatusCode retval = UA_DataValue_copy(dv, &valueCopy);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    /* Allocate a new notification */
+    UA_Notification *n = UA_Notification_new();
+    if(!n) {
+        UA_DataValue_clear(&valueCopy);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    /* Enqueue the notification */
-    UA_Notification_enqueueAndTrigger(server, newNot);
+    /* Prepare and enqueue the notification */
+    n->mon = mon;
+    n->data.dataChange.value = valueCopy;
+    n->data.dataChange.clientHandle = mon->parameters.clientHandle;
+    UA_Notification_enqueueAndTrigger(server, n);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -150,7 +152,7 @@ void
 UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
                                      UA_DataValue *value) {
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Has the value changed (with the filters applied)? */
     UA_Boolean changed = detectValueChange(server, mon, value);
@@ -162,22 +164,17 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
         return;
     }
 
-    /* The MonitoredItem is attached to a subscription (not server-local).
-     * Prepare a notification and enqueue it. */
-    if(mon->subscription) {
-        UA_StatusCode res =
-            UA_MonitoredItem_createDataChangeNotification(server, mon, value);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, mon->subscription,
-                                        "MonitoredItem %" PRIi32 " | "
-                                        "Processing the sample returned the statuscode %s",
-                                        mon->monitoredItemId, UA_StatusCode_name(res));
-            UA_DataValue_clear(value);
-            return;
-        }
+    /* Prepare a notification and enqueue it */
+    UA_StatusCode res =
+        UA_MonitoredItem_createDataChangeNotification(server, mon, value);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, mon->subscription,
+                                    "MonitoredItem %" PRIi32 " | "
+                                    "Processing the sample returned the statuscode %s",
+                                    mon->monitoredItemId, UA_StatusCode_name(res));
+        UA_DataValue_clear(value);
+        return;
     }
-
-    /* <-- Point of no return --> */
 
     /* Move/store the value for filter comparison and TransferSubscription */
     UA_DataValue_clear(&mon->lastValue);
@@ -197,29 +194,49 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
     }
 }
 
-void
-UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
-    lockServer(server);
-    monitoredItem_sampleCallback(server, mon);
-    unlockServer(server);
+/* We know the result is a deep-copy. So we can abuse the const result-pointer
+ * and take ownership of the value. */
+static void
+processMonitoredItemAsyncRead(UA_Server *server, UA_MonitoredItem *mon,
+                              const UA_DataValue *result) {
+    mon->outstandingAsyncReads--;
+    UA_DataValue *mut_result = (UA_DataValue*)(uintptr_t)result;
+    if(mut_result->status == UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST)
+        return; /* Controlled shut-down */
+    UA_MonitoredItem_processSampledValue(server, mon, mut_result);
+    UA_DataValue_init(mut_result);
 }
 
 void
-monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     UA_Subscription *sub = mon->subscription;
     UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub, "MonitoredItem %" PRIi32
                               " | Sample callback called", mon->monitoredItemId);
 
-    /* Sample the current value */
+    /* Sample the current value.
+     * sub->session can be NULL when the subscription is detached. Then
+     * readWithSession returns the error-code BADUSERACCESSDENIED. */
     UA_Session *session = (sub) ? sub->session : &server->adminSession;
-    UA_DataValue dv = readWithSession(server, session, &mon->itemToMonitor,
-                                      mon->timestampsToReturn);
 
-    /* Process the sample. This always clears the value. */
-    UA_MonitoredItem_processSampledValue(server, mon, &dv);
+    /* Read the value possibly asynchronous */
+    UA_StatusCode res = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    if(UA_LIKELY(mon->outstandingAsyncReads < UA_MONITOREDITEM_ASYNC_MAX)) {
+        res = read_async(server, session, &mon->itemToMonitor, mon->timestampsToReturn,
+                         (UA_ServerAsyncReadResultCallback)processMonitoredItemAsyncRead, mon, 0);
+    }
+    if(res == UA_STATUSCODE_GOOD) {
+        mon->outstandingAsyncReads++;
+    } else {
+        /* Reading failed, process with the StatusCode */
+        UA_DataValue dv;
+        UA_DataValue_init(&dv);
+        dv.hasStatus = true;
+        dv.status = res;
+        UA_MonitoredItem_processSampledValue(server, mon, &dv);
+    }
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

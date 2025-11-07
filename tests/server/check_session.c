@@ -10,6 +10,7 @@
 
 #include "server/ua_services.h"
 #include "client/ua_client_internal.h"
+#include "test_helpers.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -28,9 +29,8 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
@@ -43,8 +43,7 @@ static void teardown(void) {
 }
 
 START_TEST(Session_close_before_activate) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -88,9 +87,9 @@ START_TEST(Session_init_ShallWork) {
     UA_ApplicationDescription_init(&tmpAppDescription);
     UA_DateTime tmpDateTime = 0;
     ck_assert_int_eq(session.activated, false);
-    ck_assert_int_eq(session.header.authenticationToken.identifier.numeric, tmpNodeId.identifier.numeric);
+    ck_assert_int_eq(session.authenticationToken.identifier.numeric, tmpNodeId.identifier.numeric);
     ck_assert_int_eq(session.availableContinuationPoints, UA_MAXCONTINUATIONPOINTS);
-    ck_assert_ptr_eq(session.header.channel, NULL);
+    ck_assert_ptr_eq(session.channel, NULL);
     ck_assert_ptr_eq(session.clientDescription.applicationName.locale.data, NULL);
     ck_assert_ptr_eq(session.continuationPoints, NULL);
     ck_assert_int_eq(session.maxRequestMessageSize, 0);
@@ -105,12 +104,85 @@ END_TEST
 START_TEST(Session_updateLifetime_ShallWork) {
     UA_Session session;
     UA_Session_init(&session);
+    UA_DateTime now = UA_DateTime_now();
     UA_DateTime tmpDateTime;
     tmpDateTime = session.validTill;
-    UA_Session_updateLifetime(&session);
+    UA_Session_updateLifetime(&session, now, tmpDateTime);
 
     UA_Int32 result = (session.validTill >= tmpDateTime);
     ck_assert_int_gt(result,0);
+}
+END_TEST
+
+/* Check that the service-notification-callback is correctly set */
+static void
+serverNotificationCallback(UA_Server *server, UA_ApplicationNotificationType type,
+                           const UA_KeyValueMap payload) {
+    UA_assert(payload.mapSize > 0);
+    UA_assert(UA_Variant_hasScalarType(&payload.map[1].value, &UA_TYPES[UA_TYPES_NODEID]));
+}
+
+START_TEST(Session_notificationCallback) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Configure the notification callback */
+    UA_ServerConfig *cfg = UA_Server_getConfig(server);
+    cfg->serviceNotificationCallback = serverNotificationCallback;
+
+    /* Call a service */
+    UA_Variant val;
+    retval = UA_Client_readValueAttribute(client, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Session_setSessionAttribute_ShallWork) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* CreateSession */
+    UA_CreateSessionRequest createReq;
+    UA_CreateSessionResponse createRes;
+    UA_CreateSessionRequest_init(&createReq);
+    __UA_Client_Service(client, &createReq, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &createRes, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+
+    ck_assert_uint_eq(createRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    /* Manually splice the AuthenticationToken into the client. So that it is
+     * added to the Request. */
+    UA_NodeId_copy(&createRes.authenticationToken, &client->authenticationToken);
+
+    /* Set an attribute for the session. */
+    UA_QualifiedName key = UA_QUALIFIEDNAME(1, "myAttribute");
+    UA_Variant *variant = UA_Variant_new();
+    UA_Variant_init(variant);
+    status s = UA_Server_setSessionAttribute(server, &createRes.sessionId, key, variant);
+    UA_Variant_delete(variant);
+    ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
+
+    /* CloseSession */
+    UA_CloseSessionRequest closeReq;
+    UA_CloseSessionResponse closeRes;
+    UA_CloseSessionRequest_init(&closeReq);
+
+    __UA_Client_Service(client, &closeReq, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+                        &closeRes, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
+
+    ck_assert_uint_eq(closeRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_CloseSessionResponse_clear(&closeRes);
+    UA_CreateSessionResponse_clear(&createRes);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
 }
 END_TEST
 
@@ -121,6 +193,8 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session, Session_close_before_activate);
     tcase_add_test(tc_session, Session_init_ShallWork);
     tcase_add_test(tc_session, Session_updateLifetime_ShallWork);
+    tcase_add_test(tc_session, Session_notificationCallback);
+    tcase_add_test(tc_session, Session_setSessionAttribute_ShallWork);
     suite_add_tcase(s,tc_session);
     return s;
 }

@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "thread_wrapper.h"
 #include "mt_testing.h"
 
@@ -21,8 +22,7 @@
 static void
 setup(void) {
     tc.running = true;
-    tc.server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(tc.server));
+    tc.server = UA_Server_newForUnitTest();
     UA_Server_run_startup(tc.server);
     THREAD_CREATE(server_thread, serverloop);
 }

@@ -7,9 +7,10 @@
 
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/util.h>
-#include "securitypolicy_mbedtls_common.h"
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+
+#include "securitypolicy_common.h"
 
 #include <mbedtls/aes.h>
 #include <mbedtls/ctr_drbg.h>
@@ -75,7 +76,8 @@ verify_sp_pubsub_aes128ctr(PUBSUB_AES128CTR_ChannelContext *cc,
     unsigned char mac[UA_SHA256_LENGTH];
     UA_ByteString signingKey =
         {UA_AES128CTR_SIGNING_KEY_LENGTH, cc->signingKey};
-    mbedtls_hmac(&pc->sha256MdContext, &signingKey, message, mac);
+    if(mbedtls_hmac(&pc->sha256MdContext, &signingKey, message, mac) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     /* Compare with Signature */
     if(!UA_constantTimeEqual(signature->data, mac, UA_SHA256_LENGTH))
@@ -91,8 +93,10 @@ sign_sp_pubsub_aes128ctr(PUBSUB_AES128CTR_ChannelContext *cc,
 
     UA_ByteString signingKey =
         {UA_AES128CTR_SIGNING_KEY_LENGTH, cc->signingKey};
-    mbedtls_hmac(&cc->policyContext->sha256MdContext, &signingKey, message,
-                 signature->data);
+    if(mbedtls_hmac(&cc->policyContext->sha256MdContext, &signingKey, 
+                    message, signature->data) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
     return UA_STATUSCODE_GOOD;
 }
 

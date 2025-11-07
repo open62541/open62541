@@ -21,3 +21,7 @@ The following third party libraries may be included -- depending on the activate
 | mqtt-c          | MIT              | a portable MQTT client in C                     |
 | dtoa            | BSL (Boost)      | Printing of float numbers                       |
 | mp_printf       | MIT              | Our version of github:mpaland/printf            |
+| utf8            | MPL 2.0          | Lightweight utf8 de/encoding                    |
+| tr_dirent       | MIT              | Dirent interface for Microsoft Visual Studio    |
+| yxml            | MIT              | Small XML parser (https://dev.yorhel.nl/yxml)   |
+| musl_inet_pton  | MIT              | A musl implementation of the inet_pton function |

@@ -4,13 +4,14 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
 # Copyright 2019 (c) Kalycito Infotech Private Limited
-#
+# Modified 2025 (c) Construction Future Lab
 
 import netifaces
 import sys
 import os
 import socket
 import argparse
+import subprocess
 
 parser = argparse.ArgumentParser()
 
@@ -48,7 +49,7 @@ if args.keysize:
     keysize = args.keysize
 
 if args.uri == "":
-    args.uri = "urn:open62541.server.application"
+    args.uri = "urn:open62541.unconfigured.application"
     print("No ApplicationUri given for the certificate. Setting to %s" % args.uri)
 os.environ['URI1'] = args.uri
 
@@ -102,17 +103,36 @@ openssl_conf = os.path.join(certsdir, "localhost.cnf")
 
 os.chdir(os.path.abspath(args.outdir))
 
-os.system("""openssl req \
-     -config {} \
-     -new \
-     -nodes \
-     -x509 -sha256  \
-     -newkey rsa:{} \
-     -keyout localhost.key -days 365 \
-     -subj "/C=DE/L=Here/O=open62541/CN=open62541Server@localhost"\
-     -out localhost.crt""".format(openssl_conf, keysize))
-os.system("openssl x509 -in localhost.crt -outform der -out %s_cert.der" % (certificatename))
-os.system("openssl rsa -inform PEM -in localhost.key -outform DER -out %s_key.der"% (certificatename))
+# Use subprocess instead of os.system for better error handling
+try:
+    subprocess.run([
+        "openssl", "req",
+        "-config", openssl_conf,
+        "-new", "-nodes", "-x509", "-sha256",
+        "-newkey", f"rsa:{keysize}",
+        "-keyout", "localhost.key",
+        "-days", "365",
+        "-subj", "/C=DE/L=Here/O=open62541/CN=open62541Server@localhost",
+        "-out", "localhost.crt"
+    ], check=True)
+    
+    subprocess.run([
+        "openssl", "x509",
+        "-in", "localhost.crt",
+        "-outform", "der",
+        "-out", f"{certificatename}_cert.der"
+    ], check=True)
+    
+    subprocess.run([
+        "openssl", "rsa",
+        "-inform", "PEM",
+        "-in", "localhost.key",
+        "-outform", "DER",
+        "-out", f"{certificatename}_key.der"
+    ], check=True)
+    
+except subprocess.CalledProcessError as e:
+    sys.exit(f'ERROR: OpenSSL command failed: {e}')
 
 os.remove("localhost.key")
 os.remove("localhost.crt")

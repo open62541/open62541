@@ -1,4 +1,4 @@
-from nodeset import *
+from .nodeset import *
 import graphviz as gv
 import codecs
 
@@ -35,7 +35,7 @@ def printDotGraphWalk(nodeset, depth=1, filename="out.dot", rootNode=None,
     """
     iter = depth
     processed = []
-    if rootNode is None or not isinstance(rootNode, Node) or not rootNode in nodeset.nodes:
+    if rootNode is None or not isinstance(rootNode, Node) or rootNode not in nodeset.nodes:
         root = nodeset.getRoot()
     else:
         root = rootNode
@@ -59,8 +59,8 @@ def printDotGraphWalk(nodeset, depth=1, filename="out.dot", rootNode=None,
         for ref in refs:
             if isinstance(ref.target, NodeId):
                 tgt = nodeset.nodes[ref.target]
-                if not str(tgt.id) in excludeNodeIds:
-                    if not tgt in processed:
+                if str(tgt.id) not in excludeNodeIds:
+                    if tgt not in processed:
                         file.write(nodePrintDot(tgt))
                         processed.append(tgt)
                         if ref.isForward is False and followInverse is True:
@@ -137,7 +137,7 @@ def addNodeToGraph(nodeset, node, graph, alreadyAdded=set(), relevantReferences=
 
 
 def generateGraphvizCode(nodeset, filename="dependencies", rootNode=None, excludeNodeIds=[]):
-    if rootNode is None or not isinstance(rootNode, Node) or not rootNode in nodeset.nodes:
+    if rootNode is None or not isinstance(rootNode, Node) or rootNode not in nodeset.nodes:
         root = nodeset.getRoot()
     else:
         root = rootNode

@@ -1,6 +1,7 @@
 /*
  * Base64 encoding/decoding (RFC1341)
  * Copyright (c) 2005-2011, Jouni Malinen <j@w1.fi>
+ * Copyright (c) 2025, Julius Pfrommer (Fraunhofer IOSB)
  *
  * This software may be distributed under the terms of the BSD license.
  * See README for more details.
@@ -59,23 +60,15 @@ UA_base64_buf(const unsigned char *src, size_t len, unsigned char *out) {
     return (size_t)(pos - out);
 }
 
-static unsigned char dtable[256] = {
+static unsigned char dtable[128] = {
+	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x7f, 0x7f, 0x80, 0x80, 0x7f, 0x80, 0x80,
 	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 62  , 0x80, 62  , 0x80, 63  ,
-	52  , 53  , 54  , 55  , 56  , 57  , 58  , 59  , 60  , 61  , 0x80, 0x80, 0x80, 0, 0x80, 0x80,
+	0x7f, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 62  , 0x80, 62  , 0x80, 63  ,
+	52  , 53  , 54  , 55  , 56  , 57  , 58  , 59  , 60  , 61  , 0x80, 0x80, 0x80, 0   , 0x80, 0x80,
 	0x80, 0   , 1   , 2   , 3   , 4   , 5   , 6   , 7   , 8   , 9   , 10  , 11  , 12  , 13  , 14  ,
 	15  , 16  , 17  , 18  , 19  , 20  , 21  , 22  , 23  , 24  , 25  , 0x80, 0x80, 0x80, 0x80, 63  ,
 	0x80, 26  , 27  , 28  , 29  , 30  , 31  , 32  , 33  , 34  , 35  , 36  , 37  , 38  , 39  , 40  ,
-	41  , 42  , 43  , 44  , 45  , 46  , 47  , 48  , 49  , 50  , 51  , 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80,
-	0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80
+	41  , 42  , 43  , 44  , 45  , 46  , 47  , 48  , 49  , 50  , 51  , 0x80, 0x80, 0x80, 0x80, 0x80
 };
 
 unsigned char *
@@ -86,12 +79,8 @@ UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
         return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
     }
 
-    /* The input length must be a multiple of four */
-    if(len % 4 != 0)
-		return NULL;
-
-    /* Allocate the output string */
-	size_t olen = len / 4 * 3;
+    /* Allocate the output string. Append four bytes to allow missing padding */
+	size_t olen = (len / 4 * 3) + 4;
     unsigned char *out = (unsigned char*)UA_malloc(olen);
 	if(!out)
 		return NULL;
@@ -102,34 +91,48 @@ UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
     unsigned char block[4];
     unsigned char *pos = out;
 	for(size_t i = 0; i < len; i++) {
-		unsigned char tmp = dtable[src[i]];
+        /* Process character */
+		unsigned char tmp = dtable[src[i] & 0x7f];
         if(tmp == 0x80)
-            goto error; /* Invalid input */
+            goto error;
+        if(tmp == 0x7f)
+            continue; /* Whitespace is ignored to accomodate RFC 2045, used in
+                       * XML for xs:base64Binary. */
+		block[count++] = tmp;
 
-		if(src[i] == '=')
-			pad++;
+        /* Allow padding in the middle.
+         * For example if base64 streams have been concatenated */
+        if(src[i] == '=')
+            pad++;
 
-		block[count] = tmp;
-		count++;
+        /* Premature end of input. Fill up the block with padding. */
+        if(i + 1 == len) {
+            len = (len + 3) & ~0x03U; /* Next multiple of four */
+            for(i++; i < len; i++)
+                pad++;
+            for(; count < 4; count++)
+                block[count] = 0;
+        }
+
+        /* Write three output characters for four characters of input */
 		if(count == 4) {
-			*pos++ = (unsigned char)((block[0] << 2) | (block[1] >> 4));
-			*pos++ = (unsigned char)((block[1] << 4) | (block[2] >> 2));
-			*pos++ = (unsigned char)((block[2] << 6) | block[3]);
-			if(pad) {
-                if(pad == 1)
-                    pos--;
-                else if(pad == 2)
-                    pos -= 2;
-                else
-                    goto error; /* Invalid padding */
-				break;
-            }
+            if(pad > 2)
+                goto error; /* Invalid padding */
+			*pos++ = (block[0] << 2) | (block[1] >> 4);
+			*pos++ = (block[1] << 4) | (block[2] >> 2);
+			*pos++ = (block[2] << 6) | block[3];
 			count = 0;
+            pos -= pad;
+            pad = 0;
 		}
 	}
 
 	*out_len = (size_t)(pos - out);
-	return out;
+    if(*out_len == 0) {
+        UA_free(out);
+        return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
+    }
+    return out;
 
  error:
     UA_free(out);

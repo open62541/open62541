@@ -13,11 +13,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "thread_wrapper.h"
 
-UA_Server *server_translate_browse;
-UA_Boolean *running_translate_browse;
-THREAD_HANDLE server_thread_translate_browse;
+static UA_Server *server_translate_browse;
+static UA_Boolean *running_translate_browse;
+static THREAD_HANDLE server_thread_translate_browse;
 
 THREAD_CALLBACK(serverloop_register) {
     while (*running_translate_browse)
@@ -30,9 +31,8 @@ static void setup_server(void) {
     running_translate_browse = UA_Boolean_new();
     *running_translate_browse = true;
 
-    server_translate_browse = UA_Server_new();
+    server_translate_browse = UA_Server_newForUnitTest();
     UA_ServerConfig *server_translate_config = UA_Server_getConfig(server_translate_browse);
-    UA_ServerConfig_setDefault(server_translate_config);
 
     UA_String_clear(&server_translate_config->applicationDescription.applicationUri);
     server_translate_config->applicationDescription.applicationUri =
@@ -50,9 +50,8 @@ static void teardown_server(void) {
 }
 
 START_TEST(Service_Browse_CheckSubTypes) {
-    UA_Server *server = UA_Server_new();
+    UA_Server *server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_NodeId hierarchRefs = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
     UA_ReferenceTypeSet indices;
@@ -104,9 +103,8 @@ browseWithMaxResults(UA_Server *server, UA_NodeId nodeId, UA_UInt32 maxResults) 
 }
 
 START_TEST(Service_Browse_WithMaxResults) {
-    UA_Server *server = UA_Server_new();
+    UA_Server *server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -132,9 +130,8 @@ START_TEST(Service_Browse_WithMaxResults) {
 END_TEST
 
 START_TEST(Service_Browse_WithBrowseName) {
-    UA_Server *server = UA_Server_new();
+    UA_Server *server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -155,9 +152,8 @@ START_TEST(Service_Browse_WithBrowseName) {
 END_TEST
 
 START_TEST(Service_Browse_ClassMask) {
-    UA_Server *server = UA_Server_new();
+    UA_Server *server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     /* add a variable node to the address space */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -222,9 +218,8 @@ START_TEST(Service_Browse_ClassMask) {
 END_TEST
 
 START_TEST(Service_Browse_ReferenceTypes) {
-    UA_Server *server = UA_Server_new();
+    UA_Server *server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     /* add a variable node to the address space */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
@@ -277,9 +272,8 @@ START_TEST(Service_Browse_ReferenceTypes) {
 END_TEST
 
 START_TEST(Service_Browse_Recursive) {
-    UA_Server *server = UA_Server_new();
+    UA_Server *server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     size_t resultSize = 0;
     UA_ExpandedNodeId *result = NULL;
@@ -310,9 +304,8 @@ START_TEST(Service_Browse_Recursive) {
 END_TEST
 
 START_TEST(Service_Browse_Localization) {
-    UA_Server *server = UA_Server_new();
+    UA_Server *server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_NodeId outerObjectId = UA_NODEID_STRING(1, "EntryPoint");
 
@@ -374,10 +367,8 @@ START_TEST(Service_Browse_Localization) {
 }
 END_TEST
 
-START_TEST(Service_TranslateBrowsePathsToNodeIds) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+START_TEST(ServiceTest_TranslateBrowsePathsToNodeIds) {
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
@@ -516,7 +507,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
 
     TCase *tc_translate = tcase_create("TranslateBrowsePathsToNodeIds");
     tcase_add_unchecked_fixture(tc_translate, setup_server, teardown_server);
-    tcase_add_test(tc_translate, Service_TranslateBrowsePathsToNodeIds);
+    tcase_add_test(tc_translate, ServiceTest_TranslateBrowsePathsToNodeIds);
     tcase_add_test(tc_translate, Service_TranslateBrowsePathsWithHashCollision);
     tcase_add_test(tc_translate, Service_TranslateBrowsePathsNoMatches);
     tcase_add_test(tc_translate, BrowseSimplifiedBrowsePath);

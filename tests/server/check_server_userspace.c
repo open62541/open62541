@@ -4,6 +4,7 @@
 
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
+#include "test_helpers.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -15,7 +16,7 @@
 #endif
 
 START_TEST(Server_Namespace1_check) {
-    UA_Server *server = UA_Server_new();
+    UA_Server *server = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     const char *namespace1 = "http://namespace1";
@@ -36,8 +37,7 @@ START_TEST(Server_Namespace1_check) {
 END_TEST
 
 START_TEST(Server_addNamespace_ShallWork) {
-    UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    UA_Server *server = UA_Server_newForUnitTest();
 
     UA_UInt16 a = UA_Server_addNamespace(server, "http://nameOfNamespace");
     UA_UInt16 b = UA_Server_addNamespace(server, "http://nameOfNamespace");
@@ -52,8 +52,7 @@ START_TEST(Server_addNamespace_ShallWork) {
 END_TEST
 
 START_TEST(Server_addNamespace_writeService) {
-    UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    UA_Server *server = UA_Server_newForUnitTest();
 
     UA_Variant namespaces;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -124,8 +123,7 @@ nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, voi
 }
 
 START_TEST(Server_forEachChildNodeCall) {
-    UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    UA_Server *server = UA_Server_newForUnitTest();
 
     /* List all the children/references of the objects folder
      * The forEachChildNodeCall has to hit all of them */
@@ -175,7 +173,7 @@ START_TEST(Server_forEachChildNodeCall) {
 /*     UA_String customHost = UA_STRING("localhost"); */
 /*     UA_UInt16 port = 10042; */
 
-/*     UA_Server *server = UA_Server_new(); */
+/*     UA_Server *server = UA_Server_newForUnitTest(); */
 /*     UA_ServerConfig *config = UA_Server_getConfig(server); */
 /*     UA_ServerConfig_setMinimal(config, port, NULL); */
 /*     UA_String_clear(&config->customHostname); */

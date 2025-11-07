@@ -10,13 +10,13 @@
 #if defined(__linux__) || defined(__unix__)
 
 #include <syslog.h>
-#include <stdio.h>
+#include "mp_printf.h"
 
-const char *syslogLevelNames[6] = {"trace", "debug", "info",
+static const char *syslogLevelNames[6] = {"trace", "debug", "info",
                                    "warn", "error", "fatal"};
-const char *syslogCategoryNames[UA_LOGCATEGORIES] =
+static const char *syslogCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server", "client",
-     "userland", "securitypolicy", "eventloop", "pubsub", "discovery"};
+     "userland", "security", "eventloop", "pubsub", "discovery"};
 
 #ifdef __clang__
 __attribute__((__format__(__printf__, 4 , 0)))
@@ -56,14 +56,14 @@ UA_Log_Syslog_log(void *context, UA_LogLevel level, UA_LogCategory category,
 
 #define LOGBUFSIZE 512
     char logbuf[LOGBUFSIZE];
-    int pos = snprintf(logbuf, LOGBUFSIZE, "[%s/%s] ",
-                       syslogLevelNames[logLevelSlot],
-                       syslogCategoryNames[category]);
+    int pos = mp_snprintf(logbuf, LOGBUFSIZE, "[%s/%s] ",
+                          syslogLevelNames[logLevelSlot],
+                          syslogCategoryNames[category]);
     if(pos < 0) {
         syslog(LOG_WARNING, "Log message too long for syslog");
         return;
     }
-    pos = vsnprintf(&logbuf[pos], LOGBUFSIZE - (size_t)pos, msg, args);
+    pos = mp_vsnprintf(&logbuf[pos], LOGBUFSIZE - (size_t)pos, msg, args);
     if(pos < 0) {
         syslog(LOG_WARNING, "Log message too long for syslog");
         return;

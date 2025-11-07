@@ -1,16 +1,13 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
- /* Note: Have to enable UA_ENABLE_PUBSUB_ENCRYPTION and UA_ENABLE_TPM2_SECURITY
-          to run the application */
+/* Note: Enable UA_ENABLE_ENCRYPTION_TPM2=KEYSTORE to run the application */
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
-
-#include <signal.h>
 
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 
@@ -35,7 +32,6 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection 1");
     connectionConfig.transportProfileUri = *transportProfile;
-    connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
@@ -63,10 +59,10 @@ addDataSetField(UA_Server *server) {
     UA_Int32 publisherData     = 24;
     UA_Variant_setScalar(&attr.value, &publisherData, &UA_TYPES[UA_TYPES_INT32]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 1000),
-                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                                        UA_NS0ID(OBJECTSFOLDER),
+                                                        UA_NS0ID(ORGANIZES),
                                                         UA_QUALIFIEDNAME(1, "Published Int32"),
-                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                                        UA_NS0ID(BASEDATAVARIABLETYPE),
                                                         attr, NULL, &publisherNode);
 
     /* Data Set Field */
@@ -87,7 +83,6 @@ addWriterGroup(UA_Server *server) {
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
     writerGroupConfig.publishingInterval = 100;
-    writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -108,7 +103,7 @@ addWriterGroup(UA_Server *server) {
         (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
     writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
     UA_ByteString kn = {UA_AES128CTR_TPM_KEYNONCE_LENGTH, keyNonce};
     UA_Server_setWriterGroupEncryptionKeys(server, writerGroupIdent, 1, signingKey, encryptingKey, kn);
@@ -128,20 +123,10 @@ addDataSetWriter(UA_Server *server) {
                                &dataSetWriterConfig, &dataSetWriterIdent);
 }
 
-UA_Boolean running = true;
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
-
-static int run(UA_String *transportProfile,
-               UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
+static void run(UA_String *transportProfile,
+                UA_NetworkAddressUrlDataType *networkAddressUrl) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     /* Instantiate the PubSub SecurityPolicy */
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
@@ -157,10 +142,10 @@ static int run(UA_String *transportProfile,
     addWriterGroup(server);
     addDataSetWriter(server);
 
-    UA_StatusCode retval = UA_Server_run(server, &running);
+    UA_Server_enableAllPubSubComponents(server);
+    UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 static void
@@ -203,5 +188,6 @@ int main(int argc, char **argv) {
         return EXIT_SUCCESS;
     }
 
-    return run(&transportProfile, &networkAddressUrl);
+    run(&transportProfile, &networkAddressUrl);
+    return 0;
 }

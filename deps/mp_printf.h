@@ -46,29 +46,22 @@
 extern "C" {
 #endif
 
-#ifdef __GNUC__
-# if ((__GNUC__ == 4 && __GNUC_MINOR__>= 4) || __GNUC__ > 4)
-#  define ATTR_PRINTF(one_based_format_index, first_arg) \
-__attribute__((format(gnu_printf, (one_based_format_index), (first_arg))))
-# else
-# define ATTR_PRINTF(one_based_format_index, first_arg) \
-__attribute__((format(printf, (one_based_format_index), (first_arg))))
-# endif
-# define ATTR_VPRINTF(one_based_format_index) ATTR_PRINTF((one_based_format_index), 0)
-#else
-# define ATTR_PRINTF(one_based_format_index, first_arg)
-# define ATTR_VPRINTF(one_based_format_index)
-#endif
-
 /**
  * An implementation of the C standard's snprintf/vsnprintf
+ *
+ * This is extended for the open62541 project to take some OPC UA datatypes
+ * directly with the following format specifiers:
+ *
+ * %S - UA_String (without wrapping in quotation marks)
+ * %N - UA_NodeId (using UA_NodeId_print)
+ * %Q - UA_QualifiedName (using UA_QualifiedName_print)
  *
  * @param s An array in which to store the formatted string. It must be large
  * enough to fit either the entire formatted output, or at least @p n
  * characters. Alternatively, it can be NULL, in which case nothing will be
  * printed, and only the number of characters which _could_ have been printed is
  * tallied and returned.
- * @param n The maximum number of characters to write to the array, including a
+ * @param count The maximum number of characters to write to the array, including a
  * terminating null character
  * @param format A string specifying the format of the output, with %-marked
  * specifiers of how to interpret additional arguments.
@@ -80,8 +73,8 @@ __attribute__((format(printf, (one_based_format_index), (first_arg))))
  * than @p n, the null-terminated string has been fully and successfully
  * printed.
  */
-int  mp_snprintf(char* s, size_t count, const char* format, ...) ATTR_PRINTF(3, 4);
-int mp_vsnprintf(char* s, size_t count, const char* format, va_list arg) ATTR_VPRINTF(3);
+int mp_vsnprintf(char* s, size_t count, const char* format, va_list arg);
+int  mp_snprintf(char* s, size_t count, const char* format, ...);
 
 #ifdef __cplusplus
 } // extern "C"

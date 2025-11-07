@@ -20,6 +20,8 @@ equalBrowseName(UA_String *bn, char *n) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
+static const UA_NodeId subDiagArray = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY}};
+
 /****************************/
 /* Subscription Diagnostics */
 /****************************/
@@ -165,7 +167,7 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
     UA_ExpandedNodeId *children = NULL;
     size_t childrenSize = 0;
     UA_ReferenceTypeSet refTypes;
-    UA_NodeId hasComponent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    UA_NodeId hasComponent = UA_NS0ID(HASCOMPONENT);
 
     char subIdStr[32];
     itoaUnsigned(sub->subscriptionId, subIdStr, 10);
@@ -188,9 +190,11 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
     UA_VariableAttributes var_attr = UA_VariableAttributes_default;
     var_attr.displayName.text = UA_STRING(subIdStr);
     var_attr.dataType = UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE].typeId;
-    UA_NodeId refId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    UA_NodeId refId = UA_NS0ID(HASCOMPONENT);
     UA_QualifiedName browseName = UA_QUALIFIEDNAME(0, subIdStr);
-    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SUBSCRIPTIONDIAGNOSTICSTYPE);
+    UA_NodeId typeId = UA_NS0ID(SUBSCRIPTIONDIAGNOSTICSTYPE);
+    UA_CallbackValueSource subDiagSource = {readSubscriptionDiagnostics, NULL};
+
     /* Assign a random free NodeId */
     UA_StatusCode res = addNode(server, UA_NODECLASS_VARIABLE, UA_NODEID_NUMERIC(1, 0),
                                 bpr.targets[0].targetId.nodeId,
@@ -200,8 +204,6 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Add a second reference from the overall SubscriptionDiagnosticsArray variable */
-    const UA_NodeId subDiagArray =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY);
     res = addRefWithSession(server, session,  &subDiagArray, &refId, &sub->ns0Id, true);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -217,9 +219,8 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
         goto cleanup;
 
     /* Add the callback to all variables  */
-    UA_DataSource subDiagSource = {readSubscriptionDiagnostics, NULL};
     for(size_t i = 0; i < childrenSize; i++) {
-        setVariableNode_dataSource(server, children[i].nodeId, subDiagSource);
+        setVariableNode_callbackValueSource(server, children[i].nodeId, subDiagSource);
         setNodeContext(server, children[i].nodeId, sub);
     }
 
@@ -241,7 +242,7 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 setSessionSubscriptionDiagnostics(UA_Server *server, UA_Session *session,
                                   UA_DataValue *value) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Get the current session */
     size_t sdSize = session->subscriptionsSize;
@@ -338,7 +339,7 @@ setSessionSecurityDiagnostics(UA_Session *session,
     UA_SessionSecurityDiagnosticsDataType_copy(&session->securityDiagnostics, sd);
     UA_NodeId_copy(&session->sessionId, &sd->sessionId);
     UA_String_copy(&session->clientUserIdOfSession, &sd->clientUserIdOfSession);
-    UA_SecureChannel *channel = session->header.channel;
+    UA_SecureChannel *channel = session->channel;
     if(channel) {
         UA_ByteString_copy(&channel->remoteCertificate, &sd->clientCertificate);
         UA_String_copy(&channel->securityPolicy->policyUri, &sd->securityPolicyUri);
@@ -482,16 +483,17 @@ createSessionObject(UA_Server *server, UA_Session *session) {
     UA_ExpandedNodeId *children = NULL;
     size_t childrenSize = 0;
     UA_ReferenceTypeSet refTypes;
-    UA_NodeId hasComponent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    UA_NodeId hasComponent = UA_NS0ID(HASCOMPONENT);
+    UA_CallbackValueSource sessionDiagSource = {readSessionDiagnostics, NULL};
 
     /* Create an object for the session. Instantiates all the mandatory children. */
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName.text = session->sessionName;
-    UA_NodeId parentId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY);
-    UA_NodeId refId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    UA_NodeId parentId = UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY);
+    UA_NodeId refId = UA_NS0ID(HASCOMPONENT);
     UA_QualifiedName browseName = UA_QUALIFIEDNAME(0, "");
     browseName.name = session->sessionName; /* shallow copy */
-    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SESSIONDIAGNOSTICSOBJECTTYPE);
+    UA_NodeId typeId = UA_NS0ID(SESSIONDIAGNOSTICSOBJECTTYPE);
     UA_StatusCode res = addNode(server, UA_NODECLASS_OBJECT, session->sessionId,
                                 parentId, refId, browseName, typeId, &object_attr,
                                 &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, NULL);
@@ -502,6 +504,7 @@ createSessionObject(UA_Server *server, UA_Session *session) {
     res = referenceTypeIndices(server, &hasComponent, &refTypes, false);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
+
     res = browseRecursive(server, 1, &session->sessionId,
                           UA_BROWSEDIRECTION_FORWARD, &refTypes,
                           UA_NODECLASS_VARIABLE, false, &childrenSize, &children);
@@ -509,9 +512,8 @@ createSessionObject(UA_Server *server, UA_Session *session) {
         goto cleanup;
 
     /* Add the callback to all variables  */
-    UA_DataSource sessionDiagSource = {readSessionDiagnostics, NULL};
     for(size_t i = 0; i < childrenSize; i++) {
-        setVariableNode_dataSource(server, children[i].nodeId, sessionDiagSource);
+        setVariableNode_callbackValueSource(server, children[i].nodeId, sessionDiagSource);
     }
 
  cleanup:
@@ -538,8 +540,9 @@ readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
     }
 
     if(sourceTimestamp) {
+        UA_EventLoop *el = server->config.eventLoop;
         value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
+        value->sourceTimestamp = el->dateTime_now(el);
     }
 
     UA_assert(nodeId->identifierType == UA_NODEIDTYPE_NUMERIC);

@@ -4,7 +4,7 @@
 
 #include <open62541/client.h>
 
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 
 #include <stdlib.h>
 
@@ -435,6 +435,33 @@ START_TEST(idToStringByte) {
     UA_String_clear(&str);
 } END_TEST
 
+START_TEST(idToStringWithMapping) {
+    UA_NamespaceMapping nsMapping;
+    memset(&nsMapping, 0, sizeof(UA_NamespaceMapping));
+
+    UA_String namespaces[2] = {
+        UA_STRING_STATIC("ns1"),
+        UA_STRING_STATIC("ns2")
+    };
+
+    nsMapping.namespaceUris = namespaces;
+    nsMapping.namespaceUrisSize = 2;
+
+    UA_NodeId n, n2;
+    UA_String str = UA_STRING_NULL;
+
+    n = UA_NODEID_NUMERIC(1,1234567890);
+    UA_NodeId_printEx(&n, &str, &nsMapping);
+    assertNodeIdString(&str, "nsu=ns2;i=1234567890");
+    UA_NodeId_parseEx(&n2, str, &nsMapping);
+    ck_assert(UA_NodeId_equal(&n, &n2));
+    UA_String_clear(&str);
+
+    n = UA_NODEID_NUMERIC(0xFFFF,0xFFFFFFFF);
+    UA_NodeId_print(&n, &str);
+    assertNodeIdString(&str, "ns=65535;i=4294967295");
+    UA_String_clear(&str);
+} END_TEST
 
 START_TEST(idOrderNs) {
     UA_NodeId id_ns1 = UA_NODEID_NUMERIC(1, 12345);
@@ -641,6 +668,118 @@ START_TEST(kvmMerge) {
     UA_KeyValueMap_delete(kvm_2);
 } END_TEST
 
+START_TEST(expIdToStringNumeric) {
+    UA_ExpandedNodeId n;
+    UA_String str = UA_STRING_NULL;
+
+    n = UA_EXPANDEDNODEID_NUMERIC(0,0);
+    UA_ExpandedNodeId_print(&n, &str);
+    assertNodeIdString(&str, "i=0");
+    UA_String_clear(&str);
+
+    n.serverIndex = 1;
+    UA_ExpandedNodeId_print(&n, &str);
+    assertNodeIdString(&str, "svr=1;i=0");
+    UA_String_clear(&str);
+
+    n.namespaceUri = UA_STRING("testuri");
+    UA_ExpandedNodeId_print(&n, &str);
+    assertNodeIdString(&str, "svr=1;nsu=testuri;i=0");
+    UA_String_clear(&str);
+} END_TEST
+
+START_TEST(expIdToStringNumericWithMapping) {
+    UA_String serverUris[2] = {
+        UA_STRING_STATIC("uri:server1"),
+        UA_STRING_STATIC("uri:server2")
+    };
+
+    UA_ExpandedNodeId n, n2;
+    UA_String str = UA_STRING_NULL;
+
+    n = UA_EXPANDEDNODEID_NUMERIC(0,0);
+    n.serverIndex = 1;
+    UA_ExpandedNodeId_printEx(&n, &str, NULL, 2, serverUris);
+    assertNodeIdString(&str, "svu=uri:server2;i=0");
+    UA_String_clear(&str);
+
+    n.namespaceUri = UA_STRING("testuri");
+    UA_ExpandedNodeId_printEx(&n, &str, NULL, 2, serverUris);
+    assertNodeIdString(&str, "svu=uri:server2;nsu=testuri;i=0");
+    UA_ExpandedNodeId_parseEx(&n2, str, NULL, 2, serverUris);
+    ck_assert(UA_ExpandedNodeId_equal(&n, &n2));
+    UA_ExpandedNodeId_clear(&n2);
+    UA_String_clear(&str);
+
+    n.namespaceUri = UA_STRING_NULL;
+    n.nodeId.namespaceIndex = 2;
+    UA_ExpandedNodeId_printEx(&n, &str, NULL, 0, NULL);
+    assertNodeIdString(&str, "svr=1;ns=2;i=0");
+    UA_ExpandedNodeId_parseEx(&n2, str, NULL, 0, NULL);
+    ck_assert(UA_ExpandedNodeId_equal(&n, &n2));
+    UA_ExpandedNodeId_clear(&n2);
+    UA_String_clear(&str);
+} END_TEST
+
+START_TEST(qualifiedNameNsUri) {
+    UA_String namespaces[2] = {
+        UA_STRING_STATIC("ns1"),
+        UA_STRING_STATIC("ns2")
+    };
+
+    UA_NamespaceMapping nsMapping;
+    memset(&nsMapping, 0, sizeof(UA_NamespaceMapping));
+    nsMapping.namespaceUris = namespaces;
+    nsMapping.namespaceUrisSize = 2;
+
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(1, "name");
+    UA_String str = UA_STRING_NULL;
+
+    UA_QualifiedName_printEx(&qn, &str, &nsMapping);
+    assertNodeIdString(&str, "ns2;name");
+
+    UA_QualifiedName qn2;
+    UA_QualifiedName_parseEx(&qn2, str, &nsMapping);
+    ck_assert(UA_QualifiedName_equal(&qn, &qn2));
+
+    UA_QualifiedName_clear(&qn2);
+    UA_String_clear(&str);
+} END_TEST
+
+START_TEST(qualifiedNameNsIndex) {
+    UA_QualifiedName qn = UA_QUALIFIEDNAME(1, "name");
+    UA_String str = UA_STRING_NULL;
+
+    UA_QualifiedName_printEx(&qn, &str, NULL);
+    assertNodeIdString(&str, "1:name");
+
+    UA_QualifiedName qn2;
+    UA_QualifiedName_parseEx(&qn2, str, NULL);
+    ck_assert(UA_QualifiedName_equal(&qn, &qn2));
+
+    UA_QualifiedName_clear(&qn2);
+    UA_String_clear(&str);
+} END_TEST
+
+START_TEST(format_string) {
+    UA_NodeId test = UA_NODEID_NUMERIC(1,1);
+    UA_String testStr = UA_STRING("banana");
+    UA_String out = UA_STRING_NULL;
+
+    UA_StatusCode res = UA_String_format(&out, "test %N %S", test, testStr);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_String expected = UA_STRING("test ns=1;i=1 banana");
+    ck_assert(UA_String_equal(&out, &expected));
+
+    UA_String_clear(&out);
+
+    UA_Byte buf[4];
+    UA_String shortOut = {4, buf};
+    res = UA_String_format(&shortOut, "test %N %S", test, testStr);
+    ck_assert_uint_ne(res, UA_STATUSCODE_GOOD);
+} END_TEST
+
 static Suite* testSuite_Utils(void) {
     Suite *s = suite_create("Utils");
     TCase *tc_endpointUrl_split = tcase_create("EndpointUrl_split");
@@ -656,12 +795,12 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc_utils, stringCompare);
     suite_add_tcase(s,tc_utils);
 
-
     TCase *tc1 = tcase_create("test nodeid string");
     tcase_add_test(tc1, idToStringNumeric);
     tcase_add_test(tc1, idToStringString);
     tcase_add_test(tc1, idToStringGuid);
     tcase_add_test(tc1, idToStringByte);
+    tcase_add_test(tc1, idToStringWithMapping);
     suite_add_tcase(s, tc1);
 
     TCase *tc2 = tcase_create("test nodeid order");
@@ -677,6 +816,20 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc3, kvmRemove);
     tcase_add_test(tc3, kvmMerge);
     suite_add_tcase(s, tc3);
+
+    TCase *tc4 = tcase_create("test expandednodeid string");
+    tcase_add_test(tc4, expIdToStringNumeric);
+    tcase_add_test(tc4, expIdToStringNumericWithMapping);
+    suite_add_tcase(s, tc4);
+
+    TCase *tc5 = tcase_create("test qualifiedname string");
+    tcase_add_test(tc5, qualifiedNameNsUri);
+    tcase_add_test(tc5, qualifiedNameNsIndex);
+    suite_add_tcase(s, tc5);
+
+    TCase *tc6 = tcase_create("test string format");
+    tcase_add_test(tc6, format_string);
+    suite_add_tcase(s, tc6);
 
     return s;
 }

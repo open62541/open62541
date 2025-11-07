@@ -4,6 +4,7 @@
 
 #include <open62541/server_config_default.h>
 
+#include "test_helpers.h"
 #include "server/ua_server_internal.h"
 
 #include <check.h>
@@ -15,9 +16,8 @@ UA_Server *server = NULL;
 UA_Boolean *executed;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
 
@@ -41,9 +41,6 @@ START_TEST(Server_addRemoveRepeatedCallback) {
     /* Wait until the callback has surely timed out */
     UA_fakeSleep(15);
     UA_Server_run_iterate(server, false);
-
-    /* Wait a bit longer until the workers have picked up the dispatched callback */
-    UA_realSleep(100);
     ck_assert_uint_eq(*executed, true);
 
     UA_Server_removeRepeatedCallback(server, id);

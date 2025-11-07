@@ -23,15 +23,14 @@ int main(void) {
     connectionConfig.name = UA_STRING("UDP-UADP Connection 1");
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.enabled = true;
     /* The address and interface is part of the standard
      * defined UA_NetworkAddressUrlDataType. */
     UA_NetworkAddressUrlDataType networkAddressUrl =
         {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConfig.publisherId.uint32 = UA_UInt32_random();
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.id.uint32 = UA_UInt32_random();
     /* Connection options are given as Key/Value Pairs. The available options are
      * maybe standard or vendor defined. */
     UA_KeyValuePair connectionOptions[3];
@@ -56,7 +55,9 @@ int main(void) {
                     "The PubSub Connection was created successfully!");
     }
 
-    retval |= UA_Server_runUntilInterrupt(server);
+    /* Enable the PubSubComponents */
+    UA_Server_enableAllPubSubComponents(server);
+    retval = UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;

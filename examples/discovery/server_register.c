@@ -19,7 +19,7 @@
 
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
 
-UA_Boolean running = true;
+static UA_Boolean running = true;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
@@ -92,8 +92,7 @@ int main(int argc, char **argv) {
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "the answer");
 
     UA_Server_addDataSourceVariableNode(server, myIntegerNodeId,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                        UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
                                         myIntegerName, UA_NODEID_NULL, attr, dateDataSource,
                                         &myInteger, NULL);
 
@@ -103,6 +102,7 @@ int main(int argc, char **argv) {
     UA_ClientConfig cc;
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefault(&cc);
+    cc.securityMode = UA_MESSAGESECURITYMODE_NONE;
 
     UA_StatusCode retval =
         UA_Server_registerDiscovery(server, &cc,

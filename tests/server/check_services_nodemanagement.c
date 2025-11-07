@@ -6,6 +6,7 @@
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
+#include "test_helpers.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -27,18 +28,19 @@ globalInstantiationMethod(UA_Server *server_,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_GlobalNodeLifecycle lifecycle;
+
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
-    UA_GlobalNodeLifecycle lifecycle;
     lifecycle.constructor = globalInstantiationMethod;
     lifecycle.destructor = NULL;
     lifecycle.createOptionalChild = NULL;
     lifecycle.generateChildNodeId = NULL;
-    config->nodeLifecycle = lifecycle;
+    config->nodeLifecycle = &lifecycle;
+
     UA_Server_setAdminSessionContext(server, (void *)0x3);
 }
 
@@ -648,15 +650,15 @@ START_TEST(ObjectWithDynamicVariableChild) {
 
 static UA_NodeId
 findReference(const UA_NodeId sourceId, const UA_NodeId refTypeId) {
-	UA_BrowseDescription * bDesc = UA_BrowseDescription_new();
-	UA_NodeId_copy(&sourceId, &bDesc->nodeId);
-	bDesc->browseDirection = UA_BROWSEDIRECTION_FORWARD;
-	bDesc->includeSubtypes = true;
-	bDesc->resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID;
-	UA_BrowseResult bRes = UA_Server_browse(server, 0, bDesc);
-	ck_assert(bRes.statusCode == UA_STATUSCODE_GOOD);
+    UA_BrowseDescription * bDesc = UA_BrowseDescription_new();
+    UA_NodeId_copy(&sourceId, &bDesc->nodeId);
+    bDesc->browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bDesc->includeSubtypes = true;
+    bDesc->resultMask = UA_BROWSERESULTMASK_REFERENCETYPEID;
+    UA_BrowseResult bRes = UA_Server_browse(server, 0, bDesc);
+    ck_assert(bRes.statusCode == UA_STATUSCODE_GOOD);
 
-	UA_NodeId outNodeId = UA_NODEID_NULL;
+    UA_NodeId outNodeId = UA_NODEID_NULL;
     for(size_t i = 0; i < bRes.referencesSize; i++) {
         UA_ReferenceDescription rDesc = bRes.references[i];
         if(UA_NodeId_equal(&rDesc.referenceTypeId, &refTypeId)) {
@@ -665,73 +667,73 @@ findReference(const UA_NodeId sourceId, const UA_NodeId refTypeId) {
         }
     }
 
-	UA_BrowseDescription_clear(bDesc);
-	UA_BrowseDescription_delete(bDesc);
-	UA_BrowseResult_clear(&bRes);
-	return outNodeId;
+    UA_BrowseDescription_clear(bDesc);
+    UA_BrowseDescription_delete(bDesc);
+    UA_BrowseResult_clear(&bRes);
+    return outNodeId;
 }
 
 static UA_NodeId
 registerRefType(char *forwName, char *invName) {
-	UA_NodeId outNodeId;
-	UA_ReferenceTypeAttributes refattr = UA_ReferenceTypeAttributes_default;
-	refattr.displayName = UA_LOCALIZEDTEXT(NULL, forwName);
-	refattr.inverseName = UA_LOCALIZEDTEXT(NULL, invName );
-	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, forwName);
-	UA_StatusCode st =
+    UA_NodeId outNodeId;
+    UA_ReferenceTypeAttributes refattr = UA_ReferenceTypeAttributes_default;
+    refattr.displayName = UA_LOCALIZEDTEXT(NULL, forwName);
+    refattr.inverseName = UA_LOCALIZEDTEXT(NULL, invName );
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, forwName);
+    UA_StatusCode st =
         UA_Server_addReferenceTypeNode(server, UA_NODEID_NULL,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                        browseName, refattr, NULL, &outNodeId);
-	ck_assert(st == UA_STATUSCODE_GOOD);
-	return outNodeId;
+    ck_assert(st == UA_STATUSCODE_GOOD);
+    return outNodeId;
 }
 
 static UA_NodeId
 addObjInstance(const UA_NodeId parentNodeId, char *dispName) {
-	UA_NodeId outNodeId;
-	UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-	oAttr.displayName = UA_LOCALIZEDTEXT(NULL, dispName);
-	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, dispName);
-	UA_StatusCode st =
+    UA_NodeId outNodeId;
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT(NULL, dispName);
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, dispName);
+    UA_StatusCode st =
         UA_Server_addObjectNode(server, UA_NODEID_NULL,
                                 parentNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                 browseName, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                                 oAttr, NULL, &outNodeId);
-	ck_assert(st == UA_STATUSCODE_GOOD);
-	return outNodeId;
+    ck_assert(st == UA_STATUSCODE_GOOD);
+    return outNodeId;
 }
 
 START_TEST(AddDoubleReference) {
-	// create two different reference types
-	UA_NodeId ref1TypeId = registerRefType("HasRef1", "IsRefOf1");
-	UA_NodeId ref2TypeId = registerRefType("HasRef2", "IsRefOf2");
+    // create two different reference types
+    UA_NodeId ref1TypeId = registerRefType("HasRef1", "IsRefOf1");
+    UA_NodeId ref2TypeId = registerRefType("HasRef2", "IsRefOf2");
 
-	// create two different object instances
+    // create two different object instances
     UA_NodeId objectsNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-	UA_NodeId sourceId = addObjInstance(objectsNodeId, "obj1");
-	UA_NodeId targetId = addObjInstance(objectsNodeId, "obj2");
+    UA_NodeId sourceId = addObjInstance(objectsNodeId, "obj1");
+    UA_NodeId targetId = addObjInstance(objectsNodeId, "obj2");
 
-	// connect them twice, one time per reference type
-	UA_ExpandedNodeId targetExpId;
-	targetExpId.nodeId       = targetId;
-	targetExpId.namespaceUri = UA_STRING_NULL;
-	targetExpId.serverIndex  = 0;
-	UA_StatusCode st;
-	st = UA_Server_addReference(server, sourceId, ref1TypeId, targetExpId, true);
-	ck_assert(st == UA_STATUSCODE_GOOD);
-	st = UA_Server_addReference(server, sourceId, ref2TypeId, targetExpId, true);
-	ck_assert(st == UA_STATUSCODE_GOOD);
+    // connect them twice, one time per reference type
+    UA_ExpandedNodeId targetExpId;
+    targetExpId.nodeId       = targetId;
+    targetExpId.namespaceUri = UA_STRING_NULL;
+    targetExpId.serverIndex  = 0;
+    UA_StatusCode st;
+    st = UA_Server_addReference(server, sourceId, ref1TypeId, targetExpId, true);
+    ck_assert(st == UA_STATUSCODE_GOOD);
+    st = UA_Server_addReference(server, sourceId, ref2TypeId, targetExpId, true);
+    ck_assert(st == UA_STATUSCODE_GOOD);
     /* repetition fails */
-	st = UA_Server_addReference(server, sourceId, ref2TypeId, targetExpId, true);
-	ck_assert(st != UA_STATUSCODE_GOOD);
+    st = UA_Server_addReference(server, sourceId, ref2TypeId, targetExpId, true);
+    ck_assert(st != UA_STATUSCODE_GOOD);
 
-	// check references where added
-	UA_NodeId targetCheckId;
-	targetCheckId = findReference(sourceId, ref1TypeId);
-	ck_assert(UA_NodeId_equal(&targetCheckId, &targetId));
-	targetCheckId = findReference(sourceId, ref2TypeId);
-	ck_assert(UA_NodeId_equal(&targetCheckId, &targetId));
+    // check references where added
+    UA_NodeId targetCheckId;
+    targetCheckId = findReference(sourceId, ref1TypeId);
+    ck_assert(UA_NodeId_equal(&targetCheckId, &targetId));
+    targetCheckId = findReference(sourceId, ref2TypeId);
+    ck_assert(UA_NodeId_equal(&targetCheckId, &targetId));
 
 
 } END_TEST

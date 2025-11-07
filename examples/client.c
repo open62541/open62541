@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
     bReq.requestedMaxReferencesPerNode = 0;
     bReq.nodesToBrowse = UA_BrowseDescription_new();
     bReq.nodesToBrowseSize = 1;
-    bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER); /* browse objects folder */
+    bReq.nodesToBrowse[0].nodeId = UA_NS0ID(OBJECTSFOLDER); /* browse objects folder */
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
     UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
     printf("%-9s %-16s %-16s %-16s\n", "NAMESPACE", "NODEID", "BROWSE NAME", "DISPLAY NAME");
@@ -99,8 +99,8 @@ int main(int argc, char *argv[]) {
 
     /* Same thing, this time using the node iterator... */
     UA_NodeId *parent = UA_NodeId_new();
-    *parent = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_Client_forEachChildNodeCall(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+    *parent = UA_NS0ID(OBJECTSFOLDER);
+    UA_Client_forEachChildNodeCall(client, UA_NS0ID(OBJECTSFOLDER),
                                    nodeIter, (void *) parent);
     UA_NodeId_delete(parent);
 
@@ -183,7 +183,7 @@ int main(int argc, char *argv[]) {
     UA_Variant_setScalarCopy(&input, &argString, &UA_TYPES[UA_TYPES_STRING]);
     size_t outputSize;
     UA_Variant *output;
-    retval = UA_Client_call(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+    retval = UA_Client_call(client, UA_NS0ID(OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
     if(retval == UA_STATUSCODE_GOOD) {
         printf("Method call was successful, and %lu returned values available.\n",
@@ -205,8 +205,8 @@ int main(int argc, char *argv[]) {
     ref_attr.inverseName = UA_LOCALIZEDTEXT("en-US", "IsNewlyReferencedBy");
     retval = UA_Client_addReferenceTypeNode(client,
                                             UA_NODEID_NUMERIC(1, 12133),
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                            UA_NS0ID(ORGANIZES),
+                                            UA_NS0ID(HASSUBTYPE),
                                             UA_QUALIFIEDNAME(1, "NewReference"),
                                             ref_attr, &ref_id);
     if(retval == UA_STATUSCODE_GOOD )
@@ -219,8 +219,8 @@ int main(int argc, char *argv[]) {
     objt_attr.description = UA_LOCALIZEDTEXT("en-US", "Put innovative description here");
     retval = UA_Client_addObjectTypeNode(client,
                                          UA_NODEID_NUMERIC(1, 12134),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-                                         UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                         UA_NS0ID(BASEOBJECTTYPE),
+                                         UA_NS0ID(HASSUBTYPE),
                                          UA_QUALIFIEDNAME(1, "NewObjectType"),
                                          objt_attr, &objt_id);
     if(retval == UA_STATUSCODE_GOOD)
@@ -233,8 +233,8 @@ int main(int argc, char *argv[]) {
     obj_attr.description = UA_LOCALIZEDTEXT("de-DE", "Hier koennte Ihre Webung stehen!");
     retval = UA_Client_addObjectNode(client,
                                      UA_NODEID_NUMERIC(1, 0),
-                                     UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                     UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                     UA_NS0ID(OBJECTSFOLDER),
+                                     UA_NS0ID(ORGANIZES),
                                      UA_QUALIFIEDNAME(1, "TheGreatNode"),
                                      UA_NODEID_NUMERIC(1, 12134),
                                      obj_attr, &obj_id);
@@ -253,8 +253,8 @@ int main(int argc, char *argv[]) {
     var_attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     retval = UA_Client_addVariableNode(client,
                                        UA_NODEID_NUMERIC(1, 0), // Assign new/random NodeID
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                       UA_NS0ID(OBJECTSFOLDER),
+                                       UA_NS0ID(ORGANIZES),
                                        UA_QUALIFIEDNAME(0, "VariableNode"),
                                        UA_NODEID_NULL, // no variable type
                                        var_attr, &var_id);

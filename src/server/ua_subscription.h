@@ -23,7 +23,7 @@
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_session.h"
-#include "ua_util_internal.h"
+#include "../util/ua_util_internal.h"
 
 _UA_BEGIN_DECLS
 
@@ -36,20 +36,25 @@ _UA_BEGIN_DECLS
  * MonitoredItem that generated the notification. Here we can remove it if the
  * space reserved for the MonitoredItem runs full. The second queue is the
  * "global" queue for all Notifications generated in a Subscription. For
- * publication, the notifications are taken out of the "global" queue in the
- * order of their creation. */
+ * publication, the notifications are taken out of the Subscription's queue in
+ * the order of their creation. */
 
 /*****************/
 /* Notifications */
 /*****************/
 
-/* Set to the TAILQ_NEXT pointer of a notification, the sentinel that the
- * notification was not added to the global queue */
+/* A notification was not (yet) added to the queue of a Subscription */
 #define UA_SUBSCRIPTION_QUEUE_SENTINEL ((UA_Notification*)0x01)
 
 typedef struct UA_Notification {
-    TAILQ_ENTRY(UA_Notification) localEntry;  /* Notification list for the MonitoredItem */
-    TAILQ_ENTRY(UA_Notification) globalEntry; /* Notification list for the Subscription */
+    /* The subEntry can be a sentinel value to indicate that the Notification is
+     * not enqueue in the Subscription. This is the case when the Subscription
+     * is non-reporting.
+     *
+     * The monEntry is always set - the Notification must always be enqueued to
+     * the MonitoredItem right after its creation with UA_Notification_new. */
+    TAILQ_ENTRY(UA_Notification) subEntry; /* Notification list of the Subscription */
+    TAILQ_ENTRY(UA_Notification) monEntry; /* Notification list of the MonitoredItem */
     UA_MonitoredItem *mon; /* Always set */
 
     /* The event field is used if mon->attributeId is the EventNotifier */
@@ -65,13 +70,13 @@ typedef struct UA_Notification {
 #endif
 } UA_Notification;
 
-/* Initializes and sets the sentinel pointers */
+/* Initializes and sets the sentinel pointers. Only create a notification if it
+ * is also going to be immediately enqueued to a MonitoredItem (see below). */
 UA_Notification * UA_Notification_new(void);
 
-/* Notifications are always added to the queue of the MonitoredItem. That queue
- * can overflow. If Notifications are reported, they are also added to the
- * global queue of the Subscription. There they are picked up by the publishing
- * callback.
+/* Notifications are always added to the queue of a MonitoredItem. That queue
+ * can overflow. If Notifications are reported, they are also added to the queue
+ * of the Subscription. There they are picked up by the publishing callback.
  *
  * There are two ways Notifications can be put into the global queue of the
  * Subscription: They are added because the MonitoringMode of the MonitoredItem
@@ -79,9 +84,6 @@ UA_Notification * UA_Notification_new(void);
  * that puts the last Notification into the global queue. */
 void UA_Notification_enqueueAndTrigger(UA_Server *server,
                                        UA_Notification *n);
-
-/* Dequeue and delete the notification */
-void UA_Notification_delete(UA_Notification *n);
 
 /* A NotificationMessage contains an array of notifications.
  * Sent NotificationMessages are stored for the republish service. */
@@ -98,6 +100,10 @@ typedef TAILQ_HEAD(NotificationMessageQueue, UA_NotificationMessageEntry)
 /*****************/
 /* MonitoredItem */
 /*****************/
+
+/* Maximum number of outstanding async reads per MonitoredItem.
+ * This protects against unbounded memory usage. */
+#define UA_MONITOREDITEM_ASYNC_MAX 8
 
 /* The type of sampling for MonitoredItems depends on the sampling interval.
  *
@@ -116,7 +122,7 @@ typedef enum {
 struct UA_MonitoredItem {
     UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry; /* Linked list in the Subscription */
-    UA_Subscription *subscription; /* If NULL, then this is a Local MonitoredItem */
+    UA_Subscription *subscription;          /* Always non-NULL */
     UA_UInt32 monitoredItemId;
 
     /* Status and Settings */
@@ -155,6 +161,7 @@ struct UA_MonitoredItem {
                                                             * interval */
     } sampling;
     UA_DataValue lastValue;
+    UA_UInt32 outstandingAsyncReads; /* at most UA_MONITOREDITEM_ASYNC_MAX */
 
     /* Triggering Links */
     size_t triggeringLinksSize;
@@ -171,8 +178,7 @@ struct UA_MonitoredItem {
 void UA_MonitoredItem_init(UA_MonitoredItem *mon);
 void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
-void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon);
-void UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon);
 
 /* Register sampling. Either by adding a repeated callback or by adding the
  * MonitoredItem to a linked list in the node. */
@@ -186,6 +192,8 @@ UA_StatusCode
 UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
                                    UA_MonitoringMode monitoringMode);
 
+void
+UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon);
 
 /* Do not use the value after calling this. It will be moved to mon or freed. */
 void
@@ -313,12 +321,18 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
 void
 Subscription_resetLifetime(UA_Subscription *sub);
 
+UA_Subscription *
+getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
+
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub,
                                  UA_UInt32 monitoredItemId);
 
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
+
+void
+UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub);
 
 void
 UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub);
@@ -341,13 +355,6 @@ typedef struct UA_ConditionSource UA_ConditionSource;
 #define UA_EVENTFILTER_MAXOPERANDS 64 /* Max operands per operator */
 #define UA_EVENTFILTER_MAXSELECT   64 /* Max select clauses */
 
-UA_StatusCode
-UA_MonitoredItem_addEvent(UA_Server *server, UA_MonitoredItem *mon,
-                          const UA_NodeId *event);
-
-UA_StatusCode
-generateEventId(UA_ByteString *generatedId);
-
 /* Static validation when the filter is registered */
 UA_StatusCode
 UA_SimpleAttributeOperandValidation(UA_Server *server,
@@ -359,24 +366,73 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
                                   size_t operatorsCount,
                                   const UA_ContentFilterElement *ef);
 
+/* If the sessionId, subscriptionId or monitoredItemId are non-NULL, they are
+ * used to filter the subscriptions and monitoreditems that emit the event. */
+UA_StatusCode
+createEvent(UA_Server *server, const UA_EventDescription *ed,
+            UA_ByteString *outEventId);
+
+typedef struct {
+    UA_Server *server;
+    UA_Session *session;
+    UA_EventDescription ed; /* shallow copy */
+    UA_EventFilter filter;  /* shallow copy */
+
+    /* Don't reread or regenerate values that have already been gotten during
+     * the same filter evaluation */
+    UA_KeyValueMap fieldCache;
+
+    /* Generated / cached EventId */
+    UA_ByteString eventId;
+    UA_Byte eventIdBuf[16];
+
+    /* <-- Variables used only by evaluateWhereClause --> */
+
+    UA_Variant operatorResults[UA_EVENTFILTER_MAXELEMENTS];
+
+    /* The operand stack contains temporary variants. Cleaned up after the
+     * evaluation of each operator. */
+    size_t top;
+    UA_Variant operandStack[UA_EVENTFILTER_MAXOPERANDS];
+} UA_FilterEvalContext;
+
+/* The _reset method resets the filter between evaluations for different
+ * MonitoredItems. The EventId is reset *only* if eventId.data != eventIdBuf.
+ * This does not lead to memleaks and ensures we do not regenerate random
+ * EventIds for the same event on different MonitoredItems. */
+void UA_FilterEvalContext_init(UA_FilterEvalContext *ctx);
+void UA_FilterEvalContext_reset(UA_FilterEvalContext *ctx);
+
+UA_StatusCode
+resolveSAO(UA_FilterEvalContext *ctx, const UA_SimpleAttributeOperand *sao,
+           UA_Variant *out);
+
+/* Retrieve or generate the unique EventId and cache it. Takes the EventId from
+ * the EventDescription if explicitly set by the user. If successful,
+ * ctx->eventId contains the cached EventId */
+UA_StatusCode cacheEventId(UA_FilterEvalContext *ctx);
+
 /* Evaluate content filter, exported only for unit testing */
 UA_StatusCode
-evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eventNode,
-                    const UA_ContentFilter *contentFilter,
-                    UA_ContentFilterResult *contentFilterResult);
+evaluateWhereClause(UA_FilterEvalContext *ctx);
 
-#endif
+/* Applies the select clause and resolves the result fields */
+UA_StatusCode
+evaluateSelectClause(UA_FilterEvalContext *ctx, UA_EventFieldList *efl);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /***********/
 /* Helpers */
 /***********/
 
 /* Setting an integer value within bounds */
-#define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
+#define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST)   \
+    do { \
         if(SRC > BOUNDS.max) DST = BOUNDS.max;         \
         else if(SRC < BOUNDS.min) DST = BOUNDS.min;    \
         else DST = SRC;                                \
-    }
+    } while (0)
 
 /* Logging
  * See a description of the tricks used in ua_session.h */

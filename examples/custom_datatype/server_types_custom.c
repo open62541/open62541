@@ -10,14 +10,14 @@
 
 #include "custom_datatype.h"
 
-UA_Boolean running = true;
-const UA_NodeId pointVariableTypeId = {
+static UA_Boolean running = true;
+static const UA_NodeId pointVariableTypeId = {
     1, UA_NODEIDTYPE_NUMERIC, {4243}};
-const UA_NodeId measurementVariableTypeId = {
+static const UA_NodeId measurementVariableTypeId = {
     1, UA_NODEIDTYPE_NUMERIC, {4444}};
-const UA_NodeId optstructVariableTypeId = {
+static const UA_NodeId optstructVariableTypeId = {
     1, UA_NODEIDTYPE_NUMERIC, {4645}};
-const UA_NodeId unionVariableTypeId = {
+static const UA_NodeId unionVariableTypeId = {
     1, UA_NODEIDTYPE_NUMERIC, {4846}};
 
 static void stopHandler(int sig) {
@@ -30,9 +30,9 @@ static void add3DPointDataType(UA_Server* server)
     UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "3D Point Type");
 
-    UA_Server_addDataTypeNode(
-        server, PointType.typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), UA_QUALIFIEDNAME(1, "3D.Point"), attr, NULL, NULL);
+    UA_Server_addDataTypeNode(server, PointType.typeId, UA_NS0ID(STRUCTURE),
+                              UA_NS0ID(HASSUBTYPE), UA_QUALIFIEDNAME(1, "3D.Point"),
+                              attr, NULL, NULL);
 }
 
 static void
@@ -50,10 +50,10 @@ add3DPointVariableType(UA_Server *server) {
     UA_Variant_setScalar(&dattr.value, &p, &PointType);
 
     UA_Server_addVariableTypeNode(server, pointVariableTypeId,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
+                                  UA_NS0ID(HASSUBTYPE),
                                   UA_QUALIFIEDNAME(1, "3D.Point"),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
                                   dattr, NULL, NULL);
 
 }
@@ -72,8 +72,8 @@ add3DPointVariable(UA_Server *server) {
     UA_Variant_setScalar(&vattr.value, &p, &PointType);
 
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "3D.Point"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              UA_NS0ID(OBJECTSFOLDER),
+                              UA_NS0ID(ORGANIZES),
                               UA_QUALIFIEDNAME(1, "3D.Point"),
                               pointVariableTypeId, vattr, NULL, NULL);
 }
@@ -83,9 +83,10 @@ static void addMeasurementSeriesDataType(UA_Server* server)
     UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "Measurement Series (Array) Type");
 
-    UA_Server_addDataTypeNode(
-        server, MeasurementType.typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), UA_QUALIFIEDNAME(1, "Measurement Series"), attr, NULL, NULL);
+    UA_Server_addDataTypeNode(server, MeasurementType.typeId, UA_NS0ID(STRUCTURE),
+                              UA_NS0ID(HASSUBTYPE),
+                              UA_QUALIFIEDNAME(1, "Measurement Series"),
+                              attr, NULL, NULL);
 }
 
 static void
@@ -104,10 +105,10 @@ addMeasurementSeriesVariableType(UA_Server *server) {
     UA_Variant_setScalar(&dattr.value, &m, &MeasurementType);
 
     UA_Server_addVariableTypeNode(server, measurementVariableTypeId,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
+                                  UA_NS0ID(HASSUBTYPE),
                                   UA_QUALIFIEDNAME(1, "Measurement Series"),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
                                   dattr, NULL, NULL);
 
 }
@@ -130,8 +131,8 @@ addMeasurementSeriesVariable(UA_Server *server) {
     UA_Variant_setScalar(&vattr.value, &m, &MeasurementType);
 
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Temp.Measurement"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              UA_NS0ID(OBJECTSFOLDER),
+                              UA_NS0ID(ORGANIZES),
                               UA_QUALIFIEDNAME(1, "Temp Measurement (Array Example)"),
                               measurementVariableTypeId, vattr, NULL, NULL);
     UA_clear(&m, &MeasurementType);
@@ -142,9 +143,10 @@ static void addOptStructDataType(UA_Server* server)
     UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "OptStruct Example Type");
 
-    UA_Server_addDataTypeNode(
-        server, OptType.typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), UA_QUALIFIEDNAME(1, "OptStruct Example"), attr, NULL, NULL);
+    UA_Server_addDataTypeNode(server, OptType.typeId, UA_NS0ID(STRUCTURE),
+                              UA_NS0ID(HASSUBTYPE),
+                              UA_QUALIFIEDNAME(1, "OptStruct Example"),
+                              attr, NULL, NULL);
 }
 
 static void
@@ -160,10 +162,10 @@ addOptStructVariableType(UA_Server *server) {
     UA_Variant_setScalar(&dattr.value, &o, &OptType);
 
     UA_Server_addVariableTypeNode(server, optstructVariableTypeId,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
+                                  UA_NS0ID(HASSUBTYPE),
                                   UA_QUALIFIEDNAME(1, "OptStruct Example"),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
                                   dattr, NULL, NULL);
 }
 
@@ -184,8 +186,8 @@ addOptStructVariable(UA_Server *server) {
     UA_Variant_setScalar(&vattr.value, &o, &OptType);
 
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Optstruct.Value"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              UA_NS0ID(OBJECTSFOLDER),
+                              UA_NS0ID(ORGANIZES),
                               UA_QUALIFIEDNAME(1, "OptStruct Example"),
                               optstructVariableTypeId, vattr, NULL, NULL);
     UA_clear(&o, &OptType);
@@ -196,9 +198,9 @@ static void addUnionExampleDataType(UA_Server* server)
     UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "Union Example Type");
 
-    UA_Server_addDataTypeNode(
-        server, UniType.typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_UNION),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), UA_QUALIFIEDNAME(1, "Union Example"), attr, NULL, NULL);
+    UA_Server_addDataTypeNode(server, UniType.typeId, UA_NS0ID(UNION),
+                              UA_NS0ID(HASSUBTYPE), UA_QUALIFIEDNAME(1, "Union Example"),
+                              attr, NULL, NULL);
 }
 
 static void
@@ -214,10 +216,10 @@ addUnionExampleVariableType(UA_Server *server) {
     UA_Variant_setScalar(&dattr.value, &u, &UniType);
 
     UA_Server_addVariableTypeNode(server, unionVariableTypeId,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
+                                  UA_NS0ID(HASSUBTYPE),
                                   UA_QUALIFIEDNAME(1, "Union Example"),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
                                   dattr, NULL, NULL);
 }
 
@@ -235,8 +237,8 @@ addUnionExampleVariable(UA_Server *server) {
     UA_Variant_setScalar(&vattr.value, &u, &UniType);
 
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Union.Value"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                              UA_NS0ID(OBJECTSFOLDER),
+                              UA_NS0ID(ORGANIZES),
                               UA_QUALIFIEDNAME(1, "Union Example"),
                               unionVariableTypeId, vattr, NULL, NULL);
 }
@@ -248,6 +250,8 @@ int main(void) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
+
+    setupCustomTypes();
 
     /* Make your custom datatype known to the stack */
     UA_DataType *types = (UA_DataType*)UA_malloc(4 * sizeof(UA_DataType));

@@ -5,6 +5,7 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
+#include <open62541/plugin/log.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
@@ -12,10 +13,11 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
-#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 
+#include "test_helpers.h"
 #include "../encryption/certificates.h"
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "ua_pubsub_keystorage.h"
 #include "ua_server_internal.h"
 
@@ -93,7 +95,7 @@ encyrptedclientconnect(UA_Client *client) {
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     ck_assert(client != NULL);
 
-    UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
     /* Secure client connect */
     return UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -159,7 +161,7 @@ addTestWriterGroup(UA_String securitygroupId) {
 
     retval |=
         UA_Server_addWriterGroup(server, connection, &writerGroupConfig, &writerGroup);
-    UA_Server_setWriterGroupOperational(server, writerGroup);
+    UA_Server_enableWriterGroup(server, writerGroup);
 }
 
 static void
@@ -218,12 +220,12 @@ setup(void) {
 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                          trustList, trustListSize,
+                                                          issuerList, issuerListSize,
+                                                          revocationList, revocationListSize);
+
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
-                                                   trustList, trustListSize,
-                                                   issuerList, issuerListSize,
-                                                   revocationList, revocationListSize);
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
@@ -267,8 +269,7 @@ teardown(void) {
 }
 
 START_TEST(TestSetSecurityKeys_InsufficientSecurityMode) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
@@ -280,7 +281,7 @@ START_TEST(TestSetSecurityKeys_InsufficientSecurityMode) {
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_MissingSecurityGroup) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = encyrptedclientconnect(client);
     UA_String wrongSecurityGroupId = UA_STRING("WrongSecurityGroupId");
     retval = callSetSecurityKey(client, wrongSecurityGroupId, 1, 2);
@@ -289,7 +290,7 @@ START_TEST(TestSetSecurityKeys_MissingSecurityGroup) {
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_GOOD) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_UInt32 futureKeySize = 2;
     UA_UInt32 currentTokenId = 1;
     UA_UInt32 startingTokenId = 1;
@@ -297,7 +298,8 @@ START_TEST(TestSetSecurityKeys_GOOD) {
     UA_StatusCode retval = encyrptedclientconnect(client);
 
     lockServer(server);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     unlockServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
@@ -318,14 +320,15 @@ START_TEST(TestSetSecurityKeys_GOOD) {
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingList){
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_UInt32 futureKeySize = 2;
     UA_UInt32 currentTokenId = 1;
 
     UA_StatusCode retval = encyrptedclientconnect(client);
 
     lockServer(server);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     unlockServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
@@ -340,7 +343,7 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingList){
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKeys){
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_UInt32 futureKeySize = 2;
     UA_UInt32 currentTokenId = 1;
     UA_UInt32 startingTokenId = 1;
@@ -348,7 +351,8 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKe
     UA_StatusCode retval = encyrptedclientconnect(client);
 
     lockServer(server);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     unlockServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
@@ -373,7 +377,7 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKe
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_ReplaceExistingKeyListWithFetchedKeyList){
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_UInt32 futureKeySize = 2;
     UA_UInt32 currentTokenId = 1;
     UA_UInt32 startingTokenId = 1;
@@ -381,7 +385,8 @@ START_TEST(TestSetSecurityKeys_ReplaceExistingKeyListWithFetchedKeyList){
     UA_StatusCode retval = encyrptedclientconnect(client);
 
     lockServer(server);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     unlockServer(server);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);

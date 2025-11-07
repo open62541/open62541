@@ -1,5 +1,0 @@
-usr/lib/*/cmake/open62541/*
-usr/share/open62541/*.py
-usr/share/open62541/certs
-usr/share/open62541/nodeset_compiler
-usr/share/open62541/schema

@@ -7,7 +7,10 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/server_pubsub.h>
 
+#include "test_helpers.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -37,10 +40,8 @@ static char* get_mqtt_broker_address(void) {
 }
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 
     //add connection
@@ -49,7 +50,6 @@ static void setup(void) {
     connectionConfig.name = UA_STRING("Mqtt Connection");
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp");
-    connectionConfig.enabled = UA_TRUE;
 
     /* configure address of the mqtt broker (local on default port) */
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING(get_mqtt_broker_address())};
@@ -57,8 +57,8 @@ static void setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = 2234;
 
     /* configure options, set mqtt client id */
     UA_KeyValuePair connectionOptions[1];
@@ -158,7 +158,6 @@ START_TEST(SinglePublishSubscribeDateTime){
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
         writerGroupConfig.publishingInterval = SUBSCRIBE_INTERVAL;
-        writerGroupConfig.enabled = UA_FALSE;
         writerGroupConfig.writerGroupId = 100;
         UA_UadpWriterGroupMessageDataType *writerGroupMessage;
 
@@ -191,8 +190,6 @@ START_TEST(SinglePublishSubscribeDateTime){
         writerGroupConfig.transportSettings = transportSettings;
         retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-        retval = UA_Server_setWriterGroupOperational(server, writerGroupIdent);
-        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 
         // add DataSetWriter
@@ -208,16 +205,17 @@ START_TEST(SinglePublishSubscribeDateTime){
                                             &dataSetWriterConfig, &dataSetWriterIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-        retval = UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+        retval = UA_Server_enableAllPubSubComponents(server);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupIdent);
+        UA_PubSubManager *psm = getPSM(server);
+        UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroupIdent);
         ck_assert(wg != 0);
 
-        while(wg->state != UA_PUBSUBSTATE_OPERATIONAL)
+        while(wg->head.state != UA_PUBSUBSTATE_OPERATIONAL)
             UA_Server_run_iterate(server, false);
 
-        UA_WriterGroup_publishCallback(server, wg);
+        UA_WriterGroup_publishCallback(psm, wg);
 
         /*---------------------------------------------------------------------*/
 
@@ -247,15 +245,13 @@ START_TEST(SinglePublishSubscribeDateTime){
         retval = UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
                                           &readerGroupIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-        retval = UA_Server_setReaderGroupOperational(server, readerGroupIdent);
-        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         // add DataSetReader
         memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
         readerConfig.name = UA_STRING("DataSet Reader 1");
         UA_UInt16 publisherIdentifier = 2234;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        readerConfig.publisherId.id.uint16 = publisherIdentifier;
         readerConfig.writerGroupId    = 100;
         readerConfig.dataSetWriterId  = 62541;
 
@@ -264,7 +260,6 @@ START_TEST(SinglePublishSubscribeDateTime){
         retval = UA_Server_addDataSetReader(server, readerGroupIdent, &readerConfig,
                                             &subscribedDataSetIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-
 
         // add SubscribedVariables
         UA_NodeId folderId;
@@ -290,8 +285,8 @@ START_TEST(SinglePublishSubscribeDateTime){
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         /* Create the TargetVariables with respect to DataSetMetaData fields */
-        UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
-            UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
+        UA_FieldTargetDataType *targetVars = (UA_FieldTargetDataType*)
+            UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetDataType));
         for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++) {
             /* Variable to subscribe data */
             UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -302,29 +297,26 @@ START_TEST(SinglePublishSubscribeDateTime){
             vAttr.dataType = readerConfig.dataSetMetaData.fields[i].dataType;
 
             UA_NodeId newNode;
-            retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
+            retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 500000),
                                                 folderId,
                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                                                 UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
                                                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                                 vAttr, NULL, &newNode);
             ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-
-            /* For creating Targetvariables */
-            UA_FieldTargetDataType_init(&targetVars[i].targetVariable);
-            targetVars[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-            targetVars[i].targetVariable.targetNodeId = newNode;
+            targetVars[i].attributeId  = UA_ATTRIBUTEID_VALUE;
+            targetVars[i].targetNodeId = newNode;
         }
 
         retval = UA_Server_DataSetReader_createTargetVariables(server, subscribedDataSetIdent,
                                                                readerConfig.dataSetMetaData.fieldsSize, targetVars);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-        for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++)
-            UA_FieldTargetDataType_clear(&targetVars[i].targetVariable);
-
         UA_free(targetVars);
         UA_free(readerConfig.dataSetMetaData.fields);
+
+        retval = UA_Server_enableAllPubSubComponents(server);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     } END_TEST
 
@@ -364,7 +356,8 @@ START_TEST(CreateReaderGroup) {
     memset(&transportSettingsData, 0,
            sizeof(UA_BrokerDataSetReaderTransportDataType));
 
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupIdent);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupIdent);
     ck_assert(rg != 0);
     UA_ExtensionObject *ts = &rg->config.transportSettings;
 

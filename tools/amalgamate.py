@@ -5,11 +5,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this 
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from __future__ import print_function
 import argparse
 import os.path
 import re
-import io
 
 parser = argparse.ArgumentParser()
 parser.add_argument('version', help='file version')
@@ -24,13 +22,13 @@ if outname[-2:] == ".c":
 pos = outname.find(".")
 if pos > 0:
     outname = outname[:pos]
-include_re = re.compile("^#[\s]*include (\".*\").*$|^#[\s]*include (<open62541/.*>).*$")
-guard_re = re.compile("^#(?:(?:ifndef|define)\s*[A-Z_]+_H_|endif /\* [A-Z_]+_H_ \*/|endif // [A-Z_]+_H_|endif\s*/\*\s*!?[A-Z_]+_H[_]+\s*\*/)")
+include_re = re.compile("^#[\\s]*include (\".*\").*$|^#[\\s]*include (<open62541/.*>).*$")
+guard_re = re.compile(r"^#(?:(?:ifndef|define)\s*[A-Z_]+_H_|endif /\* [A-Z_]+_H_ \*/|endif // [A-Z_]+_H_|endif\s*/\*\s*!?[A-Z_]+_H[_]+\s*\*/)")
 
 print ("Starting amalgamating file "+ args.outfile)
 
-file = io.open(args.outfile, 'wt', encoding='utf8', errors='replace')
-file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES
+file = open(args.outfile, 'w', encoding='utf8', errors='replace')
+file.write("""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN62541 SOURCES
  * visit http://open62541.org/ for information about this software
  * Git-Revision: %s
  */
@@ -48,7 +46,7 @@ file.write(u"""/* THIS IS A SINGLE-FILE DISTRIBUTION CONCATENATED FROM THE OPEN6
  */\n\n""" % args.version)
 
 if is_c:
-    file.write(u'''#ifndef UA_DYNAMIC_LINKING_EXPORT
+    file.write('''#ifndef UA_DYNAMIC_LINKING_EXPORT
 # define UA_DYNAMIC_LINKING_EXPORT
 # define MDNSD_DYNAMIC_LINKING
 #endif
@@ -63,9 +61,9 @@ if is_c:
 #include "%s.h"
 ''' % outname)
 else:
-    file.write(u'''#ifndef %s
-#define %s
-''' % (outname.upper() + u"_H_", outname.upper() + u"_H_"))
+    file.write('''#ifndef {}
+#define {}
+'''.format(outname.upper() + "_H_", outname.upper() + "_H_"))
 
 # Remove the filesystem folder prefix
 initial = 999
@@ -79,9 +77,9 @@ for fname in args.inputs:
         initial = pos - 1
 
 for fname in args.inputs:
-    with io.open(fname, encoding='utf8', errors='replace') as infile:
-        file.write(u"\n/**** amalgamated original file \"" + fname[initial:] + u"\" ****/\n\n")
-        print ("Integrating file '" + fname + "' ... ", end=""),
+    with open(fname, encoding='utf8', errors='replace') as infile:
+        file.write("\n/**** amalgamated original file \"" + fname[initial:] + "\" ****/\n\n")
+        print ("Integrating file '" + fname + "' ... ", end="")
         for line in infile:
             inc_res = include_re.match(line)
             guard_res = guard_re.match(line)
@@ -90,10 +88,10 @@ for fname in args.inputs:
         # Ensure file is written to disk.
         file.flush()
         os.fsync(file.fileno())
-        print ("done."),
+        print ("done.")
 
 if not is_c:
-    file.write(u"#endif /* %s */\n" % (outname.upper() + u"_H_"))
+    file.write("#endif /* %s */\n" % (outname.upper() + "_H_"))
 
 # Ensure file is written to disk.
 # See https://stackoverflow.com/questions/13761961/large-file-not-flushed-to-disk-immediately-after-calling-close

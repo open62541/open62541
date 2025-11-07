@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -69,7 +69,6 @@ START_TEST(CheckKVMContains) {
 END_TEST
 
 START_TEST(CheckKVMCopy) {
-
         UA_KeyValueMap *kvm = keyValueMap_setup(10, 0, 0);
         UA_KeyValueMap kvmCopy;
         UA_KeyValueMap_copy(kvm, &kvmCopy);
@@ -79,6 +78,20 @@ START_TEST(CheckKVMCopy) {
         }
         UA_KeyValueMap_delete(kvm);
         UA_KeyValueMap_clear(&kvmCopy);
+}
+END_TEST
+
+START_TEST(CheckKVMRemove) {
+        UA_KeyValueMap *kvm = keyValueMap_setup(10, 0, 0);
+        
+        for(size_t i = 0; i < 10; i++) {
+            char key[10];
+            snprintf(key, 10, "key%02d", (UA_UInt16) i);
+            UA_StatusCode retval = UA_KeyValueMap_remove(kvm, UA_QUALIFIEDNAME(0, key));
+            ck_assert_uint_eq(retval,UA_STATUSCODE_GOOD);
+            ck_assert_uint_eq(kvm->mapSize, 9-i);
+        }
+        UA_KeyValueMap_delete(kvm);
 }
 END_TEST
 
@@ -167,6 +180,7 @@ int main(void) {
     tcase_add_test(tc, CheckNullArgs);
     tcase_add_test(tc, CheckKVMContains);
     tcase_add_test(tc, CheckKVMCopy);
+    tcase_add_test(tc, CheckKVMRemove);
     tcase_add_test(tc, CheckKVMCountMergedIntersecting);
     tcase_add_test(tc, CheckKVMCountMergedComplementary);
     tcase_add_test(tc, CheckKVMCountMergedCommon);

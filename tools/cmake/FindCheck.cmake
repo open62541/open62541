@@ -2,7 +2,7 @@
 #  Once done this will define
 #
 #  CHECK_FOUND - system has check
-#  CHECK_INCLUDE_DIR - the check include directory
+#  CHECK_INCLUDE_DIRS - the check include directory
 #  CHECK_LIBRARIES - check library
 #
 #  This configuration file for finding libcheck is originally from
@@ -53,21 +53,21 @@ endif()
 IF( NOT CHECK_FOUND )
     IF ( CHECK_INSTALL_DIR )
       MESSAGE ( STATUS "Using override CHECK_INSTALL_DIR to find check: ${CHECK_INSTALL_DIR}" )
-      SET ( CHECK_INCLUDE_DIR "${CHECK_INSTALL_DIR}/include" )
+      SET ( CHECK_INCLUDE_DIRS "${CHECK_INSTALL_DIR}/include" )
 #     Find_library() always returns the 64-bit version in "C:/Program Files/Check/lib" no matter what path is passed in
 #     FIND_LIBRARY( CHECK_LIBRARIES NAMES check PATHS "${CHECK_INSTALL_DIR}/lib" NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH )
       SET ( CHECK_LIBRARIES "${CHECK_INSTALL_DIR}/lib/check.lib" )
     ELSE ( CHECK_INSTALL_DIR )
-      FIND_PATH( CHECK_INCLUDE_DIR check.h )
+      FIND_PATH( CHECK_INCLUDE_DIRS check.h )
       FIND_LIBRARY( CHECK_LIBRARIES NAMES check )
     ENDIF ( CHECK_INSTALL_DIR )
 
-    IF ( CHECK_INCLUDE_DIR AND CHECK_LIBRARIES )
+    IF ( CHECK_INCLUDE_DIRS AND CHECK_LIBRARIES )
       SET( CHECK_FOUND 1 )
       IF ( NOT Check_FIND_QUIETLY )
         MESSAGE ( STATUS "Found CHECK: ${CHECK_LIBRARIES}" )
       ENDIF ( NOT Check_FIND_QUIETLY )
-    ELSE ( CHECK_INCLUDE_DIR AND CHECK_LIBRARIES )
+    ELSE ( CHECK_INCLUDE_DIRS AND CHECK_LIBRARIES )
       IF ( Check_FIND_REQUIRED )
         MESSAGE( FATAL_ERROR "Could NOT find CHECK" )
       ELSE ( Check_FIND_REQUIRED )
@@ -75,8 +75,8 @@ IF( NOT CHECK_FOUND )
           MESSAGE( STATUS "Could NOT find CHECK" )
         ENDIF ( NOT Check_FIND_QUIETLY )
       ENDIF ( Check_FIND_REQUIRED )
-    ENDIF ( CHECK_INCLUDE_DIR AND CHECK_LIBRARIES )
+    ENDIF ( CHECK_INCLUDE_DIRS AND CHECK_LIBRARIES )
 ENDIF( NOT CHECK_FOUND )
 
 # Hide advanced variables from CMake GUIs
-MARK_AS_ADVANCED( CHECK_INCLUDE_DIR CHECK_LIBRARIES )
+MARK_AS_ADVANCED( CHECK_INCLUDE_DIRS CHECK_LIBRARY_DIRS CHECK_LIBRARIES )

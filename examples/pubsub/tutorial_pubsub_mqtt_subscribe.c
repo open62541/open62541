@@ -4,12 +4,10 @@
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  */
 
-#include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION)
+#include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/securitypolicy_default.h>
-#endif
 
 #include <stdio.h>
 
@@ -44,7 +42,7 @@
 #define CA_FILE_PATH                    "/path/to/server.cert"
 #endif
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && !defined(UA_ENABLE_JSON_ENCODING)
 #define UA_AES128CTR_SIGNING_KEY_LENGTH 32
 #define UA_AES128CTR_KEY_LENGTH 16
 #define UA_AES128CTR_KEYNONCE_LENGTH 4
@@ -64,9 +62,8 @@ UA_DataSetReaderConfig readerConfig;
 
 static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData);
 
-static UA_StatusCode
+static void
 addPubSubConnection(UA_Server *server, char *addressUrl) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Details about the connection configuration and handling are located
      * in the pubsub connection tutorial */
     UA_PubSubConnectionConfig connectionConfig;
@@ -77,7 +74,6 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     } else {
         connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI_UADP);
     }
-    connectionConfig.enabled = UA_TRUE;
 
     /* configure address of the mqtt broker (local on default port) */
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING(addressUrl)};
@@ -85,16 +81,8 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
-
-    /* configure options, set mqtt client id */
-/* #ifdef EXAMPLE_USE_MQTT_LOGIN */
-/*     + LOGIN_OPTION_COUNT */
-/* #endif */
-/* #ifdef EXAMPLE_USE_MQTT_TLS */
-/*     + TLS_OPTION_COUNT */
-/* #endif */
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = 2234;
 
     UA_KeyValuePair connectionOptions[1];
 
@@ -102,32 +90,10 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     connectionOptions[0].key = UA_QUALIFIEDNAME(0, CONNECTIONOPTION_NAME);
     UA_Variant_setScalar(&connectionOptions[0].value, &mqttClientId, &UA_TYPES[UA_TYPES_STRING]);
 
-/* #ifdef EXAMPLE_USE_MQTT_LOGIN */
-/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USERNAME_OPTION_NAME); */
-/*     UA_String mqttUsername = UA_STRING(MQTT_USERNAME); */
-/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUsername, &UA_TYPES[UA_TYPES_STRING]); */
-
-/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, PASSWORD_OPTION_NAME); */
-/*     UA_String mqttPassword = UA_STRING(MQTT_PASSWORD); */
-/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttPassword, &UA_TYPES[UA_TYPES_STRING]); */
-/* #endif */
-
-/* #ifdef EXAMPLE_USE_MQTT_TLS */
-/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USE_TLS_OPTION_NAME); */
-/*     UA_Boolean mqttUseTLS = true; */
-/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUseTLS, &UA_TYPES[UA_TYPES_BOOLEAN]); */
-
-/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, MQTT_CA_FILE_PATH_OPTION_NAME); */
-/*     UA_String mqttCaFile = UA_STRING(CA_FILE_PATH); */
-/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttCaFile, &UA_TYPES[UA_TYPES_STRING]); */
-/* #endif */
-
     connectionConfig.connectionProperties.map = connectionOptions;
     connectionConfig.connectionProperties.mapSize = 1;
 
-    retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
-
-    return retval;
+    UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
 /**
@@ -136,14 +102,8 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
  * ReaderGroup is used to group a list of DataSetReaders. All ReaderGroups are
  * created within a PubSubConnection and automatically deleted if the connection
  * is removed. All network message related filters are only available in the DataSetReader. */
-/* Add ReaderGroup to the created connection */
-static UA_StatusCode
+static void
 addReaderGroup(UA_Server *server) {
-    if(server == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
@@ -171,27 +131,24 @@ addReaderGroup(UA_Server *server) {
 
     readerGroupConfig.transportSettings = transportSettings;
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && !defined(UA_ENABLE_JSON_ENCODING)
     /* Encryption settings */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     readerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 #endif
 
-    retval |= UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
-                                       &readerGroupIdent);
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
+    UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
+                             &readerGroupIdent);
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && !defined(UA_ENABLE_JSON_ENCODING)
     /* Add the encryption key informaton */
     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
     UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
     UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
 
     // TODO security token not necessary for readergroup (extracted from security-header)
-    retval |= UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdent, 1, sk, ek, kn);
+    UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdent, 1, sk, ek, kn);
 #endif
-    retval |= UA_Server_setReaderGroupOperational(server, readerGroupIdent);
-
-    return retval;
 }
 
 /**
@@ -202,14 +159,8 @@ addReaderGroup(UA_Server *server) {
  * the configuration necessary to receive and process DataSetMessages
  * on the Subscriber side. DataSetReader must be linked with a
  * SubscribedDataSet and be contained within a ReaderGroup. */
-/* Add DataSetReader to the ReaderGroup */
-static UA_StatusCode
+static void
 addDataSetReader(UA_Server *server) {
-    if(server == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING("DataSet Reader 1");
     /* Parameters to filter which DataSetMessage has to be processed
@@ -218,20 +169,17 @@ addDataSetReader(UA_Server *server) {
      * tutorial_pubsub_mqtt_publish.c is being subscribed and is being updated in
      * the information model */
     UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
-#ifdef UA_ENABLE_PUBSUB_MONITORING
     readerConfig.messageReceiveTimeout = 10;
-#endif
 
     /* Setting up Meta data configuration in DataSetReader */
     fillTestDataSetMetaData(&readerConfig.dataSetMetaData);
 
-    retval |= UA_Server_addDataSetReader(server, readerGroupIdent, &readerConfig,
-                                         &subscribedDataSetIdent);
-    return retval;
+    UA_Server_addDataSetReader(server, readerGroupIdent, &readerConfig,
+                               &subscribedDataSetIdent);
 }
 
 /**
@@ -239,12 +187,8 @@ addDataSetReader(UA_Server *server) {
  *
  * Set SubscribedDataSet type to TargetVariables data type.
  * Add subscribedvariables to the DataSetReader */
-static UA_StatusCode
+static void
 addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
-    if(server == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_NodeId folderId;
     UA_String folderName = readerConfig.dataSetMetaData.name;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
@@ -260,11 +204,9 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode (server, UA_NODEID_NULL,
-                             UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
-                             UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
-                             folderBrowseName, UA_NODEID_NUMERIC (0,
-                                                                  UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                            UA_NS0ID(ORGANIZES), folderBrowseName,
+                            UA_NS0ID(BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
 /**
  * **TargetVariables**
@@ -273,8 +215,8 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
  * received DataSet fields and target Variables in the Subscriber AddressSpace.
  * The values subscribed from the Publisher are updated in the value field of these variables */
     /* Create the TargetVariables with respect to DataSetMetaData fields */
-    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
-        UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
+    UA_FieldTargetDataType  *targetVars = (UA_FieldTargetDataType *)
+        UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetDataType));
     for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++) {
         /* Variable to subscribe data */
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -285,27 +227,22 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
         vAttr.dataType = readerConfig.dataSetMetaData.fields[i].dataType;
 
         UA_NodeId newNode;
-        retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
-                                            folderId,
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                            UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                            vAttr, NULL, &newNode);
+        UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
+                                  folderId, UA_NS0ID(HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
+                                  vAttr, NULL, &newNode);
 
-        /* For creating Targetvariables */
-        UA_FieldTargetDataType_init(&targetVars[i].targetVariable);
-        targetVars[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        targetVars[i].targetVariable.targetNodeId = newNode;
+        targetVars[i].attributeId  = UA_ATTRIBUTEID_VALUE;
+        targetVars[i].targetNodeId = newNode;
     }
 
-    retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
-                                                           readerConfig.dataSetMetaData.fieldsSize, targetVars);
-    for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++)
-        UA_FieldTargetDataType_clear(&targetVars[i].targetVariable);
+    UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
+                                                  readerConfig.dataSetMetaData.fieldsSize,
+                                                  targetVars);
 
     UA_free(targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
-    return retval;
 }
 
 /**
@@ -315,12 +252,8 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
  * DataSetMessages on the Subscriber side. DataSetMessages received from the Publisher are decoded into
  * DataSet and each field is updated in the Subscriber based on datatype match of TargetVariable fields of Subscriber
  * and PublishedDataSetFields of Publisher */
-/* Define MetaData for TargetVariables */
-static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
-    if(pMetaData == NULL) {
-        return;
-    }
-
+static void
+fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     UA_DataSetMetaDataType_init (pMetaData);
     pMetaData->name = UA_STRING ("DataSet 1");
 
@@ -409,7 +342,7 @@ int main(int argc, char **argv) {
     /* Return value initialized to Status Good */
     UA_Server *server = UA_Server_new();
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION)
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
     /* Instantiate the PubSub SecurityPolicy */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
@@ -419,29 +352,14 @@ int main(int argc, char **argv) {
                                       config->logging);
 #endif
 
-    /* API calls */
-    /* Add PubSubConnection */
-    UA_StatusCode retval = addPubSubConnection(server, addressUrl);
-    if (retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
+    addPubSubConnection(server, addressUrl);
+    addReaderGroup(server);
+    addDataSetReader(server);
+    addSubscribedVariables(server, subscribedDataSetIdent);
 
-    /* Add ReaderGroup to the created PubSubConnection */
-    retval |= addReaderGroup(server);
-    if (retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
+    UA_Server_enableAllPubSubComponents(server);
+    UA_Server_runUntilInterrupt(server);
 
-    /* Add DataSetReader to the created ReaderGroup */
-    retval |= addDataSetReader(server);
-    if (retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* Add SubscribedVariables to the created DataSetReader */
-    retval |= addSubscribedVariables(server, subscribedDataSetIdent);
-    if (retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    retval = UA_Server_runUntilInterrupt(server);
-cleanup:
     UA_Server_delete(server);
-    return EXIT_SUCCESS;
+    return 0;
 }

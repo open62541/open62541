@@ -11,11 +11,9 @@
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  */
 
-#include <open62541/transport_generated_handling.h>
-
+#include "open62541/transport_generated.h"
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_util_internal.h"
 
 UA_StatusCode
 UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
@@ -61,6 +59,9 @@ UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
     UA_ByteString localEncryptingKey = {encrKL, &buf.data[signKL]};
     UA_ByteString localIv = {encrBS, &buf.data[signKL + encrKL]};
 
+    /* TODO: Signal that no ECC salt is generated. Find a clean solution for this.  */
+    buf.data[0] = 0x00;
+
     /* Generate key */
     retval = sm->generateKey(sp->policyContext, &channel->remoteNonce,
                              &channel->localNonce, &buf);
@@ -103,6 +104,9 @@ generateRemoteKeys(const UA_SecureChannel *channel) {
     UA_ByteString remoteSigningKey = {signKL, buf.data};
     UA_ByteString remoteEncryptingKey = {encrKL, &buf.data[signKL]};
     UA_ByteString remoteIv = {encrBS, &buf.data[signKL + encrKL]};
+
+    /* TODO: Signal that no ECC salt is generated. Find a clean solution for this.  */
+    buf.data[0] = 0x00;
 
     /* Generate key */
     retval = sm->generateKey(sp->policyContext, &channel->localNonce,
@@ -176,7 +180,7 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval |= UA_encodeBinaryInternal(&messageHeader,
                                       &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
-                                      &header_pos, &buf_end, NULL, NULL);
+                                      &header_pos, &buf_end, NULL, NULL, NULL);
     retval |= UA_UInt32_encodeBinary(&secureChannelId, &header_pos, buf_end);
     UA_CHECK_STATUS(retval, return retval);
 
@@ -189,9 +193,9 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
         asymHeader.receiverCertificateThumbprint.length = 20;
         asymHeader.receiverCertificateThumbprint.data = channel->remoteCertificateThumbprint;
     }
-    retval = UA_encodeBinaryInternal(&asymHeader,
-                &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER],
-                &header_pos, &buf_end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(
+        &asymHeader, &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER],
+        &header_pos, &buf_end, NULL, NULL, NULL);
     UA_CHECK_STATUS(retval, return retval);
 
     /* Increase the sequence number in the channel */
@@ -201,7 +205,7 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
     seqHeader.requestId = requestId;
     seqHeader.sequenceNumber = channel->sendSequenceNumber;
     retval = UA_encodeBinaryInternal(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
-                                     &header_pos, &buf_end, NULL, NULL);
+                                     &header_pos, &buf_end, NULL, NULL, NULL);
     return retval;
 }
 
@@ -213,7 +217,6 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
     *buf_start += calculateAsymAlgSecurityHeaderLength(channel);
     *buf_start += UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
 
-#ifdef UA_ENABLE_ENCRYPTION
     if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
         return;
 
@@ -239,10 +242,7 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
     size_t paddingBytes = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
     *buf_end = *buf_start + (max_blocks * plainTextBlockSize) -
         UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH - paddingBytes;
-#endif
 }
-
-#ifdef UA_ENABLE_ENCRYPTION
 
 /* Assumes that pos can be advanced to the end of the current block */
 void
@@ -268,7 +268,7 @@ padChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cm,
     /* Write the padding. This is <= because the paddingSize byte also has to be
      * written */
     UA_Byte paddingByte = (UA_Byte)paddingLength;
-    for(UA_UInt16 i = 0; i <= paddingLength; ++i) {
+    for(size_t i = 0; i <= paddingLength; ++i) {
         **pos = paddingByte;
         ++*pos;
     }
@@ -347,8 +347,6 @@ signAndEncryptSym(UA_MessageContext *messageContext,
         encrypt(channel->channelContext, &dataToEncrypt);
 }
 
-#endif /* UA_ENABLE_ENCRYPTION */
-
 void
 setBufPos(UA_MessageContext *mc) {
     /* Forward the data pointer so that the payload is encoded after the message
@@ -357,7 +355,6 @@ setBufPos(UA_MessageContext *mc) {
     mc->buf_pos = &mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH];
     mc->buf_end = &mc->messageBuffer.data[mc->messageBuffer.length];
 
-#ifdef UA_ENABLE_ENCRYPTION
     if(mc->channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
         return;
 
@@ -392,7 +389,6 @@ setBufPos(UA_MessageContext *mc) {
                          (long unsigned)mc->messageBuffer.length,
                          (long unsigned)((uintptr_t)mc->buf_end -
                                          (uintptr_t)mc->messageBuffer.data));
-#endif
 }
 
 /****************************/
@@ -463,11 +459,12 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
        UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
                               "Could not verify the signature"); return res);
 
-    /* Compute the padding if the payload as encrypted */
+    /* Compute the padding if the payload is encrypted (not ECC policy) */
     size_t padSize = 0;
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT ||
+    if(((messageType != UA_MESSAGETYPE_OPN) && (channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)) ||
        (messageType == UA_MESSAGETYPE_OPN &&
-        cryptoModule->encryptionAlgorithm.uri.length > 0)) {
+        cryptoModule->encryptionAlgorithm.uri.length > 0 && 
+        !isEccPolicy(channel->securityPolicy))) {
         padSize = decodePadding(channel, cryptoModule, chunk, sigsize);
         UA_LOG_TRACE_CHANNEL(channel->securityPolicy->logger, channel,
                              "Calculated padding size to be %lu",
@@ -491,7 +488,7 @@ UA_StatusCode
 checkAsymHeader(UA_SecureChannel *channel,
                 const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
-    if(!UA_ByteString_equal(&sp->policyUri, &asymHeader->securityPolicyUri))
+    if(!UA_String_equal(&sp->policyUri, &asymHeader->securityPolicyUri))
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
     return sp->asymmetricModule.
@@ -503,7 +500,8 @@ checkAsymHeader(UA_SecureChannel *channel,
 }
 
 UA_StatusCode
-checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId) {
+checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId,
+               UA_DateTime nowMonotonic) {
     /* If no match, try to revolve to the next token after a
      * RenewSecureChannel */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -558,7 +556,7 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId) {
 
     UA_DateTime timeout = token->createdAt + (token->revisedLifetime * UA_DATETIME_MSEC);
     if(channel->state == UA_SECURECHANNELSTATE_OPEN &&
-       timeout < UA_DateTime_nowMonotonic()) {
+       timeout < nowMonotonic) {
         UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
                                "SecurityToken timed out");
         UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_TIMEOUT);
@@ -566,4 +564,32 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId) {
     }
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_Boolean
+UA_SecureChannel_checkTimeout(UA_SecureChannel *channel, UA_DateTime nowMonotonic) {
+    /* Compute the timeout date of the SecurityToken */
+    UA_DateTime timeout = channel->securityToken.createdAt +
+        (UA_DateTime)(channel->securityToken.revisedLifetime * UA_DATETIME_MSEC);
+
+    /* The token has timed out. Try to do the token revolving now instead of
+     * shutting the channel down.
+     *
+     * Part 4, 5.5.2 says: Servers shall use the existing SecurityToken to
+     * secure outgoing Messages until the SecurityToken expires or the
+     * Server receives a Message secured with a new SecurityToken.*/
+    if(timeout < nowMonotonic && channel->renewState == UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER) {
+        /* Revolve the token manually. This is otherwise done in checkSymHeader. */
+        channel->renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
+        channel->securityToken = channel->altSecurityToken;
+        UA_ChannelSecurityToken_init(&channel->altSecurityToken);
+        UA_SecureChannel_generateLocalKeys(channel);
+        generateRemoteKeys(channel);
+
+        /* Use the timeout of the new SecurityToken */
+        timeout = channel->securityToken.createdAt +
+            (UA_DateTime)(channel->securityToken.revisedLifetime * UA_DATETIME_MSEC);
+    }
+
+    return (timeout < nowMonotonic);
 }

@@ -78,7 +78,7 @@
 #define CA_FILE_PATH                    "/path/to/server.cert"
 #endif
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && !defined(UA_ENABLE_JSON_ENCODING)
 #define UA_AES128CTR_SIGNING_KEY_LENGTH 32
 #define UA_AES128CTR_KEY_LENGTH 16
 #define UA_AES128CTR_KEYNONCE_LENGTH 4
@@ -88,11 +88,7 @@ UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
 UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
 #endif
 
-#ifdef UA_ENABLE_JSON_ENCODING
-static UA_Boolean useJson = true;
-#else
 static UA_Boolean useJson = false;
-#endif
 
 static UA_NodeId connectionIdent;
 static UA_NodeId publishedDataSetIdent;
@@ -110,7 +106,6 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     } else {
         connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI_UADP);
     }
-    connectionConfig.enabled = true;
 
     /* configure address of the mqtt broker (local on default port) */
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING(addressUrl)};
@@ -118,8 +113,8 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = 2234;
 
     /* configure options, set mqtt client id */
 /* #ifdef EXAMPLE_USE_MQTT_LOGIN */
@@ -194,7 +189,7 @@ addDataSetField(UA_Server *server) {
     dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+        UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig, NULL);
 }
@@ -204,15 +199,13 @@ addDataSetField(UA_Server *server) {
  * The WriterGroup (WG) is part of the connection and contains the primary configuration
  * parameters for the message creation.
  */
-static UA_StatusCode
+static void
 addWriterGroup(UA_Server *server, char *topic, int interval) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Now we create a new WriterGroupConfig and add the group to the existing PubSubConnection. */
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
     writerGroupConfig.publishingInterval = interval;
-    writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     UA_UadpWriterGroupMessageDataType *writerGroupMessage;
 
@@ -222,9 +215,10 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
 
     if(useJson) {
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
-        writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
-
-        writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE];
+        writerGroupConfig.messageSettings.encoding =
+            UA_EXTENSIONOBJECT_DECODED;
+        writerGroupConfig.messageSettings.content.decoded.type =
+            &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE];
         /* The configuration flags for the messages are encapsulated inside the
          * message- and transport settings extension objects. These extension
          * objects are defined by the standard. e.g.
@@ -241,13 +235,13 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
             (UA_JsonNetworkMessageContentMask)UA_JSONNETWORKMESSAGECONTENTMASK_DATASETCLASSID);
         writerGroupConfig.messageSettings.content.decoded.data = Json_writerGroupMessage;
     }
-
     else
 #endif
     {
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-        writerGroupConfig.messageSettings.encoding             = UA_EXTENSIONOBJECT_DECODED;
-        writerGroupConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+        writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+        writerGroupConfig.messageSettings.content.decoded.type =
+            &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
         /* The configuration flags for the messages are encapsulated inside the
          * message- and transport settings extension objects. These extension
          * objects are defined by the standard. e.g.
@@ -264,7 +258,7 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
         writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     }
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && !defined(UA_ENABLE_JSON_ENCODING)
     /* Encryption settings */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     writerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
@@ -281,7 +275,8 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
     brokerTransportSettings.authenticationProfileUri = UA_STRING_NULL;
 
     /* Choose the QOS Level for MQTT */
-    brokerTransportSettings.requestedDeliveryGuarantee = UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
+    brokerTransportSettings.requestedDeliveryGuarantee =
+        UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
 
     /* Encapsulate config in transportSettings */
     UA_ExtensionObject transportSettings;
@@ -291,35 +286,25 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
     transportSettings.content.decoded.data = &brokerTransportSettings;
 
     writerGroupConfig.transportSettings = transportSettings;
-    retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
-
-    if (retval == UA_STATUSCODE_GOOD)
-        UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
 
 #ifdef UA_ENABLE_JSON_ENCODING
-    if (useJson) {
+    if(useJson) {
         UA_JsonWriterGroupMessageDataType_delete(Json_writerGroupMessage);
     }
 #endif
 
-    if (!useJson && writerGroupMessage) {
+    if(!useJson && writerGroupMessage) {
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
     }
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && !defined(UA_ENABLE_JSON_ENCODING)
     /* Add the encryption key informaton */
     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
     UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
     UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
-    retval = UA_Server_setWriterGroupEncryptionKeys(server, writerGroupIdent, 1, sk, ek, kn);
-    if (retval!= UA_STATUSCODE_GOOD)
-    {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"SV_PubSub.c : addWriterGroup : UA_Server_setWriterGroupEncryptionKeys : "
-                                                            "failure %s", UA_StatusCode_name(retval));
-    }
+    UA_Server_setWriterGroupEncryptionKeys(server, writerGroupIdent, 1, sk, ek, kn);
 #endif
-
-    return retval;
 }
 
 /**
@@ -352,7 +337,8 @@ addDataSetWriter(UA_Server *server, char *topic) {
              UA_JSONDATASETMESSAGECONTENTMASK_TIMESTAMP);
 
         messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-        messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE];
+        messageSettings.content.decoded.type =
+            &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE];
         messageSettings.content.decoded.data = &jsonDswMd;
 
         dataSetWriterConfig.messageSettings = messageSettings;
@@ -373,13 +359,15 @@ addDataSetWriter(UA_Server *server, char *topic) {
     brokerTransportSettings.metaDataUpdateTime = PUBLISHER_METADATAUPDATETIME;
 
     /* Choose the QOS Level for MQTT */
-    brokerTransportSettings.requestedDeliveryGuarantee = UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
+    brokerTransportSettings.requestedDeliveryGuarantee =
+        UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
 
     /* Encapsulate config in transportSettings */
     UA_ExtensionObject transportSettings;
     memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
     transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-    transportSettings.content.decoded.type = &UA_TYPES[UA_TYPES_BROKERDATASETWRITERTRANSPORTDATATYPE];
+    transportSettings.content.decoded.type =
+        &UA_TYPES[UA_TYPES_BROKERDATASETWRITERTRANSPORTDATATYPE];
     transportSettings.content.decoded.data = &brokerTransportSettings;
 
     dataSetWriterConfig.transportSettings = transportSettings;
@@ -398,7 +386,7 @@ addDataSetWriter(UA_Server *server, char *topic) {
  *     :alt: OPC UA PubSub communication in wireshark
  *
  * The open62541 subscriber API will be released later. If you want to process
- * the the datagrams, take a look on the ua_network_pubsub_networkmessage.c
+ * the datagrams, take a look on the ``ua_pubsub_networkmessage_binary.c``
  * which already contains the decoding code for UADP messages.
  *
  * It follows the main server code, making use of the above definitions. */
@@ -429,7 +417,12 @@ int main(int argc, char **argv) {
         }
 
         if(strcmp(argv[argpos], "--json") == 0) {
+#ifdef UA_ENABLE_JSON_ENCODING
             useJson = true;
+#else 
+            printf("Json encoding not enabled (UA_ENABLE_JSON_ENCODING)\n");
+            useJson = false;
+#endif
             continue;
         }
 
@@ -477,7 +470,7 @@ int main(int argc, char **argv) {
 
     UA_Server *server = UA_Server_new();
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION)
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
     /* Instantiate the PubSub SecurityPolicy */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
@@ -490,16 +483,12 @@ int main(int argc, char **argv) {
     addPubSubConnection(server, addressUrl);
     addPublishedDataSet(server);
     addDataSetField(server);
-    UA_StatusCode retval = addWriterGroup(server, topic, interval);
-    if(UA_STATUSCODE_GOOD != retval) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "Error Name = %s", UA_StatusCode_name(retval));
-        UA_Server_delete(server);
-        return EXIT_SUCCESS;
-    }
+    addWriterGroup(server, topic, interval);
     addDataSetWriter(server, topic);
 
+    UA_Server_enableAllPubSubComponents(server);
     UA_Server_runUntilInterrupt(server);
+
     UA_Server_delete(server);
     return 0;
 }

@@ -12,6 +12,7 @@
 #include <check.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 
 static UA_Server *server = NULL;
@@ -36,16 +37,15 @@ createSession(void) {
     UA_CreateSessionRequest_init(&request);
     request.requestedSessionTimeout = UA_UINT32_MAX;
     lockServer(server);
-    UA_StatusCode retval = UA_Server_createSession(server, NULL, &request, &session);
+    UA_StatusCode retval = UA_Session_create(server, NULL, &request, &session);
     unlockServer(server);
     ck_assert_uint_eq(retval, 0);
 }
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     config->monitoredItemRegisterCallback = monitoredRegisterCallback;
     UA_Server_run_startup(server);
     createSession();
@@ -284,7 +284,6 @@ START_TEST(Server_publishCallback) {
     /* Sleep until the publishing interval times out */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
     UA_Server_run_iterate(server, false);
-    UA_realSleep(100);
 
     TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
         if ((sub->subscriptionId == subscriptionId1) || (sub->subscriptionId == subscriptionId2))
@@ -427,7 +426,9 @@ START_TEST(Server_overflow) {
 
     UA_fakeSleep(1); /* modify the server's currenttime */
 
-    UA_MonitoredItem_sampleCallback(server, mon);
+    UA_LOCK(&server->serviceMutex);
+    UA_MonitoredItem_sample(server, mon);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(mon->queueSize, 2);
     ck_assert_uint_eq(mon->parameters.queueSize, 3);
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
@@ -435,7 +436,9 @@ START_TEST(Server_overflow) {
 
     UA_fakeSleep(1); /* modify the server's currenttime */
 
-    UA_MonitoredItem_sampleCallback(server, mon);
+    UA_LOCK(&server->serviceMutex);
+    UA_MonitoredItem_sample(server, mon);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(mon->queueSize, 3);
     ck_assert_uint_eq(mon->parameters.queueSize, 3);
     notification = TAILQ_LAST(&mon->queue, NotificationQueue);
@@ -443,7 +446,9 @@ START_TEST(Server_overflow) {
 
     UA_fakeSleep(1); /* modify the server's currenttime */
 
-    UA_MonitoredItem_sampleCallback(server, mon);
+    UA_LOCK(&server->serviceMutex);
+    UA_MonitoredItem_sample(server, mon);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(mon->queueSize, 3);
     ck_assert_uint_eq(mon->parameters.queueSize, 3);
     notification = TAILQ_FIRST(&mon->queue);
@@ -547,7 +552,9 @@ START_TEST(Server_overflow) {
     UA_MonitoredItemModifyRequest_clear(&itemToModify);
     UA_ModifyMonitoredItemsResponse_clear(&modifyMonitoredItemsResponse);
 
-    UA_MonitoredItem_sampleCallback(server, mon);
+    UA_LOCK(&server->serviceMutex);
+    UA_MonitoredItem_sample(server, mon);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(mon->queueSize, 1);
     ck_assert_uint_eq(mon->parameters.queueSize, 1);
     notification = TAILQ_FIRST(&mon->queue);

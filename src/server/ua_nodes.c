@@ -12,7 +12,7 @@
  */
 
 #include "ua_server_internal.h"
-#include "ua_types_encoding_binary.h"
+#include "../ua_types_encoding_binary.h"
 
 /*********************/
 /* ReferenceType Set */
@@ -21,22 +21,21 @@
 #define UA_REFTYPES_ALL_MASK (~(UA_UInt32)0)
 #define UA_REFTYPES_ALL_MASK2 UA_REFTYPES_ALL_MASK, UA_REFTYPES_ALL_MASK
 #define UA_REFTYPES_ALL_MASK4 UA_REFTYPES_ALL_MASK2, UA_REFTYPES_ALL_MASK2
-#if (UA_REFERENCETYPESET_MAX) / 32 > 8
+#if UA_REFERENCETYPESET_MAX / 32 > 8
 # error Adjust macros to support than 256 reference types
-#elif (UA_REFERENCETYPESET_MAX) / 32 == 8
+#elif UA_REFERENCETYPESET_MAX / 32 == 8
 # define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK4, UA_REFTYPES_ALL_MASK4
-#elif (UA_REFERENCETYPESET_MAX) / 32 == 7
-# define UA_REFTYPES_ALL_ARRAY                                          \
-    UA_REFTYPES_ALL_MASK4, UA_REFTYPES_ALL_MASK2, UA_REFTYPES_ALL_MASK
-#elif (UA_REFERENCETYPESET_MAX) / 32 == 6
+#elif UA_REFERENCETYPESET_MAX / 32 == 7
+# define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK4, UA_REFTYPES_ALL_MASK2, UA_REFTYPES_ALL_MASK
+#elif UA_REFERENCETYPESET_MAX / 32 == 6
 # define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK4, UA_REFTYPES_ALL_MASK2
-#elif (UA_REFERENCETYPESET_MAX) / 32 == 5
+#elif UA_REFERENCETYPESET_MAX / 32 == 5
 # define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK4, UA_REFTYPES_ALL_MASK
-#elif (UA_REFERENCETYPESET_MAX) / 32 == 4
+#elif UA_REFERENCETYPESET_MAX / 32 == 4
 # define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK4
-#elif (UA_REFERENCETYPESET_MAX) / 32 == 3
+#elif UA_REFERENCETYPESET_MAX / 32 == 3
 # define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK2, UA_REFTYPES_ALL_MASK
-#elif (UA_REFERENCETYPESET_MAX) / 32 == 2
+#elif UA_REFERENCETYPESET_MAX / 32 == 2
 # define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK2
 #else
 # define UA_REFTYPES_ALL_ARRAY UA_REFTYPES_ALL_MASK
@@ -425,8 +424,8 @@ void UA_Node_clear(UA_Node *node) {
                         &UA_TYPES[UA_TYPES_INT32]);
         p->arrayDimensions = NULL;
         p->arrayDimensionsSize = 0;
-        if(p->valueSource == UA_VALUESOURCE_DATA)
-            UA_DataValue_clear(&p->value.data.value);
+        if(p->valueSourceType == UA_VALUESOURCETYPE_INTERNAL)
+            UA_DataValue_clear(&p->valueSource.internal.value);
         break;
     }
     case UA_NODECLASS_REFERENCETYPE: {
@@ -459,15 +458,14 @@ UA_CommonVariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
     dst->arrayDimensionsSize = src->arrayDimensionsSize;
     retval = UA_NodeId_copy(&src->dataType, &dst->dataType);
     dst->valueRank = src->valueRank;
-    dst->valueBackend = src->valueBackend;
+    dst->valueSourceType = src->valueSourceType;
     dst->valueSource = src->valueSource;
-    if(src->valueSource == UA_VALUESOURCE_DATA) {
-        retval |= UA_DataValue_copy(&src->value.data.value,
-                                    &dst->value.data.value);
-        dst->value.data.callback = src->value.data.callback;
-    } else {
-        dst->value.dataSource = src->value.dataSource;
-    }
+    if(src->valueSourceType == UA_VALUESOURCETYPE_INTERNAL)
+        retval |= UA_DataValue_copy(&src->valueSource.internal.value,
+                                    &dst->valueSource.internal.value);
+    else if(src->valueSourceType == UA_VALUESOURCETYPE_EXTERNAL)
+        retval |= UA_DataValue_copy(*src->valueSource.external.value,
+                                    &dst->valueSource.internal.value);
     return retval;
 }
 
@@ -491,9 +489,6 @@ static UA_StatusCode
 UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
     dst->executable = src->executable;
     dst->method = src->method;
-#if UA_MULTITHREADING >= 100
-    dst->async = src->async;
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -763,9 +758,10 @@ copyCommonVariableAttributes(UA_VariableNode *node,
     node->valueRank = attr->valueRank;
 
     /* Copy the value */
-    retval = UA_Variant_copy(&attr->value, &node->value.data.value.value);
-    node->valueSource = UA_VALUESOURCE_DATA;
-    node->value.data.value.hasValue = (node->value.data.value.value.type != NULL);
+    node->valueSourceType = UA_VALUESOURCETYPE_INTERNAL;
+    retval = UA_Variant_copy(&attr->value, &node->valueSource.internal.value.value);
+    node->valueSource.internal.value.hasValue =
+        (node->valueSource.internal.value.value.type != NULL);
 
     return retval;
 }

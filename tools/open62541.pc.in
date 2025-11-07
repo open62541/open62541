@@ -6,4 +6,4 @@ Name: open62541
 Description: open62541 is an open source C (C99) implementation of OPC UA
 Version: @OPEN62541_VER_MAJOR@.@OPEN62541_VER_MINOR@.@OPEN62541_VER_PATCH@@OPEN62541_VER_LABEL@
 Libs: -L${libdir} -lopen62541 @pkgcfgpubliclibs@
-Cflags: -I${includedir} @PC_EXTRA_CFLAGS@
+Cflags: -I${includedir}

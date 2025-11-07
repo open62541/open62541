@@ -12,7 +12,7 @@
 
 #include <open62541/util.h>
 #include <open62541/plugin/log.h>
-#include <open62541/plugin/pki.h>
+#include <open62541/plugin/certificategroup.h>
 
 _UA_BEGIN_DECLS
 
@@ -22,8 +22,8 @@ struct UA_SecurityPolicy;
 typedef struct UA_SecurityPolicy UA_SecurityPolicy;
 
 /**
- * SecurityPolicy 
- * -------------- */
+ * SecurityPolicy Plugin API
+ * ========================= */
 
 typedef struct {
     UA_String uri;
@@ -35,7 +35,7 @@ typedef struct {
      * @param message the message to which the signature is supposed to belong.
      * @param signature the signature of the message, that should be verified. */
     UA_StatusCode (*verify)(void *channelContext, const UA_ByteString *message,
-                            const UA_ByteString *signature) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                            const UA_ByteString *signature);
 
     /* Signs the given message using this policys signing algorithm and the
      * provided keys in the context.
@@ -48,7 +48,7 @@ typedef struct {
      *                  necessary size can be acquired with the signatureSize
      *                  attribute of this module. */
     UA_StatusCode (*sign)(void *channelContext, const UA_ByteString *message,
-                          UA_ByteString *signature) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                          UA_ByteString *signature);
 
     /* Gets the signature size that depends on the local (private) key.
      *
@@ -91,7 +91,7 @@ typedef struct {
      * @param data the data that is encrypted. The encrypted data will overwrite
      *             the data that was supplied. */
     UA_StatusCode (*encrypt)(void *channelContext,
-                             UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                             UA_ByteString *data);
 
     /* Decrypts the given ciphertext in place. For asymmetric encryption, the
      * block size for plaintext and cypher depend on the local private key.
@@ -100,7 +100,7 @@ typedef struct {
      *                       the keys needed to decrypt the message.
      * @param data the data to decrypt. The decryption is done in place. */
     UA_StatusCode (*decrypt)(void *channelContext,
-                             UA_ByteString *data) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                             UA_ByteString *data);
 
     /* Returns the length of the key used to encrypt messages in bits. For
      * asymmetric encryption the key length is for the local private key.
@@ -155,8 +155,7 @@ typedef struct {
      *                   asymmetricModule. */
     UA_StatusCode (*makeCertificateThumbprint)(const UA_SecurityPolicy *securityPolicy,
                                                const UA_ByteString *certificate,
-                                               UA_ByteString *thumbprint)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                                               UA_ByteString *thumbprint);
 
     /* Compares the supplied certificate with the certificate in the endpoint context.
      *
@@ -167,8 +166,7 @@ typedef struct {
      * @return if the thumbprints match UA_STATUSCODE_GOOD is returned. If they
      *         don't match or an error occurred an error code is returned. */
     UA_StatusCode (*compareCertificateThumbprint)(const UA_SecurityPolicy *securityPolicy,
-                                                  const UA_ByteString *certificateThumbprint)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                                                  const UA_ByteString *certificateThumbprint);
 
     UA_SecurityPolicyCryptoModule cryptoModule;
 } UA_SecurityPolicyAsymmetricModule;
@@ -185,8 +183,7 @@ typedef struct {
      * @param out an output to write the data to. The length defines the maximum
      *            number of output bytes that are produced. */
     UA_StatusCode (*generateKey)(void *policyContext, const UA_ByteString *secret,
-                                 const UA_ByteString *seed, UA_ByteString *out)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                                 const UA_ByteString *seed, UA_ByteString *out);
 
     /* Random generator for generating nonces.
      *
@@ -194,8 +191,7 @@ typedef struct {
      * @param out pointer to a buffer to store the nonce in. Needs to be
      *            allocated by the caller. The buffer is filled with random
      *            data. */
-    UA_StatusCode (*generateNonce)(void *policyContext, UA_ByteString *out)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    UA_StatusCode (*generateNonce)(void *policyContext, UA_ByteString *out);
 
     /*
      * The length of the nonce used in the SecureChannel as specified in the standard.
@@ -224,8 +220,7 @@ typedef struct {
      *                       functions that work on a context. */
     UA_StatusCode (*newContext)(const UA_SecurityPolicy *securityPolicy,
                                 const UA_ByteString *remoteCertificate,
-                                void **channelContext)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                                void **channelContext);
 
     /* Deletes the the security context. */
     void (*deleteContext)(void *channelContext);
@@ -235,48 +230,42 @@ typedef struct {
      * @param channelContext the context to work on.
      * @param key the local encrypting key to store in the context. */
     UA_StatusCode (*setLocalSymEncryptingKey)(void *channelContext,
-                                              const UA_ByteString *key)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                                              const UA_ByteString *key);
 
     /* Sets the local signing key in the supplied context.
      *
      * @param channelContext the context to work on.
      * @param key the local signing key to store in the context. */
     UA_StatusCode (*setLocalSymSigningKey)(void *channelContext,
-                                           const UA_ByteString *key)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                                           const UA_ByteString *key);
 
     /* Sets the local initialization vector in the supplied context.
      *
      * @param channelContext the context to work on.
      * @param iv the local initialization vector to store in the context. */
     UA_StatusCode (*setLocalSymIv)(void *channelContext,
-                                   const UA_ByteString *iv)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                                   const UA_ByteString *iv);
 
     /* Sets the remote encrypting key in the supplied context.
      *
      * @param channelContext the context to work on.
      * @param key the remote encrypting key to store in the context. */
     UA_StatusCode (*setRemoteSymEncryptingKey)(void *channelContext,
-                                               const UA_ByteString *key)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                                               const UA_ByteString *key);
 
     /* Sets the remote signing key in the supplied context.
      *
      * @param channelContext the context to work on.
      * @param key the remote signing key to store in the context. */
     UA_StatusCode (*setRemoteSymSigningKey)(void *channelContext,
-                                            const UA_ByteString *key)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                                            const UA_ByteString *key);
 
     /* Sets the remote initialization vector in the supplied context.
      *
      * @param channelContext the context to work on.
      * @param iv the remote initialization vector to store in the context. */
     UA_StatusCode (*setRemoteSymIv)(void *channelContext,
-                                    const UA_ByteString *iv)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                                    const UA_ByteString *iv);
 
     /* Compares the supplied certificate with the certificate in the channel
      * context.
@@ -287,8 +276,7 @@ typedef struct {
      * @return if the certificates match UA_STATUSCODE_GOOD is returned. If they
      *         don't match or an errror occurred an error code is returned. */
     UA_StatusCode (*compareCertificate)(const void *channelContext,
-                                        const UA_ByteString *certificate)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                                        const UA_ByteString *certificate);
 } UA_SecurityPolicyChannelModule;
 
 struct UA_SecurityPolicy {
@@ -298,9 +286,15 @@ struct UA_SecurityPolicy {
     /* The policy uri that identifies the implemented algorithms */
     UA_String policyUri;
 
+    /* Value indicating the crypto strength of the policy, with zero for deprecated or none */
+    UA_Byte securityLevel;
+
     /* The local certificate is specific for each SecurityPolicy since it
      * depends on the used key length. */
     UA_ByteString localCertificate;
+
+    UA_NodeId certificateGroupId;
+    UA_NodeId certificateTypeId;
 
     /* Function pointers grouped into modules */
     UA_SecurityPolicyAsymmetricModule asymmetricModule;
@@ -316,6 +310,29 @@ struct UA_SecurityPolicy {
                                                     const UA_ByteString newCertificate,
                                                     const UA_ByteString newPrivateKey);
 
+    /* Creates a PKCS #10 DER encoded certificate request signed with the server's
+     * private key.
+     *
+     * @param securityPolicy The securityPolicy to work on.
+     * @param subjectName The subject name to use in the Certificate Request.
+     *                    If not specified the SubjectName from the current Certificate is used.
+     * @param nonce Additional entropy that the caller can provide.
+     *              It shall be at least 32 bytes long.
+     * @param params A KeyVaue list that can be used for additional parameters later.
+     * @param csr Returns the created CSR. If the passed byte string is not empty, nothing is created.
+     * @param newPrivateKey Returns the private key if a new one needs to be generated.
+     *                      Alternatively, an existing key can be provided,
+     *                      which will be used as the CSR key in the security policy.
+     *                      This is necessary if the CSR was created under a different security policy
+     *                      and the current one only requires an update.
+     * @return If the CSR creation was successful, UA_STATUSCODE_GOOD is returned. */
+    UA_StatusCode (*createSigningRequest)(UA_SecurityPolicy *securityPolicy,
+                                          const UA_String *subjectName,
+                                          const UA_ByteString *nonce,
+                                          const UA_KeyValueMap *params,
+                                          UA_ByteString *csr,
+                                          UA_ByteString *newPrivateKey);
+
     /* Deletes the dynamic content of the policy */
     void (*clear)(UA_SecurityPolicy *policy);
 };
@@ -328,7 +345,6 @@ struct UA_SecurityPolicy {
  * SecurityHeader. The nonce is required for the de- and encryption and has to
  * be set in the channel context before de/encrypting. */
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 struct UA_PubSubSecurityPolicy;
 typedef struct UA_PubSubSecurityPolicy UA_PubSubSecurityPolicy;
 
@@ -357,15 +373,12 @@ struct UA_PubSubSecurityPolicy {
     (*setSecurityKeys)(void *wgContext,
                        const UA_ByteString *signingKey,
                        const UA_ByteString *encryptingKey,
-                       const UA_ByteString *keyNonce)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                       const UA_ByteString *keyNonce);
 
     /* The nonce is contained in the NetworkMessage SecurityHeader. Set before
      * each en-/decryption step. */
     UA_StatusCode
-    (*setMessageNonce)(void *wgContext,
-                       const UA_ByteString *nonce)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+    (*setMessageNonce)(void *wgContext, const UA_ByteString *nonce);
 
     const UA_Logger *logger;
 
@@ -373,8 +386,6 @@ struct UA_PubSubSecurityPolicy {
     void (*clear)(UA_PubSubSecurityPolicy *policy);
     void *policyContext;
 };
-
-#endif
 
 _UA_END_DECLS
 

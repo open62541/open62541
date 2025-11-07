@@ -21,8 +21,6 @@
 #include <signal.h>
 #include <stdio.h>
 
-#define USE_FILTER_OR_TYPEOF
-
 static UA_Boolean running = true;
 #define SELECT_CLAUSE_FIELD_COUNT 3
 
@@ -45,7 +43,7 @@ setupSelectClauses(size_t selectedFieldsSize, UA_QualifiedName *qName) {
     }
 
     for (size_t i = 0; i < selectedFieldsSize; ++i) {
-        selectClauses[i].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        selectClauses[i].typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
         selectClauses[i].browsePathSize = 1;
         selectClauses[i].browsePath = (UA_QualifiedName*)
                 UA_Array_new(selectClauses[i].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
@@ -318,7 +316,7 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
         UA_SimpleAttributeOperand sao;
         UA_SimpleAttributeOperand_init(&sao);
         sao.attributeId = UA_ATTRIBUTEID_VALUE;
-        sao.typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        sao.typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
         sao.browsePathSize = 1;
         UA_QualifiedName *qn = UA_QualifiedName_new();
         *qn = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
@@ -337,32 +335,15 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
 static void
 handler_events_filter(UA_Client *client, UA_UInt32 subId, void *subContext,
                       UA_UInt32 monId, void *monContext,
-                      size_t nEventFields, UA_Variant *eventFields) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received Event Notification (Filter passed)");
-    for(size_t i = 0; i < nEventFields; ++i) {
-        if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
-            UA_UInt16 severity = *(UA_UInt16 *)eventFields[i].data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Severity: %u", severity);
-        } else if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
-            UA_LocalizedText *lt = (UA_LocalizedText *)eventFields[i].data;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Message: '%.*s'", (int)lt->text.length, lt->text.data);
-        } else if (UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_NODEID])) {
-            UA_String nodeIdName = UA_STRING_ALLOC("");
-            UA_NodeId_print((UA_NodeId *)eventFields[i].data, &nodeIdName);
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "TypeNodeId: '%.*s'", (int)nodeIdName.length, nodeIdName.data);
-            UA_String_clear(&nodeIdName);
-        } else {
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Don't know how to handle type: '%s'", eventFields[i].type->typeName);
-#else
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                        "Don't know how to handle type, enable UA_ENABLE_TYPEDESCRIPTION "
-                        "for typename");
-#endif
-        }
+                      const UA_KeyValueMap eventFields) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Notification");
+
+    for(size_t i = 0; i < eventFields.mapSize; ++i) {
+        UA_String out = UA_STRING_NULL;
+        UA_print(&eventFields.map[i].value, &UA_TYPES[UA_TYPES_VARIANT], &out);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "%S: '%S", eventFields.map[i].key.name, out);
+        UA_String_clear(&out);
     }
 }
 
@@ -406,7 +387,7 @@ int main(int argc, char *argv[]) {
     /* Add a MonitoredItem */
     UA_MonitoredItemCreateRequest item;
     UA_MonitoredItemCreateRequest_init(&item);
-    item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER); // Root->Objects->Server
+    item.itemToMonitor.nodeId = UA_NS0ID(SERVER); // Root->Objects->Server
     item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
     item.monitoringMode = UA_MONITORINGMODE_REPORTING;
 

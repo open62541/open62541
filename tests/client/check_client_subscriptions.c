@@ -7,10 +7,10 @@
 #include <open62541/client_config_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include "open62541/types_generated_handling.h"
 
 #include "client/ua_client_internal.h"
 #include "server/ua_server_internal.h"
+#include "test_helpers.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,13 +31,22 @@ THREAD_CALLBACK(serverloop) {
     return 0;
 }
 
+static void runServer(void) {
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+}
+
+static void pauseServer(void) {
+    running = false;
+    THREAD_JOIN(server_thread);
+}
+
 static void setup(void) {
     noNewSubscription = false;
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     config->maxPublishReqPerSession = 5;
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
@@ -75,43 +84,36 @@ dataChangeHandler(UA_Client *client, UA_UInt32 subId, void *subContext,
 
 static void
 createSubscriptionCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                           void *r) {
-    UA_CreateSubscriptionResponse_copy((const UA_CreateSubscriptionResponse *)r,
-                                       (UA_CreateSubscriptionResponse *)userdata);
+                           UA_CreateSubscriptionResponse *r) {
+    UA_CreateSubscriptionResponse_copy(r, (UA_CreateSubscriptionResponse *)userdata);
 }
 
 static void
 modifySubscriptionCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                           void *r) {
-    UA_ModifySubscriptionResponse_copy((const UA_ModifySubscriptionResponse *)r,
-                                       (UA_ModifySubscriptionResponse *)userdata);
+                           UA_ModifySubscriptionResponse *r) {
+    UA_ModifySubscriptionResponse_copy(r, (UA_ModifySubscriptionResponse *)userdata);
 }
 
 static void
 createDataChangesCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                          void *r) {
-    UA_CreateMonitoredItemsResponse_copy((const UA_CreateMonitoredItemsResponse *)r,
-                                         (UA_CreateMonitoredItemsResponse *)userdata);
+                          UA_CreateMonitoredItemsResponse *r) {
+    UA_CreateMonitoredItemsResponse_copy(r, (UA_CreateMonitoredItemsResponse *)userdata);
 }
 
 static void
 deleteMonitoredItemsCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                             void *r) {
-    UA_DeleteMonitoredItemsResponse_copy((const UA_DeleteMonitoredItemsResponse *)r,
-                                         (UA_DeleteMonitoredItemsResponse *)userdata);
+                             UA_DeleteMonitoredItemsResponse *r) {
+    UA_DeleteMonitoredItemsResponse_copy(r, (UA_DeleteMonitoredItemsResponse *)userdata);
 }
 
 static void
 deleteSubscriptionsCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                            void *r) {
-    UA_DeleteSubscriptionsResponse_copy((const UA_DeleteSubscriptionsResponse *)r,
-                                        (UA_DeleteSubscriptionsResponse *)userdata);
+                            UA_DeleteSubscriptionsResponse *r) {
+    UA_DeleteSubscriptionsResponse_copy(r, (UA_DeleteSubscriptionsResponse *)userdata);
 }
 
 START_TEST(Client_subscription) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -181,9 +183,7 @@ START_TEST(Client_subscription) {
 END_TEST
 
 START_TEST(Client_subscription_async) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -334,8 +334,7 @@ START_TEST(Client_subscription_async) {
 END_TEST
 
 START_TEST(Client_subscription_createDataChanges) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -449,8 +448,7 @@ END_TEST
 /* An interval of -1 links the subscription to the publishing interval of the
  * server */
 START_TEST(Client_subscription_createDataChanges_negativeInterval) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -481,8 +479,7 @@ END_TEST
 
 /* An unchanged value shall not be published after a ModifyMonitoredItem */
 START_TEST(Client_subscription_modifyMonitoredItem) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -583,8 +580,10 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
     UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
 
     /* Sleep longer than the publishing interval */
+    pauseServer();
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
-    UA_realSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, true);
+    runServer();
 
     notificationReceived = false;
     countNotificationReceived = 0;
@@ -594,8 +593,10 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
     ck_assert_uint_eq(countNotificationReceived, 0);
 
     /* Sleep long enough to trigger the next sampling. */
+    pauseServer();
     UA_fakeSleep((UA_UInt32)(publishingInterval * 0.6));
-    UA_realSleep((UA_UInt32)(publishingInterval * 0.6));
+    UA_Server_run_iterate(server, true);
+    runServer();
 
     /* Sleep long enough to trigger the publish callback */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
@@ -629,8 +630,7 @@ END_TEST
 
 START_TEST(Client_subscription_createDataChanges_async) {
     UA_UInt32 reqId = 0;
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -738,7 +738,11 @@ START_TEST(Client_subscription_createDataChanges_async) {
     retval = UA_Client_MonitoredItems_delete_async(client, deleteRequest,
                                                    deleteMonitoredItemsCallback, &deleteResponse, &reqId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_realSleep(500);  // need to wait until response is at the client
+
+    pauseServer();
+    UA_Server_run_iterate(server, true);
+    runServer();
+
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -761,8 +765,7 @@ START_TEST(Client_subscription_createDataChanges_async) {
 END_TEST
 
 START_TEST(Client_subscription_keepAlive) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -837,8 +840,7 @@ START_TEST(Client_subscription_keepAlive) {
 END_TEST
 
 START_TEST(Client_subscription_priority) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -904,9 +906,7 @@ START_TEST(Client_subscription_priority) {
 END_TEST
 
 START_TEST(Client_subscription_connectionClose) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -982,9 +982,7 @@ START_TEST(Client_subscription_connectionClose) {
 END_TEST
 
 START_TEST(Client_subscription_statusChange) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -1055,9 +1053,7 @@ START_TEST(Client_subscription_writeBurst) {
                                                      UA_NODEID_NULL, attr, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -1107,9 +1103,7 @@ START_TEST(Client_subscription_writeBurst) {
 END_TEST
 
 START_TEST(Client_subscription_timeout) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -1161,9 +1155,7 @@ START_TEST(Client_subscription_timeout) {
 END_TEST
 
 START_TEST(Client_subscription_detach) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -1213,8 +1205,7 @@ START_TEST(Client_subscription_detach) {
 END_TEST
 
 START_TEST(Client_subscription_without_notification) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -1279,14 +1270,14 @@ static UA_SessionState sessState;
 static UA_Boolean hasMon;
 
 static void
-monCallback(UA_Client *client, void *userdata,
-            UA_UInt32 requestId, void *r) {
+monCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+            UA_CreateMonitoredItemsResponse *r) {
     hasMon = true;
 }
 
 static void
-createSubscriptionCallback2(UA_Client *client, void *userdata,
-                            UA_UInt32 requestId, void *r) {
+createSubscriptionCallback2(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                            UA_CreateSubscriptionResponse *r) {
     UA_CreateSubscriptionResponse *rr = (UA_CreateSubscriptionResponse*)r;
 
     ck_assert_uint_ne(rr->subscriptionId, 0);
@@ -1294,7 +1285,7 @@ createSubscriptionCallback2(UA_Client *client, void *userdata,
     /* Add a MonitoredItem */
     UA_NodeId currentTime =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-    UA_CreateMonitoredItemsRequest req;;
+    UA_CreateMonitoredItemsRequest req;
     UA_CreateMonitoredItemsRequest_init(&req);
     UA_MonitoredItemCreateRequest monRequest =
         UA_MonitoredItemCreateRequest_default(currentTime);
@@ -1339,8 +1330,7 @@ subscriptionInactivityCallback (UA_Client *client, UA_UInt32 subId, void *subCon
 }
 
 START_TEST(Client_subscription_async_sub) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
 
     /* Set stateCallback */
     UA_ClientConfig *cc = UA_Client_getConfig(client);
@@ -1417,7 +1407,7 @@ START_TEST(Client_subscription_async_sub) {
     /* Simulate network cable unplugged (no response from server) */
     UA_ConnectionManager *cm = client->channel.connectionManager;
     cm->closeConnection(cm, client->channel.connectionId);
-    UA_fakeSleep((UA_UInt32)publishingInterval * 100);
+    UA_fakeSleep((UA_UInt32)cc->timeout * 2);
 
     ck_assert_uint_lt(client->config.outStandingPublishRequests, 10);
     ck_assert_uint_eq(inactivityCallbackCalled, false);
@@ -1435,8 +1425,7 @@ START_TEST(Client_subscription_async_sub) {
 END_TEST
 
 START_TEST(Client_subscription_reconnect) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
 
     /* Set stateCallback */
     UA_ClientConfig *cc = UA_Client_getConfig(client);
@@ -1507,8 +1496,7 @@ START_TEST(Client_subscription_reconnect) {
 END_TEST
 
 START_TEST(Client_subscription_server_disappears) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
 
     /* Set stateCallback */
     UA_ClientConfig *cc = UA_Client_getConfig(client);
@@ -1553,9 +1541,7 @@ START_TEST(Client_subscription_server_disappears) {
 END_TEST
 
 START_TEST(Client_subscription_transfer) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -1578,9 +1564,7 @@ START_TEST(Client_subscription_transfer) {
     }
 
     /* Create a second client */
-    UA_Client *client2 = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client2));
-
+    UA_Client *client2 = UA_Client_newForUnitTest();
     retval = UA_Client_connect(client2, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -1615,9 +1599,7 @@ END_TEST
 
 #ifdef UA_ENABLE_METHODCALLS
 START_TEST(Client_methodcall) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 

@@ -9,18 +9,18 @@
 #include "cj5.h"
 #include "open62541/server_config_default.h"
 #ifdef UA_ENABLE_ENCRYPTION
-#include "open62541/plugin/pki_default.h"
+#include "open62541/plugin/certificategroup_default.h"
 #endif
 
-#define MAX_TOKENS 256
+#define MAX_TOKENS 1024
 
 typedef struct {
     const char *json;
     const cj5_token *tokens;
-    cj5_result result;
-    unsigned int tokensSize;
+    size_t tokensSize;
     size_t index;
     UA_Byte depth;
+    cj5_result result;
 } ParsingCtx;
 
 static UA_ByteString
@@ -156,8 +156,8 @@ PARSE_JSON(LocalizedTextField) {
      */
     cj5_token tok = ctx->tokens[++ctx->index];
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_String locale;
-    UA_String text;
+    UA_String locale = {.length = 0, .data = NULL};
+    UA_String text = {.length = 0, .data = NULL};
     for(size_t j = tok.size/2; j > 0; j--) {
         tok = ctx->tokens[++ctx->index];
         switch (tok.type) {
@@ -366,7 +366,7 @@ PARSE_JSON(StringArrayField) {
     UA_String *stringArray = (UA_String*)UA_malloc(sizeof(UA_String) * tok.size);
     size_t stringArraySize = 0;
     for(size_t j = tok.size; j > 0; j--) {
-        UA_String out = {.length = 0, .data = NULL};;
+        UA_String out = {.length = 0, .data = NULL};
         parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &out, NULL);
         UA_String_copy(&out, &stringArray[stringArraySize++]);
         UA_String_clear(&out);
@@ -394,7 +394,7 @@ PARSE_JSON(UInt32ArrayField) {
         return UA_STATUSCODE_BADARGUMENTSMISSING;
     }
     cj5_token tok = ctx->tokens[++ctx->index];
-    UA_UInt32 *numberArray = (UA_UInt32*)UA_malloc(sizeof(UA_UInt32) * tok.size);;
+    UA_UInt32 *numberArray = (UA_UInt32*)UA_malloc(sizeof(UA_UInt32) * tok.size);
     size_t numberArraySize = 0;
     for(size_t j = tok.size; j > 0; j--) {
         UA_UInt32 value;
@@ -449,6 +449,7 @@ PARSE_JSON(MdnsConfigurationField) {
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &config->mdnsConfig.mdnsServerName, NULL);
             else if(strcmp(field_str, "serverCapabilities") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRINGARRAY](ctx, &config->mdnsConfig.serverCapabilities, &config->mdnsConfig.serverCapabilitiesSize);
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
             else if(strcmp(field_str, "mdnsInterfaceIP") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &config->mdnsInterfaceIP, NULL);
             /* mdnsIpAddressList and mdnsIpAddressListSize are only available if UA_HAS_GETIFADDR is not defined: */
@@ -456,6 +457,7 @@ PARSE_JSON(MdnsConfigurationField) {
             else if(strcmp(field_str, "mdnsIpAddressList") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32ARRAY](ctx, &config->mdnsIpAddressList, &config->mdnsIpAddressListSize);
 # endif
+#endif
             else {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
             }
@@ -770,80 +772,54 @@ PARSE_JSON(SecurityPolciesField) {
 
 PARSE_JSON(SecurityPkiField) {
 #ifdef UA_ENABLE_ENCRYPTION
-    UA_CertificateVerification *field = (UA_CertificateVerification*)configField;
-    UA_String trustListFolder = {.length = 0, .data = NULL};
-    UA_String issuerListFolder = {.length = 0, .data = NULL};
-    UA_String revocationListFolder = {.length = 0, .data = NULL};
+    UA_ServerConfig *config = (UA_ServerConfig*)configField;
+    UA_String pkiFolder = {.length = 0, .data = NULL};
 
     cj5_token tok = ctx->tokens[++ctx->index];
-    for(size_t i = tok.size/2; i > 0; i--) {
-        tok = ctx->tokens[++ctx->index];
-        switch(tok.type) {
-        case CJ5_TOKEN_STRING: {
-            char *field_str = (char*)UA_malloc(tok.size + 1);
-            unsigned int str_len = 0;
-            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
-            if(strcmp(field_str, "trustListFolder") == 0) {
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &trustListFolder, NULL);
-            } else if(strcmp(field_str, "issuerListFolder") == 0) {
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &issuerListFolder, NULL);
-            } else if(strcmp(field_str, "revocationListFolder") == 0) {
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &revocationListFolder, NULL);
-            } else {
-                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
-            }
-            UA_free(field_str);
-            break;
-        }
-        default:
-            break;
-        }
-    }
-#ifndef __linux__
+    UA_ByteString buf = getJsonPart(tok, ctx->json);
+    UA_StatusCode retval = UA_decodeJson(&buf, &pkiFolder, &UA_TYPES[UA_TYPES_STRING], NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
     /* Currently not supported! */
-    (void)field;
+    (void)config;
     return UA_STATUSCODE_GOOD;
 #else
-    /* set server config field */
-    char *sTrustListFolder = NULL;
-    char *sIssuerListFolder = NULL;
-    char *sRevocationListFolder = NULL;
-    if(trustListFolder.length > 0) {
-        sTrustListFolder = (char*)UA_malloc(trustListFolder.length+1);
-        memcpy(sTrustListFolder, trustListFolder.data, trustListFolder.length);
-        sTrustListFolder[trustListFolder.length] = '\0';
-    }
-    if(issuerListFolder.length > 0) {
-        sIssuerListFolder = (char*)UA_malloc(issuerListFolder.length+1);
-        memcpy(sIssuerListFolder, issuerListFolder.data, issuerListFolder.length);
-        sIssuerListFolder[issuerListFolder.length] = '\0';
-    }
-    if(revocationListFolder.length > 0) {
-        sRevocationListFolder = (char*)UA_malloc(revocationListFolder.length+1);
-        memcpy(sRevocationListFolder, revocationListFolder.data, revocationListFolder.length);
-        sRevocationListFolder[revocationListFolder.length] = '\0';
-    }
-    if(field && field->clear)
-        field->clear(field);
-#ifdef UA_ENABLE_CERT_REJECTED_DIR
-    UA_StatusCode retval = UA_CertificateVerification_CertFolders(field, sTrustListFolder,
-                                                                  sIssuerListFolder, sRevocationListFolder, NULL);
-#else
-    UA_StatusCode retval = UA_CertificateVerification_CertFolders(field, sTrustListFolder,
-                                                                  sIssuerListFolder, sRevocationListFolder);
-#endif
-    /* Clean up */
-    if(sTrustListFolder)
-        UA_free(sTrustListFolder);
-    if(sIssuerListFolder)
-        UA_free(sIssuerListFolder);
-    if(sRevocationListFolder)
-        UA_free(sRevocationListFolder);
-    UA_String_clear(&trustListFolder);
-    UA_String_clear(&issuerListFolder);
-    UA_String_clear(&revocationListFolder);
+    /* Set up the parameters */
+    UA_KeyValuePair params[2];
+    size_t paramsSize = 2;
 
-    return retval;
+    params[0].key = UA_QUALIFIEDNAME(0, "max-trust-listsize");
+    UA_Variant_setScalar(&params[0].value, &config->maxTrustListSize, &UA_TYPES[UA_TYPES_UINT32]);
+    params[1].key = UA_QUALIFIEDNAME(0, "max-rejected-listsize");
+    UA_Variant_setScalar(&params[1].value, &config->maxRejectedListSize, &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_KeyValueMap paramsMap;
+    paramsMap.map = params;
+    paramsMap.mapSize = paramsSize;
+
+    /* set server config field */
+    UA_NodeId defaultApplicationGroup =
+           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    retval = UA_CertificateGroup_Filestore(&config->secureChannelPKI, &defaultApplicationGroup,
+                                           pkiFolder, config->logging, &paramsMap);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&pkiFolder);
+        return retval;
+    }
+
+    UA_NodeId defaultUserTokenGroup =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
+    retval = UA_CertificateGroup_Filestore(&config->sessionPKI, &defaultUserTokenGroup,
+                                            pkiFolder, config->logging, &paramsMap);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&pkiFolder);
+        return retval;
+    }
+
+    /* Clean up */
+    UA_String_clear(&pkiFolder);
 #endif
 #endif
     return UA_STATUSCODE_GOOD;
@@ -901,6 +877,20 @@ const parseJsonSignature parseJsonJumpTable[UA_SERVERCONFIGFIELDKINDS] = {
     (parseJsonSignature)ApplicationTypeField_parseJson,
     (parseJsonSignature)RuleHandlingField_parseJson,
 };
+
+/* Skips unknown item (simple, object or array) in config file. 
+* Unknown items may happen if we don't support some features. 
+* E.g. if  UA_ENABLE_ENCRYPTION is not defined and config file 
+* contains "securityPolicies" entry.
+*/
+static void
+skipUnknownItem(ParsingCtx* ctx) {
+    unsigned int end = ctx->tokens[ctx->index].end;
+    do {
+        ctx->index++;
+    } while (ctx->index < ctx->tokensSize &&
+        ctx->tokens[ctx->index].start < end);
+}
 
 static UA_StatusCode
 parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
@@ -991,10 +981,6 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->mdnsEnabled, NULL);
                 else if(strcmp(field, "mdns") == 0)
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_MDNSCONFIGURATION](&ctx, config, NULL);
-#if !defined(UA_HAS_GETIFADDR)
-                else if(strcmp(field, "mdnsIpAddressList") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32ARRAY](&ctx, &config->mdnsIpAddressList, &config->mdnsIpAddressListSize);
-#endif
 #endif
 #endif
 
@@ -1016,18 +1002,24 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                 else if(strcmp(field, "pubsubEnabled") == 0)
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->pubsubEnabled, NULL);
                 else if(strcmp(field, "pubsub") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_PUBSUBCONFIGURATION](&ctx, config, NULL);
+                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_PUBSUBCONFIGURATION](&ctx, &config->pubSubConfig, NULL);
 #endif
 #ifdef UA_ENABLE_ENCRYPTION
                 else if(strcmp(field, "securityPolicies") == 0)
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_SECURITYPOLICIES](&ctx, config, NULL);
-                else if(strcmp(field, "secureChannelPKI") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_SECURITYPKI](&ctx, &config->secureChannelPKI, NULL);
-                else if(strcmp(field, "sessionPKI") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_SECURITYPKI](&ctx, &config->sessionPKI, NULL);
+                else if(strcmp(field, "pkiFolder") == 0)
+                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_SECURITYPKI](&ctx, config, NULL);
 #endif
                 else {
                     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Field name '%s' unknown or misspelled. Maybe the feature is not enabled either.", field);
+                    /* skip the name of item */
+                    ++ctx.index;
+                    /* skip value of unknown item */
+                    skipUnknownItem(&ctx);
+                    /* after skipUnknownItem() ctx->index points to the name of the following item.
+                       We must decrement index in oder following increment will
+                       still set index to the right position (name of the following item) */
+                    --ctx.index;
                 }
                 UA_free(field);
                 if(retval != UA_STATUSCODE_GOOD) {
@@ -1064,7 +1056,7 @@ UA_ServerConfig_updateFromFile(UA_ServerConfig *config, const UA_ByteString json
 #ifdef UA_ENABLE_ENCRYPTION
 static UA_ByteString
 loadCertificateFile(const char *const path) {
-    UA_ByteString fileContents = UA_STRING_NULL;
+    UA_ByteString fileContents = UA_BYTESTRING_NULL;
 
     /* Open the file */
     FILE *fp = fopen(path, "rb");

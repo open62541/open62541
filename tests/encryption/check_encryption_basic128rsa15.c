@@ -9,7 +9,7 @@
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
-#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 #include <open62541/server_config_default.h>
 
 #include "client/ua_client_internal.h"
@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "certificates.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
@@ -66,16 +67,15 @@ static void setup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                          trustList, trustListSize,
+                                                          issuerList, issuerListSize,
+                                                          revocationList, revocationListSize);
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
-                                                   trustList, trustListSize,
-                                                   issuerList, issuerListSize,
-                                                   revocationList, revocationListSize);
 
-    UA_CertificateVerification_AcceptAll(&config->secureChannelPKI);
-    UA_CertificateVerification_AcceptAll(&config->sessionPKI);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config->sessionPKI);
 
     /* Manually add the Basic128Rsa15 SecurityPolicy.
      * It does not get added by default as it is considered unsecure. */
@@ -98,6 +98,42 @@ static void setup(void) {
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+static void setup2(void) {
+    running = true;
+
+    /* Load certificate and private key */
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_DER_LENGTH;
+    privateKey.data = KEY_DER_DATA;
+
+    char storePathDir[4096];
+    getcwd(storePathDir, 4096);
+
+    const UA_String storePath = UA_STRING(storePathDir);
+    server =
+        UA_Server_newForUnitTestWithSecurityPolicies_Filestore(4840, &certificate,
+                                                               &privateKey, storePath);
+    ck_assert(server != NULL);
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config->sessionPKI);
+
+    /* Set the ApplicationUri used in the certificate */
+    UA_String_clear(&config->applicationDescription.applicationUri);
+    config->applicationDescription.applicationUri =
+        UA_STRING_ALLOC("urn:unconfigured:application");
+
+    UA_Server_run_startup(server);
+    THREAD_CREATE(server_thread, serverloop);
+}
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
 
 static void teardown(void) {
     running = false;
@@ -129,10 +165,7 @@ START_TEST(encryption_connect) {
     /* The Get endpoint (discovery service) is done with
      * security mode as none to see the server's capability
      * and certificate */
-    client = UA_Client_new();
-    UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(cc);
-
+    client = UA_Client_newForUnitTest();
     ck_assert(client != NULL);
     UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
                                                   &endpointArraySize, &endpointArray);
@@ -160,12 +193,12 @@ START_TEST(encryption_connect) {
     UA_Client_delete(client);
 
     /* Secure client initialization */
-    client = UA_Client_new();
-    cc = UA_Client_getConfig(client);
+    client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
-    UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
     /* Manually add the Basic128Rsa15 SecurityPolicy.
      * It does not get added by default as it is considered unsecure. */
@@ -230,8 +263,7 @@ START_TEST(encryption_connect_pem) {
     /* The Get endpoint (discovery service) is done with
      * security mode as none to see the server's capability
      * and certificate */
-    client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    client = UA_Client_newForUnitTest();
     ck_assert(client != NULL);
     UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
                                                   &endpointArraySize, &endpointArray);
@@ -259,12 +291,12 @@ START_TEST(encryption_connect_pem) {
     UA_Client_delete(client);
 
     /* Secure client initialization */
-    client = UA_Client_new();
+    client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
-    UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
     /* Manually add the Basic128Rsa15 SecurityPolicy.
      * It does not get added by default as it is considered unsecure. */
@@ -315,6 +347,17 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption, encryption_connect_pem);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption);
+
+#if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
+    TCase *tc_encryption_filestore = tcase_create("Encryption basic128rsa15 security policy filestore");
+    tcase_add_checked_fixture(tc_encryption_filestore, setup2, teardown);
+#ifdef UA_ENABLE_ENCRYPTION
+    tcase_add_test(tc_encryption_filestore, encryption_connect);
+    tcase_add_test(tc_encryption_filestore, encryption_connect_pem);
+#endif /* UA_ENABLE_ENCRYPTION */
+    suite_add_tcase(s,tc_encryption_filestore);
+#endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */
+
     return s;
 }
 

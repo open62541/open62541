@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include "common.h"
 
-UA_Boolean running = true;
+static UA_Boolean running = true;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Received Ctrl-C");
@@ -55,8 +55,7 @@ int main(void) {
         }
 
         /* NodeId of the variable holding the current time */
-        const UA_NodeId nodeId =
-                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+        const UA_NodeId nodeId = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
 
         retval = UA_Client_readValueAttribute(client, nodeId, &value);
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
@@ -74,7 +73,7 @@ int main(void) {
         }
         UA_Variant_clear(&value);
         sleep_ms(1000);
-    };
+    }
 
     /* Clean up */
     UA_Variant_clear(&value);

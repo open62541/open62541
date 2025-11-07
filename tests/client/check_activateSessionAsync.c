@@ -15,6 +15,7 @@
 #include <check.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 
@@ -63,9 +64,8 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     addVariable(VARLENGTH);
     THREAD_CREATE(server_thread, serverloop);
@@ -96,13 +96,12 @@ static void clearLocale(UA_ClientConfig *config) {
 
 START_TEST(Client_activateSession_async) {
     UA_StatusCode retval;
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     cc->sessionLocaleIdsSize = 2;
     cc->sessionLocaleIds = (UA_LocaleId*)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     cc->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US");
     cc->sessionLocaleIds[1] = UA_STRING_ALLOC("de");
-    UA_ClientConfig_setDefault(cc);
 
     connected = false;
     // connect sync
@@ -133,7 +132,9 @@ START_TEST(Client_activateSession_async) {
     ck_assert_uint_eq(server->sessionCount, 1);
 
     /* Manual clock for unit tests */
-    UA_Server_run_iterate(server, false);
+    for(size_t i = 0; i < 100; i++) {
+        UA_Server_run_iterate(server, false);
+    }
 
     loc = LIST_FIRST(&server->sessions)->session.localeIds[0];
     convert = (char *)UA_malloc(sizeof(char) * loc.length + 1);

@@ -13,6 +13,7 @@
 #include <check.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 
@@ -31,9 +32,8 @@ UA_NodeId parentReferenceNodeId;
 UA_NodeId outNodeId;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_StatusCode retval = UA_Server_run_startup(server);
     ASSERT_STATUSCODE(retval, UA_STATUSCODE_GOOD);
@@ -103,6 +103,7 @@ START_TEST(Server_LocalMonitoredItem) {
                                                     &dataChangeNotificationCallback);
 
     ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 1);
 
     UA_UInt32 count = 0;
@@ -151,6 +152,7 @@ START_TEST(Server_LocalMonitoredItem_dataSource) {
                                                     &dataChangeNotificationCallback);
 
     ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 1);
 
     for(size_t i = 0; i < 10; i++) {
@@ -183,6 +185,7 @@ static UA_DataType PointType = {
     {1, UA_NODEIDTYPE_NUMERIC, {0}}, /* .binaryEncodingId, the numeric
                                          identifier used on the wire (the
                                          namespaceindex is from .typeId) */
+    {1, UA_NODEIDTYPE_NUMERIC, {0}}, /* .xmlEncodingId */
     sizeof(Point),                   /* .memSize */
     UA_DATATYPEKIND_STRUCTURE,       /* .typeKind */
     true,                            /* .pointerFree */
@@ -215,6 +218,7 @@ START_TEST(Server_LocalMonitoredItem_CustomType) {
                                                     &dataChangeNotificationCallback);
 
     ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 1);
 
     /* Use a value that requires the ExtensionObject to encode the NodeId of the
@@ -241,9 +245,8 @@ START_TEST(Server_LocalMonitoredItem_CustomType) {
 END_TEST
 
 static void setupIndexRange(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_StatusCode retval = UA_Server_run_startup(server);
     ASSERT_STATUSCODE(retval, UA_STATUSCODE_GOOD);
@@ -296,6 +299,7 @@ START_TEST(Server_LocalMonitoredItemIndexRange) {
         &dataChangeNotificationValidateStatusCallback);
 
     ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 1);
 }
 END_TEST
@@ -314,6 +318,7 @@ START_TEST(Server_LocalMonitoredItemIndexRangeOutOfBounds) {
         &dataChangeNotificationValidateStatusCallback);
 
     ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 1);
 }
 END_TEST

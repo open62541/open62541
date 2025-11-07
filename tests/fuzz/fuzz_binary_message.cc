@@ -17,7 +17,8 @@
 static void *
 _removeServerComponent(void *application, UA_ServerComponent *sc) {
     UA_assert(sc->state == UA_LIFECYCLESTATE_STOPPED);
-    sc->free((UA_Server*)application, sc);
+    sc->clear(sc);
+    UA_free(sc);
     return NULL;
 }
 
@@ -61,9 +62,11 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     memcpy(msg.data, data, size);
 
     /* Remove all remaining server components (must be all stopped) */
+    lockServer(server);
     ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
              _removeServerComponent, server);
     ZIP_INIT(&server->serverComponents);
+    unlockServer(server);
 
     UA_ServerComponent *bpm = UA_BinaryProtocolManager_new(server);
     addServerComponent(server, bpm, NULL);

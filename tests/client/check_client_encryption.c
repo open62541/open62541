@@ -10,7 +10,7 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 #include <open62541/plugin/securitypolicy.h>
-#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
@@ -22,6 +22,7 @@
 
 #include "../encryption/certificates.h"
 #include "check.h"
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
@@ -55,16 +56,15 @@ static void setup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                          trustList, trustListSize,
+                                                          issuerList, issuerListSize,
+                                                          revocationList, revocationListSize);
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
-                                                   trustList, trustListSize,
-                                                   issuerList, issuerListSize,
-                                                   revocationList, revocationListSize);
 
-    UA_CertificateVerification_AcceptAll(&config->secureChannelPKI);
-    UA_CertificateVerification_AcceptAll(&config->sessionPKI);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config->sessionPKI);
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
@@ -102,12 +102,12 @@ START_TEST(encryption_reconnect_session) {
     ck_assert_uint_ne(privateKey.length, 0);
 
     /* Secure client initialization */
-    client = UA_Client_new();
+    client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
-    UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     ck_assert(client != NULL);

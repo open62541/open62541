@@ -32,7 +32,7 @@ musl_secs_to_tm(long long t, struct musl_tm *tm) {
         --days;
     }
 
-    wday = (3+days)%7;
+    wday = (int)((3+days)%7);
     if (wday < 0) wday += 7;
 
     qc_cycles = (int)(days / DAYS_PER_400Y);
@@ -113,7 +113,7 @@ musl_year_to_secs(const long long year, int *is_leap) {
 
     if (!is_leap) is_leap = &dummy;
     cycles = (int)((year-100) / 400);
-    rem = (year-100) % 400;
+    rem = (int)((year-100) % 400);
     if (rem < 0) {
         cycles--;
         rem += 400;
@@ -134,8 +134,8 @@ musl_year_to_secs(const long long year, int *is_leap) {
             *is_leap = 0;
             leaps = 0;
         } else {
-            leaps = rem / 4U;
-            rem %= 4U;
+            leaps = rem / 4;
+            rem %= 4;
             *is_leap = !rem;
         }
     }

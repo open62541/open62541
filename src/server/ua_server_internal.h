@@ -24,20 +24,12 @@
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_session.h"
+#include "ua_services.h"
 #include "ua_server_async.h"
-#include "ua_util_internal.h"
+#include "../util/ua_util_internal.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS
-
-#ifdef UA_ENABLE_PUBSUB
-#include "ua_pubsub.h"
-#endif
-
-#ifdef UA_ENABLE_DISCOVERY
-struct UA_DiscoveryManager;
-typedef struct UA_DiscoveryManager UA_DiscoveryManager;
-#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
@@ -47,11 +39,93 @@ typedef struct {
     void *context;
     union {
         UA_Server_DataChangeNotificationCallback dataChangeCallback;
-        /* UA_Server_EventNotificationCallback eventCallback; */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+        UA_Server_EventNotificationCallback eventCallback;
+#endif
     } callback;
+
+    /* For Event-MonitoredItems only. The value fields are overwritten before
+     * each callback. They can contain stray pointers between callbacks. So
+     * don't clean up the value fields. */
+    UA_KeyValueMap eventFields;
 } UA_LocalMonitoredItem;
 
 #endif /* !UA_ENABLE_SUBSCRIPTIONS */
+
+/********************/
+/* GDS Transaction  */
+/********************/
+
+typedef enum {
+    UA_GDSTRANSACIONSTATE_FRESH,
+    UA_GDSTRANSACIONSTATE_PENDING,
+} UA_GDSTransactionState;
+
+typedef struct {
+    UA_ByteString certificate;
+    UA_ByteString privateKey;
+    UA_NodeId certificateGroup;
+    UA_NodeId certificateType;
+} UA_GDSCertificateInfo;
+
+typedef struct {
+    UA_Server *server;
+    UA_NodeId sessionId;
+    UA_GDSTransactionState state;
+
+    UA_ByteString localCsrCertificate;
+
+    size_t certGroupSize;
+    UA_CertificateGroup *certGroups;
+
+    size_t certificateInfosSize;
+    UA_GDSCertificateInfo *certificateInfos;
+
+    /* Callback to close all SecureChannels after calling applyChanges
+     * and freeing the transaction. */
+    UA_DelayedCallback dc;
+} UA_GDSTransaction;
+
+UA_StatusCode
+UA_GDSTransaction_init(UA_GDSTransaction *transaction,
+                       UA_Server *server,
+                       const UA_NodeId sessionId);
+
+/* Returns the appropriate CertificateGroup from the transaction.
+ * If the CertificateGroup does not exist in the transaction, it will be created. */
+UA_CertificateGroup*
+UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
+                                      const UA_CertificateGroup *certGroup);
+
+UA_StatusCode
+UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
+                                     const UA_NodeId certificateGroupId,
+                                     const UA_NodeId certificateTypeId,
+                                     const UA_ByteString *certificate,
+                                     const UA_ByteString *privateKey);
+
+void
+UA_GDSTransaction_clear(UA_GDSTransaction *transaction);
+
+void
+UA_GDSTransaction_delete(UA_GDSTransaction *transaction);
+
+/********************/
+/*   GDS Manager    */
+/********************/
+
+typedef struct {
+    /* Transaction for certificate management */
+    UA_GDSTransaction transaction;
+    /* Contains context information necessary for reading and writing the TrustList as a file type */
+    void *fileInfoContext;
+    /* Holds the ID for the repeated callback that verifies the presence of sessions
+     * with an active transaction or an open trust list */
+    UA_UInt64 checkSessionCallbackId;
+} UA_GDSManager;
+
+void
+UA_GDSManager_clear(UA_GDSManager *gdsManager);
 
 /********************/
 /* Server Component */
@@ -70,23 +144,22 @@ typedef struct UA_ServerComponent {
     UA_String name;
     ZIP_ENTRY(UA_ServerComponent) treeEntry;
     UA_LifecycleState state;
+    UA_Server *server; /* Every ServerComponent has a backpointer to the server */
 
     /* Starting fails if the server is not also already started */
-    UA_StatusCode (*start)(UA_Server *server,
-                           struct UA_ServerComponent *sc);
+    UA_StatusCode (*start)(struct UA_ServerComponent *sc, UA_Server *server);
 
     /* Stopping is asynchronous and might need a few iterations of the main-loop
      * to succeed. */
-    void (*stop)(UA_Server *server,
-                 struct UA_ServerComponent *sc);
+    void (*stop)(struct UA_ServerComponent *sc);
 
-    /* Clean up the ServerComponent. Can fail if it is not stopped. */
-    UA_StatusCode (*free)(UA_Server *server,
-                          struct UA_ServerComponent *sc);
+    /* Clean up the ServerComponent. Can fail if it is not stopped. This does
+     * not free the memory and does not remove from the ziptree. */
+    UA_StatusCode (*clear)(struct UA_ServerComponent *sc);
 
     /* To be set by the server. So the component can notify the server about
      * asynchronous state changes. */
-    void (*notifyState)(UA_Server *server, struct UA_ServerComponent *sc,
+    void (*notifyState)(struct UA_ServerComponent *sc,
                         UA_LifecycleState state);
 } UA_ServerComponent;
 
@@ -132,17 +205,21 @@ struct UA_Server {
     UA_UInt64 serverComponentIds; /* Counter to assign ids from */
     UA_ServerComponentTree serverComponents;
 
-#if UA_MULTITHREADING >= 100
     UA_AsyncManager asyncManager;
-#endif
 
     /* Session Management */
     LIST_HEAD(session_list, session_list_entry) sessions;
     UA_UInt32 sessionCount;
     UA_UInt32 activeSessionCount;
-    UA_Session adminSession; /* Local access to the services (for startup and
-                              * maintenance) uses this Session with all possible
-                              * access rights (Session Id: 1) */
+
+    /* Session for local access to the services for upkeep and the C API. Comes
+     * equipped with all possible access rights (Session Id: 1). */
+    UA_Session adminSession;
+
+    /* SecureChannels */
+    TAILQ_HEAD(, UA_SecureChannel) channels;
+    UA_UInt32 lastChannelId;
+    UA_UInt32 lastTokenId;
 
     /* Namespaces */
     size_t namespacesSize;
@@ -154,6 +231,11 @@ struct UA_Server {
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* The admin session is initialized with a special subscription. This
+     * subscription generates delayed callbacks with notifications for local
+     * processing. */
+    UA_Subscription *adminSubscription;
+
     size_t subscriptionsSize;  /* Number of active subscriptions */
     size_t monitoredItemsSize; /* Number of active monitored items */
     LIST_HEAD(, UA_Subscription) subscriptions; /* All subscriptions in the
@@ -161,19 +243,10 @@ struct UA_Server {
                                                  * from a session. */
     UA_UInt32 lastSubscriptionId; /* To generate unique SubscriptionIds */
 
-    /* To be cast to UA_LocalMonitoredItem to get the callback and context */
-    LIST_HEAD(, UA_MonitoredItem) localMonitoredItems;
-    UA_UInt32 lastLocalMonitoredItemId;
-
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     LIST_HEAD(, UA_ConditionSource) conditionSources;
     UA_NodeId refreshEvents[2];
 # endif
-#endif
-
-    /* Publish/Subscribe */
-#ifdef UA_ENABLE_PUBSUB
-    UA_PubSubManager pubSubManager;
 #endif
 
 #if UA_MULTITHREADING >= 100
@@ -183,6 +256,9 @@ struct UA_Server {
     /* Statistics */
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
+
+    /* GDS Manager for certificate management */
+    UA_GDSManager gdsManager;
 };
 
 /***********************/
@@ -216,17 +292,18 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                       UA_ByteString msg);
 
 UA_StatusCode
-sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
+sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
 
 /* Gets the a pointer to the context of a security policy supported by the
  * server matched by the security policy uri. */
 UA_SecurityPolicy *
 getSecurityPolicyByUri(const UA_Server *server,
-                       const UA_ByteString *securityPolicyUri);
+                       const UA_String *securityPolicyUri);
 
-UA_UInt32
-generateSecureChannelTokenId(UA_Server *server);
+void
+notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                    UA_ApplicationNotificationType type);
 
 /********************/
 /* Session Handling */
@@ -245,19 +322,16 @@ getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
                 const UA_NodeId *token, UA_Session **session);
 
 UA_StatusCode
-UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
-                        const UA_CreateSessionRequest *request, UA_Session **session);
+UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
+                  const UA_CreateSessionRequest *request,
+                  UA_Session **session);
 
 void
-UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
-                        UA_ShutdownReason shutdownReason);
-
-UA_StatusCode
-UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
-                               UA_ShutdownReason shutdownReason);
+UA_Session_remove(UA_Server *server, UA_Session *session,
+                  UA_ShutdownReason shutdownReason);
 
 void
-UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic);
+cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic);
 
 UA_Session *
 getSessionByToken(UA_Server *server, const UA_NodeId *token);
@@ -274,10 +348,20 @@ getSessionById(UA_Server *server, const UA_NodeId *sessionId);
  * multithreading and the nodestore.*/
 typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*,
                                              UA_Node *node, void*);
-UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
-                                 const UA_NodeId *nodeId,
-                                 UA_EditNodeCallback callback,
-                                 void *data);
+UA_StatusCode
+editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+         UA_UInt32 attributeMask, UA_ReferenceTypeSet references,
+         UA_BrowseDirection referenceDirections,
+         UA_EditNodeCallback callback, void *data);
+
+/* Search for a child with a given browseNamee. Returns the first match. Does
+ * not touch outChildNodeId if no child is found. */
+UA_StatusCode
+findChildByBrowsename(UA_Server *server, UA_Session *session,
+                      const UA_NodeId parentId, UA_NodeClass nodeClassMask,
+                      const UA_Byte refType, const UA_NodeId refTypeId,
+                      const UA_QualifiedName *browseName,
+                      UA_NodeId *outChildNodeId);
 
 /*********************/
 /* Utility Functions */
@@ -316,15 +400,17 @@ UA_StatusCode
 referenceTypeIndices(UA_Server *server, const UA_NodeId *refType,
                      UA_ReferenceTypeSet *indices, UA_Boolean includeSubtypes);
 
-/* Returns the recursive type and interface hierarchy of the node */
+/* Returns the recursive type hierarchy for an Object/ObjectType or
+ * Variable/VariableType. Does not return interfaces. */
 UA_StatusCode
-getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
-                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize);
+getTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *leafNode,
+                             UA_Boolean includeLeaf, UA_NodeId **typeHierarchy,
+                             size_t *typeHierarchySize);
 
 /* Returns the recursive interface hierarchy of the node */
 UA_StatusCode
-getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode, const UA_NodeId *objectTypeNode,
-                                   UA_NodeId **interfaceChildNodes, size_t *interfaceChildNodesSize);
+getAllInterfaces(UA_Server *server, const UA_NodeId *objectNode,
+                 UA_NodeId **interfaceNodes, size_t *interfaceNodesSize);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
@@ -348,26 +434,32 @@ isConditionOrBranch(UA_Server *server,
 const UA_Node *
 getNodeType(UA_Server *server, const UA_NodeHead *nodeHead);
 
-UA_StatusCode
-sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
-             UA_UInt32 requestId, UA_Response *response, const UA_DataType *responseType);
+/* Returns whether the response is done (async call or not) */
+UA_Boolean
+processRequest(UA_Server *server, UA_SecureChannel *channel,
+               UA_UInt32 requestId, UA_ServiceDescription *sd,
+               const UA_Request *request, UA_Response *response);
 
-/* Many services come as an array of operations. This function generalizes the
- * processing of the operations. */
+UA_StatusCode
+sendResponse(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
+             UA_Response *response, const UA_DataType *responseType);
+
 typedef void (*UA_ServiceOperation)(UA_Server *server, UA_Session *session,
                                     const void *context,
                                     const void *requestOperation,
                                     void *responseOperation);
 
+/* Many services come as an array of operations. This function generalizes the
+ * processing of the operations. */
 UA_StatusCode
-UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
-                                   UA_ServiceOperation operationCallback,
-                                   const void *context,
-                                   const size_t *requestOperations,
-                                   const UA_DataType *requestOperationsType,
-                                   size_t *responseOperations,
-                                   const UA_DataType *responseOperationsType)
-    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+allocProcessServiceOperations(UA_Server *server, UA_Session *session,
+                              UA_ServiceOperation operationCallback,
+                              const void *context,
+                              const size_t *requestOperations,
+                              const UA_DataType *requestOperationsType,
+                              size_t *responseOperations,
+                              const UA_DataType *responseOperationsType)
+    UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /*********************/
 /* Locking/Unlocking */
@@ -403,12 +495,13 @@ addRefWithSession(UA_Server *server, UA_Session *session, const UA_NodeId *sourc
                   UA_Boolean forward);
 
 UA_StatusCode
-setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_DataSource dataSource);
+setVariableNode_callbackValueSource(UA_Server *server, const UA_NodeId nodeId,
+                                    const UA_CallbackValueSource evs);
 
 UA_StatusCode
-setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
-                              const UA_ValueCallback callback);
+setVariableNode_internalValueSource(UA_Server *server, const UA_NodeId nodeId,
+                                    const UA_DataValue *value,
+                                    const UA_ValueSourceNotifications *notifications);
 
 UA_StatusCode
 setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
@@ -417,10 +510,6 @@ setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
 UA_StatusCode
 setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                      UA_NodeTypeLifecycle lifecycle);
-
-void
-Operation_Write(UA_Server *server, UA_Session *session, void *context,
-                const UA_WriteValue *wv, UA_StatusCode *result);
 
 UA_StatusCode
 writeAttribute(UA_Server *server, UA_Session *session,
@@ -454,10 +543,6 @@ UA_WRITEATTRIBUTEFUNCS(AccessLevel, UA_ATTRIBUTEID_ACCESSLEVEL, UA_Byte, BYTE)
 UA_WRITEATTRIBUTEFUNCS(MinimumSamplingInterval, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
                        UA_Double, DOUBLE)
 
-void
-Operation_Read(UA_Server *server, UA_Session *session, UA_TimestampsToReturn *ttr,
-               const UA_ReadValueId *rvi, UA_DataValue *dv);
-
 UA_DataValue
 readWithSession(UA_Server *server, UA_Session *session,
                 const UA_ReadValueId *item,
@@ -474,35 +559,6 @@ readObjectProperty(UA_Server *server, const UA_NodeId objectId,
 
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
-void monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon);
-
-UA_Subscription *
-getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-
-UA_StatusCode
-createEvent(UA_Server *server, const UA_NodeId eventType,
-            UA_NodeId *outNodeId);
-
-UA_StatusCode
-triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
-             const UA_NodeId origin, UA_ByteString *outEventId,
-             const UA_Boolean deleteEventNode);
-
-/* Filters the given event with the given filter and writes the results into a
- * notification */
-UA_StatusCode
-filterEvent(UA_Server *server, UA_Session *session,
-            const UA_NodeId *eventNode, UA_EventFilter *filter,
-            UA_EventFieldList *efl, UA_EventFilterResult *result);
-
-#endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
-
-#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 /* Returns a configured SecurityPolicy with encryption. Use Basic256Sha256 if
  * available. Otherwise use any encrypted SecurityPolicy. */
@@ -545,15 +601,18 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 
 #ifdef UA_ENABLE_DISCOVERY
-UA_ServerComponent *
-UA_DiscoveryManager_new(UA_Server *server);
+UA_ServerComponent * UA_DiscoveryManager_new(void);
+#endif
+
+UA_ServerComponent * UA_BinaryProtocolManager_new(UA_Server *server);
+
+
+#ifdef UA_ENABLE_PUBSUB
+UA_ServerComponent * UA_PubSubManager_new(UA_Server *server);
 #endif
 
 UA_String
 securityPolicyUriPostfix(const UA_String uri);
-
-UA_ServerComponent *
-UA_BinaryProtocolManager_new(UA_Server *server);
 
 /***********/
 /* RefTree */
@@ -589,12 +648,12 @@ typedef struct {
     size_t size;     /* used space */
 } RefTree;
 
-UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_init(RefTree *rt);
 
 void RefTree_clear(RefTree *rt);
 
-UA_StatusCode UA_FUNC_ATTR_WARN_UNUSED_RESULT
+UA_StatusCode UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 RefTree_addNodeId(RefTree *rt, const UA_NodeId *target, UA_Boolean *duplicate);
 
 UA_Boolean
@@ -603,17 +662,18 @@ RefTree_contains(RefTree *rt, const UA_ExpandedNodeId *target);
 UA_Boolean
 RefTree_containsNodeId(RefTree *rt, const UA_NodeId *target);
 
+/* Browse recursive starting from all nodes already in the rt. Add matching
+ * targets to the rt and continue. Does not clean up the rt in case of an
+ * error. */
+UA_StatusCode
+browseRecursiveRefTree(UA_Server *server, RefTree *rt,
+                       UA_BrowseDirection browseDirection,
+                       const UA_ReferenceTypeSet *refTypes,
+                       UA_UInt32 nodeClassMask);
+
 /***************************************/
 /* Check Information Model Consistency */
 /***************************************/
-
-/* Read a node attribute in the context of a "checked-out" node. So the
- * attribute will not be copied when possible. The variant then points into the
- * node and has UA_VARIANT_DATA_NODELETE set. */
-void
-ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
-             UA_TimestampsToReturn timestampsToReturn,
-             const UA_ReadValueId *id, UA_DataValue *v);
 
 UA_StatusCode
 readValueAttribute(UA_Server *server, UA_Session *session,
@@ -731,6 +791,12 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 
 UA_StatusCode initNS0(UA_Server *server);
 
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
+UA_StatusCode
+initNS0PushManagement(UA_Server *server);
+#endif
+
+
 #ifdef UA_ENABLE_DIAGNOSTICS
 void createSessionObject(UA_Server *server, UA_Session *session);
 
@@ -769,55 +835,66 @@ readSessionSecurityDiagnostics(UA_Server *server,
 /***************************/
 
 #define UA_NODESTORE_NEW(server, nodeClass)                             \
-    server->config.nodestore.newNode(server->config.nodestore.context, nodeClass)
+    server->config.nodestore->newNode(server->config.nodestore, nodeClass)
 
 #define UA_NODESTORE_DELETE(server, node)                               \
-    server->config.nodestore.deleteNode(server->config.nodestore.context, node)
+    server->config.nodestore->deleteNode(server->config.nodestore, node)
 
 /* Get the node with all attributes and references */
 static UA_INLINE const UA_Node *
 UA_NODESTORE_GET(UA_Server *server, const UA_NodeId *nodeId) {
-    return server->config.nodestore.
-        getNode(server->config.nodestore.context, nodeId, UA_NODEATTRIBUTESMASK_ALL,
+    return server->config.nodestore->
+        getNode(server->config.nodestore, nodeId, UA_NODEATTRIBUTESMASK_ALL,
                 UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+}
+
+/* Get the editable node with all attributes and references */
+static UA_INLINE UA_Node *
+UA_NODESTORE_GET_EDIT(UA_Server *server, const UA_NodeId *nodeId) {
+    return server->config.nodestore->
+        getEditNode(server->config.nodestore, nodeId,
+                    UA_NODEATTRIBUTESMASK_ALL, UA_REFERENCETYPESET_ALL,
+                    UA_BROWSEDIRECTION_BOTH);
 }
 
 /* Get the node with all attributes and references */
 static UA_INLINE const UA_Node *
 UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target) {
-    return server->config.nodestore.
-        getNodeFromPtr(server->config.nodestore.context, target, UA_NODEATTRIBUTESMASK_ALL,
+    return server->config.nodestore->
+        getNodeFromPtr(server->config.nodestore,
+                       target, UA_NODEATTRIBUTESMASK_ALL,
                        UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
 }
 
 #define UA_NODESTORE_GET_SELECTIVE(server, nodeid, attrMask, refs, refDirs) \
-    server->config.nodestore.getNode(server->config.nodestore.context,      \
-                                     nodeid, attrMask, refs, refDirs)
+    server->config.nodestore->getNode(server->config.nodestore,             \
+                                      nodeid, attrMask, refs, refDirs)
+
+#define UA_NODESTORE_GET_EDIT_SELECTIVE(server, nodeid, attrMask, refs, refDirs) \
+    server->config.nodestore->getEditNode(server->config.nodestore,              \
+                                          nodeid, attrMask, refs, refDirs)
 
 #define UA_NODESTORE_GETFROMREF_SELECTIVE(server, target, attrMask, refs, refDirs) \
-    server->config.nodestore.getNodeFromPtr(server->config.nodestore.context,      \
-                                            target, attrMask, refs, refDirs)
+    server->config.nodestore->getNodeFromPtr(server->config.nodestore,             \
+                                             target, attrMask, refs, refDirs)
 
 #define UA_NODESTORE_RELEASE(server, node)                              \
-    server->config.nodestore.releaseNode(server->config.nodestore.context, node)
+    server->config.nodestore->releaseNode(server->config.nodestore, node)
 
 #define UA_NODESTORE_GETCOPY(server, nodeid, outnode)                      \
-    server->config.nodestore.getNodeCopy(server->config.nodestore.context, \
-                                         nodeid, outnode)
+    server->config.nodestore->getNodeCopy(server->config.nodestore, nodeid, outnode)
 
 #define UA_NODESTORE_INSERT(server, node, addedNodeId)                    \
-    server->config.nodestore.insertNode(server->config.nodestore.context, \
-                                        node, addedNodeId)
+    server->config.nodestore->insertNode(server->config.nodestore, node, addedNodeId)
 
 #define UA_NODESTORE_REPLACE(server, node)                              \
-    server->config.nodestore.replaceNode(server->config.nodestore.context, node)
+    server->config.nodestore->replaceNode(server->config.nodestore, node)
 
 #define UA_NODESTORE_REMOVE(server, nodeId)                             \
-    server->config.nodestore.removeNode(server->config.nodestore.context, nodeId)
+    server->config.nodestore->removeNode(server->config.nodestore, nodeId)
 
 #define UA_NODESTORE_GETREFERENCETYPEID(server, index)                  \
-    server->config.nodestore.getReferenceTypeId(server->config.nodestore.context, \
-                                                index)
+    server->config.nodestore->getReferenceTypeId(server->config.nodestore, index)
 
 /* Handling of Locales */
 

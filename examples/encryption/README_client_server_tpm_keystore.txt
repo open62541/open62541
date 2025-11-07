@@ -88,10 +88,10 @@ Create encryption and signing key in both the server and client node filesystems
     cd open62541/tools/tpm_keystore/
 
     In server,
-    python3 ../certs/create_self-signed.py -u urn:open62541.server.application
+    python3 ../certs/create_self-signed.py -u urn:open62541.unconfigured.application -c server
 
     In client,
-    python3 ../certs/create_self-signed.py -u urn:unconfigured:application -c client
+    python3 ../certs/create_self-signed.py -u urn:open62541.unconfigured.application -c client
 
 Seal the encryption and signing key files using the key available in TPM
     gcc cert_encrypt_tpm.c -o cert_encrypt_tpm -ltpm2_pkcs11 -lssl -lcrypto
@@ -113,7 +113,7 @@ Delete the original encryption and signing key
 To run client and server applications over Ethernet in two nodes connected in peer-to-peer network
     cd ../../
     mkdir build && cd build
-    cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ENCRYPTION=ON -DUA_ENABLE_ENCRYPTION=MBEDTLS -DUA_ENABLE_ENCRYPTION_TPM2=ON ..
+    cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_ENCRYPTION=MBEDTLS -DUA_ENABLE_ENCRYPTION_TPM2=ON ..
     make -j$(nproc)
 
 The binaries are generated in build/bin/ folder

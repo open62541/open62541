@@ -13,10 +13,29 @@
 #include <check.h>
 
 static UA_EventLoop *el;
+static UA_ConnectionManager *cm;
 static unsigned connCount;
 static char *testMsg = "open62541";
 static uintptr_t clientId;
 static UA_Boolean received;
+
+static void setupEL(void) {
+#if defined(UA_ARCHITECTURE_LWIP)
+    el = UA_EventLoop_new_LWIP(UA_Log_Stdout, NULL);
+    cm = UA_ConnectionManager_new_LWIP_TCP(UA_STRING("tcpCM"));
+    el->registerEventSource(el, &cm->eventSource);
+#elif defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
+    /* Set up the TCP EventLoop parameters */
+    UA_UInt32 maxSockets = 2; /* Max number of server sockets (default: 0 -> unbounded) */
+    UA_KeyValueMap_setScalar(&cm->eventSource.params, UA_QUALIFIEDNAME(0, "max-connections"),
+                             (void *)&maxSockets, &UA_TYPES[UA_TYPES_UINT32]);
+    el->registerEventSource(el, &cm->eventSource);
+#else
+#error Add other EventLoop implementations here
+#endif
+}
 
 static void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
@@ -53,9 +72,7 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 START_TEST(listenTCP) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    el->registerEventSource(el, &cm->eventSource);
+    setupEL();
     el->start(el);
 
     UA_UInt16 port = 4840;
@@ -73,9 +90,18 @@ START_TEST(listenTCP) {
 
     ck_assert_uint_eq(connCount, 0);
 
-    cm->openConnection(cm, &paramsMap, NULL, NULL, connectionCallback);
+    UA_StatusCode retval = cm->openConnection(cm, &paramsMap, NULL, NULL, connectionCallback);
 
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(connCount > 0);
+
+#if !defined(UA_ARCHITECTURE_LWIP)
+    port = 4841;
+    /* This should fail because the maximum number of sockets has been reached */
+    retval = cm->openConnection(cm, &paramsMap, NULL, NULL, connectionCallback);
+
+    ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
+#endif
 
     for(size_t i = 0; i < 10; i++) {
         UA_DateTime next = el->run(el, 1);
@@ -99,32 +125,40 @@ START_TEST(listenTCP) {
 } END_TEST
 
 START_TEST(connectTCP) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    el->registerEventSource(el, &cm->eventSource);
+    setupEL();
     el->start(el);
 
     UA_UInt16 port = 4840;
     UA_Boolean listen = true;
     UA_String host = UA_STRING("localhost");
+    UA_Boolean reuseaddr = true;
 
-    UA_KeyValuePair params[3];
+    UA_KeyValuePair params[4];
     params[0].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
     params[1].key = UA_QUALIFIEDNAME(0, "listen");
     UA_Variant_setScalar(&params[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
     params[2].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&params[2].value, &host, &UA_TYPES[UA_TYPES_STRING]);
+    params[3].key = UA_QUALIFIEDNAME(0, "reuse");
+    UA_Variant_setScalar(&params[3].value, &reuseaddr, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     UA_KeyValueMap paramsMap;
     paramsMap.map = params;
-    paramsMap.mapSize = 3;
+    paramsMap.mapSize = 4;
 
     connCount = 0;
 
     cm->openConnection(cm, &paramsMap, NULL, NULL, connectionCallback);
 
     size_t listenSockets = connCount;
+
+#if !defined(UA_ARCHITECTURE_LWIP)
+    /* Set up the TCP EventLoop parameters */
+    UA_UInt32 maxSockets = (UA_UInt32)(listenSockets + 1); /* Max number of server sockets (default: 0 -> unbounded) */
+    UA_KeyValueMap_setScalar(&cm->eventSource.params, UA_QUALIFIEDNAME(0, "max-connections"),
+                             (void *)&maxSockets, &UA_TYPES[UA_TYPES_UINT32]);
+#endif
 
     /* Open a client connection */
     clientId = 0;
@@ -155,11 +189,22 @@ START_TEST(connectTCP) {
     }
     ck_assert(received);
 
+#if !defined(UA_ARCHITECTURE_LWIP)
+    /* Open a second client connection.
+     * This should fail because the maximum number of sockets has been reached */
+    retval = cm->openConnection(cm, &paramsMap, NULL, (void*)0x01, connectionCallback);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    for(size_t i = 0; i < 2; i++) {
+        UA_DateTime next = el->run(el, 1);
+        UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
+    }
+#endif
+
     /* Close the connection */
     retval = cm->closeConnection(cm, clientId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(connCount, listenSockets + 2);
-    for(size_t i = 0; i < 2; i++) {
+    for(size_t i = 0; i < 10; i++) {
         UA_DateTime next = el->run(el, 1);
         UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
     }

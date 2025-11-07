@@ -2,9 +2,9 @@ name: "Code Scanning"
 
 on:
   push: 
-    branches: [ master, 1\.1, 1\.2 ]
+    branches: [ master, 1.* ]
   pull_request:
-    branches: [ master, 1\.1, 1\.2 ]
+    branches: [ master, 1.* ]
     paths-ignore:
       - '**/*.md'
       - '**/*.txt'
@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout open62541
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: recursive
       
@@ -35,8 +35,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y -qq python3-sphinx graphviz check
-          sudo apt-get install -y -qq tcc clang-11 clang-tools-11 valgrind mosquitto
-          sudo apt-get install -y -qq libmbedtls-dev openssl
+          sudo apt-get install -y -qq tcc clang-14 clang-tools-14 valgrind mosquitto
+          sudo apt-get install -y -qq libmbedtls-dev openssl libpcap-dev
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
@@ -44,7 +44,7 @@ jobs:
           languages: ${{ matrix.language }}
       
       - name: Debug Build
-        run: source tools/ci.sh && unit_tests
+        run: source tools/ci/linux/ci.sh && unit_tests
         env:
           ETHERNET_INTERFACE: eth0
       

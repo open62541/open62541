@@ -86,9 +86,11 @@
   mdnsEnabled: false,
   mdns: {
     mdnsServerName: "mdnsServerName",
+    // See https://reference.opcfoundation.org/GDS/v105/docs/D
     serverCapabilities: [
+      // "NA" should be first and only server capability:
+      //"NA"
       "LDS",
-      "NA",
       "GDS"
     ],
     mdnsInterfaceIP: "127.0.0.1",
@@ -195,14 +197,5 @@
 //    }
 //  ],
 
-//  secureChannelPKI: {
-//    trustListFolder: "/path/to/folder",
-//    issuerListFolder: "/path/to/folder",
-//    revocationListFolder: "/path/to/folder"
-//  },
-//  sessionPKI: {
-//    trustListFolder: "/path/to/folder",
-//    issuerListFolder: "/path/to/folder",
-//    revocationListFolder: "/path/to/folder"
-//  },
+//  pkiFolder: "/store",
 }

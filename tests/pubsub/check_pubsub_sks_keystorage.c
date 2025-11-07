@@ -9,12 +9,12 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "ua_pubsub_keystorage.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
-#include <stdlib.h>
+#include "test_helpers.h"
 #include "testing_clock.h"
 
 #define UA_PUBSUB_KEYMATERIAL_NONCELENGTH 32
@@ -90,7 +90,7 @@ addTestWriterGroup(UA_String securitygroupId){
     writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
     retval |= UA_Server_addWriterGroup(server, connection, &writerGroupConfig, &writerGroup);
-    UA_Server_setWriterGroupOperational(server, writerGroup);
+    UA_Server_enableWriterGroup(server, writerGroup);
 }
 
 static void
@@ -111,13 +111,14 @@ addTestReaderGroup(UA_String securitygroupId){
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
     retVal |=  UA_Server_addReaderGroup(server, connection, &readerGroupConfig, &readerGroup);
-    UA_Server_setReaderGroupOperational(server, readerGroup);
+    UA_Server_enableReaderGroup(server, readerGroup);
 }
 
 static UA_PubSubKeyStorage*
 createKeyStoragewithkeys(UA_UInt32 currentTokenId, UA_UInt32 keysize,
                          UA_Duration msKeyLifeTime, UA_Duration msTimeToNextKey,
                          UA_String testSecurityGroupId) {
+    UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_Duration callbackTime;
     addTestWriterGroup(SecurityGroupId);
@@ -125,7 +126,7 @@ createKeyStoragewithkeys(UA_UInt32 currentTokenId, UA_UInt32 keysize,
 
     lockServer(server);
     UA_PubSubKeyStorage *tKeyStorage =
-        UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
+        UA_PubSubKeyStorage_find(psm, SecurityGroupId);
 
     size_t keyLength = server->config.pubSubConfig.securityPolicies->symmetricModule
                            .secureChannelNonceLength;
@@ -141,13 +142,18 @@ createKeyStoragewithkeys(UA_UInt32 currentTokenId, UA_UInt32 keysize,
         generateKeyData(server->config.pubSubConfig.securityPolicies, &futureKey[i]);
     }
 
-    retval = UA_PubSubKeyStorage_storeSecurityKeys(server, tKeyStorage,
-                                                   currentTokenId, &currentKey, futureKey,
-                                                   keysize, msKeyLifeTime);
+    UA_PubSubKeyListItem *item = UA_PubSubKeyStorage_push(tKeyStorage, &currentKey, currentTokenId);
+    ck_assert_ptr_ne(item, NULL);
+
+    UA_PubSubKeyStorage_setCurrentKey(tKeyStorage, currentTokenId);
+
+    retval = UA_PubSubKeyStorage_addSecurityKeys(tKeyStorage, keysize, futureKey, currentTokenId);
     if(retval != UA_STATUSCODE_GOOD)
         return NULL;
 
-    retval = UA_PubSubKeyStorage_activateKeyToChannelContext(server, UA_NODEID_NULL,
+    tKeyStorage->keyLifeTime = msKeyLifeTime;
+
+    retval = UA_PubSubKeyStorage_activateKeyToChannelContext(psm, UA_NODEID_NULL,
                                                              tKeyStorage->securityGroupID);
     if(retval != UA_STATUSCODE_GOOD)
         return NULL;
@@ -158,7 +164,7 @@ createKeyStoragewithkeys(UA_UInt32 currentTokenId, UA_UInt32 keysize,
 
     /*move to setSecurityKeysAction*/
     retval = UA_PubSubKeyStorage_addKeyRolloverCallback(
-        server, tKeyStorage, (UA_ServerCallback)UA_PubSubKeyStorage_keyRolloverCallback, callbackTime,
+        psm, tKeyStorage, (UA_Callback)UA_PubSubKeyStorage_keyRolloverCallback, callbackTime,
         &tKeyStorage->callBackId);
     unlockServer(server);
 
@@ -181,12 +187,11 @@ hexstr_to_char(const char *hexstr) {
 
 static void
 setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     SecurityGroupId = UA_STRING("TestSecurityGroup");
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    retVal |= UA_ServerConfig_setDefault(config);
 
+    UA_ServerConfig *config = &server->config;
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
@@ -218,6 +223,7 @@ static void teardown(void) {
 }
 
 START_TEST(TestPubSubKeyStorage_initialize) {
+    UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_UInt32 maxPastkeyCount = 0;
     UA_UInt32 maxFuturekeyCount = 0;
@@ -228,7 +234,7 @@ START_TEST(TestPubSubKeyStorage_initialize) {
     lockServer(server);
 
     retval =
-        UA_PubSubKeyStorage_init(server, tKeyStorage,
+        UA_PubSubKeyStorage_init(psm, tKeyStorage,
                                  &SecurityGroupId, server->config.pubSubConfig.securityPolicies,
                                  maxPastkeyCount, maxFuturekeyCount);
 
@@ -242,7 +248,7 @@ START_TEST(TestPubSubKeyStorage_initialize) {
     }
     ck_assert_msg(UA_String_equal(&tKeyStorage->securityGroupID, &SecurityGroupId), "Expected SecurityGroupId to be equal to keystorage->securityGroupID");
     /*check if the keystorage is in the Server Keystorage list*/
-    ck_assert_ptr_eq(server->pubSubManager.pubSubKeyList.lh_first, tKeyStorage);
+    ck_assert_ptr_eq(psm->pubSubKeyList.lh_first, tKeyStorage);
 
     unlockServer(server);
 } END_TEST
@@ -288,9 +294,10 @@ START_TEST(TestPubSubKeyStorage_MovetoNextKeyCallback){
     ck_assert_msg(UA_ByteString_equal(&nextCurrentKey->key, &tKeyStorage->currentItem->key), "Expected Current key to be the First Future key after first TimeToNextKey expires");
     /*securityTokenId must be updated after KeyLifeTime elapses*/
     ck_assert_uint_eq(nextCurrentKey->keyID, tKeyStorage->currentTokenId);
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
     ck_assert_uint_eq(wg->securityTokenId, nextCurrentKey->keyID);
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroup);
     ck_assert_uint_eq(rg->securityTokenId, nextCurrentKey->keyID);
 } END_TEST
 
@@ -317,7 +324,8 @@ START_TEST(TestPubSubKeystorage_ImportedKey){
 
     /*encrypt and sign with Writer channelContext*/
 
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
     retval = wg->config.securityPolicy->setMessageNonce(wg->securityPolicyContext, &testMsgNonce);
     retval =  wg->config.securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.encrypt( wg->securityPolicyContext, &buffer);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected retval to be GOOD");
@@ -328,7 +336,7 @@ START_TEST(TestPubSubKeystorage_ImportedKey){
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected retval to be GOOD: Error Code %s", UA_StatusCode_name(retval));
 
     /*decrypt and verify with the imported key in the ReaderGroup*/
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroup);
     retval = rg->config.securityPolicy->setMessageNonce(rg->securityPolicyContext, &testMsgNonce);
     retval = rg->config.securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.verify(rg->securityPolicyContext, &buffer,&signature);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected retval to be GOOD: Error Code %s", UA_StatusCode_name(retval));
@@ -341,21 +349,23 @@ START_TEST(TestPubSubKeystorage_ImportedKey){
     unlockServer(server);
 } END_TEST
 
-START_TEST(TestPubSubKeyStorage_InitWithWriterGroup){
+START_TEST(TestPubSubKeyStorage_InitWithWriterGroup) {
     addTestWriterGroup(SecurityGroupId);
     lockServer(server);
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, SecurityGroupId);
     ck_assert_ptr_ne(wg->keyStorage, NULL);
     ck_assert_ptr_eq(ks, wg->keyStorage);
     unlockServer(server);
 } END_TEST
 
 START_TEST(TestPubSubKeyStorage_InitWithReaderGroup){
+    UA_PubSubManager *psm = getPSM(server);
     addTestReaderGroup(SecurityGroupId);
     lockServer(server);
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroup);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, SecurityGroupId);
     ck_assert_ptr_ne(rg->keyStorage, NULL);
     ck_assert_ptr_eq(ks, rg->keyStorage);
     unlockServer(server);
@@ -364,14 +374,15 @@ START_TEST(TestPubSubKeyStorage_InitWithReaderGroup){
 START_TEST(TestAddingNewGroupToExistingKeyStorage){
     addTestWriterGroup(SecurityGroupId);
     lockServer(server);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, SecurityGroupId);
     ck_assert_msg(ks->referenceCount == 1, "Expected the reference Count to be exactly 1 after adding one Group");
     unlockServer(server);
     addTestReaderGroup(SecurityGroupId);
     lockServer(server);
     ck_assert_msg(ks->referenceCount == 2, "Expected the reference Count to be exactly 2 after adding second Group same SecurityGroupId");
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroup);
     ck_assert_ptr_eq(ks, rg->keyStorage);
     ck_assert_ptr_eq(ks, wg->keyStorage);
     ck_assert_ptr_eq(rg->keyStorage, wg->keyStorage);
@@ -379,10 +390,11 @@ START_TEST(TestAddingNewGroupToExistingKeyStorage){
 } END_TEST
 
 START_TEST(TestRemoveAPubSubGroupWithKeyStorage){
+    UA_PubSubManager *psm = getPSM(server);
     addTestWriterGroup(SecurityGroupId);
     addTestReaderGroup(SecurityGroupId);
     lockServer(server);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, SecurityGroupId);
     UA_UInt32 refCountBefore = ks->referenceCount;
     unlockServer(server);
     UA_Server_removeWriterGroup(server, writerGroup);
@@ -391,7 +403,7 @@ START_TEST(TestRemoveAPubSubGroupWithKeyStorage){
     UA_Server_removeReaderGroup(server, readerGroup);
     lockServer(server);
     ks = NULL;
-    ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
+    ks = UA_PubSubKeyStorage_find(psm, SecurityGroupId);
     ck_assert_ptr_eq(ks, NULL);
     unlockServer(server);
 } END_TEST

@@ -5,7 +5,6 @@
 #define _XOPEN_SOURCE 500
 #include <open62541/server.h>
 #include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
 
 #include "ua_types_encoding_binary.h"
@@ -62,7 +61,7 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_Byte *pos = msg1.data;
     const UA_Byte *end = &msg1.data[msg1.length];
-    retval = UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_delete(obj1, &UA_TYPES[_i]);
         UA_ByteString_clear(&msg1);
@@ -73,21 +72,21 @@ START_TEST(encodeShallYieldDecode) {
     void *obj2 = UA_new(&UA_TYPES[_i]);
     size_t offset = 0;
     retval = UA_decodeBinaryInternal(&msg1, &offset, obj2, &UA_TYPES[_i], NULL);
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%i",
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD, "could not decode idx=%d,nodeid=%u",
                   _i, UA_TYPES[_i].typeId.identifier.numeric);
     ck_assert(!memcmp(obj1, obj2, UA_TYPES[_i].memSize)); // bit identical decoding
     retval = UA_ByteString_allocBuffer(&msg2, 65000);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     pos = msg2.data;
     end = &msg2.data[msg2.length];
-    retval = UA_encodeBinaryInternal(obj2, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj2, &UA_TYPES[_i], &pos, &end, NULL, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     // then
     msg1.length = offset;
     msg2.length = offset;
     ck_assert_msg(UA_ByteString_equal(&msg1, &msg2) == true,
-                  "messages differ idx=%d,nodeid=%i", _i,
+                  "messages differ idx=%d,nodeid=%u", _i,
                   UA_TYPES[_i].typeId.identifier.numeric);
     ck_assert(UA_order(obj1, obj2, &UA_TYPES[_i]) == UA_ORDER_EQ);
 
@@ -116,7 +115,7 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
     UA_Byte *pos = msg1.data;
     const UA_Byte *end = &msg1.data[msg1.length];
-    retval |= UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval |= UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_delete(obj1, &UA_TYPES[_i]);
 
@@ -164,7 +163,7 @@ START_TEST(decodeScalarBasicTypeFromRandomBufferShallSucceed) {
         (void)retval;
         //then
         ck_assert_msg(retval == UA_STATUSCODE_GOOD,
-                      "Decoding %d from random buffer",
+                      "Decoding %u from random buffer",
                       UA_TYPES[_i].typeId.identifier.numeric);
         // finally
         UA_delete(obj1, &UA_TYPES[_i]);
@@ -209,14 +208,14 @@ END_TEST
 
 START_TEST(calcSizeBinaryShallBeCorrect) {
     void *obj = UA_new(&UA_TYPES[_i]);
-    size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i]);
+    size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i], NULL);
     ck_assert_uint_ne(predicted_size, 0);
     UA_ByteString msg;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg, predicted_size);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Byte *pos = msg.data;
     const UA_Byte *end = &msg.data[msg.length];
-    retval = UA_encodeBinaryInternal(obj, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj, &UA_TYPES[_i], &pos, &end, NULL, NULL, NULL);
     if(retval)
         printf("%i\n",_i);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

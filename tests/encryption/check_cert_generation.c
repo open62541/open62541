@@ -10,12 +10,12 @@
 #include <open62541/plugin/create_certificate.h>
 
 #include <check.h>
-#include <stdlib.h>
+#include "test_helpers.h"
 
 UA_Server *server;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 }
 
@@ -32,7 +32,7 @@ START_TEST(certificate_generation) {
     UA_UInt32 lenSubject = 3;
     UA_String subjectAltName[2]= {
         UA_STRING_STATIC("DNS:localhost"),
-        UA_STRING_STATIC("URI:urn:open62541.server.application")
+        UA_STRING_STATIC("URI:urn:open62541.unconfigured.application")
     };
     UA_UInt32 lenSubjectAltName = 2;
     UA_KeyValueMap *kvm = UA_KeyValueMap_new();
@@ -51,11 +51,9 @@ START_TEST(certificate_generation) {
     ck_assert(derCert.length > 0);
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    status = UA_ServerConfig_setDefaultWithSecurityPolicies(
-                config, 4840, &derCert, &derPrivKey,
-                NULL, 0,
-                NULL, 0,
-                NULL, 0);
+    status = UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &derCert, &derPrivKey,
+                                                            NULL, 0, NULL, 0, NULL, 0);
+    config->tcpReuseAddr = true;
     ck_assert(status == UA_STATUSCODE_GOOD);
 
     UA_ByteString_clear(&derCert);

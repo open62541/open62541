@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 
@@ -29,9 +30,8 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
@@ -67,15 +67,22 @@ asyncReadValueAtttributeCallback(UA_Client *client, void *userdata,
 }
 
 START_TEST(Client_highlevel_async_readValue) {
-        UA_Client *client = UA_Client_new();
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-        UA_ClientConfig_setDefault(clientConfig);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
 #endif
 
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        /* To generate the namespace mapping table */
+        size_t max_stop_iteration_count = 100000;
+        size_t iteration = 0;
+        while(!client->haveNamespaces && iteration < max_stop_iteration_count) {
+            UA_Client_run_iterate(client, 0);
+            iteration++;
+        }
 
         UA_UInt16 asyncCounter = 0;
         UA_UInt32 reqId = 0;
@@ -103,10 +110,7 @@ START_TEST(Client_highlevel_async_readValue) {
 } END_TEST
 
 START_TEST(Client_read_async) {
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-        UA_ClientConfig_setDefault(clientConfig);
-
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -152,9 +156,7 @@ asyncReadNodeClassAttributeCallback(UA_Client *client, void *userdata,
 }
 
 START_TEST(Client_readNodeClass_async) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(clientConfig);
+    UA_Client *client = UA_Client_newForUnitTest();
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -176,15 +178,17 @@ START_TEST(Client_readNodeClass_async) {
 } END_TEST
 
 START_TEST(Client_read_async_timed) {
-        UA_Client *client = UA_Client_new();
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-        UA_ClientConfig_setDefault(clientConfig);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
 #endif
 
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        /* To generate the namespace mapping table */
+        UA_Client_run_iterate(client, 1);
 
         UA_UInt16 asyncCounter = 0;
 
@@ -237,9 +241,8 @@ static void inactivityCallback(UA_Client *client) {
 }
 
 START_TEST(Client_connectivity_check) {
-        UA_Client *client = UA_Client_new();
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-        UA_ClientConfig_setDefault(clientConfig);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
 #endif
@@ -274,7 +277,7 @@ START_TEST(Client_connectivity_check) {
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-    }END_TEST
+}END_TEST
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");

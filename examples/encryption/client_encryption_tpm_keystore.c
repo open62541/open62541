@@ -418,7 +418,7 @@ int main(int argc, char* argv[]) {
     UA_Variant_init(&value);
 
     /* NodeId of the variable holding the current time */
-    const UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    const UA_NodeId nodeId = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
 
     if(retval == UA_STATUSCODE_GOOD &&

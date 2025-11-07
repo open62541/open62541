@@ -14,11 +14,12 @@
 #include <stdlib.h>
 #include <check.h>
 
+#include "test_helpers.h"
 #include "thread_wrapper.h"
 
-UA_Server *server;
-UA_Boolean running;
-THREAD_HANDLE server_thread;
+static UA_Server *server;
+static UA_Boolean running;
+static THREAD_HANDLE server_thread;
 
 static const size_t usernamePasswordsSize = 2;
 static UA_UsernamePasswordLogin usernamePasswords[2] = {
@@ -33,7 +34,7 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
     UA_ServerConfig *sc = UA_Server_getConfig(server);
@@ -57,8 +58,7 @@ static void teardown(void) {
 }
 
 START_TEST(Client_anonymous) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -68,37 +68,28 @@ START_TEST(Client_anonymous) {
 } END_TEST
 
 START_TEST(Client_user_pass_ok) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval =
         UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
-
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 } END_TEST
 
 START_TEST(Client_user_fail) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval =
         UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user0", "password");
-
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
-
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 } END_TEST
 
 START_TEST(Client_pass_fail) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval =
         UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "secret");
-
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
-
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 } END_TEST
@@ -122,9 +113,8 @@ static void setCustomAccessControl(UA_ServerConfig* config) {
 }
 
 START_TEST(Server_sessionParameter) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     setCustomAccessControl(config);
     UA_Server_run_startup(server);
 

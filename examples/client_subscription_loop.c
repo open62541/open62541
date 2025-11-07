@@ -19,7 +19,7 @@
 #include <signal.h>
 #include <stdlib.h>
 
-UA_Boolean running = true;
+static UA_Boolean running = true;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received Ctrl-C");
@@ -51,6 +51,52 @@ subscriptionInactivityCallback (UA_Client *client, UA_UInt32 subId, void *subCon
 }
 
 static void
+monCallback(UA_Client *client, void *userdata,
+            UA_UInt32 requestId, UA_CreateMonitoredItemsResponse *r) {
+    if(0 < r->resultsSize && r->results[0].statusCode == UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u",
+                    r->results[0].monitoredItemId);
+    }
+}
+
+static void
+createSubscriptionCallback(UA_Client *client, void *userdata,
+                           UA_UInt32 requestId, UA_CreateSubscriptionResponse *r) {
+    if (r->subscriptionId == 0) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "response->subscriptionId == 0, %u", r->subscriptionId);
+    } else if (r->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Create subscription failed, serviceResult %u",
+                    r->responseHeader.serviceResult);
+    } else {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            "Create subscription succeeded, id %u", r->subscriptionId);
+
+        /* Add a MonitoredItem */
+        UA_NodeId currentTime =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+        UA_CreateMonitoredItemsRequest req;
+        UA_CreateMonitoredItemsRequest_init(&req);
+        UA_MonitoredItemCreateRequest monRequest =
+            UA_MonitoredItemCreateRequest_default(currentTime);
+        req.itemsToCreate = &monRequest;
+        req.itemsToCreateSize = 1;
+        req.subscriptionId = r->subscriptionId;
+
+        UA_Client_DataChangeNotificationCallback dataChangeNotificationCallback[1] = { handler_currentTimeChanged };
+        UA_StatusCode retval =
+            UA_Client_MonitoredItems_createDataChanges_async(client, req, NULL,
+                                                             dataChangeNotificationCallback, NULL,
+                                                             monCallback, NULL, NULL);
+        if (retval != UA_STATUSCODE_GOOD)
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "UA_Client_MonitoredItems_createDataChanges_async ", UA_StatusCode_name(retval));
+    }
+}
+
+static void
 stateCallback(UA_Client *client, UA_SecureChannelState channelState,
               UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
     switch(channelState) {
@@ -76,29 +122,12 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         /* A new session was created. We need to create the subscription. */
         /* Create a subscription */
         UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-        UA_CreateSubscriptionResponse response =
-            UA_Client_Subscriptions_create(client, request, NULL, NULL, deleteSubscriptionCallback);
-            if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
-                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                            "Create subscription succeeded, id %u",
-                            response.subscriptionId);
-            else
-                return;
-
-            /* Add a MonitoredItem */
-            UA_NodeId currentTimeNode =
-                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
-            UA_MonitoredItemCreateRequest monRequest =
-                UA_MonitoredItemCreateRequest_default(currentTimeNode);
-
-            UA_MonitoredItemCreateResult monResponse =
-                UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
-                                                          UA_TIMESTAMPSTORETURN_BOTH, monRequest,
-                                                          NULL, handler_currentTimeChanged, NULL);
-            if(monResponse.statusCode == UA_STATUSCODE_GOOD)
-                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                            "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u",
-                            monResponse.monitoredItemId);
+        UA_StatusCode retval = 
+            UA_Client_Subscriptions_create_async(client, request, NULL, NULL, deleteSubscriptionCallback, 
+                                                 createSubscriptionCallback, NULL, NULL);
+        if (retval != UA_STATUSCODE_GOOD)
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "UA_Client_Subscriptions_create_async ", UA_StatusCode_name(retval));
         }
         break;
     case UA_SESSIONSTATE_CLOSED:
@@ -137,7 +166,7 @@ main(void) {
         }
 
         UA_Client_run_iterate(client, 1000);
-    };
+    }
 
     /* Clean up */
     UA_Client_delete(client); /* Disconnects the client internally */

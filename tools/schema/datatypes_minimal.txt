@@ -120,3 +120,6 @@ KeyValuePair
 NamingRuleType
 CancelRequest
 CancelResponse
+TrustListDataType
+TrustListMasks
+TrustListMasks_EnumValues

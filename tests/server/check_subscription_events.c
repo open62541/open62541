@@ -19,16 +19,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
 static UA_Server *server;
-static size_t serverIterations;
 static UA_Boolean running;
 static THREAD_HANDLE server_thread;
-static MUTEX_HANDLE serverMutex;
 
 UA_Client *client;
 
@@ -39,6 +38,8 @@ static size_t nSelectClauses = 4;
 static UA_Boolean notificationReceived;
 static UA_Boolean overflowNotificationReceived = false;
 static UA_SimpleAttributeOperand *selectClauses;
+static UA_LocalizedText message = {UA_STRING_STATIC("en-US"),
+                                   UA_STRING_STATIC("Generated Event")};
 
 UA_Double publishingInterval = 500.0;
 
@@ -87,46 +88,48 @@ setupSelectClauses(void) {
 static void
 handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
                       UA_UInt32 monId, void *monContext,
-                      size_t nEventFields, UA_Variant *eventFields) {
-    UA_Boolean foundSeverity = UA_FALSE;
-    UA_Boolean foundMessage = UA_FALSE;
-    UA_Boolean foundType = UA_FALSE;
-    UA_Boolean foundSource = UA_FALSE;
+                      UA_KeyValueMap eventFields) {
+    UA_Boolean foundSeverity = false;
+    UA_Boolean foundMessage = false;
+    UA_Boolean foundType = false;
+    UA_Boolean foundSource = false;
     ck_assert_uint_eq(*(UA_UInt32 *) monContext, monitoredItemId);
-    ck_assert_uint_eq(nEventFields, nSelectClauses);
+    ck_assert_uint_eq(eventFields.mapSize, nSelectClauses);
+
     // check all event fields
-    for(size_t i = 0; i < nEventFields; i++) {
+    for(size_t i = 0; i < eventFields.mapSize; i++) {
         // find out which attribute of the event is being looked at
-        if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
+        UA_Variant *value = &eventFields.map[i].value;
+        if(UA_Variant_hasScalarType(value, &UA_TYPES[UA_TYPES_UINT16])) {
             // Severity
-            ck_assert_uint_eq(*((UA_UInt16 *) (eventFields[i].data)), 1000);
-            foundSeverity = UA_TRUE;
-        } else if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
+            ck_assert_uint_eq(*(UA_UInt16*)value->data, 100);
+            foundSeverity = true;
+        } else if(UA_Variant_hasScalarType(value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
             // Message
             UA_LocalizedText comp = UA_LOCALIZEDTEXT("en-US", "Generated Event");
-            ck_assert(UA_String_equal(&((UA_LocalizedText *) eventFields[i].data)->locale, &comp.locale));
-            ck_assert(UA_String_equal(&((UA_LocalizedText *) eventFields[i].data)->text, &comp.text));
-            foundMessage = UA_TRUE;
-        } else if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_NODEID])) {
+            ck_assert(UA_String_equal(&((UA_LocalizedText *) value->data)->locale, &comp.locale));
+            ck_assert(UA_String_equal(&((UA_LocalizedText *) value->data)->text, &comp.text));
+            foundMessage = true;
+        } else if(UA_Variant_hasScalarType(value, &UA_TYPES[UA_TYPES_NODEID])) {
             // either SourceNode or EventType
             UA_NodeId serverId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
-            if(UA_NodeId_equal((UA_NodeId *) eventFields[i].data, &eventType)) {
+            if(UA_NodeId_equal((UA_NodeId *) value->data, &eventType)) {
                 // EventType
-                foundType = UA_TRUE;
-            } else if(UA_NodeId_equal((UA_NodeId *) eventFields[i].data, &serverId)) {
+                foundType = true;
+            } else if(UA_NodeId_equal((UA_NodeId *) value->data, &serverId)) {
                 // SourceNode
-                foundSource = UA_TRUE;
+                foundSource = true;
             } else {
-                ck_assert_msg(UA_FALSE, "NodeId doesn't match");
+                ck_assert_msg(false, "NodeId doesn't match");
             }
         } else {
-            ck_assert_msg(UA_FALSE, "Field doesn't match");
+            ck_assert_msg(false, "Field doesn't match");
         }
     }
-    ck_assert_uint_eq(foundMessage, UA_TRUE);
-    ck_assert_uint_eq(foundSeverity, UA_TRUE);
-    ck_assert_uint_eq(foundType, UA_TRUE);
-    ck_assert_uint_eq(foundSource, UA_TRUE);
+    ck_assert_uint_eq(foundMessage, true);
+    ck_assert_uint_eq(foundSeverity, true);
+    ck_assert_uint_eq(foundType, true);
+    ck_assert_uint_eq(foundSource, true);
     notificationReceived = true;
 }
 
@@ -157,60 +160,29 @@ removeSubscription(void) {
     UA_DeleteSubscriptionsResponse_clear(&deleteSubscriptionsResponse);
 }
 
-static void serverMutexLock(void) {
-    if (!(MUTEX_LOCK(serverMutex))) {
-        fprintf(stderr, "Mutex cannot be locked.\n");
-        exit(1);
-    }
-}
-
-static void serverMutexUnlock(void) {
-    if (!(MUTEX_UNLOCK(serverMutex))) {
-        fprintf(stderr, "Mutex cannot be unlocked.\n");
-        exit(1);
-    }
-}
-
 THREAD_CALLBACK(serverloop) {
-    while (running) {
-        serverMutexLock();
-        UA_Server_run_iterate(server, false);
-        serverIterations++;
-        serverMutexUnlock();
-        UA_realSleep(1);
+    while(running) {
+        UA_Server_run_iterate(server, true);
     }
     return 0;
 }
 
-static void
-sleepUntilAnswer(UA_Double sleepMs) {
-    UA_fakeSleep((UA_UInt32)sleepMs);
-    serverMutexLock();
-    size_t oldIterations = serverIterations;
-    size_t newIterations;
-    serverMutexUnlock();
-    while(true) {
-        serverMutexLock();
-        newIterations = serverIterations;
-        serverMutexUnlock();
-        if(oldIterations != newIterations)
-            return;
-        UA_realSleep(1);
-    }
+static void joinServer(void) {
+    running = false;
+    THREAD_JOIN(server_thread);
+}
+
+static void forkServer(void) {
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
 }
 
 static void
 setup(void) {
-    if (!MUTEX_INIT(serverMutex)) {
-        fprintf(stderr, "Server mutex was not created correctly.");
-        exit(1);
-    }
     running = true;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
-
     config->maxPublishReqPerSession = 5;
     UA_Server_run_startup(server);
 
@@ -218,8 +190,7 @@ setup(void) {
     setupSelectClauses();
     THREAD_CREATE(server_thread, serverloop);
 
-    client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    client = UA_Client_newForUnitTest();
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
@@ -228,8 +199,6 @@ setup(void) {
         exit(1);
     }
     setupSubscription();
-
-    sleepUntilAnswer(publishingInterval + 100);
 }
 
 static void
@@ -243,70 +212,6 @@ teardown(void) {
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    if (!MUTEX_DESTROY(serverMutex)) {
-        fprintf(stderr, "Server mutex was not destroyed correctly.");
-        exit(1);
-    }
-}
-
-static UA_StatusCode
-triggerEventLocked(const UA_NodeId eventNodeId, const UA_NodeId origin,
-                   UA_ByteString *outEventId, const UA_Boolean deleteEventNode) {
-    serverMutexLock();
-    UA_StatusCode retval = UA_Server_triggerEvent(server, eventNodeId, origin,
-                                                  outEventId, deleteEventNode);
-    serverMutexUnlock();
-    return retval;
-}
-
-static UA_StatusCode
-eventSetup(UA_NodeId *eventNodeId) {
-    UA_StatusCode retval;
-    serverMutexLock();
-    retval = UA_Server_createEvent(server, eventType, eventNodeId);
-    serverMutexUnlock();
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    // add a severity to the event
-    UA_Variant value;
-    UA_RelativePathElement rpe;
-    UA_RelativePathElement_init(&rpe);
-    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
-    rpe.isInverse = false;
-    rpe.includeSubtypes = false;
-    UA_BrowsePath bp;
-    UA_BrowsePath_init(&bp);
-    bp.startingNode = *eventNodeId;
-    bp.relativePath.elementsSize = 1;
-    bp.relativePath.elements = &rpe;
-    rpe.targetName = UA_QUALIFIEDNAME(0, "Severity");
-    serverMutexLock();
-    UA_BrowsePathResult bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
-    serverMutexUnlock();
-    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
-    // number with no special meaning
-    UA_UInt16 eventSeverity = 1000;
-    UA_Variant_setScalar(&value, &eventSeverity, &UA_TYPES[UA_TYPES_UINT16]);
-    serverMutexLock();
-    retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
-    serverMutexUnlock();
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_BrowsePathResult_clear(&bpr);
-
-    //add a message to the event
-    rpe.targetName = UA_QUALIFIEDNAME(0, "Message");
-    serverMutexLock();
-    bpr = UA_Server_translateBrowsePathToNodeIds(server, &bp);
-    serverMutexUnlock();
-    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
-    UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "Generated Event");
-    UA_Variant_setScalar(&value, &message, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    serverMutexLock();
-    retval = UA_Server_writeValue(server, bpr.targets[0].targetId.nodeId, value);
-    serverMutexUnlock();
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_BrowsePathResult_clear(&bpr);
-
-    return retval;
 }
 
 static UA_MonitoredItemCreateResult
@@ -336,43 +241,40 @@ addMonitoredItem(UA_Client_EventNotificationCallback handler, bool setFilter, bo
                                                 &monitoredItemId, handler, NULL);
 }
 
-
 /* Create event with empty filter */
 
 START_TEST(generateEventEmptyFilter) {
-        UA_NodeId eventNodeId;
-        UA_StatusCode retval = eventSetup(&eventNodeId);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-        // add a monitored item
-        UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, false, true);
-        ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    // add a monitored item
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, false, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
 } END_TEST
-
 
 /* Ensure events are received with proper values */
 START_TEST(generateEvents) {
-    UA_NodeId eventNodeId;
-    UA_StatusCode retval = eventSetup(&eventNodeId);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
     // add a monitored item
     UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, true, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
-    // trigger the event
-    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
+
+    // Create an event
+    UA_StatusCode retval =
+        UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    joinServer();
 
     // let the client fetch the event and check if the correct values were received
     notificationReceived = false;
-    sleepUntilAnswer(publishingInterval + 100);
-    retval = UA_Client_run_iterate(client, 0);
-    sleepUntilAnswer(publishingInterval + 100);
-    retval |= UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    while(!notificationReceived) {
+        UA_fakeSleep(500);
+        UA_Server_run_iterate(server, false);
+        retval = UA_Client_run_iterate(client, 0);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(createResult.revisedQueueSize, 1);
+
+    forkServer();
 
     // delete the monitoredItem
     UA_DeleteMonitoredItemsRequest deleteRequest;
@@ -384,7 +286,6 @@ START_TEST(generateEvents) {
     UA_DeleteMonitoredItemsResponse deleteResponse =
         UA_Client_MonitoredItems_delete(client, deleteRequest);
 
-    sleepUntilAnswer(publishingInterval + 100);
     ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(deleteResponse.resultsSize, 1);
     ck_assert_uint_eq(*(deleteResponse.results), UA_STATUSCODE_GOOD);
@@ -401,113 +302,78 @@ static bool hasBaseModelChangeEventType(void) {
     return !(retval == UA_STATUSCODE_BADNODEIDUNKNOWN);
 }
 
-START_TEST(createAbstractEvent) {
-    if (!hasBaseModelChangeEventType())
-        return;
-
-    UA_NodeId eventNodeId = UA_NODEID_NULL;
-    UA_NodeId abstractEventType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEMODELCHANGEEVENTTYPE);
-    serverMutexLock();
-    UA_StatusCode retval = UA_Server_createEvent(server, abstractEventType, &eventNodeId);
-    serverMutexUnlock();
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-} END_TEST
-
-START_TEST(createAbstractEventWithParent) {
-    if (!hasBaseModelChangeEventType())
-        return;
-    UA_NodeId eventNodeId = UA_NODEID_NULL;
-    UA_NodeId abstractEventType = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEMODELCHANGEEVENTTYPE);
-    serverMutexLock();
-    // createEvent does not use a parent, so we are instead using addObjectNode
-    UA_StatusCode retval = UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                                   UA_QUALIFIEDNAME(0, "Abstract Event"), abstractEventType,
-                                                   UA_ObjectAttributes_default, NULL, &eventNodeId);
-    serverMutexUnlock();
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADTYPEDEFINITIONINVALID);
-} END_TEST
-
-START_TEST(createNonAbstractEventWithParent) {
-    UA_NodeId eventNodeId = UA_NODEID_NULL;
-    serverMutexLock();
-    // Our SimpleEventType is not abstract
-    UA_StatusCode retval = UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                                   UA_QUALIFIEDNAME(0, "Non-Abstract Event"), eventType,
-                                                   UA_ObjectAttributes_default, NULL, &eventNodeId);
-    serverMutexUnlock();
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-} END_TEST
-
 static void
 handler_events_propagate(UA_Client *lclient, UA_UInt32 subId, void *subContext,
                          UA_UInt32 monId, void *monContext,
-                         size_t nEventFields, UA_Variant *eventFields) {
-    UA_Boolean foundSeverity = UA_FALSE;
-    UA_Boolean foundMessage = UA_FALSE;
-    UA_Boolean foundType = UA_FALSE;
-    UA_Boolean foundSource = UA_FALSE;
+                         const UA_KeyValueMap eventFields) {
+    UA_Boolean foundSeverity = false;
+    UA_Boolean foundMessage = false;
+    UA_Boolean foundType = false;
+    UA_Boolean foundSource = false;
     ck_assert_uint_eq(*(UA_UInt32 *) monContext, monitoredItemId);
-    ck_assert_uint_eq(nEventFields, nSelectClauses);
+    ck_assert_uint_eq(eventFields.mapSize, nSelectClauses);
     // check all event fields
-    for(size_t i = 0; i < nEventFields; i++) {
+    for(size_t i = 0; i < eventFields.mapSize; i++) {
+        UA_Variant *value = &eventFields.map[i].value;
         // find out which attribute of the event is being looked at
-        if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_UINT16])) {
+        if(UA_Variant_hasScalarType(value, &UA_TYPES[UA_TYPES_UINT16])) {
             // Severity
-            ck_assert_uint_eq(*((UA_UInt16 *) (eventFields[i].data)), 1000);
-            foundSeverity = UA_TRUE;
-        } else if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
+            ck_assert_uint_eq(*(UA_UInt16 *)value->data, 100);
+            foundSeverity = true;
+        } else if(UA_Variant_hasScalarType(value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])) {
             // Message
             UA_LocalizedText comp = UA_LOCALIZEDTEXT("en-US", "Generated Event");
-            ck_assert(UA_String_equal(&((UA_LocalizedText *) eventFields[i].data)->locale, &comp.locale));
-            ck_assert(UA_String_equal(&((UA_LocalizedText *) eventFields[i].data)->text, &comp.text));
-            foundMessage = UA_TRUE;
-        } else if(UA_Variant_hasScalarType(&eventFields[i], &UA_TYPES[UA_TYPES_NODEID])) {
+            ck_assert(UA_String_equal(&((UA_LocalizedText *) value->data)->locale, &comp.locale));
+            ck_assert(UA_String_equal(&((UA_LocalizedText *) value->data)->text, &comp.text));
+            foundMessage = true;
+        } else if(UA_Variant_hasScalarType(value, &UA_TYPES[UA_TYPES_NODEID])) {
             // either SourceNode or EventType
             UA_NodeId serverNameSpaceId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_VENDORSERVERINFO);
-            if(UA_NodeId_equal((UA_NodeId *) eventFields[i].data, &eventType)) {
+            if(UA_NodeId_equal((UA_NodeId *) value->data, &eventType)) {
                 // EventType
-                foundType = UA_TRUE;
-            } else if(UA_NodeId_equal((UA_NodeId *) eventFields[i].data, &serverNameSpaceId)) {
+                foundType = true;
+            } else if(UA_NodeId_equal((UA_NodeId *) value->data, &serverNameSpaceId)) {
                 // SourceNode
-                foundSource = UA_TRUE;
+                foundSource = true;
             } else {
-                ck_assert_msg(UA_FALSE, "NodeId doesn't match");
+                ck_assert_msg(false, "NodeId doesn't match");
             }
         } else {
-            ck_assert_msg(UA_FALSE, "Field doesn't match");
+            ck_assert_msg(false, "Field doesn't match");
         }
     }
-    ck_assert_uint_eq(foundMessage, UA_TRUE);
-    ck_assert_uint_eq(foundSeverity, UA_TRUE);
-    ck_assert_uint_eq(foundType, UA_TRUE);
-    ck_assert_uint_eq(foundSource, UA_TRUE);
+    ck_assert_uint_eq(foundMessage, true);
+    ck_assert_uint_eq(foundSeverity, true);
+    ck_assert_uint_eq(foundType, true);
+    ck_assert_uint_eq(foundSource, true);
     notificationReceived = true;
 }
 
 START_TEST(uppropagation) {
-    // trigger first event
-    UA_NodeId eventNodeId = UA_NODEID_NULL;
-    UA_StatusCode retval = eventSetup(&eventNodeId);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
     //add a monitored item
     UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_propagate, true, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
-    // trigger the event on a child of server, using namespaces in this case (no reason in particular)
-    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_VENDORSERVERINFO), NULL,
-                                UA_TRUE);
+
+    // create the event on a child of server
+    UA_StatusCode retval =
+        UA_Server_createEvent(server, UA_NS0ID(SERVER_VENDORSERVERINFO), eventType, 100, message, NULL, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    joinServer();
 
     // let the client fetch the event and check if the correct values were received
     notificationReceived = false;
-    sleepUntilAnswer(publishingInterval + 100);
-    retval = UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    while(!notificationReceived) {
+        UA_fakeSleep(500);
+        UA_Server_run_iterate(server, false);
+        retval = UA_Client_run_iterate(client, 0);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(createResult.revisedQueueSize, 1);
+
+    forkServer();
 
     // delete the monitoredItem
     UA_DeleteMonitoredItemsRequest deleteRequest;
@@ -529,18 +395,20 @@ START_TEST(uppropagation) {
 static void
 handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
                         UA_UInt32 monId, void *monContext,
-                        size_t nEventFields, UA_Variant *eventFields) {
+                        const UA_KeyValueMap eventFields) {
     ck_assert_uint_eq(*(UA_UInt32 *) monContext, monitoredItemId);
-    if(nEventFields == 1) {
-        /* overflow was received */
-        ck_assert(eventFields->type == &UA_TYPES[UA_TYPES_NODEID]);
-        UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
-        ck_assert((UA_NodeId_equal((UA_NodeId *) eventFields->data, &comp)));
-        overflowNotificationReceived = UA_TRUE;
-    } else if(nEventFields == 4) {
-        /* other event was received */
-        handler_events_simple(lclient, subId, subContext, monId,
-                              monContext, nEventFields, eventFields);
+    if(eventFields.mapSize != 4)
+        return;
+
+    if(eventFields.map[2].value.type != &UA_TYPES[UA_TYPES_NODEID])
+        return;
+
+    UA_NodeId *eventType = (UA_NodeId*)eventFields.map[2].value.data;
+    UA_NodeId comp = UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTQUEUEOVERFLOWEVENTTYPE);
+    if(UA_NodeId_equal(eventType, &comp)) {
+        overflowNotificationReceived = true; /* Overflow was received */
+    } else {
+        handler_events_simple(lclient, subId, subContext, monId, monContext, eventFields);
     }
 }
 
@@ -551,24 +419,29 @@ START_TEST(eventOverflow) {
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
-    // trigger first event
-    UA_NodeId eventNodeId;
-    UA_StatusCode retval = eventSetup(&eventNodeId);
+    // create events
+    UA_StatusCode retval =
+        UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_FALSE);
+    retval = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    retval = triggerEventLocked(eventNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_TRUE);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    joinServer();
 
     // fetch the events, ensure both the overflow and the original event are received
     notificationReceived = false;
     overflowNotificationReceived = false;
-    sleepUntilAnswer(publishingInterval + 100);
-    retval = UA_Client_run_iterate(client, 0);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    while(!notificationReceived) {
+        UA_fakeSleep(500);
+        UA_Server_run_iterate(server, false);
+        retval = UA_Client_run_iterate(client, 0);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    }
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(overflowNotificationReceived, true);
     ck_assert_uint_eq(createResult.revisedQueueSize, 1);
+
+    forkServer();
 
     // delete the monitoredItem
     UA_DeleteMonitoredItemsRequest deleteRequest;
@@ -640,13 +513,10 @@ START_TEST(discardNewestOverflow) {
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
-    // trigger a large amount of events, ensure the server doesnt crash because of it
-    UA_NodeId eventNodeId;
-    UA_StatusCode retval = eventSetup(&eventNodeId);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    for(size_t j = 0; j < 3; j++) {
-        retval = triggerEventLocked(eventNodeId,
-                                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_FALSE);
+    // create a large amount of events, ensure the server doesnt crash because of it
+    UA_StatusCode retval;
+    for(size_t j = 0; j < 100; j++) {
+        retval = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL, NULL);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
     retval = UA_Client_run_iterate(client, 0);
@@ -675,14 +545,11 @@ START_TEST(eventStressing) {
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
     monitoredItemId = createResult.monitoredItemId;
 
-    // trigger a large amount of events, ensure the server doesnt crash because of it
-    UA_NodeId eventNodeId;
-    UA_StatusCode retval = eventSetup(&eventNodeId);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    for(size_t i = 0; i < 2; i++) {
-        for(size_t j = 0; j < 3; j++) {
-            retval = triggerEventLocked(eventNodeId,
-                                            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER), NULL, UA_FALSE);
+    // create a large amount of events, ensure the server doesnt crash because of it
+    UA_StatusCode retval;
+    for(size_t i = 0; i < 20; i++) {
+        for(size_t j = 0; j < 30; j++) {
+            retval = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType, 100, message, NULL, NULL, NULL);
             ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         }
         retval = UA_Client_run_iterate(client, 0);
@@ -707,101 +574,45 @@ START_TEST(eventStressing) {
 } END_TEST
 
 START_TEST(evaluateFilterWhereClause) {
-    /* Everything is on the stack, so no memory cleaning required.*/
-    UA_NodeId eventNodeId;
-    UA_StatusCode retval = eventSetup(&eventNodeId);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    //test empty filter
-    UA_ContentFilter contentFilter;
-    UA_ContentFilter_init(&contentFilter);
-    UA_ContentFilterResult contentFilterResult;
-    UA_ContentFilterResult_init(&contentFilterResult);
-    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
-    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
-        UA_Array_new(contentFilter.elementsSize,
-                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
-    if(!contentFilterResult.elementResults) {
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
-    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
-        contentFilterResult.elementResults[i].operandStatusCodesSize =
-            contentFilter.elements->filterOperandsSize;
-        contentFilterResult.elementResults[i].operandStatusCodes =
-            (UA_StatusCode *)UA_Array_new(
-                contentFilter.elements->filterOperandsSize,
-                &UA_TYPES[UA_TYPES_STATUSCODE]);
-        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
-            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        }
-    }
-    lockServer(server);
-    retval = evaluateWhereClause(server, &server->adminSession,
-                                 &eventNodeId, &contentFilter, &contentFilterResult);
-    unlockServer(server);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_ContentFilterResult_clear(&contentFilterResult);
+    UA_FilterEvalContext ctx;
+    UA_FilterEvalContext_init(&ctx);
+    ctx.server = server;
+    ctx.session = &server->adminSession;
 
-    /* Illegal filter operators */
+    ctx.ed.sourceNode = UA_NS0ID(SERVER);
+    ctx.ed.eventType = eventType;
+    ctx.ed.severity = 100;
+    ctx.ed.eventFields = NULL;
+    ctx.ed.eventInstance = NULL;
+
+    lockServer(server);
+    UA_StatusCode retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
+    unlockServer(server);
+
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
     UA_ContentFilterElement contentFilterElement;
     UA_ContentFilterElement_init(&contentFilterElement);
-    contentFilter.elements = &contentFilterElement;
-    contentFilter.elementsSize = 1;
-    contentFilterElement.filterOperator = UA_FILTEROPERATOR_RELATEDTO;
+    ctx.filter.whereClause.elements = &contentFilterElement;
+    ctx.filter.whereClause.elementsSize = 1;
 
-    UA_ContentFilterResult_init(&contentFilterResult);
-    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
-    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
-        UA_Array_new(contentFilterResult.elementResultsSize,
-                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
-    if(!contentFilterResult.elementResults) {
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
-    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
-        ck_assert(contentFilterResult.elementResults != NULL);
-        contentFilterResult.elementResults[i].operandStatusCodesSize =
-            contentFilter.elements[i].filterOperandsSize;
-        contentFilterResult.elementResults[i].operandStatusCodes =
-            (UA_StatusCode *)UA_Array_new(
-                contentFilter.elements->filterOperandsSize,
-                &UA_TYPES[UA_TYPES_STATUSCODE]);
-        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
-            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        }
-    }
+    /* Illegal filter operators */
+    contentFilterElement.filterOperator = UA_FILTEROPERATOR_RELATEDTO;
     lockServer(server);
-    retval = evaluateWhereClause(server, &server->adminSession,
-                                 &eventNodeId, &contentFilter, &contentFilterResult);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
     unlockServer(server);
+
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED);
-    UA_ContentFilterResult_clear(&contentFilterResult);
 
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_INVIEW;
-    UA_ContentFilterResult_init(&contentFilterResult);
-    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
-    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
-        UA_Array_new(contentFilter.elementsSize,
-                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
-    if(!contentFilterResult.elementResults) {
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
-    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
-        contentFilterResult.elementResults[i].operandStatusCodesSize =
-            contentFilter.elements->filterOperandsSize;
-        contentFilterResult.elementResults[i].operandStatusCodes =
-            (UA_StatusCode *)UA_Array_new(
-                contentFilter.elements->filterOperandsSize,
-                &UA_TYPES[UA_TYPES_STATUSCODE]);
-        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
-            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        }
-    }
     lockServer(server);
-    retval = evaluateWhereClause(server, &server->adminSession,
-                                 &eventNodeId, &contentFilter,
-                                 &contentFilterResult);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
     unlockServer(server);
+
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED);
-    UA_ContentFilterResult_clear(&contentFilterResult);
 
     /* No operand provided */
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_OFTYPE;
@@ -825,91 +636,53 @@ START_TEST(evaluateFilterWhereClause) {
 
     /* Same type*/
     UA_Variant_setScalar(&literalOperand.value, &eventType, &UA_TYPES[UA_TYPES_NODEID]);
-    UA_ContentFilterResult_init(&contentFilterResult);
-    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
-    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
-        UA_Array_new(contentFilter.elementsSize,
-                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
-    if(!contentFilterResult.elementResults) {
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
-    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
-        contentFilterResult.elementResults[i].operandStatusCodesSize =
-            contentFilter.elements->filterOperandsSize;
-        contentFilterResult.elementResults[i].operandStatusCodes = (UA_StatusCode *)
-            UA_Array_new(contentFilter.elements->filterOperandsSize,
-                         &UA_TYPES[UA_TYPES_STATUSCODE]);
-        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
-            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        }
-    }
+
     lockServer(server);
-    retval = evaluateWhereClause(server, &server->adminSession,
-                                 &eventNodeId, &contentFilter, &contentFilterResult);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
     unlockServer(server);
+
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_ContentFilterResult_clear(&contentFilterResult);
 
     /* Base type*/
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     UA_Variant_setScalar(&literalOperand.value, &nodeId, &UA_TYPES[UA_TYPES_NODEID]);
-    UA_ContentFilterResult_init(&contentFilterResult);
-    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
-    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
-        UA_Array_new(contentFilter.elementsSize,
-                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
-    if(!contentFilterResult.elementResults) {
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
-    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
-        ck_assert(contentFilterResult.elementResults != NULL);
-        contentFilterResult.elementResults[i].operandStatusCodesSize =
-            contentFilter.elements->filterOperandsSize;
-        contentFilterResult.elementResults[i].operandStatusCodes =
-            (UA_StatusCode *)UA_Array_new(
-                contentFilter.elements->filterOperandsSize,
-                &UA_TYPES[UA_TYPES_STATUSCODE]);
-        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
-            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        }
-    }
+
     lockServer(server);
-    retval = evaluateWhereClause(server, &server->adminSession,
-                                 &eventNodeId, &contentFilter, &contentFilterResult);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
     unlockServer(server);
+
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_ContentFilterResult_clear(&contentFilterResult);
 
     /* Other type*/
     nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEMODELCHANGEEVENTTYPE);
-    UA_ContentFilterResult_init(&contentFilterResult);
-    contentFilterResult.elementResultsSize = contentFilter.elementsSize;
-    contentFilterResult.elementResults = (UA_ContentFilterElementResult *)
-        UA_Array_new(contentFilter.elementsSize,
-                     &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
-    if(!contentFilterResult.elementResults) {
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    }
-    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
-        ck_assert(contentFilterResult.elementResults != NULL);
-        contentFilterResult.elementResults[i].operandStatusCodesSize =
-            contentFilter.elements->filterOperandsSize;
-        contentFilterResult.elementResults[i].operandStatusCodes =
-            (UA_StatusCode *)UA_Array_new(
-                contentFilter.elements->filterOperandsSize,
-                &UA_TYPES[UA_TYPES_STATUSCODE]);
-        if(!contentFilterResult.elementResults[i].operandStatusCodes) {
-            ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        }
-    }
+
     lockServer(server);
-    retval = evaluateWhereClause(server, &server->adminSession,
-                                 &eventNodeId, &contentFilter, &contentFilterResult);
+    retval = evaluateWhereClause(&ctx);
+    UA_FilterEvalContext_reset(&ctx);
     unlockServer(server);
+
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOMATCH);
-    UA_ContentFilterResult_clear(&contentFilterResult);
 }
 END_TEST
+
+// Create an audit event that shall be delivered *only* to the AdminSession
+START_TEST(auditEvent) {
+    UA_NodeId adminSessionId = UA_NODEID("g=00000001-0000-0000-0000-000000000000");
+
+    UA_EventDescription ed = {0};
+    ed.sourceNode = UA_NS0ID(SERVER);
+    ed.eventType = UA_NS0ID(AUDITEVENTTYPE);
+    ed.severity = 500;
+    ed.message = UA_LOCALIZEDTEXT("something", "happened");
+    ed.sessionId = &adminSessionId;
+
+    // TOOD: Add all mandatory fields of the AuditEventType
+
+    UA_StatusCode res = UA_Server_createEventEx(server, &ed, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+} END_TEST
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
@@ -921,15 +694,13 @@ static Suite *testSuite_Client(void) {
     tcase_add_unchecked_fixture(tc_server, setup, teardown);
     tcase_add_test(tc_server, generateEventEmptyFilter);
     tcase_add_test(tc_server, generateEvents);
-    tcase_add_test(tc_server, createAbstractEvent);
-    tcase_add_test(tc_server, createAbstractEventWithParent);
-    tcase_add_test(tc_server, createNonAbstractEventWithParent);
     tcase_add_test(tc_server, uppropagation);
     tcase_add_test(tc_server, eventOverflow);
     tcase_add_test(tc_server, multipleMonitoredItemsOneNode);
     tcase_add_test(tc_server, discardNewestOverflow);
     tcase_add_test(tc_server, eventStressing);
     tcase_add_test(tc_server, evaluateFilterWhereClause);
+    tcase_add_test(tc_server, auditEvent);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
 

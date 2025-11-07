@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
 ### License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,13 +8,18 @@
 ###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
+if __name__ == "__main__" and __package__ is None:
+    import os, sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    __package__ = "nodeset_compiler"
 
 import logging
 import argparse
 import sys
 import xml.etree.ElementTree as etree
-from datatypes import NodeId
-from nodeset import *
+
+from .datatypes import NodeId
+from .nodeset import *
 
 # Parse the arguments
 parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -142,7 +146,7 @@ def hasCustomDataType(xmlfile):
 
 for xmlfile in args.existing:
     if xmlfile.name in loadedFiles:
-        logger.info("Skipping Nodeset since it is already loaded: {} ".format(xmlfile.name))
+        logger.info(f"Skipping Nodeset since it is already loaded: {xmlfile.name} ")
         continue
     loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing (existing) " + str(xmlfile.name))
@@ -154,7 +158,7 @@ for xmlfile in args.existing:
 
 for xmlfile in args.infiles:
     if xmlfile.name in loadedFiles:
-        logger.info("Skipping Nodeset since it is already loaded: {} ".format(xmlfile.name))
+        logger.info(f"Skipping Nodeset since it is already loaded: {xmlfile.name} ")
         continue
     loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing " + str(xmlfile.name))
@@ -189,10 +193,6 @@ ns.sanitize()
 # Generate the BSD file from the XML.
 ns.generateParser(args.existing, args.infiles, args.bsdFile)
 
-# Allocate/Parse the data values. In order to do this, we must have run
-# buidEncodingRules.
-ns.allocateVariables()
-
 # Create inverse references
 ns.addInverseReferences()
 
@@ -219,17 +219,17 @@ if args.blacklistFiles:
 # Figure out from the references which is the parent for each node
 ns.setNodeParent()
 
-logger.info("Generating Code for Backend: {}".format(args.backend))
+logger.info(f"Generating Code for Backend: {args.backend}")
 
 if args.backend == "open62541":
     # Create the C code with the open62541 backend of the compiler
-    from backend_open62541 import generateOpen62541Code
+    from .backend_open62541 import generateOpen62541Code
     generateOpen62541Code(ns, args.outputFile, args.internal_headers, args.typesArray)
 elif args.backend == "graphviz":
-    from backend_graphviz import generateGraphvizCode
+    from .backend_graphviz import generateGraphvizCode
     generateGraphvizCode(ns, filename=args.outputFile)
 else:
-    logger.error("Unsupported backend: {}".format(args.backend))
+    logger.error(f"Unsupported backend: {args.backend}")
     exit(1)
 
 logger.info("NodeSet generation code successfully printed")

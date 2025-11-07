@@ -8,6 +8,8 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
+#include "test_helpers.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -19,11 +21,9 @@ UA_Server *server = NULL;
 UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 
     UA_PubSubConnectionConfig connectionConfig;
@@ -42,7 +42,7 @@ static void setup(void) {
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     retval |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
-    retval |= UA_Server_setWriterGroupOperational(server, writerGroup1);
+    retval |= UA_Server_enableWriterGroup(server, writerGroup1);
 
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
@@ -67,8 +67,11 @@ START_TEST(PublishSpeedTest) {
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_StatusCode retval = UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL).result;
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_enableAllPubSubComponents(server);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup1);
 
     printf("start sending 8000 publish messages via UDP\n");
 
@@ -76,7 +79,7 @@ START_TEST(PublishSpeedTest) {
     begin = clock();
 
     for(int i = 0; i < 8000; i++) {
-        UA_WriterGroup_publishCallback(server, wg);
+        UA_WriterGroup_publishCallback(psm, wg);
     }
 
     finish = clock();

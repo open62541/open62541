@@ -26,7 +26,7 @@ void UA_Session_init(UA_Session *session) {
 }
 
 void UA_Session_clear(UA_Session *session, UA_Server* server) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Remove all Subscriptions. This may send out remaining publish
      * responses. */
@@ -41,9 +41,9 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     deleteNode(server, session->sessionId, true);
 #endif
 
-    UA_Session_detachFromSecureChannel(session);
+    UA_Session_detachFromSecureChannel(server, session);
     UA_ApplicationDescription_clear(&session->clientDescription);
-    UA_NodeId_clear(&session->header.authenticationToken);
+    UA_NodeId_clear(&session->authenticationToken);
     UA_String_clear(&session->clientUserIdOfSession);
     UA_NodeId_clear(&session->sessionId);
     UA_String_clear(&session->sessionName);
@@ -70,27 +70,21 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
 }
 
 void
-UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
-    UA_Session_detachFromSecureChannel(session);
-    session->header.channel = channel;
-    session->header.serverSession = true;
-    SLIST_INSERT_HEAD(&channel->sessions, &session->header, next);
+UA_Session_attachToSecureChannel(UA_Server *server, UA_Session *session,
+                                 UA_SecureChannel *channel) {
+    /* Ensure the Session is not attached to another SecureChannel */
+    UA_Session_detachFromSecureChannel(server, session);
+
+    /* Add to singly-linked list */
+    session->next = channel->sessions;
+    channel->sessions = session;
+
+    /* Add backpointer */
+    session->channel = channel;
 }
 
 void
-UA_Session_detachFromSecureChannel(UA_Session *session) {
-    UA_SecureChannel *channel = session->header.channel;
-    if(!channel)
-        return;
-    session->header.channel = NULL;
-    UA_SessionHeader *sh;
-    SLIST_FOREACH(sh, &channel->sessions, next) {
-        if((UA_Session*)sh != session)
-            continue;
-        SLIST_REMOVE(&channel->sessions, sh, UA_SessionHeader, next);
-        break;
-    }
-
+UA_Session_detachFromSecureChannel(UA_Server *server, UA_Session *session) {
     /* Clean up the response queue. Their RequestId is bound to the
      * SecureChannel so they cannot be reused. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -100,11 +94,32 @@ UA_Session_detachFromSecureChannel(UA_Session *session) {
         UA_free(pre);
     }
 #endif
+
+    /* Remove from singly-linked list */
+    UA_SecureChannel *channel = session->channel;
+    if(!channel)
+        return;
+
+    if(channel->sessions == session) {
+        channel->sessions = session->next;
+    } else {
+        UA_Session *elm =  channel->sessions;
+        while(elm->next != session)
+            elm = elm->next;
+        elm->next = session->next;
+    }
+
+    /* Reset the backpointer */
+    session->channel = NULL;
+
+    /* Notify the application */
+    notifySession(server, session,
+                  UA_APPLICATIONNOTIFICATIONTYPE_SESSION_DEACTIVATED);
 }
 
 UA_StatusCode
 UA_Session_generateNonce(UA_Session *session) {
-    UA_SecureChannel *channel = session->header.channel;
+    UA_SecureChannel *channel = session->channel;
     if(!channel || !channel->securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -121,11 +136,13 @@ UA_Session_generateNonce(UA_Session *session) {
         generateNonce(channel->securityPolicy->policyContext, &session->serverNonce);
 }
 
-void UA_Session_updateLifetime(UA_Session *session) {
-    session->validTill = UA_DateTime_nowMonotonic() +
+void
+UA_Session_updateLifetime(UA_Session *session, UA_DateTime now,
+                          UA_DateTime nowMonotonic) {
+    session->validTill = nowMonotonic +
         (UA_DateTime)(session->timeout * UA_DATETIME_MSEC);
 #ifdef UA_ENABLE_DIAGNOSTICS
-    session->diagnostics.clientLastContactTime = UA_DateTime_now();
+    session->diagnostics.clientLastContactTime = now;
 #endif
 }
 
@@ -175,7 +192,7 @@ UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
     while((pre = UA_Session_dequeuePublishReq(session))) {
         UA_PublishResponse *response = &pre->response;
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
-        sendResponse(server, session, session->header.channel, pre->requestId,
+        sendResponse(server, session->channel, pre->requestId,
                      (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         UA_PublishResponse_clear(response);
         UA_free(pre);
@@ -235,17 +252,14 @@ UA_Session_queuePublishReq(UA_Session *session, UA_PublishResponseEntry* entry,
 UA_StatusCode
 UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId) {
     lockServer(server);
-    session_list_entry *entry;
-    UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
-    LIST_FOREACH(entry, &server->sessions, pointers) {
-        if(UA_NodeId_equal(&entry->session.sessionId, sessionId)) {
-            UA_Server_removeSession(server, entry, UA_SHUTDOWNREASON_CLOSE);
-            res = UA_STATUSCODE_GOOD;
-            break;
-        }
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
     }
+    UA_Session_remove(server, session, UA_SHUTDOWNREASON_CLOSE);
     unlockServer(server);
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Session Attributes */
@@ -292,8 +306,7 @@ UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
         unlockServer(server);
         return UA_STATUSCODE_BADSESSIONIDINVALID;
     }
-    UA_StatusCode res =
-        UA_KeyValueMap_remove(&session->attributes, key);
+    UA_StatusCode res = UA_KeyValueMap_remove(&session->attributes, key);
     unlockServer(server);
     return res;
 }

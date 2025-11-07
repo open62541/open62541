@@ -12,32 +12,29 @@
 
 #define UA_REQ_CURRENT_TOKEN 0
 
-#include "server/ua_server_internal.h"
-#include "client/ua_client_internal.h"
+#include "../server/ua_server_internal.h"
+#include "../client/ua_client_internal.h"
 
 UA_PubSubKeyStorage *
-UA_PubSubKeyStorage_findKeyStorage(UA_Server *server, UA_String securityGroupId) {
-    if(!server || UA_String_isEmpty(&securityGroupId))
+UA_PubSubKeyStorage_find(UA_PubSubManager *psm, UA_String securityGroupId) {
+    if(!psm)
         return NULL;
-
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    UA_PubSubKeyStorage *outKeyStorage;
-    LIST_FOREACH(outKeyStorage, &server->pubSubManager.pubSubKeyList, keyStorageList) {
-        if(UA_String_equal(&outKeyStorage->securityGroupID, &securityGroupId))
-            return outKeyStorage;
+    UA_PubSubKeyStorage *ks;
+    LIST_FOREACH(ks, &psm->pubSubKeyList, keyStorageList) {
+        if(UA_String_equal(&ks->securityGroupID, &securityGroupId))
+            break;
     }
-    return NULL;
+    return ks;
 }
 
 UA_PubSubSecurityPolicy *
-findPubSubSecurityPolicy(UA_Server *server, const UA_String *securityPolicyUri) {
-    if(!server || !securityPolicyUri)
+findPubSubSecurityPolicy(UA_PubSubManager *psm, const UA_String *securityPolicyUri) {
+    if(!psm || !securityPolicyUri)
         return NULL;
 
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
-    UA_ServerConfig *config = &server->config;
+    UA_ServerConfig *config = &psm->sc.server->config;
     for(size_t i = 0; i < config->pubSubConfig.securityPoliciesSize; i++) {
         if(UA_String_equal(securityPolicyUri,
                            &config->pubSubConfig.securityPolicies[i].policyUri))
@@ -46,192 +43,152 @@ findPubSubSecurityPolicy(UA_Server *server, const UA_String *securityPolicyUri) 
     return NULL;
 }
 
-static void
-UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *keyStorage) {
-    if(TAILQ_EMPTY(&keyStorage->keyList))
+void
+UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *ks) {
+    if(TAILQ_EMPTY(&ks->keyList))
         return;
 
     UA_PubSubKeyListItem *item, *item_tmp;
-    TAILQ_FOREACH_SAFE(item, &keyStorage->keyList, keyListEntry, item_tmp) {
-        TAILQ_REMOVE(&keyStorage->keyList, item, keyListEntry);
+    TAILQ_FOREACH_SAFE(item, &ks->keyList, keyListEntry, item_tmp) {
+        TAILQ_REMOVE(&ks->keyList, item, keyListEntry);
         UA_ByteString_clear(&item->key);
         UA_free(item);
     }
-    keyStorage->keyListSize = 0;
+    ks->keyListSize = 0;
 }
 
 void
-UA_PubSubKeyStorage_delete(UA_Server *server, UA_PubSubKeyStorage *keyStorage) {
-    UA_assert(keyStorage != NULL);
-    UA_assert(server != NULL);
-
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+UA_PubSubKeyStorage_delete(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* Remove callback */
-    if(!keyStorage->callBackId != 0) {
-        removeCallback(server, keyStorage->callBackId);
-        keyStorage->callBackId = 0;
+    if(!ks->callBackId) {
+        removeCallback(psm->sc.server, ks->callBackId);
+        ks->callBackId = 0;
     }
 
-    UA_PubSubKeyStorage_clearKeyList(keyStorage);
-    UA_String_clear(&keyStorage->securityGroupID);
-    UA_ClientConfig_clear(&keyStorage->sksConfig.clientConfig);
-    UA_free(keyStorage);
+    UA_PubSubKeyStorage_clearKeyList(ks);
+    UA_String_clear(&ks->securityGroupID);
+    UA_ClientConfig_clear(&ks->sksConfig.clientConfig);
+    UA_free(ks);
 }
 
 UA_StatusCode
-UA_PubSubKeyStorage_init(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
+UA_PubSubKeyStorage_init(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks,
                          const UA_String *securityGroupId,
                          UA_PubSubSecurityPolicy *policy,
                          UA_UInt32 maxPastKeyCount, UA_UInt32 maxFutureKeyCount) {
-    UA_StatusCode res = UA_String_copy(securityGroupId, &keyStorage->securityGroupID);
+    UA_StatusCode res = UA_String_copy(securityGroupId, &ks->securityGroupID);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
     UA_UInt32 currentkeyCount = 1;
-    keyStorage->maxPastKeyCount = maxPastKeyCount;
-    keyStorage->maxFutureKeyCount = maxFutureKeyCount;
-    keyStorage->maxKeyListSize = maxPastKeyCount + currentkeyCount + maxFutureKeyCount;
-    keyStorage->policy = policy;
+    ks->maxPastKeyCount = maxPastKeyCount;
+    ks->maxFutureKeyCount = maxFutureKeyCount;
+    ks->maxKeyListSize = maxPastKeyCount + currentkeyCount + maxFutureKeyCount;
+    ks->policy = policy;
 
-    /* Add this keystorage to the server keystoragelist */
-    LIST_INSERT_HEAD(&server->pubSubManager.pubSubKeyList, keyStorage, keyStorageList);
+    TAILQ_INIT(&ks->keyList);
+
+    /* Add this keystorage to the keystoragelist */
+    LIST_INSERT_HEAD(&psm->pubSubKeyList, ks, keyStorageList);
 
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_PubSubKeyStorage_storeSecurityKeys(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
-                                      UA_UInt32 currentTokenId, const UA_ByteString *currentKey,
-                                      UA_ByteString *futureKeys, size_t futureKeyCount,
-                                      UA_Duration msKeyLifeTime) {
-    UA_assert(server);
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+UA_PubSubKeyStorage_addSecurityKeys(UA_PubSubKeyStorage *ks, size_t keysSize,
+                                    UA_ByteString *keys, UA_UInt32 currentKeyId) {
+    for(size_t i = 0; i < keysSize; ++i) {
+        currentKeyId++; /* Increase the keyId */
+        if(currentKeyId == 0)
+            currentKeyId = 1; /* Rollover the keyId */
 
-    UA_StatusCode retval = UA_STATUSCODE_BAD;
+        /* Search for an existing item matching the tokenId */
+        UA_PubSubKeyListItem *item = UA_PubSubKeyStorage_getKeyByKeyId(ks, currentKeyId);
 
-    if(futureKeyCount > 0 && !futureKeys) {
-        retval = UA_STATUSCODE_BADARGUMENTSMISSING;
-        goto error;
-    }
-
-    size_t keyNumber = futureKeyCount;
-
-    if(currentKey && keyStorage->keyListSize == 0) {
-
-        keyStorage->keyListSize++;
-        UA_PubSubKeyListItem *keyItem =
-            (UA_PubSubKeyListItem *)UA_calloc(1, sizeof(UA_PubSubKeyListItem));
-        if(!keyItem)
-            goto error;
-        retval = UA_ByteString_copy(currentKey, &keyItem->key);
-        if(UA_StatusCode_isBad(retval))
-            goto error;
-
-        keyItem->keyID = currentTokenId;
-
-        TAILQ_INIT(&keyStorage->keyList);
-        TAILQ_INSERT_HEAD(&keyStorage->keyList, keyItem, keyListEntry);
-    }
-
-    UA_PubSubKeyListItem *keyListIterator = TAILQ_FIRST(&keyStorage->keyList);
-    UA_UInt32 startingTokenID = currentTokenId + 1;
-    for(size_t i = 0; i < keyNumber; ++i) {
-        retval = UA_PubSubKeyStorage_getKeyByKeyID(
-            startingTokenID, keyStorage, &keyListIterator);
-        /*Skipping key with matching KeyID in existing list*/
-        if(retval == UA_STATUSCODE_BADNOTFOUND) {
-            keyListIterator = UA_PubSubKeyStorage_push(keyStorage, &futureKeys[i], startingTokenID);
-            if(!keyListIterator)
-                goto error;
-
-            keyStorage->keyListSize++;
+        /* Not found. Add it. */
+        if(!item) {
+            item = UA_PubSubKeyStorage_push(ks, &keys[i], currentKeyId);
+            if(!item)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
         }
-        if(startingTokenID == UA_UINT32_MAX)
-            startingTokenID = 1;
-        else
-            ++startingTokenID;
     }
 
-    /*update keystorage references*/
-    retval = UA_PubSubKeyStorage_getKeyByKeyID(currentTokenId, keyStorage, &keyStorage->currentItem);
-    if (retval != UA_STATUSCODE_GOOD && !keyStorage->currentItem)
-        goto error;
-
-    keyStorage->keyLifeTime = msKeyLifeTime;
-
-    return retval;
-error:
-    if(keyStorage) {
-        UA_PubSubKeyStorage_clearKeyList(keyStorage);
-    }
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_PubSubKeyStorage_getKeyByKeyID(const UA_UInt32 keyId, UA_PubSubKeyStorage *keyStorage,
-                                  UA_PubSubKeyListItem **keyItem) {
-
-    if(!keyStorage)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    UA_PubSubKeyListItem *item;
-    TAILQ_FOREACH(item, &keyStorage->keyList, keyListEntry){
-        if(item->keyID == keyId) {
-            *keyItem = item;
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-    return UA_STATUSCODE_BADNOTFOUND;
+UA_PubSubKeyStorage_setCurrentKey(UA_PubSubKeyStorage *ks, UA_UInt32 keyId) {
+    UA_PubSubKeyListItem *item = UA_PubSubKeyStorage_getKeyByKeyId(ks, keyId);
+    if(!item)
+        return UA_STATUSCODE_BADNOTFOUND;
+    ks->currentItem = item;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_PubSubKeyListItem *
-UA_PubSubKeyStorage_push(UA_PubSubKeyStorage *keyStorage, const UA_ByteString *key,
+UA_PubSubKeyStorage_getKeyByKeyId(UA_PubSubKeyStorage *ks,
+                                  const UA_UInt32 keyId) {
+    UA_PubSubKeyListItem *item;
+    TAILQ_FOREACH(item, &ks->keyList, keyListEntry) {
+        if(item->keyID == keyId)
+            return item;
+    }
+    return NULL;
+}
+
+UA_PubSubKeyListItem *
+UA_PubSubKeyStorage_push(UA_PubSubKeyStorage *ks, const UA_ByteString *key,
                          UA_UInt32 keyID) {
-    UA_PubSubKeyListItem *newItem = (UA_PubSubKeyListItem *)malloc(sizeof(UA_PubSubKeyListItem));
-    if (!newItem)
+    UA_PubSubKeyListItem *newItem = (UA_PubSubKeyListItem *)
+        UA_malloc(sizeof(UA_PubSubKeyListItem));
+    if(!newItem)
         return NULL;
-
     newItem->keyID = keyID;
-    UA_ByteString_copy(key, &newItem->key);
-    TAILQ_INSERT_TAIL(&keyStorage->keyList, newItem, keyListEntry);
-
-    return TAILQ_LAST(&keyStorage->keyList, keyListItems);
+    UA_StatusCode res = UA_ByteString_copy(key, &newItem->key);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(newItem);
+        return NULL;
+    }
+    TAILQ_INSERT_TAIL(&ks->keyList, newItem, keyListEntry);
+    ks->keyListSize++;
+    return newItem;
 }
 
 UA_StatusCode
-UA_PubSubKeyStorage_addKeyRolloverCallback(UA_Server *server,
-                                           UA_PubSubKeyStorage *keyStorage,
-                                           UA_ServerCallback callback,
+UA_PubSubKeyStorage_addKeyRolloverCallback(UA_PubSubManager *psm,
+                                           UA_PubSubKeyStorage *ks,
+                                           UA_Callback callback,
                                            UA_Duration timeToNextMs,
                                            UA_UInt64 *callbackID) {
-    if(!server || !keyStorage || !callback || timeToNextMs <= 0)
+    if(!psm || !ks || !callback || timeToNextMs <= 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
-    UA_EventLoop *el = server->config.eventLoop;
+    UA_EventLoop *el = psm->sc.server->config.eventLoop;
+
     if(*callbackID != 0)
-        el->removeCyclicCallback(el, *callbackID);
+        el->removeTimer(el, *callbackID);
 
-    UA_DateTime dateTimeToNextKey = UA_DateTime_nowMonotonic() +
-        (UA_DateTime)(UA_DATETIME_MSEC * timeToNextMs);
-    return el->addTimedCallback(el, (UA_Callback)callback, server, keyStorage,
-                                dateTimeToNextKey, callbackID);
+    return el->addTimer(el, (UA_Callback)callback, psm, ks,
+                        timeToNextMs, NULL, UA_TIMERPOLICY_ONCE, callbackID);
+
 }
 
 static UA_StatusCode
-splitCurrentKeyMaterial(UA_PubSubKeyStorage *keyStorage, UA_ByteString *signingKey,
+splitCurrentKeyMaterial(UA_PubSubKeyStorage *ks, UA_ByteString *signingKey,
                         UA_ByteString *encryptingKey, UA_ByteString *keyNonce) {
-    if(!keyStorage)
+    if(!ks)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(!keyStorage->policy)
+    if(!ks->policy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_PubSubSecurityPolicy *policy = keyStorage->policy;
+    UA_PubSubSecurityPolicy *policy = ks->policy;
 
-    UA_ByteString key = keyStorage->currentItem->key;
+    UA_ByteString key = ks->currentItem->key;
 
     /*Check the main key length is the same according to policy*/
     if(key.length != policy->symmetricModule.secureChannelNonceLength)
@@ -259,53 +216,55 @@ splitCurrentKeyMaterial(UA_PubSubKeyStorage *keyStorage, UA_ByteString *signingK
 }
 
 static UA_StatusCode
-setPubSubGroupEncryptingKey(UA_Server *server, UA_NodeId PubSubGroupId, UA_UInt32 securityTokenId,
-                            UA_ByteString signingKey, UA_ByteString encryptingKey,
-                            UA_ByteString keyNonce) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_StatusCode retval =
-        setWriterGroupEncryptionKeys(server, PubSubGroupId, securityTokenId,
-                                     signingKey, encryptingKey, keyNonce);
-    if(retval == UA_STATUSCODE_BADNOTFOUND)
-        retval = setReaderGroupEncryptionKeys(server, PubSubGroupId, securityTokenId,
-                                              signingKey, encryptingKey, keyNonce);
-    return retval;
+setPubSubGroupEncryptingKey(UA_PubSubManager *psm, UA_NodeId PubSubGroupId,
+                            UA_UInt32 securityTokenId, UA_ByteString signingKey,
+                            UA_ByteString encryptingKey, UA_ByteString keyNonce) {
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, PubSubGroupId);
+    if(wg)
+        return UA_WriterGroup_setEncryptionKeys(psm, wg, securityTokenId, signingKey,
+                                                encryptingKey, keyNonce);
+
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, PubSubGroupId);
+    if(rg)
+        return UA_ReaderGroup_setEncryptionKeys(psm, rg, securityTokenId, signingKey,
+                                                encryptingKey, keyNonce);
+
+    return UA_STATUSCODE_BADNOTFOUND;
 }
 
 static UA_StatusCode
-setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_Server *server,
+setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_PubSubManager *psm,
                                                       UA_String securityGroupId,
                                                       UA_UInt32 securityTokenId,
                                                       UA_ByteString signingKey,
                                                       UA_ByteString encryptingKey,
                                                       UA_ByteString keyNonce) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_StatusCode retval = UA_STATUSCODE_BAD;
-    UA_PubSubConnection *tmpPubSubConnections;
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* Key storage is the same for all reader / writer groups, channel context isn't
      * => Update channelcontext in all Writergroups / ReaderGroups which have the same
      * securityGroupId*/
-    TAILQ_FOREACH(tmpPubSubConnections, &server->pubSubManager.connections, listEntry) {
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
         /* For each writerGroup in server with matching SecurityGroupId */
-        UA_WriterGroup *tmpWriterGroup;
-        LIST_FOREACH(tmpWriterGroup, &tmpPubSubConnections->writerGroups, listEntry) {
-            if(UA_String_equal(&tmpWriterGroup->config.securityGroupId, &securityGroupId)) {
-                retval = setWriterGroupEncryptionKeys(server, tmpWriterGroup->identifier,
-                                                      securityTokenId, signingKey,
-                                                      encryptingKey, keyNonce);
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            if(UA_String_equal(&wg->config.securityGroupId, &securityGroupId)) {
+                retval = UA_WriterGroup_setEncryptionKeys(psm, wg, securityTokenId,
+                                                          signingKey, encryptingKey, keyNonce);
                 if(retval != UA_STATUSCODE_GOOD)
                     return retval;
             }
         }
 
         /* For each readerGroup in server with matching SecurityGroupId */
-        UA_ReaderGroup *tmpReaderGroup;
-        LIST_FOREACH(tmpReaderGroup, &tmpPubSubConnections->readerGroups, listEntry) {
-            if(UA_String_equal(&tmpReaderGroup->config.securityGroupId, &securityGroupId)) {
-                retval = setReaderGroupEncryptionKeys(server, tmpReaderGroup->identifier,
-                                                      securityTokenId, signingKey,
-                                                      encryptingKey, keyNonce);
+        UA_ReaderGroup *rg;
+        LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+            if(UA_String_equal(&rg->config.securityGroupId, &securityGroupId)) {
+                retval = UA_ReaderGroup_setEncryptionKeys(psm, rg, securityTokenId,
+                                                          signingKey, encryptingKey, keyNonce);
                 if(retval != UA_STATUSCODE_GOOD)
                     return retval;
             }
@@ -315,40 +274,41 @@ setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_Server *server,
 }
 
 UA_StatusCode
-UA_PubSubKeyStorage_activateKeyToChannelContext(UA_Server *server, UA_NodeId pubSubGroupId,
+UA_PubSubKeyStorage_activateKeyToChannelContext(UA_PubSubManager *psm,
+                                                UA_NodeId pubSubGroupId,
                                                 UA_String securityGroupId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
     if(securityGroupId.data == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_PubSubKeyStorage *keyStorage =
-        UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
-    if(!keyStorage)
+    UA_PubSubKeyStorage *ks =
+        UA_PubSubKeyStorage_find(psm, securityGroupId);
+    if(!ks)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(!keyStorage->policy && !(keyStorage->keyListSize > 0))
+    if(!ks->policy && !(ks->keyListSize > 0))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_UInt32 securityTokenId = keyStorage->currentItem->keyID;
+    UA_UInt32 securityTokenId = ks->currentItem->keyID;
 
     /*DivideKeys in origin ByteString*/
     UA_ByteString signingKey;
     UA_ByteString encryptKey;
     UA_ByteString keyNonce;
-    UA_StatusCode retval = splitCurrentKeyMaterial(keyStorage, &signingKey,
+    UA_StatusCode retval = splitCurrentKeyMaterial(ks, &signingKey,
                                                    &encryptKey, &keyNonce);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     if(!UA_NodeId_isNull(&pubSubGroupId))
-        retval = setPubSubGroupEncryptingKey(server, pubSubGroupId, securityTokenId,
+        retval = setPubSubGroupEncryptingKey(psm, pubSubGroupId, securityTokenId,
                                              signingKey, encryptKey, keyNonce);
     else
         retval = setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(
-            server, securityGroupId, securityTokenId, signingKey, encryptKey, keyNonce);
+            psm, securityGroupId, securityTokenId, signingKey, encryptKey, keyNonce);
 
     if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "Failed to set Encrypting keys with Error: %s",
                      UA_StatusCode_name(retval));
 
@@ -356,106 +316,66 @@ UA_PubSubKeyStorage_activateKeyToChannelContext(UA_Server *server, UA_NodeId pub
 }
 
 static void
-nextGetSecuritykeysCallback(UA_Server *server, UA_PubSubKeyStorage *keyStorage) {
+nextGetSecuritykeysCallback(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
-    if(!keyStorage) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+    if(!ks) {
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
                      "GetSecurityKeysCall Failed with error: KeyStorage does not exist "
                      "in the server");
         return;
     }
-    retval = getSecurityKeysAndStoreFetchedKeys(server, keyStorage);
+    retval = getSecurityKeysAndStoreFetchedKeys(psm, ks);
     if(retval != UA_STATUSCODE_GOOD)
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
                      "GetSecurityKeysCall Failed with error: %s ",
                      UA_StatusCode_name(retval));
 }
 
 void
-UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *keyStorage) {
+UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     /* Callbacks from the EventLoop are initially unlocked */
-    lockServer(server);
+    lockServer(psm->sc.server);
+
     UA_StatusCode retval =
-        UA_PubSubKeyStorage_addKeyRolloverCallback(server, keyStorage,
-                                     (UA_ServerCallback)UA_PubSubKeyStorage_keyRolloverCallback,
-                                                   keyStorage->keyLifeTime, &keyStorage->callBackId);
+        UA_PubSubKeyStorage_addKeyRolloverCallback(psm, ks,
+                                                   (UA_Callback)UA_PubSubKeyStorage_keyRolloverCallback,
+                                                   ks->keyLifeTime, &ks->callBackId);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Failed to update keys for security group id '%.*s'. Reason: '%s'.",
-                     (int)keyStorage->securityGroupID.length,
-                     keyStorage->securityGroupID.data, UA_StatusCode_name(retval));
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
+                     "Failed to update keys for security group id '%S'. Reason: '%s'.",
+                     ks->securityGroupID, UA_StatusCode_name(retval));
     }
 
-    if(keyStorage->currentItem != TAILQ_LAST(&keyStorage->keyList, keyListItems)) {
-        keyStorage->currentItem = TAILQ_NEXT(keyStorage->currentItem, keyListEntry);
-        keyStorage->currentTokenId = keyStorage->currentItem->keyID;
-        retval = UA_PubSubKeyStorage_activateKeyToChannelContext(server, UA_NODEID_NULL,
-                                                                 keyStorage->securityGroupID);
+    if(ks->currentItem != TAILQ_LAST(&ks->keyList, keyListItems)) {
+        ks->currentItem = TAILQ_NEXT(ks->currentItem, keyListEntry);
+        ks->currentTokenId = ks->currentItem->keyID;
+        retval = UA_PubSubKeyStorage_activateKeyToChannelContext(psm, UA_NODEID_NULL,
+                                                                 ks->securityGroupID);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                         "Failed to update keys for security group id '%.*s'. Reason: '%s'.",
-                         (int)keyStorage->securityGroupID.length, keyStorage->securityGroupID.data,
-                         UA_StatusCode_name(retval));
+            UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
+                         "Failed to update keys for security group id '%S'. Reason: '%s'.",
+                         ks->securityGroupID, UA_StatusCode_name(retval));
         }
-    } else if(keyStorage->sksConfig.endpointUrl && keyStorage->sksConfig.reqId == 0) {
-        UA_DateTime now = UA_DateTime_nowMonotonic();
-        /*Publishers using a central SKS shall call GetSecurityKeys at a period of half the KeyLifetime */
-        UA_Duration msTimeToNextGetSecurityKeys = keyStorage->keyLifeTime / 2;
-        UA_DateTime dateTimeToNextGetSecurityKeys =
-            now + (UA_DateTime)(UA_DATETIME_MSEC * msTimeToNextGetSecurityKeys);
-        retval = server->config.eventLoop->addTimedCallback(
-            server->config.eventLoop, (UA_Callback)nextGetSecuritykeysCallback, server,
-            keyStorage, dateTimeToNextGetSecurityKeys, NULL);
+    } else if(ks->sksConfig.endpointUrl && ks->sksConfig.reqId == 0) {
+        /* Publishers using a central SKS shall call GetSecurityKeys at a period
+         * of half the KeyLifetime */
+        UA_Duration msTimeToNextGetSecurityKeys = ks->keyLifeTime / 2;
+        UA_EventLoop *el = psm->sc.server->config.eventLoop;
+        retval = el->addTimer(el, (UA_Callback)nextGetSecuritykeysCallback, psm,
+                              ks, msTimeToNextGetSecurityKeys, NULL,
+                              UA_TIMERPOLICY_ONCE, NULL);
     }
-    unlockServer(server);
-}
 
-UA_StatusCode
-UA_PubSubKeyStorage_update(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
-                           const UA_ByteString *currentKey, UA_UInt32 currentKeyID,
-                           const size_t futureKeySize, UA_ByteString *futureKeys,
-                           UA_Duration msKeyLifeTime) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    if(!keyStorage)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_PubSubKeyListItem *keyListIterator = NULL;
-
-    if(currentKeyID != 0){
-        /* If currentKeyId is known then update keystorage currentItem */
-        retval = UA_PubSubKeyStorage_getKeyByKeyID(currentKeyID, keyStorage,
-                                                   &keyListIterator);
-        if(retval == UA_STATUSCODE_GOOD && keyListIterator) {
-            keyStorage->currentItem = keyListIterator;
-            /* Add new keys at the end of KeyList */
-            retval = UA_PubSubKeyStorage_storeSecurityKeys(server, keyStorage, currentKeyID,
-                                                           NULL, futureKeys, futureKeySize,
-                                                           msKeyLifeTime);
-            if(retval != UA_STATUSCODE_GOOD)
-                return retval;
-        } else if(retval == UA_STATUSCODE_BADNOTFOUND) {
-            /* If the CurrentTokenId is unknown, the existing list shall be
-             * discarded and replaced by the fetched list */
-            UA_PubSubKeyStorage_clearKeyList(keyStorage);
-            retval = UA_PubSubKeyStorage_storeSecurityKeys(server, keyStorage,
-                                                           currentKeyID, currentKey, futureKeys,
-                                                           futureKeySize, msKeyLifeTime);
-            if(retval != UA_STATUSCODE_GOOD)
-                return retval;
-        }
-    }
-    return retval;
+    unlockServer(psm->sc.server);
 }
 
 void
-UA_PubSubKeyStorage_detachKeyStorage(UA_Server *server, UA_PubSubKeyStorage *keyStorage) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    keyStorage->referenceCount--;
-    if(keyStorage->referenceCount == 0) {
-        LIST_REMOVE(keyStorage, keyStorageList);
-        UA_PubSubKeyStorage_delete(server, keyStorage);
+UA_PubSubKeyStorage_detachKeyStorage(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
+    ks->referenceCount--;
+    if(ks->referenceCount == 0) {
+        LIST_REMOVE(ks, keyStorageList);
+        UA_PubSubKeyStorage_delete(psm, ks);
     }
 }
 
@@ -464,7 +384,7 @@ UA_PubSubKeyStorage_detachKeyStorage(UA_Server *server, UA_PubSubKeyStorage *key
  * GetSecurityKeys method Call.
  */
 typedef struct {
-    UA_Server *server;
+    UA_PubSubManager *psm;
     UA_PubSubKeyStorage *ks;
     UA_UInt32 startingTokenId;
     UA_UInt32 requestedKeyCount;
@@ -522,18 +442,17 @@ sksClientCleanupCb(void *client, void *context) {
 static void
 storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
                  UA_CallResponse *response) {
-
     sksClientContext *ctx = (sksClientContext *)userdata;
     UA_PubSubKeyStorage *ks = ctx->ks;
-    UA_Server *server = ctx->server;
+    UA_PubSubManager *psm = ctx->psm;
     UA_StatusCode retval = response->responseHeader.serviceResult;
 
-    lockServer(server);
+    lockServer(psm->sc.server);
     /* check if the call to getSecurityKeys was a success */
     if(response->resultsSize != 0)
         retval = response->results->statusCode;
     if(retval != UA_STATUSCODE_GOOD) {
-         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_SERVER,
                      "SKS Client: Failed to call GetSecurityKeys on SKS server with error: %s ",
                      UA_StatusCode_name(retval));
         goto cleanup;
@@ -553,28 +472,26 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
         goto cleanup;
     }
 
-    if(ks->keyListSize == 0) {
-        retval = UA_PubSubKeyStorage_storeSecurityKeys(server, ks, firstTokenId,
-                                                       currentKey, futureKeys,
-                                                       futureKeySize, msKeyLifeTime);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
-    } else {
-        retval = UA_PubSubKeyStorage_update(server, ks, currentKey, firstTokenId,
-                                            futureKeySize, futureKeys, msKeyLifeTime);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
+    UA_PubSubKeyListItem *current = UA_PubSubKeyStorage_getKeyByKeyId(ks, firstTokenId);
+    if(!current) {
+        UA_PubSubKeyStorage_clearKeyList(ks);
+        retval |= (UA_PubSubKeyStorage_push(ks, currentKey, firstTokenId)) ?
+            UA_STATUSCODE_GOOD : UA_STATUSCODE_BADOUTOFMEMORY;
     }
+    UA_PubSubKeyStorage_setCurrentKey(ks, firstTokenId);
+    retval |= UA_PubSubKeyStorage_addSecurityKeys(ks, futureKeySize, futureKeys, firstTokenId);
+    ks->keyLifeTime = msKeyLifeTime;
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
-    /**
-     * After a new batch of keys is fetched from SKS server, the key storage is updated
-     * with new keys and new keylifetime. Also the remaining time for current
-     * keyRollover is also returned. When setting a new keyRollover callback, the
-     * previous callback must be removed so that the keyRollover does not happen twice
-     */
+    /* After a new batch of keys is fetched from SKS server, the key storage is
+     * updated with new keys and new keylifetime. Also the remaining time for
+     * current keyRollover is also returned. When setting a new keyRollover
+     * callback, the previous callback must be removed so that the keyRollover
+     * does not happen twice */
     if(ks->callBackId != 0) {
-        server->config.eventLoop->removeCyclicCallback(server->config.eventLoop,
-                                                       ks->callBackId);
+        psm->sc.server->config.eventLoop->removeTimer(psm->sc.server->config.eventLoop,
+                                                      ks->callBackId);
         ks->callBackId = 0;
     }
 
@@ -583,23 +500,24 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
     if(!(msTimeToNextKey > 0))
         msTimeToNextKey = ks->keyLifeTime;
     retval = UA_PubSubKeyStorage_addKeyRolloverCallback(
-        server, ks, (UA_ServerCallback)UA_PubSubKeyStorage_keyRolloverCallback,
+        psm, ks, (UA_Callback)UA_PubSubKeyStorage_keyRolloverCallback,
         msTimeToNextKey, &ks->callBackId);
 
 cleanup:
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "Failed to store the fetched keys from SKS server with error: %s",
                      UA_StatusCode_name(retval));
     }
-    /* call user callback to notify about the status */
+
+    /* Call user callback to notify about the status */
     if(ks->sksConfig.userNotifyCallback)
-        ks->sksConfig.userNotifyCallback(server, retval, ks->sksConfig.context);
+        ks->sksConfig.userNotifyCallback(psm->sc.server, retval, ks->sksConfig.context);
     ks->sksConfig.reqId = 0;
     UA_Client_disconnectAsync(client);
     addDelayedSksClientCleanupCb(client, ctx);
 
-    unlockServer(server);
+    unlockServer(psm->sc.server);
 }
 
 static UA_StatusCode
@@ -619,8 +537,9 @@ callGetSecurityKeysMethod(UA_Client *client) {
     UA_NodeId methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYKEYS);
     size_t inputArgumentsSize = 3;
 
-    UA_StatusCode retval = UA_Client_call_async(client, objectId, methodId, inputArgumentsSize,
-                                inputArguments, storeFetchedKeys, (void *)ctx, &ctx->ks->sksConfig.reqId);
+    UA_StatusCode retval = UA_Client_call_async(
+        client, objectId, methodId, inputArgumentsSize, inputArguments, storeFetchedKeys,
+        (void *)ctx, &ctx->ks->sksConfig.reqId);
     return retval;
 }
 
@@ -651,7 +570,7 @@ onConnect(UA_Client *client, UA_SecureChannelState channelState,
         sksClientContext *ctx = (sksClientContext *)client->config.clientContext;
         UA_PubSubKeyStorage *ks = ctx->ks;
         if(ks->sksConfig.userNotifyCallback)
-            ks->sksConfig.userNotifyCallback(ctx->server, connectStatus,
+            ks->sksConfig.userNotifyCallback(ctx->psm->sc.server, connectStatus,
                                              ks->sksConfig.context);
         UA_Client_disconnectAsync(client);
         addDelayedSksClientCleanupCb(client, ctx);
@@ -666,13 +585,13 @@ setServerEventloopOnSksClient(UA_ClientConfig *cc, UA_EventLoop *externalEventlo
 }
 
 UA_StatusCode
-getSecurityKeysAndStoreFetchedKeys(UA_Server *server, UA_PubSubKeyStorage *keyStorage) {
+getSecurityKeysAndStoreFetchedKeys(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_UInt32 startingTokenId = UA_REQ_CURRENT_TOKEN;
     UA_UInt32 requestKeyCount = UA_UINT32_MAX;
 
-    if(keyStorage->sksConfig.reqId != 0) {
-        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+    if(ks->sksConfig.reqId != 0) {
+        UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
                     "SKS Client: SKS Pull request in process ");
         return UA_STATUSCODE_GOOD;
     }
@@ -681,18 +600,18 @@ getSecurityKeysAndStoreFetchedKeys(UA_Server *server, UA_PubSubKeyStorage *keySt
     memset(&cc, 0, sizeof(UA_ClientConfig));
 
     /* over write the client config with user specified SKS config */
-    retval = UA_ClientConfig_copy(&keyStorage->sksConfig.clientConfig, &cc);
+    retval = UA_ClientConfig_copy(&ks->sksConfig.clientConfig, &cc);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    setServerEventloopOnSksClient(&cc, server->config.eventLoop);
+    setServerEventloopOnSksClient(&cc, psm->sc.server->config.eventLoop);
 
     /* this is cleanedup in sksClientCleanupCb */
     sksClientContext *ctx   = (sksClientContext *)UA_calloc(1, sizeof(sksClientContext));
     if(!ctx)
          return UA_STATUSCODE_BADOUTOFMEMORY;
-    ctx->ks = keyStorage;
-    ctx->server = server;
+    ctx->ks = ks;
+    ctx->psm = psm;
     ctx->startingTokenId = startingTokenId;
     ctx->requestedKeyCount = requestKeyCount;
     cc.clientContext = ctx;
@@ -701,15 +620,17 @@ getSecurityKeysAndStoreFetchedKeys(UA_Server *server, UA_PubSubKeyStorage *keySt
     if(!client)
         return retval;
     /* connect to sks server */
-    retval = UA_Client_connectAsync(client, keyStorage->sksConfig.endpointUrl);
+    retval = UA_Client_connectAsync(client, ks->sksConfig.endpointUrl);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Failed to connect SKS server with error: %s ",
                      UA_StatusCode_name(retval));
-        /* Make sure the client channel state is closed and not fresh, otherwise, eventloop will
-        keep waiting for the client status to go from Fresh to closed in UA_Client_delete*/
+        /* Make sure the client channel state is closed and not fresh,
+         * otherwise, eventloop will keep waiting for the client status to go
+         * from Fresh to closed in UA_Client_delete*/
         client->channel.state = UA_SECURECHANNELSTATE_CLOSED;
-        /* this client instance will be cleared in the next event loop iteration */
+        /* this client instance will be cleared in the next event loop
+         * iteration */
         addDelayedSksClientCleanupCb(client, ctx);
         return retval;
     }
@@ -729,7 +650,8 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
 
     UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
     lockServer(server);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     if(!ks) {
         unlockServer(server);
         return retval;
@@ -749,7 +671,7 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
     ks->sksConfig.context = context;
     /* if keys are not previously fetched, then first call GetSecurityKeys*/
     if(ks->keyListSize == 0) {
-        retval = getSecurityKeysAndStoreFetchedKeys(server, ks);
+        retval = getSecurityKeysAndStoreFetchedKeys(psm, ks);
     }
     unlockServer(server);
     return retval;

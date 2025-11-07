@@ -6,7 +6,6 @@
  */
 
 #include <open62541/types.h>
-#include <open62541/types_generated_handling.h>
 
 /*
 ** Main entry point.  The fuzzer invokes this function with each

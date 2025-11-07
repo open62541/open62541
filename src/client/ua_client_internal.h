@@ -18,9 +18,9 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/client_subscriptions.h>
 
+#include "../ua_securechannel.h"
+#include "../util/ua_util_internal.h"
 #include "open62541_queue.h"
-#include "ua_securechannel.h"
-#include "ua_util_internal.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS
@@ -45,6 +45,8 @@ typedef struct UA_Client_MonitoredItem {
         UA_Client_EventNotificationCallback eventCallback;
     } handler;
     UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
+
+    UA_KeyValueMap eventFields; /* Cached names */
 } UA_Client_MonitoredItem;
 
 ZIP_HEAD(MonitorItemsTree, UA_Client_MonitoredItem);
@@ -64,7 +66,7 @@ typedef struct UA_Client_Subscription {
 } UA_Client_Subscription;
 
 void
-__Client_Subscriptions_clean(UA_Client *client);
+__Client_Subscriptions_clear(UA_Client *client);
 
 /* Exposed for fuzzing */
 UA_StatusCode
@@ -125,6 +127,8 @@ struct UA_Client {
 
     UA_Boolean findServersHandshake;   /* Ongoing FindServers */
     UA_Boolean endpointsHandshake;     /* Ongoing GetEndpoints */
+    UA_Boolean namespacesHandshake;    /* Ongoing Namespaces read */
+    UA_Boolean haveNamespaces;         /* Do we have the namespaces? */
 
     /* The discoveryUrl can be different from the EndpointUrl in the client
      * configuration. The EndpointUrl is used to connect initially, then the
@@ -134,6 +138,8 @@ struct UA_Client {
 
     /* Contains the Server description, etc. */
     UA_EndpointDescription endpoint;
+
+    UA_RuleHandling allowAllCertificateUris;
 
     /* SecureChannel */
     UA_SecureChannel channel;
@@ -145,12 +151,18 @@ struct UA_Client {
     uintptr_t reverseConnectionIds[16];
 
     /* Session */
+    UA_NodeId sessionId;
     UA_SessionState sessionState;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle; /* Unique handles >100,000 are generated if the
                               * request header contains a zero-handle. */
     UA_ByteString serverSessionNonce;
     UA_ByteString clientSessionNonce;
+
+    /* For authentication with an ECC SecurityPolicy. This is needed to save the
+     * server's ephemeral public key between the session creation (when the key
+     * is received) and session activation, when the key is used. */
+    UA_ByteString serverEphemeralPubKey;
 
     /* Connectivity check */
     UA_DateTime lastConnectivityCheck;
@@ -164,6 +176,11 @@ struct UA_Client {
     LIST_HEAD(, UA_Client_Subscription) subscriptions;
     UA_UInt32 monitoredItemHandles;
     UA_UInt16 currentlyOutStandingPublishRequests;
+
+    /* Internal namespaces. The table maps the namespace Uri to its index. This
+     * is used for the automatic namespace mapping in de/encoding. */
+    UA_String *namespaces;
+    size_t namespacesSize;
 
     /* Internal locking for thread-safety. Methods starting with UA_Client_ that
      * are marked with UA_THREADSAFE take the lock. The lock is released before
@@ -195,6 +212,17 @@ __Client_Service(UA_Client *client, const void *request,
 
 UA_StatusCode
 __UA_Client_startup(UA_Client *client);
+
+/* Connect with the client configuration. For the async connection, finish
+ * connecting via UA_Client_run_iterate (or manually running a configured
+ * external EventLoop). */
+UA_StatusCode
+__UA_Client_connect(UA_Client *client, UA_Boolean async, const char *endpointUrl);
+
+void
+__UA_Client_Service(UA_Client *client, const void *request,
+                    const UA_DataType *requestType, void *response,
+                    const UA_DataType *responseType);
 
 UA_StatusCode
 __Client_renewSecureChannel(UA_Client *client);

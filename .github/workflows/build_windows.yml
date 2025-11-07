@@ -1,0 +1,76 @@
+name: Windows Build & Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: msvc
+            cc_name: "Visual Studio 17 2022"
+            cc_shortname: msvc
+            generator: "Visual Studio 17 2022"
+            arch: "x64"
+          - compiler: mingw
+            cc_name: "MinGW Makefiles"
+            cc_shortname: mingw
+            generator: "Ninja"
+          - compiler: clang-mingw
+            cc_name: "Clang"
+            cc_shortname: clang-mingw
+            generator: "Ninja"
+    runs-on: windows-latest
+    env:
+      CC_NAME: ${{ matrix.cc_name }}
+      CC_SHORTNAME: ${{ matrix.cc_shortname }}
+      GENERATOR: ${{ matrix.generator }}
+      ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: MinGW install
+        if: matrix.cc_shortname == 'mingw' || matrix.cc_shortname == 'clang-mingw'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-check
+            mingw-w64-x86_64-clang
+            mingw-w64-x86_64-mbedtls
+
+      - name: MinGW build
+        if: matrix.cc_shortname == 'mingw' || matrix.cc_shortname == 'clang-mingw'
+        shell: msys2 {0}
+        run: ./tools/ci/win/build_mingw.sh
+
+      - name: MSVC install
+        if: matrix.cc_shortname == 'msvc'
+        shell: pwsh
+        run: |
+          vcpkg install mbedtls:x64-windows-static
+          vcpkg install check:x64-windows-static
+
+      - name: MSVC build
+        if: matrix.cc_shortname == 'msvc'
+        shell: pwsh
+        run: |
+          ./tools/ci/win/build.ps1
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.cc_shortname }}
+          path: |
+            build/Testing/
+            build/**/*.xml
+            build/**/*.log
+          retention-days: 7

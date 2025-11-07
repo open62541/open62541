@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
 ### License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,17 +8,17 @@
 ###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
-from __future__ import print_function
-import sys
 import xml.dom.minidom as dom
 import logging
 import codecs
 import re
-from datatypes import NodeId, valueIsInternalType
-from nodes import *
-from opaque_type_mapping import opaque_type_mapping
+from collections import OrderedDict
 
-from type_parser import CSVBSDTypeParser
+from .datatypes import NodeId
+from .nodes import *
+from .opaque_type_mapping import opaque_type_mapping
+from .type_parser import CSVBSDTypeParser
+
 import io
 import tempfile
 import base64
@@ -27,14 +26,6 @@ import base64
 __all__ = ['NodeSet', 'getSubTypesOf']
 
 logger = logging.getLogger(__name__)
-
-if sys.version_info[0] >= 3:
-    # strings are already parsed to unicode
-    def unicode(s):
-        return s
-    string_types = str
-else:
-    string_types = basestring
 
 ####################
 # Helper Functions #
@@ -48,7 +39,7 @@ def getSubTypesOf(nodeset, node, skipNodes=[]):
     re = set()
     re.add(node)
     for ref in node.references:
-        if (ref.referenceType == hassubtype):
+        if ref.referenceType == hassubtype:
             skipAll = set()
             skipAll.update(skipNodes)
             skipAll.update(re)
@@ -99,11 +90,11 @@ def buildAliasList(xmlelement):
         if al.nodeType == al.ELEMENT_NODE:
             if al.hasAttribute("Alias"):
                 aliasst = al.getAttribute("Alias")
-                aliasnd = unicode(al.firstChild.data)
+                aliasnd = al.firstChild.data
                 aliases[aliasst] = aliasnd
     return aliases
 
-class NodeSet(object):
+class NodeSet:
     """ This class handles parsing XML description of namespaces, instantiating
         nodes, linking references, graphing the namespace and compiling a binary
         representation.
@@ -115,29 +106,25 @@ class NodeSet(object):
     """
 
     def __init__(self):
-        self.nodes = {}
+        self.nodes = OrderedDict()
         self.aliases = {}
         self.namespaces = ["http://opcfoundation.org/UA/"]
         self.namespaceMapping = {}
 
     def sanitize(self):
-        for n in self.nodes.values():
-            if n.sanitize() == False:
-                raise Exception("Failed to sanitize node " + str(n))
-
         # Sanitize reference consistency
         for n in self.nodes.values():
             for ref in n.references:
                 if not ref.source == n.id:
                     raise Exception("Reference " + str(ref) + " has an invalid source")
-                if not ref.referenceType in self.nodes:
+                if ref.referenceType not in self.nodes:
                     raise Exception("Reference " + str(ref) + " has an unknown reference type")
-                if not ref.target in self.nodes:
+                if ref.target not in self.nodes:
                     print(self.namespaces)
                     raise Exception("Reference " + str(ref) + " has an unknown target")
 
     def addNamespace(self, nsURL):
-        if not nsURL in self.namespaces:
+        if nsURL not in self.namespaces:
             self.namespaces.append(nsURL)
 
     def createNamespaceMapping(self, orig_namespaces):
@@ -184,7 +171,7 @@ class NodeSet(object):
         return node
 
     def hide_node(self, nodeId, hidden=True):
-        if not nodeId in self.nodes:
+        if nodeId not in self.nodes:
             return False
         node = self.nodes[nodeId]
         node.hidden = hidden
@@ -210,9 +197,9 @@ class NodeSet(object):
                 if ns not in self.namespaces:
                     return None
                 ns = self.namespaces.index(ns)
-                idStr = "ns={};{}".format(ns, m.group(2))
+                idStr = f"ns={ns};{m.group(2)}"
         nodeId = NodeId(idStr)
-        if not nodeId in self.nodes:
+        if nodeId not in self.nodes:
             return None
         return self.nodes[nodeId]
 
@@ -248,8 +235,7 @@ class NodeSet(object):
         # Remove BOM since the dom parser cannot handle it on Python 3 Windows
         if fileContent.startswith( codecs.BOM_UTF8 ):
             fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
-        if (sys.version_info >= (3, 0)):
-            fileContent = fileContent.decode("utf-8")
+        fileContent = fileContent.decode("utf-8")
 
         # Remove the uax namespace from tags. UaModeler adds this namespace to some elements
         fileContent = re.sub(r"<([/]?)uax:(.+?)([/]?)>", "<\\g<1>\\g<2>\\g<3>>", fileContent)
@@ -259,7 +245,6 @@ class NodeSet(object):
             raise Exception(self, self.originXML + " contains no or more then 1 nodeset")
         nodeset = nodesets[0]
 
-
         # Extract the modelUri
         try:
             modelTag = nodeset.getElementsByTagName("Models")[0].getElementsByTagName("Model")[0]
@@ -267,7 +252,6 @@ class NodeSet(object):
         except Exception:
             # Ignore exception and try to use namespace array
             modelUri = None
-
 
         # Create the namespace mapping
         orig_namespaces = extractNamespaces(xmlfile)  # List of namespaces used in the xml file
@@ -307,34 +291,6 @@ class NodeSet(object):
             self.nodes[node.id] = node
             newnodes[node.id] = node
 
-        # Parse Datatypes in order to find out what the XML keyed values actually
-        # represent.
-        # Ex. <rpm>123</rpm> is not encodable
-        #     only after parsing the datatypes, it is known that
-        #     rpm is encoded as a double
-        for n in newnodes.values():
-            if isinstance(n, DataTypeNode):
-                n.buildEncoding(self, namespaceMapping=self.namespaceMapping)
-
-    def getBinaryEncodingIdForNode(self, nodeId):
-        """
-        The node should have a 'HasEncoding' forward reference which points to the encoding ids.
-        These can be XML Encoding or Binary Encoding. Therefore we also need to check if the SymbolicName
-        of the target node is "DefaultBinary"
-        """
-        node = self.nodes[nodeId]
-        for ref in node.references:
-            if ref.referenceType.ns == 0 and ref.referenceType.i == 38:
-                refNode = self.nodes[ref.target]
-                if refNode.symbolicName.value == "DefaultBinary":
-                    return ref.target
-        raise Exception("No DefaultBinary encoding defined for node " + str(nodeId))
-
-    def allocateVariables(self):
-        for n in self.nodes.values():
-            if isinstance(n, VariableNode):
-                n.allocateValue(self)
-
     def getBaseDataType(self, node):
         if node is None:
             return None
@@ -355,7 +311,7 @@ class NodeSet(object):
         return None
 
     def getDataTypeNode(self, dataType):
-        if isinstance(dataType, string_types):
+        if isinstance(dataType, str):
             if not valueIsInternalType(dataType):
                 logger.error("Not a valid dataType string: " + dataType)
                 return None
@@ -397,7 +353,7 @@ class NodeSet(object):
             if parentref is not None:
                 node.parent = self.nodes[parentref.target]
                 if not node.parent:
-                    raise RuntimeError("Node {}: Did not find parent node: ".format(str(node.id)))
+                    raise RuntimeError(f"Node {str(node.id)}: Did not find parent node: ")
                 node.parentReference = self.nodes[parentref.referenceType]
             # Some nodes in the full nodeset do not have a parent. So accept this and do not show an error.
             #else:
@@ -416,8 +372,7 @@ class NodeSet(object):
             # Remove BOM since the dom parser cannot handle it on python 3 windows
             if fileContent.startswith( codecs.BOM_UTF8 ):
                 fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
-            if (sys.version_info >= (3, 0)):
-                fileContent = fileContent.decode("utf-8")
+            fileContent = fileContent.decode("utf-8")
 
             # Remove the uax namespace from tags. UaModeler adds this namespace to some elements
             fileContent = re.sub(r"<([/]?)uax:(.+?)([/]?)>", "<\\g<1>\\g<2>\\g<3>>", fileContent)
@@ -444,8 +399,7 @@ class NodeSet(object):
             # Remove BOM since the dom parser cannot handle it on python 3 windows
             if fileContent.startswith( codecs.BOM_UTF8 ):
                 fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
-            if (sys.version_info >= (3, 0)):
-                fileContent = fileContent.decode("utf-8")
+            fileContent = fileContent.decode("utf-8")
 
             # Remove the uax namespace from tags. UaModeler adds this namespace to some elements
             fileContent = re.sub(r"<([/]?)uax:(.+?)([/]?)>", "<\\g<1>\\g<2>\\g<3>>", fileContent)
@@ -483,3 +437,92 @@ class NodeSet(object):
         self.parser.create_types()
 
         nodeset_base.close()
+
+    # Kahn's algorithm:
+    # https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
+    def sortNodes(self):
+        # reverse hastypedefinition references to treat only forward references
+        hasTypeDef = NodeId("ns=0;i=40")
+        for u in self.nodes.values():
+            for ref in u.references:
+                if ref.referenceType == hasTypeDef:
+                    ref.isForward = not ref.isForward
+
+        # Only hierarchical types...
+        relevant_refs = self.getRelevantOrderingReferences()
+
+        # determine in-degree of unfulfilled references
+        L = [node for node in self.nodes.values() if node.hidden]  # ordered list of nodes
+        R = {node.id: node for node in self.nodes.values() if not node.hidden} # remaining nodes
+        in_degree = {id: 0 for id in R.keys()}
+        for u in R.values(): # for each node
+            for ref in u.references:
+                if ref.referenceType not in relevant_refs:
+                    continue
+                if self.nodes[ref.target].hidden:
+                    continue
+                if ref.isForward:
+                    continue
+                in_degree[u.id] += 1
+
+        # Print ReferenceType and DataType nodes first. They may be required even
+        # though there is no reference to them. For example if the referencetype is
+        # used in a reference, it must exist. A Variable node may point to a
+        # DataTypeNode in the datatype attribute and not via an explicit reference.
+
+        Q = [node for node in R.values() if in_degree[node.id] == 0 and
+            (isinstance(node, ReferenceTypeNode) or isinstance(node, DataTypeNode))]
+        while Q:
+            u = Q.pop() # choose node of zero in-degree and 'remove' it from graph
+            L.append(u)
+            del R[u.id]
+
+            for ref in sorted(u.references, key=lambda r: str(r.target)):
+                if ref.referenceType not in relevant_refs:
+                    continue
+                if self.nodes[ref.target].hidden:
+                    continue
+                if not ref.isForward:
+                    continue
+                in_degree[ref.target] -= 1
+                if in_degree[ref.target] == 0:
+                    Q.append(R[ref.target])
+
+        # Order the remaining nodes
+        Q = [node for node in R.values() if in_degree[node.id] == 0]
+        while Q:
+            u = Q.pop() # choose node of zero in-degree and 'remove' it from graph
+            L.append(u)
+            del R[u.id]
+
+            for ref in sorted(u.references, key=lambda r: str(r.target)):
+                if ref.referenceType not in relevant_refs:
+                    continue
+                if self.nodes[ref.target].hidden:
+                    continue
+                if not ref.isForward:
+                    continue
+                in_degree[ref.target] -= 1
+                if in_degree[ref.target] == 0:
+                    Q.append(R[ref.target])
+
+        # reverse hastype references
+        for u in self.nodes.values():
+            for ref in u.references:
+                if ref.referenceType == hasTypeDef:
+                    ref.isForward = not ref.isForward
+
+        if len(L) != len(self.nodes.values()):
+            print(len(L))
+            stillOpen = ""
+            for id in in_degree:
+                if in_degree[id] == 0:
+                    continue
+                node = self.nodes[id]
+                stillOpen += node.browseName.name + "/" + str(node.id) + \
+                " = " + str(in_degree[id]) + " " + str(node.references) + "\r\n"
+            raise Exception("Node graph is circular on the specified references. "
+            "Still open nodes:\r\n" + stillOpen)
+
+        # Done sorting. Replace the OrderedDict of nodes in the nodeset
+        self.nodes = OrderedDict([(n.id, n) for n in L])

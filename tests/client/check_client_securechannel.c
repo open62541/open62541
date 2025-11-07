@@ -13,6 +13,7 @@
 #include <check.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 
@@ -37,9 +38,8 @@ static void pauseServer(void) {
 }
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     runServer();
 }
@@ -51,11 +51,12 @@ static void teardown(void) {
 }
 
 START_TEST(SecureChannel_timeout_max) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* To generate the namespace mapping table */
+    UA_Client_run_iterate(client, 1);
 
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_fakeSleep(cconfig->secureChannelLifeTime);
@@ -73,11 +74,17 @@ START_TEST(SecureChannel_timeout_max) {
 END_TEST
 
 START_TEST(SecureChannel_renew) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* To generate the namespace mapping table */
+    size_t max_stop_iteration_count = 100000;
+    size_t iteration = 0;
+    while(!client->haveNamespaces && iteration < max_stop_iteration_count) {
+        UA_Client_run_iterate(client, 0);
+        iteration++;
+    }
 
     pauseServer();
 
@@ -112,16 +119,14 @@ END_TEST
 
 /* Send the next message after the securechannel timed out */
 START_TEST(SecureChannel_timeout_fail) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
+    pauseServer();
     UA_fakeSleep(cconfig->secureChannelLifeTime + 1);
-    /* TODO: Manually trigger an eventloop iteration (stop sleeping in select) for the server thread */
-    UA_realSleep(500 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed
+    runServer();
 
     UA_Variant val;
     UA_Variant_init(&val);
@@ -138,9 +143,7 @@ END_TEST
 
 /* Send an async message and receive the response when the securechannel timed out */
 START_TEST(SecureChannel_networkfail) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -173,9 +176,7 @@ START_TEST(SecureChannel_networkfail) {
 END_TEST
 
 START_TEST(SecureChannel_reconnect) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -183,7 +184,9 @@ START_TEST(SecureChannel_reconnect) {
 
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_fakeSleep(cconfig->secureChannelLifeTime + 1);
-    UA_realSleep(50 + 1);
+    pauseServer();
+    UA_Server_run_iterate(server, true);
+    runServer();
 
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -193,9 +196,7 @@ START_TEST(SecureChannel_reconnect) {
 END_TEST
 
 START_TEST(SecureChannel_cableunplugged) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -225,7 +226,7 @@ END_TEST
  * #None SecureChannels. To be compatible with them, only check if the
  * certificate matches IF it gets sent in th asymHeader of the OPN message. */
 START_TEST(SecureChannel_serverCert) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -259,12 +260,12 @@ END_TEST
 /* The monotonic clock is 24h in the future */
 static UA_DateTime
 dateTime_nowMonotonicWithOffset(UA_EventLoop *el) {
-    return UA_DateTime_now() + (UA_DATETIME_SEC * 24 * 3600);
+    return UA_DateTime_now_fake(el) + (UA_DATETIME_SEC * 24 * 3600);
 }
 
 /* Simulate a deviation between the "wallclock" and the monotonic clock */
 START_TEST(SecureChannel_differentMonotonicClock) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");

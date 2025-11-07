@@ -7,17 +7,19 @@ if(MSVC)
     )
 else()
     add_compile_options(-Wno-unused-variable -Wno-unused-function)
+    add_compile_options(-Wno-gnu-zero-variadic-macro-arguments) # silence warning for the check library
 endif()
 
-# Load CMake Packages
+# Check dependency
 find_package(Check REQUIRED)
 set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
-if(NOT WIN32 AND NOT APPLE AND NOT (CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD"))
+if(NOT WIN32 AND NOT APPLE AND NOT (CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD") AND NOT (CMAKE_HOST_SYSTEM_NAME MATCHES "FreeBSD"))
     list(APPEND LIBS subunit)
 endif()
+include_directories(${CHECK_INCLUDE_DIRS})
+link_directories(${CHECK_LIBRARY_DIRS})
 
-include_directories(${CHECK_INCLUDE_DIR})
-#find_package(Threads REQUIRED)
+# Valgrind dependency
 if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
     find_package(Valgrind REQUIRED)
 endif()
@@ -25,16 +27,24 @@ endif()
 get_property(open62541_BUILD_INCLUDE_DIRS TARGET open62541 PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
 include_directories(${open62541_BUILD_INCLUDE_DIRS})
 # ua_server_internal.h
+include_directories("${PROJECT_SOURCE_DIR}/deps")
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/server")
-include_directories("${PROJECT_SOURCE_DIR}/arch/common")
+include_directories("${PROJECT_SOURCE_DIR}/src/pubsub")
+include_directories("${PROJECT_SOURCE_DIR}/src/client")
+include_directories("${PROJECT_SOURCE_DIR}/src/util")
 # testing_clock.h
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins")
 # #include <src_generated/<...>.h>
 include_directories("${PROJECT_BINARY_DIR}")
 include_directories("${PROJECT_BINARY_DIR}/../plugins")
 
-if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
+if(UA_ARCHITECTURE_LWIP)
+    # lwip includes
+    include_directories(${LWIP_INCLUDE_DIRS})
+endif()
+
+if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     # mbedtls includes
     include_directories(${MBEDTLS_INCLUDE_DIRS})
 endif()
@@ -66,87 +76,24 @@ else()
     set(TESTS_BINARY_DIR ${CMAKE_BINARY_DIR}/bin/tests)
 endif()
 
-
-# Use different plugins for testing
+# Use additional plugins for testing
 set(test_plugin_sources
-    ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_common.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c
+    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/test_helpers.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
-    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
-    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_policy.c
-    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
-    )
+    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
-endif()
-
-if(UA_ENABLE_MQTT)
-    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
-endif()
-
-if(UA_ENABLE_HISTORIZING)
-    set(test_plugin_sources ${test_plugin_sources}
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_backend_memory.c
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_gathering_default.c
-        ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_database_default.c)
-endif()
-
-if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
-    list(INSERT test_plugin_sources 0
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.h
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c)
-endif()
-
-if(UA_ENABLE_PUBSUB_ENCRYPTION)
-    list(INSERT test_plugin_sources 1
-    ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c
-    ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c)
-endif()
-
-if(UA_ENABLE_ENCRYPTION_MBEDTLS)
-    list(INSERT test_plugin_sources 1
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes256sha256rsapss.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_mbedtls_create_certificate.c)
-endif()
-
-if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
-    list(INSERT test_plugin_sources 0
-              ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.h
-              ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.c
-              ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic128rsa15.c
-              ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256.c
-              ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256sha256.c
-              ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_aes128sha256rsaoaep.c
-              ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_aes256sha256rsapss.c
-              ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_create_certificate.c
-              ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_pki_openssl.c)
+# Network replay tests currently require a Linux environment.
+# Also only do it for 64bit builds, as there is a bug in the Debian multi-arch installation.
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_FORCE_32BIT AND NOT UA_ARCHITECTURE_LWIP)
+    list(APPEND test_plugin_sources
+                ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers_pcap.c)
+    list(APPEND LIBS pcap)
 endif()
 
 if(UA_ENABLE_PUBSUB)
     # Add ethernet_config.h to ensure the tests are rebuild when it changes
     list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/pubsub/ethernet_config.h)
-endif()
-
-if(UA_ENABLE_NODESETLOADER)
-    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_nodesetloader.c)
 endif()
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
@@ -164,22 +111,19 @@ endif()
 add_library(open62541-testplugins OBJECT ${test_plugin_sources})
 add_dependencies(open62541-testplugins open62541)
 target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-if(UA_ENABLE_COVERAGE)
-    add_coverage(open62541-testplugins)
-endif()
 
 # Unit Test Definition Macro
 # For now we need to disable the libc freeres. See https://github.com/open62541/open62541/pull/1003#issuecomment-315045143
 # This also requires to disable the phtread cache with no-nptl-pthread-stackcache
-set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full --run-libc-freeres=no --sim-hints=no-nptl-pthread-stackcache --track-fds=yes)
+set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full --run-libc-freeres=yes --sim-hints=no-nptl-pthread-stackcache --track-fds=yes)
 macro(add_test_valgrind TEST_NAME)
     if(UA_ENABLE_UNIT_TESTS_MEMCHECK)
         if(MSVC)
             add_test(${TEST_NAME} drmemory -batch -exit_code_if_errors 1 -results_to_stderr -summary -- ${ARGN})
         else()
             set(VALGRIND_LOG ${TESTS_BINARY_DIR}/${TEST_NAME}.log)
-            set(VALGRIND_CMD valgrind --error-exitcode=1 --suppressions=${PROJECT_SOURCE_DIR}/tools/valgrind_suppressions.supp ${VALGRIND_FLAGS} --log-file=${VALGRIND_LOG} ${ARGN})
-            add_test(${TEST_NAME} ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/valgrind_check_error.py ${VALGRIND_LOG} ${VALGRIND_CMD})
+            set(VALGRIND_CMD valgrind --error-exitcode=1 --suppressions=${PROJECT_SOURCE_DIR}/tests/valgrind_suppressions.supp ${VALGRIND_FLAGS} --log-file=${VALGRIND_LOG} ${ARGN})
+            add_test(${TEST_NAME} ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/valgrind_check_error.py ${VALGRIND_LOG} ${VALGRIND_CMD})
         endif()
     else()
         add_test(${TEST_NAME} ${ARGN})
@@ -218,19 +162,17 @@ function(ua_add_test test_path_relative)
     set(multiValueArgs EXTRASOURCES EXTRALIBS)
     cmake_parse_arguments(arg "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    add_executable(${TEST_NAME} ${test_path_relative} ${arg_EXTRASOURCES} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    add_executable(${TEST_NAME} ${test_path_relative} ${arg_EXTRASOURCES} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins> $<TARGET_OBJECTS:open62541-testplugins>)
     add_dependencies(${TEST_NAME} open62541-testplugins)
     target_link_libraries(${TEST_NAME} ${LIBS} ${arg_EXTRALIBS})
     target_compile_definitions(${TEST_NAME} PRIVATE -DUA_UNITTEST)
     set_target_properties(${TEST_NAME} PROPERTIES FOLDER "tests")
     add_test_valgrind(${TEST_NAME} ${TESTS_BINARY_DIR}/${TEST_NAME})
-    if(UA_ENABLE_NODESET_INJECTOR)
-        set(UA_NODESETINJECTOR_TEST_NAMES ${TEST_NAME} ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
-    endif()
 endfunction()
 
 ua_add_test(check_types_builtin.c)
 ua_add_test(check_ziptree.c)
+ua_add_test(check_mp_printf.c)
 
 if(UA_ENABLE_JSON_ENCODING)
     ua_add_test(check_cj5.c)
@@ -243,6 +185,7 @@ if(UA_ENABLE_JSON_ENCODING)
 endif()
 
 if(UA_ENABLE_XML_ENCODING)
+    ua_add_test(check_yxml.c)
     ua_add_test(check_types_builtin_xml.c)
 endif()
 
@@ -251,6 +194,9 @@ ua_add_test(check_types_range.c)
 
 if(UA_ENABLE_PARSING)
     ua_add_test(check_types_parse.c)
+    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+        ua_add_test(server/check_eventfilter_parser.c)
+    endif()
 endif()
 
 ua_add_test(check_types_custom.c)
@@ -262,9 +208,12 @@ ua_add_test(check_timer.c)
 ua_add_test(check_eventloop.c)
 ua_add_test(check_eventloop_tcp.c)
 ua_add_test(check_eventloop_udp.c)
-ua_add_test(check_eventloop_interrupt.c)
 
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP)
+    ua_add_test(check_eventloop_interrupt.c)
+endif()
+
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
     # Requires raw socket capability, currently not possible with valgrind
     ua_add_test(check_eventloop_eth.c)
 endif()
@@ -306,10 +255,11 @@ endif()
 if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_services_subscriptions.c)
     ua_add_test(server/check_monitoreditem_filter.c)
-if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-    ua_add_test(server/check_subscription_events.c)
-    ua_add_test(server/check_subscription_event_filter.c)
-endif()
+    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+        ua_add_test(server/check_subscription_events.c)
+        ua_add_test(server/check_subscription_events_local.c)
+        ua_add_test(server/check_subscription_event_filter.c)
+    endif()
 endif()
 
 ua_add_test(server/check_nodestore.c)
@@ -342,18 +292,17 @@ if(UA_ENABLE_PUBSUB)
     #Link libraries for executing subscriber unit test
     ua_add_test(pubsub/check_pubsub_subscribe.c)
     ua_add_test(pubsub/check_pubsub_publishspeed.c)
-    ua_add_test(pubsub/check_pubsub_config_freeze.c)
-    ua_add_test(pubsub/check_pubsub_publish_rt_levels.c)
-    ua_add_test(pubsub/check_pubsub_subscribe_config_freeze.c)
-    ua_add_test(pubsub/check_pubsub_subscribe_rt_levels.c)
-    ua_add_test(pubsub/check_pubsub_multiple_subscribe_rt_levels.c)
 
-    if(UA_ENABLE_PUBSUB_ENCRYPTION)
+    ua_add_test(pubsub/check_pubsub_offset.c)
+    if(UA_ARCHITECTURE_POSIX)
+        ua_add_test(pubsub/check_pubsub_custom_state_machine.c)
+    endif()
+
+    if(UA_ENABLE_ENCRYPTION_MBEDTLS)
         ua_add_test(pubsub/check_pubsub_encryption.c)
         ua_add_test(pubsub/check_pubsub_encryption_aes256.c)
         ua_add_test(pubsub/check_pubsub_decryption.c)
         ua_add_test(pubsub/check_pubsub_subscribe_encrypted.c)
-        ua_add_test(pubsub/check_pubsub_encrypted_rt_levels.c)
         if(UA_ENABLE_PUBSUB_SKS)
             ua_add_test(pubsub/check_pubsub_sks_keystorage.c)
             ua_add_test(pubsub/check_pubsub_sks_push.c)
@@ -363,11 +312,7 @@ if(UA_ENABLE_PUBSUB)
         endif()
     endif()
 
-    if (UA_ENABLE_PUBSUB_MONITORING)
-        if(NOT UA_ENABLE_PUBSUB_ENCRYPTION) #ToDO: Multiple Receive handling for PubsubEncryption
-            ua_add_test(pubsub/check_pubsub_subscribe_msgrcvtimeout.c)
-        endif()
-    endif()
+    ua_add_test(pubsub/check_pubsub_subscribe_msgrcvtimeout.c)
 
     if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
         ua_add_test(pubsub/check_pubsub_connection_ethernet.c)
@@ -442,6 +387,10 @@ if(UA_ENABLE_ENCRYPTION)
     if(UA_ENABLE_DISCOVERY)
         ua_add_test(server/check_discovery.c)
     endif()
+
+    if(UA_ENABLE_GDS_PUSHMANAGEMENT)
+        ua_add_test(encryption/check_gds_informationmodel.c)
+    endif()
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
@@ -453,10 +402,10 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     ua_add_test(encryption/check_username_connect_none.c)
     ua_add_test(encryption/check_encryption_key_password.c)
     ua_add_test(encryption/check_cert_generation.c)
-endif()
-
-if(UA_ENABLE_ENCRYPTION_MBEDTLS AND UA_ENABLE_CERT_REJECTED_DIR)
-    ua_add_test(encryption/check_save_rejected_cert.c)
+    ua_add_test(encryption/check_csr_generation.c)
+    ua_add_test(encryption/check_update_certificate.c)
+    ua_add_test(encryption/check_update_trustlist.c)
+    ua_add_test(encryption/check_certificategroup.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
@@ -467,7 +416,15 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     ua_add_test(encryption/check_encryption_aes256sha256rsapss.c)
     ua_add_test(encryption/check_encryption_key_password.c)
     ua_add_test(encryption/check_cert_generation.c)
+    ua_add_test(encryption/check_csr_generation.c)
+    ua_add_test(encryption/check_update_certificate.c)
+    ua_add_test(encryption/check_update_trustlist.c)
     ua_add_test(encryption/check_username_connect_none.c)
+    ua_add_test(encryption/check_certificategroup.c)
+endif()
+
+if(UA_ENABLE_ENCRYPTION_OPENSSL)
+    ua_add_test(encryption/check_encryption_eccnistp256.c)
 endif()
 
 # Tests for Nodeset Compiler
@@ -484,6 +441,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     target_include_directories(check_interfaces PRIVATE ${NODESET_COMPILER_OUTPUT_DIR})
 endif()
 
-if(UA_ENABLE_NODESET_INJECTOR)
-    set(UA_NODESETINJECTOR_TEST_NAMES ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
+# Only do the network replay test for 64bit builds, as there is a bug in the Debian multi-arch installation
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP AND NOT UA_FORCE_32BIT)
+    ua_add_test(network_replay/check_network_replay.c)
 endif()

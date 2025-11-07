@@ -10,7 +10,8 @@
 #include <check.h>
 #include <stdlib.h>
 
-#include "ua_pubsub.h"
+#include "test_helpers.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub_networkmessage.h"
 
@@ -32,7 +33,7 @@ UA_NodeId connection_test;
 /* setup() is to create an environment for test cases */
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
@@ -58,10 +59,12 @@ START_TEST(EthernetSendWithoutVLANTag) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
-    connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
+
+    UA_PubSubManager *psm = getPSM(server);
+    connection = UA_PubSubConnection_find(psm, connection_test);
     /* Remove the connection if invalid*/
     if(!connection) {
         return;
@@ -90,10 +93,12 @@ START_TEST(EthernetSendWithVLANTag) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
-    connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
+
+    UA_PubSubManager *psm = getPSM(server);
+    connection = UA_PubSubConnection_find(psm, connection_test);
     /* Remove the connection if invalid*/
     if(!connection) {
         return;

@@ -68,7 +68,7 @@
   
   <opc:StructuredType Name="AsymmetricAlgorithmSecurityHeader">
     <opc:Documentation>Asymmetric Security Header</opc:Documentation>
-    <opc:Field Name="SecurityPolicyUri" TypeName="opc:ByteString" />
+    <opc:Field Name="SecurityPolicyUri" TypeName="opc:String" />
     <opc:Field Name="SenderCertificate" TypeName="opc:ByteString" />
     <opc:Field Name="ReceiverCertificateThumbprint" TypeName="opc:ByteString" />
   </opc:StructuredType>

@@ -11,6 +11,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
 
+#include "test_helpers.h"
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
 
@@ -23,9 +24,8 @@
 static UA_Server *server = NULL;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_StatusCode setupResult = namespace_tests_interfaces_generated(server);
     ck_assert_int_eq(setupResult, UA_STATUSCODE_GOOD);
@@ -193,6 +193,7 @@ START_TEST(check_interface_instantiation) {
     }
     ck_assert(found == true);
 
+    UA_BrowseResult_clear(&br);
 } END_TEST
 
 int main(void) {

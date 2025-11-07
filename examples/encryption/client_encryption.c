@@ -7,6 +7,7 @@
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/create_certificate.h>
 
 #include <stdlib.h>
 
@@ -15,20 +16,61 @@
 #define MIN_ARGS 4
 
 int main(int argc, char* argv[]) {
-    if(argc < MIN_ARGS) {
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+    UA_ByteString privateKey = UA_BYTESTRING_NULL;
+    char *endpointUrl = NULL;
+    char *serverCertFile = NULL;
+
+    if(argc >= MIN_ARGS) {
+        endpointUrl = argv[1];
+        /* Load certificate and private key */
+        certificate = loadFile(argv[2]);
+        privateKey = loadFile(argv[3]);
+    } else {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Arguments are missing. The required arguments are "
-                     "<opc.tcp://host:port> "
-                     "<client-certificate.der> <client-private-key.der> "
-                     "[<trustlist1.crl>, ...]");
-        return EXIT_SUCCESS;
+                    "Missing arguments. Arguments are "
+                    "<opc.tcp://host:port> "
+                    "<client-certificate.der> <client-private-key.der> "
+                    "[<trustlist1.crl>, ...] "
+                    "[--serverCert <server-certificate.der>]");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Trying to create a certificate.");
+        UA_String subject[3] = {UA_STRING_STATIC("C=DE"),
+                            UA_STRING_STATIC("O=SampleOrganization"),
+                            UA_STRING_STATIC("CN=Open62541Server@localhost")};
+        UA_UInt32 lenSubject = 3;
+        UA_String subjectAltName[2]= {
+            UA_STRING_STATIC("DNS:localhost"),
+            UA_STRING_STATIC("URI:urn:open62541.unconfigured.application")
+        };
+        UA_UInt32 lenSubjectAltName = 2;
+        UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+        UA_UInt16 expiresIn = 14;
+        UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "expires-in-days"),
+                                 (void *)&expiresIn, &UA_TYPES[UA_TYPES_UINT16]);
+        UA_StatusCode statusCertGen = UA_CreateCertificate(
+            UA_Log_Stdout, subject, lenSubject, subjectAltName, lenSubjectAltName,
+            UA_CERTIFICATEFORMAT_DER, kvm, &privateKey, &certificate);
+        UA_KeyValueMap_delete(kvm);
+
+        if(statusCertGen != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "Generating Certificate failed: %s",
+                UA_StatusCode_name(statusCertGen));
+            return EXIT_SUCCESS;
+        }
+
+        endpointUrl = "opc.tcp://localhost:4840";
     }
 
-    const char *endpointUrl = argv[1];
-
-    /* Load certificate and private key */
-    UA_ByteString certificate = loadFile(argv[2]);
-    UA_ByteString privateKey  = loadFile(argv[3]);
+    /* If the server certificate is specified, a direct endpoint is created in the client configuration. */
+    for(int argpos = 1; argpos < argc; argpos++) {
+        if(strcmp(argv[argpos], "--serverCert") == 0) {
+            argpos++;
+            serverCertFile = argv[argpos];
+            break;
+        }
+    }
 
     /* Load the trustlist */
     size_t trustListSize = 0;
@@ -44,15 +86,51 @@ int main(int argc, char* argv[]) {
 
     UA_Client *client = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-    UA_String_clear(&cc->clientDescription.applicationUri);
-    cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
     UA_StatusCode retval = UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
-                                         trustList, trustListSize,
-                                         revocationList, revocationListSize);
+                                                                trustList, trustListSize,
+                                                                revocationList, revocationListSize);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "Failed to set encryption." );
+        UA_Client_delete(client);
+        return EXIT_FAILURE;
+    }
+
+    /* Secure client connect */
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT; /* require encryption */
+    cc->securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+
+    /* This demonstrates how to create a direct endpoint in the client configuration.
+     * This enables connection to a server that does not include the 'None' policy
+     * in its security policy list, as would be the case
+     * with 'UA_ServerConfig_setDefaultWithSecureSecurityPolicies'. */
+    if(serverCertFile) {
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+        cc->endpoint.securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+        cc->endpoint.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+        cc->endpoint.endpointUrl = UA_String_fromChars(endpointUrl);
+        cc->endpoint.serverCertificate = loadFile(serverCertFile);
+
+        cc->endpoint.userIdentityTokensSize = 0;
+        cc->endpoint.userIdentityTokens = (UA_UserTokenPolicy *)
+            UA_Array_new(1, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+        cc->endpoint.userIdentityTokensSize = 1;
+
+        cc->endpoint.userIdentityTokens[0].tokenType = UA_USERTOKENTYPE_CERTIFICATE;
+        cc->endpoint.userIdentityTokens[0].policyId = UA_String_fromChars("open62541-certificate-policy-sign+encrypt#Basic256Sha256");
+        cc->endpoint.userIdentityTokens[0].securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+        cc->endpoint.transportProfileUri = UA_String_fromChars("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
+
+        UA_ClientConfig_setAuthenticationCert(cc, certificate, privateKey);
+#else
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "The provided server certificate is ignored, and therefore no specific endpoint is configured."
+                    "Authentication using a certificate is only possible with mbedTLS or OpenSSL" );
+#endif
+    }
+
+    retval = UA_Client_connect(client, endpointUrl);
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
         return EXIT_FAILURE;
     }
@@ -63,19 +141,11 @@ int main(int argc, char* argv[]) {
         UA_ByteString_clear(&trustList[deleteCount]);
     }
 
-    /* Secure client connect */
-    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT; /* require encryption */
-    retval = UA_Client_connect(client, endpointUrl);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
-        return EXIT_FAILURE;
-    }
-
     UA_Variant value;
     UA_Variant_init(&value);
 
     /* NodeId of the variable holding the current time */
-    const UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    const UA_NodeId nodeId = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
 
     if(retval == UA_STATUSCODE_GOOD &&

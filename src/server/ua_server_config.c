@@ -11,7 +11,7 @@
 #include "ua_server_internal.h"
 
 void
-UA_ServerConfig_clean(UA_ServerConfig *config) {
+UA_ServerConfig_clear(UA_ServerConfig *config) {
     if(!config)
         return;
 
@@ -20,12 +20,14 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     UA_ApplicationDescription_clear(&config->applicationDescription);
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&config->mdnsConfig);
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
     UA_String_clear(&config->mdnsInterfaceIP);
 # if !defined(UA_HAS_GETIFADDR)
     if (config->mdnsIpAddressListSize) {
         UA_free(config->mdnsIpAddressList);
     }
 # endif
+#endif
 #endif
 
     /* Stop and delete the EventLoop */
@@ -65,9 +67,9 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     config->endpointsSize = 0;
 
     /* Nodestore */
-    if(config->nodestore.context && config->nodestore.clear) {
-        config->nodestore.clear(config->nodestore.context);
-        config->nodestore.context = NULL;
+    if(config->nodestore) {
+        config->nodestore->free(config->nodestore);
+        config->nodestore = NULL;
     }
 
     /* Certificate Validation */
@@ -87,7 +89,6 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 #endif
 
 #ifdef UA_ENABLE_PUBSUB
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(config->pubSubConfig.securityPolicies != NULL) {
         for(size_t i = 0; i < config->pubSubConfig.securityPoliciesSize; i++) {
             config->pubSubConfig.securityPolicies[i].clear(&config->pubSubConfig.securityPolicies[i]);
@@ -96,7 +97,6 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         config->pubSubConfig.securityPolicies = NULL;
         config->pubSubConfig.securityPoliciesSize = 0;
     }
-#endif
 #endif /* UA_ENABLE_PUBSUB */
 
     /* Logger */
