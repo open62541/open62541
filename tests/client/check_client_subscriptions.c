@@ -31,6 +31,16 @@ THREAD_CALLBACK(serverloop) {
     return 0;
 }
 
+static void runServer(void) {
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+}
+
+static void pauseServer(void) {
+    running = false;
+    THREAD_JOIN(server_thread);
+}
+
 static void setup(void) {
     noNewSubscription = false;
     running = true;
@@ -570,8 +580,10 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
     UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
 
     /* Sleep longer than the publishing interval */
+    pauseServer();
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
-    UA_realSleep((UA_UInt32)publishingInterval + 1);
+    UA_Server_run_iterate(server, true);
+    runServer();
 
     notificationReceived = false;
     countNotificationReceived = 0;
@@ -581,8 +593,10 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
     ck_assert_uint_eq(countNotificationReceived, 0);
 
     /* Sleep long enough to trigger the next sampling. */
+    pauseServer();
     UA_fakeSleep((UA_UInt32)(publishingInterval * 0.6));
-    UA_realSleep((UA_UInt32)(publishingInterval * 0.6));
+    UA_Server_run_iterate(server, true);
+    runServer();
 
     /* Sleep long enough to trigger the publish callback */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
@@ -724,7 +738,11 @@ START_TEST(Client_subscription_createDataChanges_async) {
     retval = UA_Client_MonitoredItems_delete_async(client, deleteRequest,
                                                    deleteMonitoredItemsCallback, &deleteResponse, &reqId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_realSleep(500);  // need to wait until response is at the client
+
+    pauseServer();
+    UA_Server_run_iterate(server, true);
+    runServer();
+
     retval = UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
