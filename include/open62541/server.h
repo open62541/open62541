@@ -1625,15 +1625,15 @@ UA_Server_setRegisterServerCallback(UA_Server *server,
  * @param server the own server object
  * @param requestServer the server to register
  * @param requestDiscoveryConfigurationSize the size of the configuration
- * @param requestDiscoveryConfiguration the discovery configuration of the server record
+ * @param requestDiscoveryConfiguration the discovery configurations of the server record
  * @param responseHeader the response header to fill
  * @param responseConfigurationResultsSize the size of the configuration results
  * @param responseConfigurationResults the configuration results to fill
  */
-UA_Boolean UA_EXPORT UA_THREADSAFE
+void UA_EXPORT UA_THREADSAFE
 UA_Server_registerServer(UA_Server *server, const UA_RegisteredServer *requestServer,
                          const size_t requestDiscoveryConfigurationSize,
-                         const UA_ExtensionObject *requestDiscoveryConfiguration,
+                         const UA_MdnsDiscoveryConfiguration *requestDiscoveryConfiguration,
                          UA_ResponseHeader *responseHeader,
                          size_t *responseConfigurationResultsSize,
                          UA_StatusCode **responseConfigurationResults);

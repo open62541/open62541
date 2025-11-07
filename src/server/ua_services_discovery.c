@@ -715,22 +715,37 @@ Service_RegisterServer2(UA_Server *server, UA_Session *session,
     return true;
 }
 
-UA_Boolean
+void
 UA_Server_registerServer(UA_Server *server, const UA_RegisteredServer *regServer,
                          const size_t requestDiscoveryConfigurationSize,
-                         const UA_ExtensionObject *requestDiscoveryConfiguration,
+                         const UA_MdnsDiscoveryConfiguration *requestDiscoveryConfiguration,
                          UA_ResponseHeader *responseHeader,
                          size_t *responseConfigurationResultsSize,
                          UA_StatusCode **responseConfigurationResults) {
 
     UA_LOCK(&server->serviceMutex);
     UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_ExtensionObject *discConfig = (UA_ExtensionObject *)UA_Array_new(
+        requestDiscoveryConfigurationSize, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    if(!discConfig) {
+        responseConfigurationResultsSize = 1;
+        *responseConfigurationResults = UA_STATUSCODE_BADOUTOFMEMORY;
+        return;
+    }
+    for(size_t n = 0; n < requestDiscoveryConfigurationSize; ++n) {
+        UA_ExtensionObject_init(&discConfig[n]);
+        UA_ExtensionObject_setValue(&discConfig, &requestDiscoveryConfiguration[n],
+                                    &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]);
+    }
+
     process_RegisterServer(
-        server, NULL, NULL, regServer, requestDiscoveryConfigurationSize,
-        requestDiscoveryConfiguration, responseHeader, responseConfigurationResultsSize,
+        server, NULL, NULL, regServer, requestDiscoveryConfigurationSize, discConfig, responseHeader,
+                           responseConfigurationResultsSize,
         responseConfigurationResults, 0, NULL);
+
+    UA_Array_delete(discConfig, requestDiscoveryConfigurationSize,
+                                          &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
     UA_UNLOCK(&server->serviceMutex);
-    return true;
 }
 
 #endif /* UA_ENABLE_DISCOVERY */
