@@ -3,10 +3,89 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2025 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
+#include <open62541/types.h>
 #include <open62541/util.h>
 #include "util/ua_util_internal.h"
+
+/* Compute padding of structure elements based on the alignment requirements
+ * of the builtin datatypes */
+
+#define PADSTRUCT(T) struct _pad_##T {char _; T x;};
+#define ALIGNMENT(T) offsetof(struct _pad_##T, x)
+#define PADDING(MEMSIZE, ALIGN) (ALIGN - (MEMSIZE % ALIGN)) % ALIGN
+
+PADSTRUCT(UA_Boolean)
+PADSTRUCT(UA_SByte)
+PADSTRUCT(UA_Byte)
+PADSTRUCT(UA_Int16)
+PADSTRUCT(UA_UInt16)
+PADSTRUCT(UA_Int32)
+PADSTRUCT(UA_UInt32)
+PADSTRUCT(UA_Int64)
+PADSTRUCT(UA_UInt64)
+PADSTRUCT(UA_Float)
+PADSTRUCT(UA_Double)
+PADSTRUCT(UA_String)
+PADSTRUCT(UA_DateTime)
+PADSTRUCT(UA_Guid)
+PADSTRUCT(UA_ByteString)
+PADSTRUCT(UA_XmlElement)
+PADSTRUCT(UA_NodeId)
+PADSTRUCT(UA_ExpandedNodeId)
+PADSTRUCT(UA_StatusCode)
+PADSTRUCT(UA_QualifiedName)
+PADSTRUCT(UA_LocalizedText)
+PADSTRUCT(UA_ExtensionObject)
+PADSTRUCT(UA_DataValue)
+PADSTRUCT(UA_Variant)
+PADSTRUCT(UA_DiagnosticInfo)
+
+PADSTRUCT(uintptr_t)
+PADSTRUCT(size_t)
+
+/* TODO: Decimal and BitfieldCluster are not implemented in the SDK so far */
+static UA_Byte alignment[UA_DATATYPEKINDS] = {
+    ALIGNMENT(UA_Boolean), ALIGNMENT(UA_SByte), ALIGNMENT(UA_Byte), ALIGNMENT(UA_Int16),
+    ALIGNMENT(UA_UInt16), ALIGNMENT(UA_Int32), ALIGNMENT(UA_UInt32), ALIGNMENT(UA_Int64),
+    ALIGNMENT(UA_UInt64), ALIGNMENT(UA_Float), ALIGNMENT(UA_Double), ALIGNMENT(UA_String),
+    ALIGNMENT(UA_DateTime), ALIGNMENT(UA_Guid), ALIGNMENT(UA_ByteString),
+    ALIGNMENT(UA_XmlElement), ALIGNMENT(UA_NodeId), ALIGNMENT(UA_ExpandedNodeId),
+    ALIGNMENT(UA_StatusCode), ALIGNMENT(UA_QualifiedName), ALIGNMENT(UA_LocalizedText),
+    ALIGNMENT(UA_ExtensionObject), ALIGNMENT(UA_DataValue), ALIGNMENT(UA_Variant),
+    ALIGNMENT(UA_DiagnosticInfo), 0, ALIGNMENT(UA_UInt32), 0, 0, 0, 0
+};
+
+static UA_Byte
+type_alignment(const UA_DataType *type) {
+    if(type->typeKind == UA_DATATYPEKIND_STRUCTURE ||
+       type->typeKind == UA_DATATYPEKIND_OPTSTRUCT ||
+       type->typeKind == UA_DATATYPEKIND_UNION) {
+        /* Maximum alignment of any member */
+        UA_Byte align = 1;
+        for(size_t i = 0; i < type->membersSize; i++) {
+            const UA_DataTypeMember *dtm = &type->members[i];
+            if(dtm->isArray) {
+                UA_Byte sizeAlign = offsetof(struct _pad_size_t, x);
+                if(sizeAlign> align)
+                    align = sizeAlign;
+            }
+            if(dtm->isArray || dtm->isOptional) {
+                UA_Byte ptrAlign = offsetof(struct _pad_uintptr_t, x);
+                if(ptrAlign> align)
+                    align = ptrAlign;
+                continue;
+            }
+            UA_Byte memberAlign = type_alignment(type->members[i].memberType);
+            if(memberAlign > align)
+                align = memberAlign;
+        }
+        return align;
+    }
+    return alignment[type->typeKind];
+}
 
 UA_StatusCode
 UA_DataType_fromStructureDefinition(UA_DataType *type,
@@ -43,13 +122,15 @@ UA_DataType_fromStructureDefinition(UA_DataType *type,
     /* Copy the name */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     type->typeName = (char*)UA_malloc(typeName.length + 1);
-    UA_CHECK(type->typeName != 0, UA_DataType_clear(type); return UA_STATUSCODE_BADOUTOFMEMORY);
+    UA_CHECK(type->typeName != 0,
+             UA_DataType_clear(type); return UA_STATUSCODE_BADOUTOFMEMORY);
     memcpy((void*)(uintptr_t)type->typeName, typeName.data, typeName.length);
     *(char*)(uintptr_t)&type->typeName[typeName.length] = '\0';
 #endif
 
     /* Allocate the members array */
-    type->members = (UA_DataTypeMember*)UA_calloc(sd->fieldsSize, sizeof(UA_DataTypeMember));
+    type->members = (UA_DataTypeMember *)
+        UA_calloc(sd->fieldsSize, sizeof(UA_DataTypeMember));
     if(!type->members) {
         UA_DataType_clear(type);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -77,17 +158,21 @@ UA_DataType_fromStructureDefinition(UA_DataType *type,
         *(char*)(uintptr_t)&dtm->memberName[sf->name.length] = '\0';
 #endif
 
-        /* Handle valuerank and array dimensions */
+        /* Memory size and padding for the scalar case */
+        UA_Byte alignment = type_alignment(dtm->memberType);
         size_t memSize = dtm->memberType->memSize;
+        dtm->padding = PADDING(type->memSize, alignment);
+
+        /* Handle valuerank and array dimensions */
         if(sf->valueRank == 1) {
             if(sf->arrayDimensionsSize > 1 ||
-               (sf->arrayDimensionsSize == 1 &&
-                sf->arrayDimensions[0] != 0)) {
+               (sf->arrayDimensionsSize == 1 && sf->arrayDimensions[0] != 0)) {
                 UA_DataType_clear(type);
                 return UA_STATUSCODE_BADINTERNALERROR;
             }
             dtm->isArray = true;
             memSize = sizeof(void*) + sizeof(size_t);
+            dtm->padding = PADDING(type->memSize, offsetof(struct _pad_size_t, x));
         } else if(sf->valueRank != UA_VALUERANK_SCALAR) {
             UA_DataType_clear(type);
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -99,31 +184,37 @@ UA_DataType_fromStructureDefinition(UA_DataType *type,
                 UA_DataType_clear(type);
                 return UA_STATUSCODE_BADINTERNALERROR;
             }
-            dtm->isOptional = sf->isOptional;
-            if(sf->valueRank == UA_VALUERANK_SCALAR)
+            dtm->isOptional = true;
+            if(!dtm->isArray) {
                 memSize = sizeof(void*);
+                dtm->padding = PADDING(type->memSize, offsetof(struct _pad_uintptr_t, x));
+            }
         }
 
-        /* Define the padding. Since the type does not have a C-struct
-         * definition, we are not bound to padding rules. To be compatible with
-         * alignment rules, always pad to to round up to the length of
-         * size_t. */
-        if(i == 0 && type->typeKind == UA_DATATYPEKIND_OPTSTRUCT) {
-            /* Initial padding to leave space for the options mask */
-            dtm->padding = sizeof(size_t);
-        }
-        if(i > 0) {
-            const UA_DataType *before = type->members[i-1].memberType;
-            size_t remainder = before->memSize % sizeof(size_t);
-            if(remainder != 0)
-                dtm->padding = (UA_Byte)(sizeof(size_t) - remainder);
+        /* For unions, leave space for the switchfield in the padding */
+        if(type->typeKind == UA_DATATYPEKIND_UNION) {
+            UA_Byte fieldPadding = (dtm->isArray) ?
+                PADDING(sizeof(UA_UInt32), offsetof(struct _pad_size_t, x)) :
+                PADDING(sizeof(UA_UInt32), type_alignment(dtm->memberType));
+            dtm->padding = sizeof(UA_UInt32) + fieldPadding;
         }
 
-        /* Increase the length of the overall type */
-        type->memSize += (UA_UInt32)(memSize + dtm->padding);
+        /* Adjust the type size for the latest member */
+        if(type->typeKind == UA_DATATYPEKIND_UNION) {
+            /* Increase the memSize if the current member is the largest */
+            if(memSize + dtm->padding > type->memSize)
+                type->memSize = (UA_UInt32)(memSize + dtm->padding);
+        } else {
+            /* Increase the memSize for the current member */
+            type->memSize += (UA_UInt32)(memSize + dtm->padding);
+        }
 
         /* TODO: MaxStringLength */
     }
+
+    /* Add final padding according to the member alignment requirements */
+    UA_Byte self_alignment = type_alignment(type);
+    type->memSize += PADDING(type->memSize, self_alignment);
 
     return UA_STATUSCODE_GOOD;
 }

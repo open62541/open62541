@@ -296,6 +296,33 @@ UA_DataType selfContainingUnionType = {
 
 static UA_DataTypeArray customDataTypesSelfContainingUnion = {NULL, 1, &selfContainingUnionType, UA_FALSE};
 
+static void
+checkEqualTypes(const UA_DataType *t1, const UA_DataType *t2) {
+    ck_assert(t1->typeKind == t2->typeKind);
+    ck_assert_uint_eq(t1->memSize, t2->memSize);
+    for(size_t i = 0; i < t1->membersSize; i++) {
+        ck_assert_uint_eq(t1->members[i].padding, t2->members[i].padding);
+    }
+}
+
+static void
+typeRoundTripCheckEqual(const UA_DataType *t) {
+    UA_StructureDefinition def;
+    UA_DataType typeCopy;
+    UA_StatusCode retval = UA_DataType_toStructureDefinition(t, &def);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
+
+    retval = UA_DataType_fromStructureDefinition(&typeCopy, &def, UA_NODEID_NULL,
+                                                 UA_STRING_NULL,
+                                                 &customDataTypesSelfContainingUnion);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    checkEqualTypes(t, &typeCopy);
+    UA_StructureDefinition_clear(&def);
+    UA_DataType_clear(&typeCopy);
+}
+
 START_TEST(parseCustomScalar) {
     Point p;
     p.x = 1.0;
@@ -339,6 +366,8 @@ START_TEST(customScalarStructureDefinition) {
     retval = UA_DataType_fromStructureDefinition(&pointTypeCopy, &pointDef,
                                                  UA_NODEID_NULL, UA_STRING_NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    checkEqualTypes(&PointType, &pointTypeCopy);
 
     Point p;
     p.x = 1.0;
@@ -741,6 +770,20 @@ START_TEST(parseSelfContainingUnionSelfMember) {
         UA_ByteString_clear(&buf);
     } END_TEST
 
+START_TEST(customTypeStructureDefinitionPadding) {
+    typeRoundTripCheckEqual(&PointType);
+    typeRoundTripCheckEqual(&OptType);
+    typeRoundTripCheckEqual(&ArrayOptType);
+    typeRoundTripCheckEqual(&UniType);
+    typeRoundTripCheckEqual(&selfContainingUnionType);
+} END_TEST
+
+START_TEST(ns0TypeStructureDefinitionPadding) {
+    for(size_t i = 0; i < UA_TYPES_COUNT; i++) {
+        typeRoundTripCheckEqual(&UA_TYPES[i]);
+    }
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test Custom DataType Encoding");
     TCase *tc = tcase_create("test cases");
@@ -754,6 +797,8 @@ int main(void) {
     tcase_add_test(tc, parseSelfContainingUnionSelfMember);
     tcase_add_test(tc, parseCustomStructureWithOptionalFieldsWithArrayNotContained);
     tcase_add_test(tc, parseCustomStructureWithOptionalFieldsWithArrayContained);
+    tcase_add_test(tc, customTypeStructureDefinitionPadding);
+    tcase_add_test(tc, ns0TypeStructureDefinitionPadding);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);
