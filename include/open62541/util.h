@@ -89,6 +89,8 @@ UA_Guid_random(void);   /* no cryptographic entropy */
  * -------------------------------------------------------------
  */
 
+/* The generated UA_DataType faithfully generates the padding of
+ * the corresponding C-structures. */
 UA_StatusCode
 UA_DataType_fromStructureDefinition(UA_DataType *type,
                                     const UA_StructureDefinition *sd,
