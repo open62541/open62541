@@ -2,6 +2,8 @@
   <a href="https://open62541.org">
     <img alt="open62541 Logo" src="https://open62541.org/images/logo-open62541.svg" width="400px">
   </a>
+  <br />
+  <a href=https://open62541.org">https://open62541.org</a> | <a href="https://www.o6-automation.com">https://www.o6-automation.com</a>
 </div>
 <br />
 
