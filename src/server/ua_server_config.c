@@ -82,6 +82,21 @@ UA_ServerConfig_clear(UA_ServerConfig *config) {
     if(config->accessControl.clear)
         config->accessControl.clear(&config->accessControl);
 
+#ifdef UA_ENABLE_RBAC
+    /* RBAC Roles */
+    for(size_t i = 0; i < config->rolesSize; i++)
+        UA_Role_clear(&config->roles[i]);
+    UA_free(config->roles);
+    config->roles = NULL;
+    config->rolesSize = 0;
+
+    for(size_t i = 0; i < config->rolePermissionsSize; i++)
+        UA_RolePermissions_clear(&config->rolePermissions[i]);
+    UA_free(config->rolePermissions);
+    config->rolePermissions = NULL;
+    config->rolePermissionsSize = 0;
+#endif
+
     /* Historical data */
 #ifdef UA_ENABLE_HISTORIZING
     if(config->historyDatabase.clear)
