@@ -6,6 +6,7 @@
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2022, 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright (c) 2025 Pilz GmbH & Co. KG, Author: Marcel Patzlaff
  */
 
 #include <open62541/types.h>
@@ -1608,6 +1609,8 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
             return res;
     }
 
+    const UA_Node *evTypeNode = UA_NODESTORE_GET(server, &ed->eventType);
+
     /* Loop over all nodes that emit this event instance */
     for(size_t i = 0; i < emitNodesSize; i++) {
         /* We can only emit on local nodes */
@@ -1646,6 +1649,25 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
             if(ed->monitoredItemId && *ed->monitoredItemId != mon->monitoredItemId)
                 continue;
 
+            /* Check ReceiveEvents permission */
+            if(sub->session && server->config.accessControl.allowReceiveEvents)
+            {
+                if(!server->config.accessControl.
+                    allowReceiveEvents(server, &server->config.accessControl,
+                                       &sub->session->sessionId, sub->session->context,
+                                       &node->head.nodeId, node->head.context)
+                ) {
+                    continue;
+                }
+                if(!server->config.accessControl.
+                    allowReceiveEvents(server, &server->config.accessControl,
+                                       &sub->session->sessionId, sub->session->context,
+                                       &evTypeNode->head.nodeId, evTypeNode->head.context)
+                ) {
+                    continue;
+                }
+            }
+
             /* Get the EventFilter from the MonitoredItem */
             if(!UA_ExtensionObject_hasDecodedType(&mon->parameters.filter,
                                                   &UA_TYPES[UA_TYPES_EVENTFILTER])) {
@@ -1680,6 +1702,8 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
             setHistoricalEvent(server, &emitNodes[i].nodeId, ed);
 #endif
     }
+
+    UA_NODESTORE_RELEASE(server, evTypeNode);
 
     /* Clean up and return */
     if(outEventId && res != UA_STATUSCODE_GOOD)
