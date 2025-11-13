@@ -1486,6 +1486,15 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     if(retval == UA_STATUSCODE_GOOD &&
        node->head.nodeClass == UA_NODECLASS_VARIABLE &&
        server->config.historyDatabase.setValue) {
+
+        /* Some famous clients require the source timestap to properly receive
+         * historical data. If missing we insert the source timestamp here. */
+        if(!adjustedValue.hasSourceTimestamp) {
+            adjustedValue.hasSourceTimestamp = true;
+            adjustedValue.sourceTimestamp = UA_DateTime_now();
+        }
+
+        /* Forward to the callback */
         server->config.historyDatabase.
             setValue(server, server->config.historyDatabase.context,
                      &session->sessionId, session->context,
