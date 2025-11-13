@@ -160,10 +160,10 @@ parseETHHeader(const UA_ByteString *buf,
         if(buf->length < (2 * ETHER_ADDR_LEN)+2+4)
             return 0;
         pos += 2;
-        UA_UInt16 vlan = ntohs(*(UA_UInt16*)&buf->data[pos]);
-        *pcp = 0x07 & vlan;
-        *dei = 0x01 & (vlan >> 3);
-        *vid = vlan >> 4;
+        UA_UInt16 tci = ntohs(*(UA_UInt16*)&buf->data[pos]);
+        *pcp = (tci >> 13) & 0x07;
+        *dei = (tci >> 12) & 0x01;
+        *vid = tci & 0x0FFF;
         pos += 2;
         length = ntohs(*(UA_UInt16*)&buf->data[pos]);
     }
@@ -192,8 +192,8 @@ setETHHeader(unsigned char *buf,
     if(vid > 0 && vid != ETH_P_ALL) {
         *(UA_UInt16*)&buf[pos] = htons(0x8100);
         pos += 2;
-        UA_UInt16 vlan = (UA_UInt16)((UA_UInt16)pcp + (((UA_UInt16)dei) << 3) + (vid << 4));
-        *(UA_UInt16*)&buf[pos] = htons(vlan);
+        UA_UInt16 tci = (UA_UInt16)(((UA_UInt16)pcp  << 13) | ((UA_UInt16)dei  << 12) | ((UA_UInt16)vid));
+        *(UA_UInt16*)&buf[pos] = htons(tci);
         pos += 2;
     }
 
