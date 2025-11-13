@@ -1810,9 +1810,16 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     /* Trigger RefreshStartEvent and RefreshEndEvent for the each monitoredItem
      * in the subscription */
-    UA_StatusCode retval = refreshLogic(server, session, subscription, NULL);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Could not refresh Condition",
-                                   unlockServer(server););
+
+    UA_MonitoredItem *item;
+    LIST_FOREACH(item, &subscription->monitoredItems, listEntry) {
+        if (item->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
+            continue;
+        UA_StatusCode retval = refreshLogic(server, session, subscription, item);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Could not refresh Condition",
+                                       unlockServer(server););
+    }
+
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
