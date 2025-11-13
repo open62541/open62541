@@ -422,8 +422,11 @@ getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
         tmpSession->diagnostics.unauthorizedRequestCount++;
 #endif
 
-    /* Update the rejected statistics */
-    return UA_STATUSCODE_BADSESSIONIDINVALID;
+    /* The StatusCode indicates if the Session doesn't exist or whether it does
+     * not match to SecureChannel */
+    return (tmpSession) ?
+        UA_STATUSCODE_BADSECURECHANNELIDINVALID :
+        UA_STATUSCODE_BADSESSIONIDINVALID;
 }
 
 static UA_StatusCode
