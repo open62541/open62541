@@ -318,6 +318,87 @@ START_TEST(Server_LocalMonitoredItemIndexRangeOutOfBounds) {
 }
 END_TEST
 
+static UA_UInt32 eventCount = 0;
+
+static void setupEvent(void) {
+    server = UA_Server_new();
+    ck_assert(server != NULL);
+    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    UA_StatusCode retval = UA_Server_run_startup(server);
+    ASSERT_STATUSCODE(retval, UA_STATUSCODE_GOOD);
+    eventCount = 0;
+}
+
+static void eventCB (UA_Server *server, UA_UInt32 monId, void *monContext,
+        size_t nEventFields, const UA_Variant *eventFields)
+{
+    eventCount++;
+    size_t*eventFiledsSize = (size_t *) monContext;
+    *eventFiledsSize = nEventFields;
+}
+
+START_TEST(Server_LocalMonitoredItemEvent)
+{
+    /* Create monitored event */
+    UA_MonitoredItemCreateRequest req;
+    UA_MonitoredItemCreateRequest_init(&req);
+    req.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    req.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    req.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
+    req.requestedParameters.samplingInterval = 250;
+    req.requestedParameters.discardOldest = true;
+    req.requestedParameters.queueSize = 1;
+
+    UA_QualifiedName eventIdQN = UA_QUALIFIEDNAME(0, "EventId");
+    UA_SimpleAttributeOperand select[1];
+    UA_SimpleAttributeOperand_init(&select[0]);
+    select[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    select[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    select[0].browsePathSize = 1;
+    select[0].browsePath = &eventIdQN;
+
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    filter.selectClausesSize = 1;
+    filter.selectClauses = select;
+
+    req.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
+    req.requestedParameters.filter.content.decoded.data = &filter;
+    req.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+
+    size_t eventFieldsSize = 0;
+
+    UA_MonitoredItemCreateResult res = UA_Server_createEventMonitoredItem(
+        server,
+        UA_TIMESTAMPSTORETURN_NEITHER,
+        req,
+        &eventFieldsSize,
+        eventCB
+    );
+    ASSERT_STATUSCODE(res.statusCode, UA_STATUSCODE_GOOD);
+
+    UA_NodeId eventId;
+    UA_StatusCode status = UA_Server_createEvent(
+        server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
+        &eventId
+    );
+    ASSERT_STATUSCODE(status, UA_STATUSCODE_GOOD);
+
+    status = UA_Server_triggerEvent(
+        server,
+        eventId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+        NULL,
+        true
+    );
+    ASSERT_STATUSCODE(status, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(eventCount,1);
+    ck_assert_uint_eq(eventFieldsSize, 1);
+}
+
+END_TEST
+
 static Suite * testSuite_Client(void) {
     Suite *s = suite_create("Local Monitored Item");
     TCase *tc_server = tcase_create("Local Monitored Item Basic");
@@ -332,6 +413,11 @@ static Suite * testSuite_Client(void) {
     tcase_add_test(tc_server_indexrange, Server_LocalMonitoredItemIndexRange);
     tcase_add_test(tc_server_indexrange, Server_LocalMonitoredItemIndexRangeOutOfBounds);
     suite_add_tcase(s, tc_server_indexrange);
+
+    TCase *tc_server_event = tcase_create("Local Monitored Item Event");
+    tcase_add_checked_fixture(tc_server_event, setupEvent, teardown);
+    tcase_add_test(tc_server_event, Server_LocalMonitoredItemEvent);
+    suite_add_tcase(s, tc_server_event);
 
     return s;
 }
