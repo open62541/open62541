@@ -625,7 +625,8 @@ openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509
 /* This follows Part 6, 6.1.3 Determining if a Certificate is trusted.
  * It defines a sequence of steps for certificate verification. */
 static UA_StatusCode
-verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
+verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                  UA_CertificateVerificationSettings settings) {
     /* Check parameter */
     if (certGroup == NULL || certGroup->context == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -673,13 +674,14 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
 
 static UA_StatusCode
 MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
-                                  const UA_ByteString *certificate) {
+                                  const UA_ByteString *certificate,
+                                  UA_CertificateVerificationSettings settings) {
     /* Check parameter */
     if(certGroup == NULL || certificate == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_StatusCode retval = verifyCertificate(certGroup, certificate);
+    UA_StatusCode retval = verifyCertificate(certGroup, certificate, settings);
     if(retval != UA_STATUSCODE_GOOD) {
         if(MemoryCertStore_addToRejectedList(certGroup, certificate) != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,

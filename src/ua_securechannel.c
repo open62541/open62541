@@ -612,12 +612,18 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk) {
     res = UA_decodeBinaryInternal(&chunk->bytes, &offset, &asymHeader,
              &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER], NULL);
     UA_CHECK_STATUS(res, return res);
-
+    UA_CertificateVerificationSettings verSettings = {
+        /*.allowInstanceUsage=*/ true,
+        /*.allowIssuerUsage=*/ false,
+        /*.allowUserUsage=*/ false,
+        /*.verificationLevel=*/ UA_CERTIFICATEVERIFICATION_TRUST,
+    };
     if(asymHeader.senderCertificate.length > 0) {
         if(channel->certificateVerification && channel->certificateVerification->verifyCertificate)
             res = channel->certificateVerification->
                 verifyCertificate(channel->certificateVerification,
-                                  &asymHeader.senderCertificate);
+                                  &asymHeader.senderCertificate,
+                                  verSettings);
         else
             res = UA_STATUSCODE_BADINTERNALERROR;
         UA_CHECK_STATUS(res, goto error);
