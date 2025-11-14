@@ -141,6 +141,49 @@ isFullyConnected(UA_Client *client) {
 
 #ifdef UA_ENABLE_ENCRYPTION
 
+/* Find binary substring. Taken and adjusted from
+ * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
+
+static const unsigned char *
+bstrchrClient(const unsigned char *s, const unsigned char ch, size_t l) {
+    /* find first occurrence of c in char s[] for length l*/
+    for(; l > 0; ++s, --l) {
+        if(*s == ch)
+            return s;
+    }
+    return NULL;
+}
+
+static const unsigned char *
+UA_BstrstrClient(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
+    /* find first occurrence of s2[] in s1[] for length l1*/
+    const unsigned char *ss1 = s1;
+    const unsigned char *ss2 = s2;
+    /* handle special case */
+    if(l1 == 0)
+        return (unsigned char *)NULL;
+    if(l2 == 0)
+        return s1;
+
+    /* match prefix */
+    for(; (s1 = bstrchrClient(s1, *s2, (uintptr_t)ss1 - (uintptr_t)s1 + (uintptr_t)l1)) !=
+              NULL &&
+        (uintptr_t)ss1 - (uintptr_t)s1 + (uintptr_t)l1 != 0;
+        ++s1) {
+
+        /* match rest of prefix */
+        const unsigned char *sc1, *sc2;
+        for(sc1 = s1, sc2 = s2;;)
+            if(++sc2 >= ss2 + l2)
+                return s1;
+            else if(*++sc1 != *sc2)
+                break;
+    }
+    return (unsigned char *)NULL;
+}
+
+static const unsigned char openssl_PEM_PRE[26] = "-----END CERTIFICATE-----";
+
 /* Function to create a signature using remote certificate and nonce.
  * This uses the SecurityPolicy of the SecureChannel. */
 static UA_StatusCode
@@ -162,17 +205,39 @@ signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* If we have a full certificate chain, isolate the first certificate */
+    size_t certLen = 0;
+    UA_ByteString rc = client->channel.remoteCertificate;
+    if(rc.length >= 4 && rc.data[0] == 0x30 && rc.data[1] == 0x82) {
+        /* DER certificate. The certificate length is encoded after the magic
+         * bytes. */
+        certLen = 4; /* Magic numbers + length bytes */
+        certLen += (size_t)(((uint16_t)rc.data[2]) << 8);
+        certLen += rc.data[3];
+    } else if(rc.length > 27 * 4) {
+        /* Try to find the delimiter of a PEM certificate. This is a workaround,
+         * as certificates should be in DER format. */
+        const unsigned char *match =
+            UA_BstrstrClient(rc.data, rc.length, openssl_PEM_PRE, 25);
+        if(!match)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        certLen = (uintptr_t)(match - rc.data)+25;
+    }
+    if(certLen > rc.length)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    rc.length = certLen;
+
     /* Create a temporary buffer */
     size_t signDataSize =
-        channel->remoteCertificate.length + client->serverSessionNonce.length;
+        rc.length + client->serverSessionNonce.length;
     if(signDataSize > MAX_DATA_SIZE)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Byte buf[MAX_DATA_SIZE];
     UA_ByteString signData = {signDataSize, buf};
 
     /* Sign the ClientSignature */
-    memcpy(buf, channel->remoteCertificate.data, channel->remoteCertificate.length);
-    memcpy(buf + channel->remoteCertificate.length, client->serverSessionNonce.data,
+    memcpy(buf, rc.data, rc.length);
+    memcpy(buf + rc.length, client->serverSessionNonce.data,
            client->serverSessionNonce.length);
     return signAlg->sign(channel->channelContext, &signData, &sd->signature);
 }
