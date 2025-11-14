@@ -287,6 +287,10 @@ UA_constantTimeEqual(const void *ptr1, const void *ptr2, size_t length);
 UA_EXPORT void
 UA_ByteString_memZero(UA_ByteString *bs);
 
+/* Find binary substring in a string*/
+UA_EXPORT const unsigned char *
+UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2);
+
 _UA_END_DECLS
 
 #endif /* UA_HELPER_H_ */

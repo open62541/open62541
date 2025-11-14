@@ -22,44 +22,6 @@
 
 #include <limits.h>
 
-/* Find binary substring. Taken and adjusted from
- * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
-
-static const unsigned char *
-bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
-    /* find first occurrence of c in char s[] for length l*/
-    for(; l > 0; ++s, --l) {
-        if(*s == ch)
-            return s;
-    }
-    return NULL;
-}
-
-static const unsigned char *
-UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
-    /* find first occurrence of s2[] in s1[] for length l1*/
-    const unsigned char *ss1 = s1;
-    const unsigned char *ss2 = s2;
-    /* handle special case */
-    if(l1 == 0)
-        return (NULL);
-    if(l2 == 0)
-        return s1;
-
-    /* match prefix */
-    for (; (s1 = bstrchr(s1, *s2, (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1)) != NULL &&
-             (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1 != 0; ++s1) {
-
-        /* match rest of prefix */
-        const unsigned char *sc1, *sc2;
-        for (sc1 = s1, sc2 = s2; ;)
-            if (++sc2 >= ss2+l2)
-                return s1;
-            else if (*++sc1 != *sc2)
-                break;
-    }
-    return NULL;
-}
 
 typedef struct {
     /*
@@ -441,7 +403,7 @@ openSSLLoadLeafCertificate(UA_ByteString cert, size_t *offset) {
     /* Assume PEM encoding. Detect multiple certificates and cut. */
     if(cert.length > 27 * 4) {
         const unsigned char *match =
-            UA_Bstrstr(openssl_PEM_PRE, 27, &cert.data[27*2], cert.length - (27*2));
+            UA_Bstrstr(&cert.data[27*2], cert.length - (27*2), openssl_PEM_PRE, 27);
         if(match)
             cert.length = (uintptr_t)(match - cert.data);
     }

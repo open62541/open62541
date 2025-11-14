@@ -141,6 +141,9 @@ isFullyConnected(UA_Client *client) {
 
 #ifdef UA_ENABLE_ENCRYPTION
 
+
+static const unsigned char openssl_PEM_PRE[26] = "-----END CERTIFICATE-----";
+
 /* Function to create a signature using remote certificate and nonce.
  * This uses the SecurityPolicy of the SecureChannel. */
 static UA_StatusCode
@@ -162,18 +165,38 @@ signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    UA_ByteString rc;
+    UA_ByteString_copy(&client->channel.remoteCertificate, &rc);
+    {
+        size_t certLen = 0;
+        if(rc.length >= 4 && rc.data[0] == 0x30 && rc.data[1] == 0x82) {
+            /* The certificate length is encoded after the magic bytes */
+            certLen = 4; /* Magic numbers + length bytes */
+            certLen += (size_t)(((uint16_t)rc.data[2]) << 8);
+            certLen += rc.data[3];
+        } else if(rc.length > 27 * 4) {
+            const unsigned char *match =
+                UA_Bstrstr(rc.data, rc.length, openssl_PEM_PRE, 25);
+            certLen = (uintptr_t)(match - rc.data)+25;
+        }
+        if(certLen > rc.length)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        rc.length = certLen;
+    }
+
     /* Create a temporary buffer */
     size_t signDataSize =
-        channel->remoteCertificate.length + client->serverSessionNonce.length;
+        rc.length + client->serverSessionNonce.length;
     if(signDataSize > MAX_DATA_SIZE)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Byte buf[MAX_DATA_SIZE];
     UA_ByteString signData = {signDataSize, buf};
 
     /* Sign the ClientSignature */
-    memcpy(buf, channel->remoteCertificate.data, channel->remoteCertificate.length);
-    memcpy(buf + channel->remoteCertificate.length, client->serverSessionNonce.data,
+    memcpy(buf, rc.data, rc.length);
+    memcpy(buf + rc.length, client->serverSessionNonce.data,
            client->serverSessionNonce.length);
+    UA_ByteString_clear(&rc);
     return signAlg->sign(channel->channelContext, &signData, &sd->signature);
 }
 
