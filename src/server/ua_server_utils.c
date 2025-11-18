@@ -395,8 +395,39 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
 
 void
 auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
-           const UA_KeyValueMap payload) {
+           UA_SecureChannel *channel, UA_Session *session, const char *serviceName,
+           UA_Boolean status, const UA_KeyValueMap payload) {
     UA_ServerConfig *config = &server->config;
+
+    /* Set the values for AuditEventType fields:
+     * /ActionTimeStamp    -> 0
+     * /Status             -> 1
+     * /ServerId           -> 2
+     * /ClientAuditEntryId -> 3
+     * /ClientUserId       -> 4 */
+
+    UA_NodeId sessionId = (session) ? session->sessionId: UA_NODEID_NULL;
+    UA_Byte entryIdBuf[521];
+    UA_String auditEntryId = {512, entryIdBuf};
+    UA_String_format(&auditEntryId, "%lu:%N:%s",
+                     (long unsigned)channel->securityToken.channelId,
+                     sessionId, serviceName);
+    UA_String clientUserId = (session) ?
+        session->clientUserIdOfSession : UA_STRING_NULL;
+    UA_DateTime actionTimestamp =
+        config->eventLoop->dateTime_now(config->eventLoop);
+
+    UA_Variant_setScalar(&payload.map[0].value, &actionTimestamp,
+                         &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_Variant_setScalar(&payload.map[1].value, &status,
+                         &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&payload.map[2].value,
+                         &config->applicationDescription.applicationUri,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&payload.map[3].value, &auditEntryId,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&payload.map[4].value, &clientUserId,
+                         &UA_TYPES[UA_TYPES_STRING]);
 
     /* Call the server notification callback */
     if(config->auditNotificationCallback)
@@ -412,49 +443,94 @@ auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
     ed.eventFields = &payload;
     switch(type) {
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT:
-        ed.eventType = UA_NS0ID(AUDITEVENTTYPE);
-        break;
+        ed.eventType = UA_NS0ID(AUDITEVENTTYPE); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY:
-        ed.eventType = UA_NS0ID(AUDITSECURITYEVENTTYPE);
-        break;
+        ed.eventType = UA_NS0ID(AUDITSECURITYEVENTTYPE); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL:
-        ed.eventType = UA_NS0ID(AUDITCHANNELEVENTTYPE);
-        break;
+        ed.eventType = UA_NS0ID(AUDITCHANNELEVENTTYPE); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL_OPEN:
-        ed.eventType = UA_NS0ID(AUDITOPENSECURECHANNELEVENTTYPE);
-        break;
+        ed.eventType = UA_NS0ID(AUDITOPENSECURECHANNELEVENTTYPE); break;
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION:
-        ed.eventType = UA_NS0ID(AUDITSESSIONEVENTTYPE);
-        break;
+        ed.eventType = UA_NS0ID(AUDITSESSIONEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CREATE:
+        ed.eventType = UA_NS0ID(AUDITCREATESESSIONEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_ACTIVATE:
+        ed.eventType = UA_NS0ID(AUDITACTIVATESESSIONEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CANCEL:
+        ed.eventType = UA_NS0ID(AUDITCANCELEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE:
+        ed.eventType = UA_NS0ID(AUDITCERTIFICATEEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_DATAMISMATCH:
+        ed.eventType = UA_NS0ID(AUDITCERTIFICATEDATAMISMATCHEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_EXPIRED:
+        ed.eventType = UA_NS0ID(AUDITCERTIFICATEEXPIREDEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_INVALID:
+        ed.eventType = UA_NS0ID(AUDITCERTIFICATEINVALIDEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_UNTRUSTED:
+        ed.eventType = UA_NS0ID(AUDITCERTIFICATEUNTRUSTEDEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_REVOKED:
+        ed.eventType = UA_NS0ID(AUDITCERTIFICATEREVOKEDEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_MISMATCH:
+        ed.eventType = UA_NS0ID(AUDITCERTIFICATEMISMATCHEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE:
+        ed.eventType = UA_NS0ID(AUDITNODEMANAGEMENTEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_ADD:
+        ed.eventType = UA_NS0ID(AUDITADDNODESEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_DELETE:
+        ed.eventType = UA_NS0ID(AUDITDELETENODESEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_ADDREFERENCES:
+        ed.eventType = UA_NS0ID(AUDITADDREFERENCESEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_DELETEREFERENCES:
+        ed.eventType = UA_NS0ID(AUDITDELETEREFERENCESEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE:
+        ed.eventType = UA_NS0ID(AUDITUPDATEEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_WRITE:
+        ed.eventType = UA_NS0ID(AUDITWRITEUPDATEEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_HISTORY:
+        ed.eventType = UA_NS0ID(AUDITHISTORYUPDATEEVENTTYPE); break;
+    case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD:
+        ed.eventType = UA_NS0ID(AUDITUPDATEMETHODEVENTTYPE); break;
     default:
-        return;
-
-        /*
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CREATE           = 0x1121,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_ACTIVATE         = 0x1122,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CANCEL           = 0x1124,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE              = 0x1140,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_DATAMISMATCH = 0x1141,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_EXPIRED      = 0x1142,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_INVALID      = 0x1143,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_UNTRUSTED    = 0x1144,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_REVOKED      = 0x1145,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_MISMATCH     = 0x1146,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE                              = 0x1200,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_ADD                          = 0x1210,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_DELETE                       = 0x1220,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_ADDREFERENCES                = 0x1240,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_DELETEREFERENCES             = 0x1280,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE                            = 0x1400,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_WRITE                      = 0x1410,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_HISTORY                    = 0x1420,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD                     = 0x1440,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT                            = 0x1800,
-    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT_UPDATEMETHOD               = 0x1810
+        /* TODO:
+         * UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT                            = 0x1800,
+         * UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT_UPDATEMETHOD               = 0x1810
         */
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Unsupported audit log type requested: %u", type);
+        return;
     }
     createEvent(server, &ed, NULL);
  #endif
+}
+
+void
+auditSecurityEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                   UA_SecureChannel *channel, UA_Session *session,
+                   const char *serviceName, UA_Boolean status, UA_StatusCode statusCodeId,
+                   const UA_KeyValueMap payload) {
+    UA_Variant_setScalar(&payload.map[5].value, &statusCodeId,
+                         &UA_TYPES[UA_TYPES_STATUSCODE]);
+    auditEvent(server, type, channel, session, serviceName, status, payload);
+}
+
+void
+auditChannelEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                  UA_SecureChannel *channel, UA_Session *session, const char *serviceName,
+                  UA_Boolean status, UA_StatusCode statusCodeId,
+                  const UA_KeyValueMap payload) {
+    UA_Byte secureChannelNameBuf[32];
+    UA_String secureChannelName = {32, secureChannelNameBuf};
+    UA_String_format(&secureChannelName, "%lu",
+                     (long unsigned)channel->securityToken.channelId);
+    UA_Byte sourceNameBuf[128];
+    UA_String sourceName = {128, sourceNameBuf};
+    UA_String_format(&sourceName, "SecureChannel/%s", serviceName);
+    UA_Variant_setScalar(&payload.map[6].value, &secureChannelName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&payload.map[7].value, &sourceName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    auditSecurityEvent(server, type, channel, session, serviceName, status,
+                       statusCodeId, payload);
 }
 
 /*********************************/

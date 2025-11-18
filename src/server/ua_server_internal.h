@@ -399,10 +399,30 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
 /* Utility Functions */
 /*********************/
 
+/* The first five entries of the payload-maps must be /ActionTimeStamp, /Status,
+ * /ServerId, /ClientAuditEntryId and /ClientUserId. These field values are set
+ * internally. The session pointer can be NULL if none is defined for the
+ * current context. */
 void
-auditEvent(UA_Server *server,
-           UA_ApplicationNotificationType type,
-           const UA_KeyValueMap payload);
+auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
+           UA_SecureChannel *channel, UA_Session *session, const char *serviceName,
+           UA_Boolean status, const UA_KeyValueMap payload);
+
+/* In addition to auditEvent, the sixth entry of the payload-map must be /StatusCodeId */
+void
+auditSecurityEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                   UA_SecureChannel *channel, UA_Session *session,
+                   const char *serviceName, UA_Boolean status,
+                   UA_StatusCode statusCodeId,
+                   const UA_KeyValueMap payload);
+
+/* In addition to auditEvent, the seventh entry of the payload-map must be
+ * /SecureChannelId and the eihgth entry must be /SourceName. */
+void
+auditChannelEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                   UA_SecureChannel *channel, UA_Session *session,
+                   const char *serviceName, UA_Boolean status,
+                   UA_StatusCode statusCodeId, const UA_KeyValueMap payload);
 
 void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
 
