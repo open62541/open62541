@@ -97,7 +97,7 @@ UA_Server_getConfig(UA_Server *server);
 UA_EXPORT UA_LifecycleState
 UA_Server_getLifecycleState(UA_Server *server);
 
-/* Runs the server until until "running" is set to false. The logical sequence
+/* Runs the server until "running" is set to false. The logical sequence
  * is as follows:
  *
  * - UA_Server_run_startup
@@ -2409,13 +2409,15 @@ UA_Server_removeRoleEndpoint(UA_Server *server, UA_NodeId roleId, UA_EndpointTyp
  * @param roleId The NodeId of the role
  * @param permissionType The specific permission type to grant
  *        (e.g., UA_PERMISSIONTYPE_BROWSE)
+ * @param overwriteExisting If true, replaces existing permissions for this role.
+ *        If false, merges with existing permissions using bitwise OR
  * @param recursive If true, applies the permission to all child nodes via
  *        hierarchical references
  * @return UA_STATUSCODE_GOOD on success */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
                              const UA_NodeId roleId, UA_PermissionType permissionType,
-                             UA_Boolean recursive);
+                             UA_Boolean overwriteExisting, UA_Boolean recursive);
 
 /* Remove role permissions from a specific node.
  * 
