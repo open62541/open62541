@@ -21,7 +21,6 @@ int main(void) {
     /* Step 1: Configure an initial custom role via ServerConfig
      * This role will be configured BEFORE the server is created */
     
-    /* First, create and configure the ServerConfig */
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
     UA_StatusCode retval = UA_ServerConfig_setDefault(&config);
@@ -31,7 +30,6 @@ int main(void) {
         return EXIT_FAILURE;
     }
     
-    /* Now configure the MaintenanceRole */
     UA_Role configRole;
     UA_Role_init(&configRole);
     
@@ -77,7 +75,7 @@ int main(void) {
      * - During initialization, UA_Server_initializeRBAC() is called, which processes 
      *   all roles from config.roles
      * - Therefore, roles must be added to the config BEFORE creating the server
-     * - Alternative: Use UA_Server_new() and add roles later via UA_Server_addRole() API
+     * ---- Alternative: Use UA_Server_new() and add roles later via UA_Server_addRole() API
      */
     UA_Server *server = UA_Server_newWithConfig(&config);
     if(!server) {
@@ -86,16 +84,7 @@ int main(void) {
         return EXIT_FAILURE;
     }
 
-    /* Start the server (this initializes the namespace and loads RoleType) */
-    retval = UA_Server_run_startup(server);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
-                     "Failed to start server: %s", UA_StatusCode_name(retval));
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
-
-    /* Step 2: Add another role at runtime via API
+    /* Add another role at runtime via API
      * This demonstrates dynamic role management after server initialization */
     UA_NodeId operatorRoleId;
     retval = UA_Server_addRole(server, 
@@ -113,18 +102,20 @@ int main(void) {
     }
     
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
-                "OperatorRole added via API with NodeId ns=%d;i=%d",
+                "OperatorRole added via API with NodeId ns=%u;i=%u",
                 operatorRoleId.namespaceIndex, operatorRoleId.identifier.numeric);
 
-    /* Step 3: Demonstrate RolePermissions API
+    /* Demonstrate RolePermissions API
      * Set specific permissions for roles on nodes */
     
-    /* Example 3a: Grant multiple permissions using bitmask (BROWSE | READ) 
+    /* a: Grant multiple permissions using bitmask (BROWSE | READ) 
      * on ServerStatus variable for OperatorRole */
     UA_NodeId serverStatusId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
     UA_UInt32 permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
     retval = UA_Server_addRolePermissions(server, serverStatusId, operatorRoleId, 
-                                          permissions, false);
+                                          permissions, false, false);
+    retval = UA_Server_addRolePermissions(server, serverStatusId, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER), 
+                                          permissions, false, false);
     if(retval == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
                     "Added BROWSE|READ permissions for OperatorRole on ServerStatus");
@@ -134,7 +125,7 @@ int main(void) {
                        UA_StatusCode_name(retval));
     }
     
-    /* Example 3b: Remove a specific permission (demonstrates removal API) */
+    /* b: Remove a specific permission (demonstrates removal API) */
     retval = UA_Server_removeRolePermissions(server, serverStatusId, operatorRoleId, 
                                              UA_PERMISSIONTYPE_WRITE, false);
     if(retval == UA_STATUSCODE_GOOD) {
@@ -146,7 +137,7 @@ int main(void) {
                        UA_StatusCode_name(retval));
     }
 
-    /* Step 4: Demonstrate Session Roles Management API
+    /* Demonstrate Session Roles Management API
      * Assign roles dynamically to the admin session */
     
     UA_NodeId adminSessionId = UA_NODEID_GUID(0, (UA_Guid){.data1 = 1});
@@ -189,7 +180,6 @@ int main(void) {
     /* Run the server until interrupted */
     UA_Server_runUntilInterrupt(server);
 
-cleanup:
     UA_NodeId_clear(&operatorRoleId);
     retval = UA_Server_run_shutdown(server);
     UA_Server_delete(server);
