@@ -16,6 +16,90 @@ UA_StatusCode addRoleRepresentation(UA_Server *server, UA_Role *role);
 UA_StatusCode removeRoleRepresentation(UA_Server *server, const UA_NodeId *roleId);
 #endif
 
+struct ApplyToHierarchicalChildrenContext {
+    UA_Server *server;
+    const UA_ReferenceTypeSet *hierarchRefsSet;
+    void *callbackContext;
+    UA_StatusCode (*applyCallback)(UA_Server *server, const UA_NodeId *nodeId, void *context);
+    UA_StatusCode status;
+};
+
+static void *
+applyToHierarchicalChildrenIterator(void *context, UA_ReferenceTarget *t) {
+    struct ApplyToHierarchicalChildrenContext *ctx = 
+        (struct ApplyToHierarchicalChildrenContext*)context;
+    
+    if(!UA_NodePointer_isLocal(t->targetId))
+        return NULL;
+    
+    UA_NodeId childId = UA_NodePointer_toNodeId(t->targetId);
+    
+    ctx->status = ctx->applyCallback(ctx->server, &childId, ctx->callbackContext);
+    if(ctx->status != UA_STATUSCODE_GOOD)
+        return NULL;
+    
+    const UA_Node *childNode = UA_NODESTORE_GET(ctx->server, &childId);
+    if(!childNode)
+        return NULL;
+    
+    for(size_t i = 0; i < childNode->head.referencesSize; i++) {
+        UA_NodeReferenceKind *rk = &childNode->head.references[i];
+        
+        if(rk->isInverse)
+            continue;
+        if(!UA_ReferenceTypeSet_contains(ctx->hierarchRefsSet, rk->referenceTypeIndex))
+            continue;
+        
+        void *res = UA_NodeReferenceKind_iterate(rk, applyToHierarchicalChildrenIterator, ctx);
+        if(res != NULL) {
+            UA_NODESTORE_RELEASE(ctx->server, childNode);
+            return res;
+        }
+    }
+    
+    UA_NODESTORE_RELEASE(ctx->server, childNode);
+    return NULL;
+}
+
+
+static UA_StatusCode
+applyToHierarchicalChildren(UA_Server *server, const UA_NodeId *nodeId,
+                            UA_StatusCode (*applyCallback)(UA_Server *server, 
+                                                           const UA_NodeId *nodeId, 
+                                                           void *context),
+                            void *callbackContext) {
+    UA_ReferenceTypeSet hierarchRefsSet;
+    UA_NodeId hr = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    UA_StatusCode res = referenceTypeIndices(server, &hr, &hierarchRefsSet, true);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    
+    struct ApplyToHierarchicalChildrenContext ctx;
+    ctx.server = server;
+    ctx.hierarchRefsSet = &hierarchRefsSet;
+    ctx.callbackContext = callbackContext;
+    ctx.applyCallback = applyCallback;
+    ctx.status = UA_STATUSCODE_GOOD;
+    
+    for(size_t i = 0; i < node->head.referencesSize && ctx.status == UA_STATUSCODE_GOOD; i++) {
+        UA_NodeReferenceKind *rk = &node->head.references[i];
+        
+        if(rk->isInverse)
+            continue;
+        if(!UA_ReferenceTypeSet_contains(&hierarchRefsSet, rk->referenceTypeIndex))
+            continue;
+        
+        UA_NodeReferenceKind_iterate(rk, applyToHierarchicalChildrenIterator, &ctx);
+    }
+    
+    UA_NODESTORE_RELEASE(server, node);
+    return ctx.status;
+}
+
 /* UA_Role Type functions */
 
 void UA_EXPORT
@@ -1195,10 +1279,109 @@ UA_Server_getRoles(UA_Server *server, size_t *rolesSize, UA_NodeId **roleIds) {
 /* Node RolePermissions API    */
 /*******************************/
 
+/* Internal helper function for adding role permissions to a single node
+ * Called with mutex already locked */
+static UA_StatusCode
+addRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
+                          const UA_NodeId *roleId, UA_PermissionType permissionType,
+                          UA_Boolean overwriteExisting) {
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    
+    UA_PermissionIndex currentIndex = node->head.permissionIndex;
+    UA_NODESTORE_RELEASE(server, node);
+    
+    UA_PermissionIndex targetIndex = currentIndex;
+    UA_Boolean needsNewEntry = false;
+    UA_Boolean roleEntryExists = false;
+    size_t roleEntryIdx = 0;
+    
+    if(currentIndex == UA_PERMISSION_INDEX_INVALID) {
+        needsNewEntry = true;
+    } else {
+        UA_RolePermissions *rp = &server->config.rolePermissions[currentIndex];
+        for(size_t i = 0; i < rp->entriesSize; i++) {
+            if(UA_NodeId_equal(&rp->entries[i].roleId, roleId)) {
+                roleEntryExists = true;
+                roleEntryIdx = i;
+                break;
+            }
+        }
+    }
+    
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    
+    if(needsNewEntry) {
+        UA_RolePermissionEntry entry;
+        res = UA_NodeId_copy(roleId, &entry.roleId);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        entry.permissions = permissionType;
+        
+        res = UA_Server_addRolePermissionConfig(server, 1, &entry, &targetIndex);
+        UA_NodeId_clear(&entry.roleId);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else if(roleEntryExists) {
+        UA_RolePermissions *rp = &server->config.rolePermissions[currentIndex];
+        if(overwriteExisting) {
+            rp->entries[roleEntryIdx].permissions = permissionType;
+        } else {
+            rp->entries[roleEntryIdx].permissions |= permissionType;
+        }
+    } else {
+        UA_RolePermissions *rp = &server->config.rolePermissions[currentIndex];
+        
+        UA_RolePermissionEntry *newEntries = (UA_RolePermissionEntry*)
+            UA_realloc(rp->entries, (rp->entriesSize + 1) * sizeof(UA_RolePermissionEntry));
+        if(!newEntries)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        
+        rp->entries = newEntries;
+        res = UA_NodeId_copy(roleId, &rp->entries[rp->entriesSize].roleId);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        
+        rp->entries[rp->entriesSize].permissions = permissionType;
+        rp->entriesSize++;
+    }
+    
+    if(targetIndex != currentIndex) {
+        if(targetIndex != UA_PERMISSION_INDEX_INVALID &&
+           targetIndex >= server->config.rolePermissionsSize)
+            return UA_STATUSCODE_BADOUTOFRANGE;
+
+        UA_Node *editNode = UA_NODESTORE_GET_EDIT(server, nodeId);
+        if(!editNode)
+            return UA_STATUSCODE_BADNODEIDUNKNOWN;
+        
+        editNode->head.permissionIndex = targetIndex;
+        UA_NODESTORE_RELEASE(server, editNode);
+    }
+    
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Callback context for recursive addRolePermissions */
+struct AddRolePermissionsContext {
+    const UA_NodeId *roleId;
+    UA_PermissionType permissionType;
+    UA_Boolean overwriteExisting;
+};
+
+/* Callback for recursive application - called without mutex (mutex already held) */
+static UA_StatusCode
+addRolePermissionsCallback(UA_Server *server, const UA_NodeId *nodeId, void *context) {
+    struct AddRolePermissionsContext *ctx = (struct AddRolePermissionsContext*)context;
+    return addRolePermissionsInternal(server, nodeId, ctx->roleId, 
+                                     ctx->permissionType, ctx->overwriteExisting);
+}
+
 UA_StatusCode
 UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
                              const UA_NodeId roleId, UA_PermissionType permissionType,
-                             UA_Boolean recursive) {
+                             UA_Boolean overwriteExisting, UA_Boolean recursive) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -1206,15 +1389,108 @@ UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
     UA_LOCK(&server->serviceMutex);
 #endif
 
-    /* TODO: Implement node role permissions management */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    
+    const UA_Role *role = findRoleById(server, &roleId);
+    if(!role) {
+        res = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        goto cleanup;
+    }
+    
+    /* Use internal helper for the main node */
+    res = addRolePermissionsInternal(server, &nodeId, &roleId, permissionType, overwriteExisting);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    
+    /* Handle recursive application */
+    if(recursive) {
+        struct AddRolePermissionsContext ctx;
+        ctx.roleId = &roleId;
+        ctx.permissionType = permissionType;
+        ctx.overwriteExisting = overwriteExisting;
+        
+        res = applyToHierarchicalChildren(server, &nodeId, addRolePermissionsCallback, &ctx);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
 
-    UA_StatusCode res = UA_STATUSCODE_BADNOTIMPLEMENTED;
-
+cleanup:
 #if UA_MULTITHREADING >= 100
     UA_UNLOCK(&server->serviceMutex);
 #endif
 
     return res;
+}
+
+/* Internal helper function for removing role permissions from a single node
+ * Called with mutex already locked */
+static UA_StatusCode
+removeRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
+                             const UA_NodeId *roleId, UA_PermissionType permissionType) {
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    
+    UA_PermissionIndex currentIndex = node->head.permissionIndex;
+    UA_NODESTORE_RELEASE(server, node);
+    
+    if(currentIndex == UA_PERMISSION_INDEX_INVALID)
+        return UA_STATUSCODE_GOOD;
+    
+    UA_RolePermissions *rp = &server->config.rolePermissions[currentIndex];
+    
+    size_t roleEntryIdx = SIZE_MAX;
+    for(size_t i = 0; i < rp->entriesSize; i++) {
+        if(UA_NodeId_equal(&rp->entries[i].roleId, roleId)) {
+            roleEntryIdx = i;
+            break;
+        }
+    }
+    
+    /* Role not found in permissions */
+    if(roleEntryIdx == SIZE_MAX)
+        return UA_STATUSCODE_GOOD;
+    
+    /* Remove the specified permissions */
+    rp->entries[roleEntryIdx].permissions &= ~permissionType;
+    
+    /* If no permissions remain for this role, remove the entry */
+    if(rp->entries[roleEntryIdx].permissions == 0) {
+        UA_NodeId_clear(&rp->entries[roleEntryIdx].roleId);
+        
+        /* Shift remaining entries */
+        if(roleEntryIdx < rp->entriesSize - 1) {
+            memmove(&rp->entries[roleEntryIdx],
+                    &rp->entries[roleEntryIdx + 1],
+                    (rp->entriesSize - roleEntryIdx - 1) * sizeof(UA_RolePermissionEntry));
+        }
+        
+        rp->entriesSize--;
+        
+        /* Shrink array if possible */
+        if(rp->entriesSize > 0) {
+            UA_RolePermissionEntry *newEntries = (UA_RolePermissionEntry*)
+                UA_realloc(rp->entries, rp->entriesSize * sizeof(UA_RolePermissionEntry));
+            if(newEntries)
+                rp->entries = newEntries;
+        } else {
+            UA_free(rp->entries);
+            rp->entries = NULL;
+        }
+    }
+    
+    return UA_STATUSCODE_GOOD;
+}
+
+struct RemoveRolePermissionsContext {
+    const UA_NodeId *roleId;
+    UA_PermissionType permissionType;
+};
+
+static UA_StatusCode
+removeRolePermissionsCallback(UA_Server *server, const UA_NodeId *nodeId, void *context) {
+    struct RemoveRolePermissionsContext *ctx = (struct RemoveRolePermissionsContext*)context;
+    return removeRolePermissionsInternal(server, nodeId, ctx->roleId, ctx->permissionType);
 }
 
 UA_StatusCode
@@ -1228,9 +1504,29 @@ UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
     UA_LOCK(&server->serviceMutex);
 #endif
 
-    /* TODO: Implement node role permissions removal*/
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     
-    UA_StatusCode res = UA_STATUSCODE_BADNOTIMPLEMENTED;
+    const UA_Role *role = findRoleById(server, &roleId);
+    if(!role) {
+        res = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        goto cleanup;
+    }
+    
+    res = removeRolePermissionsInternal(server, &nodeId, &roleId, permissionType);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+    
+    if(recursive) {
+        struct RemoveRolePermissionsContext ctx;
+        ctx.roleId = &roleId;
+        ctx.permissionType = permissionType;
+        
+        res = applyToHierarchicalChildren(server, &nodeId, removeRolePermissionsCallback, &ctx);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+cleanup:
 
 #if UA_MULTITHREADING >= 100
     UA_UNLOCK(&server->serviceMutex);
@@ -1399,13 +1695,11 @@ UA_Server_addRolePermissionConfig(UA_Server *server,
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     
-    /* Check if we've reached the maximum index value */
     if(server->config.rolePermissionsSize >= UA_PERMISSION_INDEX_INVALID) {
         res = UA_STATUSCODE_BADOUTOFRANGE;
         goto cleanup;
     }
 
-    /* Validate that all role IDs exist */
     for(size_t i = 0; i < entriesSize; i++) {
         const UA_Role *role = findRoleById(server, &entries[i].roleId);
         if(!role) {
@@ -1414,7 +1708,6 @@ UA_Server_addRolePermissionConfig(UA_Server *server,
         }
     }
 
-    /* Allocate new entry */
     UA_RolePermissions *newArray = (UA_RolePermissions*)
         UA_realloc(server->config.rolePermissions,
                    (server->config.rolePermissionsSize + 1) * sizeof(UA_RolePermissions));
@@ -1426,11 +1719,9 @@ UA_Server_addRolePermissionConfig(UA_Server *server,
     server->config.rolePermissions = newArray;
     UA_PermissionIndex newIndex = (UA_PermissionIndex)server->config.rolePermissionsSize;
     
-    /* Initialize the new entry */
     UA_RolePermissions *entry = &server->config.rolePermissions[newIndex];
     UA_RolePermissions_init(entry);
     
-    /* Copy entries */
     if(entriesSize > 0) {
         entry->entries = (UA_RolePermissionEntry*)
             UA_malloc(entriesSize * sizeof(UA_RolePermissionEntry));
@@ -1443,7 +1734,6 @@ UA_Server_addRolePermissionConfig(UA_Server *server,
         for(size_t i = 0; i < entriesSize; i++) {
             res = UA_NodeId_copy(&entries[i].roleId, &entry->entries[i].roleId);
             if(res != UA_STATUSCODE_GOOD) {
-                /* Cleanup on error */
                 for(size_t j = 0; j < i; j++) {
                     UA_NodeId_clear(&entry->entries[j].roleId);
                 }
@@ -1547,17 +1837,41 @@ cleanup:
     return res;
 }
 
+
+static UA_StatusCode
+setNodePermissionIndexInternal(UA_Server *server, const UA_NodeId *nodeId,
+                               UA_PermissionIndex permissionIndex) {
+    if(permissionIndex != UA_PERMISSION_INDEX_INVALID &&
+       permissionIndex >= server->config.rolePermissionsSize)
+        return UA_STATUSCODE_BADOUTOFRANGE;
+    
+    UA_Node *node = UA_NODESTORE_GET_EDIT(server, nodeId);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    
+    node->head.permissionIndex = permissionIndex;
+    
+    UA_NODESTORE_RELEASE(server, node);
+    
+    return UA_STATUSCODE_GOOD;
+}
+
+struct SetNodePermissionIndexContext {
+    UA_PermissionIndex permissionIndex;
+};
+
+static UA_StatusCode
+setNodePermissionIndexCallback(UA_Server *server, const UA_NodeId *nodeId, void *context) {
+    struct SetNodePermissionIndexContext *ctx = (struct SetNodePermissionIndexContext*)context;
+    return setNodePermissionIndexInternal(server, nodeId, ctx->permissionIndex);
+}
+
 UA_StatusCode
 UA_Server_setNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
                                  UA_PermissionIndex permissionIndex,
                                  UA_Boolean recursive) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    
-    /* Validate the index if not INVALID */
-    if(permissionIndex != UA_PERMISSION_INDEX_INVALID &&
-       permissionIndex >= server->config.rolePermissionsSize)
-        return UA_STATUSCODE_BADOUTOFRANGE;
 
 #if UA_MULTITHREADING >= 100
     UA_LOCK(&server->serviceMutex);
@@ -1565,40 +1879,21 @@ UA_Server_setNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     
-    /* Get the node */
-    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
-    if(!node) {
-        res = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        goto cleanup_unlock;
-    }
-    
-    /* Get an editable copy */
-    UA_Node *nodeCopy = UA_NODESTORE_GET_EDIT(server, &nodeId);
-    if(!nodeCopy) {
-        res = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto cleanup_release;
-    }
-    
-    /* Modify the permission index */
-    nodeCopy->head.permissionIndex = permissionIndex;
-    
-    /* Replace the node */
-    res = UA_NODESTORE_REPLACE(server, nodeCopy);
-    if(res != UA_STATUSCODE_GOOD) {
-        goto cleanup_release;
-    }
+    res = setNodePermissionIndexInternal(server, &nodeId, permissionIndex);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
     
     /* Handle recursive application */
     if(recursive) {
-        /* TODO: Implement recursive permission index setting
-         * This would traverse all hierarchical references and apply
-         * the same permission index to child nodes */
+        struct SetNodePermissionIndexContext ctx;
+        ctx.permissionIndex = permissionIndex;
+        
+        res = applyToHierarchicalChildren(server, &nodeId, setNodePermissionIndexCallback, &ctx);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
     }
 
-cleanup_release:
-    UA_NODESTORE_RELEASE(server, node);
-    
-cleanup_unlock:
+cleanup:
 #if UA_MULTITHREADING >= 100
     UA_UNLOCK(&server->serviceMutex);
 #endif
