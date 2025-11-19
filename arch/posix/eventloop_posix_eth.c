@@ -6,6 +6,7 @@
  *   Copyright 2019-2020 (c) Kalycito Infotech Private Limited
  *   Copyright 2019-2020 (c) Wind River Systems, Inc.
  *   Copyright 2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *   Copyright 2025 (c) SICK AG (Author: Joerg Fischer)
  */
 
 #include "eventloop_posix.h"
@@ -584,16 +585,17 @@ ETH_openSendConnection(UA_EventLoopPOSIX *el, ETH_FD *conn, const UA_KeyValueMap
         UA_KeyValueMap_getScalar(params,
                                  ethConnectionParams[ETH_PARAMINDEX_TXTIME_ENABLE].name,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
-    const UA_UInt32 *txtime_flags = (const UA_UInt32*)
-        UA_KeyValueMap_getScalar(params,
-                                 ethConnectionParams[ETH_PARAMINDEX_TXTIME_FLAGS].name,
-                                 &UA_TYPES[UA_TYPES_UINT32]);
+
     if(txtime_enable && *txtime_enable) {
 #ifndef SO_TXTIME
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "ETH %u\t| txtime feature not supported",
                        (unsigned)conn->rfd.fd);
 #else
+        const UA_UInt32 *txtime_flags = (const UA_UInt32*)
+        UA_KeyValueMap_getScalar(params,
+                                 ethConnectionParams[ETH_PARAMINDEX_TXTIME_FLAGS].name,
+                                 &UA_TYPES[UA_TYPES_UINT32]);
         UA_RESET_ERRNO;
         struct sock_txtime so_txtime_val;
         memset(&so_txtime_val, 0, sizeof(struct sock_txtime));

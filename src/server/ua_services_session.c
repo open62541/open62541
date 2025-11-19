@@ -26,9 +26,7 @@ notifySession(UA_Server *server, UA_Session *session,
         return;
 
     /* Set up the payload */
-    size_t payloadSize = 6;
-    if(session->attributes)
-        payloadSize += session->attributes->mapSize;
+    size_t payloadSize = 6 + session->attributes.mapSize;
     UA_STACKARRAY(UA_KeyValuePair, payloadData, payloadSize);
     UA_KeyValueMap payloadMap = {payloadSize, payloadData};
     payloadData[0].key = UA_QUALIFIEDNAME(0, "session-id");
@@ -53,9 +51,8 @@ notifySession(UA_Server *server, UA_Session *session,
     UA_Variant_setArray(&payloadData[5].value, session->localeIds,
                         session->localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
 
-    if(session->attributes)
-        memcpy(&payloadData[6], session->attributes->map,
-               sizeof(UA_KeyValuePair) * session->attributes->mapSize);
+    memcpy(&payloadData[6], session->attributes.map,
+           sizeof(UA_KeyValuePair) * session->attributes.mapSize);
 
     /* Call the notification callback */
     if(server->config.sessionNotificationCallback)

@@ -172,11 +172,10 @@ START_TEST(Client_run_iterate) {
     connected = false;
     retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    while (!connected) {
+    while(!connected) {
         UA_Server_run_iterate(server, false);
         retval = UA_Client_run_iterate(client, 0);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        UA_realSleep(100);
     }
 
     UA_Client_disconnectAsync(client);

@@ -12,9 +12,9 @@
 ###    Copyright 2019 (c) Andrea Minosu
 ###    Copyright 2021 (c) Wind River Systems, Inc.
 
-from datatypes import NodeId
-from nodes import *
-from nodeset import *
+from .datatypes import NodeId
+from .nodes import *
+from .nodeset import *
 
 import re
 from os.path import basename
@@ -451,91 +451,6 @@ def generateNodeCode_finish(node):
         code.append(");")
     return "".join(code)
 
-# Kahn's algorithm: https://algocoding.wordpress.com/2015/04/05/topological-sorting-python/
-def sortNodes(nodeset):
-    # reverse hastypedefinition references to treat only forward references
-    hasTypeDef = NodeId("ns=0;i=40")
-    for u in nodeset.nodes.values():
-        for ref in u.references:
-            if ref.referenceType == hasTypeDef:
-                ref.isForward = not ref.isForward
-
-    # Only hierarchical types...
-    relevant_refs = nodeset.getRelevantOrderingReferences()
-
-    # determine in-degree of unfulfilled references
-    L = [node for node in nodeset.nodes.values() if node.hidden]  # ordered list of nodes
-    R = {node.id: node for node in nodeset.nodes.values() if not node.hidden} # remaining nodes
-    in_degree = {id: 0 for id in R.keys()}
-    for u in R.values(): # for each node
-        for ref in u.references:
-            if ref.referenceType not in relevant_refs:
-                continue
-            if nodeset.nodes[ref.target].hidden:
-                continue
-            if ref.isForward:
-                continue
-            in_degree[u.id] += 1
-
-    # Print ReferenceType and DataType nodes first. They may be required even
-    # though there is no reference to them. For example if the referencetype is
-    # used in a reference, it must exist. A Variable node may point to a
-    # DataTypeNode in the datatype attribute and not via an explicit reference.
-
-    Q = [node for node in R.values() if in_degree[node.id] == 0 and
-         (isinstance(node, ReferenceTypeNode) or isinstance(node, DataTypeNode))]
-    while Q:
-        u = Q.pop() # choose node of zero in-degree and 'remove' it from graph
-        L.append(u)
-        del R[u.id]
-
-        for ref in sorted(u.references, key=lambda r: str(r.target)):
-            if ref.referenceType not in relevant_refs:
-                continue
-            if nodeset.nodes[ref.target].hidden:
-                continue
-            if not ref.isForward:
-                continue
-            in_degree[ref.target] -= 1
-            if in_degree[ref.target] == 0:
-                Q.append(R[ref.target])
-
-    # Order the remaining nodes
-    Q = [node for node in R.values() if in_degree[node.id] == 0]
-    while Q:
-        u = Q.pop() # choose node of zero in-degree and 'remove' it from graph
-        L.append(u)
-        del R[u.id]
-
-        for ref in sorted(u.references, key=lambda r: str(r.target)):
-            if ref.referenceType not in relevant_refs:
-                continue
-            if nodeset.nodes[ref.target].hidden:
-                continue
-            if not ref.isForward:
-                continue
-            in_degree[ref.target] -= 1
-            if in_degree[ref.target] == 0:
-                Q.append(R[ref.target])
-
-    # reverse hastype references
-    for u in nodeset.nodes.values():
-        for ref in u.references:
-            if ref.referenceType == hasTypeDef:
-                ref.isForward = not ref.isForward
-
-    if len(L) != len(nodeset.nodes.values()):
-        print(len(L))
-        stillOpen = ""
-        for id in in_degree:
-            if in_degree[id] == 0:
-                continue
-            node = nodeset.nodes[id]
-            stillOpen += node.browseName.name + "/" + str(node.id) + " = " + str(in_degree[id]) + \
-                                                                         " " + str(node.references) + "\r\n"
-        raise Exception("Node graph is circular on the specified references. Still open nodes:\r\n" + stillOpen)
-    return L
-
 ###################
 # Generate C Code #
 ###################
@@ -591,13 +506,13 @@ _UA_END_DECLS
 
     # Loop over the sorted nodes
     logger.info("Reordering nodes for minimal dependencies during printing")
-    sorted_nodes = sortNodes(nodeset)
+    nodeset.sortNodes()
     logger.info("Writing code for nodes and references")
     functionNumber = 0
 
     printed_ids = set()
     reftypes_functionNumbers = list()
-    for node in sorted_nodes:
+    for node in nodeset.nodes.values():
         printed_ids.add(node.id)
 
         if not node.hidden:

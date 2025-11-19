@@ -982,7 +982,7 @@ UA_Server_setVariableNode_callbackValueSource(UA_Server *server,
 /* Deprecated API */
 typedef UA_CallbackValueSource UA_DataSource;
 #define UA_Server_setVariableNode_dataSource(server, nodeId, dataSource) \
-    UA_Server_setVariableNode_callbackValueSource(server, nodeId, dataSource);
+    UA_Server_setVariableNode_callbackValueSource(server, nodeId, dataSource)
 
 /* Deprecated API */
 typedef UA_ValueSourceNotifications UA_ValueCallback;

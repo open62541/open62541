@@ -55,7 +55,7 @@ struct UA_Session {
     UA_Double timeout; /* in ms */
     UA_DateTime validTill;
 
-    UA_KeyValueMap *attributes;
+    UA_KeyValueMap attributes;
 
     /* TODO: Currently unused */
     UA_UInt32 maxRequestMessageSize;

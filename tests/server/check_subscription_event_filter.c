@@ -130,17 +130,22 @@ THREAD_CALLBACK(serverloop) {
     return 0;
 }
 
+static void runServer(void) {
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+}
+
+static void pauseServer(void) {
+    running = false;
+    THREAD_JOIN(server_thread);
+}
+
 static void
 sleepUntilAnswer(UA_Double sleepMs) {
+    pauseServer();
     UA_fakeSleep((UA_UInt32)sleepMs);
-    size_t oldIterations = serverIterations;
-    size_t newIterations;
-    while(true) {
-        newIterations = serverIterations;
-        if(oldIterations != newIterations)
-            return;
-        UA_realSleep(1);
-    }
+    UA_Server_run_iterate(server, true);
+    runServer();
 }
 
 static void setup(void){
