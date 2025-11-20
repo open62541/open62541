@@ -407,10 +407,8 @@ getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
             continue;
 
         /* Has the session timed out? */
-        if(s->validTill < nowMonotonic) {
-            server->serverDiagnosticsSummary.rejectedSessionCount++;
+        if(s->validTill < nowMonotonic)
             return UA_STATUSCODE_BADSESSIONCLOSED;
-        }
 
         /* Return the session */
         *session = s;
@@ -424,9 +422,11 @@ getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
         tmpSession->diagnostics.unauthorizedRequestCount++;
 #endif
 
-    /* Update the rejected statistics */
-    server->serverDiagnosticsSummary.rejectedSessionCount++;
-    return UA_STATUSCODE_BADSESSIONIDINVALID;
+    /* The StatusCode indicates if the Session doesn't exist or whether it does
+     * not match to SecureChannel */
+    return (tmpSession) ?
+        UA_STATUSCODE_BADSECURECHANNELIDINVALID :
+        UA_STATUSCODE_BADSESSIONIDINVALID;
 }
 
 static UA_StatusCode

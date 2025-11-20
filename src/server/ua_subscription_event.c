@@ -1509,7 +1509,7 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
     }
 
     UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
-                 "Events: An event of severity %su is emitted by node %N",
+                 "Events: An event of severity %u is emitted by node %N",
                  ed->severity, ed->sourceNode);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
