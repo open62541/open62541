@@ -917,9 +917,12 @@ afterWriteCallbackEnabledStateChange(UA_Server *server,
                                  UA_NodeId_clear(&conditionNode););
 
     /* Set disabling/enabling time */
+    UA_DateTime eventTime = data->sourceTimestamp;
+    /* If UA_Server_setConditionVariableFieldProperty() was used, sourceTimestamp is 0 */
+    if (eventTime == 0)
+        eventTime = UA_DateTime_now();
     retval = UA_Server_writeObjectProperty_scalar(server, conditionNode, fieldTimeQN,
-                                                  (const UA_DateTime*)&data->sourceTimestamp,
-                                                  &UA_TYPES[UA_TYPES_DATETIME]);
+                                                  &eventTime, &UA_TYPES[UA_TYPES_DATETIME]);
     CONDITION_ASSERT_RETURN_VOID(retval, "Set enabling/disabling Time failed",
                                  UA_NodeId_clear(&conditionNode);
                                  UA_NodeId_clear(&conditionSource););
