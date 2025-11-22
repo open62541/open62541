@@ -1103,6 +1103,12 @@ const UA_DataType UA_EXPORT *
 UA_findDataTypeWithCustom(const UA_NodeId *typeId,
                           const UA_DataTypeArray *customTypes);
 
+/* Datatypes need to have unique name */
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+const UA_DataType UA_EXPORT *
+UA_findDataTypeByName(const UA_QualifiedName *qn);
+#endif
+
 /** The following functions are used for generic handling of data types. */
 
 /* Allocates and initializes a variable of type dataType */
