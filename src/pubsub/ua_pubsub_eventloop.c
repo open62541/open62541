@@ -403,30 +403,51 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c,
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
 
-    /* Extract hostname and port */
-    UA_String address;
-    UA_String vidPCP = UA_STRING_NULL;
-    UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, NULL, &vidPCP);
+    /* The syntax of the Ethernet transporting protocol URL used in the Address parameter
+     * defined in 6.2.7.3 has the following form: opc.eth://<host>[:<VID>[.PCP]]
+     *
+     * For more info looke here: https://reference.opcfoundation.org/Core/Part14/docs/7.3.3 */
+
+    /* Extract hostname, port, vid and pcp */
+    UA_String address = UA_STRING_NULL;
+    UA_UInt16 vid = 0;
+    UA_Byte pcp = 0;
+
+    UA_StatusCode res = UA_parseEndpointUrlEthernet(&addressUrl->url, &address, &vid, &pcp);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CONNECTION(server->config.logging, c,
-                                "Could not parse the ETH network URL");
+                "Could not parse the ETH network URL");
         return res;
     }
 
-    /* Set up the connection parameters.
-     * TDOD: Complete the considered parameters. VID, PCP, etc. */
+    /* Set up the connection parameters */
     UA_Boolean listen = true;
-    UA_KeyValuePair kvp[4];
-    UA_KeyValueMap kvm = {4, kvp};
+
+    UA_KeyValuePair kvp[7];
+    UA_KeyValueMap kvm = {7, kvp};
+
     kvp[0].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&kvp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+
     kvp[1].key = UA_QUALIFIEDNAME(0, "listen");
     UA_Variant_setScalar(&kvp[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
     kvp[2].key = UA_QUALIFIEDNAME(0, "interface");
     UA_Variant_setScalar(&kvp[2].value, &addressUrl->networkInterface,
                          &UA_TYPES[UA_TYPES_STRING]);
+
     kvp[3].key = UA_QUALIFIEDNAME(0, "validate");
     UA_Variant_setScalar(&kvp[3].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    UA_UInt16 ether_type = 0xB62C;
+    kvp[4].key = UA_QUALIFIEDNAME(0, "ethertype");
+    UA_Variant_setScalar(&kvp[4].value, &ether_type, &UA_TYPES[UA_TYPES_UINT16]);
+
+    kvp[5].key = UA_QUALIFIEDNAME(0,"vid");
+    UA_Variant_setScalar(&kvp[5].value, &vid, &UA_TYPES[UA_TYPES_UINT16]);
+
+    kvp[6].key = UA_QUALIFIEDNAME(0,"pcp");
+    UA_Variant_setScalar(&kvp[6].value, &pcp, &UA_TYPES[UA_TYPES_BYTE]);
 
     /* Open recv channels */
     if(c->recvChannelsSize == 0) {
