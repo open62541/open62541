@@ -91,6 +91,23 @@ UA_findDataType(const UA_NodeId *typeId) {
     return UA_findDataTypeWithCustom(typeId, NULL);
 }
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+const UA_DataType *
+UA_findDataTypeByName(const UA_QualifiedName *qn) {
+    UA_Byte nameBuf[512];
+    UA_String name = {511, nameBuf};
+    UA_StatusCode res = UA_QualifiedName_print(qn, &name);
+    name.data[name.length] = 0;
+    if(res != UA_STATUSCODE_GOOD)
+        return NULL;
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        if(strcmp((char*)nameBuf, UA_TYPES[i].typeName) == 0)
+            return &UA_TYPES[i];
+    }
+    return NULL;
+}
+#endif
+
 void
 UA_DataType_clear(UA_DataType *type) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
