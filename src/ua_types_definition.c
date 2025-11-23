@@ -10,6 +10,60 @@
 #include <open62541/util.h>
 #include "util/ua_util_internal.h"
 
+/*************************/
+/* Generic Functionality */
+/*************************/
+
+/* All descriptions begin with UA_DataTypeDescription */
+
+static UA_StatusCode
+fromDescription(UA_DataType *type, const UA_DataTypeDescription *descr) {
+    memset(type, 0, sizeof(UA_DataType));
+    UA_StatusCode res = UA_NodeId_copy(&descr->dataTypeId, &type->typeId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    UA_Byte bufChars[512];
+    UA_ByteString buf = {512, bufChars};
+    res = UA_QualifiedName_print(&descr->name, &buf);
+    UA_CHECK_STATUS(res, UA_DataType_clear(type); return res);
+
+    type->typeName = (char*)UA_malloc(buf.length + 1);
+    UA_CHECK(type->typeName != 0,
+             UA_DataType_clear(type); return UA_STATUSCODE_BADOUTOFMEMORY);
+    memcpy((void*)(uintptr_t)type->typeName, buf.data, buf.length);
+    *(char*)(uintptr_t)&type->typeName[buf.length] = '\0';
+#endif
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+toDescription(const UA_DataType *type, UA_DataTypeDescription *descr) {
+    /* Parse the typeName into the BrowseName (QualifiedName) */
+    UA_StatusCode res;
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    UA_String nameStr = UA_STRING((char*)(uintptr_t)type->typeName);
+    res = UA_QualifiedName_parse(&descr->name, nameStr);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+#endif
+
+    /* Copy the NodeId */
+    res = UA_NodeId_copy(&type->typeId, &descr->dataTypeId);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_QualifiedName_clear(&descr->name);
+        return res;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+/******************/
+/* Structure Type */
+/******************/
+
 /* Compute padding of structure elements based on the alignment requirements
  * of the builtin datatypes */
 
@@ -87,20 +141,17 @@ type_alignment(const UA_DataType *type) {
     return alignment[type->typeKind];
 }
 
-UA_StatusCode
-UA_DataType_fromStructureDefinition(UA_DataType *type,
-                                    const UA_StructureDefinition *sd,
-                                    const UA_NodeId typeId,
-                                    const UA_String typeName,
-                                    const UA_DataTypeArray *customTypes) {
-    memset(type, 0, sizeof(UA_DataType));
-
-    /* Ensure the type is not already defined */
-    const UA_DataType *duplicate = UA_findDataTypeWithCustom(&typeId, customTypes);
-    if(duplicate)
-        return UA_STATUSCODE_BADALREADYEXISTS;
+static UA_StatusCode
+UA_DataType_fromStructureDescription(UA_DataType *type,
+                                     const UA_StructureDescription *descr,
+                                     const UA_DataTypeArray *customTypes) {
+    /* Set the basic description */
+    UA_StatusCode res = fromDescription(type, (const UA_DataTypeDescription*)descr);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Set the typeKind */
+    const UA_StructureDefinition *sd = &descr->structureDefinition;
     switch(sd->structureType) {
     case UA_STRUCTURETYPE_STRUCTURE:
         type->typeKind = UA_DATATYPEKIND_STRUCTURE; break;
@@ -110,23 +161,13 @@ UA_DataType_fromStructureDefinition(UA_DataType *type,
         type->typeKind = UA_DATATYPEKIND_UNION; break;
     case UA_STRUCTURETYPE_STRUCTUREWITHSUBTYPEDVALUES:
     case UA_STRUCTURETYPE_UNIONWITHSUBTYPEDVALUES:
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
     default: return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Copy NodeIds */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    res |= UA_NodeId_copy(&typeId , &type->typeId);
-    res |= UA_NodeId_copy(&sd->defaultEncodingId, &type->binaryEncodingId);
+    res = UA_NodeId_copy(&sd->defaultEncodingId, &type->binaryEncodingId);
     UA_CHECK_STATUS(res, UA_DataType_clear(type); return res);
-
-    /* Copy the name */
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-    type->typeName = (char*)UA_malloc(typeName.length + 1);
-    UA_CHECK(type->typeName != 0,
-             UA_DataType_clear(type); return UA_STATUSCODE_BADOUTOFMEMORY);
-    memcpy((void*)(uintptr_t)type->typeName, typeName.data, typeName.length);
-    *(char*)(uintptr_t)&type->typeName[typeName.length] = '\0';
-#endif
 
     /* Allocate the members array */
     type->members = (UA_DataTypeMember *)
@@ -136,6 +177,13 @@ UA_DataType_fromStructureDefinition(UA_DataType *type,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     type->membersSize = (UA_UInt32)sd->fieldsSize;
+
+    /* Try to get pointerFree and overlayable handling shortcuts.
+     * Verified for each member and end-padding. */
+    if(sd->structureType == UA_STRUCTURETYPE_STRUCTURE) {
+        type->pointerFree = true;
+        type->overlayable = true;
+    }
 
     /* Populate the members array */
     for(size_t i = 0; i < sd->fieldsSize; i++) {
@@ -148,6 +196,10 @@ UA_DataType_fromStructureDefinition(UA_DataType *type,
             UA_DataType_clear(type);
             return UA_STATUSCODE_BADNOTFOUND;
         }
+
+        /* Update handling shortcuts */
+        type->pointerFree &= dtm->memberType->pointerFree;
+        type->overlayable &= dtm->memberType->overlayable;
 
         /* Copy the member name */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -165,6 +217,7 @@ UA_DataType_fromStructureDefinition(UA_DataType *type,
 
         /* Handle valuerank and array dimensions */
         if(sf->valueRank == 1) {
+            /* 1D-array */
             if(sf->arrayDimensionsSize > 1 ||
                (sf->arrayDimensionsSize == 1 && sf->arrayDimensions[0] != 0)) {
                 UA_DataType_clear(type);
@@ -173,7 +226,9 @@ UA_DataType_fromStructureDefinition(UA_DataType *type,
             dtm->isArray = true;
             memSize = sizeof(void*) + sizeof(size_t);
             dtm->padding = PADDING(type->memSize, offsetof(struct _pad_size_t, x));
+            type->pointerFree = false; /* array is not pointer-free */
         } else if(sf->valueRank != UA_VALUERANK_SCALAR) {
+            /* Only 1D-arrays or scalars are allowed */
             UA_DataType_clear(type);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -189,6 +244,7 @@ UA_DataType_fromStructureDefinition(UA_DataType *type,
                 memSize = sizeof(void*);
                 dtm->padding = PADDING(type->memSize, offsetof(struct _pad_uintptr_t, x));
             }
+            UA_assert(!type->pointerFree); /* Set above */
         }
 
         /* For unions, leave space for the switchfield in the padding */
@@ -197,6 +253,7 @@ UA_DataType_fromStructureDefinition(UA_DataType *type,
                 PADDING(sizeof(UA_UInt32), offsetof(struct _pad_size_t, x)) :
                 PADDING(sizeof(UA_UInt32), type_alignment(dtm->memberType));
             dtm->padding = sizeof(UA_UInt32) + fieldPadding;
+            UA_assert(!type->pointerFree); /* Set above */
         }
 
         /* Adjust the type size for the latest member */
@@ -209,23 +266,38 @@ UA_DataType_fromStructureDefinition(UA_DataType *type,
             type->memSize += (UA_UInt32)(memSize + dtm->padding);
         }
 
+        /* Overlayable types cannot have padding */
+        if(dtm->padding > 0)
+            type->overlayable = false;
+
         /* TODO: MaxStringLength */
     }
 
     /* Add final padding according to the member alignment requirements */
     UA_Byte self_alignment = type_alignment(type);
-    type->memSize += PADDING(type->memSize, self_alignment);
+    UA_Byte end_padding = PADDING(type->memSize, self_alignment);
+    type->memSize += end_padding;
+
+    /* Finalize handling shortcuts. Types with pointer are never overlayable.  */
+    if(end_padding > 0)
+        type->overlayable = false;
+    type->overlayable &= type->pointerFree;
 
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_DataType_toStructureDefinition(const UA_DataType *type,
-                                  UA_StructureDefinition *sd) {
-    UA_StructureDefinition_init(sd);
+static UA_StatusCode
+UA_DataType_toStructureDescription(const UA_DataType *type,
+                                   UA_StructureDescription *descr) {
+    UA_StructureDescription_init(descr);
+
+    UA_StatusCode res = toDescription(type, (UA_DataTypeDescription *)descr);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Check if the type can be described by a StructureDefinition.
      * Set baseType and structureType. */
+    UA_StructureDefinition *sd = &descr->structureDefinition;
     if(type->typeKind == UA_DATATYPEKIND_STRUCTURE) {
         sd->baseDataType = UA_NS0ID(STRUCTURE);
         sd->structureType = UA_STRUCTURETYPE_STRUCTURE;
@@ -236,19 +308,19 @@ UA_DataType_toStructureDefinition(const UA_DataType *type,
         sd->baseDataType = UA_NS0ID(UNION);
         sd->structureType = UA_STRUCTURETYPE_UNION;
     } else {
+        UA_StructureDescription_clear(descr);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
     /* Set the DefaultEncodingId */
-    UA_StatusCode res =
-        UA_NodeId_copy(&type->binaryEncodingId, &sd->defaultEncodingId);
-    UA_CHECK_STATUS(res, return res);
+    res = UA_NodeId_copy(&type->binaryEncodingId, &sd->defaultEncodingId);
+    UA_CHECK_STATUS(res, UA_StructureDescription_clear(descr); return res);
 
     /* Allocate the fields */
     sd->fields = (UA_StructureField*)
         UA_calloc(type->membersSize, sizeof(UA_StructureField));
     if(!sd->fields) {
-        UA_StructureDefinition_clear(sd);
+        UA_StructureDescription_clear(descr);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     sd->fieldsSize = type->membersSize;
@@ -267,7 +339,7 @@ UA_DataType_toStructureDefinition(const UA_DataType *type,
                             type->typeKind == UA_DATATYPEKIND_OPTSTRUCT)) {
             sf->arrayDimensions = (UA_UInt32*)UA_malloc(sizeof(UA_UInt32));
             if(!sf->arrayDimensions) {
-                UA_StructureDefinition_clear(sd);
+                UA_StructureDescription_clear(descr);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
             }
             sf->arrayDimensionsSize = 1;
@@ -276,6 +348,192 @@ UA_DataType_toStructureDefinition(const UA_DataType *type,
     }
 
     if(res != UA_STATUSCODE_GOOD)
-        UA_StructureDefinition_clear(sd);
+        UA_StructureDescription_clear(descr);
     return res;
+}
+
+/*************/
+/* Enum Type */
+/*************/
+
+static UA_StatusCode
+UA_DataType_fromEnumDescription(UA_DataType *type,
+                                const UA_EnumDescription *descr) {
+    /* If the builtInType is Int32, the DataType is an Enumeration. If the
+     * builtInType is one of the UInteger DataTypes or ExtensionObject, the
+     * DataType is an OptionSet. */
+    if(descr->builtInType != UA_DATATYPEKIND_INT32 + 1)
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+
+    /* Set the basic description */
+    UA_StatusCode res = fromDescription(type, (const UA_DataTypeDescription*)descr);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Set the enum description */
+    type->typeKind = UA_DATATYPEKIND_ENUM;
+    type->memSize = sizeof(UA_Int32);
+    type->pointerFree = true;
+    type->overlayable = true;
+
+    /* Allocate the members array */
+    type->members = (UA_DataTypeMember *)
+        UA_calloc(descr->enumDefinition.fieldsSize, sizeof(UA_DataTypeMember));
+    if(!type->members) {
+        UA_DataType_clear(type);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    type->membersSize = (UA_UInt32)descr->enumDefinition.fieldsSize;
+
+    /* Copy the enum fields into the members array */
+    for(size_t i = 0; i < type->membersSize; i++) {
+        UA_DataTypeMember *dtm = &type->members[i];
+        const UA_EnumField *ef = &descr->enumDefinition.fields[i];
+        dtm->memberType = (const UA_DataType*)(uintptr_t)ef->value;
+        dtm->memberName = (char*)UA_malloc(ef->name.length + 1);
+        UA_CHECK(dtm->memberName != NULL,
+                 UA_DataType_clear(type); return UA_STATUSCODE_BADOUTOFMEMORY);
+        memcpy((char*)(uintptr_t)dtm->memberName, ef->name.data, ef->name.length);
+        *(char*)(uintptr_t)&dtm->memberName[ef->name.length] = '\0';
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_DataType_toEnumDescription(const UA_DataType *type,
+                              UA_EnumDescription *descr) {
+    UA_StatusCode res = toDescription(type, (UA_DataTypeDescription *)descr);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Set the builtin type */
+    descr->builtInType = UA_DATATYPEKIND_INT32 + 1;
+
+    /* Allocate the enum fields */
+    descr->enumDefinition.fields = (UA_EnumField*)
+        UA_calloc(type->membersSize, sizeof(UA_EnumField));
+    if(!descr->enumDefinition.fields) {
+        UA_EnumDescription_clear(descr);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    descr->enumDefinition.fieldsSize = type->membersSize;
+
+    /* Set the enum fields */
+    for(size_t i = 0; i < type->membersSize; i++) {
+        const UA_DataTypeMember *dtm = &type->members[i];
+        UA_EnumField *ef = &descr->enumDefinition.fields[i];
+        ef->value = (UA_Int64)(uintptr_t)dtm->memberType;
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+        ef->name = UA_STRING_ALLOC(dtm->memberName);
+        ef->displayName = UA_LOCALIZEDTEXT_ALLOC("", dtm->memberName);
+#endif
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+/***************/
+/* Simple Type */
+/***************/
+
+static UA_StatusCode
+UA_DataType_fromSimpleTypeDescription(UA_DataType *type,
+                                      const UA_SimpleTypeDescription *descr) {
+    /* Check if the BuiltinType is a "simple type" */
+    if(descr->builtInType > 0 &&
+       descr->builtInType > UA_DATATYPEKIND_DIAGNOSTICINFO + 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Set the basic description. Then use defaults from the builtin type */
+    UA_StatusCode res = fromDescription(type, (const UA_DataTypeDescription*)descr);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Set the type description */
+    type->typeKind = UA_TYPES[descr->builtInType-1].typeKind;
+    type->memSize = UA_TYPES[descr->builtInType-1].memSize;
+    type->pointerFree = UA_TYPES[descr->builtInType-1].pointerFree;
+    type->overlayable = UA_TYPES[descr->builtInType-1].overlayable;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_DataType_toSimpleTypeDescription(const UA_DataType *type,
+                                    UA_SimpleTypeDescription *descr) {
+    /* Check if the BuiltinType is a "simple type" */
+    if(type->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    const UA_DataType *baseType = &UA_TYPES[type->typeKind];
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    res |= toDescription(type, (UA_DataTypeDescription *)descr);
+    res |= UA_NodeId_copy(&baseType->typeId, &descr->baseDataType);
+    descr->builtInType = type->typeKind + 1;
+
+    if(res != UA_STATUSCODE_GOOD)
+        UA_SimpleTypeDescription_clear(descr);
+    return res;
+}
+
+/**************/
+/* Public API */
+/**************/
+
+UA_StatusCode
+UA_DataType_fromDescription(UA_DataType *type, const UA_ExtensionObject *descr,
+                            const UA_DataTypeArray *customTypes) {
+    void *data = descr->content.decoded.data;
+    if(UA_ExtensionObject_hasDecodedType(descr, &UA_TYPES[UA_TYPES_SIMPLETYPEDESCRIPTION]))
+        return UA_DataType_fromSimpleTypeDescription(type, (UA_SimpleTypeDescription*)data);
+    if(UA_ExtensionObject_hasDecodedType(descr, &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]))
+        return UA_DataType_fromEnumDescription(type, (UA_EnumDescription*)data);
+    if(UA_ExtensionObject_hasDecodedType(descr, &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]))
+        return UA_DataType_fromStructureDescription(type, (UA_StructureDescription*)data, customTypes);
+    return UA_STATUSCODE_BADINVALIDARGUMENT;
+}
+
+UA_StatusCode
+UA_DataType_toDescription(const UA_DataType *type, UA_ExtensionObject *descr) {
+    UA_ExtensionObject_init(descr);
+    void *descr_data = NULL;
+    const UA_DataType *descr_type = NULL;
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    switch(type->typeKind) {
+    case UA_DATATYPEKIND_ENUM:
+        descr_data = UA_EnumDescription_new();
+        if(!descr_data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        descr_type = &UA_TYPES[UA_TYPES_ENUMDESCRIPTION];
+        res = UA_DataType_toEnumDescription(type,
+                          (UA_EnumDescription*)descr_data);
+        break;
+    case UA_DATATYPEKIND_STRUCTURE:
+    case UA_DATATYPEKIND_OPTSTRUCT:
+    case UA_DATATYPEKIND_UNION:
+        descr_data = UA_StructureDescription_new();
+        if(!descr_data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        descr_type = &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION];
+        res = UA_DataType_toStructureDescription(type,
+                          (UA_StructureDescription*)descr_data);
+        break;
+    default:
+        descr_data = UA_SimpleTypeDescription_new();
+        if(!descr_data)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        descr_type = &UA_TYPES[UA_TYPES_SIMPLETYPEDESCRIPTION];
+        res = UA_DataType_toSimpleTypeDescription(type,
+                          (UA_SimpleTypeDescription*)descr_data);
+        break;
+    }
+
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(descr_data);
+        return res;
+    }
+
+    UA_ExtensionObject_setValue(descr, descr_data, descr_type);
+    return UA_STATUSCODE_GOOD;
 }

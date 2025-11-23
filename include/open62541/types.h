@@ -979,6 +979,9 @@ typedef struct UA_DiagnosticInfo {
  * Specializations, such as ``UA_Int32_new()`` are derived from the generic
  * type operations as static inline functions. */
 
+/* UA_DataTypeMember describes the fields of structures/unions/etc. In addition
+ * it is used to describe the possible values of enums. For enums, the
+ * memberType value is cast to an integer to represent the enum value. */
 typedef struct {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     const char *memberName;       /* Human-readable member name */
