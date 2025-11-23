@@ -468,7 +468,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     size_t requestPos = offset; /* Store the offset (for sendServiceFault) */
     UA_DecodeBinaryOptions opt;
     memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
-    opt.customTypes = server->config.customDataTypes;
+    opt.customTypes = serverCustomTypes(server);
     retval = UA_decodeBinaryInternal(msg, &offset, &request, sd->requestType, &opt);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,

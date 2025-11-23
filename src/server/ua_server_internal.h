@@ -207,6 +207,12 @@ struct UA_Server {
 
     UA_AsyncManager asyncManager;
 
+    /* Custom datatypes that are internally created and cleaned up at the end of
+     * the server lifecycle. The next->pointer points to the server config. So
+     * we can use customTypes_internal as the universal entry. */
+    UA_DataTypeArray *customTypes_internal;
+    size_t customTypes_internalSize;
+
     /* Session Management */
     LIST_HEAD(session_list, session_list_entry) sessions;
     UA_UInt32 sessionCount;
@@ -259,6 +265,11 @@ struct UA_Server {
     /* GDS Manager for certificate management */
     UA_GDSManager gdsManager;
 };
+
+/* In case the configuration was updated. Make the ->next pointer in the
+ * internal customTypes point into the configuration. */
+const UA_DataTypeArray *
+serverCustomTypes(UA_Server *server);
 
 /***********************/
 /* References Handling */
