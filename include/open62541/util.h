@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_HELPER_H_
@@ -85,23 +86,24 @@ UA_Guid UA_EXPORT
 UA_Guid_random(void);   /* no cryptographic entropy */
 
 /**
- * Translate between Namespace and internal DataType definitions
- * -------------------------------------------------------------
- */
-
-/* The generated UA_DataType faithfully generates the padding of
- * the corresponding C-structures. */
-UA_StatusCode
-UA_DataType_fromStructureDefinition(UA_DataType *type,
-                                    const UA_StructureDefinition *sd,
-                                    const UA_NodeId typeId,
-                                    const UA_String typeName,
-                                    const UA_DataTypeArray *customTypes);
+ * Translate between DataTypeDescription and UA_DataType
+ * ------------------------------------------------------
+ *
+ * The ExtensionObject for the description is either of
+ *
+ * - SimpleTypeDescription
+ * - EnumDescription
+ * - StructureDescription
+ *
+ * The generated UA_DataType faithfully generates the padding of the
+ * corresponding C-structures. */
 
 UA_EXPORT UA_StatusCode
-UA_DataType_toStructureDefinition(const UA_DataType *type,
-                                  UA_StructureDefinition *sd);
+UA_DataType_fromDescription(UA_DataType *type, const UA_ExtensionObject *descr,
+                            const UA_DataTypeArray *customTypes);
 
+UA_EXPORT UA_StatusCode
+UA_DataType_toDescription(const UA_DataType *type, UA_ExtensionObject *descr);
 
 /**
  * Key Value Map
