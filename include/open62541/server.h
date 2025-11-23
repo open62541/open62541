@@ -12,6 +12,7 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020-2022 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_SERVER_H_
@@ -1116,6 +1117,41 @@ UA_Server_addDataTypeNode(UA_Server *server,
                           const UA_QualifiedName browseName,
                           const UA_DataTypeAttributes attr,
                           void *nodeContext, UA_NodeId *outNewNodeId);
+
+/**
+ * Due to the history of development, the DataTypeAttributes structure used in
+ * the AddNodes Service does not describe the layout of the DataType. But the
+ * (newer) structures for describing DataTypes do:
+ *
+ * - SimpleTypeDescription
+ * - EnumDescription
+ * - StructureDescription
+ *
+ * The ``UA_Server_addDataTypeFromDescription`` function translates the
+ * DataTypeDescription into a UA_DataType structure and adds it to an internal
+ * array of the server. Then the DataType is automatically decoded in messages
+ * received by the server. Also the ``DataTypeDefinition`` attribute of the
+ * corresponding DataTypeNode can then be read via the Read service.
+ *
+ * The memory layout of the internally generated ``UA_DataType`` corresponds to
+ * the matching C-structure including padding.
+ *
+ * Note that a DataTypeDescription can be added only once during the lifetime of
+ * the server. This protects against existing instances of the DataType to
+ * having their layout changed. */
+
+/* Use the DataType description to create an internal UA_DataType entry in the
+ * server */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_addDataTypeFromDescription(UA_Server *server,
+                                     const UA_ExtensionObject *description);
+
+/* The same as UA_Server_addDataTypeFromDescription, but with the description
+ * already converted into a UA_DataType. Makes a copy of the UA_DataType
+ * internally. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_addDataType(UA_Server *server, const UA_NodeId parentNodeId,
+                      const UA_DataType *type);
 
 /**
  * ViewNode
