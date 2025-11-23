@@ -463,7 +463,7 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
 #ifdef UA_ENABLE_TYPEDESCRIPTION
         /* Find the DataType */
         const UA_DataType *type =
-            UA_findDataTypeWithCustom(&node->head.nodeId, server->config.customDataTypes);
+            UA_findDataTypeWithCustom(&node->head.nodeId, serverCustomTypes(server));
         if(!type) {
             retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
             break;
