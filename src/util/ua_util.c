@@ -23,6 +23,11 @@
 #include "pcg_basic.h"
 #include "base64.h"
 #include "itoa.h"
+
+#if defined(UA_ARCHITECTURE_WIN32)
+#include <WinBase.h>
+#endif
+
 #include "../../deps/parse_num.h"
 #include "../../deps/libc_time.h"
 
