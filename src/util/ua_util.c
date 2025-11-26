@@ -25,6 +25,7 @@
 #include "itoa.h"
 
 #if defined(UA_ARCHITECTURE_WIN32)
+#include <WTypes.h>
 #include <WinBase.h>
 #endif
 

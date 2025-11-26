@@ -1,0 +1,10 @@
+choco --yes install openssl
+cmake --fresh -B buildopenssl -S . -DBUILD_SHARED_LIBS:BOOL=ON `
+    -DCMAKE_BUILD_TYPE=Release `
+    -DUA_ENABLE_INLINABLE_EXPORT=ON `
+    -DUA_ENABLE_ENCRYPTION=OPENSSL `
+    -DUA_ENABLE_AMALGAMATION=ON `
+    -DUA_MULTITHREADING=0 -DUA_LOGLEVEL=100 `
+    -DCMAKE_GENERATOR_PLATFORM=x64
+
+cmake --build buildopenssl
