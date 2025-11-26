@@ -545,6 +545,10 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
          * current Notification has been sent out. */
         UA_Notification *prev;
         while((prev = TAILQ_PREV(n, NotificationQueue, monEntry))) {
+            if (prev == n_tmp) {
+                /* Update the safe iterator before deleting it */
+                n_tmp = TAILQ_NEXT(prev, subEntry);
+            }
             UA_Notification_delete(prev);
 
             /* Help the Clang scan-analyzer */
@@ -692,6 +696,10 @@ UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
          * current Notification has been sent out. */
         UA_Notification *prev;
         while((prev = TAILQ_PREV(n, NotificationQueue, monEntry))) {
+            if (prev == n_tmp) {
+                /* Update the safe iterator before deleting it */
+                n_tmp = TAILQ_NEXT(prev, subEntry);
+            }
             UA_Notification_delete(prev);
 
             /* Help the Clang scan-analyzer */
