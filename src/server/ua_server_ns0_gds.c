@@ -1082,10 +1082,16 @@ secureChannel_delayedClose(void *application, void *context) {
 
     UA_CertificateGroup certGroup = server->config.secureChannelPKI;
     UA_SecureChannel *channel;
+    UA_CertificateVerificationSettings verSettings = {
+        /*.allowInstanceUsage=*/ true,
+        /*.allowIssuerUsage=*/ false,
+        /*.allowUserUsage=*/ false,
+        /*.verificationLevel=*/ UA_CERTIFICATEVERIFICATION_TRUST,
+    };
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
         if(channel->state == UA_SECURECHANNELSTATE_CLOSED || channel->state == UA_SECURECHANNELSTATE_CLOSING)
             continue;
-        if(certGroup.verifyCertificate(&certGroup, &channel->remoteCertificate) != UA_STATUSCODE_GOOD)
+        if(certGroup.verifyCertificate(&certGroup, &channel->remoteCertificate, verSettings) != UA_STATUSCODE_GOOD)
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
 

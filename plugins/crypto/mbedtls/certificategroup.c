@@ -5,6 +5,7 @@
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2019 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
+ *    Copyright (c) 2025 Pilz GmbH & Co. KG, Author: Marcel Patzlaff
  */
 
 #include <open62541/util.h>
@@ -15,6 +16,7 @@
 #include <mbedtls/x509.h>
 #include <mbedtls/oid.h>
 #include <mbedtls/x509_crt.h>
+#include <mbedtls/pk.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/version.h>
 #include <mbedtls/sha256.h>
@@ -60,7 +62,15 @@ typedef struct {
     mbedtls_x509_crl issuerCrls;
 } MemoryCertStore;
 
-static UA_Boolean mbedtlsCheckCA(mbedtls_x509_crt *cert);
+typedef enum
+{
+    CERTTYPE_INVALID = 0,
+    CERTTYPE_ISSUER,
+    CERTTYPE_INSTANCE,
+    CERTTYPE_USER
+} CertType;
+
+static CertType mbedtlsGetUsage(mbedtls_x509_crt *cert);
 
 static UA_StatusCode
 MemoryCertStore_removeFromTrustList(UA_CertificateGroup *certGroup, const UA_TrustListDataType *trustList) {
@@ -162,7 +172,7 @@ mbedtlsFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
 
     /* Check if the certificate is a CA certificate.
      * Only a CA certificate can have a CRL. */
-    if(!mbedtlsCheckCA(&cert)) {
+    if(CERTTYPE_ISSUER != mbedtlsGetUsage(&cert)) {
         UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
                "The certificate is not a CA certificate and therefore does not have a CRL.");
         mbedtls_x509_crt_free(&cert);
@@ -344,21 +354,66 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
 #define MBEDTLS_PRIVATE(x) x
 #endif
 
-/* Is the certificate a CA? */
-static UA_Boolean
-mbedtlsCheckCA(mbedtls_x509_crt *cert) {
-    /* The Basic Constraints extension must be set and the cert acts as CA */
-    if(!(cert->MBEDTLS_PRIVATE(ext_types) & MBEDTLS_X509_EXT_BASIC_CONSTRAINTS) ||
-       !cert->MBEDTLS_PRIVATE(ca_istrue))
-        return false;
+/* What type of certificate do we have here? */
+static CertType
+mbedtlsGetUsage(mbedtls_x509_crt *cert) {
+    CertType defUsage = CERTTYPE_USER;
 
-    /* The Key Usage extension must be set to cert signing and CRL issuing */
-    if(!(cert->MBEDTLS_PRIVATE(ext_types) & MBEDTLS_X509_EXT_KEY_USAGE) ||
-       mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_KEY_CERT_SIGN) != 0 ||
-       mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_CRL_SIGN) != 0)
-        return false;
+    // basicConstraints must always be present
+    if(!(cert->MBEDTLS_PRIVATE(ext_types) & MBEDTLS_X509_EXT_BASIC_CONSTRAINTS))
+        return CERTTYPE_INVALID;
 
-    return true;
+    const UA_Boolean hasKeyUsage = (cert->MBEDTLS_PRIVATE(ext_types) & MBEDTLS_X509_EXT_KEY_USAGE);
+
+    if(cert->MBEDTLS_PRIVATE(ca_istrue)) {
+        // can be issuer or self-signed instance cert
+
+        // ensure that the key usage extension is available in the certificate
+        if (!hasKeyUsage)
+            return CERTTYPE_INVALID;
+
+        // check if the Key Usage extension is set to cert signing and CRL signing
+        if(mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_KEY_CERT_SIGN) == 0 &&
+           mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_CRL_SIGN) == 0) {
+            return CERTTYPE_ISSUER;
+        }
+
+        // user certificates must set CA:FALSE
+        defUsage = CERTTYPE_INVALID;
+    }
+
+    // can be user or instance cert or just invalid
+    if(!hasKeyUsage)
+        return defUsage;
+
+    const mbedtls_pk_type_t pk_alg = mbedtls_pk_get_type(&(cert->pk));
+    if((MBEDTLS_PK_RSA == pk_alg) || (MBEDTLS_PK_RSASSA_PSS == pk_alg)) {
+        // RSA profiles require digitalSignature, nonRepudiation, keyEncipherment and dataEncipherment in keyUsage
+        // and at least clientAuth in extendedKeyUsage
+        const UA_Boolean hasExtKeyUsage = (cert->MBEDTLS_PRIVATE(ext_types) & MBEDTLS_X509_EXT_EXTENDED_KEY_USAGE);
+        if(!hasExtKeyUsage)
+            return defUsage;
+
+        if((mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_DIGITAL_SIGNATURE) != 0) ||
+           (mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_NON_REPUDIATION) != 0) ||
+           (mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_KEY_ENCIPHERMENT) != 0) ||
+           (mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_DATA_ENCIPHERMENT) != 0)) {
+            return defUsage;
+        }
+
+        if((mbedtls_x509_crt_check_extended_key_usage(
+            cert, MBEDTLS_OID_CLIENT_AUTH, sizeof(MBEDTLS_OID_CLIENT_AUTH) - 1)) != 0) {
+            return defUsage;
+        }
+    } else if((MBEDTLS_PK_ECDSA == pk_alg) || (MBEDTLS_PK_ECKEY == pk_alg) || (MBEDTLS_PK_ECKEY_DH == pk_alg)) {
+        // ECC profiles only require digitalSignature in keyUsage
+        if((mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_DIGITAL_SIGNATURE) != 0))
+            return defUsage;
+    } else
+        return CERTTYPE_INVALID;
+
+    // it is with high-propability an Application Instance Certificate
+    return CERTTYPE_INSTANCE;
 }
 
 static UA_Boolean
@@ -479,7 +534,8 @@ mbedtlsCheckSignature(const mbedtls_x509_crt *cert, mbedtls_x509_crt *issuer) {
 
 static UA_StatusCode
 mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_crt *stack,
-                   mbedtls_x509_crt **old_issuers, mbedtls_x509_crt *cert, int depth) {
+                   mbedtls_x509_crt **old_issuers, mbedtls_x509_crt *cert, int depth,
+                   UA_CertificateVerificationSettings settings) {
     /* Maxiumum chain length */
     if(depth == UA_MBEDTLS_MAX_CHAIN_LENGTH)
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
@@ -504,7 +560,7 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
 
         /* Verification Step: Certificate Usage
          * Can the issuer act as CA? Omit for self-signed leaf certificates. */
-        if((depth > 0 || issuer != cert) && !mbedtlsCheckCA(issuer)) {
+        if((depth > 0 || issuer != cert) && (CERTTYPE_ISSUER != mbedtlsGetUsage(issuer))) {
             ret = UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED;
             continue;
         }
@@ -548,7 +604,7 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
 
         /* We have found the issuer certificate used for the signature. Recurse
          * to the next certificate in the chain (verify the current issuer). */
-        ret = mbedtlsVerifyChain(cg, ctx, stack, old_issuers, issuer, depth + 1);
+        ret = mbedtlsVerifyChain(cg, ctx, stack, old_issuers, issuer, depth + 1, settings);
     }
 
     /* The chain is complete, but we haven't yet identified a trusted
@@ -566,7 +622,8 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
 /* This follows Part 6, 6.1.3 Determining if a Certificate is trusted.
  * It defines a sequence of steps for certificate verification. */
 static UA_StatusCode
-verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
+verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                  UA_CertificateVerificationSettings settings) {
     /* Check parameter */
     if (certGroup == NULL || certGroup->context == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -594,7 +651,11 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
      * Check whether the certificate is a User certificate or a CA certificate.
      * Refer the test case CTT/Security/Security Certificate Validation/029.js
      * for more details. */
-    if(mbedtlsCheckCA(&cert)) {
+    CertType certType = mbedtlsGetUsage(&cert);
+    if((CERTTYPE_INVALID == certType) ||
+       ((CERTTYPE_INSTANCE == certType) && !settings.allowInstanceUsage) ||
+       ((CERTTYPE_ISSUER == certType) && !settings.allowIssuerUsage) ||
+       ((CERTTYPE_USER == certType) && !settings.allowUserUsage)) {
         mbedtls_x509_crt_free(&cert);
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
@@ -604,24 +665,28 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
      * - Security Policy
      * - Host Name
      * - URI */
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(settings.verificationLevel >= UA_CERTIFICATEVERIFICATION_INTEGRITY) {
+        /* Verification Step: Build Certificate Chain
+         * We perform the checks for each certificate inside. */
+        mbedtls_x509_crt *old_issuers[UA_MBEDTLS_MAX_CHAIN_LENGTH];
+        ret = mbedtlsVerifyChain(certGroup, context, &cert, old_issuers, &cert, 0, settings);
+    }
 
-    /* Verification Step: Build Certificate Chain
-     * We perform the checks for each certificate inside. */
-    mbedtls_x509_crt *old_issuers[UA_MBEDTLS_MAX_CHAIN_LENGTH];
-    UA_StatusCode ret = mbedtlsVerifyChain(certGroup, context, &cert, old_issuers, &cert, 0);
     mbedtls_x509_crt_free(&cert);
     return ret;
 }
 
 static UA_StatusCode
 MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
-                                  const UA_ByteString *certificate) {
+                                  const UA_ByteString *certificate,
+                                  UA_CertificateVerificationSettings settings) {
     /* Check parameter */
     if(certGroup == NULL || certificate == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_StatusCode retval = verifyCertificate(certGroup, certificate);
+    UA_StatusCode retval = verifyCertificate(certGroup, certificate, settings);
     if(retval != UA_STATUSCODE_GOOD) {
         if(MemoryCertStore_addToRejectedList(certGroup, certificate) != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
@@ -1068,7 +1133,7 @@ UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    retval = mbedtlsCheckCA(&cert) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOMATCH;
+    retval = (CERTTYPE_ISSUER == mbedtlsGetUsage(&cert)) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOMATCH;
 
 cleanup:
     mbedtls_x509_crt_free(&cert);
