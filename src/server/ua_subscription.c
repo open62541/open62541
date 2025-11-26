@@ -543,17 +543,21 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
          * local queue, remove all of them. These are earlier Notifications that
          * are non-reporting. And we don't want them to show up after the
          * current Notification has been sent out. */
-        UA_Notification *prev;
-        while((prev = TAILQ_PREV(n, NotificationQueue, monEntry))) {
-            UA_Notification_delete(prev);
+        UA_MonitoredItem *mon = n->mon;
+        UA_Notification *curr = TAILQ_FIRST(&mon->queue);
+        while(curr && curr != n) {
+            UA_Notification* next = TAILQ_NEXT(curr, monEntry);
+            if (curr == n_tmp) {
+                /* Update the safe iterator before deleting it */
+                n_tmp = TAILQ_NEXT(curr, subEntry);
+            }
 
-            /* Help the Clang scan-analyzer */
-            UA_assert(prev != TAILQ_PREV(n, NotificationQueue, monEntry));
+            UA_Notification_delete(curr);
+            curr = next;
         }
 
         /* Delete the notification, remove from the queues and decrease the counters */
         UA_Notification_delete(n);
-
         totalNotifications++;
     }
 
@@ -690,12 +694,17 @@ UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
          * local queue, remove all of them. These are earlier Notifications that
          * are non-reporting. And we don't want them to show up after the
          * current Notification has been sent out. */
-        UA_Notification *prev;
-        while((prev = TAILQ_PREV(n, NotificationQueue, monEntry))) {
-            UA_Notification_delete(prev);
+        UA_MonitoredItem* mon_item = n->mon;
+        UA_Notification* curr = TAILQ_FIRST(&mon_item->queue);
+        while(curr && curr != n) {
+            UA_Notification* next = TAILQ_NEXT(curr, monEntry);
+            if (curr == n_tmp) {
+                /* Update the safe iterator before deleting it */
+                n_tmp = TAILQ_NEXT(curr, subEntry);
+            }
 
-            /* Help the Clang scan-analyzer */
-            UA_assert(prev != TAILQ_PREV(n, NotificationQueue, monEntry));
+            UA_Notification_delete(curr);
+            curr = next;
         }
 
         /* Delete the notification, remove from the queues and decrease the counters */
