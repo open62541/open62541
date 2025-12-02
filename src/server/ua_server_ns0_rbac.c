@@ -399,7 +399,8 @@ addIdentityMethodCallback(UA_Server *server,
                 "AddIdentity: Rule CriteriaType=%u, Criteria=%.*s",
                 rule->criteriaType, (int)rule->criteria.length, rule->criteria.data);
     
-    UA_StatusCode retval = UA_Server_addRoleIdentity(server, *objectId, rule->criteriaType);
+    UA_StatusCode retval = UA_Server_addRoleIdentity(server, *objectId, 
+                                                       rule->criteriaType, rule->criteria);
     
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,

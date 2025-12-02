@@ -2375,8 +2375,27 @@ UA_Server_addRole(UA_Server *server, UA_String roleName, UA_String namespaceUri,
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeRole(UA_Server *server, UA_NodeId roleId);
 
+/* Add an identity mapping rule to a role.
+ * 
+ * Per OPC UA Part 18, roles have an Identities property containing an array
+ * of IdentityMappingRuleType. Each rule has a criteriaType and criteria string:
+ * - UserName (1): The username to match (criteria = username string)
+ * - Thumbprint (2): The certificate thumbprint to match
+ * - Role (3): The role identifier for access token matching
+ * - GroupId (4): The group identifier for access token matching
+ * - Anonymous (5): Matches anonymous sessions (criteria ignored, use empty string)
+ * - AuthenticatedUser (6): Matches any authenticated session (criteria ignored)
+ * - Application (7): The ApplicationUri to match
+ * - X509Subject (8): The X509 subject name to match
+ *
+ * @param server The server instance
+ * @param roleId The NodeId of the role to modify
+ * @param criteriaType The type of identity criteria
+ * @param criteria The criteria string (can be empty for Anonymous/AuthenticatedUser)
+ * @return UA_STATUSCODE_GOOD on success */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_addRoleIdentity(UA_Server *server, UA_NodeId roleId, UA_IdentityCriteriaType ict);
+UA_Server_addRoleIdentity(UA_Server *server, UA_NodeId roleId,
+                          UA_IdentityCriteriaType criteriaType, UA_String criteria);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeRoleIdentity(UA_Server *server, UA_NodeId roleId, UA_IdentityCriteriaType ict);

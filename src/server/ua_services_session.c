@@ -961,8 +961,16 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         session->roles = roleIds;
         session->rolesSize = rolesSize;
         
-        UA_LOG_INFO_SESSION(server->config.logging, session,
-                            "ActivateSession: Assigned %zu role(s) to session", rolesSize);
+        /* Log assigned roles with their names */
+        for(size_t i = 0; i < rolesSize; i++) {
+            const UA_Role *role = UA_Server_getRoleById(server, roleIds[i]);
+            if(role) {
+                UA_LOG_INFO_SESSION(server->config.logging, session,
+                                    "ActivateSession: Assigned role '%.*s'",
+                                    (int)role->roleName.name.length, 
+                                    role->roleName.name.data);
+            }
+        }
     }
 #endif
 

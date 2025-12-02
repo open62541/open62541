@@ -20,6 +20,12 @@ UA_Server_initializeRBAC(UA_Server *server);
 void
 UA_Server_cleanupRBAC(UA_Server *server);
 
+/* Decrement the refCount for a node's rolePermissions entry.
+ * Called when a node is being deleted. */
+void
+UA_Server_decrementRolePermissionsRefCount(UA_Server *server,
+                                           UA_PermissionIndex permissionIndex);
+
 #endif /* UA_ENABLE_RBAC */
 
 _UA_END_DECLS

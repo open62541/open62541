@@ -40,6 +40,9 @@ typedef struct {
 typedef struct {
     size_t entriesSize;
     UA_RolePermissionEntry *entries;
+    size_t refCount;  /* Number of nodes referencing this permission config.
+                       * When refCount > 0, this entry must not be modified.
+                       * Slots with refCount == 0 can be reused. */
 } UA_RolePermissions;
 
 typedef struct {
