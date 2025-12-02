@@ -424,6 +424,8 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
 /* Auditing */
 /************/
 
+#ifdef UA_ENABLE_AUDITING
+
 void
 auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
            UA_SecureChannel *channel, UA_Session *session, const char *serviceName,
@@ -563,6 +565,8 @@ auditChannelEvent(UA_Server *server, UA_ApplicationNotificationType type,
     auditSecurityEvent(server, type, channel, session, serviceName, status,
                        statusCodeId, payload);
 }
+
+#endif /* UA_ENABLE_AUDITING */
 
 /*********************************/
 /* Default attribute definitions */

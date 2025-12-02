@@ -208,6 +208,7 @@ Service_OpenSecureChannel_inner(UA_Server *server, UA_SecureChannel *channel,
     }
 }
 
+#ifdef UA_ENABLE_AUDITING
 static UA_THREAD_LOCAL UA_KeyValuePair channelAuditPayload[14] = {
     {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
     {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
@@ -224,6 +225,7 @@ static UA_THREAD_LOCAL UA_KeyValuePair channelAuditPayload[14] = {
     {{0, UA_STRING_STATIC("/SecurityMode")}, {0}},                /* 12 */
     {{0, UA_STRING_STATIC("/RequestedLifetime")}, {0}},           /* 13 */
 };
+#endif
 
 void
 Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
@@ -232,6 +234,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     /* Call the main OpenSecureChannel implementation */
     Service_OpenSecureChannel_inner(server, channel, request, response);
 
+#ifdef UA_ENABLE_AUDITING
     /* Create the audit event for CreateSecureChannel - also on failure */
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     UA_KeyValueMap payloadMap = {14, channelAuditPayload};
@@ -252,6 +255,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     auditChannelEvent(server, UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL_OPEN,
                       channel, NULL, "OpenSecureChannel", status,
                       response->responseHeader.serviceResult, payloadMap);
+#endif
 }
 
 /* The server does not send a CloseSecureChannel response */
@@ -261,11 +265,13 @@ Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
         /* Shutdown - takes effect in the next EventLoop iteration */
         UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
 
+#ifdef UA_ENABLE_AUDITING
         /* Create the audit event */
         UA_KeyValueMap payloadMap = {8, channelAuditPayload}; /* Not all fields */
         auditChannelEvent(server, UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL,
                           channel, NULL, "CloseSecureChannel", true,
                           UA_STATUSCODE_GOOD, payloadMap);
+#endif
     }
 }
 
