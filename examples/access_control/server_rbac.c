@@ -134,13 +134,14 @@ int main(void) {
 
     /* Step 4: Configure permissions for the roles */
     UA_NodeId serverStatusId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS);
-    UA_UInt32 permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    UA_UInt32 permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+                            UA_PERMISSIONTYPE_READROLEPERMISSIONS;
     
     retval = UA_Server_addRolePermissions(server, serverStatusId, operatorRoleId, 
                                           permissions, false, false);
     if(retval == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
-                    "Added BROWSE|READ permissions for OperatorRole on ServerStatus");
+                    "Added BROWSE|READ|READROLEPERMISSIONS permissions for OperatorRole on ServerStatus");
     }
 
     /* Print all available roles */
