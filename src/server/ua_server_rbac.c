@@ -648,10 +648,14 @@ UA_Server_addRole(UA_Server *server, UA_String roleName,
         }
         targetNodeId = &role->roleId;
     } else {
-        /* Generate a unique NodeId for custom role (reused in NS0 representation) */
+        /* Generate a unique NodeId for custom role using sequential counter.
+         * Start at 80000 to avoid conflicts with well-known OPC UA NodeIds. */
+        if(server->nextCustomRoleId == 0)
+            server->nextCustomRoleId = 80000;
+        
         UA_UInt32 identifier;
         do {
-            identifier = UA_UInt32_random();
+            identifier = server->nextCustomRoleId++;
             generatedNodeId = UA_NODEID_NUMERIC(0, identifier);
             const UA_Node *existingNode = UA_NODESTORE_GET(server, &generatedNodeId);
             if(!existingNode)
