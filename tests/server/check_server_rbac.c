@@ -168,7 +168,8 @@ START_TEST(Server_rbacIdentityManagement) {
     ck_assert_ptr_nonnull(role);
     size_t initialSize = role->imrtSize;
     
-    retval = UA_Server_addRoleIdentity(server, newRoleId, UA_IDENTITYCRITERIATYPE_ANONYMOUS);
+    retval = UA_Server_addRoleIdentity(server, newRoleId, 
+                                         UA_IDENTITYCRITERIATYPE_ANONYMOUS, UA_STRING_NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
     role = UA_Server_getRoleById(server, newRoleId);
@@ -215,7 +216,8 @@ START_TEST(Server_rbacProtectMandatoryRoles) {
     UA_NodeId anonymousRoleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
     UA_StatusCode retval;
     
-    retval = UA_Server_addRoleIdentity(server, anonymousRoleId, UA_IDENTITYCRITERIATYPE_USERNAME);
+    retval = UA_Server_addRoleIdentity(server, anonymousRoleId, 
+                                         UA_IDENTITYCRITERIATYPE_USERNAME, UA_STRING_NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
     
     retval = UA_Server_removeRoleIdentity(server, anonymousRoleId, UA_IDENTITYCRITERIATYPE_ANONYMOUS);
@@ -237,7 +239,8 @@ START_TEST(Server_rbacProtectMandatoryRoles) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
     
     UA_NodeId authenticatedUserRoleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
-    retval = UA_Server_addRoleIdentity(server, authenticatedUserRoleId, UA_IDENTITYCRITERIATYPE_USERNAME);
+    retval = UA_Server_addRoleIdentity(server, authenticatedUserRoleId, 
+                                         UA_IDENTITYCRITERIATYPE_USERNAME, UA_STRING_NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADUSERACCESSDENIED);
     
     retval = UA_Server_removeRole(server, authenticatedUserRoleId);
@@ -249,7 +252,8 @@ START_TEST(Server_rbacAllowModifyingOptionalRoles) {
     UA_NodeId observerRoleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
     UA_StatusCode retval;
     
-    retval = UA_Server_addRoleIdentity(server, observerRoleId, UA_IDENTITYCRITERIATYPE_USERNAME);
+    retval = UA_Server_addRoleIdentity(server, observerRoleId, 
+                                         UA_IDENTITYCRITERIATYPE_USERNAME, UA_STRING_NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
     retval = UA_Server_removeRoleIdentity(server, observerRoleId, UA_IDENTITYCRITERIATYPE_USERNAME);
@@ -929,6 +933,10 @@ START_TEST(Server_rbacNodePermissionsOverwrite) {
                                           false, false);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
+    /* Re-fetch permission index since it may have changed (immutable entries) */
+    retval = UA_Server_getNodePermissionIndex(server, testNodeId, &permIdx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
     /* Verify permissions were merged */
     rp = UA_Server_getRolePermissionConfig(server, permIdx);
     ck_assert_ptr_nonnull(rp);
@@ -1124,19 +1132,15 @@ START_TEST(Server_rbacRemovePermissionsRecursive) {
                                              UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
-    /* Verify parent has no role entry (it was removed) */
+    /* Verify parent has no permissions (index should be INVALID) */
     retval = UA_Server_getNodePermissionIndex(server, parentId, &permIdx);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    rp = UA_Server_getRolePermissionConfig(server, permIdx);
-    ck_assert_ptr_nonnull(rp);
-    ck_assert_uint_eq(rp->entriesSize, 0);
+    ck_assert_uint_eq(permIdx, UA_PERMISSION_INDEX_INVALID);
     
-    /* Verify child has no role entry */
+    /* Verify child has no permissions */
     retval = UA_Server_getNodePermissionIndex(server, childId, &permIdx);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    rp = UA_Server_getRolePermissionConfig(server, permIdx);
-    ck_assert_ptr_nonnull(rp);
-    ck_assert_uint_eq(rp->entriesSize, 0);
+    ck_assert_uint_eq(permIdx, UA_PERMISSION_INDEX_INVALID);
     
     /* Cleanup */
     UA_Server_deleteNode(server, parentId, true);
@@ -1215,6 +1219,429 @@ START_TEST(Server_rbacSetPermissionIndexRecursive) {
 }
 END_TEST
 
+/* Test that RolePermissions entries are immutable once referenced */
+START_TEST(Server_rbacImmutablePermissions) {
+    /* Create two nodes */
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Node1");
+    UA_NodeId node1Id;
+    UA_StatusCode retval = UA_Server_addObjectNode(server, UA_NODEID_NULL,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                                   UA_QUALIFIEDNAME(1, "Node1"),
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                                   oAttr, NULL, &node1Id);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Node2");
+    UA_NodeId node2Id;
+    retval = UA_Server_addObjectNode(server, UA_NODEID_NULL,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                     UA_QUALIFIEDNAME(1, "Node2"),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                     oAttr, NULL, &node2Id);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    UA_NodeId operatorRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+    
+    /* Add same permissions to both nodes */
+    retval = UA_Server_addRolePermissions(server, node1Id, operatorRole,
+                                          UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    UA_PermissionIndex permIdx1;
+    retval = UA_Server_getNodePermissionIndex(server, node1Id, &permIdx1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Get refcount before adding second node */
+    const UA_RolePermissions *rp = UA_Server_getRolePermissionConfig(server, permIdx1);
+    ck_assert_ptr_nonnull(rp);
+    size_t initialRefCount = rp->refCount;
+    
+    retval = UA_Server_addRolePermissions(server, node2Id, operatorRole,
+                                          UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Both nodes should share the same permission index (matching optimization) */
+    UA_PermissionIndex permIdx2;
+    retval = UA_Server_getNodePermissionIndex(server, node2Id, &permIdx2);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    ck_assert_uint_eq(permIdx1, permIdx2);
+    
+    /* The shared entry should have refCount increased by 1 */
+    rp = UA_Server_getRolePermissionConfig(server, permIdx1);
+    ck_assert_ptr_nonnull(rp);
+    ck_assert_uint_eq(rp->refCount, initialRefCount + 1);
+    
+    /* Remember the original permissions for immutability check */
+    UA_PermissionType originalPerms = rp->entries[0].permissions;
+    
+    /* Now modify node1's permissions - this should create a new entry,
+     * leaving node2's permissions unchanged */
+    retval = UA_Server_addRolePermissions(server, node1Id, operatorRole,
+                                          UA_PERMISSIONTYPE_WRITE,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Node1 should now have a different permission index */
+    UA_PermissionIndex permIdx1New;
+    retval = UA_Server_getNodePermissionIndex(server, node1Id, &permIdx1New);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(permIdx1New, permIdx1);
+    
+    /* Node2 should still have the original index */
+    retval = UA_Server_getNodePermissionIndex(server, node2Id, &permIdx2);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(permIdx2, permIdx1);
+    
+    /* Original entry should have its refCount decreased by 1 */
+    rp = UA_Server_getRolePermissionConfig(server, permIdx1);
+    ck_assert_ptr_nonnull(rp);
+    ck_assert_uint_eq(rp->refCount, initialRefCount);
+    
+    /* Verify node2's permissions are unchanged (immutability check) */
+    ck_assert_uint_eq(rp->entriesSize, 1);
+    ck_assert_uint_eq(rp->entries[0].permissions, originalPerms);
+    
+    /* Verify node1's permissions are updated */
+    const UA_RolePermissions *rp1New = UA_Server_getRolePermissionConfig(server, permIdx1New);
+    ck_assert_ptr_nonnull(rp1New);
+    ck_assert_uint_eq(rp1New->entriesSize, 1);
+    ck_assert_uint_eq(rp1New->entries[0].permissions,
+                     UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ | UA_PERMISSIONTYPE_WRITE);
+    
+    /* Cleanup */
+    UA_Server_deleteNode(server, node1Id, true);
+    UA_Server_deleteNode(server, node2Id, true);
+    UA_NodeId_clear(&node1Id);
+    UA_NodeId_clear(&node2Id);
+}
+END_TEST
+
+/* Test that refcount properly decrements and slots are reused */
+START_TEST(Server_rbacRefCountAndSlotReuse) {
+    /* Create a node */
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "RefCountNode");
+    UA_NodeId nodeId;
+    UA_StatusCode retval = UA_Server_addObjectNode(server, UA_NODEID_NULL,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                                   UA_QUALIFIEDNAME(1, "RefCountNode"),
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                                   oAttr, NULL, &nodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Use a unique permission combination unlikely to exist in the server */
+    UA_NodeId observerRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
+    UA_NodeId engineerRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER);
+    
+    /* Add unique permissions (Observer + Engineer combo) */
+    retval = UA_Server_addRolePermissions(server, nodeId, observerRole,
+                                          UA_PERMISSIONTYPE_BROWSE,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = UA_Server_addRolePermissions(server, nodeId, engineerRole,
+                                          UA_PERMISSIONTYPE_RECEIVEEVENTS,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    UA_PermissionIndex permIdx1;
+    retval = UA_Server_getNodePermissionIndex(server, nodeId, &permIdx1);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    const UA_RolePermissions *rp1 = UA_Server_getRolePermissionConfig(server, permIdx1);
+    ck_assert_ptr_nonnull(rp1);
+    size_t initialRefCount = rp1->refCount;
+    ck_assert_uint_ge(initialRefCount, 1);
+    
+    /* Change permissions - old slot should become available (refCount decreases) */
+    retval = UA_Server_addRolePermissions(server, nodeId, observerRole,
+                                          UA_PERMISSIONTYPE_READ,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    UA_PermissionIndex permIdx2;
+    retval = UA_Server_getNodePermissionIndex(server, nodeId, &permIdx2);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(permIdx2, permIdx1);
+    
+    /* Old entry should now have refCount decreased by 1 */
+    rp1 = UA_Server_getRolePermissionConfig(server, permIdx1);
+    ck_assert_ptr_nonnull(rp1);
+    ck_assert_uint_eq(rp1->refCount, initialRefCount - 1);
+    
+    /* New entry should have refCount >= 1 */
+    const UA_RolePermissions *rp2 = UA_Server_getRolePermissionConfig(server, permIdx2);
+    ck_assert_ptr_nonnull(rp2);
+    ck_assert_uint_ge(rp2->refCount, 1);
+    
+    /* If the old slot's refCount is now 0, verify a new change can reuse it */
+    if(rp1->refCount == 0) {
+        /* Change permissions again - the old slot (permIdx1) should be REUSED */
+        retval = UA_Server_addRolePermissions(server, nodeId, observerRole,
+                                              UA_PERMISSIONTYPE_WRITE,
+                                              false, false);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        
+        UA_PermissionIndex permIdx3;
+        retval = UA_Server_getNodePermissionIndex(server, nodeId, &permIdx3);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        
+        /* The old slot (permIdx1) should have been reused since it had refCount == 0 */
+        ck_assert_uint_eq(permIdx3, permIdx1);
+    }
+    
+    /* Cleanup */
+    UA_Server_deleteNode(server, nodeId, true);
+    UA_NodeId_clear(&nodeId);
+}
+END_TEST
+
+/* Test that updateRolePermissionConfig fails when entry is in use */
+START_TEST(Server_rbacUpdateConfigBlockedWhenInUse) {
+    /* Create a node */
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "BlockedNode");
+    UA_NodeId nodeId;
+    UA_StatusCode retval = UA_Server_addObjectNode(server, UA_NODEID_NULL,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                                   UA_QUALIFIEDNAME(1, "BlockedNode"),
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                                   oAttr, NULL, &nodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    UA_NodeId supervisorRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR);
+    
+    /* Add permissions */
+    retval = UA_Server_addRolePermissions(server, nodeId, supervisorRole,
+                                          UA_PERMISSIONTYPE_BROWSE,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    UA_PermissionIndex permIdx;
+    retval = UA_Server_getNodePermissionIndex(server, nodeId, &permIdx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Try to update the config directly - should fail since refCount > 0 */
+    UA_RolePermissionEntry newEntry;
+    UA_NodeId_copy(&supervisorRole, &newEntry.roleId);
+    newEntry.permissions = UA_PERMISSIONTYPE_READ;
+    
+    retval = UA_Server_updateRolePermissionConfig(server, permIdx, 1, &newEntry);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDSTATE);
+    
+    UA_NodeId_clear(&newEntry.roleId);
+    
+    /* Now clear the node's permission - refCount should become 0 */
+    retval = UA_Server_setNodePermissionIndex(server, nodeId, UA_PERMISSION_INDEX_INVALID, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Now update should succeed */
+    UA_NodeId_copy(&supervisorRole, &newEntry.roleId);
+    retval = UA_Server_updateRolePermissionConfig(server, permIdx, 1, &newEntry);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    UA_NodeId_clear(&newEntry.roleId);
+    
+    /* Cleanup */
+    UA_Server_deleteNode(server, nodeId, true);
+    UA_NodeId_clear(&nodeId);
+}
+END_TEST
+
+/* Test that deleting a node properly decrements the refCount */
+START_TEST(Server_rbacNodeDeletionDecrementsRefCount) {
+    /* Create a node */
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "DeleteMeNode");
+    UA_NodeId nodeId;
+    UA_StatusCode retval = UA_Server_addObjectNode(server, UA_NODEID_NULL,
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                                   UA_QUALIFIEDNAME(1, "DeleteMeNode"),
+                                                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                                   oAttr, NULL, &nodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    UA_NodeId engineerRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER);
+    
+    /* Add permissions to the node */
+    retval = UA_Server_addRolePermissions(server, nodeId, engineerRole,
+                                          UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Get the permission index */
+    UA_PermissionIndex permIdx;
+    retval = UA_Server_getNodePermissionIndex(server, nodeId, &permIdx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(permIdx, UA_PERMISSION_INDEX_INVALID);
+    
+    /* Try to update the config - should fail since node is using it */
+    UA_RolePermissionEntry entry;
+    UA_NodeId_copy(&engineerRole, &entry.roleId);
+    entry.permissions = UA_PERMISSIONTYPE_WRITE;
+    
+    retval = UA_Server_updateRolePermissionConfig(server, permIdx, 1, &entry);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDSTATE);
+    UA_NodeId_clear(&entry.roleId);
+    
+    /* Delete the node - this should decrement the refCount */
+    retval = UA_Server_deleteNode(server, nodeId, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Now update should succeed since refCount should be 0 */
+    UA_NodeId_copy(&engineerRole, &entry.roleId);
+    retval = UA_Server_updateRolePermissionConfig(server, permIdx, 1, &entry);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    UA_NodeId_clear(&entry.roleId);
+    UA_NodeId_clear(&nodeId);
+}
+END_TEST
+
+/* Test automatic role assignment based on IdentityMappingRuleType.
+ * Per OPC UA Part 18:
+ * - Anonymous: Matches when criteriaType == Anonymous AND user is anonymous
+ * - AuthenticatedUser: Matches any authenticated (non-anonymous) session
+ * - UserName: Matches if criteriaType == UserName AND username equals criteria string
+ */
+START_TEST(Server_rbacIdentityMappingRoleAssignment) {
+    /* Get the Anonymous role - it should have Anonymous and AuthenticatedUser identity criteria */
+    UA_NodeId anonymousRoleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    const UA_Role *anonymousRole = UA_Server_getRoleById(server, anonymousRoleId);
+    ck_assert_ptr_nonnull(anonymousRole);
+    
+    /* Anonymous role should have at least 2 identity mapping rules:
+     * 1. Anonymous - matches anonymous users
+     * 2. AuthenticatedUser - matches authenticated users (fallback role for all) */
+    ck_assert_uint_ge(anonymousRole->imrtSize, 2);
+    
+    UA_Boolean hasAnonymousCriteria = false;
+    UA_Boolean hasAuthenticatedUserCriteria = false;
+    for(size_t i = 0; i < anonymousRole->imrtSize; i++) {
+        if(anonymousRole->imrt[i].criteriaType == UA_IDENTITYCRITERIATYPE_ANONYMOUS)
+            hasAnonymousCriteria = true;
+        if(anonymousRole->imrt[i].criteriaType == UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER)
+            hasAuthenticatedUserCriteria = true;
+    }
+    ck_assert(hasAnonymousCriteria);
+    ck_assert(hasAuthenticatedUserCriteria);
+    
+    /* Get the AuthenticatedUser role - should have AuthenticatedUser criteria */
+    UA_NodeId authUserRoleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+    const UA_Role *authUserRole = UA_Server_getRoleById(server, authUserRoleId);
+    ck_assert_ptr_nonnull(authUserRole);
+    ck_assert_uint_ge(authUserRole->imrtSize, 1);
+    ck_assert_uint_eq(authUserRole->imrt[0].criteriaType, UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER);
+    
+    /* Get other well-known roles - they should all have AuthenticatedUser criteria */
+    UA_NodeId observerRoleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
+    const UA_Role *observerRole = UA_Server_getRoleById(server, observerRoleId);
+    ck_assert_ptr_nonnull(observerRole);
+    ck_assert_uint_ge(observerRole->imrtSize, 1);
+    ck_assert_uint_eq(observerRole->imrt[0].criteriaType, UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER);
+    
+    UA_NodeId operatorRoleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+    const UA_Role *operatorRole = UA_Server_getRoleById(server, operatorRoleId);
+    ck_assert_ptr_nonnull(operatorRole);
+    ck_assert_uint_ge(operatorRole->imrtSize, 1);
+    ck_assert_uint_eq(operatorRole->imrt[0].criteriaType, UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER);
+    
+    /* Create a custom role and add an Anonymous identity criterion */
+    UA_NodeId customRoleId;
+    UA_StatusCode retval = UA_Server_addRole(server, UA_STRING("TestAnonymousRole"), 
+                                              UA_STRING_NULL, NULL, &customRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Add identity rule for Anonymous users */
+    retval = UA_Server_addRoleIdentity(server, customRoleId, 
+                                         UA_IDENTITYCRITERIATYPE_ANONYMOUS, UA_STRING_NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify the identity rule was added */
+    const UA_Role *customRole = UA_Server_getRoleById(server, customRoleId);
+    ck_assert_ptr_nonnull(customRole);
+    ck_assert_uint_ge(customRole->imrtSize, 1);
+    
+    UA_Boolean foundAnonymousCriteria = false;
+    for(size_t i = 0; i < customRole->imrtSize; i++) {
+        if(customRole->imrt[i].criteriaType == UA_IDENTITYCRITERIATYPE_ANONYMOUS) {
+            foundAnonymousCriteria = true;
+            break;
+        }
+    }
+    ck_assert(foundAnonymousCriteria);
+    
+    /* Clean up */
+    retval = UA_Server_removeRole(server, customRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&customRoleId);
+}
+END_TEST
+
+/* Test UA_Server_addRoleIdentityRule - adding identity rules with criteria strings */
+START_TEST(Server_rbacAddRoleIdentityRule) {
+    /* Create a custom role */
+    UA_NodeId customRoleId;
+    UA_StatusCode retval = UA_Server_addRole(server, UA_STRING("TestUserNameRole"), 
+                                              UA_STRING_NULL, NULL, &customRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Add identity rule for specific username using the new API */
+    UA_String username = UA_STRING("testuser");
+    retval = UA_Server_addRoleIdentity(server, customRoleId, 
+                                            UA_IDENTITYCRITERIATYPE_USERNAME, username);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify the identity rule was added with the correct criteria string */
+    const UA_Role *customRole = UA_Server_getRoleById(server, customRoleId);
+    ck_assert_ptr_nonnull(customRole);
+    ck_assert_uint_ge(customRole->imrtSize, 1);
+    
+    UA_Boolean foundUsernameCriteria = false;
+    for(size_t i = 0; i < customRole->imrtSize; i++) {
+        if(customRole->imrt[i].criteriaType == UA_IDENTITYCRITERIATYPE_USERNAME &&
+           UA_String_equal(&customRole->imrt[i].criteria, &username)) {
+            foundUsernameCriteria = true;
+            break;
+        }
+    }
+    ck_assert(foundUsernameCriteria);
+    
+    /* Add another identity rule for a different username */
+    UA_String username2 = UA_STRING("anotheruser");
+    retval = UA_Server_addRoleIdentity(server, customRoleId, 
+                                            UA_IDENTITYCRITERIATYPE_USERNAME, username2);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify both rules exist */
+    customRole = UA_Server_getRoleById(server, customRoleId);
+    ck_assert_uint_ge(customRole->imrtSize, 2);
+    
+    UA_Boolean foundUsername2Criteria = false;
+    for(size_t i = 0; i < customRole->imrtSize; i++) {
+        if(customRole->imrt[i].criteriaType == UA_IDENTITYCRITERIATYPE_USERNAME &&
+           UA_String_equal(&customRole->imrt[i].criteria, &username2)) {
+            foundUsername2Criteria = true;
+            break;
+        }
+    }
+    ck_assert(foundUsername2Criteria);
+    
+    /* Clean up */
+    retval = UA_Server_removeRole(server, customRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&customRoleId);
+}
+END_TEST
+
 static Suite *testSuite_Server_RBAC(void) {
     Suite *s = suite_create("Server RBAC");
     TCase *tc_rbac = tcase_create("RBAC Information Model");
@@ -1244,6 +1671,12 @@ static Suite *testSuite_Server_RBAC(void) {
     tcase_add_test(tc_rbac, Server_rbacNodePermissionsRecursive);
     tcase_add_test(tc_rbac, Server_rbacRemovePermissionsRecursive);
     tcase_add_test(tc_rbac, Server_rbacSetPermissionIndexRecursive);
+    tcase_add_test(tc_rbac, Server_rbacImmutablePermissions);
+    tcase_add_test(tc_rbac, Server_rbacRefCountAndSlotReuse);
+    tcase_add_test(tc_rbac, Server_rbacUpdateConfigBlockedWhenInUse);
+    tcase_add_test(tc_rbac, Server_rbacNodeDeletionDecrementsRefCount);
+    tcase_add_test(tc_rbac, Server_rbacIdentityMappingRoleAssignment);
+    tcase_add_test(tc_rbac, Server_rbacAddRoleIdentityRule);
     suite_add_tcase(s, tc_rbac);
     return s;
 }
