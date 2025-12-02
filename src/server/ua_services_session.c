@@ -17,6 +17,49 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
+#ifdef UA_ENABLE_AUDITING
+static UA_THREAD_LOCAL UA_KeyValuePair sessionCreateAuditPayload[12] = {
+    {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+    {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+    {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+    {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+    {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+    {{0, UA_STRING_STATIC("/StatusCodeId")}, {0}},                /* 5 */
+    {{0, UA_STRING_STATIC("/SessionId")}, {0}},                   /* 6 */
+    {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 7 */
+    {{0, UA_STRING_STATIC("/SecureChannelId")}, {0}},             /* 8 */
+    {{0, UA_STRING_STATIC("/ClientCertificate")}, {0}},           /* 9 */
+    {{0, UA_STRING_STATIC("/ClientCertificateThumbprint")}, {0}}, /* 10 */
+    {{0, UA_STRING_STATIC("/RevisedSessionTimeout")}, {0}}        /* 11 */
+};
+
+static UA_THREAD_LOCAL UA_KeyValuePair sessionActivateAuditPayload[11] = {
+    {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+    {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+    {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+    {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+    {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+    {{0, UA_STRING_STATIC("/StatusCodeId")}, {0}},                /* 5 */
+    {{0, UA_STRING_STATIC("/SessionId")}, {0}},                   /* 6 */
+    {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 7 */
+    {{0, UA_STRING_STATIC("/ClientSoftwareCertificates")}, {0}},  /* 8 */
+    {{0, UA_STRING_STATIC("/UserIdentityToken")}, {0}},           /* 9 */
+    {{0, UA_STRING_STATIC("/SecureChannelId")}, {0}}              /* 10 */
+};
+
+static UA_THREAD_LOCAL UA_KeyValuePair sessionCancelAuditPayload[9] = {
+    {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+    {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+    {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+    {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+    {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+    {{0, UA_STRING_STATIC("/StatusCodeId")}, {0}},                /* 5 */
+    {{0, UA_STRING_STATIC("/SessionId")}, {0}},                   /* 6 */
+    {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 7 */
+    {{0, UA_STRING_STATIC("/RequestHandle")}, {0}}                /* 8 */
+};
+#endif
+
 void
 notifySession(UA_Server *server, UA_Session *session,
               UA_ApplicationNotificationType type) {
@@ -599,6 +642,17 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 #endif
 
     UA_LOG_INFO_SESSION(server->config.logging, newSession, "Session created");
+
+    /* Create Audit Event */
+#ifdef UA_ENABLE_AUDITING
+    UA_KeyValueMap payloadMap = {12, sessionCreateAuditPayload};
+    auditCreateSessionEvent(server,
+                            UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CREATE,
+                            channel, newSession, "CreateSession", true,
+                            UA_STATUSCODE_GOOD, request->clientCertificate,
+                            UA_BYTESTRING_NULL, /* TODO: Thumbprint */
+                            payloadMap);
+#endif
 }
 
 static UA_StatusCode
@@ -1128,6 +1182,15 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_LOG_INFO_SESSION(server->config.logging, session,
                         "ActivateSession: Session activated with ClientUserId \"%S\"",
                         session->clientUserIdOfSession);
+
+    /* Create the Audit Event */
+#ifdef UA_ENABLE_AUDITING
+    UA_KeyValueMap payloadMap = {11, sessionActivateAuditPayload};
+    auditActivateSessionEvent(server,
+                            UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_ACTIVATE,
+                            channel, session, "ActivateSession", true,
+                            UA_STATUSCODE_GOOD, req, payloadMap);
+#endif
 }
 
 void
@@ -1211,6 +1274,15 @@ Service_Cancel(UA_Server *server, UA_Session *session,
         /* Increase the CancelCount */
         response->cancelCount++;
     }
+#endif
+
+    /* Create the Audit Event */
+#ifdef UA_ENABLE_AUDITING
+    UA_KeyValueMap payloadMap = {9, sessionCancelAuditPayload};
+    auditCancelEvent(server,
+                     UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CANCEL,
+                     session->channel, session, "Cancel", response->cancelCount > 0,
+                     UA_STATUSCODE_GOOD, request->requestHandle, payloadMap);
 #endif
 
     return true;
