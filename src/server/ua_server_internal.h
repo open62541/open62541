@@ -232,6 +232,7 @@ struct UA_Server {
 #ifdef UA_ENABLE_RBAC
     size_t rolesSize;
     UA_Role *roles;
+    UA_UInt32 nextCustomRoleId; /* Counter for generating sequential role IDs, starts at 80000 */
 #endif /* UA_ENABLE_RBAC */
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
