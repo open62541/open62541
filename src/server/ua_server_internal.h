@@ -444,13 +444,52 @@ auditSecurityEvent(UA_Server *server, UA_ApplicationNotificationType type,
                    UA_StatusCode statusCodeId,
                    const UA_KeyValueMap payload);
 
-/* In addition to auditEvent, the seventh entry of the payload-map must be
- * /SecureChannelId and the eihgth entry must be /SourceName. */
+/* In addition to auditSecurityEvent, the seventh entry of the payload-map must be
+ * /SecureChannelId and the eighth entry must be /SourceName. */
 void
 auditChannelEvent(UA_Server *server, UA_ApplicationNotificationType type,
                    UA_SecureChannel *channel, UA_Session *session,
                    const char *serviceName, UA_Boolean status,
                    UA_StatusCode statusCodeId, const UA_KeyValueMap payload);
+
+/* In addition to auditSecurityEvent, the seventh and eighth entry of the
+ * payload-map must be /SessionId and /SourceName */
+void
+auditSessionEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                  UA_SecureChannel *channel, UA_Session *session,
+                  const char *serviceName, UA_Boolean status,
+                  UA_StatusCode statusCodeId, const UA_KeyValueMap payload);
+
+/* In addition to auditSessionEvent, the entries 9--12 of the payload-map must
+ * be /SecureChannelId, /ClientCertificate, /ClientCertificateThumbprint and
+ * /RevisedSessionTimeout */
+void
+auditCreateSessionEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                        UA_SecureChannel *channel, UA_Session *session,
+                        const char *serviceName, UA_Boolean status,
+                        UA_StatusCode statusCodeId, UA_ByteString clientCertificate,
+                        UA_ByteString clientCertificateThumbprint,
+                        const UA_KeyValueMap payload);
+
+/* In addition to auditSessionEvent, the entries 9--11 of the payload-map must
+ * be /ClientSoftwareCertificates, /UserIdentityToken, /SecureChannelId */
+/* TODO: Add /CurrentRoleIds */
+void
+auditActivateSessionEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                          UA_SecureChannel *channel, UA_Session *session,
+                          const char *serviceName, UA_Boolean status,
+                          UA_StatusCode statusCodeId,
+                          const UA_ActivateSessionRequest *req,
+                          const UA_KeyValueMap payload);
+
+/* In addition to auditSessionEvent, the 9th entry of the payload must be
+ * /RequestHandle */
+void
+auditCancelEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                 UA_SecureChannel *channel, UA_Session *session,
+                 const char *serviceName, UA_Boolean status,
+                 UA_StatusCode statusCodeId, UA_UInt32 requestHandle,
+                 const UA_KeyValueMap payload);
 #endif
 
 void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);

@@ -566,6 +566,109 @@ auditChannelEvent(UA_Server *server, UA_ApplicationNotificationType type,
                        statusCodeId, payload);
 }
 
+void
+auditSessionEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                  UA_SecureChannel *channel, UA_Session *session,
+                  const char *serviceName, UA_Boolean status,
+                  UA_StatusCode statusCodeId, const UA_KeyValueMap payload) {
+    /* /SessionId */
+    if(session)
+        UA_Variant_setScalar(&payload.map[6].value, &session->sessionId,
+                             &UA_TYPES[UA_TYPES_NODEID]);
+    else
+        UA_Variant_init(&payload.map[6].value);
+
+    /* /SourceName */
+    UA_Byte sourceNameBuf[128];
+    UA_String sourceName = {128, sourceNameBuf};
+    UA_String_format(&sourceName, "Session/%s", serviceName);
+    UA_Variant_setScalar(&payload.map[7].value, &sourceName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+
+    auditSecurityEvent(server, type, channel, session, serviceName, status,
+                       statusCodeId, payload);
+}
+
+void
+auditCreateSessionEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                        UA_SecureChannel *channel, UA_Session *session,
+                        const char *serviceName, UA_Boolean status,
+                        UA_StatusCode statusCodeId, UA_ByteString clientCertificate,
+                        UA_ByteString clientCertificateThumbprint,
+                        const UA_KeyValueMap payload) {
+    /* /SecureChannelId */
+    UA_Byte secureChannelNameBuf[32];
+    UA_String secureChannelName = {32, secureChannelNameBuf};
+    UA_String_format(&secureChannelName, "%lu",
+                     (long unsigned)channel->securityToken.channelId);
+    UA_Variant_setScalar(&payload.map[8].value, &secureChannelName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+
+    /* /ClientCertificate and /ClientCertificateThumbprint */
+    UA_Variant_setScalar(&payload.map[9].value, &clientCertificate,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&payload.map[10].value, &clientCertificateThumbprint,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    /* /ReviseSessionTimeout */
+    if(session)
+        UA_Variant_setScalar(&payload.map[11].value, &session->timeout,
+                             &UA_TYPES[UA_TYPES_DOUBLE]);
+    else
+        UA_Variant_init(&payload.map[11].value);
+
+    auditSessionEvent(server, type, channel, session, serviceName, status,
+                       statusCodeId, payload);
+}
+
+void
+auditActivateSessionEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                          UA_SecureChannel *channel, UA_Session *session,
+                          const char *serviceName, UA_Boolean status,
+                          UA_StatusCode statusCodeId,
+                          const UA_ActivateSessionRequest *req,
+                          const UA_KeyValueMap payload) {
+    /* /ClientSoftwareCertificates */
+    UA_Variant_setArray(&payload.map[8].value,
+                        req->clientSoftwareCertificates,
+                        req->clientSoftwareCertificatesSize,
+                        &UA_TYPES[UA_TYPES_SIGNEDSOFTWARECERTIFICATE]);
+
+    /* /UserIdentityToken */
+    if(req->userIdentityToken.encoding == UA_EXTENSIONOBJECT_DECODED ||
+       req->userIdentityToken.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) {
+        const UA_ExtensionObject *uit = &req->userIdentityToken;
+        UA_Variant_setScalar(&payload.map[9].value, uit->content.decoded.data,
+                             uit->content.decoded.type);
+    } else {
+        UA_Variant_init(&payload.map[9].value);
+    }
+
+    /* /SecureChannelId */
+    UA_Byte secureChannelNameBuf[32];
+    UA_String secureChannelName = {32, secureChannelNameBuf};
+    UA_String_format(&secureChannelName, "%lu",
+                     (long unsigned)channel->securityToken.channelId);
+    UA_Variant_setScalar(&payload.map[10].value, &secureChannelName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+
+    auditSessionEvent(server, type, channel, session, serviceName, status,
+                      statusCodeId, payload);
+}
+
+void
+auditCancelEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                 UA_SecureChannel *channel, UA_Session *session,
+                 const char *serviceName, UA_Boolean status,
+                 UA_StatusCode statusCodeId, UA_UInt32 requestHandle,
+                 const UA_KeyValueMap payload) {
+    /* /RequestHandle */
+    UA_Variant_setScalar(&payload.map[8].value, &requestHandle,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    auditSessionEvent(server, type, channel, session, serviceName, status,
+                      statusCodeId, payload);
+}
+
 #endif /* UA_ENABLE_AUDITING */
 
 /*********************************/
