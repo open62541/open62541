@@ -216,7 +216,7 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         goto cleanup;
     }
 
-    if(X509_gmtime_adj(X509_get_notAfter(x509), (UA_Int64)60 * 60 * 24 * expiresInDays) ==
+    if(X509_time_adj_ex(X509_get_notAfter(x509), (int)expiresInDays, 0, NULL) ==
        NULL) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Setting 'not before' failed.");
