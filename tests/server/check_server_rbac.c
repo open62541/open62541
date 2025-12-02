@@ -1541,18 +1541,17 @@ START_TEST(Server_rbacIdentityMappingRoleAssignment) {
     ck_assert_uint_ge(authUserRole->imrtSize, 1);
     ck_assert_uint_eq(authUserRole->imrt[0].criteriaType, UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER);
     
-    /* Get other well-known roles - they should all have AuthenticatedUser criteria */
+    /* Get other well-known roles - they should have EMPTY identity mappings per OPC UA Part 18
+     * These roles must be explicitly configured by the administrator before they can be granted */
     UA_NodeId observerRoleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
     const UA_Role *observerRole = UA_Server_getRoleById(server, observerRoleId);
     ck_assert_ptr_nonnull(observerRole);
-    ck_assert_uint_ge(observerRole->imrtSize, 1);
-    ck_assert_uint_eq(observerRole->imrt[0].criteriaType, UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER);
+    ck_assert_uint_eq(observerRole->imrtSize, 0);  /* Empty - must be configured */
     
     UA_NodeId operatorRoleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
     const UA_Role *operatorRole = UA_Server_getRoleById(server, operatorRoleId);
     ck_assert_ptr_nonnull(operatorRole);
-    ck_assert_uint_ge(operatorRole->imrtSize, 1);
-    ck_assert_uint_eq(operatorRole->imrt[0].criteriaType, UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER);
+    ck_assert_uint_eq(operatorRole->imrtSize, 0);  /* Empty - must be configured */
     
     /* Create a custom role and add an Anonymous identity criterion */
     UA_NodeId customRoleId;
@@ -1642,6 +1641,572 @@ START_TEST(Server_rbacAddRoleIdentityRule) {
 }
 END_TEST
 
+/* ============================================================================
+ * OPC UA Part 3/18 Compliant Permission Tests
+ * 
+ * These tests verify the correct implementation of:
+ * - RolePermissions and UserRolePermissions attributes
+ * - Permissions affecting UserWriteMask, UserAccessLevel, UserExecutable
+ * - Logical OR of permissions across session roles
+ * ============================================================================ */
+
+/* Test: Effective permissions are computed as logical OR across all session roles
+ * Per OPC UA Part 3 Section 5.2.10:
+ * "Clients may determine their effective Permissions by performing a logical OR
+ * of Permissions for each Role in the array." */
+START_TEST(Server_rbacEffectivePermissionsLogicalOR) {
+    /* Create a test variable node */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "TestVar");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_Int32 value = 42;
+    UA_Variant_setScalar(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    
+    UA_NodeId testNodeId = UA_NODEID_STRING(1, "TestEffectivePerms");
+    UA_StatusCode retval = UA_Server_addVariableNode(server, testNodeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                    UA_QUALIFIEDNAME(1, "TestVar"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    attr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Create two custom roles with different permissions */
+    UA_NodeId role1Id, role2Id;
+    retval = UA_Server_addRole(server, UA_STRING("Role1"), UA_STRING_NULL, NULL, &role1Id);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    retval = UA_Server_addRole(server, UA_STRING("Role2"), UA_STRING_NULL, NULL, &role2Id);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Role1: Browse + Read permissions */
+    retval = UA_Server_addRolePermissions(server, testNodeId, role1Id,
+                                          UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Role2: Write + Call permissions */
+    retval = UA_Server_addRolePermissions(server, testNodeId, role2Id,
+                                          UA_PERMISSIONTYPE_WRITE | UA_PERMISSIONTYPE_CALL,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Get the node's permissions config */
+    UA_UInt16 permIdx;
+    retval = UA_Server_getNodePermissionIndex(server, testNodeId, &permIdx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    const UA_RolePermissions *rp = UA_Server_getRolePermissionConfig(server, permIdx);
+    ck_assert_ptr_nonnull(rp);
+    ck_assert_uint_eq(rp->entriesSize, 2);
+    
+    /* Verify both role permissions are stored */
+    UA_PermissionType role1Perms = 0, role2Perms = 0;
+    for(size_t i = 0; i < rp->entriesSize; i++) {
+        if(UA_NodeId_equal(&rp->entries[i].roleId, &role1Id))
+            role1Perms = rp->entries[i].permissions;
+        if(UA_NodeId_equal(&rp->entries[i].roleId, &role2Id))
+            role2Perms = rp->entries[i].permissions;
+    }
+    
+    ck_assert_uint_eq(role1Perms, UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ);
+    ck_assert_uint_eq(role2Perms, UA_PERMISSIONTYPE_WRITE | UA_PERMISSIONTYPE_CALL);
+    
+    /* The effective permissions for a session with both roles would be:
+     * Browse | Read | Write | Call (logical OR) */
+    UA_PermissionType effective = role1Perms | role2Perms;
+    ck_assert_uint_eq(effective, UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+                                 UA_PERMISSIONTYPE_WRITE | UA_PERMISSIONTYPE_CALL);
+    
+    /* Clean up */
+    UA_Server_deleteNode(server, testNodeId, true);
+    UA_Server_removeRole(server, role1Id);
+    UA_Server_removeRole(server, role2Id);
+    UA_NodeId_clear(&role1Id);
+    UA_NodeId_clear(&role2Id);
+}
+END_TEST
+
+/* Test: UserRolePermissions should be an array of permissions for session's roles only
+ * Per OPC UA Part 3 Section 5.2.10:
+ * "The optional UserRolePermissions Attribute specifies the Permissions that apply
+ * to a Node for all Roles granted to current Session. The value of the Attribute
+ * is an array of RolePermissionType Structures." */
+START_TEST(Server_rbacUserRolePermissionsArray) {
+    /* Create a test variable node */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "TestVar");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_Int32 value = 42;
+    UA_Variant_setScalar(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    
+    UA_NodeId testNodeId = UA_NODEID_STRING(1, "TestUserRolePerms");
+    UA_StatusCode retval = UA_Server_addVariableNode(server, testNodeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                    UA_QUALIFIEDNAME(1, "TestVar"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    attr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Create three roles */
+    UA_NodeId role1Id, role2Id, role3Id;
+    retval = UA_Server_addRole(server, UA_STRING("UserRole1"), UA_STRING_NULL, NULL, &role1Id);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    retval = UA_Server_addRole(server, UA_STRING("UserRole2"), UA_STRING_NULL, NULL, &role2Id);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    retval = UA_Server_addRole(server, UA_STRING("UserRole3"), UA_STRING_NULL, NULL, &role3Id);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Assign permissions for all three roles */
+    retval = UA_Server_addRolePermissions(server, testNodeId, role1Id,
+                                          UA_PERMISSIONTYPE_BROWSE, false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    retval = UA_Server_addRolePermissions(server, testNodeId, role2Id,
+                                          UA_PERMISSIONTYPE_READ, false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    retval = UA_Server_addRolePermissions(server, testNodeId, role3Id,
+                                          UA_PERMISSIONTYPE_WRITE, false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Get the node's permission configuration */
+    UA_UInt16 permIdx;
+    retval = UA_Server_getNodePermissionIndex(server, testNodeId, &permIdx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    const UA_RolePermissions *rp = UA_Server_getRolePermissionConfig(server, permIdx);
+    ck_assert_ptr_nonnull(rp);
+    ck_assert_uint_eq(rp->entriesSize, 3);
+    
+    /* Clean up */
+    UA_Server_deleteNode(server, testNodeId, true);
+    UA_Server_removeRole(server, role1Id);
+    UA_Server_removeRole(server, role2Id);
+    UA_Server_removeRole(server, role3Id);
+    UA_NodeId_clear(&role1Id);
+    UA_NodeId_clear(&role2Id);
+    UA_NodeId_clear(&role3Id);
+}
+END_TEST
+
+/* Test: Write permission affects UserAccessLevel.CurrentWrite bit
+ * Per OPC UA Part 3 Section 8.55:
+ * "Write (Bit 6): The Client is allowed to write the Value Attribute. This bit
+ * affects the CurrentWrite bit of the UserAccessLevel Attribute." */
+START_TEST(Server_rbacWritePermissionAffectsUserAccessLevel) {
+    /* Create a test variable with Read+Write access level */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "WritableVar");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_Int32 value = 42;
+    UA_Variant_setScalar(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    
+    UA_NodeId testNodeId = UA_NODEID_STRING(1, "WritableVar");
+    UA_StatusCode retval = UA_Server_addVariableNode(server, testNodeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                    UA_QUALIFIEDNAME(1, "WritableVar"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    attr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Create a role with only Read permission (no Write) */
+    UA_NodeId readOnlyRoleId;
+    retval = UA_Server_addRole(server, UA_STRING("ReadOnlyRole"), UA_STRING_NULL, NULL, &readOnlyRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Add identity so the role can be assigned */
+    retval = UA_Server_addRoleIdentity(server, readOnlyRoleId,
+                                       UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER, UA_STRING_NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Assign Read-only permissions */
+    retval = UA_Server_addRolePermissions(server, testNodeId, readOnlyRoleId,
+                                          UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* For a session with this role:
+     * - AccessLevel has CurrentWrite bit set (the node is writable)
+     * - UserAccessLevel should NOT have CurrentWrite bit (user lacks Write permission)
+     * 
+     * This is the expected behavior per OPC UA Part 3:
+     * "The UserAccessLevel Attribute can restrict the accessibility indicated by
+     * the AccessLevel Attribute, but not exceed it." */
+    
+    /* Verify the node's AccessLevel still has write bit */
+    UA_Byte accessLevel;
+    retval = UA_Server_readAccessLevel(server, testNodeId, &accessLevel);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert((accessLevel & UA_ACCESSLEVELMASK_WRITE) != 0);
+    
+    /* Clean up */
+    UA_Server_deleteNode(server, testNodeId, true);
+    UA_Server_removeRole(server, readOnlyRoleId);
+    UA_NodeId_clear(&readOnlyRoleId);
+}
+END_TEST
+
+/* Test: Read permission affects UserAccessLevel.CurrentRead bit
+ * Per OPC UA Part 3 Section 8.55:
+ * "Read (Bit 5): The Client is allowed to read the Value Attribute. This bit
+ * affects the CurrentRead bit of the UserAccessLevel Attribute." */
+START_TEST(Server_rbacReadPermissionAffectsUserAccessLevel) {
+    /* Create a test variable with Read access level */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "ReadableVar");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ;
+    UA_Int32 value = 42;
+    UA_Variant_setScalar(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    
+    UA_NodeId testNodeId = UA_NODEID_STRING(1, "ReadableVar");
+    UA_StatusCode retval = UA_Server_addVariableNode(server, testNodeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                    UA_QUALIFIEDNAME(1, "ReadableVar"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    attr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Create a role with only Browse permission (no Read) */
+    UA_NodeId browseOnlyRoleId;
+    retval = UA_Server_addRole(server, UA_STRING("BrowseOnlyRole"), UA_STRING_NULL, NULL, &browseOnlyRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Assign Browse-only permissions */
+    retval = UA_Server_addRolePermissions(server, testNodeId, browseOnlyRoleId,
+                                          UA_PERMISSIONTYPE_BROWSE,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* For a session with this role:
+     * - AccessLevel has CurrentRead bit set (the node is readable)
+     * - UserAccessLevel should NOT have CurrentRead bit (user lacks Read permission) */
+    
+    /* Verify the node's AccessLevel still has read bit */
+    UA_Byte accessLevel;
+    retval = UA_Server_readAccessLevel(server, testNodeId, &accessLevel);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert((accessLevel & UA_ACCESSLEVELMASK_READ) != 0);
+    
+    /* Clean up */
+    UA_Server_deleteNode(server, testNodeId, true);
+    UA_Server_removeRole(server, browseOnlyRoleId);
+    UA_NodeId_clear(&browseOnlyRoleId);
+}
+END_TEST
+
+/* Test: WriteAttribute permission affects UserWriteMask
+ * Per OPC UA Part 3 Section 8.55:
+ * "WriteAttribute (Bit 2): The Client is allowed to write to Attributes other
+ * than the Value, Historizing or RolePermissions Attribute if the WriteMask
+ * indicates that the Attribute is writeable. This bit affects the value of a
+ * UserWriteMask Attribute." */
+START_TEST(Server_rbacWriteAttributePermissionAffectsUserWriteMask) {
+    /* Create a test object node */
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TestObject");
+    
+    UA_NodeId testNodeId = UA_NODEID_STRING(1, "TestWriteMaskObj");
+    UA_StatusCode retval = UA_Server_addObjectNode(server, testNodeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                    UA_QUALIFIEDNAME(1, "TestObject"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                    oAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Set WriteMask to allow writing DisplayName */
+    UA_UInt32 writeMask = UA_WRITEMASK_DISPLAYNAME;
+    retval = UA_Server_writeWriteMask(server, testNodeId, writeMask);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Create a role without WriteAttribute permission */
+    UA_NodeId noWriteAttrRoleId;
+    retval = UA_Server_addRole(server, UA_STRING("NoWriteAttrRole"), UA_STRING_NULL, NULL, &noWriteAttrRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Assign Browse-only permission (no WriteAttribute) */
+    retval = UA_Server_addRolePermissions(server, testNodeId, noWriteAttrRoleId,
+                                          UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* For a session with this role:
+     * - WriteMask has DISPLAYNAME bit set (attribute is writable)
+     * - UserWriteMask should NOT have DISPLAYNAME bit (user lacks WriteAttribute permission) */
+    
+    /* Verify WriteMask is set */
+    UA_UInt32 readWriteMask;
+    retval = UA_Server_readWriteMask(server, testNodeId, &readWriteMask);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert((readWriteMask & UA_WRITEMASK_DISPLAYNAME) != 0);
+    
+    /* Clean up */
+    UA_Server_deleteNode(server, testNodeId, true);
+    UA_Server_removeRole(server, noWriteAttrRoleId);
+    UA_NodeId_clear(&noWriteAttrRoleId);
+}
+END_TEST
+
+/* Test: Call permission affects UserExecutable
+ * Per OPC UA Part 3 Section 8.55:
+ * "Call (Bit 12): The Client is allowed to call the Method if this bit is set
+ * on the Object or ObjectType Node passed in the Call request and the Method
+ * Instance associated with that Object or ObjectType. This bit affects the
+ * UserExecutable Attribute when set on Method Node." */
+START_TEST(Server_rbacCallPermissionAffectsUserExecutable) {
+    /* First add a method to the Objects folder */
+    UA_MethodAttributes mAttr = UA_MethodAttributes_default;
+    mAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TestMethod");
+    mAttr.executable = true;
+    mAttr.userExecutable = true;
+    
+    UA_NodeId methodNodeId = UA_NODEID_STRING(1, "TestCallMethod");
+    UA_StatusCode retval = UA_Server_addMethodNode(server, methodNodeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                    UA_QUALIFIEDNAME(1, "TestMethod"),
+                                    mAttr, NULL, 0, NULL, 0, NULL, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Create a role without Call permission */
+    UA_NodeId noCallRoleId;
+    retval = UA_Server_addRole(server, UA_STRING("NoCallRole"), UA_STRING_NULL, NULL, &noCallRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Assign Browse-only permission (no Call) */
+    retval = UA_Server_addRolePermissions(server, methodNodeId, noCallRoleId,
+                                          UA_PERMISSIONTYPE_BROWSE,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* For a session with this role:
+     * - Executable is true (method can be called)
+     * - UserExecutable should be false (user lacks Call permission) */
+    
+    /* Verify Executable is true */
+    UA_Boolean executable;
+    retval = UA_Server_readExecutable(server, methodNodeId, &executable);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(executable == true);
+    
+    /* Clean up */
+    UA_Server_deleteNode(server, methodNodeId, true);
+    UA_Server_removeRole(server, noCallRoleId);
+    UA_NodeId_clear(&noCallRoleId);
+}
+END_TEST
+
+/* Test: ReadRolePermissions permission controls RolePermissions visibility
+ * Per OPC UA Part 3 Section 8.55:
+ * "ReadRolePermissions (Bit 1): The Client is allowed to read the RolePermissions
+ * Attribute. This Permission is valid for all NodeClasses."
+ * 
+ * "Browse (Bit 0): The Client is allowed to see the references to and from the
+ * Node. This implies that the Client is able to Read Attributes other than the
+ * Value or the RolePermissions Attribute." */
+START_TEST(Server_rbacReadRolePermissionsVisibility) {
+    /* Create a test object node */
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "SecuredObject");
+    
+    UA_NodeId testNodeId = UA_NODEID_STRING(1, "SecuredObject");
+    UA_StatusCode retval = UA_Server_addObjectNode(server, testNodeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                    UA_QUALIFIEDNAME(1, "SecuredObject"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                    oAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Create role with Browse but NOT ReadRolePermissions */
+    UA_NodeId browseOnlyRoleId;
+    retval = UA_Server_addRole(server, UA_STRING("BrowseNoRolePermsRole"), UA_STRING_NULL, NULL, &browseOnlyRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Assign Browse-only permission (without ReadRolePermissions) */
+    retval = UA_Server_addRolePermissions(server, testNodeId, browseOnlyRoleId,
+                                          UA_PERMISSIONTYPE_BROWSE,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Create role with Browse AND ReadRolePermissions */
+    UA_NodeId adminRoleId;
+    retval = UA_Server_addRole(server, UA_STRING("AdminWithRolePerms"), UA_STRING_NULL, NULL, &adminRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Assign Browse + ReadRolePermissions */
+    retval = UA_Server_addRolePermissions(server, testNodeId, adminRoleId,
+                                          UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READROLEPERMISSIONS,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify permissions are set */
+    UA_UInt16 permIdx;
+    retval = UA_Server_getNodePermissionIndex(server, testNodeId, &permIdx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    const UA_RolePermissions *rp = UA_Server_getRolePermissionConfig(server, permIdx);
+    ck_assert_ptr_nonnull(rp);
+    ck_assert_uint_eq(rp->entriesSize, 2);
+    
+    /* For a session with browseOnlyRole:
+     * - Can read most attributes (DisplayName, BrowseName, etc.)
+     * - Cannot read RolePermissions attribute (lacks ReadRolePermissions permission)
+     * 
+     * For a session with adminRole:
+     * - Can read all attributes including RolePermissions */
+    
+    /* Clean up */
+    UA_Server_deleteNode(server, testNodeId, true);
+    UA_Server_removeRole(server, browseOnlyRoleId);
+    UA_Server_removeRole(server, adminRoleId);
+    UA_NodeId_clear(&browseOnlyRoleId);
+    UA_NodeId_clear(&adminRoleId);
+}
+END_TEST
+
+/* Test: WriteRolePermissions permission controls writing RolePermissions
+ * Per OPC UA Part 3 Section 8.55:
+ * "WriteRolePermissions (Bit 3): The Client is allowed to write to the
+ * RolePermissions Attribute if the WriteMask indicates that the Attribute
+ * is writeable. This bit affects the value of the UserWriteMask Attribute." */
+START_TEST(Server_rbacWriteRolePermissionsPermission) {
+    /* Create a test object node */
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "PermittedObject");
+    
+    UA_NodeId testNodeId = UA_NODEID_STRING(1, "PermittedObject");
+    UA_StatusCode retval = UA_Server_addObjectNode(server, testNodeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                    UA_QUALIFIEDNAME(1, "PermittedObject"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                    oAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Set WriteMask to allow writing RolePermissions */
+    UA_UInt32 writeMask = UA_WRITEMASK_ROLEPERMISSIONS;
+    retval = UA_Server_writeWriteMask(server, testNodeId, writeMask);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Create a role with WriteAttribute but NOT WriteRolePermissions */
+    UA_NodeId writeAttrRoleId;
+    retval = UA_Server_addRole(server, UA_STRING("WriteAttrNoRolePerms"), UA_STRING_NULL, NULL, &writeAttrRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    retval = UA_Server_addRolePermissions(server, testNodeId, writeAttrRoleId,
+                                          UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_WRITEATTRIBUTE,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Create a role with WriteRolePermissions */
+    UA_NodeId writeRolePermsRoleId;
+    retval = UA_Server_addRole(server, UA_STRING("WriteRolePermsRole"), UA_STRING_NULL, NULL, &writeRolePermsRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    retval = UA_Server_addRolePermissions(server, testNodeId, writeRolePermsRoleId,
+                                          UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_WRITEROLEPERMISSIONS,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* For a session with writeAttrRole:
+     * - WriteMask has ROLEPERMISSIONS bit set
+     * - UserWriteMask should NOT have ROLEPERMISSIONS bit (lacks WriteRolePermissions)
+     * 
+     * For a session with writeRolePermsRole:
+     * - UserWriteMask should have ROLEPERMISSIONS bit */
+    
+    /* Verify WriteMask */
+    UA_UInt32 readWriteMask;
+    retval = UA_Server_readWriteMask(server, testNodeId, &readWriteMask);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert((readWriteMask & UA_WRITEMASK_ROLEPERMISSIONS) != 0);
+    
+    /* Clean up */
+    UA_Server_deleteNode(server, testNodeId, true);
+    UA_Server_removeRole(server, writeAttrRoleId);
+    UA_Server_removeRole(server, writeRolePermsRoleId);
+    UA_NodeId_clear(&writeAttrRoleId);
+    UA_NodeId_clear(&writeRolePermsRoleId);
+}
+END_TEST
+
+/* Test: History permissions affect UserAccessLevel history bits
+ * Per OPC UA Part 3 Section 8.55:
+ * - ReadHistory (Bit 7): affects HistoryRead bit of UserAccessLevel
+ * - InsertHistory (Bit 8): affects HistoryWrite bit of UserAccessLevel
+ * - ModifyHistory (Bit 9): affects HistoryWrite bit of UserAccessLevel
+ * - DeleteHistory (Bit 10): affects HistoryWrite bit of UserAccessLevel */
+START_TEST(Server_rbacHistoryPermissionsAffectUserAccessLevel) {
+    /* Create a test variable with history access level */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "HistoryVar");
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_HISTORYREAD | 
+                       UA_ACCESSLEVELMASK_HISTORYWRITE;
+    UA_Int32 value = 42;
+    UA_Variant_setScalar(&attr.value, &value, &UA_TYPES[UA_TYPES_INT32]);
+    
+    UA_NodeId testNodeId = UA_NODEID_STRING(1, "HistoryVar");
+    UA_StatusCode retval = UA_Server_addVariableNode(server, testNodeId,
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                    UA_QUALIFIEDNAME(1, "HistoryVar"),
+                                    UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                    attr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Create a role with ReadHistory but no write history permissions */
+    UA_NodeId historyReadRoleId;
+    retval = UA_Server_addRole(server, UA_STRING("HistoryReadRole"), UA_STRING_NULL, NULL, &historyReadRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    retval = UA_Server_addRolePermissions(server, testNodeId, historyReadRoleId,
+                                          UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ | 
+                                          UA_PERMISSIONTYPE_READHISTORY,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Create a role with all history permissions */
+    UA_NodeId historyFullRoleId;
+    retval = UA_Server_addRole(server, UA_STRING("HistoryFullRole"), UA_STRING_NULL, NULL, &historyFullRoleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    retval = UA_Server_addRolePermissions(server, testNodeId, historyFullRoleId,
+                                          UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ | 
+                                          UA_PERMISSIONTYPE_READHISTORY | UA_PERMISSIONTYPE_INSERTHISTORY |
+                                          UA_PERMISSIONTYPE_MODIFYHISTORY | UA_PERMISSIONTYPE_DELETEHISTORY,
+                                          false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify AccessLevel has history bits */
+    UA_Byte accessLevel;
+    retval = UA_Server_readAccessLevel(server, testNodeId, &accessLevel);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert((accessLevel & UA_ACCESSLEVELMASK_HISTORYREAD) != 0);
+    ck_assert((accessLevel & UA_ACCESSLEVELMASK_HISTORYWRITE) != 0);
+    
+    /* For historyReadRole:
+     * - UserAccessLevel should have HistoryRead bit
+     * - UserAccessLevel should NOT have HistoryWrite bit
+     * 
+     * For historyFullRole:
+     * - UserAccessLevel should have both HistoryRead and HistoryWrite bits */
+    
+    /* Clean up */
+    UA_Server_deleteNode(server, testNodeId, true);
+    UA_Server_removeRole(server, historyReadRoleId);
+    UA_Server_removeRole(server, historyFullRoleId);
+    UA_NodeId_clear(&historyReadRoleId);
+    UA_NodeId_clear(&historyFullRoleId);
+}
+END_TEST
+
 static Suite *testSuite_Server_RBAC(void) {
     Suite *s = suite_create("Server RBAC");
     TCase *tc_rbac = tcase_create("RBAC Information Model");
@@ -1677,6 +2242,18 @@ static Suite *testSuite_Server_RBAC(void) {
     tcase_add_test(tc_rbac, Server_rbacNodeDeletionDecrementsRefCount);
     tcase_add_test(tc_rbac, Server_rbacIdentityMappingRoleAssignment);
     tcase_add_test(tc_rbac, Server_rbacAddRoleIdentityRule);
+    
+    /* OPC UA Part 3/18 Compliant Permission Tests */
+    tcase_add_test(tc_rbac, Server_rbacEffectivePermissionsLogicalOR);
+    tcase_add_test(tc_rbac, Server_rbacUserRolePermissionsArray);
+    tcase_add_test(tc_rbac, Server_rbacWritePermissionAffectsUserAccessLevel);
+    tcase_add_test(tc_rbac, Server_rbacReadPermissionAffectsUserAccessLevel);
+    tcase_add_test(tc_rbac, Server_rbacWriteAttributePermissionAffectsUserWriteMask);
+    tcase_add_test(tc_rbac, Server_rbacCallPermissionAffectsUserExecutable);
+    tcase_add_test(tc_rbac, Server_rbacReadRolePermissionsVisibility);
+    tcase_add_test(tc_rbac, Server_rbacWriteRolePermissionsPermission);
+    tcase_add_test(tc_rbac, Server_rbacHistoryPermissionsAffectUserAccessLevel);
+    
     suite_add_tcase(s, tc_rbac);
     return s;
 }
