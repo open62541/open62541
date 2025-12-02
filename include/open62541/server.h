@@ -2583,6 +2583,44 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
                                  UA_PermissionIndex *permissionIndex);
 
+/* Compute effective permissions for a session on a node.
+ * 
+ * Calculates the effective permissions by performing a logical OR of all
+ * permissions for the roles assigned to the session. This follows the
+ * OPC UA Part 3 specification: "Clients may determine their effective
+ * Permissions by performing a logical OR of Permissions for each Role
+ * in the array."
+ * 
+ * @param server The server instance
+ * @param sessionId The NodeId of the session (NULL for anonymous)
+ * @param nodeId The NodeId of the node to check permissions for
+ * @param effectivePermissions Output: the combined permissions (logical OR)
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getEffectivePermissions(UA_Server *server, const UA_NodeId *sessionId,
+                                  const UA_NodeId *nodeId,
+                                  UA_PermissionType *effectivePermissions);
+
+/* Get the UserRolePermissions for a session on a node.
+ * 
+ * Returns an array of RolePermissionType structures containing the permissions
+ * for each role assigned to the current session that has permissions on the node.
+ * Per OPC UA Part 3 Section 5.2.10: "The optional UserRolePermissions Attribute
+ * specifies the Permissions that apply to a Node for all Roles granted to
+ * current Session."
+ * 
+ * @param server The server instance
+ * @param sessionId The NodeId of the session
+ * @param nodeId The NodeId of the node
+ * @param entriesSize Output: number of entries in the returned array
+ * @param entries Output: array of RolePermissionType (caller must free)
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
+                                 const UA_NodeId *nodeId,
+                                 size_t *entriesSize,
+                                 UA_RolePermissionType **entries);
+
 #endif /* UA_ENABLE_RBAC */
 
 void UA_EXPORT

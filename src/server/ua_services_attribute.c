@@ -116,7 +116,23 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
 
 #ifdef UA_ENABLE_RBAC
 static UA_StatusCode
-readRolePermissions(UA_Server *server, const UA_Node *node, UA_DataValue *v) {
+readRolePermissions(UA_Server *server, UA_Session *session,
+                    const UA_Node *node, UA_DataValue *v) {
+    /* Per OPC UA Part 3, Section 8.55 (PermissionType):
+     * "ReadRolePermissions (Bit 1): The Client is allowed to read the 
+     * RolePermissions Attribute."
+     * Check if the user has ReadRolePermissions permission on this node */
+    UA_UInt32 effectivePerms = 0;
+    UA_StatusCode retval = UA_Server_getEffectivePermissions(
+        server, &session->sessionId, &node->head.nodeId, &effectivePerms);
+    
+    /* If permission check fails or user lacks ReadRolePermissions, deny access */
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    
+    if(!(effectivePerms & UA_PERMISSIONTYPE_READROLEPERMISSIONS))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
     /* Check if node has a valid permission index */
     if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID) {
         UA_Variant_setArray(&v->value, NULL, 0, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
@@ -136,7 +152,7 @@ readRolePermissions(UA_Server *server, const UA_Node *node, UA_DataValue *v) {
     if(!permissions)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < rp->entriesSize; i++) {
         retval = UA_NodeId_copy(&rp->entries[i].roleId, &permissions[i].roleId);
         if(retval != UA_STATUSCODE_GOOD) {
@@ -147,6 +163,35 @@ readRolePermissions(UA_Server *server, const UA_Node *node, UA_DataValue *v) {
     }
 
     UA_Variant_setArray(&v->value, permissions, rp->entriesSize,
+                       &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readUserRolePermissions(UA_Server *server, UA_Session *session,
+                        const UA_Node *node, UA_DataValue *v) {
+    /* Per OPC UA Part 3, Section 5.2.10:
+     * "The UserRolePermissions Attribute specifies the Permissions that apply
+     * to the Session User. The value of the Attribute is an array of
+     * RolePermissionType Structures which include the assigned Role and the
+     * Permissions granted to that Role for the current Node."
+     * 
+     * We return only the roles that the current session has been granted. */
+    size_t entriesSize = 0;
+    UA_RolePermissionType *entries = NULL;
+    
+    UA_StatusCode retval = UA_Server_getUserRolePermissions(
+        server, &session->sessionId, &node->head.nodeId,
+        &entriesSize, &entries);
+    
+    if(retval != UA_STATUSCODE_GOOD) {
+        /* On error, return empty array (fail open for compatibility) */
+        UA_Variant_setArray(&v->value, NULL, 0, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        return UA_STATUSCODE_GOOD;
+    }
+    
+    /* Set the result - UA_Variant_setArray takes ownership of entries */
+    UA_Variant_setArray(&v->value, entries, entriesSize,
                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
     return UA_STATUSCODE_GOOD;
 }
@@ -532,17 +577,20 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
     }
     case UA_ATTRIBUTEID_ROLEPERMISSIONS:
 #ifdef UA_ENABLE_RBAC
-        retval = readRolePermissions(server, node, v);
+        retval = readRolePermissions(server, session, node, v);
 #else
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
 #endif
         break;
     case UA_ATTRIBUTEID_USERROLEPERMISSIONS:
-        /* Minimal implementation: Return empty array as placeholder.
-         * TODO: Implement actual user role permission computation based on session roles */
+#ifdef UA_ENABLE_RBAC
+        retval = readUserRolePermissions(server, session, node, v);
+#else
+        /* Without RBAC, return empty array */
         UA_Variant_setArray(&v->value, NULL, 0,
                            &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
         retval = UA_STATUSCODE_GOOD;
+#endif
         break;
     case UA_ATTRIBUTEID_ACCESSRESTRICTIONS:
         /* TODO: Add support for AccessRestrictions from the 1.04 spec */
