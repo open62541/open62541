@@ -407,97 +407,62 @@ initializeStandardRoles(UA_Server *server) {
     UA_Role_clear(&authenticatedUserRole);
     if(res != UA_STATUSCODE_GOOD) return res;
     
-    /* Observer Role */
+    /* Observer Role - no default identity mapping per OPC UA Part 18
+     * Administrator must explicitly configure who gets this role */
     UA_Role observerRole;
     UA_Role_init(&observerRole);
     observerRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
-    observerRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!observerRole.imrt) 
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    observerRole.imrtSize = 1;
-    UA_IdentityMappingRuleType_init(&observerRole.imrt[0]);
-    observerRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
-    observerRole.imrt[0].criteria = UA_STRING_NULL;
+    /* Empty identity mapping - role cannot be granted until configured */
     
     res = UA_Server_addRole(server, UA_STRING("Observer"), UA_STRING_NULL, &observerRole, &roleId);
     UA_Role_clear(&observerRole);
     if(res != UA_STATUSCODE_GOOD) return res;
     
-    /* Operator Role */
+    /* Operator Role - no default identity mapping per OPC UA Part 18 */
     UA_Role operatorRole;
     UA_Role_init(&operatorRole);
     operatorRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
-    operatorRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!operatorRole.imrt) 
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    operatorRole.imrtSize = 1;
-    UA_IdentityMappingRuleType_init(&operatorRole.imrt[0]);
-    operatorRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
-    operatorRole.imrt[0].criteria = UA_STRING_NULL;
+    /* Empty identity mapping - role cannot be granted until configured */
     
     res = UA_Server_addRole(server, UA_STRING("Operator"), UA_STRING_NULL, &operatorRole, &roleId);
     UA_Role_clear(&operatorRole);
     if(res != UA_STATUSCODE_GOOD) return res;
     
-    /* Engineer Role */
+    /* Engineer Role - no default identity mapping per OPC UA Part 18 */
     UA_Role engineerRole;
     UA_Role_init(&engineerRole);
     engineerRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER);
-    engineerRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!engineerRole.imrt) 
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    engineerRole.imrtSize = 1;
-    UA_IdentityMappingRuleType_init(&engineerRole.imrt[0]);
-    engineerRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
-    engineerRole.imrt[0].criteria = UA_STRING_NULL;
+    /* Empty identity mapping - role cannot be granted until configured */
     
     res = UA_Server_addRole(server, UA_STRING("Engineer"), UA_STRING_NULL, &engineerRole, &roleId);
     UA_Role_clear(&engineerRole);
     if(res != UA_STATUSCODE_GOOD) return res;
     
-    /* Supervisor Role */
+    /* Supervisor Role - no default identity mapping per OPC UA Part 18 */
     UA_Role supervisorRole;
     UA_Role_init(&supervisorRole);
     supervisorRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR);
-    supervisorRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!supervisorRole.imrt) 
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    supervisorRole.imrtSize = 1;
-    UA_IdentityMappingRuleType_init(&supervisorRole.imrt[0]);
-    supervisorRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
-    supervisorRole.imrt[0].criteria = UA_STRING_NULL;
+    /* Empty identity mapping - role cannot be granted until configured */
     
     res = UA_Server_addRole(server, UA_STRING("Supervisor"), UA_STRING_NULL, &supervisorRole, &roleId);
     UA_Role_clear(&supervisorRole);
     if(res != UA_STATUSCODE_GOOD) return res;
     
-    /* ConfigureAdmin Role */
+    /* ConfigureAdmin Role - no default identity mapping per OPC UA Part 18 */
     UA_Role configureAdminRole;
     UA_Role_init(&configureAdminRole);
     configureAdminRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN);
-    configureAdminRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!configureAdminRole.imrt) 
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    configureAdminRole.imrtSize = 1;
-    UA_IdentityMappingRuleType_init(&configureAdminRole.imrt[0]);
-    configureAdminRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
-    configureAdminRole.imrt[0].criteria = UA_STRING_NULL;
+    /* Empty identity mapping - role cannot be granted until configured */
     
     res = UA_Server_addRole(server, UA_STRING("ConfigureAdmin"), UA_STRING_NULL, &configureAdminRole, &roleId);
     UA_Role_clear(&configureAdminRole);
     if(res != UA_STATUSCODE_GOOD) return res;
     
-    /* SecurityAdmin Role */
+    /* SecurityAdmin Role - no default identity mapping per OPC UA Part 18 */
     UA_Role securityAdminRole;
     UA_Role_init(&securityAdminRole);
     securityAdminRole.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
-    securityAdminRole.imrt = (UA_IdentityMappingRuleType*)UA_malloc(sizeof(UA_IdentityMappingRuleType));
-    if(!securityAdminRole.imrt) 
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    securityAdminRole.imrtSize = 1;
-    UA_IdentityMappingRuleType_init(&securityAdminRole.imrt[0]);
-    securityAdminRole.imrt[0].criteriaType = UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER;
-    securityAdminRole.imrt[0].criteria = UA_STRING_NULL;
+    /* Empty identity mapping - role cannot be granted until configured */
     
     res = UA_Server_addRole(server, UA_STRING("SecurityAdmin"), UA_STRING_NULL, &securityAdminRole, &roleId);
     UA_Role_clear(&securityAdminRole);
@@ -2261,6 +2226,190 @@ UA_Server_getNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
     }
     
     *permissionIndex = node->head.permissionIndex;
+    
+    UA_NODESTORE_RELEASE(server, node);
+
+cleanup:
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return res;
+}
+
+/* Helper function to compute effective permissions for a set of roles on a node.
+ * Must be called with server mutex held. */
+static UA_PermissionType
+computeEffectivePermissions(UA_Server *server, const UA_Node *node,
+                            size_t rolesSize, const UA_NodeId *roles) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    
+    /* If node has no permission configuration, return full permissions
+     * (default permissive behavior) */
+    if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID)
+        return 0xFFFFFFFF;
+    
+    if(node->head.permissionIndex >= server->config.rolePermissionsSize)
+        return 0xFFFFFFFF;
+    
+    const UA_RolePermissions *rp = &server->config.rolePermissions[node->head.permissionIndex];
+    if(!rp->entries || rp->entriesSize == 0)
+        return 0xFFFFFFFF;
+    
+    /* Compute logical OR of permissions for all session roles */
+    UA_PermissionType effectivePerms = 0;
+    
+    for(size_t i = 0; i < rolesSize; i++) {
+        for(size_t j = 0; j < rp->entriesSize; j++) {
+            if(UA_NodeId_equal(&roles[i], &rp->entries[j].roleId)) {
+                effectivePerms |= rp->entries[j].permissions;
+                break;
+            }
+        }
+    }
+    
+    return effectivePerms;
+}
+
+UA_StatusCode
+UA_Server_getEffectivePermissions(UA_Server *server, const UA_NodeId *sessionId,
+                                  const UA_NodeId *nodeId,
+                                  UA_PermissionType *effectivePermissions) {
+    if(!server || !nodeId || !effectivePermissions)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    
+    /* Get the node */
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+    if(!node) {
+        res = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        goto cleanup;
+    }
+    
+    /* Get session roles */
+    size_t rolesSize = 0;
+    UA_NodeId *roles = NULL;
+    
+    if(sessionId) {
+        UA_Session *session = getSessionById(server, sessionId);
+        if(session && session->rolesSize > 0) {
+            rolesSize = session->rolesSize;
+            roles = session->roles;
+        }
+    }
+    
+    /* Compute effective permissions */
+    *effectivePermissions = computeEffectivePermissions(server, node, rolesSize, roles);
+    
+    UA_NODESTORE_RELEASE(server, node);
+
+cleanup:
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
+                                 const UA_NodeId *nodeId,
+                                 size_t *entriesSize,
+                                 UA_RolePermissionType **entries) {
+    if(!server || !nodeId || !entriesSize || !entries)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    *entriesSize = 0;
+    *entries = NULL;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    
+    /* Get the node */
+    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+    if(!node) {
+        res = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        goto cleanup;
+    }
+    
+    /* If node has no permission configuration, return empty array */
+    if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID ||
+       node->head.permissionIndex >= server->config.rolePermissionsSize) {
+        UA_NODESTORE_RELEASE(server, node);
+        goto cleanup;
+    }
+    
+    const UA_RolePermissions *rp = &server->config.rolePermissions[node->head.permissionIndex];
+    if(!rp->entries || rp->entriesSize == 0) {
+        UA_NODESTORE_RELEASE(server, node);
+        goto cleanup;
+    }
+    
+    /* Get session roles */
+    size_t rolesSize = 0;
+    UA_NodeId *roles = NULL;
+    
+    if(sessionId) {
+        UA_Session *session = getSessionById(server, sessionId);
+        if(session && session->rolesSize > 0) {
+            rolesSize = session->rolesSize;
+            roles = session->roles;
+        }
+    }
+    
+    /* Count how many roles the session has that also have permissions on this node */
+    size_t matchCount = 0;
+    for(size_t i = 0; i < rolesSize; i++) {
+        for(size_t j = 0; j < rp->entriesSize; j++) {
+            if(UA_NodeId_equal(&roles[i], &rp->entries[j].roleId)) {
+                matchCount++;
+                break;
+            }
+        }
+    }
+    
+    if(matchCount == 0) {
+        UA_NODESTORE_RELEASE(server, node);
+        goto cleanup;
+    }
+    
+    /* Allocate result array */
+    UA_RolePermissionType *result = (UA_RolePermissionType*)
+        UA_Array_new(matchCount, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    if(!result) {
+        UA_NODESTORE_RELEASE(server, node);
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
+    
+    /* Fill result array with permissions for session's roles */
+    size_t resultIdx = 0;
+    for(size_t i = 0; i < rolesSize && resultIdx < matchCount; i++) {
+        for(size_t j = 0; j < rp->entriesSize; j++) {
+            if(UA_NodeId_equal(&roles[i], &rp->entries[j].roleId)) {
+                res = UA_NodeId_copy(&roles[i], &result[resultIdx].roleId);
+                if(res != UA_STATUSCODE_GOOD) {
+                    UA_Array_delete(result, resultIdx, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+                    UA_NODESTORE_RELEASE(server, node);
+                    goto cleanup;
+                }
+                result[resultIdx].permissions = rp->entries[j].permissions;
+                resultIdx++;
+                break;
+            }
+        }
+    }
+    
+    *entriesSize = matchCount;
+    *entries = result;
     
     UA_NODESTORE_RELEASE(server, node);
 
