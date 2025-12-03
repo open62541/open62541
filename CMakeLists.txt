@@ -140,6 +140,11 @@ endif()
 set(UA_MULTITHREADING ${MULTITHREADING_DEFAULT} CACHE STRING
     "Multithreading support (<100: No multithreading support, >=100: Thread-safety enabled (internal mutexes)")
 
+set(UA_ENABLE_DIRECTORY_SYSTEM OFF)
+if(WIN32 OR UNIX)
+    set(UA_ENABLE_DIRECTORY_SYSTEM ON)
+endif()
+
 option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
 
