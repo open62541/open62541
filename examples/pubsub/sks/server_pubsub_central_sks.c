@@ -165,7 +165,7 @@ setSecurityGroupRolePermission(UA_Server *server, UA_NodeId securityGroupNodeId,
 
 static void
 usage(char *progname) {
-    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                    "Usage:\n"
 #ifndef UA_ENABLE_ENCRYPTION
                    "%s [<server-certificate.der>]\n"
@@ -203,7 +203,7 @@ main(int argc, char **argv) {
     if((size_t)argc >= pos + 1) {
         certificate = loadFile(argv[1]);
         if(certificate.length == 0) {
-            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                          "Unable to load file %s.", argv[pos]);
             return EXIT_FAILURE;
         }
@@ -216,7 +216,7 @@ main(int argc, char **argv) {
     if((size_t)argc >= pos + 1) {
         privateKey = loadFile(argv[2]);
         if(privateKey.length == 0) {
-            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                          "Unable to load file %s.", argv[pos]);
             return EXIT_FAILURE;
         }
@@ -296,13 +296,13 @@ main(int argc, char **argv) {
 
         if(filetype == 't') {
             if(trustListSize >= 100) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                              "Too many trust lists");
                 return EXIT_FAILURE;
             }
             trustList[trustListSize] = loadFile(argv[pos]);
             if(trustList[trustListSize].data == NULL) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                              "Unable to load trust list %s", argv[pos]);
                 return EXIT_FAILURE;
             }
@@ -312,13 +312,13 @@ main(int argc, char **argv) {
 
         if(filetype == 'l') {
             if(issuerListSize >= 100) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                              "Too many trust lists");
                 return EXIT_FAILURE;
             }
             issuerList[issuerListSize] = loadFile(argv[pos]);
             if(issuerList[issuerListSize].data == NULL) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                              "Unable to load trust list %s", argv[pos]);
                 return EXIT_FAILURE;
             }
@@ -328,13 +328,13 @@ main(int argc, char **argv) {
 
         if(filetype == 'r') {
             if(revocationListSize >= 100) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                              "Too many revocation lists");
                 return EXIT_FAILURE;
             }
             revocationList[revocationListSize] = loadFile(argv[pos]);
             if(revocationList[revocationListSize].data == NULL) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                              "Unable to load revocationlist %s", argv[pos]);
                 return EXIT_FAILURE;
             }

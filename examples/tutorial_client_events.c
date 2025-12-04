@@ -27,7 +27,7 @@
 
 static UA_Boolean running = true;
 static void stopHandler(int sig) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "received ctrl-c");
     running = false;
 }
 
@@ -37,7 +37,7 @@ static void
 handler_events(UA_Client *client, UA_UInt32 subId, void *subContext,
                UA_UInt32 monId, void *monContext,
                const UA_KeyValueMap eventFields) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Notification");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Notification");
 
     /* The context should point to the monId on the stack */
     UA_assert(*(UA_UInt32*)monContext == monId);
@@ -45,7 +45,7 @@ handler_events(UA_Client *client, UA_UInt32 subId, void *subContext,
     for(size_t i = 0; i < eventFields.mapSize; ++i) {
         UA_String out = UA_STRING_NULL;
         UA_print(&eventFields.map[i].value, &UA_TYPES[UA_TYPES_VARIANT], &out);
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "%S: '%S", eventFields.map[i].key.name, out);
         UA_String_clear(&out);
     }
@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
     /* opc.tcp://opcua.demo-this.com:51210/UA/SampleServer */
     UA_StatusCode retval = UA_Client_connect(client, argv[1]);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Could not connect");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Could not connect");
         UA_Client_delete(client);
         return 0;
     }
@@ -123,7 +123,7 @@ int main(int argc, char *argv[]) {
         return 0;
     }
     UA_UInt32 subId = response.subscriptionId;
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Create subscription succeeded, id %u", subId);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Create subscription succeeded, id %u", subId);
 
     /* Add a MonitoredItem */
     UA_MonitoredItemCreateRequest item;
@@ -148,11 +148,11 @@ int main(int argc, char *argv[]) {
                                              &monId, handler_events, NULL);
 
     if(result.statusCode != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "Could not add the MonitoredItem with %s", UA_StatusCode_name(retval));
         goto cleanup;
     } else {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "Monitoring 'Root->Objects->Server', id %u", response.subscriptionId);
     }
 

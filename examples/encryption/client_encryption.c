@@ -27,13 +27,13 @@ int main(int argc, char* argv[]) {
         certificate = loadFile(argv[2]);
         privateKey = loadFile(argv[3]);
     } else {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "Missing arguments. Arguments are "
                     "<opc.tcp://host:port> "
                     "<client-certificate.der> <client-private-key.der> "
                     "[<trustlist1.crl>, ...] "
                     "[--serverCert <server-certificate.der>]");
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "Trying to create a certificate.");
         UA_String subject[3] = {UA_STRING_STATIC("C=DE"),
                             UA_STRING_STATIC("O=SampleOrganization"),
@@ -54,7 +54,7 @@ int main(int argc, char* argv[]) {
         UA_KeyValueMap_delete(kvm);
 
         if(statusCertGen != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "Generating Certificate failed: %s",
                 UA_StatusCode_name(statusCertGen));
             return EXIT_SUCCESS;
@@ -90,7 +90,7 @@ int main(int argc, char* argv[]) {
                                                                 trustList, trustListSize,
                                                                 revocationList, revocationListSize);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "Failed to set encryption." );
         UA_Client_delete(client);
         return EXIT_FAILURE;
@@ -123,7 +123,7 @@ int main(int argc, char* argv[]) {
 
         UA_ClientConfig_setAuthenticationCert(cc, certificate, privateKey);
 #else
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "The provided server certificate is ignored, and therefore no specific endpoint is configured."
                     "Authentication using a certificate is only possible with mbedTLS or OpenSSL" );
 #endif
@@ -152,7 +152,7 @@ int main(int argc, char* argv[]) {
        UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTime raw_date  = *(UA_DateTime *) value.data;
         UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "date is: %u-%u-%u %u:%u:%u.%03u\n",
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "date is: %u-%u-%u %u:%u:%u.%03u\n",
                     dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
     }
 
