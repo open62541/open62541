@@ -18,8 +18,6 @@
 #include "securitypolicy_common.h"
 
 #include <mbedtls/aes.h>
-#include <mbedtls/ctr_drbg.h>
-#include <mbedtls/entropy.h>
 #include <mbedtls/error.h>
 #include <mbedtls/md.h>
 #include <mbedtls/sha1.h>
@@ -42,9 +40,6 @@
 
 typedef struct {
     UA_ByteString localCertThumbprint;
-
-    mbedtls_ctr_drbg_context drbgContext;
-    mbedtls_entropy_context entropyContext;
     mbedtls_md_context_t sha1MdContext;
     mbedtls_pk_context localPrivateKey;
     mbedtls_pk_context csrLocalPrivateKey;
@@ -74,7 +69,6 @@ asym_verify_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
                              const UA_ByteString *signature) {
     if(message == NULL || signature == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
     return mbedtls_verifySig_sha1(&cc->remoteCertificate, message, signature);
 }
 
@@ -84,10 +78,8 @@ asym_sign_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
                            UA_ByteString *signature) {
     if(message == NULL || signature == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
     Basic128Rsa15_PolicyContext *pc = cc->policyContext;
-    return mbedtls_sign_sha1(&pc->localPrivateKey, &pc->drbgContext,
-                             message, signature);
+    return mbedtls_sign_sha1(&pc->localPrivateKey, message, signature);
 }
 
 static size_t
@@ -141,14 +133,12 @@ asym_encrypt_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
     size_t inOffset = 0;
     size_t offset = 0;
     size_t outLength = 0;
-    Basic128Rsa15_PolicyContext *pc = cc->policyContext;
     while(lenDataToEncrypt >= plainTextBlockSize) {
         int mbedErr = mbedtls_pk_encrypt(&cc->remoteCertificate.pk,
                                          data->data + inOffset, plainTextBlockSize,
                                          encrypted.data + offset, &outLength,
                                          encrypted.length - offset,
-                                         mbedtls_ctr_drbg_random,
-                                         &pc->drbgContext);
+                                         mbedlts_rng_wrapper, NULL);
         if(mbedErr) {
             UA_ByteString_clear(&encrypted);
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -191,8 +181,7 @@ asym_decrypt_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
         int mbedErr = mbedtls_pk_decrypt(&pc->localPrivateKey,
                                          data->data + inOffset, keylen,
                                          buf, &outLength, 512,
-                                         mbedtls_ctr_drbg_random,
-                                         &pc->drbgContext);
+                                         mbedlts_rng_wrapper, NULL);
         if(mbedErr)
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
@@ -413,11 +402,8 @@ static UA_StatusCode
 sym_generateNonce_sp_basic128rsa15(void *policyContext, UA_ByteString *out) {
     if(out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext *)policyContext;
-    int mbedErr = mbedtls_ctr_drbg_random(&pc->drbgContext, out->data, out->length);
-    if(mbedErr)
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    return UA_STATUSCODE_GOOD;
+    int mbedErr = mbedlts_rng_wrapper(NULL, out->data, out->length);
+    return (mbedErr == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
 }
 
 /*****************/
@@ -596,8 +582,6 @@ clear_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy) {
     Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext *)
         securityPolicy->policyContext;
 
-    mbedtls_ctr_drbg_free(&pc->drbgContext);
-    mbedtls_entropy_free(&pc->entropyContext);
     mbedtls_pk_free(&pc->localPrivateKey);
     mbedtls_pk_free(&pc->csrLocalPrivateKey);
     mbedtls_md_free(&pc->sha1MdContext);
@@ -639,7 +623,7 @@ updateCertificateAndPrivateKey_sp_basic128rsa15(UA_SecurityPolicy *securityPolic
     if(newPrivateKey.length > 0) {
         mbedtls_pk_free(&pc->localPrivateKey);
         mbedtls_pk_init(&pc->localPrivateKey);
-        if(UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey, &pc->entropyContext)) {
+        if(UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey)) {
             retval = UA_STATUSCODE_BADNOTSUPPORTED;
             goto error;
         }
@@ -675,18 +659,15 @@ createSigningRequest_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
                                        UA_ByteString *csr,
                                        UA_ByteString *newPrivateKey) {
     /* Check parameter */
-    if (securityPolicy == NULL || csr == NULL) {
+    if(securityPolicy == NULL || csr == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
     if(securityPolicy->policyContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    Basic128Rsa15_PolicyContext *pc =
-            (Basic128Rsa15_PolicyContext *) securityPolicy->policyContext;
+    Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext *)
+        securityPolicy->policyContext;
 
     return mbedtls_createSigningRequest(&pc->localPrivateKey, &pc->csrLocalPrivateKey,
-                                        &pc->entropyContext, &pc->drbgContext,
                                         securityPolicy, subjectName, nonce,
                                         csr, newPrivateKey);
 }
@@ -714,8 +695,6 @@ policyContext_newContext_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
 
     /* Initialize the PolicyContext */
     memset(pc, 0, sizeof(Basic128Rsa15_PolicyContext));
-    mbedtls_ctr_drbg_init(&pc->drbgContext);
-    mbedtls_entropy_init(&pc->entropyContext);
     mbedtls_pk_init(&pc->localPrivateKey);
     mbedtls_md_init(&pc->sha1MdContext);
 
@@ -727,26 +706,8 @@ policyContext_newContext_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
         goto error;
     }
 
-    mbedErr = mbedtls_entropy_self_test(0);
-
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto error;
-    }
-
-    /* Seed the RNG */
-    char *personalization = "open62541-drbg";
-    mbedErr = mbedtls_ctr_drbg_seed(&pc->drbgContext, mbedtls_entropy_func,
-                                    &pc->entropyContext,
-                                    (const unsigned char *)personalization, 14);
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto error;
-    }
-
     /* Set the private key */
-    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey, &pc->entropyContext);
-
+    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -775,6 +736,12 @@ error:
 UA_StatusCode
 UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
                                 const UA_ByteString localPrivateKey, const UA_Logger *logger) {
+#if MBEDTLS_VERSION_NUMBER >= 0x03000000
+    int mbedErr = psa_crypto_init();
+    if(mbedErr != 0)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+#endif
+
     memset(policy, 0, sizeof(UA_SecurityPolicy));
     policy->logger = logger;
 

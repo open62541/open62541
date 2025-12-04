@@ -15,7 +15,6 @@
 #include "securitypolicy_common.h"
 
 #include <mbedtls/aes.h>
-#include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/error.h>
 #include <mbedtls/md.h>
@@ -25,8 +24,39 @@
 #include <mbedtls/asn1write.h>
 #include <mbedtls/oid.h>
 #include <mbedtls/platform.h>
+#include <mbedtls/version.h>
 
 #define CSR_BUFFER_SIZE 4096
+
+#if MBEDTLS_VERSION_NUMBER >= 0x03000000
+
+int mbedlts_rng_wrapper(void *ctx, unsigned char *output, size_t len) {
+    (void) ctx;
+    psa_status_t status = psa_generate_random(output, len);
+    if (status != PSA_SUCCESS)
+        return MBEDTLS_ERR_ENTROPY_SOURCE_FAILED;
+    return 0;
+}
+
+#else
+
+#include <mbedtls/ctr_drbg.h>
+int mbedlts_rng_wrapper(void *ctx, unsigned char *output, size_t len) {
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    mbedtls_entropy_init(&entropy);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+    int ret = mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func,
+                                    &entropy, NULL, 0);
+    if(ret != 0)
+        return ret;
+    ret = mbedtls_ctr_drbg_random(&ctr_drbg, output, len);
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
+    return ret;
+}
+
+#endif
 
 void
 swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB) {
@@ -161,7 +191,6 @@ mbedtls_verifySig_sha1(mbedtls_x509_crt *certificate, const UA_ByteString *messa
 
 UA_StatusCode
 mbedtls_sign_sha1(mbedtls_pk_context *localPrivateKey,
-                  mbedtls_ctr_drbg_context *drbgContext,
                   const UA_ByteString *message,
                   UA_ByteString *signature) {
     unsigned char hash[UA_SHA1_LENGTH];
@@ -180,8 +209,7 @@ mbedtls_sign_sha1(mbedtls_pk_context *localPrivateKey,
 #if MBEDTLS_VERSION_NUMBER >= 0x03000000
                                   signature->length,
 #endif
-                                  &sigLen,
-                                  mbedtls_ctr_drbg_random, drbgContext);
+                                  &sigLen, mbedlts_rng_wrapper, NULL);
     if(mbedErr)
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
@@ -207,7 +235,6 @@ mbedtls_thumbprint_sha1(const UA_ByteString *certificate,
 
 UA_StatusCode
 mbedtls_encrypt_rsaOaep(mbedtls_rsa_context *context,
-                        mbedtls_ctr_drbg_context *drbgContext,
                         UA_ByteString *data, const size_t plainTextBlockSize) {
     if(data->length % plainTextBlockSize != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -230,13 +257,13 @@ mbedtls_encrypt_rsaOaep(mbedtls_rsa_context *context,
     const unsigned char *label = NULL;
     while(lenDataToEncrypt >= plainTextBlockSize) {
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-        int mbedErr = mbedtls_rsa_rsaes_oaep_encrypt(context, mbedtls_ctr_drbg_random,
-                                                     drbgContext, MBEDTLS_RSA_PUBLIC,
+        int mbedErr = mbedtls_rsa_rsaes_oaep_encrypt(context, mbedlts_rng_wrapper,
+                                                     NULL, MBEDTLS_RSA_PUBLIC,
                                                      label, 0, plainTextBlockSize,
                                                      data->data + inOffset, encrypted.data + offset);
 #else
-        int mbedErr = mbedtls_rsa_rsaes_oaep_encrypt(context, mbedtls_ctr_drbg_random,
-                                                     drbgContext, label, 0, plainTextBlockSize,
+        int mbedErr = mbedtls_rsa_rsaes_oaep_encrypt(context, mbedlts_rng_wrapper,
+                                                     NULL, label, 0, plainTextBlockSize,
                                                      data->data + inOffset, encrypted.data + offset);
 #endif
 
@@ -257,7 +284,6 @@ mbedtls_encrypt_rsaOaep(mbedtls_rsa_context *context,
 
 UA_StatusCode
 mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
-                        mbedtls_ctr_drbg_context *drbgContext,
                         UA_ByteString *data, int hash_id) {
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(*localPrivateKey);
     if(!rsaContext)
@@ -279,15 +305,14 @@ mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
 
     while(inOffset < data->length) {
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-        int mbedErr = mbedtls_rsa_rsaes_oaep_decrypt(rsaContext, mbedtls_ctr_drbg_random,
-                                                     drbgContext, MBEDTLS_RSA_PRIVATE,
+        int mbedErr = mbedtls_rsa_rsaes_oaep_decrypt(rsaContext, mbedlts_rng_wrapper,
+                                                     NULL, MBEDTLS_RSA_PRIVATE,
                                                      NULL, 0, &outLength,
                                                      data->data + inOffset,
                                                      buf, 512);
 #else
-        int mbedErr = mbedtls_rsa_rsaes_oaep_decrypt(rsaContext, mbedtls_ctr_drbg_random,
-                                                     drbgContext,
-                                                     NULL, 0, &outLength,
+        int mbedErr = mbedtls_rsa_rsaes_oaep_decrypt(rsaContext, mbedlts_rng_wrapper,
+                                                     NULL, NULL, 0, &outLength,
                                                      data->data + inOffset,
                                                      buf, 512);
 #endif
@@ -398,8 +423,6 @@ mbedtls_writePrivateKeyDer(mbedtls_pk_context *key, UA_ByteString *outPrivateKey
 UA_StatusCode
 mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
                              mbedtls_pk_context *csrLocalPrivateKey,
-                             mbedtls_entropy_context *entropyContext,
-                             mbedtls_ctr_drbg_context *drbgContext,
                              UA_SecurityPolicy *securityPolicy,
                              const UA_String *subjectName,
                              const UA_ByteString *nonce,
@@ -424,7 +447,7 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
         mbedtls_pk_setup(csrLocalPrivateKey, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
 
         /* Set the private key */
-        if(UA_mbedTLS_LoadPrivateKey(newPrivateKey, csrLocalPrivateKey, entropyContext))
+        if(UA_mbedTLS_LoadPrivateKey(newPrivateKey, csrLocalPrivateKey))
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
         return UA_STATUSCODE_GOOD;
@@ -455,17 +478,6 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
                                                      MBEDTLS_X509_KU_KEY_ENCIPHERMENT) != 0) {
         retval = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
-    }
-
-    /* Add entropy */
-    UA_Boolean hasEntropy = entropyContext && nonce && nonce->length > 0;
-    if(hasEntropy) {
-        if(mbedtls_entropy_update_manual(entropyContext,
-                                         (const unsigned char*)(nonce->data),
-                                         nonce->length) != 0) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
-            goto cleanup;
-        }
     }
 
     /* Get subject from argument or read it from certificate */
@@ -517,8 +529,8 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
 
         size_t keySize = 0;
         UA_CertificateUtils_getKeySize(&securityPolicy->localCertificate, &keySize);
-        mbedtls_rsa_gen_key(mbedtls_pk_rsa(*csrLocalPrivateKey), mbedtls_ctr_drbg_random,
-                            drbgContext, (unsigned int)keySize, 65537);
+        mbedtls_rsa_gen_key(mbedtls_pk_rsa(*csrLocalPrivateKey), mbedlts_rng_wrapper,
+                            NULL, (unsigned int)keySize, 65537);
         mbedtls_x509write_csr_set_key(&request, csrLocalPrivateKey);
         mbedtls_writePrivateKeyDer(csrLocalPrivateKey, newPrivateKey);
     } else {
@@ -540,7 +552,7 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
     unsigned char requestBuf[CSR_BUFFER_SIZE];
     memset(requestBuf, 0, sizeof(requestBuf));
     ret = mbedtls_x509write_csr_der(&request, requestBuf, sizeof(requestBuf),
-                                    mbedtls_ctr_drbg_random, drbgContext);
+                                    mbedlts_rng_wrapper, NULL);
     if(ret <= 0) {
         retval = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
@@ -565,12 +577,13 @@ cleanup:
 }
 
 int
-UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target, void *p_rng) {
+UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target) {
     UA_ByteString data = UA_mbedTLS_CopyDataFormatAware(key);
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     int mbedErr = mbedtls_pk_parse_key(target, data.data, data.length, NULL, 0);
 #else
-    int mbedErr = mbedtls_pk_parse_key(target, data.data, data.length, NULL, 0, mbedtls_entropy_func, p_rng);
+    int mbedErr = mbedtls_pk_parse_key(target, data.data, data.length, NULL, 0,
+                                       mbedlts_rng_wrapper, NULL);
 #endif
     UA_ByteString_clear(&data);
     return mbedErr;

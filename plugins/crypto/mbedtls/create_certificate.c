@@ -18,8 +18,6 @@
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/oid.h>
 #include <mbedtls/asn1write.h>
-#include <mbedtls/entropy.h>
-#include <mbedtls/ctr_drbg.h>
 #include <mbedtls/platform.h>
 #include <mbedtls/version.h>
 
@@ -84,30 +82,28 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     UA_ByteString_init(outCertificate);
 
     mbedtls_pk_context key;
-    mbedtls_ctr_drbg_context ctr_drbg;
-    mbedtls_entropy_context entropy;
-    const char *pers = "gen_key";
     mbedtls_x509write_cert crt;
 
     UA_StatusCode errRet = UA_STATUSCODE_GOOD;
 
     /* Set to sane values */
     mbedtls_pk_init(&key);
-    mbedtls_ctr_drbg_init(&ctr_drbg);
-    mbedtls_entropy_init(&entropy);
     mbedtls_x509write_crt_init(&crt);
 
-    /* Seed the random number generator */
-    if (mbedtls_ctr_drbg_seed(&ctr_drbg, mbedtls_entropy_func, &entropy, (const unsigned char *)pers, strlen(pers)) != 0) {
+#if MBEDTLS_VERSION_NUMBER >= 0x03000000
+    /* Initialize the random number generator */
+    int mb_err = psa_crypto_init();
+    if(mb_err != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Failed to initialize the random number generator.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
+#endif
 
     /* Generate an RSA key pair */
     if (mbedtls_pk_setup(&key, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA)) != 0 ||
-        mbedtls_rsa_gen_key(mbedtls_pk_rsa(key), mbedtls_ctr_drbg_random, &ctr_drbg, keySizeBits, 65537) != 0) {
+        mbedtls_rsa_gen_key(mbedtls_pk_rsa(key), mbedlts_rng_wrapper, NULL, keySizeBits, 65537) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Failed to generate RSA key pair.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;
@@ -327,21 +323,13 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 
     /* Write Certificate */
     if ((write_certificate(&crt, certFormat, outCertificate,
-                                 mbedtls_ctr_drbg_random, &ctr_drbg)) != 0) {
+                           mbedlts_rng_wrapper, NULL)) != 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Writing certificate failed.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
     }
 
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
-    mbedtls_x509write_crt_free(&crt);
-    mbedtls_pk_free(&key);
-
 cleanup:
-    mbedtls_ctr_drbg_free(&ctr_drbg);
-    mbedtls_entropy_free(&entropy);
     mbedtls_x509write_crt_free(&crt);
     mbedtls_pk_free(&key);
     return errRet;

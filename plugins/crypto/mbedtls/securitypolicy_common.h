@@ -15,8 +15,15 @@
 #include <mbedtls/version.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/x509_csr.h>
-#include <mbedtls/ctr_drbg.h>
-#include <mbedtls/entropy.h>
+
+#if MBEDTLS_VERSION_NUMBER >= 0x03000000
+# include <psa/crypto.h>
+# include <mbedtls/private/rsa.h>
+#else
+# include <mbedtls/rsa.h>
+#endif
+
+int mbedlts_rng_wrapper(void *ctx, unsigned char *output, size_t len);
 
 // MBEDTLS_ENTROPY_HARDWARE_ALT should be defined if your hardware does not supportd platform entropy
 
@@ -74,7 +81,6 @@ mbedtls_verifySig_sha1(mbedtls_x509_crt *certificate, const UA_ByteString *messa
 
 UA_StatusCode
 mbedtls_sign_sha1(mbedtls_pk_context *localPrivateKey,
-                  mbedtls_ctr_drbg_context *drbgContext,
                   const UA_ByteString *message,
                   UA_ByteString *signature);
 
@@ -86,26 +92,22 @@ mbedtls_thumbprint_sha1(const UA_ByteString *certificate,
  * E.g. mbedtls_rsa_set_padding(context, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA1); */
 UA_StatusCode
 mbedtls_encrypt_rsaOaep(mbedtls_rsa_context *context,
-                        mbedtls_ctr_drbg_context *drbgContext,
                         UA_ByteString *data, const size_t plainTextBlockSize);
 
 UA_StatusCode
 mbedtls_decrypt_rsaOaep(mbedtls_pk_context *localPrivateKey,
-                        mbedtls_ctr_drbg_context *drbgContext,
                         UA_ByteString *data, int hash_id);
 
 UA_StatusCode
 mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
                              mbedtls_pk_context *csrLocalPrivateKey,
-                             mbedtls_entropy_context *entropyContext,
-                             mbedtls_ctr_drbg_context *drbgContext,
                              UA_SecurityPolicy *securityPolicy,
                              const UA_String *subjectName,
                              const UA_ByteString *nonce,
                              UA_ByteString *csr,
                              UA_ByteString *newPrivateKey);
 
-int UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target, void *p_rng);
+int UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target);
 
 UA_StatusCode
 UA_mbedTLS_LoadCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *target);
