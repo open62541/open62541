@@ -21,7 +21,7 @@ static UA_Boolean runtime;
 
 static void setup(void) {
     runtime = true;
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "setup");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "setup");
 
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
@@ -34,7 +34,7 @@ static void teardown(void) {
     runtime = false;
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->pubSubConfig.stateChangeCallback = NULL;
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "teardown");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "teardown");
     ck_assert(UA_STATUSCODE_GOOD == UA_Server_run_shutdown(server));
     UA_Server_delete(server);
 }
@@ -245,14 +245,14 @@ static void
 ServerDoProcess(const char *pMessage, const UA_UInt32 Sleep_ms,
                 const UA_UInt32 NoOfRunIterateCycles) {
     ck_assert(pMessage != 0);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "ServerDoProcess() sleep : %s", pMessage);
     UA_Server_run_iterate(server, true);
     for (UA_UInt32 i = 0; i < NoOfRunIterateCycles; i++) {
         UA_fakeSleep(Sleep_ms);
         UA_Server_run_iterate(server, true);
     }
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "ServerDoProcess() wakeup : %s", pMessage);
 }
 
@@ -261,7 +261,7 @@ static void
 ValidatePublishSubscribe(UA_NodeId PublishedVarId, UA_NodeId SubscribedVarId,
                          UA_Int32 TestValue, UA_UInt32 Sleep_ms,
                          UA_UInt32 NoOfRunIterateCycles) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "ValidatePublishSubscribe(): set variable to publish");
 
     /* set variable value to publish */
@@ -272,14 +272,14 @@ ValidatePublishSubscribe(UA_NodeId PublishedVarId, UA_NodeId SubscribedVarId,
 
     ServerDoProcess("ValidatePublishSubscribe()", Sleep_ms, NoOfRunIterateCycles);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "ValidatePublishSubscribe(): read subscribed variable");
     UA_Variant SubscribedNodeData;
     UA_Variant_init(&SubscribedNodeData);
     retVal = UA_Server_readValue(server, SubscribedVarId, &SubscribedNodeData);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(SubscribedNodeData.data != 0);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "ValidatePublishSubscribe(): check value: %i vs. %i",
                 TestValue, *(UA_Int32 *)SubscribedNodeData.data);
     ck_assert_int_eq(TestValue, *(UA_Int32 *)SubscribedNodeData.data);
@@ -291,7 +291,7 @@ ValidatePublishSubscribe(UA_NodeId PublishedVarId, UA_NodeId SubscribedVarId,
 static void
 ValidatePublishSubscribe_fast_path(UA_Int32 TestValue, UA_UInt32 Sleep_ms,
                                    UA_UInt32 NoOfRunIterateCycles) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "ValidatePublishSubscribe_fast_path(): set variable to publish");
 
     ck_assert(pFastPathPublisherValue != 0);
@@ -301,7 +301,7 @@ ValidatePublishSubscribe_fast_path(UA_Int32 TestValue, UA_UInt32 Sleep_ms,
 
     ServerDoProcess("ValidatePublishSubscribe_fast_path()", Sleep_ms, NoOfRunIterateCycles);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "ValidatePublishSubscribe(): read subscribed variable");
     ck_assert(pFastPathSubscriberValue != 0);
 
@@ -310,7 +310,7 @@ ValidatePublishSubscribe_fast_path(UA_Int32 TestValue, UA_UInt32 Sleep_ms,
 
 /* simple test with 2 connections: 1 DataSetWriter and 1 DataSetReader */
 START_TEST(Test_basic) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nSTART: Test_basic");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "\n\nSTART: Test_basic");
 
     /* Connection 1: Writer 1  --> Connection 2: Reader 1 */
 
@@ -371,7 +371,7 @@ START_TEST(Test_basic) {
 
     /* now we disable the publisher WriterGroup and check if a MessageReceiveTimeout occurs at Subscriber */
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable writergroup");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "disable writergroup");
     ck_assert(UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
     ck_assert(UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state) == UA_STATUSCODE_GOOD);
@@ -381,7 +381,7 @@ START_TEST(Test_basic) {
 
     ServerDoProcess("1", (UA_UInt32) (PublishingInterval_Conn1WG1), 4);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "check state of datasetreader");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "check state of datasetreader");
 
     /* state of ReaderGroup should still be ok */
     ck_assert(UA_Server_ReaderGroup_getState(server, RGId_Conn2_RG1, &state) == UA_STATUSCODE_GOOD);
@@ -391,7 +391,7 @@ START_TEST(Test_basic) {
     ck_assert(state == UA_PUBSUBSTATE_ERROR);
 
     /* now we disable the reader */
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable readergroup. writergroup is still working");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "disable readergroup. writergroup is still working");
 
     ck_assert(UA_Server_setReaderGroupDisabled(server, RGId_Conn2_RG1) == UA_STATUSCODE_GOOD);
 
@@ -403,7 +403,7 @@ START_TEST(Test_basic) {
     ServerDoProcess("4", (UA_UInt32) (PublishingInterval_Conn1WG1), 4);
 
     /* then we disable the writer -> no timeout shall occur, because the reader is disabled */
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable writergroup");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "disable writergroup");
 
     ck_assert(UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
@@ -415,20 +415,20 @@ START_TEST(Test_basic) {
 
     ServerDoProcess("5", (UA_UInt32) (PublishingInterval_Conn1WG1), 4);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_basic\n\n");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_basic\n\n");
 } END_TEST
 
 /* Test different message receive timeouts */
 
 START_TEST(Test_different_timeouts) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nSTART: Test_different_timeouts");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "\n\nSTART: Test_different_timeouts");
 
     /*
         Connection 1: WG1 : DSW1 (pub interval = 20)    --> Connection 1: RG1 : DSR1 (msgrcvtimeout = 100)
                                                         --> Connection 1: RG1 : DSR2 (msgrcvtimeout = 200)
                                                         --> Connection 2: RG1 : DSR1 (msgrcvtimeout = 300)
     */
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "prepare configuration");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "prepare configuration");
 
     /* setup Connection 1 */
     UA_NodeId ConnId_1;
@@ -469,7 +469,7 @@ START_TEST(Test_different_timeouts) {
     UA_String strId;
     UA_String_init(&strId);
     UA_NodeId_print(&DSRId_Conn1_RG1_DSR1, &strId);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Conn1_RG1_DSR1 Id = %.*s", (UA_Int32) strId.length, strId.data);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Conn1_RG1_DSR1 Id = %.*s", (UA_Int32) strId.length, strId.data);
     UA_String_clear(&strId);
 
     /* setup Connection 2 */
@@ -492,11 +492,11 @@ START_TEST(Test_different_timeouts) {
                      &VarId_Conn2_RG1_DSR1, &DSRId_Conn2_RG1_DSR1);
     UA_String_init(&strId);
     UA_NodeId_print(&DSRId_Conn2_RG1_DSR1, &strId);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "Conn2_RG1_DSR1 Id = %.*s", (UA_Int32) strId.length, strId.data);
     UA_String_clear(&strId);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "check normal pubsub operation");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "check normal pubsub operation");
 
     UA_Server_enableAllPubSubComponents(server);
 
@@ -519,30 +519,30 @@ START_TEST(Test_different_timeouts) {
     ValidatePublishSubscribe(VarId_Conn1_WG1_DS1, VarId_Conn2_RG1_DSR1, 47, PublishingInterval_Conn1_WG1, 20);
     ValidatePublishSubscribe(VarId_Conn1_WG1_DS1, VarId_Conn2_RG1_DSR1, 49, PublishingInterval_Conn1_WG1, 20);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable writergroup");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "disable writergroup");
 
     ck_assert(UA_STATUSCODE_GOOD == UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1));
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "check order and number of different message receive timeouts");
 
     ServerDoProcess("2", (UA_UInt32) (PublishingInterval_Conn1_WG1), 20);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "there should not be any additional timeouts");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "there should not be any additional timeouts");
 
     ServerDoProcess("3", (UA_UInt32) (PublishingInterval_Conn1_WG1), 20);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_different_timeouts\n\n");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_different_timeouts\n\n");
 } END_TEST
 
 START_TEST(Test_wrong_timeout) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nSTART: Test_wrong_timeout");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "\n\nSTART: Test_wrong_timeout");
 
     /*
       Connection 1: WG1 : DSW1    --> Connection 1: RG1 : DSR1
     */
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "prepare configuration");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "prepare configuration");
 
     /* setup Connection 1 */
     UA_NodeId ConnId_1;
@@ -582,7 +582,7 @@ START_TEST(Test_wrong_timeout) {
                      WGNo_Conn1_WG1, DSWNo_Conn1_WG1, MessageReceiveTimeout_Conn1_RG1_DSR1,
                      &VarId_Conn1_RG1_DSR1, &DSRId_Conn1_RG1_DSR1);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "set writer and reader to operational");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "set writer and reader to operational");
 
     UA_Server_enableAllPubSubComponents(server);
 
@@ -603,12 +603,12 @@ START_TEST(Test_wrong_timeout) {
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_ERROR);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_wrong_timeout\n\n");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_wrong_timeout\n\n");
 } END_TEST
 
 START_TEST(Test_update_config) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nSTART: Test_update_config");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "prepare configuration");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "\n\nSTART: Test_update_config");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "prepare configuration");
 
     /* Connection 1: Writer 1  --> Reader 1 */
 
@@ -656,7 +656,7 @@ START_TEST(Test_update_config) {
     ValidatePublishSubscribe(VarId_Conn1_WG1, VarId_Conn1_RG1_DSR1, 10, SleepTime, NoOfRunIterateCycles);
     ValidatePublishSubscribe(VarId_Conn1_WG1, VarId_Conn1_RG1_DSR1, 33, SleepTime, NoOfRunIterateCycles);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable writer group");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "disable writer group");
 
     ck_assert(UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
@@ -667,7 +667,7 @@ START_TEST(Test_update_config) {
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_ERROR);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "enable writer group");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "enable writer group");
     ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
     /* re-enable the readergroup */
@@ -680,18 +680,18 @@ START_TEST(Test_update_config) {
 
     ValidatePublishSubscribe(VarId_Conn1_WG1, VarId_Conn1_RG1_DSR1, 50, SleepTime, NoOfRunIterateCycles);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable writer group");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "disable writer group");
 
     ck_assert(UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
     ServerDoProcess("5", SleepTime, NoOfRunIterateCycles);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_update_config\n\n");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_update_config\n\n");
 } END_TEST
 
 START_TEST(Test_add_remove) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nSTART: Test_add_remove");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "prepare configuration");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "\n\nSTART: Test_add_remove");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "prepare configuration");
 
     /* Connection 1: Reader 1 */
     UA_NodeId ConnId_1;
@@ -713,7 +713,7 @@ START_TEST(Test_add_remove) {
     /* check for memory leaks */
     ck_assert(UA_STATUSCODE_GOOD == UA_Server_removeDataSetReader(server, DSRId_Conn1_RG1_DSR1));
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_add_remove\n\n");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_add_remove\n\n");
 } END_TEST
 
 int main(void) {

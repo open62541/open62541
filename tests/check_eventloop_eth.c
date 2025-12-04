@@ -31,14 +31,14 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                    UA_ByteString msg) {
     TestContext *ctx = (TestContext*) *connectionContext;
     if(status == UA_CONNECTIONSTATE_CLOSING) {
-        UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Closing connection %u", (unsigned)connectionId);
     } else {
         if(msg.length == 0) {
-            UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                          "Opening connection %u", (unsigned)connectionId);
         } else {
-            UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                          "Received a message of length %u", (unsigned)msg.length);
         }
     }
