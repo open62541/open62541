@@ -690,7 +690,7 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 # define UA_FLOAT_IEEE754 1
 #elif defined(__i386__) || defined(__x86_64__) || defined(__amd64__) || \
     defined(__ia64__) || defined(__powerpc__) || defined(__sparc__) || \
-    defined(__arm__)
+    defined(__arm__) || defined(__aarch64__) || defined(__arm64__)
 # define UA_FLOAT_IEEE754 1
 #elif defined(__STDC_IEC_559__)
 # define UA_FLOAT_IEEE754 1

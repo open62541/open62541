@@ -299,7 +299,7 @@ main(int argc, char **argv) {
     if((size_t)argc >= pos + 1) {
         certificate = loadFile(argv[1]);
         if(certificate.length == 0) {
-            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                          "Unable to load file %s.", argv[pos]);
             return EXIT_FAILURE;
         }
@@ -311,7 +311,7 @@ main(int argc, char **argv) {
     if((size_t)argc >= pos + 1) {
         privateKey = loadFile(argv[2]);
         if(privateKey.length == 0) {
-            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                          "Unable to load file %s.", argv[pos]);
             return EXIT_FAILURE;
         }

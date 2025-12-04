@@ -36,10 +36,10 @@ readInteger(UA_Server *server, const UA_NodeId *sessionId,
     UA_Variant_setScalarCopy(&value->value, myInteger, &UA_TYPES[UA_TYPES_INT32]);
 
     // we know the nodeid is a string
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Node read %.*s",
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Node read %.*s",
                 (int)nodeId->identifier.string.length,
                 nodeId->identifier.string.data);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "read value %i", *(UA_UInt32 *)myInteger);
     return UA_STATUSCODE_GOOD;
 }
@@ -55,10 +55,10 @@ writeInteger(UA_Server *server, const UA_NodeId *sessionId,
         *myInteger = *(UA_Int32 *)value->value.data;
 
     // we know the nodeid is a string
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Node written %.*s",
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Node written %.*s",
                 (int)nodeId->identifier.string.length,
                 nodeId->identifier.string.data);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "written value %i", *(UA_UInt32 *)myInteger);
     return UA_STATUSCODE_GOOD;
 }

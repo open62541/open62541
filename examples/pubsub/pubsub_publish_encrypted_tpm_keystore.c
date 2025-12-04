@@ -487,12 +487,12 @@ int main(int argc, char **argv) {
             transportProfile =
                 UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
             if (argc != 8) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                              "Error: Provide uri, interface name, encryptionKey, signingkey, slotId, userpin, and keyLabel\n");
                 return EXIT_FAILURE;
             }
         } else {
-            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error: unknown URI");
+            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Error: unknown URI");
             return EXIT_FAILURE;
         }
         networkAddressUrl.url = UA_STRING(argv[1]);
@@ -510,14 +510,14 @@ int main(int argc, char **argv) {
 
     encrypt_in_data = loadFile(encryptionKeyFile);
     if(encrypt_in_data.length == 0) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Unable to load encryption file %s", encryptionKeyFile);
         return EXIT_FAILURE;
     }
 
     sign_in_data = loadFile(signingKeyFile);
     if(sign_in_data.length == 0) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Unable to load signing file %s", signingKeyFile);
         return EXIT_FAILURE;
     }

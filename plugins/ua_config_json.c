@@ -176,7 +176,7 @@ PARSE_JSON(LocalizedTextField) {
             else if(strcmp(field, "text") == 0)
                 retval |= UA_decodeJson(&buf, &text, &UA_TYPES[UA_TYPES_STRING], NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
             UA_free(field);
             break;
@@ -213,7 +213,7 @@ PARSE_JSON(BooleanField) {
     UA_ByteString buf = getJsonPart(tok, ctx->json);
     UA_Boolean out;
     if(tok.type != CJ5_TOKEN_BOOL) {
-        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Value of type bool expected.");
+        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Value of type bool expected.");
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
     UA_String val = UA_STRING("true");
@@ -251,7 +251,7 @@ PARSE_JSON(DurationRangeField) {
             else if(strcmp(field_str, "max") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_DURATION](ctx, &field->max, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
             UA_free(field_str);
             break;
@@ -277,7 +277,7 @@ PARSE_JSON(UInt32RangeField) {
             else if(strcmp(field_str, "max") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &field->max, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
             UA_free(field_str);
             break;
@@ -313,7 +313,7 @@ PARSE_JSON(BuildInfo) {
             else if(strcmp(field_str, "buildDate") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_DATETIME](ctx, &field->buildDate, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
             UA_free(field_str);
             break;
@@ -349,7 +349,7 @@ PARSE_JSON(ApplicationDescriptionField) {
             else if(strcmp(field_str, "discoveryUrls") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRINGARRAY](ctx, &field->discoveryUrls, &field->discoveryUrlsSize);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
             UA_free(field_str);
             break;
@@ -362,7 +362,7 @@ PARSE_JSON(ApplicationDescriptionField) {
 }
 PARSE_JSON(StringArrayField) {
     if(configFieldSize == NULL) {
-        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Pointer to the array size is not set.");
+        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Pointer to the array size is not set.");
         return UA_STATUSCODE_BADARGUMENTSMISSING;
     }
     cj5_token tok = ctx->tokens[++ctx->index];
@@ -393,7 +393,7 @@ PARSE_JSON(StringArrayField) {
 }
 PARSE_JSON(UInt32ArrayField) {
     if(configFieldSize == NULL) {
-        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Pointer to the array size is not set.");
+        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Pointer to the array size is not set.");
         return UA_STATUSCODE_BADARGUMENTSMISSING;
     }
     cj5_token tok = ctx->tokens[++ctx->index];
@@ -462,7 +462,7 @@ PARSE_JSON(MdnsConfigurationField) {
 # endif
 #endif
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
             UA_free(field_str);
             break;
@@ -517,7 +517,7 @@ PARSE_JSON(SubscriptionConfigurationField) {
             else if(strcmp(field_str, "maxPublishReqPerSession") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->maxPublishReqPerSession, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
             UA_free(field_str);
             break;
@@ -547,7 +547,7 @@ PARSE_JSON(TcpConfigurationField) {
             else if(strcmp(field_str, "tcpMaxChunks") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->tcpMaxChunks, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
             UA_free(field_str);
             break;
@@ -577,7 +577,7 @@ PARSE_JSON(PubsubConfigurationField) {
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &field->enableInformationModelMethods, NULL);
 #endif
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
             UA_free(field_str);
             break;
@@ -630,7 +630,7 @@ PARSE_JSON(HistorizingConfigurationField) {
             else if(strcmp(field_str, "deleteAtTimeDataCapability") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->deleteAtTimeDataCapability, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
             UA_free(field_str);
             break;
@@ -696,7 +696,7 @@ PARSE_JSON(SecurityPolciesField) {
                 } else if(strcmp(field_str, "policy") == 0) {
                     parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &policy, NULL);
                 } else {
-                    UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
+                    UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
                 }
                 UA_free(field_str);
                 break;
@@ -707,7 +707,7 @@ PARSE_JSON(SecurityPolciesField) {
         }
 
         if(certificate.length == 0 || privateKey.length == 0) {
-            UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_APPLICATION,
                            "Certificate and PrivateKey must be set for every policy.");
             if(policy.length > 0)
                 UA_String_clear(&policy);
@@ -723,40 +723,40 @@ PARSE_JSON(SecurityPolciesField) {
         } else if(UA_String_equal(&policy, &basic128Rsa15uri)) {
             retval = UA_ServerConfig_addSecurityPolicyBasic128Rsa15(config, &certificate, &privateKey);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_APPLICATION,
                                "Could not add SecurityPolicy#Basic128Rsa15 with error code %s",
                                UA_StatusCode_name(retval));
             }
         } else if(UA_String_equal(&policy, &basic256uri)) {
             retval = UA_ServerConfig_addSecurityPolicyBasic256(config, &certificate, &privateKey);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_APPLICATION,
                                "Could not add SecurityPolicy#Basic256 with error code %s",
                                UA_StatusCode_name(retval));
             }
         } else if(UA_String_equal(&policy, &basic256Sha256uri)) {
             retval = UA_ServerConfig_addSecurityPolicyBasic256Sha256(config, &certificate, &privateKey);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_APPLICATION,
                                "Could not add SecurityPolicy#Basic256Sha256 with error code %s",
                                UA_StatusCode_name(retval));
             }
         } else if(UA_String_equal(&policy, &aes128sha256rsaoaepuri)) {
             retval = UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(config, &certificate, &privateKey);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_APPLICATION,
                                "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
                                UA_StatusCode_name(retval));
             }
         } else if(UA_String_equal(&policy, &aes256sha256rsapssuri)) {
              retval = UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(config, &certificate, &privateKey);
              if(retval != UA_STATUSCODE_GOOD) {
-                 UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_USERLAND,
+                 UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_APPLICATION,
                                 "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
                                UA_StatusCode_name(retval));
             }
         } else {
-            UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_USERLAND, "Unknown Security Policy.");
+            UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown Security Policy.");
         }
 
         /* Add all Endpoints */
@@ -1016,7 +1016,7 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                     retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_SECURITYPKI](&ctx, config, NULL);
 #endif
                 else {
-                    UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_USERLAND,
+                    UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
                                    "Field name '%s' unknown or misspelled. Maybe the feature is not enabled either.", field);
                     /* skip the name of item */
                     ++ctx.index;
@@ -1029,7 +1029,7 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                 }
                 UA_free(field);
                 if(retval != UA_STATUSCODE_GOOD) {
-                    UA_LOG_ERROR(ctx.logging, UA_LOGCATEGORY_USERLAND, "An error occurred while parsing the configuration file.");
+                    UA_LOG_ERROR(ctx.logging, UA_LOGCATEGORY_APPLICATION, "An error occurred while parsing the configuration file.");
                     return retval;
                 }
                 break;

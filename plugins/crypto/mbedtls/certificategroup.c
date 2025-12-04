@@ -15,7 +15,6 @@
 #include <mbedtls/x509.h>
 #include <mbedtls/oid.h>
 #include <mbedtls/x509_crt.h>
-#include <mbedtls/entropy.h>
 #include <mbedtls/version.h>
 #include <mbedtls/sha256.h>
 #if defined(MBEDTLS_USE_PSA_CRYPTO)
@@ -1031,7 +1030,7 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    retval = UA_mbedTLS_LoadPrivateKey(privateKey, &pk, NULL);
+    retval = UA_mbedTLS_LoadPrivateKey(privateKey, &pk);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
@@ -1047,7 +1046,7 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 #else
-    if(mbedtls_pk_check_pair(&cert.pk, &pk, mbedtls_entropy_func, NULL) != 0) {
+    if(mbedtls_pk_check_pair(&cert.pk, &pk, mbedlts_rng_wrapper, NULL) != 0) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 #endif
@@ -1105,13 +1104,10 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
                                    nullTerminatedKey.length,
                                    password.data, password.length);
 #else
-    mbedtls_entropy_context entropy;
-    mbedtls_entropy_init(&entropy);
     int err = mbedtls_pk_parse_key(&ctx, nullTerminatedKey.data,
                                    nullTerminatedKey.length,
                                    password.data, password.length,
-                                   mbedtls_entropy_func, &entropy);
-    mbedtls_entropy_free(&entropy);
+                                   mbedlts_rng_wrapper, NULL);
 #endif
     UA_ByteString_clear(&nullTerminatedKey);
     if(err != 0) {

@@ -13,8 +13,6 @@
 #include "securitypolicy_common.h"
 
 #include <mbedtls/aes.h>
-#include <mbedtls/ctr_drbg.h>
-#include <mbedtls/entropy.h>
 #include <mbedtls/error.h>
 #include <mbedtls/md.h>
 #include <mbedtls/sha1.h>
@@ -41,8 +39,6 @@
 
 typedef struct {
     const UA_PubSubSecurityPolicy *securityPolicy;
-    mbedtls_ctr_drbg_context drbgContext;
-    mbedtls_entropy_context entropyContext;
     mbedtls_md_context_t sha256MdContext;
 } PUBSUB_AES128CTR_PolicyContext;
 
@@ -182,12 +178,8 @@ static UA_StatusCode
 generateNonce_sp_pubsub_aes128ctr(void *policyContext, UA_ByteString *out) {
     if(policyContext == NULL || out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
-    PUBSUB_AES128CTR_PolicyContext *pc = (PUBSUB_AES128CTR_PolicyContext *)policyContext;
-    int mbedErr = mbedtls_ctr_drbg_random(&pc->drbgContext, out->data, out->length);
-    if(mbedErr)
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    return UA_STATUSCODE_GOOD;
+    int mbedErr = mbedlts_rng_wrapper(NULL, out->data, out->length);
+    return (mbedErr == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
 }
 
 /*****************/
@@ -266,8 +258,6 @@ deleteMembers_sp_pubsub_aes128ctr(UA_PubSubSecurityPolicy *securityPolicy) {
     PUBSUB_AES128CTR_PolicyContext *pc =
         (PUBSUB_AES128CTR_PolicyContext *)securityPolicy->policyContext;
 
-    mbedtls_ctr_drbg_free(&pc->drbgContext);
-    mbedtls_entropy_free(&pc->entropyContext);
     mbedtls_md_free(&pc->sha256MdContext);
     UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Deleted members of EndpointContext for sp_PUBSUB_AES128CTR");
@@ -291,8 +281,6 @@ policyContext_newContext_sp_pubsub_aes128ctr(UA_PubSubSecurityPolicy *securityPo
 
     /* Initialize the PolicyContext */
     memset(pc, 0, sizeof(PUBSUB_AES128CTR_PolicyContext));
-    mbedtls_ctr_drbg_init(&pc->drbgContext);
-    mbedtls_entropy_init(&pc->entropyContext);
     mbedtls_md_init(&pc->sha256MdContext);
     pc->securityPolicy = securityPolicy;
 
@@ -301,23 +289,6 @@ policyContext_newContext_sp_pubsub_aes128ctr(UA_PubSubSecurityPolicy *securityPo
     int mbedErr = mbedtls_md_setup(&pc->sha256MdContext, mdInfo, MBEDTLS_MD_SHA256);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto error;
-    }
-
-    mbedErr = mbedtls_entropy_self_test(0);
-
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto error;
-    }
-
-    /* Seed the RNG */
-    char *personalization = "open62541-drbg";
-    mbedErr = mbedtls_ctr_drbg_seed(&pc->drbgContext, mbedtls_entropy_func,
-                                    &pc->entropyContext,
-                                    (const unsigned char *)personalization, 14);
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
     }
 
@@ -334,6 +305,12 @@ error:
 UA_StatusCode
 UA_PubSubSecurityPolicy_Aes128Ctr(UA_PubSubSecurityPolicy *policy,
                                   const UA_Logger *logger) {
+#if MBEDTLS_VERSION_NUMBER >= 0x03000000
+    int mbedErr = psa_crypto_init();
+    if(mbedErr != 0)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+#endif
+
     memset(policy, 0, sizeof(UA_PubSubSecurityPolicy));
     policy->logger = logger;
 

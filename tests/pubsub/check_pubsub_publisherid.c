@@ -22,7 +22,7 @@ UA_Logger logger;
 static UA_Boolean UseRawEncoding = UA_FALSE;
 
 static void setup(void) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "setup");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "setup");
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
@@ -33,7 +33,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "teardown");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "teardown");
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_run_shutdown(server));
     UA_Server_delete(server);
 }
@@ -225,7 +225,7 @@ ValidatePublishSubscribe(
     UA_DataValue **fastPathSubscriberValues, /* fast-path subscriber DataValue */
     const UA_Int32 TestValue,
     const UA_UInt32 Sleep_ms /* use at least publishing interval */) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "ValidatePublishSubscribe(): set variable to publish");
 
     /* set variable value to publish */
@@ -258,8 +258,8 @@ ValidatePublishSubscribe(
 }
 
 static void DoTest_1_Connection(UA_PublisherId publisherId) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_1_Connection() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "DoTest_1_Connection() begin");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
 #define DOTEST_1_CONNECTION_MAX_VARS 1
     UA_NodeId publisherVarIds[DOTEST_1_CONNECTION_MAX_VARS];
@@ -314,29 +314,29 @@ static void DoTest_1_Connection(UA_PublisherId publisherId) {
         fastPathPublisherDataValues, fastPathSubscriberDataValues, 44, 100);
 
     /* set groups to disabled */
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable groups");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "disable groups");
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1));
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, RGId_Conn1_RG1));
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connection");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "remove Connection");
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnId_1));
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PDS");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "remove PDS");
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PDSId_Conn1_WG1_PDS1));
 
     /* Iterate so the connections are actually deleted */
     UA_Server_run_iterate(server, false);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_1_Connection() end");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "DoTest_1_Connection() end");
 }
 
 /***************************************************************************************************/
 /* simple test with 1 connection */
 START_TEST(Test_1_connection) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_1_connection");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "START: Test_1_connection");
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Test PublisherId BYTE with all combinations");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Test PublisherId BYTE with all combinations");
 
     UA_PublisherId publisherId;
     publisherId.idType = UA_PUBLISHERIDTYPE_BYTE;
@@ -348,7 +348,7 @@ START_TEST(Test_1_connection) {
     UseRawEncoding = UA_TRUE;
     DoTest_1_Connection(publisherId);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Test PublisherId UINT16 with all combinations");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Test PublisherId UINT16 with all combinations");
 
     publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
     publisherId.id.uint16 = 3;
@@ -359,7 +359,7 @@ START_TEST(Test_1_connection) {
     UseRawEncoding = UA_TRUE;
     DoTest_1_Connection(publisherId);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Test PublisherId UINT32 with all combinations");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Test PublisherId UINT32 with all combinations");
 
     publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
     publisherId.id.uint32 = 5;
@@ -370,7 +370,7 @@ START_TEST(Test_1_connection) {
     UseRawEncoding = UA_TRUE;
     DoTest_1_Connection(publisherId);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Test PublisherId UINT64 with all combinations");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Test PublisherId UINT64 with all combinations");
 
     publisherId.idType = UA_PUBLISHERIDTYPE_UINT64;
     publisherId.id.uint64 = 6;
@@ -381,7 +381,7 @@ START_TEST(Test_1_connection) {
     UseRawEncoding = UA_TRUE;
     DoTest_1_Connection(publisherId);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Test PublisherId STRING with all combinations");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Test PublisherId STRING with all combinations");
 
     publisherId.idType = UA_PUBLISHERIDTYPE_STRING;
     publisherId.id.string = UA_STRING("My PublisherId");
@@ -392,15 +392,15 @@ START_TEST(Test_1_connection) {
     UseRawEncoding = UA_TRUE;
     DoTest_1_Connection(publisherId);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_1_connection");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_1_connection");
 } END_TEST
 
 
 /***************************************************************************************************/
 static void DoTest_multiple_Connections(void) {
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_Connections() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "DoTest_multiple_Connections() begin");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
     /*  Writers                             -> Readers
         ----------------------------------------------------------------------------------
@@ -663,7 +663,7 @@ static void DoTest_multiple_Connections(void) {
                              fastPathSubscriberDataValues, 100, 100);
 
     /* set groups to disabled */
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable groups");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "disable groups");
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD,
                          UA_Server_setWriterGroupDisabled(server, WriterGroupIds[i]));
@@ -673,13 +673,13 @@ static void DoTest_multiple_Connections(void) {
                          UA_Server_setReaderGroupDisabled(server, ReaderGroupIds[i]));
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connection");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "remove Connection");
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD,
                          UA_Server_removePubSubConnection(server, ConnectionIds[i]));
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PublishedDataSets");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "remove PublishedDataSets");
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD,
                          UA_Server_removePublishedDataSet(server,
@@ -689,13 +689,13 @@ static void DoTest_multiple_Connections(void) {
     /* Iterate so the connections are actually deleted */
     UA_Server_run_iterate(server, false);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_Connections() end");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "DoTest_multiple_Connections() end");
 }
 
 /***************************************************************************************************/
 /* test with multiple connections */
 START_TEST(Test_multiple_connections) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_multiple_connections");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "START: Test_multiple_connections");
 
     /* note: fast-path does not support
         - multiple groups and/or DataSets yet, therefore we only test multiple connections
@@ -707,7 +707,7 @@ START_TEST(Test_multiple_connections) {
     UseRawEncoding = UA_TRUE;
     DoTest_multiple_Connections();
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_multiple_connections");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_multiple_connections");
 } END_TEST
 
 /***************************************************************************************************/
@@ -755,8 +755,8 @@ Test_string_PublisherId_InformationModel(const UA_NodeId connectionId,
 /***************************************************************************************************/
 static void DoTest_string_PublisherId(void) {
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_string_PublisherId() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "DoTest_string_PublisherId() begin");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
     /*  Writers                                     -> Readers
         ----------------------------------------------------------------------------------
@@ -996,7 +996,7 @@ static void DoTest_string_PublisherId(void) {
 #endif
 
     /* set groups to disabled */
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable groups");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "disable groups");
     for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupDisabled(server, WriterGroupIds[i]));
     }
@@ -1004,12 +1004,12 @@ static void DoTest_string_PublisherId(void) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, ReaderGroupIds[i]));
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connection");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "remove Connection");
     for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnectionIds[i]));
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PublishedDataSets");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "remove PublishedDataSets");
     for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PublishedDataSetIds[i]));
     }
@@ -1017,14 +1017,14 @@ static void DoTest_string_PublisherId(void) {
     /* Iterate so the connections are actually deleted */
     UA_Server_run_iterate(server, false);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_string_PublisherId() end");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "DoTest_string_PublisherId() end");
 }
 
 
 /***************************************************************************************************/
 /* test string PublisherId */
 START_TEST(Test_string_publisherId) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_string_publisherId");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "START: Test_string_publisherId");
 
     UseRawEncoding = UA_FALSE;
     DoTest_string_PublisherId();
@@ -1032,7 +1032,7 @@ START_TEST(Test_string_publisherId) {
     UseRawEncoding = UA_TRUE;
     DoTest_string_PublisherId();
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_string_publisherId");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_string_publisherId");
 } END_TEST
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
@@ -1040,7 +1040,7 @@ START_TEST(Test_string_publisherId) {
 /***************************************************************************************************/
 START_TEST(Test_string_publisherId_file_config) {
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_string_publisherId_file_config");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "START: Test_string_publisherId_file_config");
 
     UseRawEncoding = UA_FALSE;
 
@@ -1282,7 +1282,7 @@ START_TEST(Test_string_publisherId_file_config) {
 
     UA_ByteString_clear(&encodedConfigDataBuffer);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_string_publisherId_file_config");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_string_publisherId_file_config");
 } END_TEST
 
 #endif /* UA_ENABLE_PUBSUB_FILE_CONFIG */
@@ -1290,8 +1290,8 @@ START_TEST(Test_string_publisherId_file_config) {
 /***************************************************************************************************/
 static void DoTest_multiple_Groups(void) {
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_Groups() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "DoTest_multiple_Groups() begin");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
     /*  Writers                             -> Readers              -> Var Index
         ----------------------------------------------------------------------------------
@@ -1603,7 +1603,7 @@ static void DoTest_multiple_Groups(void) {
                              fastPathSubscriberDataValues, 100, 100);
 
     /* set groups to disabled */
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable groups");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "disable groups");
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_WRITERGROUPS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupDisabled(server, WriterGroupIds[i]));
     }
@@ -1611,12 +1611,12 @@ static void DoTest_multiple_Groups(void) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, ReaderGroupIds[i]));
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connections");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "remove Connections");
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_CONNECTIONS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnectionIds[i]));
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PublishedDataSets");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "remove PublishedDataSets");
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_PDS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PublishedDataSetIds[i]));
     }
@@ -1624,12 +1624,12 @@ static void DoTest_multiple_Groups(void) {
     /* Iterate so the connections are actually deleted */
     UA_Server_run_iterate(server, false);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_Groups() end");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "DoTest_multiple_Groups() end");
 }
 
 /***************************************************************************************************/
 START_TEST(Test_multiple_groups) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_multiple_groups");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "START: Test_multiple_groups");
 
     UseRawEncoding = UA_FALSE;
     DoTest_multiple_Groups();
@@ -1637,15 +1637,15 @@ START_TEST(Test_multiple_groups) {
     UseRawEncoding = UA_TRUE;
     DoTest_multiple_Groups();
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_multiple_groups");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_multiple_groups");
 } END_TEST
 
 
 /***************************************************************************************************/
 static void DoTest_multiple_DataSets(void) {
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_DataSets() begin");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "DoTest_multiple_DataSets() begin");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "raw encoding  = %s", (UseRawEncoding) ? "enabled" : "disabled");
 
     /*  Writers                             -> Readers              -> Var Index
         ----------------------------------------------------------------------------------
@@ -1853,7 +1853,7 @@ static void DoTest_multiple_DataSets(void) {
                              fastPathSubscriberDataValues, 100, 100);
 
     /* set groups to disabled */
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable groups");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "disable groups");
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_WRITERGROUPS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupDisabled(server, WriterGroupIds[i]));
     }
@@ -1861,12 +1861,12 @@ static void DoTest_multiple_DataSets(void) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, ReaderGroupIds[i]));
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove Connections");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "remove Connections");
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_CONNECTIONS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnectionIds[i]));
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PublishedDataSets");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "remove PublishedDataSets");
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_PDS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PublishedDataSetIds[i]));
     }
@@ -1874,12 +1874,12 @@ static void DoTest_multiple_DataSets(void) {
     /* Iterate so the connections are actually deleted */
     UA_Server_run_iterate(server, false);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "DoTest_multiple_DataSets() end");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "DoTest_multiple_DataSets() end");
 }
 
 /***************************************************************************************************/
 START_TEST(Test_multiple_datasets) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_multiple_datasets");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "START: Test_multiple_datasets");
 
     UseRawEncoding = UA_FALSE;
     DoTest_multiple_DataSets();
@@ -1887,7 +1887,7 @@ START_TEST(Test_multiple_datasets) {
     UseRawEncoding = UA_TRUE;
     DoTest_multiple_DataSets();
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_multiple_datasets");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_multiple_datasets");
 } END_TEST
 
 

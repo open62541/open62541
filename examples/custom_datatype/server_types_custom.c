@@ -21,7 +21,7 @@ static const UA_NodeId unionVariableTypeId = {
     1, UA_NODEIDTYPE_NUMERIC, {4846}};
 
 static void stopHandler(int sig) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "received ctrl-c");
     running = false;
 }
 
