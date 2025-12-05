@@ -1,7 +1,7 @@
-#ifndef UA_FILENODE_H
-#define UA_FILENODE_H
+#ifndef UA_FILETYPE_H
+#define UA_FILETYPE_H
  
-#include <filesystem/server.h>
+#include <filesystem/ua_fileserver.h>
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
  
@@ -27,30 +27,30 @@ typedef struct {
  
     /* Internal handle management */
     UA_UInt32 nextFileHandle;       /* For generating unique file handles */
-} UA_FileNode;
+} UA_FileType;
  
 /* Add a FileType node to the server */
 UA_StatusCode 
-UA_FileNode_add(UA_FileServer *server, const UA_NodeId parentNodeId, const char *browseName, const char *filePath, UA_FileNode *outFileNode);
+UA_FileType_add(UA_FileServer *server, const UA_NodeId parentNodeId, const char *browseName, const char *filePath, UA_FileType *outFileType);
  
 /* FileType Methods as per OPC UA Part 20 */
 UA_StatusCode 
-UA_FileNode_open(UA_FileServer *server, UA_FileNode *fileNode, UA_Byte mode, UA_UInt32 *fileHandle);
+UA_FileType_open(UA_FileServer *server, UA_FileType *fileType, UA_Byte mode, UA_UInt32 *fileHandle);
  
 UA_StatusCode 
-UA_FileNode_close(UA_FileServer *server, UA_FileNode *fileNode, UA_UInt32 fileHandle);
+UA_FileType_close(UA_FileServer *server, UA_FileType *fileType, UA_UInt32 fileHandle);
  
 UA_StatusCode 
-UA_FileNode_read(UA_FileServer *server, UA_FileNode *fileNode, UA_UInt32 fileHandle, UA_Int32 length, UA_ByteString *data);
+UA_FileType_read(UA_FileServer *server, UA_FileType *fileType, UA_UInt32 fileHandle, UA_Int32 length, UA_ByteString *data);
  
 UA_StatusCode 
-UA_FileNode_write(UA_FileServer *server, UA_FileNode *fileNode, UA_UInt32 fileHandle, const UA_ByteString *data);
+UA_FileType_write(UA_FileServer *server, UA_FileType *fileType, UA_UInt32 fileHandle, const UA_ByteString *data);
  
 UA_StatusCode 
-UA_FileNode_getPosition(UA_FileServer *server, UA_FileNode *fileNode, UA_UInt32 fileHandle, UA_UInt64 *position);
+UA_FileType_getPosition(UA_FileServer *server, UA_FileType *fileType, UA_UInt32 fileHandle, UA_UInt64 *position);
  
 UA_StatusCode 
-UA_FileNode_setPosition(UA_FileServer *server, UA_FileNode *fileNode, UA_UInt32 fileHandle, UA_UInt64 position);
+UA_FileType_setPosition(UA_FileServer *server, UA_FileType *fileType, UA_UInt32 fileHandle, UA_UInt64 position);
  
 #ifdef __cplusplus
 }
@@ -58,4 +58,4 @@ UA_FileNode_setPosition(UA_FileServer *server, UA_FileNode *fileNode, UA_UInt32 
  
 /* ADD THE FILE_DIRECTORY_TYPE HERE */
 
-#endif /* UA_FILENODE_H */
+#endif /* UA_FILETYPE_H */
