@@ -108,9 +108,6 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
     if(src->length < buffer->buffer.length + *bufferPosition)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    /* If this remains at UA_UINT32_MAX, then no raw fields are contained */
-    size_t smallestRawOffset = UA_UINT32_MAX;
-
     /* Considering one DSM in RT TODO: Clarify multiple DSM */
     UA_DataSetMessage* dsm = nm->payload.dataSetPayload.dataSetMessages;
 
@@ -172,12 +169,11 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
             payloadCounter++;
             break;
         case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
-            /* We need only the start address of the raw fields */
-            if(smallestRawOffset > pos){
-                smallestRawOffset = pos;
-                dsm->data.keyFrameData.rawFields.data = &src->data[pos];
-                dsm->data.keyFrameData.rawFields.length = buffer->rawMessageLength;
-            }
+            if(src->length < pos + buffer->offsets[i].content.rawMessageLength)
+                return UA_STATUSCODE_BADDECODINGERROR;
+            dsm->data.keyFrameData.rawFields.data = &src->data[pos];
+            dsm->data.keyFrameData.rawFields.length = buffer->offsets[i].content.rawMessageLength;
+            pos += buffer->offsets[i].content.rawMessageLength;
             payloadCounter++;
             break;
         default:
@@ -186,14 +182,7 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
         UA_CHECK_STATUS(rv, return rv);
     }
 
-    /* Check if the frame is of type "raw" payload. If yes, set the new buffer
-     * position to the start position of the raw fields plus the length of the
-     * raw fields. */
-    if(smallestRawOffset != UA_UINT32_MAX) {
-        *bufferPosition = smallestRawOffset + buffer->rawMessageLength;
-    } else {
-        *bufferPosition = pos;
-    }
+    *bufferPosition = pos;
 
     return rv;
 }
@@ -1452,34 +1441,51 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
             case UA_FIELDENCODING_RAWDATA:
                 dst->data.keyFrameData.rawFields.data = &src->data[*offset];
                 dst->data.keyFrameData.rawFields.length = dsmSize;
-                if(dsmSize == 0){
+                if(dsmSize == 0) {
+                    size_t dsmOffset = *offset;
                     if(dsm != NULL) {
-                        size_t tmpOffset = 0;
                         // calculate the length of the DSM-Payload for a single DSM
                         dst->data.keyFrameData.fieldCount = (UA_UInt16)dsm->fieldsSize;
                         for(size_t i = 0; i < dsm->fieldsSize; i++) {
                             /* TODO The datatype reference should be part of the internal
                              * pubsub configuration to avoid the time-expensive lookup */
                             const UA_DataType *type =
-                                UA_findDataTypeWithCustom(&dsm->fields[i].dataType,
-                                                          customTypes);
-                            dst->data.keyFrameData.rawFields.length += type->memSize;
-                            UA_STACKARRAY(UA_Byte, value, type->memSize);
-                            rv = UA_decodeBinaryInternal(&dst->data.keyFrameData.rawFields,
-                                                         &tmpOffset, value, type, NULL);
-                            UA_CHECK_STATUS(rv, return rv); 
-                            if(dsm->fields[i].maxStringLength != 0) {
-                                if(type->typeKind == UA_DATATYPEKIND_STRING ||
-                                    type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
-                                    UA_ByteString *bs = (UA_ByteString *) value;
-                                    //check if length < maxStringLength, The types ByteString and String are equal in their base definition
-                                    size_t lengthDifference = dsm->fields[i].maxStringLength - bs->length;
-                                    tmpOffset += lengthDifference;
-                                    dst->data.keyFrameData.rawFields.length += lengthDifference;
-                                }
+                                UA_findDataTypeWithCustom(&dsm->fields[i].dataType, customTypes);
+                            if(!type)
+                                return UA_STATUSCODE_BADDECODINGERROR;;
+
+                            if(type->typeKind == UA_DATATYPEKIND_STRING ||
+                               type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
+                                /* Strings need to have a MaxStringLength */
+                                if(dsm->fields[i].maxStringLength == 0)
+                                    return UA_STATUSCODE_BADDECODINGERROR;
+                                /* Cannot handle an array of strings */
+                                if(dsm->fields[i].arrayDimensionsSize > 0)
+                                    return UA_STATUSCODE_BADDECODINGERROR;
+                            } else if(!type->pointerFree) {
+                                return UA_STATUSCODE_BADDECODINGERROR;
+                            }
+
+                            if(type->typeKind == UA_DATATYPEKIND_STRING ||
+                               type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
+                                /* Scalar string */
+                                UA_ByteString tmp = UA_BYTESTRING_NULL;
+                                rv = UA_decodeBinaryInternal(&dst->data.keyFrameData.rawFields,
+                                                             offset, &tmp, type, NULL);
+                                UA_CHECK_STATUS(rv, return rv); 
+                                size_t padding = dsm->fields[i].maxStringLength - tmp.length;
+                                *offset += padding;
+                                UA_ByteString_clear(&tmp);
+                            } else {
+                                /* Array of fixed-size members */
+                                size_t arraySize = 1;
+                                for(size_t j = 0; j < dsm->fields[i].arrayDimensionsSize; j++)
+                                    arraySize *= dsm->fields[i].arrayDimensions[j];
+                                if(*offset + (arraySize * type->memSize) > src->length)
+                                    return UA_STATUSCODE_BADDECODINGERROR;
+                                *offset += arraySize * type->memSize;
                             }
                         }
-                        *offset += tmpOffset;
                     } else {
                         //TODO calculate the length of the DSM-Payload for a single DSM
                         //Problem: Size is not set and MetaData information are needed.
@@ -1487,6 +1493,7 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
                         //pubsub security footer and signatur is enabled.
                         *offset += 1500;
                     }
+                    dst->data.keyFrameData.rawFields.length += (*offset - dsmOffset);
                 } else {
                     *offset += (dsmSize - (*offset - initialOffset));
                 }
@@ -1608,6 +1615,8 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
         for(UA_UInt16 i = 0; i < p->data.keyFrameData.fieldCount; i++){
             UA_NetworkMessageOffset *nmo = NULL;
             const UA_DataValue *v = &p->data.keyFrameData.dataSetFields[i];
+
+            /* Allocate an offset buffer element and store the offset */
             if(offsetBuffer) {
                 size_t pos = offsetBuffer->offsetsSize;
                 if(!increaseOffsetArray(offsetBuffer))
@@ -1616,49 +1625,71 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
                 nmo->offset = size;
             }
 
+            /* Variant encoding */
             if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
                 if(offsetBuffer)
                     nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT;
                 size += UA_calcSizeBinary(&v->value, &UA_TYPES[UA_TYPES_VARIANT]);
-            } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
-                if(p->data.keyFrameData.dataSetFields != NULL) {
-                    if(offsetBuffer) {
-                        if(!v->value.type->pointerFree)
-                            return 0; /* only integer types for now */
-                        /* Count the memory size of the specific field */
-                        offsetBuffer->rawMessageLength += v->value.type->memSize;
-                        nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
-                    }
-                    size += UA_calcSizeBinary(v->value.data, v->value.type);
+                continue;
+            }
 
-                    /* Handle zero-padding for strings with max-string-length.
-                     * Currently not supported for strings that are a part of larger
-                     * structures. */
-                    UA_FieldMetaData *fmd =
-                        &p->data.keyFrameData.dataSetMetaDataType->fields[i];
-                    if(fmd->maxStringLength != 0 &&
-                       (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
-                        v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
-                        /* Check if length < maxStringLength, The types ByteString
-                         * and String are equal in their base definition */
-                        size_t lengthDifference = fmd->maxStringLength -
-                            ((UA_String *)v->value.data)->length;
-                        size += lengthDifference;
-                    }
-                } else {
-                    /* get length calculated in UA_DataSetMessage_decodeBinary */
-                    if(offsetBuffer) {
-                        offsetBuffer->rawMessageLength = p->data.keyFrameData.rawFields.length;
-                        nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
-                    }
-                    size += p->data.keyFrameData.rawFields.length;
-                    /* no iteration needed */
-                    break;
-                }
-            } else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
+            /* Datavalue encoding */
+            if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
                 if(offsetBuffer)
                     nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE;
                 size += UA_calcSizeBinary(v, &UA_TYPES[UA_TYPES_DATAVALUE]);
+                continue;
+            }
+
+            /* Raw encoding */
+            if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
+                /* Undecoded raw data */
+                if(p->data.keyFrameData.rawFields.length > 0) {
+                    if(offsetBuffer) {
+                        nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
+                        nmo->content.rawMessageLength = p->data.keyFrameData.rawFields.length;
+                    }
+                    size += p->data.keyFrameData.rawFields.length;
+                    continue;
+                }
+
+                /* Decoded data for raw encoding */
+                UA_FieldMetaData *fmd =
+                    &p->data.keyFrameData.dataSetMetaDataType->fields[i];
+                const UA_DataType *type = v->value.type;
+
+                /* String with maxStringLength (padding) */
+                if(fmd->maxStringLength > 0 &&
+                   (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
+                    v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
+                    if(offsetBuffer) {
+                        nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
+                        nmo->content.rawMessageLength += 4 + fmd->maxStringLength;
+                    }
+                    size += 4 + fmd->maxStringLength;
+                    continue;
+                }
+
+                /* Only strings (with a maxStringLength for padding) can have
+                 * dynamically allocated members */
+                if(!type->pointerFree)
+                    return 0;
+
+                /* Handle arrays */
+                size_t arraySize = 1;
+                for(size_t i = 0; i < fmd->arrayDimensionsSize; i++)
+                    arraySize *= fmd->arrayDimensions[i];
+
+                /* Handle types with a different encoding and in-memory size */
+                size_t elemSize = type->memSize;
+                if(arraySize > 0 && !type->overlayable)
+                    elemSize = UA_calcSizeBinary(v->value.data, v->value.type);
+
+                if(offsetBuffer) {
+                    nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
+                    nmo->content.rawMessageLength += elemSize * arraySize;
+                }
+                size += elemSize * arraySize;
             }
         }
     } else if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME) {
