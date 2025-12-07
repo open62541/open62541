@@ -303,9 +303,9 @@ UA_StatusCode
 UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
                                          const UA_StandaloneSubscribedDataSetConfig *sdsConfig,
                                          UA_NodeId *sdsIdentifier) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_StatusCode res = addStandaloneSubscribedDataSet(server, sdsConfig, sdsIdentifier);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -350,9 +350,9 @@ removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
 
 UA_StatusCode
 UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_StatusCode res = removeStandaloneSubscribedDataSet(server, sds);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -406,11 +406,18 @@ UA_PubSubManager_init(UA_Server *server, UA_PubSubManager *pubSubManager) {
 
 void
 UA_PubSubManager_shutdown(UA_Server *server, UA_PubSubManager *pubSubManager) {
+
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    // assure locking order event loop -> server
+    unlockServer(server);
+    lockPubSubServer(server);
     UA_PubSubConnection *tmpConnection;
     TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
         UA_PubSubConnection_setPubSubState(server, tmpConnection,
                                            UA_PUBSUBSTATE_DISABLED, UA_STATUSCODE_GOOD);
     }
+    unlockPubSubServer(server);
+    lockServer(server);
 }
 
 /* Delete the current PubSub configuration including all nested members. This
@@ -420,12 +427,22 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                 "PubSub cleanup was called.");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    // assure locking order event loop -> server
+    unlockServer(server);
+    lockPubSubServer(server);
 
     /* Remove Connections - this also remove WriterGroups and ReaderGroups */
     UA_PubSubConnection *tmpConnection1, *tmpConnection2;
+    UA_EventLoop *el;
+    UA_StatusCode ret;
     TAILQ_FOREACH_SAFE(tmpConnection1, &server->pubSubManager.connections,
                        listEntry, tmpConnection2) {
-        UA_PubSubConnection_delete(server, tmpConnection1);
+        /* Get locked event loop mutex */
+        el = UA_PubSubConnection_getEL(server, tmpConnection1);
+
+        ret = UA_PubSubConnection_delete(server, tmpConnection1);
+        if((ret == UA_STATUSCODE_GOOD) && el && el->unlock)
+            el->unlock(el);  /* Unlock event loop mutex */
     }
 
     /* Remove the DataSets */
@@ -467,6 +484,9 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
         UA_PubSubKeyStorage_delete(server, ks);
     }
 #endif
+
+    unlockPubSubServer(server);
+    lockServer(server);
 }
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
