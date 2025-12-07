@@ -13,7 +13,7 @@ if(ZEPHYR_BASE)
   if(NOT CONFIG_OPEN62541)
     return()
   endif()
-  include(arch/zephyr/zephyr.cmake)
+  include(zephyr/zephyr.cmake)
 endif()
 
 # set(CMAKE_VERBOSE_MAKEFILE ON)
