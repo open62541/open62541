@@ -42,7 +42,7 @@ const char *logLevelNames[6] = {"trace", "debug",
 static const char *
 logCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server", "client",
-     "userland", "security", "eventloop", "pubsub", "discovery"};
+     "application", "security", "eventloop", "pubsub", "discovery"};
 
 /* Protect crosstalk during logging via global lock. Use a spinlock as we cannot
  * statically initialize a global lock across all platforms. */

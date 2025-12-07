@@ -19,7 +19,7 @@ UA_KeyValueRestriction_validate(const UA_Logger *logger, const char *logprefix,
         /* Value not present but required? */
         if(!val) {
             if(r->required) {
-                UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_WARNING(logger, UA_LOGCATEGORY_EVENTLOOP,
                                "%s\t| Parameter %.*s required but not defined",
                                logprefix, (int)r->name.name.length, (char*)r->name.name.data);
                 return UA_STATUSCODE_BADINTERNALERROR;
@@ -29,7 +29,7 @@ UA_KeyValueRestriction_validate(const UA_Logger *logger, const char *logprefix,
 
         /* Type matches */
         if(val->type != r->type) {
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_EVENTLOOP,
                            "%s\t| Parameter %.*s has the wrong type",
                            logprefix, (int)r->name.name.length, (char*)r->name.name.data);
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -38,13 +38,13 @@ UA_KeyValueRestriction_validate(const UA_Logger *logger, const char *logprefix,
         /* Scalar / array is allowed */
         UA_Boolean scalar = UA_Variant_isScalar(val);
         if(scalar && !r->scalar) {
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_EVENTLOOP,
                            "%s\t| Parameter %.*s must not be scalar",
                            logprefix, (int)r->name.name.length, (char*)r->name.name.data);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
         if(!scalar && !r->array) {
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_EVENTLOOP,
                            "%s\t| Parameter %.*s must not be an array",
                            logprefix, (int)r->name.name.length, (char*)r->name.name.data);
             return UA_STATUSCODE_BADCONNECTIONREJECTED;

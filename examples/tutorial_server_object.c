@@ -252,7 +252,7 @@ pumpTypeConstructor(UA_Server *server,
                     const UA_NodeId *sessionId, void *sessionContext,
                     const UA_NodeId *typeId, void *typeContext,
                     const UA_NodeId *nodeId, void **nodeContext) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "New pump created");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "New pump created");
 
     /* Find the NodeId of the status child variable */
     UA_RelativePathElement rpe;
