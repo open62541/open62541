@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
         with:
@@ -17,9 +17,10 @@ jobs:
                 python3-dev python3-setuptools python3-tk python3-wheel xz-utils file \
                 make gcc gcc-multilib g++-multilib libsdl2-dev libmagic1 curl
             python3 -m pip install west
-            wget https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.0/zephyr-sdk-0.17.0_linux-x86_64.tar.xz 
+            wget -q https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.17.0/zephyr-sdk-0.17.0_linux-x86_64.tar.xz
             tar xf zephyr-sdk-0.17.0_linux-x86_64.tar.xz
-            ./zephyr-sdk-0.17.0/setup.sh -t all -h -c
+            rm zephyr-sdk-0.17.0_linux-x86_64.tar.xz
+            ./zephyr-sdk-0.17.0/setup.sh -h -c
             cd examples/zephyr
             west init -l server
             west update

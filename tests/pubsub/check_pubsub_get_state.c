@@ -28,7 +28,7 @@ static UA_Server *server = NULL;
 
 /***************************************************************************************************/
 static void setup(void) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "setup");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "setup");
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_Server_run_startup(server);
@@ -36,7 +36,7 @@ static void setup(void) {
 
 /***************************************************************************************************/
 static void teardown(void) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "teardown");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "teardown");
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
@@ -243,9 +243,9 @@ static void AddDataSetReader(
 /***************************************************************************************************/
 START_TEST(Test_normal_operation) {
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_normal_operation");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "START: Test_normal_operation");
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "configure pubsub");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "configure pubsub");
 
     /* setup Connection 1: writer */
     UA_NodeId ConnId_1;
@@ -283,7 +283,7 @@ START_TEST(Test_normal_operation) {
         MessageReceiveTimeout_Conn1_RG1_DSR1, &VarId_Conn1_RG1_DSR1, &DSRId_Conn1_RG1_DSR1);
 
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "check state");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "check state");
     UA_PubSubState state = UA_PUBSUBSTATE_ERROR;
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
@@ -310,7 +310,7 @@ START_TEST(Test_normal_operation) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "set groups disabled");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "set groups disabled");
     ck_assert(UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_DISABLED, state);
@@ -323,7 +323,7 @@ START_TEST(Test_normal_operation) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_PAUSED, state);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_normal_operation");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_normal_operation");
 
 } END_TEST
 
@@ -331,7 +331,7 @@ START_TEST(Test_normal_operation) {
 /***************************************************************************************************/
 START_TEST(Test_corner_cases) {
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "START: Test_corner_cases");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "START: Test_corner_cases");
 
     UA_NodeId id = UA_NODEID_NULL;
 
@@ -341,7 +341,7 @@ START_TEST(Test_corner_cases) {
     ck_assert(UA_STATUSCODE_GOOD != UA_Server_WriterGroup_getState(0, id, &state));
     ck_assert(UA_STATUSCODE_GOOD != UA_Server_WriterGroup_getState(server, id, &state));
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "configure pubsub");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "configure pubsub");
 
     /* setup Connection 1: writer */
     UA_NodeId ConnId_1;
@@ -428,14 +428,14 @@ START_TEST(Test_corner_cases) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_corner_cases");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "END: Test_corner_cases");
 
 } END_TEST
 
 /***************************************************************************************************/
 START_TEST(Test_error_case) {
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nSTART: Test_error_case");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "\n\nSTART: Test_error_case");
 
     /* setup Connection 1: 1 writergroup, 1 writer */
     UA_NodeId ConnId_1;

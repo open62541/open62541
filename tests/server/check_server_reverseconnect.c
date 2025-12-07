@@ -49,7 +49,7 @@ static void clientStateCallback(UA_Client *c,
     ck_assert(numClientCallbackCalled < (int)(sizeof(clientCallbackStates) / sizeof(UA_SecureChannelState)));
     clientCallbackStates[numClientCallbackCalled++] = channelState;
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                  "Client state callback called with state %d", channelState);
 }
 
@@ -96,7 +96,7 @@ static void serverStateCallback(UA_Server *s, UA_UInt64 handle,
     ck_assert_ptr_eq(context, (void *)1234);
     ck_assert_uint_eq(handle, reverseConnectHandle);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                  "Reverse connect callback called with state %d", state);
 }
 
@@ -265,7 +265,7 @@ START_TEST(checkReconnect) {
             ck_assert_int_eq(serverCallbackStates[2], UA_SECURECHANNELSTATE_ACK_SENT);
             ck_assert_int_eq(serverCallbackStates[3], UA_SECURECHANNELSTATE_OPEN);
 
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                         "Stop listening and wait for reconnect");
 
             ret = UA_Client_disconnectAsync(client);

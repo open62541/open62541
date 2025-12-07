@@ -181,7 +181,7 @@ getRegisterClient(UA_ClientConfig *cc, UA_EndpointDescription *endpointRegister,
                 "Using LDS endpoint with security SignAndEncrypt");
 
     if(argc < 3) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "The Certificate and key is missing."
                          "The required arguments are "
                          "<client-certificate.der> <client-private-key.der> "
@@ -305,7 +305,7 @@ int main(int argc, char **argv) {
     memset(&cc, 0, sizeof(UA_ClientConfig));
     retval = getRegisterClient(&cc, endpointRegister, argc, argv);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Could not create the client for remote registering");
         UA_ClientConfig_clear(&cc);
         UA_Server_run_shutdown(server);

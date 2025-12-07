@@ -10,7 +10,7 @@
 
 static void
 testCallback(UA_Server *server, void *data) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "testcallback");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "testcallback");
 }
 
 static UA_Boolean running = true;

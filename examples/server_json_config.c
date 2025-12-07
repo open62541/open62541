@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
         /* Load server config */
         json_config = loadFile(argv[1]);
     } else {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Missing argument. Argument are "
                      "<server-config.json5>");
         return EXIT_FAILURE;

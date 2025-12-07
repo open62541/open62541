@@ -39,14 +39,14 @@ findOperand(EFParseContext *ctx, char *ref) {
         if(!temp->ref || strcmp(temp->ref, ref) != 0)
             continue;
         if(found) {
-            UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_APPLICATION,
                          "Duplicate definition of operand reference %s", ref);
             return NULL;
         }
         found = temp;
     }
     if(!found) {
-        UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_APPLICATION,
                      "Failed to find the operand reference %s", ref);
     }
     return found;
@@ -235,7 +235,7 @@ create_filter(EFParseContext *ctx, UA_EventFilter *filter) {
         if(!sao)
             return UA_STATUSCODE_BADINTERNALERROR;
         if(sao->type != OT_SAO) {
-            UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_APPLICATION,
                          "The select clause must only contain SimpleAttributeOperands");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -252,7 +252,7 @@ create_filter(EFParseContext *ctx, UA_EventFilter *filter) {
 
     Operand *top = resolveOperandRef(ctx, ctx->top, 0);
     if(!top || top->type != OT_OPERATOR) {
-        UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_APPLICATION,
                      "The where clause has no top-level operator");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -277,7 +277,7 @@ create_filter(EFParseContext *ctx, UA_EventFilter *filter) {
     /* Cycles are not allowed. Detected if we could not print all relevant
      * elements */
     if(count > 0) {
-        UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_APPLICATION,
                      "Cyclic operand references detected");
         res |= UA_STATUSCODE_BADINTERNALERROR;
     }
