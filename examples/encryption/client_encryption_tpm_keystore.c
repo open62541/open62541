@@ -326,7 +326,7 @@ decrypt(unsigned long slotNum, unsigned char *pin, char *label,
 
 int main(int argc, char* argv[]) {
     if(argc < MIN_ARGS) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Arguments are missing. The required arguments are "
                      "<opc.tcp://host:port> "
                      "<client-certificate.der> <client-private-key.der> "
@@ -425,7 +425,7 @@ int main(int argc, char* argv[]) {
        UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTime raw_date  = *(UA_DateTime *) value.data;
         UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "date is: %u-%u-%u %u:%u:%u.%03u\n",
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "date is: %u-%u-%u %u:%u:%u.%03u\n",
                     dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
     }
 

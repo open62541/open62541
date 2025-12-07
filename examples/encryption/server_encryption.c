@@ -21,7 +21,7 @@
 
 UA_Boolean running = true;
 static void stopHandler(int sig) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "received ctrl-c");
     running = false;
 }
 
@@ -37,13 +37,13 @@ int main(int argc, char* argv[]) {
         certificate = loadFile(argv[1]);
         privateKey = loadFile(argv[2]);
     } else {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Missing arguments. Arguments are "
                      "<server-certificate.der> <private-key.der> "
                      "[<trustlist1.crl>, ...] "
                      "[--onlySecure] "
                      "[--allowDiscovery]");
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "Trying to create a certificate.");
         UA_String subject[3] = {UA_STRING_STATIC("C=DE"),
                             UA_STRING_STATIC("O=SampleOrganization"),
@@ -64,7 +64,7 @@ int main(int argc, char* argv[]) {
         UA_KeyValueMap_delete(kvm);
 
         if(statusCertGen != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "Generating Certificate failed: %s",
                 UA_StatusCode_name(statusCertGen));
             return EXIT_SUCCESS;
