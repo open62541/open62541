@@ -9,6 +9,7 @@
 
 #include "ua_discovery.h"
 #include "ua_server_internal.h"
+#include <stdlib.h>
 #include "mdnsd/libmdnsd/mdnsd.h"
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
 
