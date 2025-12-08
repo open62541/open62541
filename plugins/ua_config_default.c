@@ -1042,7 +1042,7 @@ addAllServerSecurityPolicies(UA_ServerConfig *config,
 
     /* Do the generic addition of certificates */
     addAllSecurityPolicies(config->securityPolicies, &config->securityPoliciesSize,
-                           localCertificate, localPrivateKey, onlySecure,
+                           localCertificate, decryptedPrivateKey, onlySecure,
                            UA_APPLICATIONTYPE_SERVER, config->logging);
 
     if(config->securityPoliciesSize == 0) {
