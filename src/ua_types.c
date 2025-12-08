@@ -840,7 +840,7 @@ nodeIdSize(const UA_NodeId *id, u8 *nsStr, u8 *numIdStr, UA_String nsUri,
            UA_Escaping idEsc) {
     /* Namespace length */
     size_t len = 0;
-    if(nsUri.length > 0) {
+    if(nsUri.data != NULL) {
         len += 5; /* nsu=; */
         len += UA_String_escapedSize(nsUri, UA_ESCAPING_PERCENT);
     } else if(id->namespaceIndex > 0) {
@@ -880,7 +880,7 @@ printNodeIdBody(const UA_NodeId *id, UA_String nsUri, u8* nsStr, u8* numIdStr, u
     size_t len;
 
     /* Encode the namespace */
-    if(nsUri.length > 0) {
+    if(nsUri.data != NULL) {
         memcpy(pos, "nsu=", 4);
         pos += 4;
         pos += UA_String_escapeInsert(pos, nsUri, UA_ESCAPING_PERCENT);
@@ -1095,7 +1095,7 @@ UA_ExpandedNodeId_printEx(const UA_ExpandedNodeId *eid, UA_String *output,
                           size_t serverUrisSize, const UA_String *serverUris) {
     /* Try to map the NamespaceIndex to the Uri */
     UA_String nsUri = eid->namespaceUri;
-    if(nsUri.length == 0 && eid->nodeId.namespaceIndex > 0 && nsMapping)
+    if(nsUri.data == NULL && eid->nodeId.namespaceIndex > 0 && nsMapping)
         UA_NamespaceMapping_index2Uri(nsMapping, eid->nodeId.namespaceIndex, &nsUri);
 
     /* Try to map the ServerIndex to a Uri */
