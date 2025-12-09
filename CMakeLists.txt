@@ -522,7 +522,9 @@ endif()
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     # See https://github.com/libressl-portable/portable/blob/master/FindLibreSSL.cmake
     find_package(LibreSSL REQUIRED)
-    list(APPEND open62541_LIBRARIES ${LIBRESSL_LIBRARIES})
+    get_filename_component(LIBRESSL_CRYPTO_NAME "${LBRESSL_CRYPTO_LIBRARY}" NAME_WE) # Extract the base library name without path
+    string(REGEX REPLACE "^lib" "" LIBRESSL_CRYPTO_NAME "${LIBRESSL_CRYPTO_NAME}") # Strip the "lib" prefix if present.
+    list(APPEND open62541_LIBRARIES ${LIBRESSL_CRYPTO_NAME})
     if(WIN32)
         # Add bestcrypt for random generator and ws2_32 for crypto
         list(APPEND open62541_LIBRARIES ws2_32 bcrypt)
