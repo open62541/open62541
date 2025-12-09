@@ -699,7 +699,7 @@ UA_CertificateVerification_Verify(const UA_CertificateVerification *cv,
        ctx->rejectedListFolder.length > 0) {
             char rejectedFileName[256] = {0};
             UA_ByteString thumbprint;
-            UA_ByteString_allocBuffer(&thumbprint, UA_SHA1_LENGTH);
+            UA_ByteString_init(&thumbprint);
             if(UA_Openssl_X509_GetCertificateThumbprint(certificate, &thumbprint, true) == UA_STATUSCODE_GOOD) {
                 static const char hex2char[] = "0123456789ABCDEF";
                 for(size_t pos = 0, namePos = 0; pos < thumbprint.length; pos++) {
