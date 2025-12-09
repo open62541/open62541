@@ -510,7 +510,9 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL)
     # use the OpenSSL encryption library
     # https://cmake.org/cmake/help/v3.13/module/FindOpenSSL.html
     find_package(OpenSSL REQUIRED)
-    list(APPEND open62541_LIBRARIES "${OPENSSL_LIBRARIES}")
+    get_filename_component(OPENSSL_CRYPTO_NAME "${OPENSSL_CRYPTO_LIBRARY}" NAME_WE) # Extract the base library name without path
+    string(REGEX REPLACE "^lib" "" OPENSSL_CRYPTO_NAME "${OPENSSL_CRYPTO_NAME}") # Strip the "lib" prefix if present.
+    list(APPEND open62541_LIBRARIES "${OPENSSL_CRYPTO_NAME}")
     if(WIN32)
         # Add bestcrypt for windows systems
         list(APPEND open62541_LIBRARIES bcrypt)
