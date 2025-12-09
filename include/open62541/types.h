@@ -1258,6 +1258,9 @@ typedef struct {
      * memory is not freed if decoding fails afterwards. */
     void *callocContext;
     void * (*calloc)(void *callocContext, size_t nelem, size_t elsize);
+
+    size_t decodedLength; /* After each successful decoding, this contains the
+                           * number of decoded bytes. */
 } UA_DecodeBinaryOptions;
 
 /* Decodes a data structure from the input buffer in the binary format. It is
@@ -1266,7 +1269,7 @@ typedef struct {
 UA_EXPORT UA_StatusCode
 UA_decodeBinary(const UA_ByteString *inBuf,
                 void *p, const UA_DataType *type,
-                const UA_DecodeBinaryOptions *options);
+                UA_DecodeBinaryOptions *options);
 
 /**
  * JSON En/Decoding
