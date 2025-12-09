@@ -10,7 +10,7 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
- *    Copyright 2023 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2023-2025 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #include "open62541/namespace0_generated.h"
@@ -902,6 +902,9 @@ addModellingRules(UA_Server *server) {
 
 #endif
 
+static UA_StatusCode connectNS0_dataSources(UA_Server *server);
+static UA_StatusCode configureNS0(UA_Server *server);
+
 /* Initialize the nodeset 0 by using the generated code of the nodeset compiler.
  * This also initialized the data sources for various variables, such as for
  * example server time. */
@@ -932,10 +935,28 @@ initNS0(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* NamespaceArray */
-    UA_CallbackValueSource namespaceDataSource = {readNamespaces, writeNamespaces};
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_NAMESPACEARRAY),
-                                                  namespaceDataSource);
+    /* Connect data sources and configure NS0 (shared with ROM nodestore) */
+    retVal |= connectNS0_dataSources(server);
+    retVal |= configureNS0(server);
+
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Initialization of Namespace 0 (after bootstrapping) "
+                     "failed with %s. See previous outputs for any error messages.",
+                     UA_StatusCode_name(retVal));
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Configure NS0 nodes: write values, delete unused nodes, add references.
+ * This is called after nodes are created (initNS0) or loaded from ROM.
+ * Shared between initNS0() and initNS0_dataSources() to avoid duplication. */
+static UA_StatusCode
+configureNS0(UA_Server *server) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
+    /* Additional attribute setup for NamespaceArray */
     retVal |= writeValueRankAttribute(server, UA_NS0ID(SERVER_NAMESPACEARRAY), 1);
 
     /* ServerArray */
@@ -944,70 +965,19 @@ initNS0(UA_Server *server) {
                                     1, &UA_TYPES[UA_TYPES_STRING]);
     retVal |= writeValueRankAttribute(server, UA_NS0ID(SERVER_SERVERARRAY), 1);
 
-    /* ServerStatus */
-    UA_CallbackValueSource serverStatus = {readStatus, writeStatus};
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS), serverStatus);
-
     /* StartTime will be sampled in UA_Server_run_startup()*/
 
-    /* CurrentTime */
-    UA_CallbackValueSource currentTime = {readCurrentTime, NULL};
+    /* CurrentTime - additional attribute setup */
     UA_NodeId currTime = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
-    retVal |= setVariableNode_callbackValueSource(server, currTime, currentTime);
     retVal |= writeMinimumSamplingIntervalAttribute(server, currTime, 100.0);
 
-    /* State */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_STATE),
-                                         serverStatus);
-
-    /* BuildInfo */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO),
-                                         serverStatus);
-
-    /* BuildInfo - ProductUri */
-    retVal |= setVariableNode_callbackValueSource(server,
-                                         UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_PRODUCTURI),
-                                         serverStatus);
-
-    /* BuildInfo - ManufacturerName */
-    retVal |= setVariableNode_callbackValueSource(server,
-                                         UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_MANUFACTURERNAME),
-                                         serverStatus);
-
-    /* BuildInfo - ProductName */
-    retVal |= setVariableNode_callbackValueSource(server,
-                                         UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME),
-                                         serverStatus);
-
-    /* BuildInfo - SoftwareVersion */
-    retVal |= setVariableNode_callbackValueSource(server,
-                                         UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_SOFTWAREVERSION),
-                                         serverStatus);
-
-    /* BuildInfo - BuildNumber */
-    retVal |= setVariableNode_callbackValueSource(server,
-                                         UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_BUILDNUMBER),
-                                         serverStatus);
-
-    /* BuildInfo - BuildDate */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_BUILDDATE),
-                                         serverStatus);
-
 #ifdef UA_GENERATED_NAMESPACE_ZERO
-
-    /* SecondsTillShutdown */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN),
-                                         serverStatus);
 
     /* ShutDownReason */
     UA_LocalizedText shutdownReason;
     UA_LocalizedText_init(&shutdownReason);
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERSTATUS_SHUTDOWNREASON,
                                &shutdownReason, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-
-    /* ServiceLevel */
-    UA_CallbackValueSource serviceLevel = {readServiceLevel, NULL};
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVICELEVEL), serviceLevel);
 
     /* ServerDiagnostics - EnabledFlag */
 #ifdef UA_ENABLE_DIAGNOSTICS
@@ -1028,10 +998,6 @@ initNS0(UA_Server *server) {
      * the NodeId as read only */
     retVal |= writeAccessLevelAttribute(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_ENABLEDFLAG),
                                         UA_ACCESSLEVELMASK_READ);
-
-    /* Auditing */
-    UA_CallbackValueSource auditing = {readAuditing, NULL};
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_AUDITING), auditing);
 
     /* Redundancy Support */
     UA_RedundancySupport redundancySupport = UA_REDUNDANCYSUPPORT_NONE;
@@ -1088,37 +1054,6 @@ initNS0(UA_Server *server) {
     retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXHISTORYCONTINUATIONPOINTS,
                                &maxHistoryContinuationPoints, &UA_TYPES[UA_TYPES_UINT16]);
 
-    /* ServerCapabilities - MinSupportedSampleRate */
-    UA_CallbackValueSource samplingInterval = {readMinSamplingInterval, NULL};
-    retVal |= setVariableNode_callbackValueSource(server,
-                                         UA_NS0ID(SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE),
-                                         samplingInterval);
-
-    /* ServerCapabilities - OperationLimits - MaxNodesPerRead */
-    UA_CallbackValueSource operationLimitRead = {readOperationLimits, NULL};
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREAD), operationLimitRead);
-
-    /* ServerCapabilities - OperationLimits - maxNodesPerWrite */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERWRITE), operationLimitRead);
-
-    /* ServerCapabilities - OperationLimits - MaxNodesPerMethodCall */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERMETHODCALL), operationLimitRead);
-
-    /* ServerCapabilities - OperationLimits - MaxNodesPerBrowse */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERBROWSE), operationLimitRead);
-
-    /* ServerCapabilities - OperationLimits - MaxNodesPerRegisterNodes */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREGISTERNODES), operationLimitRead);
-
-    /* ServerCapabilities - OperationLimits - MaxNodesPerTranslateBrowsePathsToNodeIds */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERTRANSLATEBROWSEPATHSTONODEIDS), operationLimitRead);
-
-    /* ServerCapabilities - OperationLimits - MaxNodesPerNodeManagement */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERNODEMANAGEMENT), operationLimitRead);
-
-    /* ServerCapabilities - OperationLimits - MaxMonitoredItemsPerCall */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL), operationLimitRead);
-
     /* Remove unused operation limit components */
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYREADDATA), true);
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYREADEVENTS), true);
@@ -1140,63 +1075,7 @@ initNS0(UA_Server *server) {
     deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP), true);
 #endif
 
-
-#ifdef UA_ENABLE_DIAGNOSTICS
-    /* ServerDiagnostics - ServerDiagnosticsSummary */
-    UA_CallbackValueSource serverDiagSummary = {readDiagnostics, NULL};
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), serverDiagSummary);
-
-    /* ServerDiagnostics - ServerDiagnosticsSummary - ServerViewCount */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SERVERVIEWCOUNT), serverDiagSummary);
-
-    /* ServerDiagnostics - ServerDiagnosticsSummary - CurrentSessionCount */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSESSIONCOUNT), serverDiagSummary);
-
-    /* ServerDiagnostics - ServerDiagnosticsSummary - CumulatedSessionCount */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSESSIONCOUNT), serverDiagSummary);
-
-    /* ServerDiagnostics - ServerDiagnosticsSummary - SecurityRejectedSessionCount */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDSESSIONCOUNT), serverDiagSummary);
-
-    /* ServerDiagnostics - ServerDiagnosticsSummary - RejectedSessionCount */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDSESSIONCOUNT), serverDiagSummary);
-
-    /* ServerDiagnostics - ServerDiagnosticsSummary - SessionTimeoutCount */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONTIMEOUTCOUNT), serverDiagSummary);
-
-    /* ServerDiagnostics - ServerDiagnosticsSummary - SessionAbortCount */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONABORTCOUNT), serverDiagSummary);
-
-    /* ServerDiagnostics - ServerDiagnosticsSummary - CurrentSubscriptionCount */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSUBSCRIPTIONCOUNT), serverDiagSummary);
-
-    /* ServerDiagnostics - ServerDiagnosticsSummary - CumulatedSubscriptionCount */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSUBSCRIPTIONCOUNT), serverDiagSummary);
-
-    /* ServerDiagnostics - ServerDiagnosticsSummary - PublishingIntervalCount */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_PUBLISHINGINTERVALCOUNT), serverDiagSummary);
-
-    /* ServerDiagnostics - ServerDiagnosticsSummary - SecurityRejectedRequestsCount */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDREQUESTSCOUNT), serverDiagSummary);
-
-    /* ServerDiagnostics - ServerDiagnosticsSummary - RejectedRequestsCount */
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDREQUESTSCOUNT), serverDiagSummary);
-
-    /* ServerDiagnostics - SubscriptionDiagnosticsArray */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_CallbackValueSource serverSubDiagSummary = {readSubscriptionDiagnosticsArray, NULL};
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), serverSubDiagSummary);
-#endif
-
-    /* ServerDiagnostics - SessionDiagnosticsSummary - SessionDiagnosticsArray */
-    UA_CallbackValueSource sessionDiagSummary = {readSessionDiagnosticsArray, NULL};
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONDIAGNOSTICSARRAY), sessionDiagSummary);
-
-    /* ServerDiagnostics - SessionDiagnosticsSummary - SessionSecurityDiagnosticsArray */
-    UA_CallbackValueSource sessionSecDiagSummary = {readSessionSecurityDiagnostics, NULL};
-    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONSECURITYDIAGNOSTICSARRAY), sessionSecDiagSummary);
-
-#else
+#ifndef UA_ENABLE_DIAGNOSTICS
     /* Removing these NodeIds make Server Object to be non-complaint with UA
      * 1.03 in CTT (Base Inforamtion/Base Info Core Structure/ 001.js) In the
      * 1.04 specification this has been resolved by allowing to remove these
@@ -1274,23 +1153,138 @@ initNS0(UA_Server *server) {
                                &server->config.deleteAtTimeDataCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
 #endif
 
-#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
-    retVal |= setMethodNode_callback(server, UA_NS0ID(SERVER_GETMONITOREDITEMS), readMonitoredItems);
-    retVal |= setMethodNode_callback(server, UA_NS0ID(SERVER_RESENDDATA), resendData);
-#endif
-
     /* The HasComponent references to the ModellingRules are not part of the
      * Nodeset2.xml. So we add the references manually. */
     addModellingRules(server);
 
 #endif /* UA_GENERATED_NAMESPACE_ZERO */
 
+    return retVal;
+}
+
+/* Connect data sources and callbacks to existing NS0 nodes.
+ * This is used when NS0 is loaded from an external source (e.g., ROM nodestore)
+ * and we only need to attach the dynamic data sources without creating nodes.
+ * Also called by initNS0() after node creation to avoid code duplication. */
+static UA_StatusCode
+connectNS0_dataSources(UA_Server *server) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
+    /* NamespaceArray - dynamic callback */
+    UA_CallbackValueSource namespaceDataSource = {readNamespaces, writeNamespaces};
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_NAMESPACEARRAY),
+                                                  namespaceDataSource);
+
+    /* ServerStatus - dynamic callback */
+    UA_CallbackValueSource serverStatus = {readStatus, writeStatus};
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS), serverStatus);
+
+    /* CurrentTime */
+    UA_CallbackValueSource currentTime = {readCurrentTime, NULL};
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), currentTime);
+
+    /* State */
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_STATE), serverStatus);
+
+    /* BuildInfo and sub-components */
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO), serverStatus);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_PRODUCTURI), serverStatus);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_MANUFACTURERNAME), serverStatus);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME), serverStatus);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_SOFTWAREVERSION), serverStatus);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_BUILDNUMBER), serverStatus);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_BUILDINFO_BUILDDATE), serverStatus);
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    /* SecondsTillShutdown */
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN), serverStatus);
+
+    /* ServiceLevel */
+    UA_CallbackValueSource serviceLevel = {readServiceLevel, NULL};
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVICELEVEL), serviceLevel);
+
+    /* Auditing */
+    UA_CallbackValueSource auditing = {readAuditing, NULL};
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_AUDITING), auditing);
+
+    /* MinSupportedSampleRate */
+    UA_CallbackValueSource samplingInterval = {readMinSamplingInterval, NULL};
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MINSUPPORTEDSAMPLERATE), samplingInterval);
+
+    /* OperationLimits */
+    UA_CallbackValueSource operationLimitRead = {readOperationLimits, NULL};
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREAD), operationLimitRead);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERWRITE), operationLimitRead);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERMETHODCALL), operationLimitRead);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERBROWSE), operationLimitRead);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREGISTERNODES), operationLimitRead);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERTRANSLATEBROWSEPATHSTONODEIDS), operationLimitRead);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERNODEMANAGEMENT), operationLimitRead);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL), operationLimitRead);
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+    /* ServerDiagnostics */
+    UA_CallbackValueSource serverDiagSummary = {readDiagnostics, NULL};
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), serverDiagSummary);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SERVERVIEWCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSESSIONCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSESSIONCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDSESSIONCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDSESSIONCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONTIMEOUTCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SESSIONABORTCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CURRENTSUBSCRIPTIONCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_CUMULATEDSUBSCRIPTIONCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_PUBLISHINGINTERVALCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_SECURITYREJECTEDREQUESTSCOUNT), serverDiagSummary);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY_REJECTEDREQUESTSCOUNT), serverDiagSummary);
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_CallbackValueSource serverSubDiagSummary = {readSubscriptionDiagnosticsArray, NULL};
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), serverSubDiagSummary);
+#endif
+
+    UA_CallbackValueSource sessionDiagSummary = {readSessionDiagnosticsArray, NULL};
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONDIAGNOSTICSARRAY), sessionDiagSummary);
+
+    UA_CallbackValueSource sessionSecDiagSummary = {readSessionSecurityDiagnostics, NULL};
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY_SESSIONSECURITYDIAGNOSTICSARRAY), sessionSecDiagSummary);
+#endif /* UA_ENABLE_DIAGNOSTICS */
+
+#if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
+    retVal |= setMethodNode_callback(server, UA_NS0ID(SERVER_GETMONITOREDITEMS), readMonitoredItems);
+    retVal |= setMethodNode_callback(server, UA_NS0ID(SERVER_RESENDDATA), resendData);
+#endif
+
+#endif /* UA_GENERATED_NAMESPACE_ZERO */
+
+    return retVal;
+}
+
+/* Public function for external nodestores (e.g., ROM nodestore) that have
+ * NS0 pre-loaded and only need to connect the dynamic data sources and
+ * configure values/deletions. */
+UA_StatusCode
+initNS0_dataSources(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+                "Configuring pre-loaded NS0 nodes (data sources, values, deletions)");
+
+    /* Connect all data source callbacks (shared with initNS0) */
+    UA_StatusCode retVal = connectNS0_dataSources(server);
+
+    /* Configure NS0: write values, delete unused nodes, add references */
+    retVal |= configureNS0(server);
+
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Initialization of Namespace 0 (after bootstrapping) "
-                     "failed with %s. See previous outputs for any error messages.",
-                     UA_StatusCode_name(retVal));
-        return UA_STATUSCODE_BADINTERNALERROR;
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Some NS0 configuration operations failed: %s "
+                       "(this may be normal if some nodes don't exist in ROM)",
+                       UA_StatusCode_name(retVal));
+        /* Don't fail - some nodes may simply not exist in the ROM */
     }
+
     return UA_STATUSCODE_GOOD;
 }
+

@@ -16,7 +16,7 @@
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
- *    Copyright 2022 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2022-2025 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
@@ -564,9 +564,23 @@ UA_Server_init(UA_Server *server) {
     UA_AsyncManager_init(&server->asyncManager, server);
 #endif
 
-    /* Initialize namespace 0*/
-    res = initNS0(server);
-    UA_CHECK_STATUS(res, goto cleanup);
+    /* Initialize namespace 0 - skip if nodestore already contains NS0 (Pre-Configured Namespace) */
+    UA_NodeId rootId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER);
+    const UA_Node *existingRoot = server->config.nodestore->getNode(
+        server->config.nodestore, &rootId, 0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
+    
+    if(existingRoot) {
+        /* NS0 already exists in nodestore. Skip node creation but still connect data 
+        sources for dynamic values like ServerTime, ServerStatus, etc. */
+        server->config.nodestore->releaseNode(server->config.nodestore, existingRoot);
+        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+                    "NS0 already loaded in nodestore, connecting data sources only");
+        res = initNS0_dataSources(server);
+        UA_CHECK_STATUS(res, goto cleanup);
+    } else {
+        res = initNS0(server);
+        UA_CHECK_STATUS(res, goto cleanup);
+    }
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
     res = initNS0PushManagement(server);
