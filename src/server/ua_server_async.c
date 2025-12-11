@@ -319,11 +319,16 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
     TAILQ_INIT(&am->readyOps);
 }
 
-void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server) {
-    /* Add a regular callback for cleanup and sending finished responses at a
-     * 1s interval. */
-    addRepeatedCallback(server, (UA_ServerCallback)checkTimeouts,
-                        NULL, 1000.0, &am->checkTimeoutCallbackId);
+UA_StatusCode
+UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server) {
+    UA_StatusCode res = addRepeatedCallback(server, (UA_ServerCallback)checkTimeouts,
+                                            NULL, 1000.0, &am->checkTimeoutCallbackId);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Failed to start async manager timeout callback: %s",
+                     UA_StatusCode_name(res));
+    }
+    return res;
 }
 
 void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server) {
