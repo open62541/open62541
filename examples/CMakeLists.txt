@@ -164,6 +164,11 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
     add_example(discovery_server_multicast discovery/server_multicast.c)
 endif()
 
+if(UA_ENABLE_LWS)
+    add_example(server_lws_http_client lws/server_lws_http_client.c)
+    add_example(server_lws_http_client_post lws/server_lws_http_client_post.c)
+endif()
+
 add_subdirectory(nodeset)
 
 ####################
