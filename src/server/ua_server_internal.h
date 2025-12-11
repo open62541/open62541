@@ -31,6 +31,10 @@
 
 _UA_BEGIN_DECLS
 
+#ifdef UA_ENABLE_RBAC
+#include "ua_server_rbac.h"
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 
@@ -224,6 +228,12 @@ struct UA_Server {
     /* Namespaces */
     size_t namespacesSize;
     UA_String *namespaces;
+
+#ifdef UA_ENABLE_RBAC
+    size_t rolesSize;
+    UA_Role *roles;
+    UA_UInt32 nextCustomRoleId; /* Counter for generating sequential role IDs, starts at 80000 */
+#endif /* UA_ENABLE_RBAC */
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
@@ -794,6 +804,11 @@ UA_StatusCode initNS0(UA_Server *server);
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 UA_StatusCode
 initNS0PushManagement(UA_Server *server);
+#endif
+
+#ifdef UA_ENABLE_RBAC
+UA_StatusCode
+initNS0RBAC(UA_Server *server);
 #endif
 
 
