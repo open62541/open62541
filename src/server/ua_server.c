@@ -564,23 +564,16 @@ UA_Server_init(UA_Server *server) {
     UA_AsyncManager_init(&server->asyncManager, server);
 #endif
 
-    /* Initialize namespace 0 - skip if nodestore already contains NS0 (Pre-Configured Namespace) */
-    UA_NodeId rootId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER);
-    const UA_Node *existingRoot = server->config.nodestore->getNode(
-        server->config.nodestore, &rootId, 0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
-    
-    if(existingRoot) {
-        /* NS0 already exists in nodestore. Skip node creation but still connect data 
-        sources for dynamic values like ServerTime, ServerStatus, etc. */
-        server->config.nodestore->releaseNode(server->config.nodestore, existingRoot);
-        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                    "NS0 already loaded in nodestore, connecting data sources only");
-        res = initNS0_dataSources(server);
-        UA_CHECK_STATUS(res, goto cleanup);
-    } else {
-        res = initNS0(server);
-        UA_CHECK_STATUS(res, goto cleanup);
-    }
+    /* Initialize namespace 0 */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    /* Standard configuration: generate NS0 nodes at runtime */
+    res = initNS0(server);
+#else
+    /* NONE configuration: NS0 pre-loaded by external nodestore (e.g., ROM).
+     * Only connect data sources for dynamic values like ServerTime, ServerStatus, etc. */
+    res = initNS0_dataSources(server);
+#endif
+    UA_CHECK_STATUS(res, goto cleanup);
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
     res = initNS0PushManagement(server);
