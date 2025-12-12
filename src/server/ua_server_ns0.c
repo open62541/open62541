@@ -13,11 +13,12 @@
  *    Copyright 2023-2025 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
+#include "ua_server_internal.h"
+
 #ifdef UA_GENERATED_NAMESPACE_ZERO
 #include "open62541/namespace0_generated.h"
 #endif
 
-#include "ua_server_internal.h"
 #include "ua_session.h"
 #include "ua_subscription.h"
 
