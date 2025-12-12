@@ -12,7 +12,7 @@
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
- *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2021-2025 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2022 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
@@ -790,6 +790,9 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 /**********************/
 
 UA_StatusCode initNS0(UA_Server *server);
+
+/* Connect data sources to existing NS0 nodes */
+UA_StatusCode initNS0_dataSources(UA_Server *server);
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 UA_StatusCode
