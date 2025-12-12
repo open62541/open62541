@@ -816,7 +816,8 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h)
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/driver/driver.h)
 
 # Main Library
 
@@ -839,7 +840,8 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
+                ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
+                ${PROJECT_SOURCE_DIR}/src/driver/ua_fileserver_driver.h)
 
 if(UA_ENABLE_ENCRYPTION AND UA_ARCHITECTURE_WIN32)
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/tr_dirent.h)
@@ -880,6 +882,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_monitoreditem.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
+                # driver
+                ${PROJECT_SOURCE_DIR}/src/driver/ua_fileserver_driver.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
