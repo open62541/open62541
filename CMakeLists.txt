@@ -255,9 +255,9 @@ if(UA_ENABLE_TPM2_KEYSTORE)
 endif()
 
 # Namespace Zero
-set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (minimal/reduced/full)")
-SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "MINIMAL" "REDUCED" "FULL")
-if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
+set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (none/minimal/reduced/full)")
+SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "NONE" "MINIMAL" "REDUCED" "FULL")
+if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL" OR UA_NAMESPACE_ZERO STREQUAL "NONE")
     set(UA_GENERATED_NAMESPACE_ZERO OFF)
 else()
     set(UA_GENERATED_NAMESPACE_ZERO ON)
@@ -343,6 +343,10 @@ option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" 
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")
         message(FATAL_ERROR "PubSub information model representation cannot be used with MINIMAL namespace zero.")
+    endif()
+    if(UA_NAMESPACE_ZERO STREQUAL "NONE")
+        message(STATUS "PubSub information model enabled with NONE namespace zero configuration.")
+        message(STATUS "  External nodestore (e.g., ROM) must provide all Part 14 Nodes.")
     endif()
 endif()
 
@@ -1313,22 +1317,30 @@ if(UA_ENABLE_AMALGAMATION)
 endif()
 
 # Generated NS0
-ua_generate_nodeset(NAME "ns0" FILE ${UA_NS0_NODESET_FILES}
-                    INTERNAL BLACKLIST ${UA_NS0_BLACKLIST}
-                    IGNORE "${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt"
-                    DEPENDS_TARGET "open62541-generator-types")
+if(NOT UA_NAMESPACE_ZERO STREQUAL "NONE")
+    ua_generate_nodeset(NAME "ns0" FILE ${UA_NS0_NODESET_FILES}
+                        INTERNAL BLACKLIST ${UA_NS0_BLACKLIST}
+                        IGNORE "${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt"
+                        DEPENDS_TARGET "open62541-generator-types")
 
-# Stack protector and optimization are disabled for the huge ns0 file to speed up the compilation
-if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND NOT MSVC)
-    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c
-                                PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
+    # Stack protector and optimization are disabled for the huge ns0 file to speed up the compilation
+    if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND NOT MSVC)
+        set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c
+                                    PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
+    endif()
 endif()
 
 # Group the code generation targets into one target
-add_custom_target(open62541-code-generation DEPENDS open62541-generator-types
-                                                    open62541-generator-transport
-                                                    open62541-generator-statuscode
-                                                    open62541-generator-namespace)
+if(NOT UA_NAMESPACE_ZERO STREQUAL "NONE")
+    add_custom_target(open62541-code-generation DEPENDS open62541-generator-types
+                                                        open62541-generator-transport
+                                                        open62541-generator-statuscode
+                                                        open62541-generator-namespace)
+else()
+    add_custom_target(open62541-code-generation DEPENDS open62541-generator-types
+                                                        open62541-generator-transport
+                                                        open62541-generator-statuscode)
+endif()
 
 # Generate Nodeset injector source files
 if(UA_ENABLE_NODESET_INJECTOR)
@@ -1614,7 +1626,9 @@ set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
 
-set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541/generators")
+if(NOT UA_NAMESPACE_ZERO STREQUAL "NONE")
+    set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541/generators")
+endif()
 set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-transport PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/generators")
