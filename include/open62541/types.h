@@ -293,14 +293,12 @@ UA_Int64 UA_EXPORT UA_DateTime_localTimeUtcOffset(void);
  * not absolute time. */
 UA_DateTime UA_EXPORT UA_DateTime_nowMonotonic(void);
 
-#ifdef UA_ENABLE_PARSING
 /* Parse the humand-readable DateTime format */
 UA_StatusCode UA_EXPORT
 UA_DateTime_parse(UA_DateTime *dst, const UA_String str);
 
 /* Returns zero if parsing fails */
 UA_EXPORT UA_DateTime UA_DATETIME(const char *chars);
-#endif
 
 /* Represents a Datetime as a structure */
 typedef struct UA_DateTimeStruct {
@@ -360,13 +358,11 @@ UA_StatusCode UA_EXPORT
 UA_Guid_print(const UA_Guid *guid, UA_String *output);
 
 /* Parse the humand-readable Guid format */
-#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_Guid_parse(UA_Guid *guid, const UA_String str);
 
 /* Shorthand, returns UA_GUID_NULL upon failure to parse */
 UA_EXPORT UA_Guid UA_GUID(const char *chars);
-#endif
 
 /**
  * ByteString
@@ -488,7 +484,6 @@ UA_StatusCode UA_EXPORT
 UA_NodeId_printEx(const UA_NodeId *id, UA_String *output,
                   const UA_NamespaceMapping *nsMapping);
 
-#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
  * cleaned up. */
@@ -512,7 +507,6 @@ UA_NodeId_parseEx(UA_NodeId *id, const UA_String str,
 
 /* Shorthand, returns UA_NODEID_NULL when parsing fails */
 UA_EXPORT UA_NodeId UA_NODEID(const char *chars);
-#endif
 
 /* Total ordering of NodeId */
 UA_Order UA_EXPORT
@@ -586,7 +580,6 @@ UA_ExpandedNodeId_printEx(const UA_ExpandedNodeId *id, UA_String *output,
                           const UA_NamespaceMapping *nsMapping,
                           size_t serverUrisSize, const UA_String *serverUris);
 
-#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
  * cleaned up. */
@@ -601,7 +594,6 @@ UA_ExpandedNodeId_parseEx(UA_ExpandedNodeId *id, const UA_String str,
 /* Shorthand, returns UA_EXPANDEDNODEID_NULL when parsing fails */
 UA_EXPORT UA_ExpandedNodeId
 UA_EXPANDEDNODEID(const char *chars);
-#endif
 
 /* Does the ExpandedNodeId point to a local node? That is, are namespaceUri and
  * serverIndex empty? */
@@ -666,7 +658,6 @@ UA_StatusCode UA_EXPORT
 UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
                          const UA_NamespaceMapping *nsMapping);
 
-#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable QualifiedName format.
  *
  * The extended parsing tries to translate the NamespaceIndex to a NamespaceUri
@@ -678,7 +669,6 @@ UA_QualifiedName_parse(UA_QualifiedName *qn, const UA_String str);
 UA_StatusCode UA_EXPORT
 UA_QualifiedName_parseEx(UA_QualifiedName *qn, const UA_String str,
                          const UA_NamespaceMapping *nsMapping);
-#endif
 
 /**
  * LocalizedText
@@ -1296,9 +1286,9 @@ UA_decodeBinary(const UA_ByteString *inBuf,
  *   convenience features such as trailing commas in arrays and comments within
  *   JSON documents.
  * - Int64/UInt64 don't necessarily have to be wrapped into a string.
- * - If `UA_ENABLE_PARSING` is set, NodeIds and ExpandedNodeIds can be given in
- *   the string encoding (e.g. "ns=1;i=42", see `UA_NodeId_parse`). The standard
- *   encoding is to express NodeIds as JSON objects.
+ * - NodeIds and ExpandedNodeIds can be given in the string encoding (e.g.
+ *   "ns=1;i=42", see `UA_NodeId_parse`). The standard encoding is to express
+ *   NodeIds as JSON objects.
  *
  * These extensions are not intended to be used for the OPC UA protocol on the
  * network. They were rather added to allow more convenient configuration file
