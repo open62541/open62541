@@ -568,9 +568,8 @@ static UA_INLINE UA_Byte uppercase(UA_Byte in) { return in | 32; }
 
 static UA_StatusCode
 castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) {
-#if defined(UA_ENABLE_PARSING) || defined(UA_ENABLE_JSON_ENCODING)
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-#endif
+
     if(outType == &UA_TYPES[UA_TYPES_BOOLEAN]) {
         /* String -> Boolean
          *
@@ -595,10 +594,7 @@ castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Vari
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
         return UA_Variant_setScalarCopy(out, &b, outType);
-    }
-
-#ifdef UA_ENABLE_PARSING
-    else if(outType == &UA_TYPES[UA_TYPES_GUID]) {
+    } else if(outType == &UA_TYPES[UA_TYPES_GUID]) {
         /* String -> Guid */
         UA_Guid guid;
         res = UA_Guid_parse(&guid, *(UA_String*)in->data);
@@ -606,7 +602,6 @@ castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Vari
             return res;
         return UA_Variant_setScalarCopy(out, &guid, outType);
     }
-#endif
 
 #ifdef UA_ENABLE_JSON_ENCODING
     /* String -> Numerical, uses the JSON decoding */

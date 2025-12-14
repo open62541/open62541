@@ -527,7 +527,6 @@ UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
     return t;
 }
 
-#ifdef UA_ENABLE_PARSING
 UA_StatusCode
 UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
     if(str.length == 0)
@@ -683,7 +682,6 @@ UA_DATETIME(const char *chars) {
         UA_DateTime_init(&dst);
     return dst;
 }
-#endif
 
 /* Guid */
 static const u8 hexmapLower[16] =
@@ -731,14 +729,12 @@ UA_Guid_print(const UA_Guid *guid, UA_String *output) {
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef UA_ENABLE_PARSING
 UA_Guid
 UA_GUID(const char *chars) {
     UA_Guid guid;
     UA_Guid_parse(&guid, UA_STRING((char*)(uintptr_t)chars));
     return guid;
 }
-#endif
 
 /* ByteString */
 UA_StatusCode
@@ -1047,13 +1043,11 @@ UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
     return UA_NodeId_printEx(id, output, NULL);
 }
 
-#ifdef UA_ENABLE_PARSING
 UA_NodeId UA_NODEID(const char *chars) {
     UA_NodeId id;
     UA_NodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
     return id;
 }
-#endif
 
 /* ExpandedNodeId */
 static void
@@ -1127,14 +1121,12 @@ UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId) {
     return id;
 }
 
-#ifdef UA_ENABLE_PARSING
 UA_ExpandedNodeId
 UA_EXPANDEDNODEID(const char *chars) {
     UA_ExpandedNodeId id;
     UA_ExpandedNodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
     return id;
 }
-#endif
 
 UA_Boolean
 UA_ExpandedNodeId_isLocal(const UA_ExpandedNodeId *n) {

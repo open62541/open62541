@@ -48,7 +48,6 @@ typedef struct {
  * Event-Filter Parsing
  * --------------------
  */
-#ifdef UA_ENABLE_PARSING
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 #ifdef UA_ENABLE_JSON_ENCODING
 
@@ -60,7 +59,6 @@ UA_EXPORT UA_StatusCode
 UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
                      UA_EventFilterParserOptions *options);
 
-#endif
 #endif
 #endif
 
@@ -390,7 +388,6 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * - ``<HasChild>``
  */
 
-#ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 
@@ -400,7 +397,6 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
                                 const UA_String str);
-#endif
 
 /* The out-string can be pre-allocated. Then the size is adjusted or an error
  * returned. If the out-string is NULL, then memory is allocated for it. */
@@ -459,7 +455,6 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
  * - ``/3:Truck/5:Wheel``
  * - ``#BrowseName`` */
 
-#ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
 UA_ReadValueId_parse(UA_ReadValueId *rvi,
                      const UA_String str);
@@ -471,7 +466,6 @@ UA_AttributeOperand_parse(UA_AttributeOperand *ao,
 UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
                                 const UA_String str);
-#endif
 
 /* The out-string can be pre-allocated. Then the size is adjusted or an error
  * returned. If the out-string is NULL, then memory is allocated for it. */

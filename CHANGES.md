@@ -126,9 +126,9 @@ It now further allows the following extensions:
   (https://json5.org/). This allows for more human-readable encoding and adds
   convenience features such as trailing commas in arrays and comments within
   JSON documents.
-- If `UA_ENABLE_PARSING` is set, NodeIds and ExpandedNodeIds can be given in the
-  string encoding (see `UA_NodeId_parse`). The standard encoding is to express
-  NodeIds as JSON objects.
+- NodeIds and ExpandedNodeIds can be given in the string encoding (see
+  `UA_NodeId_parse`). The standard encoding is to express NodeIds as JSON
+  objects.
 
 These extensions are not intended to be used for the OPC UA protocol on the
 network. They were rather added to allow more convenient configuration file
