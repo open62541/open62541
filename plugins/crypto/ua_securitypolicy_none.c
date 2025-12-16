@@ -138,7 +138,11 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCerti
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
     UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
 #elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
-    UA_OpenSSL_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+    UA_StatusCode retval = UA_OpenSSL_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+    if (retval != UA_STATUSCODE_GOOD) {
+        policy_clear_none(policy); 
+        return retval;
+    }
 #else
     UA_ByteString_copy(&localCertificate, &policy->localCertificate);
 #endif
