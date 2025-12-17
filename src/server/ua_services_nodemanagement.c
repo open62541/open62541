@@ -1999,6 +1999,11 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
                                                      &member->head.nodeId, context);
         }
 
+#ifdef UA_ENABLE_RBAC
+        /* Decrement the refCount of the node's rolePermissions entry */
+        UA_Server_decrementRolePermissionsRefCount(server, member->head.permissionIndex);
+#endif
+
         /* Release the node. Don't access the node context from here on. */
         UA_NODESTORE_RELEASE(server, member);
 
