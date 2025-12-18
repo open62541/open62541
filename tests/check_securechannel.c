@@ -328,8 +328,8 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     UA_Byte paddingByte = sentData.data[sentData.length - keySizes.asym_lcl_sig_size - 1];
     size_t paddingSize = (size_t)paddingByte;
     UA_Boolean extraPadding =
-        (testChannel.securityPolicy->asymmetricModule.cryptoModule.encryptionAlgorithm.
-         getRemoteKeyLength(testChannel.channelContext) > 2048);
+        (testChannel.securityPolicy->asymEncryptionAlgorithm.getRemoteKeyLength(
+            testChannel.securityPolicy, testChannel.channelContext) > 2048);
     UA_Byte extraPaddingByte = 0;
     if(extraPadding) {
         extraPaddingByte = paddingByte;

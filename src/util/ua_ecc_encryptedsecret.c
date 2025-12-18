@@ -193,11 +193,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
                             UA_SecurityPolicy *sp, void *tempChannelContext) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-    const UA_SecurityPolicyCryptoModule *asymCm =
-        &sp->asymmetricModule.cryptoModule;
-    const UA_SecurityPolicyCryptoModule *symCm =
-        &sp->symmetricModule.cryptoModule;
-
     UA_EccEncryptedSecretStruct secret;
     UA_EccEncryptedSecretStruct_init(&secret);
 
@@ -229,8 +224,8 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
     secret.length += sizeof(UA_DateTime);
 
     /* TODO: use proper policy functions */
-    secret.keyDataLen = (UA_UInt16)sp->symmetricModule.secureChannelNonceLength; /* Also ephemeral public key length */
-    secret.keyDataLen += (UA_UInt16)sp->symmetricModule.secureChannelNonceLength; /* Also ephemeral public key length */
+    secret.keyDataLen = (UA_UInt16)sp->nonceLength; /* Also ephemeral public key length */
+    secret.keyDataLen += (UA_UInt16)sp->nonceLength; /* Also ephemeral public key length */
     if(secret.keyDataLen == 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EncryptedSecret] KeyData length shouldn't be 0");
@@ -251,7 +246,7 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
                  "[EncryptedSecret] Server ephemeral key copied: ");
 
     /* TODO: use proper policy functions */
-    size_t ephKeyLen = sp->symmetricModule.secureChannelNonceLength; /* Also length of the ephemeral public key */
+    size_t ephKeyLen = sp->nonceLength; /* Also length of the ephemeral public key */
     retval = UA_ByteString_allocBuffer(&secret.senderPublicKey, ephKeyLen);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
@@ -259,7 +254,7 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
         goto cleanup;
     }
 
-    retval = sp->symmetricModule.generateNonce(sp->policyContext, &secret.senderPublicKey);
+    retval = sp->generateNonce(sp, tempChannelContext, &secret.senderPublicKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EncryptedSecret] Failed to generate local ephemeral key");
@@ -294,8 +289,10 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
                  "[EncryptedSecret] Server session nonce copied: ");
 
     /* Creating symmetric encryption key to encrypt the payload */
-    size_t symKeyLen = symCm->encryptionAlgorithm.getLocalKeyLength(tempChannelContext);
-    size_t ivLen = symCm->encryptionAlgorithm.getRemoteBlockSize(tempChannelContext);
+    size_t symKeyLen =
+        sp->symEncryptionAlgorithm.getLocalKeyLength(sp, tempChannelContext);
+    size_t ivLen =
+        sp->symEncryptionAlgorithm.getRemoteBlockSize(sp, tempChannelContext);
     if(symKeyLen == 0 || ivLen == 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EncryptedSecret] IV length or symmetric encryption key "
@@ -329,10 +326,10 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
 
     /* Call logic for client (for session authentication): receiver public key
      * is remote (server), sender public key is local (client)*/
-    retval = sp->symmetricModule.generateKey(sp->policyContext,
-                                             &secret.receiverPublicKey,
-                                             &secret.senderPublicKey,
-                                             &symEncKeyMaterial);
+    retval = sp->generateKey(sp, tempChannelContext,
+                             &secret.receiverPublicKey,
+                             &secret.senderPublicKey,
+                             &symEncKeyMaterial);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EncryptedSecret] Failed to derive key material");
@@ -345,14 +342,14 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
     /* Extracting the key and the initialization vector from the key material */
     UA_ByteString encKey = {symKeyLen, symEncKeyMaterial.data};
     UA_ByteString iv = {ivLen, &symEncKeyMaterial.data[symKeyLen]};
-    retval = sp->channelModule.setLocalSymEncryptingKey(tempChannelContext, &encKey);
+    retval = sp->setLocalSymEncryptingKey(sp, tempChannelContext, &encKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EncryptedSecret] Failed to set symmetric encryption key");
         goto cleanup;
     }
 
-    retval = sp->channelModule.setLocalSymIv(tempChannelContext, &iv);
+    retval = sp->setLocalSymIv(sp, tempChannelContext, &iv);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EncryptedSecret] Failed to set initialization vector");
@@ -403,7 +400,7 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
 
     UA_UInt16 paddingLen16 = (UA_UInt16)paddingLen;
     retval |= UA_UInt16_encodeBinary(&paddingLen16, &bufPos, bufEnd);
-    retval |= symCm->encryptionAlgorithm.encrypt(tempChannelContext, &payload);
+    retval |= sp->symEncryptionAlgorithm.encrypt(sp, tempChannelContext, &payload);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EncryptedSecret] Failed to encrypt the payload");
@@ -419,8 +416,8 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
     UA_EccEncryptedSecret eccEncSecSer;
 
     size_t commonHeaderSerLen = UA_EccEncryptedSecret_getCommonHeaderSize(&secret);
-    size_t signatureLen = asymCm->signatureAlgorithm.
-        getLocalSignatureSize(tempChannelContext);
+    size_t signatureLen = sp->asymSignatureAlgorithm.
+        getLocalSignatureSize(sp, tempChannelContext);
     size_t policyHeaderSerLen = UA_EccEncryptedSecret_getPolicyHeaderSize(&secret);
     size_t payloadSerLen = UA_ByteString_calcSizeBinary(&payload);
     size_t signedDataLen = commonHeaderSerLen + policyHeaderSerLen + payloadSerLen;
@@ -503,7 +500,7 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
 
     /* Temporarily change length for signing purposes */
     eccEncSecSer.length = signedDataLen;
-    retval = asymCm->signatureAlgorithm.sign(tempChannelContext, &eccEncSecSer, &sig);
+    retval = sp->asymSignatureAlgorithm.sign(sp, tempChannelContext, &eccEncSecSer, &sig);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EncryptedSecret] Failed to compute the signature");
@@ -538,13 +535,8 @@ decryptUserTokenEcc(UA_Logger *logger, UA_ByteString sessionServerNonce,
         return UA_STATUSCODE_GOOD;
     }
 
-    const UA_SecurityPolicyCryptoModule *asymCm =
-        &sp->asymmetricModule.cryptoModule;
-    const UA_SecurityPolicyCryptoModule *symCm =
-        &sp->symmetricModule.cryptoModule;
-
     /* Test if the correct encryption algorithm is used */
-    if(!UA_String_equal(&encryptionAlgorithm, &asymCm->encryptionAlgorithm.uri))
+    if(!UA_String_equal(&encryptionAlgorithm, &sp->asymEncryptionAlgorithm.uri))
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SESSION,
@@ -583,13 +575,13 @@ decryptUserTokenEcc(UA_Logger *logger, UA_ByteString sessionServerNonce,
      * instance certificate isn't available here. Also required to hold the
      * (one-time) symmetric key for encrypting and decrypting ECC encrypted
      * secret. */
-    res = sp->channelModule.newContext(sp, &esd.certificate, &tempChannelContext);
+    res = sp->newChannelContext(sp, &esd.certificate, &tempChannelContext);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanecc;
 
     /* Verify signature */
-    size_t sigLen = asymCm->signatureAlgorithm.
-        getRemoteSignatureSize(tempChannelContext);
+    size_t sigLen = sp->asymSignatureAlgorithm.
+        getRemoteSignatureSize(sp, tempChannelContext);
     size_t signedDataLen = es->length - sigLen;
     UA_ByteString signedData = {signedDataLen, es->data};
     UA_ByteString signature = {sigLen, &es->data[signedDataLen]};
@@ -602,8 +594,8 @@ decryptUserTokenEcc(UA_Logger *logger, UA_ByteString sessionServerNonce,
     UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
                  "[EccEncryptedSecret] Signature (len: %u):", sigLen);
 
-    res = asymCm->signatureAlgorithm.
-        verify(tempChannelContext, &signedData, &signature);
+    res = sp->asymSignatureAlgorithm.
+        verify(sp, tempChannelContext, &signedData, &signature);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EccEncryptedSecret] Signature verification failed.");
@@ -634,8 +626,8 @@ decryptUserTokenEcc(UA_Logger *logger, UA_ByteString sessionServerNonce,
                  "[EccEncryptedSecret] Receiver (server) ephemeral public key:");
 
     /* Deriving (remote) symmetric encryption key to decrypt the payload */
-    size_t symKeyLen = symCm->encryptionAlgorithm.getRemoteKeyLength(tempChannelContext);
-    size_t ivLen = symCm->encryptionAlgorithm.getRemoteBlockSize(tempChannelContext);
+    size_t symKeyLen = sp->symEncryptionAlgorithm.getRemoteKeyLength(sp, tempChannelContext);
+    size_t ivLen = sp->symEncryptionAlgorithm.getRemoteBlockSize(sp, tempChannelContext);
     if(symKeyLen == 0 || ivLen == 0) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EncryptedSecret] IV length or symmetric encryption "
@@ -664,11 +656,11 @@ decryptUserTokenEcc(UA_Logger *logger, UA_ByteString sessionServerNonce,
     symEncKeyMaterial.data[0] = 0x03;
     symEncKeyMaterial.data[1] = 0x03;
     symEncKeyMaterial.data[2] = 0x04;
+
     /* Call logic for server for session authentication : receiver public key is
      * local (server), sender public key is remote (client) */
-    res = sp->symmetricModule.generateKey(sp->policyContext,
-                                          &esd.receiverPublicKey,
-                                          &esd.senderPublicKey, &symEncKeyMaterial);
+    res = sp->generateKey(sp, tempChannelContext, &esd.receiverPublicKey,
+                          &esd.senderPublicKey, &symEncKeyMaterial);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EncryptedSecret] Failed to derive key material");
@@ -684,13 +676,13 @@ decryptUserTokenEcc(UA_Logger *logger, UA_ByteString sessionServerNonce,
                  "[EncryptedSecret] Symmetric encryption key:");
     UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
                  "[EncryptedSecret] Initialization vector:");
-    res = sp->channelModule.setRemoteSymEncryptingKey(tempChannelContext, &encKey);
+    res = sp->setRemoteSymEncryptingKey(sp, tempChannelContext, &encKey);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EncryptedSecret] Failed to set symmetric encryption key");
         goto cleanecc;
     }
-    res = sp->channelModule.setRemoteSymIv(tempChannelContext, &iv);
+    res = sp->setRemoteSymIv(sp, tempChannelContext, &iv);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EncryptedSecret] Failed to set initialization vector");
@@ -708,7 +700,7 @@ decryptUserTokenEcc(UA_Logger *logger, UA_ByteString sessionServerNonce,
                  "[EncryptedSecret] Deserialized payload:");
 
     /* Decrypt payload (password) */
-    res = symCm->encryptionAlgorithm.decrypt(tempChannelContext, &payload);
+    res = sp->symEncryptionAlgorithm.decrypt(sp, tempChannelContext, &payload);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EncryptedSecret] Failed to decrypt the payload");
@@ -736,6 +728,6 @@ cleanecc:
     UA_ByteString_clear(&symEncKeyMaterial);
     UA_ByteString_clear(&payload);
     UA_ByteString_clear(&pass);
-    sp->channelModule.deleteContext(tempChannelContext);
+    sp->deleteChannelContext(sp, tempChannelContext);
     return res;
 }

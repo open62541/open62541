@@ -10,6 +10,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/types.h>
@@ -41,34 +42,30 @@ UA_SecureChannel_init(UA_SecureChannel *channel) {
 }
 
 UA_StatusCode
-UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
-                                   UA_SecurityPolicy *securityPolicy,
+UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel, UA_SecurityPolicy *sp,
                                    const UA_ByteString *remoteCertificate) {
     /* Is a policy already configured? */
     UA_CHECK_ERROR(!channel->securityPolicy, return UA_STATUSCODE_BADINTERNALERROR,
-                   securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                    "Security policy already configured");
 
     /* Create the context */
-    UA_StatusCode res = securityPolicy->channelModule.
-        newContext(securityPolicy, remoteCertificate, &channel->channelContext);
+    UA_StatusCode res = sp->newChannelContext(sp, remoteCertificate,
+                                              &channel->channelContext);
     res |= UA_ByteString_copy(remoteCertificate, &channel->remoteCertificate);
-    UA_CHECK_STATUS_WARN(res, return res, securityPolicy->logger,
-                         UA_LOGCATEGORY_SECURITYPOLICY,
+    UA_CHECK_STATUS_WARN(res, return res, sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Could not set up the SecureChannel context");
 
     /* Compute the certificate thumbprint */
     UA_ByteString remoteCertificateThumbprint =
         {20, channel->remoteCertificateThumbprint};
-    res = securityPolicy->asymmetricModule.
-        makeCertificateThumbprint(securityPolicy, &channel->remoteCertificate,
-                                  &remoteCertificateThumbprint);
-    UA_CHECK_STATUS_WARN(res, return res, securityPolicy->logger,
-                         UA_LOGCATEGORY_SECURITYPOLICY,
+    res = sp->makeCertThumbprint(sp, &channel->remoteCertificate,
+                                 &remoteCertificateThumbprint);
+    UA_CHECK_STATUS_WARN(res, return res, sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Could not create the certificate thumbprint");
 
     /* Set the policy */
-    channel->securityPolicy = securityPolicy;
+    channel->securityPolicy = sp;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -178,8 +175,9 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
     UA_assert(channel->sessions == NULL);
 
     /* Delete the channel context for the security policy */
-    if(channel->securityPolicy) {
-        channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(sp) {
+        sp->deleteChannelContext(sp, channel->channelContext);
         channel->securityPolicy = NULL;
         channel->channelContext = NULL;
     }
@@ -301,9 +299,8 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     /* Add padding to the chunk. Also pad if the securityMode is SIGN_ONLY,
      * since we are using asymmetric communication to exchange keys and thus
      * need to encrypt. */
-    if((channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
-    && !isEccPolicy(channel->securityPolicy))
-        padChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
+    if((channel->securityMode != UA_MESSAGESECURITYMODE_NONE) && !isEccPolicy(sp))
+        padChunk(channel, &sp->asymSignatureAlgorithm, &sp->asymEncryptionAlgorithm,
                  &buf.data[UA_SECURECHANNEL_CHANNELHEADER_LENGTH + securityHeaderLength],
                  &buf_pos);
 
@@ -312,8 +309,8 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     total_length = pre_sig_length;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        total_length += sp->asymmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(channel->channelContext);
+        total_length += sp->asymSignatureAlgorithm.
+            getLocalSignatureSize(sp, channel->channelContext);
 
     /* The total message length is known here which is why we encode the headers
      * at this step and not earlier. */
@@ -413,7 +410,7 @@ sendSymmetricChunk(UA_MessageContext *mc) {
 
     /* Add padding if the message is encrypted */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        padChunk(channel, &sp->symmetricModule.cryptoModule,
+        padChunk(channel, &sp->symSignatureAlgorithm, &sp->symEncryptionAlgorithm,
                  &mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_UNENCRYPTEDLENGTH],
                  &mc->buf_pos);
 
@@ -422,8 +419,8 @@ sendSymmetricChunk(UA_MessageContext *mc) {
     total_length = pre_sig_length;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        total_length += sp->symmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(channel->channelContext);
+        total_length += sp->symSignatureAlgorithm.
+            getLocalSignatureSize(sp, channel->channelContext);
 
     UA_LOG_TRACE_CHANNEL(sp->logger, channel,
                          "Send from a symmetric message buffer of length %lu "
@@ -653,8 +650,9 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk) {
     UA_CHECK_STATUS(res, return res);
 
     /* Decrypt the chunk payload */
-    res = decryptAndVerifyChunk(channel,
-                                &channel->securityPolicy->asymmetricModule.cryptoModule,
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    res = decryptAndVerifyChunk(channel, &sp->asymSignatureAlgorithm,
+                                &sp->asymEncryptionAlgorithm,
                                 chunk->messageType, &chunk->bytes, offset);
     UA_CHECK_STATUS(res, return res);
 
@@ -704,8 +702,9 @@ unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk,
     UA_CHECK_STATUS(res, return res);
 
     /* Decrypt the chunk payload */
-    res = decryptAndVerifyChunk(channel,
-                                &channel->securityPolicy->symmetricModule.cryptoModule,
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    res = decryptAndVerifyChunk(channel, &sp->symSignatureAlgorithm,
+                                &sp->symEncryptionAlgorithm,
                                 chunk->messageType, &chunk->bytes, offset);
     UA_CHECK_STATUS(res, return res);
 
