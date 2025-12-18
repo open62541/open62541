@@ -8,6 +8,18 @@
 extern "C" {
 #endif
 
+/* Driver lifecycle states
+ *
+ * This enumeration defines the possible states of a driver during its
+ * lifecycle. It is used to track whether a driver is stopped, initialized,
+ * running, or in a special watching state (e.g., monitoring for changes).
+ */
+enum DriverState {
+    UA_DRIVER_STATE_UNINITIALIZED = 0,
+    UA_DRIVER_STATE_STOPPED = 1,
+    UA_DRIVER_STATE_RUNNING = 2,
+    UA_DRIVER_STATE_WATCHING = 3
+};
 /* Forward declarations
  *
  * These are lightweight type declarations for the driver structures.
@@ -35,10 +47,11 @@ typedef struct UA_DriverContext UA_DriverContext;
  *                properties or attaching methods to nodes.
  */
 typedef struct {
-    UA_StatusCode (*init)(UA_Driver *driver, UA_DriverContext *ctx);
-    UA_StatusCode (*start)(UA_Driver *driver, UA_DriverContext *ctx);
-    UA_StatusCode (*stop)(UA_Driver *driver, UA_DriverContext *ctx);
-    UA_StatusCode (*updateModel)(UA_Driver *driver, UA_Server *server);
+    UA_StatusCode (*init)(UA_Server *server, UA_Driver *driver, UA_DriverContext *ctx);
+    UA_StatusCode (*cleanup)(UA_Server *server, UA_Driver *driver);
+    UA_StatusCode (*start)(UA_Driver *driver);
+    UA_StatusCode (*stop)(UA_Driver *driver);
+    void (*updateModel)(UA_Server *server, UA_Driver *DriverCallback);
 } UA_DriverLifecycle;
 
 /* Generic driver structure
@@ -48,6 +61,7 @@ typedef struct {
  * - userData:   A pointer to driver-specific data. This allows each
  *               driver to store its own context without modifying
  *               the generic interface.
+ * - state:      The current lifecycle state of the driver.
  * - lifecycle:  A set of function pointers implementing the driver’s
  *               lifecycle behavior (init, start, stop, updateModel).
  *
@@ -55,9 +69,12 @@ typedef struct {
  * by embedding UA_Driver as their first member, ensuring compatibility
  * with the generic driver manager.
  */
-struct UA_Driver {
+struct UA_Driver{
+    UA_NodeId nodeId;           /* Entry point in the OPC UA information model */
+    UA_UInt64 driverWatcherId;
     const char *name;
     void *userData;                  /* Driver-specific context or private data */
+    enum DriverState state;
     UA_DriverLifecycle lifecycle;    /* Function pointers for lifecycle management */
 };
 

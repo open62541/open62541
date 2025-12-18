@@ -64,7 +64,7 @@ manuallyDefinePump(UA_Server *server, UA_FileServerDriver *driver) {
      */
     UA_NodeId filesystemId; /* NodeId assigned by the server for the FileSystem */
     UA_FileServerDriver_addFileSystem(driver, server, &pumpId,
-                                      "FileSystem", "/var/log/opcua", &filesystemId);
+                                      "/var/log/opcua", &filesystemId);
 }
 
 int main(void) {
@@ -72,13 +72,13 @@ int main(void) {
     UA_Server *server = UA_Server_new();
 
     /* Create a new FileServerDriver instance */
-    UA_FileServerDriver *fsDriver = UA_FileServerDriver_new("MainFileServer");
+    UA_FileServerDriver *fsDriver = UA_FileServerDriver_new("MainFileServer", server);
 
     /* Initialize the driver with a context that provides access to the server */
     UA_DriverContext ctx;
     ctx.server = server;
     ctx.config = NULL;
-    fsDriver->base.lifecycle.init((UA_Driver*)fsDriver, &ctx);
+    fsDriver->base.lifecycle.init(server, (UA_Driver*)fsDriver, &ctx);
 
     /* Manually define a Pump object with variables and a FileSystem */
     manuallyDefinePump(server, fsDriver);
@@ -87,24 +87,24 @@ int main(void) {
     UA_NodeId nodeId1 = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId newFsNodeId1;
     UA_FileServerDriver_addFileSystem(fsDriver, server, &nodeId1,
-                                      "FileSystem", "/etc/opcua/config", &newFsNodeId1);
+                                      "/etc/opcua/config", &newFsNodeId1);
 
     UA_NodeId nodeId2 = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId newFsNodeId2;
     UA_FileServerDriver_addFileSystem(fsDriver, server, &nodeId2,
-                                      "FileSystem", "/var/log/opcua", &newFsNodeId2);
+                                      "/var/log/opcua", &newFsNodeId2);
 
     /* Start the driver (could open resources or spawn threads here) */
-    fsDriver->base.lifecycle.start((UA_Driver*)fsDriver, &ctx);
+    fsDriver->base.lifecycle.start((UA_Driver*)fsDriver);
 
     /* Update the information model (attach methods, update properties, etc.) */
-    fsDriver->base.lifecycle.updateModel((UA_Driver*)fsDriver, server);
+    fsDriver->base.lifecycle.updateModel(server, (UA_Driver*)fsDriver);
 
     /* Run the server until interrupted (e.g., Ctrl+C) */
     UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
 
     /* Stop the driver and clean up resources */
-    fsDriver->base.lifecycle.stop((UA_Driver*)fsDriver, &ctx);
+    fsDriver->base.lifecycle.cleanup(server, (UA_Driver*)fsDriver);
     UA_Server_delete(server);
     free(fsDriver);
 

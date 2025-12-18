@@ -51,7 +51,6 @@ UA_StatusCode UA_FileServerDriver_addFileSystem(
     UA_FileServerDriver *driver,
     UA_Server *server,
     const UA_NodeId *parentNode,
-    const char *browseName,
     const char *mountPath,
     UA_NodeId *newNodeId);
 
@@ -69,6 +68,6 @@ UA_StatusCode UA_FileServerDriver_addFileSystem(
  *  - A pointer to the newly allocated FileServerDriver.
  */
 UA_FileServerDriver *
-UA_FileServerDriver_new(const char *name);
+UA_FileServerDriver_new(const char *name, UA_Server *server);
 
 #endif /* UA_FILESERVER_DRIVER_H */
