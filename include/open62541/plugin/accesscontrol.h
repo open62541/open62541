@@ -103,6 +103,10 @@ struct UA_AccessControl {
                                   const UA_NodeId *nodeId, void *nodeContext);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* Allow creating a subscription */
+    UA_Boolean (*allowCreateSubscription)(UA_Server *server, UA_AccessControl *ac,
+                                          const UA_NodeId *sessionId, void *sessionContext);
+
     /* Allow transfer of a subscription to another session. The Server shall
      * validate that the Client of that Session is operating on behalf of the
      * same user */
