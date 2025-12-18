@@ -126,14 +126,14 @@ UA_Session_generateNonce(UA_Session *session) {
     /* Is the length of the previous nonce correct? */
     if(session->serverNonce.length != UA_SESSION_NONCELENTH) {
         UA_ByteString_clear(&session->serverNonce);
-        UA_StatusCode retval =
+        UA_StatusCode res =
             UA_ByteString_allocBuffer(&session->serverNonce, UA_SESSION_NONCELENTH);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
-    return channel->securityPolicy->symmetricModule.
-        generateNonce(channel->securityPolicy->policyContext, &session->serverNonce);
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    return sp->generateNonce(sp, channel->channelContext, &session->serverNonce);
 }
 
 void

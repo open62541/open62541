@@ -5,6 +5,7 @@
  *    Copyright 2017-2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017-2019 (c) Fraunhofer IOSB (Author: Mark Giraud)
  *    Copyright 2025 (c) Siemens AG (Author: Tin Raic)
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/types.h>
@@ -147,9 +148,10 @@ static UA_StatusCode
 signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
     UA_SecureChannel *channel = &client->channel;
     const UA_SecurityPolicy *sp = channel->securityPolicy;
+    void *cc = channel->channelContext;
+
     UA_SignatureData *sd = &request->clientSignature;
-    const UA_SecurityPolicySignatureAlgorithm *signAlg =
-        &sp->asymmetricModule.cryptoModule.signatureAlgorithm;
+    const UA_SecurityPolicySignatureAlgorithm *signAlg = &sp->asymSignatureAlgorithm;
 
     /* Copy the signature algorithm identifier */
     UA_StatusCode retval = UA_String_copy(&signAlg->uri, &sd->algorithm);
@@ -157,7 +159,7 @@ signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
         return retval;
 
     /* Allocate memory for the signature */
-    size_t signatureSize = signAlg->getLocalSignatureSize(channel->channelContext);
+    size_t signatureSize = signAlg->getLocalSignatureSize(sp, cc);
     retval = UA_ByteString_allocBuffer(&sd->signature, signatureSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -174,7 +176,7 @@ signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
     memcpy(buf, channel->remoteCertificate.data, channel->remoteCertificate.length);
     memcpy(buf + channel->remoteCertificate.length, client->serverSessionNonce.data,
            client->serverSessionNonce.length);
-    return signAlg->sign(channel->channelContext, &signData, &sd->signature);
+    return signAlg->sign(sp, cc, &signData, &sd->signature);
 }
 
 static UA_StatusCode
@@ -190,8 +192,7 @@ signUserTokenSignature(UA_Client *client, UA_SecurityPolicy *utsp,
     UA_ByteString signData = {signDataSize, buf};
 
     /* Copy the algorithm identifier */
-    UA_SecurityPolicySignatureAlgorithm *utpSignAlg =
-        &utsp->asymmetricModule.cryptoModule.signatureAlgorithm;
+    UA_SecurityPolicySignatureAlgorithm *utpSignAlg = &utsp->asymSignatureAlgorithm;
     UA_SignatureData *utsd = &request->userTokenSignature;
     retval = UA_String_copy(&utpSignAlg->uri, &utsd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
@@ -200,13 +201,13 @@ signUserTokenSignature(UA_Client *client, UA_SecurityPolicy *utsp,
     /* We need a channel context with the user certificate in order to reuse the
      * code for signing. */
     void *tmpCtx;
-    retval = utsp->channelModule.newContext(utsp, &client->channel.remoteCertificate, &tmpCtx);
+    retval = utsp->newChannelContext(utsp, &client->channel.remoteCertificate, &tmpCtx);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Allocate memory for the signature */
     retval = UA_ByteString_allocBuffer(&utsd->signature,
-                                       utpSignAlg->getLocalSignatureSize(tmpCtx));
+                                       utpSignAlg->getLocalSignatureSize(utsp, tmpCtx));
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup_utp;
 
@@ -215,11 +216,11 @@ signUserTokenSignature(UA_Client *client, UA_SecurityPolicy *utsp,
            client->channel.remoteCertificate.length);
     memcpy(buf + client->channel.remoteCertificate.length,
            client->serverSessionNonce.data, client->serverSessionNonce.length);
-    retval = utpSignAlg->sign(tmpCtx, &signData, &utsd->signature);
+    retval = utpSignAlg->sign(utsp, tmpCtx, &signData, &utsd->signature);
 
     /* Clean up */
  cleanup_utp:
-    utsp->channelModule.deleteContext(tmpCtx);
+    utsp->deleteChannelContext(utsp, tmpCtx);
     return retval;
 }
 
@@ -244,8 +245,8 @@ encryptUserIdentityToken(UA_Client *client, UA_SecurityPolicy *utsp,
 
     /* Create a temp channel context */
     void *channelContext;
-    UA_StatusCode retval = utsp->channelModule.
-        newContext(utsp, &client->endpoint.serverCertificate, &channelContext);
+    UA_StatusCode retval = utsp->
+        newChannelContext(utsp, &client->endpoint.serverCertificate, &channelContext);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
                        "Could not instantiate the SecurityPolicy for the UserToken");
@@ -260,11 +261,12 @@ encryptUserIdentityToken(UA_Client *client, UA_SecurityPolicy *utsp,
         UA_ByteString_clear(&client->serverEphemeralPubKey);
     } else {
         /* Compute the encrypted length (at least one byte padding) */
-        size_t plainTextBlockSize = utsp->asymmetricModule.cryptoModule.
-            encryptionAlgorithm.getRemotePlainTextBlockSize(channelContext);
-        size_t encryptedBlockSize = utsp->asymmetricModule.cryptoModule.
-            encryptionAlgorithm.getRemoteBlockSize(channelContext);
-        UA_UInt32 length = (UA_UInt32)(tokenData->length + client->serverSessionNonce.length);
+        size_t plainTextBlockSize = utsp->asymEncryptionAlgorithm.
+            getRemotePlainTextBlockSize(utsp, channelContext);
+        size_t encryptedBlockSize = utsp->asymEncryptionAlgorithm.
+            getRemoteBlockSize(utsp, channelContext);
+        UA_UInt32 length =
+            (UA_UInt32)(tokenData->length + client->serverSessionNonce.length);
         UA_UInt32 totalLength = length + 4; /* Including the length field */
         size_t blocks = totalLength / plainTextBlockSize;
         if(totalLength % plainTextBlockSize != 0)
@@ -275,7 +277,7 @@ encryptUserIdentityToken(UA_Client *client, UA_SecurityPolicy *utsp,
         UA_ByteString encrypted;
         retval = UA_ByteString_allocBuffer(&encrypted, encryptedLength);
         if(retval != UA_STATUSCODE_GOOD) {
-            utsp->channelModule.deleteContext(channelContext);
+            utsp->deleteChannelContext(utsp, channelContext);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
     
@@ -298,21 +300,20 @@ encryptUserIdentityToken(UA_Client *client, UA_SecurityPolicy *utsp,
             encrypted.data[i] = 0;
         encrypted.length = paddedLength;
     
-        retval = utsp->asymmetricModule.cryptoModule.encryptionAlgorithm.
-            encrypt(channelContext, &encrypted);
+        retval = utsp->asymEncryptionAlgorithm.encrypt(utsp, channelContext, &encrypted);
         encrypted.length = encryptedLength;
         UA_ByteString_clear(tokenData);
         *tokenData = encrypted;
     }
 
     /* Delete the temporary channel context */
-    utsp->channelModule.deleteContext(channelContext);
+    utsp->deleteChannelContext(utsp, channelContext);
 
     if(iit) {
-        retval |= UA_String_copy(&utsp->asymmetricModule.cryptoModule.encryptionAlgorithm.uri,
+        retval |= UA_String_copy(&utsp->asymEncryptionAlgorithm.uri,
                                  &iit->encryptionAlgorithm);
     } else {
-        retval |= UA_String_copy(&utsp->asymmetricModule.cryptoModule.encryptionAlgorithm.uri,
+        retval |= UA_String_copy(&utsp->asymEncryptionAlgorithm.uri,
                                  &unit->encryptionAlgorithm);
     }
     return retval;
@@ -343,9 +344,8 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
     memcpy(dataToVerify.data + lc->length, client->clientSessionNonce.data,
            client->clientSessionNonce.length);
 
-    const UA_SecurityPolicySignatureAlgorithm *signAlg =
-        &sp->asymmetricModule.cryptoModule.signatureAlgorithm;
-    retval = signAlg->verify(channel->channelContext, &dataToVerify,
+    const UA_SecurityPolicySignatureAlgorithm *signAlg = &sp->asymSignatureAlgorithm;
+    retval = signAlg->verify(sp, channel->channelContext, &dataToVerify,
                              &response->serverSignature.signature);
     UA_ByteString_clear(&dataToVerify);
     return retval;
@@ -1459,9 +1459,10 @@ createSessionAsync(UA_Client *client) {
             if(res != UA_STATUSCODE_GOOD)
                 return res;
         }
-        res = client->channel.securityPolicy->symmetricModule.
-                 generateNonce(client->channel.securityPolicy->policyContext,
-                               &client->clientSessionNonce);
+
+        const UA_SecurityPolicy *sp = client->channel.securityPolicy;
+        void *cc = client->channel.channelContext;
+        res = sp->generateNonce(sp, cc, &client->clientSessionNonce);
         if(res != UA_STATUSCODE_GOOD)
             return res;
     }
@@ -1659,8 +1660,8 @@ verifyClientSecureChannelHeader(void *application, UA_SecureChannel *channel,
     }
 
     /* Verify the certificate the server assumes on our end */
-    UA_StatusCode res = sp->asymmetricModule.
-        compareCertificateThumbprint(sp, &asymHeader->receiverCertificateThumbprint);
+    UA_StatusCode res =
+        sp->compareCertThumbprint(sp, &asymHeader->receiverCertificateThumbprint);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "The server does not use the client certificate "

@@ -974,7 +974,7 @@ UA_Server_updateCertificate(UA_Server *server,
         if(!UA_NodeId_equal(&sp->certificateTypeId, &certificateTypeId))
             continue;
 
-        retval = sp->updateCertificateAndPrivateKey(sp, certificate, newPrivateKey);
+        retval = sp->updateCertificate(sp, certificate, newPrivateKey);
         if(retval != UA_STATUSCODE_GOOD) {
             unlockServer(server);
             return retval;

@@ -1158,7 +1158,7 @@ applyChangesToServer(UA_Server *server) {
             if(!UA_NodeId_equal(&sp->certificateTypeId, &certTypeId))
                 continue;
 
-            retval = sp->updateCertificateAndPrivateKey(sp, certificate, privateKey);
+            retval = sp->updateCertificate(sp, certificate, privateKey);
             if(retval != UA_STATUSCODE_GOOD)
                 goto cleanup;
 

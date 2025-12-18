@@ -7,6 +7,7 @@
  *    Copyright 2018 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020 (c) Wind River Systems, Inc.
  *    Copyright 2020 (c) basysKom GmbH
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/plugin/securitypolicy_default.h>
@@ -53,8 +54,6 @@ typedef struct {
 } Basic256Sha256_PolicyContext;
 
 typedef struct {
-    Basic256Sha256_PolicyContext *policyContext;
-
     UA_ByteString localSymSigningKey;
     UA_ByteString localSymEncryptingKey;
     UA_ByteString localSymIv;
@@ -66,17 +65,16 @@ typedef struct {
     mbedtls_x509_crt remoteCertificate;
 } Basic256Sha256_ChannelContext;
 
-/********************/
-/* AsymmetricModule */
-/********************/
-
 /* VERIFY AsymmetricSignatureAlgorithm_RSA-PKCS15-SHA2-256 */
 static UA_StatusCode
-asym_verify_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
-                              const UA_ByteString *message,
-                              const UA_ByteString *signature) {
-    if(message == NULL || signature == NULL || cc == NULL)
+asym_verify_basic256sha256(const UA_SecurityPolicy *policy, void *channelContext,
+                          const UA_ByteString *message,
+                          const UA_ByteString *signature) {
+    if(message == NULL || signature == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
+
+    Basic256Sha256_ChannelContext *cc =
+        (Basic256Sha256_ChannelContext*)channelContext;
 
     unsigned char hash[UA_SHA256_LENGTH];
 #if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
@@ -107,10 +105,10 @@ asym_verify_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
 
 /* AsymmetricSignatureAlgorithm_RSA-PKCS15-SHA2-256 */
 static UA_StatusCode
-asym_sign_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
-                            const UA_ByteString *message,
-                            UA_ByteString *signature) {
-    if(message == NULL || signature == NULL || cc == NULL)
+asym_sign_basic256sha256(const UA_SecurityPolicy *policy,
+                         void *channelContext, const UA_ByteString *message,
+                         UA_ByteString *signature) {
+    if(message == NULL || signature == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     unsigned char hash[UA_SHA256_LENGTH];
@@ -121,7 +119,8 @@ asym_sign_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
     mbedtls_sha256(message->data, message->length, hash, 0);
 #endif
 
-    Basic256Sha256_PolicyContext *pc = cc->policyContext;
+    Basic256Sha256_PolicyContext *pc =
+        (Basic256Sha256_PolicyContext *)policy->policyContext;
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(pc->localPrivateKey);
     mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_SHA256);
 
@@ -143,20 +142,26 @@ asym_sign_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
 }
 
 static size_t
-asym_getLocalSignatureSize_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc) {
-    if(cc == NULL)
+asym_getLocalSignatureSize_basic256sha256(const UA_SecurityPolicy *policy,
+                                          const void *channelContext) {
+    if(channelContext == NULL)
         return 0;
+    Basic256Sha256_PolicyContext *pc =
+        (Basic256Sha256_PolicyContext *)policy->policyContext;
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    return mbedtls_pk_rsa(cc->policyContext->localPrivateKey)->len;
+    return mbedtls_pk_rsa(pc->localPrivateKey)->len;
 #else
-    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->policyContext->localPrivateKey));
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(pc->localPrivateKey));
 #endif
 }
 
 static size_t
-asym_getRemoteSignatureSize_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc) {
-    if(cc == NULL)
+asym_getRemoteSignatureSize_basic256sha256(const UA_SecurityPolicy *policy,
+                                           const void *channelContext) {
+    if(channelContext == NULL)
         return 0;
+    const Basic256Sha256_ChannelContext *cc =
+        (const Basic256Sha256_ChannelContext*)channelContext;
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     return mbedtls_pk_rsa(cc->remoteCertificate.pk)->len;
 #else
@@ -165,9 +170,12 @@ asym_getRemoteSignatureSize_sp_basic256sha256(const Basic256Sha256_ChannelContex
 }
 
 static size_t
-asym_getRemoteBlockSize_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc) {
-    if(cc == NULL)
+asym_getRemoteBlockSize_basic256sha256(const UA_SecurityPolicy *policy,
+                                       const void *channelContext) {
+    if(channelContext == NULL)
         return 0;
+    const Basic256Sha256_ChannelContext *cc =
+        (const Basic256Sha256_ChannelContext*)channelContext;
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
     return rsaContext->len;
@@ -177,9 +185,12 @@ asym_getRemoteBlockSize_sp_basic256sha256(const Basic256Sha256_ChannelContext *c
 }
 
 static size_t
-asym_getRemotePlainTextBlockSize_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc) {
-    if(cc == NULL)
+asym_getRemotePlainTextBlockSize_basic256sha256(const UA_SecurityPolicy *policy,
+                                                const void *channelContext) {
+    if(channelContext == NULL)
         return 0;
+    const Basic256Sha256_ChannelContext *cc =
+        (const Basic256Sha256_ChannelContext*)channelContext;
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
     return rsaContext->len - UA_SECURITYPOLICY_BASIC256SHA256_RSAPADDING_LEN;
@@ -192,78 +203,86 @@ asym_getRemotePlainTextBlockSize_sp_basic256sha256(const Basic256Sha256_ChannelC
 
 /* AsymmetricEncryptionAlgorithm_RSA-OAEP-SHA1 */
 static UA_StatusCode
-asym_encrypt_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
-                               UA_ByteString *data) {
-    if(cc == NULL || data == NULL)
+asym_encrypt_basic256sha256(const UA_SecurityPolicy *policy,
+                            void *channelContext, UA_ByteString *data) {
+    if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
-    const size_t plainTextBlockSize = asym_getRemotePlainTextBlockSize_sp_basic256sha256(cc);
-
+    Basic256Sha256_PolicyContext *pc =
+        (Basic256Sha256_PolicyContext *)policy->policyContext;
+    Basic256Sha256_ChannelContext *cc =
+        (Basic256Sha256_ChannelContext*)channelContext;
+    const size_t plainTextBlockSize =
+        asym_getRemotePlainTextBlockSize_basic256sha256(policy, cc);
     mbedtls_rsa_context *remoteRsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
     mbedtls_rsa_set_padding(remoteRsaContext, MBEDTLS_RSA_PKCS_V21, MBEDTLS_MD_SHA1);
-
-    return mbedtls_encrypt_rsaOaep(remoteRsaContext, &cc->policyContext->drbgContext,
+    return mbedtls_encrypt_rsaOaep(remoteRsaContext, &pc->drbgContext,
                                    data, plainTextBlockSize);
 }
 
 /* AsymmetricEncryptionAlgorithm_RSA-OAEP-SHA1 */
 static UA_StatusCode
-asym_decrypt_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
-                               UA_ByteString *data) {
-    if(cc == NULL || data == NULL)
+asym_decrypt_basic256sha256(const UA_SecurityPolicy *policy,
+                            void *channelContext, UA_ByteString *data) {
+    if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    return mbedtls_decrypt_rsaOaep(&cc->policyContext->localPrivateKey,
-                                   &cc->policyContext->drbgContext, data, MBEDTLS_MD_SHA1);
+    Basic256Sha256_PolicyContext *pc =
+        (Basic256Sha256_PolicyContext *)policy->policyContext;
+    return mbedtls_decrypt_rsaOaep(&pc->localPrivateKey, &pc->drbgContext,
+                                   data, MBEDTLS_MD_SHA1);
 }
 
 static size_t
-asym_getLocalEncryptionKeyLength_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc) {
-    return mbedtls_pk_get_len(&cc->policyContext->localPrivateKey) * 8;
+asym_getLocalEncryptionKeyLength_basic256sha256(const UA_SecurityPolicy *policy,
+                                                const void *channelContext) {
+    Basic256Sha256_PolicyContext *pc =
+        (Basic256Sha256_PolicyContext *)policy->policyContext;
+    return mbedtls_pk_get_len(&pc->localPrivateKey) * 8;
 }
 
 static size_t
-asym_getRemoteEncryptionKeyLength_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc) {
+asym_getRemoteEncryptionKeyLength_basic256sha256(const UA_SecurityPolicy *policy,
+                                                 const void *channelContext) {
+    const Basic256Sha256_ChannelContext *cc =
+        (const Basic256Sha256_ChannelContext*)channelContext;
     return mbedtls_pk_get_len(&cc->remoteCertificate.pk) * 8;
 }
 
 static UA_StatusCode
-asym_makeThumbprint_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
-                                      const UA_ByteString *certificate,
-                                      UA_ByteString *thumbprint) {
+asym_makeThumbprint_basic256sha256(const UA_SecurityPolicy *securityPolicy,
+                                   const UA_ByteString *certificate,
+                                   UA_ByteString *thumbprint) {
     if(securityPolicy == NULL || certificate == NULL || thumbprint == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     return mbedtls_thumbprint_sha1(certificate, thumbprint);
 }
 
 static UA_StatusCode
-asymmetricModule_compareCertificateThumbprint_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
-                                                                const UA_ByteString *certificateThumbprint) {
+compareCertificateThumbprint_basic256sha256(const UA_SecurityPolicy *securityPolicy,
+                                            const UA_ByteString *certificateThumbprint) {
     if(securityPolicy == NULL || certificateThumbprint == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
-    Basic256Sha256_PolicyContext *pc = (Basic256Sha256_PolicyContext *)securityPolicy->policyContext;
+    Basic256Sha256_PolicyContext *pc =
+        (Basic256Sha256_PolicyContext *)securityPolicy->policyContext;
     if(!UA_ByteString_equal(certificateThumbprint, &pc->localCertThumbprint))
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
-
     return UA_STATUSCODE_GOOD;
 }
 
-/*******************/
-/* SymmetricModule */
-/*******************/
-
 static UA_StatusCode
-sym_verify_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
-                             const UA_ByteString *message,
-                             const UA_ByteString *signature) {
-    if(cc == NULL || message == NULL || signature == NULL)
+sym_verify_basic256sha256(const UA_SecurityPolicy *policy, void *channelContext,
+                          const UA_ByteString *message, const UA_ByteString *signature) {
+    if(channelContext == NULL || message == NULL || signature == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Compute MAC */
     if(signature->length != UA_SHA256_LENGTH)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
-    Basic256Sha256_PolicyContext *pc = cc->policyContext;
+    Basic256Sha256_ChannelContext *cc =
+        (Basic256Sha256_ChannelContext *)channelContext;
+    Basic256Sha256_PolicyContext *pc =
+        (Basic256Sha256_PolicyContext *)policy->policyContext;
+
     unsigned char mac[UA_SHA256_LENGTH];
     if(mbedtls_hmac(&pc->sha256MdContext, &cc->remoteSymSigningKey, message, mac) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
@@ -275,49 +294,59 @@ sym_verify_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
 }
 
 static UA_StatusCode
-sym_sign_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc,
-                           const UA_ByteString *message,
-                           UA_ByteString *signature) {
+sym_sign_basic256sha256(const UA_SecurityPolicy *policy,
+                        void *channelContext, const UA_ByteString *message,
+                        UA_ByteString *signature) {
     if(signature->length != UA_SHA256_LENGTH)
         return UA_STATUSCODE_BADINTERNALERROR;
-
-    if(mbedtls_hmac(&cc->policyContext->sha256MdContext, &cc->localSymSigningKey,
+    Basic256Sha256_ChannelContext *cc =
+        (Basic256Sha256_ChannelContext *)channelContext;
+    Basic256Sha256_PolicyContext *pc =
+        (Basic256Sha256_PolicyContext *)policy->policyContext;
+    if(mbedtls_hmac(&pc->sha256MdContext, &cc->localSymSigningKey,
                     message, signature->data) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-
     return UA_STATUSCODE_GOOD;
 }
 
 static size_t
-sym_getSignatureSize_sp_basic256sha256(const void *channelContext) {
+sym_getSignatureSize_basic256sha256(const UA_SecurityPolicy *policy,
+                                    const void *channelContext) {
     return UA_SHA256_LENGTH;
 }
 
 static size_t
-sym_getSigningKeyLength_sp_basic256sha256(const void *channelContext) {
+sym_getSigningKeyLength_basic256sha256(const UA_SecurityPolicy *policy,
+                                       const void *channelContext) {
     return UA_BASIC256SHA256_SYM_SIGNING_KEY_LENGTH;
 }
 
 static size_t
-sym_getEncryptionKeyLength_sp_basic256sha256(const void *channelContext) {
+sym_getEncryptionKeyLength_basic256sha256(const UA_SecurityPolicy *policy,
+                                          const void *channelContext) {
     return UA_SECURITYPOLICY_BASIC256SHA256_SYM_KEY_LENGTH;
 }
 
 static size_t
-sym_getEncryptionBlockSize_sp_basic256sha256(const void *channelContext) {
+sym_getEncryptionBlockSize_basic256sha256(const UA_SecurityPolicy *policy,
+                                          const void *channelContext) {
     return UA_SECURITYPOLICY_BASIC256SHA256_SYM_ENCRYPTION_BLOCK_SIZE;
 }
 
 static size_t
-sym_getPlainTextBlockSize_sp_basic256sha256(const void *channelContext) {
+sym_getPlainTextBlockSize_basic256sha256(const UA_SecurityPolicy *policy,
+                                         const void *channelContext) {
     return UA_SECURITYPOLICY_BASIC256SHA256_SYM_PLAIN_TEXT_BLOCK_SIZE;
 }
 
 static UA_StatusCode
-sym_encrypt_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc,
-                              UA_ByteString *data) {
-    if(cc == NULL || data == NULL)
+sym_encrypt_basic256sha256(const UA_SecurityPolicy *policy,
+                           void *channelContext, UA_ByteString *data) {
+    if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
+
+    Basic256Sha256_ChannelContext *cc =
+        (Basic256Sha256_ChannelContext*)channelContext;
 
     if(cc->localSymIv.length != UA_SECURITYPOLICY_BASIC256SHA256_SYM_ENCRYPTION_BLOCK_SIZE)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -348,12 +377,16 @@ sym_encrypt_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc,
 }
 
 static UA_StatusCode
-sym_decrypt_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc,
-                              UA_ByteString *data) {
-    if(cc == NULL || data == NULL)
+sym_decrypt_basic256sha256(const UA_SecurityPolicy *policy,
+                           void *channelContext, UA_ByteString *data) {
+    if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    size_t encryptionBlockSize = UA_SECURITYPOLICY_BASIC256SHA256_SYM_ENCRYPTION_BLOCK_SIZE;
+    Basic256Sha256_ChannelContext *cc =
+        (Basic256Sha256_ChannelContext*)channelContext;
+
+    size_t encryptionBlockSize =
+        UA_SECURITYPOLICY_BASIC256SHA256_SYM_ENCRYPTION_BLOCK_SIZE;
     if(cc->remoteSymIv.length != encryptionBlockSize)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -380,33 +413,33 @@ sym_decrypt_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc,
 }
 
 static UA_StatusCode
-sym_generateKey_sp_basic256sha256(void *policyContext, const UA_ByteString *secret,
-                                  const UA_ByteString *seed, UA_ByteString *out) {
+sym_generateKey_basic256sha256(const UA_SecurityPolicy *policy,
+                               void *channelContext, const UA_ByteString *secret,
+                               const UA_ByteString *seed, UA_ByteString *out) {
     if(secret == NULL || seed == NULL || out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Basic256Sha256_PolicyContext *pc = (Basic256Sha256_PolicyContext *)policyContext;
+    Basic256Sha256_PolicyContext *pc =
+        (Basic256Sha256_PolicyContext *)policy->policyContext;
     return mbedtls_generateKey(&pc->sha256MdContext, secret, seed, out);
 }
 
 static UA_StatusCode
-sym_generateNonce_sp_basic256sha256(void *policyContext, UA_ByteString *out) {
+sym_generateNonce_basic256sha256(const UA_SecurityPolicy *policy,
+                                 void *channelContext, UA_ByteString *out) {
     if(out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Basic256Sha256_PolicyContext *pc = (Basic256Sha256_PolicyContext *)policyContext;
+    Basic256Sha256_PolicyContext *pc =
+        (Basic256Sha256_PolicyContext *)policy->policyContext;
     int mbedErr = mbedtls_ctr_drbg_random(&pc->drbgContext, out->data, out->length);
     if(mbedErr)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
     return UA_STATUSCODE_GOOD;
 }
 
-/*****************/
-/* ChannelModule */
-/*****************/
-
 /* Assumes that the certificate has been verified externally */
 static UA_StatusCode
-parseRemoteCertificate_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
-                                         const UA_ByteString *remoteCertificate) {
+parseRemoteCertificate_basic256sha256(Basic256Sha256_ChannelContext *cc,
+                                      const UA_ByteString *remoteCertificate) {
     if(remoteCertificate == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -431,37 +464,35 @@ parseRemoteCertificate_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
 }
 
 static void
-channelContext_deleteContext_sp_basic256sha256(Basic256Sha256_ChannelContext *cc) {
+deleteContext_basic256sha256(const UA_SecurityPolicy *policy,
+                             void *channelContext) {
+    Basic256Sha256_ChannelContext *cc =
+        (Basic256Sha256_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->localSymSigningKey);
     UA_ByteString_clear(&cc->localSymEncryptingKey);
     UA_ByteString_clear(&cc->localSymIv);
-
     UA_ByteString_clear(&cc->remoteSymSigningKey);
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     UA_ByteString_clear(&cc->remoteSymIv);
-
     mbedtls_x509_crt_free(&cc->remoteCertificate);
-
     UA_free(cc);
 }
 
 static UA_StatusCode
-channelContext_newContext_sp_basic256sha256(const UA_SecurityPolicy *securityPolicy,
-                                            const UA_ByteString *remoteCertificate,
-                                            void **pp_contextData) {
-    if(securityPolicy == NULL || remoteCertificate == NULL || pp_contextData == NULL)
+newContext_basic256sha256(const UA_SecurityPolicy *securityPolicy,
+                         const UA_ByteString *remoteCertificate,
+                         void **channelContext) {
+    if(securityPolicy == NULL || remoteCertificate == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Allocate the channel context */
-    *pp_contextData = UA_malloc(sizeof(Basic256Sha256_ChannelContext));
-    if(*pp_contextData == NULL)
+    *channelContext = UA_malloc(sizeof(Basic256Sha256_ChannelContext));
+    if(*channelContext == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    Basic256Sha256_ChannelContext *cc = (Basic256Sha256_ChannelContext *)*pp_contextData;
+    Basic256Sha256_ChannelContext *cc = (Basic256Sha256_ChannelContext *)*channelContext;
 
     /* Initialize the channel context */
-    cc->policyContext = (Basic256Sha256_PolicyContext *)securityPolicy->policyContext;
-
     UA_ByteString_init(&cc->localSymSigningKey);
     UA_ByteString_init(&cc->localSymEncryptingKey);
     UA_ByteString_init(&cc->localSymIv);
@@ -473,79 +504,88 @@ channelContext_newContext_sp_basic256sha256(const UA_SecurityPolicy *securityPol
     mbedtls_x509_crt_init(&cc->remoteCertificate);
 
     // TODO: this can be optimized so that we dont allocate memory before parsing the certificate
-    UA_StatusCode retval = parseRemoteCertificate_sp_basic256sha256(cc, remoteCertificate);
+    UA_StatusCode retval = parseRemoteCertificate_basic256sha256(cc, remoteCertificate);
     if(retval != UA_STATUSCODE_GOOD) {
-        channelContext_deleteContext_sp_basic256sha256(cc);
-        *pp_contextData = NULL;
+        deleteContext_basic256sha256(securityPolicy, cc);
+        *channelContext = NULL;
     }
     return retval;
 }
 
 static UA_StatusCode
-channelContext_setLocalSymEncryptingKey_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
-                                                          const UA_ByteString *key) {
-    if(key == NULL || cc == NULL)
+setLocalSymEncryptingKey_basic256sha256(const UA_SecurityPolicy *policy,
+                                        void *channelContext, const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
+    Basic256Sha256_ChannelContext *cc =
+        (Basic256Sha256_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->localSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
 }
 
 static UA_StatusCode
-channelContext_setLocalSymSigningKey_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
-                                                       const UA_ByteString *key) {
-    if(key == NULL || cc == NULL)
+setLocalSymSigningKey_basic256sha256(const UA_SecurityPolicy *policy,
+                                     void *channelContext, const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
+    Basic256Sha256_ChannelContext *cc =
+        (Basic256Sha256_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->localSymSigningKey);
     return UA_ByteString_copy(key, &cc->localSymSigningKey);
 }
 
 
 static UA_StatusCode
-channelContext_setLocalSymIv_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
-                                               const UA_ByteString *iv) {
-    if(iv == NULL || cc == NULL)
+setLocalSymIv_basic256sha256(const UA_SecurityPolicy *policy,
+                             void *channelContext, const UA_ByteString *iv) {
+    if(iv == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
+    Basic256Sha256_ChannelContext *cc =
+        (Basic256Sha256_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->localSymIv);
     return UA_ByteString_copy(iv, &cc->localSymIv);
 }
 
 static UA_StatusCode
-channelContext_setRemoteSymEncryptingKey_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
-                                                           const UA_ByteString *key) {
-    if(key == NULL || cc == NULL)
+setRemoteSymEncryptingKey_basic256sha256(const UA_SecurityPolicy *policy,
+                                         void *channelContext,
+                                         const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
+    Basic256Sha256_ChannelContext *cc =
+        (Basic256Sha256_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
 }
 
 static UA_StatusCode
-channelContext_setRemoteSymSigningKey_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
-                                                        const UA_ByteString *key) {
-    if(key == NULL || cc == NULL)
+setRemoteSymSigningKey_basic256sha256(const UA_SecurityPolicy *policy,
+                                      void *channelContext,
+                                      const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
+    Basic256Sha256_ChannelContext *cc =
+        (Basic256Sha256_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->remoteSymSigningKey);
     return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
 }
 
 static UA_StatusCode
-channelContext_setRemoteSymIv_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
-                                                const UA_ByteString *iv) {
-    if(iv == NULL || cc == NULL)
+setRemoteSymIv_basic256sha256(const UA_SecurityPolicy *policy,
+                              void *channelContext, const UA_ByteString *iv) {
+    if(iv == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
+    Basic256Sha256_ChannelContext *cc =
+        (Basic256Sha256_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->remoteSymIv);
     return UA_ByteString_copy(iv, &cc->remoteSymIv);
 }
 
 static UA_StatusCode
-channelContext_compareCertificate_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc,
-                                                    const UA_ByteString *certificate) {
-    if(cc == NULL || certificate == NULL)
+compareCertificate_basic256sha256(const UA_SecurityPolicy *policy,
+                                  const void *channelContext,
+                                  const UA_ByteString *certificate) {
+    if(channelContext == NULL || certificate == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     mbedtls_x509_crt cert;
@@ -553,6 +593,9 @@ channelContext_compareCertificate_sp_basic256sha256(const Basic256Sha256_Channel
     int mbedErr = mbedtls_x509_crt_parse(&cert, certificate->data, certificate->length);
     if(mbedErr)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    const Basic256Sha256_ChannelContext *cc =
+        (const Basic256Sha256_ChannelContext*)channelContext;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(cert.raw.len != cc->remoteCertificate.raw.len ||
@@ -564,7 +607,7 @@ channelContext_compareCertificate_sp_basic256sha256(const Basic256Sha256_Channel
 }
 
 static void
-clear_sp_basic256sha256(UA_SecurityPolicy *securityPolicy) {
+clear_basic256sha256(UA_SecurityPolicy *securityPolicy) {
     if(securityPolicy == NULL)
         return;
 
@@ -585,16 +628,16 @@ clear_sp_basic256sha256(UA_SecurityPolicy *securityPolicy) {
     UA_ByteString_clear(&pc->localCertThumbprint);
 
     UA_LOG_DEBUG(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Deleted members of EndpointContext for sp_basic256sha256");
+                 "Deleted members of EndpointContext for basic256sha256");
 
     UA_free(pc);
     securityPolicy->policyContext = NULL;
 }
 
 static UA_StatusCode
-updateCertificateAndPrivateKey_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
-                                                 const UA_ByteString newCertificate,
-                                                 const UA_ByteString newPrivateKey) {
+updateCertificateAndPrivateKey_basic256sha256(UA_SecurityPolicy *securityPolicy,
+                                              const UA_ByteString newCertificate,
+                                              const UA_ByteString newPrivateKey) {
     if(securityPolicy == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -612,7 +655,9 @@ updateCertificateAndPrivateKey_sp_basic256sha256(UA_SecurityPolicy *securityPoli
 
     UA_ByteString_clear(&securityPolicy->localCertificate);
 
-    UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(&newCertificate, &securityPolicy->localCertificate);
+    UA_StatusCode retval =
+        UA_mbedTLS_LoadLocalCertificate(&newCertificate,
+                                        &securityPolicy->localCertificate);
 
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -633,7 +678,7 @@ updateCertificateAndPrivateKey_sp_basic256sha256(UA_SecurityPolicy *securityPoli
         }
     }
 
-    retval = asym_makeThumbprint_sp_basic256sha256(securityPolicy,
+    retval = asym_makeThumbprint_basic256sha256(securityPolicy,
                                                    &securityPolicy->localCertificate,
                                                    &pc->localCertThumbprint);
     if(retval != UA_STATUSCODE_GOOD)
@@ -645,28 +690,23 @@ updateCertificateAndPrivateKey_sp_basic256sha256(UA_SecurityPolicy *securityPoli
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not update certificate and private key");
     if(securityPolicy->policyContext != NULL)
-        clear_sp_basic256sha256(securityPolicy);
+        clear_basic256sha256(securityPolicy);
     return retval;
 }
 
 static UA_StatusCode
-createSigningRequest_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
+createSigningRequest_basic256sha256(UA_SecurityPolicy *securityPolicy,
                                             const UA_String *subjectName,
                                             const UA_ByteString *nonce,
                                             const UA_KeyValueMap *params,
                                             UA_ByteString *csr,
                                             UA_ByteString *newPrivateKey) {
-    /* Check parameter */
-    if (securityPolicy == NULL || csr == NULL) {
+    if(securityPolicy == NULL || csr == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
     if(securityPolicy->policyContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
     Basic256Sha256_PolicyContext *pc =
             (Basic256Sha256_PolicyContext *) securityPolicy->policyContext;
-
     return mbedtls_createSigningRequest(&pc->localPrivateKey, &pc->csrLocalPrivateKey,
                                         &pc->entropyContext, &pc->drbgContext,
                                         securityPolicy, subjectName, nonce,
@@ -674,13 +714,13 @@ createSigningRequest_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
 }
 
 static UA_StatusCode
-policyContext_newContext_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
-                                           const UA_ByteString localPrivateKey) {
+policyContext_newContext_basic256sha256(UA_SecurityPolicy *securityPolicy,
+                                        const UA_ByteString localPrivateKey) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(securityPolicy == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if (localPrivateKey.length == 0) {
+    if(localPrivateKey.length == 0) {
         UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Can not initialize security policy. Private key is empty.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -727,7 +767,8 @@ policyContext_newContext_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
     }
 
     /* Set the private key */
-    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey, &pc->entropyContext);
+    mbedErr = UA_mbedTLS_LoadPrivateKey(&localPrivateKey, &pc->localPrivateKey,
+                                        &pc->entropyContext);
     if(mbedErr) {
         retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         goto error;
@@ -737,9 +778,9 @@ policyContext_newContext_sp_basic256sha256(UA_SecurityPolicy *securityPolicy,
     retval = UA_ByteString_allocBuffer(&pc->localCertThumbprint, UA_SHA1_LENGTH);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
-    retval = asym_makeThumbprint_sp_basic256sha256(securityPolicy,
-                                                  &securityPolicy->localCertificate,
-                                                  &pc->localCertThumbprint);
+    retval = asym_makeThumbprint_basic256sha256(securityPolicy,
+                                                &securityPolicy->localCertificate,
+                                                &pc->localCertThumbprint);
     if(retval != UA_STATUSCODE_GOOD)
         goto error;
 
@@ -749,133 +790,95 @@ error:
     UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                  "Could not create securityContext: %s", UA_StatusCode_name(retval));
     if(securityPolicy->policyContext != NULL)
-        clear_sp_basic256sha256(securityPolicy);
+        clear_basic256sha256(securityPolicy);
     return retval;
 }
 
 UA_StatusCode
-UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
-                                 const UA_ByteString localPrivateKey, const UA_Logger *logger) {
-    memset(policy, 0, sizeof(UA_SecurityPolicy));
-    policy->logger = logger;
+UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *sp,
+                                 const UA_ByteString localCertificate,
+                                 const UA_ByteString localPrivateKey,
+                                 const UA_Logger *logger) {
+    memset(sp, 0, sizeof(UA_SecurityPolicy));
+    sp->logger = logger;
+    sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    sp->certificateGroupId =
+        UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    sp->certificateTypeId = UA_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
+    sp->securityLevel = 20;
 
-    policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
-    policy->certificateGroupId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    policy->certificateTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
-    policy->securityLevel = 20;
+    /* Asymmetric Signature */
+    UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;
+    asymSig->uri = UA_STRING("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256");
+    asymSig->verify = asym_verify_basic256sha256;
+    asymSig->sign = asym_sign_basic256sha256;
+    asymSig->getLocalSignatureSize = asym_getLocalSignatureSize_basic256sha256;
+    asymSig->getRemoteSignatureSize = asym_getRemoteSignatureSize_basic256sha256;
+    asymSig->getLocalKeyLength = NULL;
+    asymSig->getRemoteKeyLength = NULL;
 
-    UA_SecurityPolicyAsymmetricModule *const asymmetricModule = &policy->asymmetricModule;
-    UA_SecurityPolicySymmetricModule *const symmetricModule = &policy->symmetricModule;
-    UA_SecurityPolicyChannelModule *const channelModule = &policy->channelModule;
+    /* Asymmetric Encryption */
+    UA_SecurityPolicyEncryptionAlgorithm *asymEnc = &sp->asymEncryptionAlgorithm;
+    asymEnc->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#rsa-oaep");
+    asymEnc->encrypt = asym_encrypt_basic256sha256;
+    asymEnc->decrypt = asym_decrypt_basic256sha256;
+    asymEnc->getLocalKeyLength = asym_getLocalEncryptionKeyLength_basic256sha256;
+    asymEnc->getRemoteKeyLength = asym_getRemoteEncryptionKeyLength_basic256sha256;
+    asymEnc->getRemoteBlockSize = asym_getRemoteBlockSize_basic256sha256;
+    asymEnc->getRemotePlainTextBlockSize = asym_getRemotePlainTextBlockSize_basic256sha256;
 
-    UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+    /* Symmetric Signature */
+    UA_SecurityPolicySignatureAlgorithm *symSig = &sp->symSignatureAlgorithm;
+    symSig->uri = UA_STRING("http://www.w3.org/2000/09/xmldsig#hmac-sha2-256");
+    symSig->verify = sym_verify_basic256sha256;
+    symSig->sign = sym_sign_basic256sha256;
+    symSig->getLocalSignatureSize = sym_getSignatureSize_basic256sha256;
+    symSig->getRemoteSignatureSize = sym_getSignatureSize_basic256sha256;
+    symSig->getLocalKeyLength = sym_getSigningKeyLength_basic256sha256;
+    symSig->getRemoteKeyLength = sym_getSigningKeyLength_basic256sha256;
 
-    if (retval != UA_STATUSCODE_GOOD)
-        return retval;
+    /* Symmetric Encryption */
+    UA_SecurityPolicyEncryptionAlgorithm *symEnc = &sp->symEncryptionAlgorithm;
+    symEnc->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#aes256-cbc");
+    symEnc->encrypt = sym_encrypt_basic256sha256;
+    symEnc->decrypt = sym_decrypt_basic256sha256;
+    symEnc->getLocalKeyLength = sym_getEncryptionKeyLength_basic256sha256;
+    symEnc->getRemoteKeyLength = sym_getEncryptionKeyLength_basic256sha256;
+    symEnc->getRemoteBlockSize = sym_getEncryptionBlockSize_basic256sha256;
+    symEnc->getRemotePlainTextBlockSize = sym_getPlainTextBlockSize_basic256sha256;
 
-    /* AsymmetricModule */
-    UA_SecurityPolicySignatureAlgorithm *asym_signatureAlgorithm =
-        &asymmetricModule->cryptoModule.signatureAlgorithm;
-    asym_signatureAlgorithm->uri =
-        UA_STRING("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256\0");
-    asym_signatureAlgorithm->verify =
-        (UA_StatusCode (*)(void *, const UA_ByteString *, const UA_ByteString *))asym_verify_sp_basic256sha256;
-    asym_signatureAlgorithm->sign =
-        (UA_StatusCode (*)(void *, const UA_ByteString *, UA_ByteString *))asym_sign_sp_basic256sha256;
-    asym_signatureAlgorithm->getLocalSignatureSize =
-        (size_t (*)(const void *))asym_getLocalSignatureSize_sp_basic256sha256;
-    asym_signatureAlgorithm->getRemoteSignatureSize =
-        (size_t (*)(const void *))asym_getRemoteSignatureSize_sp_basic256sha256;
-    asym_signatureAlgorithm->getLocalKeyLength = NULL; // TODO: Write function
-    asym_signatureAlgorithm->getRemoteKeyLength = NULL; // TODO: Write function
+    /* Certificate Signing
+     * Use the same signature algorithm as the asymmetric component for
+     * certificate signing (see standard). */
+    sp->certSignatureAlgorithm = sp->asymSignatureAlgorithm;
 
-    UA_SecurityPolicyEncryptionAlgorithm *asym_encryptionAlgorithm =
-        &asymmetricModule->cryptoModule.encryptionAlgorithm;
-    asym_encryptionAlgorithm->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#rsa-oaep\0");
-    asym_encryptionAlgorithm->encrypt =
-        (UA_StatusCode(*)(void *, UA_ByteString *))asym_encrypt_sp_basic256sha256;
-    asym_encryptionAlgorithm->decrypt =
-        (UA_StatusCode(*)(void *, UA_ByteString *))
-            asym_decrypt_sp_basic256sha256;
-    asym_encryptionAlgorithm->getLocalKeyLength =
-        (size_t (*)(const void *))asym_getLocalEncryptionKeyLength_sp_basic256sha256;
-    asym_encryptionAlgorithm->getRemoteKeyLength =
-        (size_t (*)(const void *))asym_getRemoteEncryptionKeyLength_sp_basic256sha256;
-    asym_encryptionAlgorithm->getRemoteBlockSize =
-        (size_t (*)(const void *))asym_getRemoteBlockSize_sp_basic256sha256;
-    asym_encryptionAlgorithm->getRemotePlainTextBlockSize =
-        (size_t (*)(const void *))asym_getRemotePlainTextBlockSize_sp_basic256sha256;
+    /* Direct Method Pointers */
+    sp->newChannelContext = newContext_basic256sha256;
+    sp->deleteChannelContext = deleteContext_basic256sha256;
+    sp->setLocalSymEncryptingKey = setLocalSymEncryptingKey_basic256sha256;
+    sp->setLocalSymSigningKey = setLocalSymSigningKey_basic256sha256;
+    sp->setLocalSymIv = setLocalSymIv_basic256sha256;
+    sp->setRemoteSymEncryptingKey = setRemoteSymEncryptingKey_basic256sha256;
+    sp->setRemoteSymSigningKey = setRemoteSymSigningKey_basic256sha256;
+    sp->setRemoteSymIv = setRemoteSymIv_basic256sha256;
+    sp->compareCertificate = compareCertificate_basic256sha256;
+    sp->generateKey = sym_generateKey_basic256sha256;
+    sp->generateNonce = sym_generateNonce_basic256sha256;
+    sp->nonceLength = 32;
+    sp->makeCertThumbprint = asym_makeThumbprint_basic256sha256;
+    sp->compareCertThumbprint = compareCertificateThumbprint_basic256sha256;
+    sp->updateCertificate = updateCertificateAndPrivateKey_basic256sha256;
+    sp->createSigningRequest = createSigningRequest_basic256sha256;
+    sp->clear = clear_basic256sha256;
 
-    asymmetricModule->makeCertificateThumbprint = asym_makeThumbprint_sp_basic256sha256;
-    asymmetricModule->compareCertificateThumbprint =
-        asymmetricModule_compareCertificateThumbprint_sp_basic256sha256;
-
-    /* SymmetricModule */
-    symmetricModule->generateKey = sym_generateKey_sp_basic256sha256;
-    symmetricModule->generateNonce = sym_generateNonce_sp_basic256sha256;
-
-    UA_SecurityPolicySignatureAlgorithm *sym_signatureAlgorithm =
-        &symmetricModule->cryptoModule.signatureAlgorithm;
-    sym_signatureAlgorithm->uri =
-        UA_STRING("http://www.w3.org/2000/09/xmldsig#hmac-sha2-256\0");
-    sym_signatureAlgorithm->verify =
-        (UA_StatusCode (*)(void *, const UA_ByteString *, const UA_ByteString *))sym_verify_sp_basic256sha256;
-    sym_signatureAlgorithm->sign =
-        (UA_StatusCode (*)(void *, const UA_ByteString *, UA_ByteString *))sym_sign_sp_basic256sha256;
-    sym_signatureAlgorithm->getLocalSignatureSize = sym_getSignatureSize_sp_basic256sha256;
-    sym_signatureAlgorithm->getRemoteSignatureSize = sym_getSignatureSize_sp_basic256sha256;
-    sym_signatureAlgorithm->getLocalKeyLength =
-        (size_t (*)(const void *))sym_getSigningKeyLength_sp_basic256sha256;
-    sym_signatureAlgorithm->getRemoteKeyLength =
-        (size_t (*)(const void *))sym_getSigningKeyLength_sp_basic256sha256;
-
-    UA_SecurityPolicyEncryptionAlgorithm *sym_encryptionAlgorithm =
-        &symmetricModule->cryptoModule.encryptionAlgorithm;
-    sym_encryptionAlgorithm->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#aes256-cbc");
-    sym_encryptionAlgorithm->encrypt =
-        (UA_StatusCode(*)(void *, UA_ByteString *))sym_encrypt_sp_basic256sha256;
-    sym_encryptionAlgorithm->decrypt =
-        (UA_StatusCode(*)(void *, UA_ByteString *))sym_decrypt_sp_basic256sha256;
-    sym_encryptionAlgorithm->getLocalKeyLength = sym_getEncryptionKeyLength_sp_basic256sha256;
-    sym_encryptionAlgorithm->getRemoteKeyLength = sym_getEncryptionKeyLength_sp_basic256sha256;
-    sym_encryptionAlgorithm->getRemoteBlockSize =
-        (size_t (*)(const void *))sym_getEncryptionBlockSize_sp_basic256sha256;
-    sym_encryptionAlgorithm->getRemotePlainTextBlockSize =
-        (size_t (*)(const void *))sym_getPlainTextBlockSize_sp_basic256sha256;
-    symmetricModule->secureChannelNonceLength = 32;
-
-    // Use the same signature algorithm as the asymmetric component for certificate signing (see standard)
-    policy->certificateSigningAlgorithm = policy->asymmetricModule.cryptoModule.signatureAlgorithm;
-
-    /* ChannelModule */
-    channelModule->newContext = channelContext_newContext_sp_basic256sha256;
-    channelModule->deleteContext = (void (*)(void *))
-        channelContext_deleteContext_sp_basic256sha256;
-
-    channelModule->setLocalSymEncryptingKey = (UA_StatusCode (*)(void *, const UA_ByteString *))
-        channelContext_setLocalSymEncryptingKey_sp_basic256sha256;
-    channelModule->setLocalSymSigningKey = (UA_StatusCode (*)(void *, const UA_ByteString *))
-        channelContext_setLocalSymSigningKey_sp_basic256sha256;
-    channelModule->setLocalSymIv = (UA_StatusCode (*)(void *, const UA_ByteString *))
-        channelContext_setLocalSymIv_sp_basic256sha256;
-
-    channelModule->setRemoteSymEncryptingKey = (UA_StatusCode (*)(void *, const UA_ByteString *))
-        channelContext_setRemoteSymEncryptingKey_sp_basic256sha256;
-    channelModule->setRemoteSymSigningKey = (UA_StatusCode (*)(void *, const UA_ByteString *))
-        channelContext_setRemoteSymSigningKey_sp_basic256sha256;
-    channelModule->setRemoteSymIv = (UA_StatusCode (*)(void *, const UA_ByteString *))
-        channelContext_setRemoteSymIv_sp_basic256sha256;
-
-    channelModule->compareCertificate = (UA_StatusCode (*)(const void *, const UA_ByteString *))
-        channelContext_compareCertificate_sp_basic256sha256;
-
-    policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_basic256sha256;
-    policy->createSigningRequest = createSigningRequest_sp_basic256sha256;
-    policy->clear = clear_sp_basic256sha256;
-
-    UA_StatusCode res = policyContext_newContext_sp_basic256sha256(policy, localPrivateKey);
+    UA_StatusCode res =
+        UA_mbedTLS_LoadLocalCertificate(&localCertificate, &sp->localCertificate);
     if(res != UA_STATUSCODE_GOOD)
-        clear_sp_basic256sha256(policy);
+        return res;
+
+    res = policyContext_newContext_basic256sha256(sp, localPrivateKey);
+    if(res != UA_STATUSCODE_GOOD)
+        clear_basic256sha256(sp);
 
     return res;
 }
