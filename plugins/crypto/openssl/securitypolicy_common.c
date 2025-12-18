@@ -1445,7 +1445,7 @@ UA_OpenSSL_ECDH(const int nid,
     }
 
     ret = UA_ByteString_allocBuffer(sharedSecretOut, sharedSecretOut->length);
-    if(ret != UA_STATUSCODE_GOOD
+    if(ret != UA_STATUSCODE_GOOD)
         goto errout;
 
     if(EVP_PKEY_derive(kctx, sharedSecretOut->data, &sharedSecretOut->length) <= 0) {

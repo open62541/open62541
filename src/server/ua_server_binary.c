@@ -596,8 +596,8 @@ configServerSecureChannel(void *application, UA_SecureChannel *channel,
         if(!UA_String_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
             continue;
 
-        UA_StatusCode res = policy->asymmetricModule.
-            compareCertificateThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
+        UA_StatusCode res = policy->
+            compareCertThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
         if(res != UA_STATUSCODE_GOOD)
             continue;
 

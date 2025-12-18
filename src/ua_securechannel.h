@@ -314,9 +314,9 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
  * with the SequenceHeader).*/
 UA_StatusCode
 decryptAndVerifyChunk(const UA_SecureChannel *channel,
-                      const UA_SecurityPolicyCryptoModule *cryptoModule,
-                      UA_MessageType messageType, UA_ByteString *chunk,
-                      size_t offset);
+                      const UA_SecurityPolicySignatureAlgorithm *signatureAlgorithm,
+                      const UA_SecurityPolicyEncryptionAlgorithm *encryptionAlgorithm,
+                      UA_MessageType messageType, UA_ByteString *chunk, size_t offset);
 
 size_t
 calculateAsymAlgSecurityHeaderLength(const UA_SecureChannel *channel);
@@ -339,7 +339,9 @@ checkAsymHeader(UA_SecureChannel *channel,
                 const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 void
-padChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cm,
+padChunk(UA_SecureChannel *channel,
+         const UA_SecurityPolicySignatureAlgorithm *signatureAlgorithm,
+         const UA_SecurityPolicyEncryptionAlgorithm *encryptionAlgorithm,
          const UA_Byte *start, UA_Byte **pos);
 
 UA_StatusCode

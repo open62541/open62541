@@ -288,7 +288,8 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     }
 
     if(wg->config.securityPolicy && wg->securityPolicyContext) {
-        wg->config.securityPolicy->deleteContext(wg->securityPolicyContext);
+        UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
+        sp->deleteGroupContext(sp, wg->securityPolicyContext);
         wg->securityPolicyContext = NULL;
     }
 
@@ -377,18 +378,16 @@ UA_WriterGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_WriterGroup *wg,
         wg->nonceSequenceNumber = 1;
     }
 
+    UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
     UA_StatusCode res = UA_STATUSCODE_BAD;
     if(!wg->securityPolicyContext) {
         /* Create a new context */
-        res = wg->config.securityPolicy->
-            newContext(wg->config.securityPolicy->policyContext,
-                       &signingKey, &encryptingKey, &keyNonce,
-                       &wg->securityPolicyContext);
+        res = sp->newGroupContext(sp, &signingKey, &encryptingKey, &keyNonce,
+                                  &wg->securityPolicyContext);
     } else {
         /* Update the context */
-        res = wg->config.securityPolicy->
-            setSecurityKeys(wg->securityPolicyContext, &signingKey,
-                            &encryptingKey, &keyNonce);
+        res = sp->setSecurityKeys(sp, wg->securityPolicyContext, &signingKey,
+                                  &encryptingKey, &keyNonce);
     }
 
     return (res == UA_STATUSCODE_GOOD) ?
@@ -552,33 +551,32 @@ encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
     UA_StatusCode rv;
     void *channelContext = wg->securityPolicyContext;
 
+    UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
+
     if(nm->securityHeader.networkMessageEncrypted) {
         /* Set the temporary MessageNonce in the SecurityPolicy */
         const UA_ByteString nonce = {
             (size_t)nm->securityHeader.messageNonceSize,
             (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
         };
-        rv = wg->config.securityPolicy->setMessageNonce(channelContext, &nonce);
+        rv = sp->setMessageNonce(sp, channelContext, &nonce);
         UA_CHECK_STATUS(rv, return rv);
 
         /* The encryption is done in-place, no need to encode again */
         UA_ByteString toBeEncrypted =
             {(uintptr_t)msgEnd - (uintptr_t)encryptStart, encryptStart};
-        rv = wg->config.securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.
-            encrypt(channelContext, &toBeEncrypted);
+        rv = sp->encrypt(sp, channelContext, &toBeEncrypted);
         UA_CHECK_STATUS(rv, return rv);
     }
 
     if(nm->securityHeader.networkMessageSigned) {
-        UA_ByteString toBeSigned = {(uintptr_t)msgEnd - (uintptr_t)signStart,
-                                    signStart};
+        UA_ByteString toBeSigned =
+            {(uintptr_t)msgEnd - (uintptr_t)signStart, signStart};
 
-        size_t sigSize = wg->config.securityPolicy->symmetricModule.cryptoModule.
-                     signatureAlgorithm.getLocalSignatureSize(channelContext);
+        size_t sigSize = sp->getSignatureSize(sp, channelContext);
         UA_ByteString signature = {sigSize, msgEnd};
 
-        rv = wg->config.securityPolicy->symmetricModule.cryptoModule.
-            signatureAlgorithm.sign(channelContext, &toBeSigned, &signature);
+        rv = sp->sign(sp, channelContext, &toBeSigned, &signature);
         UA_CHECK_STATUS(rv, return rv);
     }
     return UA_STATUSCODE_GOOD;
@@ -760,9 +758,9 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 
         /* Generate the MessageNonce. Four random bytes followed by a four-byte
          * sequence number */
+        UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
         UA_ByteString nonce = {4, nm->securityHeader.messageNonce};
-        UA_StatusCode rv = wg->config.securityPolicy->symmetricModule.
-            generateNonce(wg->config.securityPolicy->policyContext, &nonce);
+        UA_StatusCode rv = sp->generateNonce(sp, wg->securityPolicyContext, &nonce);
         if(rv != UA_STATUSCODE_GOOD)
             return rv;
         UA_Byte *pos = &nm->securityHeader.messageNonce[4];
@@ -841,8 +839,7 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
      * There is no padding and the encryption incurs no size overhead. */
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
-        msgSize += sp->symmetricModule.cryptoModule.
-            signatureAlgorithm.getLocalSignatureSize(sp->policyContext);
+        msgSize += sp->getSignatureSize(sp, sp->policyContext);
     }
 
     UA_ConnectionManager *cm = connection->cm;

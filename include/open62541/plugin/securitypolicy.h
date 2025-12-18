@@ -32,53 +32,65 @@ typedef struct {
     /* Verifies the signature of the message using the provided keys in the
      * context.
      *
+     * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The channelContext that contains the key to verify
      *        the supplied message with.
      * @param message The message to which the signature is supposed to belong.
      * @param signature The signature of the message, that should be verified. */
-    UA_StatusCode (*verify)(void *channelContext, const UA_ByteString *message,
+    UA_StatusCode (*verify)(const UA_SecurityPolicy *policy,
+                            void *channelContext, const UA_ByteString *message,
                             const UA_ByteString *signature);
 
     /* Signs the given message using this policys signing algorithm and the
      * provided keys in the context.
      *
+     * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The channelContext that contains the key to sign
      *        the supplied message with.
      * @param message The message to sign.
      * @param signature An output buffer to which the signature is written. The
      *        buffer needs to be allocated by the caller. The necessary size can
      *        be acquired with the signatureSize attribute of this module. */
-    UA_StatusCode (*sign)(void *channelContext, const UA_ByteString *message,
+    UA_StatusCode (*sign)(const UA_SecurityPolicy *policy,
+                          void *channelContext, const UA_ByteString *message,
                           UA_ByteString *signature);
 
     /* Gets the signature size that depends on the local (private) key.
      *
+     * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The channelContext that contains the
      *        certificate/key.
      * @return The size of the local signature. Returns 0 if no local
      *         certificate was set. */
-    size_t (*getLocalSignatureSize)(const void *channelContext);
+    size_t (*getLocalSignatureSize)(const UA_SecurityPolicy *policy,
+                                    const void *channelContext);
 
     /* Gets the signature size that depends on the remote (public) key.
      *
+     * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context to retrieve data from.
      * @return The size of the remote signature. Returns 0 if no
      *         remote certificate was set previousely. */
-    size_t (*getRemoteSignatureSize)(const void *channelContext);
+    size_t (*getRemoteSignatureSize)(const UA_SecurityPolicy *policy,
+                                     const void *channelContext);
 
     /* Gets the local signing key length.
      *
+     * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context to retrieve data from.
      * @return The length of the signing key in bytes. Returns 0 if no length
      *         can be found. */
-    size_t (*getLocalKeyLength)(const void *channelContext);
+    size_t (*getLocalKeyLength)(const UA_SecurityPolicy *policy,
+                                const void *channelContext);
 
     /* Gets the local signing key length.
      *
+     * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context to retrieve data from.
      * @return The length of the signing key in bytes. Returns 0 if no length
      *         can be found. */
-    size_t (*getRemoteKeyLength)(const void *channelContext);
+    size_t (*getRemoteKeyLength)(const UA_SecurityPolicy *policy,
+                                 const void *channelContext);
 } UA_SecurityPolicySignatureAlgorithm;
 
 typedef struct {
@@ -87,198 +99,71 @@ typedef struct {
     /* Encrypt the given data in place. For asymmetric encryption, the block
      * size for plaintext and cypher depend on the remote key (certificate).
      *
+     * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The channelContext which contains information about
      *        the keys to encrypt data.
      * @param data The data that is encrypted. The encrypted data will overwrite
      *        the data that was supplied. */
-    UA_StatusCode (*encrypt)(void *channelContext, UA_ByteString *data);
+    UA_StatusCode (*encrypt)(const UA_SecurityPolicy *policy,
+                             void *channelContext, UA_ByteString *data);
 
     /* Decrypts the given ciphertext in place. For asymmetric encryption, the
      * block size for plaintext and cypher depend on the local private key.
      *
+     * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The channelContext which contains information about
      *        the keys needed to decrypt the message.
      * @param data The data to decrypt. The decryption is done in place. */
-    UA_StatusCode (*decrypt)(void *channelContext, UA_ByteString *data);
+    UA_StatusCode (*decrypt)(const UA_SecurityPolicy *policy,
+                             void *channelContext, UA_ByteString *data);
 
     /* Returns the length of the key used to encrypt messages in bits. For
      * asymmetric encryption the key length is for the local private key.
      *
+     * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context to retrieve data from.
      * @return The length of the local key. Returns 0 if no
      *         key length is known. */
-    size_t (*getLocalKeyLength)(const void *channelContext);
+    size_t (*getLocalKeyLength)(const UA_SecurityPolicy *policy,
+                                const void *channelContext);
 
     /* Returns the length of the key to encrypt messages in bits. Depends on the
      * key (certificate) from the remote side.
      *
+     * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context to retrieve data from.
      * @return The length of the remote key. Returns 0 if no
      *         key length is known. */
-    size_t (*getRemoteKeyLength)(const void *channelContext);
+    size_t (*getRemoteKeyLength)(const UA_SecurityPolicy *policy,
+                                 const void *channelContext);
 
     /* Returns the size of encrypted blocks for sending. For asymmetric
      * encryption this depends on the remote key (certificate). For symmetric
      * encryption the local and remote encrypted block size are identical.
      *
+     * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context to retrieve data from.
      * @return The size of encrypted blocks in bytes. Returns 0 if no key length
      *         is known. */
-    size_t (*getRemoteBlockSize)(const void *channelContext);
+    size_t (*getRemoteBlockSize)(const UA_SecurityPolicy *policy,
+                                 const void *channelContext);
 
     /* Returns the size of plaintext blocks for sending. For asymmetric
      * encryption this depends on the remote key (certificate). For symmetric
      * encryption the local and remote plaintext block size are identical.
      *
+     * @param policy The SecurityPolicy to which the callback belongs.
      * @param channelContext The context to retrieve data from.
      * @return The size of plaintext blocks in bytes. Returns 0 if no key length
      *         is known. */
-    size_t (*getRemotePlainTextBlockSize)(const void *channelContext);
+    size_t (*getRemotePlainTextBlockSize)(const UA_SecurityPolicy *policy,
+                                          const void *channelContext);
 } UA_SecurityPolicyEncryptionAlgorithm;
 
-typedef struct {
-    /* The algorithm used to sign and verify certificates. */
-    UA_SecurityPolicySignatureAlgorithm signatureAlgorithm;
-
-    /* The algorithm used to encrypt and decrypt messages. */
-    UA_SecurityPolicyEncryptionAlgorithm encryptionAlgorithm;
-} UA_SecurityPolicyCryptoModule;
-
-typedef struct {
-    /* Generates a thumbprint for the specified certificate.
-     *
-     * @param certificate the certificate to make a thumbprint of.
-     * @param thumbprint an output buffer for the resulting thumbprint. Always
-     *        has the length specified in the thumbprintLength in the
-     *        asymmetricModule. */
-    UA_StatusCode (*makeCertificateThumbprint)(const UA_SecurityPolicy *securityPolicy,
-                                               const UA_ByteString *certificate,
-                                               UA_ByteString *thumbprint);
-
-    /* Compares the supplied certificate with the certificate in the endpoint
-     * context.
-     *
-     * @param securityPolicy the policy data that contains the certificate
-     *        to compare to.
-     * @param certificateThumbprint the certificate thumbprint to compare to the
-     *        one stored in the context.
-     * @return If the thumbprints match UA_STATUSCODE_GOOD is returned. If they
-     *         don't match or an error occurred an error code is returned. */
-    UA_StatusCode (*compareCertificateThumbprint)(const UA_SecurityPolicy *securityPolicy,
-                                                  const UA_ByteString *certificateThumbprint);
-
-    UA_SecurityPolicyCryptoModule cryptoModule;
-} UA_SecurityPolicyAsymmetricModule;
-
-typedef struct {
-    /* Pseudo random function that is used to generate the symmetric keys. For
-     * information on what parameters this function receives in what situation,
-     * refer to the OPC UA specification Part 6, "Deriving keys".
-     *
-     * @param policyContext The context of the policy instance
-     * @param secret Usually from the nonce. See part 6.
-     * @param seed Usually from the nonce. See part 6.
-     * @param out an output to write the data to. The length defines the maximum
-     *        number of output bytes that are produced. */
-    UA_StatusCode (*generateKey)(void *policyContext, const UA_ByteString *secret,
-                                 const UA_ByteString *seed, UA_ByteString *out);
-
-    /* Random generator for generating nonces.
-     *
-     * @param policyContext The context of the policy instance
-     * @param out pointer to a buffer to store the nonce in. Needs to be
-     *        allocated by the caller. The buffer is filled with random data. */
-    UA_StatusCode (*generateNonce)(void *policyContext, UA_ByteString *out);
-
-    /* The length of the nonce used in the SecureChannel as specified in the
-     * standard. */
-    size_t secureChannelNonceLength;
-
-    UA_SecurityPolicyCryptoModule cryptoModule;
-} UA_SecurityPolicySymmetricModule;
-
-typedef struct {
-    /* This method creates a new context data object. The caller needs to call
-     * delete on the received object to free allocated memory. Memory is only
-     * allocated if the function succeeds so there is no need to manually free
-     * the memory pointed to by *channelContext or to call delete in case of
-     * failure.
-     *
-     * @param policy The policy context of the endpoint that is connected to. It
-     *        will be stored in the channelContext for further access by the
-     *        policy.
-     * @param remoteCertificate The remote certificate contains the remote
-     *        asymmetric key. The certificate will be verified and then stored
-     *        in the context so that its details may be accessed.
-     * @param channelContext The initialized channelContext that is passed to
-     *        functions that work on a context. */
-    UA_StatusCode (*newContext)(const UA_SecurityPolicy *policy,
-                                const UA_ByteString *remoteCertificate,
-                                void **channelContext);
-
-    /* Deletes the the security context. */
-    void (*deleteContext)(void *channelContext);
-
-    /* Sets the local encrypting key in the supplied context.
-     *
-     * @param channelContext The context to work on.
-     * @param key The local encrypting key to store in the context. */
-    UA_StatusCode (*setLocalSymEncryptingKey)(void *channelContext,
-                                              const UA_ByteString *key);
-
-    /* Sets the local signing key in the supplied context.
-     *
-     * @param channelContext The context to work on.
-     * @param key The local signing key to store in the context. */
-    UA_StatusCode (*setLocalSymSigningKey)(void *channelContext,
-                                           const UA_ByteString *key);
-
-    /* Sets the local initialization vector in the supplied context.
-     *
-     * @param channelContext The context to work on.
-     * @param iv The local initialization vector to store in the context. */
-    UA_StatusCode (*setLocalSymIv)(void *channelContext,
-                                   const UA_ByteString *iv);
-
-    /* Sets the remote encrypting key in the supplied context.
-     *
-     * @param channelContext The context to work on.
-     * @param key The remote encrypting key to store in the context. */
-    UA_StatusCode (*setRemoteSymEncryptingKey)(void *channelContext,
-                                               const UA_ByteString *key);
-
-    /* Sets the remote signing key in the supplied context.
-     *
-     * @param channelContext The context to work on.
-     * @param key The remote signing key to store in the context. */
-    UA_StatusCode (*setRemoteSymSigningKey)(void *channelContext,
-                                            const UA_ByteString *key);
-
-    /* Sets the remote initialization vector in the supplied context.
-     *
-     * @param channelContext The context to work on.
-     * @param iv The remote initialization vector to store in the context. */
-    UA_StatusCode (*setRemoteSymIv)(void *channelContext,
-                                    const UA_ByteString *iv);
-
-    /* Compares the supplied certificate with the certificate in the channel
-     * context.
-     *
-     * @param channelContext The channel context data that contains the
-     *        certificate to compare to.
-     * @param certificate The certificate to compare to the one stored in the context.
-     * @return If the certificates match UA_STATUSCODE_GOOD is returned. If they
-     *         don't match or an errror occurred an error code is returned. */
-    UA_StatusCode (*compareCertificate)(const void *channelContext,
-                                        const UA_ByteString *certificate);
-} UA_SecurityPolicyChannelModule;
-
 struct UA_SecurityPolicy {
-    /* Additional data */
-    void *policyContext;
-
-    /* The policy uri that identifies the implemented algorithms */
-    UA_String policyUri;
+    void *policyContext;     /* Context data */
+    const UA_Logger *logger; /* Logger to be used by the plugin */
+    UA_String policyUri;     /* SecurityPolicyUri */
 
     /* Value indicating the crypto strength of the policy, with zero for
      * deprecated or none */
@@ -292,18 +177,151 @@ struct UA_SecurityPolicy {
     UA_NodeId certificateTypeId;
 
     /* Function pointers grouped into modules */
-    UA_SecurityPolicyAsymmetricModule asymmetricModule;
-    UA_SecurityPolicySymmetricModule symmetricModule;
-    UA_SecurityPolicySignatureAlgorithm certificateSigningAlgorithm;
-    UA_SecurityPolicyChannelModule channelModule;
+    UA_SecurityPolicySignatureAlgorithm asymSignatureAlgorithm;
+    UA_SecurityPolicyEncryptionAlgorithm asymEncryptionAlgorithm;
+    UA_SecurityPolicySignatureAlgorithm symSignatureAlgorithm;
+    UA_SecurityPolicyEncryptionAlgorithm symEncryptionAlgorithm;
+    UA_SecurityPolicySignatureAlgorithm certSignatureAlgorithm;
 
-    const UA_Logger *logger;
+    /* Create a new channel context. The caller needs to call delete on the
+     * received object to free allocated memory. Memory is only allocated if the
+     * function succeeds so there is no need to manually free the memory pointed
+     * to by *channelContext or to call delete in case of failure.
+     *
+     * @param policy The policy for which the channelContext is created.
+     * @param remoteCertificate The remote certificate contains the remote
+     *        asymmetric key. The certificate will be verified and then stored
+     *        in the context so that its details may be accessed.
+     * @param channelContext The initialized channelContext that is passed to
+     *        functions that work on a context. */
+    UA_StatusCode (*newChannelContext)(const UA_SecurityPolicy *policy,
+                                const UA_ByteString *remoteCertificate,
+                                void **channelContext);
+
+    /* Deletes the the channel context. */
+    void (*deleteChannelContext)(const UA_SecurityPolicy *policy,
+                                 void *channelContext);
+
+    /* Sets the local encrypting key in the supplied context.
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The context to work on.
+     * @param key The local encrypting key to store in the context. */
+    UA_StatusCode (*setLocalSymEncryptingKey)(const UA_SecurityPolicy *policy,
+                                              void *channelContext,
+                                              const UA_ByteString *key);
+
+    /* Sets the local signing key in the supplied context.
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The context to work on.
+     * @param key The local signing key to store in the context. */
+    UA_StatusCode (*setLocalSymSigningKey)(const UA_SecurityPolicy *policy,
+                                           void *channelContext,
+                                           const UA_ByteString *key);
+
+    /* Sets the local initialization vector in the supplied context.
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The context to work on.
+     * @param iv The local initialization vector to store in the context. */
+    UA_StatusCode (*setLocalSymIv)(const UA_SecurityPolicy *policy,
+                                   void *channelContext,
+                                   const UA_ByteString *iv);
+
+    /* Sets the remote encrypting key in the supplied context.
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The context to work on.
+     * @param key The remote encrypting key to store in the context. */
+    UA_StatusCode (*setRemoteSymEncryptingKey)(const UA_SecurityPolicy *policy,
+                                               void *channelContext,
+                                               const UA_ByteString *key);
+
+    /* Sets the remote signing key in the supplied context.
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The context to work on.
+     * @param key The remote signing key to store in the context. */
+    UA_StatusCode (*setRemoteSymSigningKey)(const UA_SecurityPolicy *policy,
+                                            void *channelContext,
+                                            const UA_ByteString *key);
+
+    /* Sets the remote initialization vector in the supplied context.
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The context to work on.
+     * @param iv The remote initialization vector to store in the context. */
+    UA_StatusCode (*setRemoteSymIv)(const UA_SecurityPolicy *policy,
+                                    void *channelContext,
+                                    const UA_ByteString *iv);
+
+    /* Compares the supplied certificate with the remote certificate stored in
+     * the channel context.
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The channel context data that contains the
+     *        certificate to compare to.
+     * @param certificate The certificate to compare to the one stored in the context.
+     * @return If the certificates match UA_STATUSCODE_GOOD is returned. If they
+     *         don't match or an errror occurred an error code is returned. */
+    UA_StatusCode (*compareCertificate)(const UA_SecurityPolicy *policy,
+                                        const void *channelContext,
+                                        const UA_ByteString *certificate);
+
+    /* Generate the keys for symmetric encryption. For information on what
+     * parameters this function receives in what situation, refer to the OPC UA
+     * specification Part 6, "Deriving keys".
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The context of the SecureChannel
+     * @param secret Usually from the nonce. See part 6.
+     * @param seed Usually from the nonce. See part 6.
+     * @param out An output to write the data to. The length defines the maximum
+     *        number of output bytes that are produced. */
+    UA_StatusCode (*generateKey)(const UA_SecurityPolicy *policy,
+                                 void *channelContext, const UA_ByteString *secret,
+                                 const UA_ByteString *seed, UA_ByteString *out);
+
+    /* Random generator for generating nonces.
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The context of the SecureChannel
+     * @param out Pointer to a buffer to store the nonce in. Needs to be
+     *        allocated by the caller. The buffer is filled with random data. */
+    UA_StatusCode (*generateNonce)(const UA_SecurityPolicy *policy,
+                                   void *channelContext, UA_ByteString *out);
+
+    /* The length of the nonce used in the SecureChannel */
+    size_t nonceLength;
+
+    /* Generates a thumbprint for the specified certificate.
+     *
+     * @param policy The policy that generates the thumbprint.
+     * @param certificate The certificate to make a thumbprint of.
+     * @param thumbprint an output buffer for the resulting thumbprint. */
+    UA_StatusCode (*makeCertThumbprint)(const UA_SecurityPolicy *policy,
+                                        const UA_ByteString *certificate,
+                                        UA_ByteString *thumbprint);
+
+    /* Compares the supplied certificate with the certificate in the
+     * SecurityPolicy context.
+     *
+     * @param policy The policy data that contains the certificate
+     *        to compare to.
+     * @param thumbprint The certificate thumbprint to compare to the one stored
+     *        in the context.
+     * @return If the thumbprints match UA_STATUSCODE_GOOD is returned. If they
+     *         don't match or an error occurred an error code is returned. */
+    UA_StatusCode (*compareCertThumbprint)(const UA_SecurityPolicy *policy,
+                                           const UA_ByteString *thumbprint);
 
     /* Updates the ApplicationInstanceCertificate and the corresponding private
-     * key at runtime. */
-    UA_StatusCode (*updateCertificateAndPrivateKey)(UA_SecurityPolicy *policy,
-                                                    const UA_ByteString newCertificate,
-                                                    const UA_ByteString newPrivateKey);
+     * key at runtime. This overwrites the localCertificate member of the
+     * SecurityPolicy structure and updates the context internally. */
+    UA_StatusCode (*updateCertificate)(UA_SecurityPolicy *policy,
+                                       const UA_ByteString certificate,
+                                       const UA_ByteString privateKey);
 
     /* Creates a PKCS #10 DER encoded certificate request signed with the
      * server's private key.
@@ -346,42 +364,92 @@ struct UA_PubSubSecurityPolicy;
 typedef struct UA_PubSubSecurityPolicy UA_PubSubSecurityPolicy;
 
 struct UA_PubSubSecurityPolicy {
+    void *policyContext;
+    const UA_Logger *logger;
+
     UA_String policyUri; /* The policy uri that identifies the implemented
                           * algorithms */
-    UA_SecurityPolicySymmetricModule symmetricModule;
 
-    /* Create the context for the WriterGroup. The keys and nonce can be NULL
-     * here. Then they have to be set before the first encryption or signing
-     * operation. */
-    UA_StatusCode
-    (*newContext)(void *policyContext,
-                  const UA_ByteString *signingKey,
-                  const UA_ByteString *encryptingKey,
-                  const UA_ByteString *keyNonce,
-                  void **wgContext);
+    /* Create the context for the WriterGroup / ReaderGroup. The keys and nonce
+     * can be NULL here. Then they have to be set before the first encryption or
+     * signing operation. */
+    UA_StatusCode (*newGroupContext)(UA_PubSubSecurityPolicy *policy,
+                                     const UA_ByteString *signingKey,
+                                     const UA_ByteString *encryptingKey,
+                                     const UA_ByteString *keyNonce,
+                                     void **gContext);
 
     /* Delete the WriterGroup SecurityPolicy context */
-    void (*deleteContext)(void *wgContext);
+    void (*deleteGroupContext)(UA_PubSubSecurityPolicy *policy, void *gContext);
+
+    /* See UA_SecurityPolicy for the following method signatures */
+
+    UA_StatusCode (*verify)(const UA_PubSubSecurityPolicy *policy,
+                            void *gContext, const UA_ByteString *message,
+                            const UA_ByteString *signature);
+
+    UA_StatusCode (*sign)(const UA_PubSubSecurityPolicy *policy,
+                          void *gContext, const UA_ByteString *message,
+                          UA_ByteString *signature);
+
+    size_t (*getSignatureSize)(const UA_PubSubSecurityPolicy *policy,
+                               const void *gContext);
+
+    size_t (*getSignatureKeyLength)(const UA_PubSubSecurityPolicy *policy,
+                                    const void *gContext);
+
+    size_t (*getEncryptionKeyLength)(const UA_PubSubSecurityPolicy *policy,
+                                     const void *gContext);
+
+    UA_StatusCode (*encrypt)(const UA_PubSubSecurityPolicy *policy,
+                             void *gContext, UA_ByteString *data);
+
+    UA_StatusCode (*decrypt)(const UA_PubSubSecurityPolicy *policy,
+                             void *gContext, UA_ByteString *data);
 
     /* Set the keys and nonce for the WriterGroup. This is returned from the
      * GetSecurityKeys method of a Security Key Service (SKS). Otherwise, set
      * manually via out-of-band transmission of the keys. */
-    UA_StatusCode
-    (*setSecurityKeys)(void *wgContext,
-                       const UA_ByteString *signingKey,
-                       const UA_ByteString *encryptingKey,
-                       const UA_ByteString *keyNonce);
+    UA_StatusCode (*setSecurityKeys)(UA_PubSubSecurityPolicy *policy,
+                                     void *gContext,
+                                     const UA_ByteString *signingKey,
+                                     const UA_ByteString *encryptingKey,
+                                     const UA_ByteString *keyNonce);
+
+    /* Generate the keys for symmetric encryption.
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param gContext The group context.
+     * @param secret Usually from the nonce. See part 6.
+     * @param seed Usually from the nonce. See part 6.
+     * @param out An output to write the data to. The length defines the maximum
+     *        number of output bytes that are produced. */
+    UA_StatusCode (*generateKey)(UA_PubSubSecurityPolicy *policy,
+                                 void *gContext,
+                                 const UA_ByteString *secret,
+                                 const UA_ByteString *seed,
+                                 UA_ByteString *out);
+
+    /* Random generator for generating nonces.
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param wgContext The context of the SecureChannel
+     * @param out Pointer to a buffer to store the nonce in. Needs to be
+     *        allocated by the caller. The buffer is filled with random data. */
+    UA_StatusCode (*generateNonce)(UA_PubSubSecurityPolicy *policy,
+                                   void *gContext, UA_ByteString *out);
+
+    /* The length of the nonce used in the SecureChannel */
+    size_t nonceLength;
 
     /* The nonce is contained in the NetworkMessage SecurityHeader. Set before
      * each en-/decryption step. */
-    UA_StatusCode
-    (*setMessageNonce)(void *wgContext, const UA_ByteString *nonce);
-
-    const UA_Logger *logger;
+    UA_StatusCode (*setMessageNonce)(UA_PubSubSecurityPolicy *policy,
+                                     void *gContext,
+                                     const UA_ByteString *nonce);
 
     /* Deletes the dynamic content of the policy */
     void (*clear)(UA_PubSubSecurityPolicy *policy);
-    void *policyContext;
 };
 
 _UA_END_DECLS
