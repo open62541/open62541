@@ -121,7 +121,7 @@ FileServerDriver_stopMethod(UA_Server *server,
 
 /* Wrapper for updateModel */
 static UA_StatusCode
-FileServerDriver_updateModelMethod(UA_Server *server,
+FileServerDriver_toggleUpdateLoopMethod(UA_Server *server,
                                    const UA_NodeId *sessionId, void *sessionContext,
                                    const UA_NodeId *methodId, void *methodContext,
                                    const UA_NodeId *objectId, void *objectContext,
@@ -134,14 +134,18 @@ FileServerDriver_updateModelMethod(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if (driver->base.state == UA_DRIVER_STATE_WATCHING) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                     "File Driver: Update loop %s is already running", driver->base.name);
-        return UA_STATUSCODE_BADINVALIDSTATE;
+        
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                    "File Driver: Starting update loop for driver %s",
+                    driver->base.name);
+        UA_Server_removeCallback(server, driver->base.driverWatcherId);
+        driver->base.state = UA_DRIVER_STATE_RUNNING;
+    } else {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                    "File Driver: Starting update loop for driver %s",
+                    driver->base.name);
+        driver->base.lifecycle.updateModel(server, (UA_Driver*)driver);
     }
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                "File Driver: Starting update loop for driver %s",
-                driver->base.name);
-    driver->base.lifecycle.updateModel(server, (UA_Driver*)driver);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -194,17 +198,17 @@ FileServerDriver_init(UA_Server *server, UA_Driver *driver, UA_DriverContext *ct
         driver, &stopMethodId); 
     UA_Server_setNodeContext(server, stopMethodId, driver);
 
-    /* updateModel */
+    /* toggleUpdateLoop */
     UA_NodeId updateMethodId;
-    mAttr.displayName = UA_LOCALIZEDTEXT("en-US", "UpdateFileServer");
-    UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "UpdateFileServer"), 
+    mAttr.displayName = UA_LOCALIZEDTEXT("en-US", "ToggleUpdateLoop");
+    UA_Server_addMethodNode(server, UA_NODEID_STRING(1, "ToggleUpdateLoop"), 
         driver->nodeId,
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "UpdateFileServer"),
-        mAttr, &FileServerDriver_updateModelMethod,
+        UA_QUALIFIEDNAME(1, "ToggleUpdateLoop"),
+        mAttr, &FileServerDriver_toggleUpdateLoopMethod,
         0, NULL, 0, NULL,
         driver, &updateMethodId);
-
+        
     UA_VariableAttributes stateAttr = UA_VariableAttributes_default;
     UA_Variant_setScalar(&stateAttr.value, &driver->state, &UA_TYPES[UA_TYPES_UINT32]);
     stateAttr.displayName = UA_LOCALIZEDTEXT("en-US", "DriverState");
@@ -283,7 +287,7 @@ static void FileServerDriver_updateLoop(UA_Server *server, void *data) {
 }
 
 static void
-FileServerDriver_updateModel(UA_Server *server, UA_Driver *driver) {
+FileServerDriver_update(UA_Server *server, UA_Driver *driver) {
     UA_FileServerDriver *fsDriver = (UA_FileServerDriver*) driver;
     if (fsDriver->base.state == UA_DRIVER_STATE_RUNNING) {
         fsDriver->base.state = UA_DRIVER_STATE_WATCHING;
@@ -365,7 +369,7 @@ UA_FileServerDriver_new(const char *name, UA_Server *server) {
     driver->base.lifecycle.cleanup = FileServerDriver_cleanup;
     driver->base.lifecycle.start = FileServerDriver_start;
     driver->base.lifecycle.stop = FileServerDriver_stop;
-    driver->base.lifecycle.updateModel = FileServerDriver_updateModel;
+    driver->base.lifecycle.updateModel = FileServerDriver_update;
 
     /* --- Create an Object Node in the server --- */
     UA_NodeId driverNodeId;
