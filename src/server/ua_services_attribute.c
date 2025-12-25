@@ -658,7 +658,8 @@ readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
 
     /* Check the return value */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(dv.hasStatus)
+    /* The status may be uncertain */
+    if(dv.hasStatus && dv.status >= UA_STATUSCODE_BAD)
         retval = dv.status;
     else if(!dv.hasValue)
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
