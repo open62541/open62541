@@ -22,8 +22,10 @@
  * initialized. This is *not* the RNG that gets used otherwise for
  * encryption. */
 static UA_StatusCode
-reproducibleNonce(void *policyContext, UA_ByteString *out) {
-    (void)policyContext;
+reproducibleNonce(const UA_SecurityPolicy *sp, void *channelContext,
+                  UA_ByteString *out) {
+    (void)sp;
+    (void)channelContext;
     for(size_t i = 0; i < out->length; i += 4) {
         *(UA_UInt32*)(out->data + i) = UA_UInt32_random();
     }
@@ -120,7 +122,7 @@ START_TEST(unified_cpp_basic256sha256) {
     /* Replace the nonce-generating function in the SecurityPolicies */
     for(size_t i = 0; i < cc->securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &cc->securityPolicies[i];
-        sp->symmetricModule.generateNonce = reproducibleNonce;
+        sp->generateNonce = reproducibleNonce;
     }
 
     /* Reset the rng */
@@ -173,7 +175,7 @@ START_TEST(prosys_basic256sha256) {
     /* Replace the nonce-generating function in the SecurityPolicies */
     for(size_t i = 0; i < cc->securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &cc->securityPolicies[i];
-        sp->symmetricModule.generateNonce = reproducibleNonce;
+        sp->generateNonce = reproducibleNonce;
     }
 
     /* Reset the rng */

@@ -1150,7 +1150,7 @@ UA_DataSetMessageHeader_encodeBinary(PubSubEncodeCtx *ctx,
 
 UA_StatusCode
 UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode securityMode,
-                              UA_PubSubSecurityPolicy *policy, void *policyContext,
+                              UA_PubSubSecurityPolicy *sp, void *policyContext,
                               UA_Byte *messageStart, UA_Byte *encryptStart,
                               UA_Byte *sigStart) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -1162,15 +1162,14 @@ UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode secu
             (size_t)nm->securityHeader.messageNonceSize,
             nm->securityHeader.messageNonce
         };
-        res = policy->setMessageNonce(policyContext, &nonce);
+        res = sp->setMessageNonce(sp, policyContext, &nonce);
         UA_CHECK_STATUS(res, return res);
 
         /* The encryption is done in-place, no need to encode again */
         UA_ByteString encryptBuf;
         encryptBuf.data = encryptStart;
         encryptBuf.length = (uintptr_t)sigStart - (uintptr_t)encryptStart;
-        res = policy->symmetricModule.cryptoModule.encryptionAlgorithm.
-            encrypt(policyContext, &encryptBuf);
+        res = sp->encrypt(sp, policyContext, &encryptBuf);
         UA_CHECK_STATUS(res, return res);
     }
 
@@ -1180,11 +1179,9 @@ UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode secu
         UA_ByteString sigBuf;
         sigBuf.length = (uintptr_t)sigStart - (uintptr_t)messageStart;
         sigBuf.data = messageStart;
-        size_t sigSize = policy->symmetricModule.cryptoModule.
-            signatureAlgorithm.getLocalSignatureSize(policyContext);
+        size_t sigSize = sp->getSignatureSize(sp, policyContext);
         UA_ByteString sig = {sigSize, sigStart};
-        res = policy->symmetricModule.cryptoModule.
-            signatureAlgorithm.sign(policyContext, &sigBuf, &sig);
+        res = sp->sign(sp, policyContext, &sigBuf, &sig);
     }
 
     return res;
