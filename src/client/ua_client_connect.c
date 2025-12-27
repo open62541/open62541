@@ -309,14 +309,8 @@ encryptUserIdentityToken(UA_Client *client, UA_SecurityPolicy *utsp,
     /* Delete the temporary channel context */
     utsp->deleteChannelContext(utsp, channelContext);
 
-    if(iit) {
-        retval |= UA_String_copy(&utsp->asymEncryptionAlgorithm.uri,
-                                 &iit->encryptionAlgorithm);
-    } else {
-        retval |= UA_String_copy(&utsp->asymEncryptionAlgorithm.uri,
-                                 &unit->encryptionAlgorithm);
-    }
-    return retval;
+    UA_String *ea = (iit) ? &iit->encryptionAlgorithm : &unit->encryptionAlgorithm;
+    return retval | UA_String_copy(&utsp->asymEncryptionAlgorithm.uri, ea);
 }
 
 /* Function to verify the signature corresponds to ClientNonce
