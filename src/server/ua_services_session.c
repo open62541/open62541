@@ -478,7 +478,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
             UA_ByteString_copy(&sp->localCertificate, &response->serverCertificate);
 
     /* If ECC policy, create an ephemeral key to be returned in the response */
-    if(sp && UA_SecurityPolicy_isEccPolicy(sp->policyUri)) {
+    if(sp && sp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
         response->responseHeader.serviceResult =
             addEphemeralKeyAdditionalHeader(server, sp, channel->channelContext,
                                             &response->responseHeader.additionalHeader);
@@ -896,7 +896,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
            req->userIdentityToken.content.decoded.data;
         /* Differentiate between ECC policy decrpytion and RSA decryption.
          * With ECC policies, the password is EccEncryptedSecret */
-        if(UA_SecurityPolicy_isEccPolicy(tokenSp->policyUri)) {
+        if(tokenSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
             resp->responseHeader.serviceResult =
                 decryptUserTokenEcc(server->config.logging, session->serverNonce, tokenSp,
                                     userToken->encryptionAlgorithm, &userToken->password);
@@ -989,7 +989,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* If ECC policy, create the new ephemeral key to be returned in the ActivateSession response */
     const UA_SecurityPolicy *sp = channel->securityPolicy;
-    if(sp && UA_SecurityPolicy_isEccPolicy(sp->policyUri)) {
+    if(sp && sp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
         resp->responseHeader.serviceResult =
             addEphemeralKeyAdditionalHeader(server, sp, channel->channelContext,
                                             &resp->responseHeader.additionalHeader);

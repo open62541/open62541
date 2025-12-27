@@ -31,21 +31,6 @@ typedef struct {
     UA_Byte* signature;
 } UA_EccEncryptedSecretStruct;
 
-/* ECC Policy URIs */
-#define UA_ECCPOLICIESSIZE 2
-static const UA_String eccPolicies[UA_ECCPOLICIESSIZE] = {
-    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256"),
-    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384"),
-};
-
-UA_Boolean UA_SecurityPolicy_isEccPolicy(UA_String policyURI) {
-    for(size_t i = 0; i < UA_ECCPOLICIESSIZE; i++) {
-        if(UA_String_equal(&eccPolicies[i], &policyURI))
-            return true;
-    }
-    return false;
-}
-
 static void
 UA_EccEncryptedSecretStruct_init(UA_EccEncryptedSecretStruct* es) {
     memset(es, 0, sizeof(UA_EccEncryptedSecretStruct));
@@ -135,7 +120,8 @@ UA_EccEncryptedSecret_deserializePolicyHeader(UA_EccEncryptedSecret *src,
 }
 
 static UA_Boolean
-UA_EccEncryptedSecret_checkCommonHeader(UA_EccEncryptedSecretStruct* es) {
+UA_EccEncryptedSecret_checkCommonHeader(UA_EccEncryptedSecretStruct *es,
+                                        const UA_SecurityPolicy *sp) {
     /* Check TypeId */
     if(es->typeId.identifierType != UA_NODEIDTYPE_NUMERIC ||
        es->typeId.identifier.numeric != 335)
@@ -146,7 +132,7 @@ UA_EccEncryptedSecret_checkCommonHeader(UA_EccEncryptedSecretStruct* es) {
         return false;
 
     /* Check SecurityPolicyUri */
-    if(!UA_SecurityPolicy_isEccPolicy(es->securityPolicyUri))
+    if(!UA_String_equal(&es->securityPolicyUri, &sp->policyUri))
         return false;
     return true;
 }
@@ -535,6 +521,10 @@ decryptUserTokenEcc(UA_Logger *logger, UA_ByteString sessionServerNonce,
         return UA_STATUSCODE_GOOD;
     }
 
+    /* Not an ECC SecurityPolicy? */
+    if(sp->policyType != UA_SECURITYPOLICYTYPE_ECC)
+        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+
     /* Test if the correct encryption algorithm is used */
     if(!UA_String_equal(&encryptionAlgorithm, &sp->asymEncryptionAlgorithm.uri))
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
@@ -561,7 +551,7 @@ decryptUserTokenEcc(UA_Logger *logger, UA_ByteString sessionServerNonce,
     }
     UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
                  "[EccEncryptedSecret] Deserialized common header");
-    if(!UA_EccEncryptedSecret_checkCommonHeader(&esd)) {
+    if(!UA_EccEncryptedSecret_checkCommonHeader(&esd, sp)) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
                      "[EccEncryptedSecret] Checking common header failed");
         res = UA_STATUSCODE_BAD;
