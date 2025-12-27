@@ -622,6 +622,7 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *sp,
     sp->certificateGroupId = isp->certificateGroupId;
     sp->certificateTypeId = isp->certificateTypeId;
     sp->securityLevel = isp->securityLevel;
+    sp->policyType = isp->policyType;
 
     /* Asymmetric Signature */
     UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;

@@ -909,6 +909,7 @@ UA_SecurityPolicy_Aes256Sha256RsaPss(UA_SecurityPolicy *sp,
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NS0ID(RSASHA256APPLICATIONCERTIFICATETYPE);
     sp->securityLevel = 30;
+    sp->policyType = UA_SECURITYPOLICYTYPE_RSA;
 
     /* Asymmetric Signature */
     UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;

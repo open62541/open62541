@@ -160,6 +160,12 @@ typedef struct {
                                           const void *channelContext);
 } UA_SecurityPolicyEncryptionAlgorithm;
 
+typedef enum {
+    UA_SECURITYPOLICYTYPE_NONE = 0,
+    UA_SECURITYPOLICYTYPE_RSA = 1,
+    UA_SECURITYPOLICYTYPE_ECC = 2
+} UA_SecurityPolicyType;
+
 struct UA_SecurityPolicy {
     void *policyContext;     /* Context data */
     const UA_Logger *logger; /* Logger to be used by the plugin */
@@ -168,6 +174,10 @@ struct UA_SecurityPolicy {
     /* Value indicating the crypto strength of the policy, with zero for
      * deprecated or none */
     UA_Byte securityLevel;
+
+    /* For special handling of SecurityPolicies using ECC (Elliptic Curve
+     * Cryptography) */
+    UA_SecurityPolicyType policyType;
 
     /* The local certificate is specific for each SecurityPolicy since it
      * depends on the used key length. */
