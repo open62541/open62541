@@ -521,6 +521,7 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NS0ID(ECCNISTP256APPLICATIONCERTIFICATETYPE);
     sp->securityLevel = 10;
+    sp->policyType = UA_SECURITYPOLICYTYPE_ECC;
 
     /* Asymmetric Signature
      * TODO: The Softing SDK works when we send an empty string. It does not

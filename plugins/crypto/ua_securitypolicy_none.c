@@ -140,6 +140,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *sp, const UA_ByteString localCertifica
     sp->certificateGroupId = UA_NODEID_NULL;
     sp->certificateTypeId = UA_NODEID_NULL;
     sp->securityLevel = 0;
+    sp->policyType = UA_SECURITYPOLICYTYPE_NONE;
 
     /* Symmetric Signature */
     UA_SecurityPolicySignatureAlgorithm *symSig = &sp->symSignatureAlgorithm;

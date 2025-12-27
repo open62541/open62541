@@ -818,6 +818,7 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *sp,
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NS0ID(RSAMINAPPLICATIONCERTIFICATETYPE);
     sp->securityLevel = 0;
+    sp->policyType = UA_SECURITYPOLICYTYPE_RSA;
 
     /* Asymmetric Signature */
     UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;
