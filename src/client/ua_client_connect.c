@@ -253,7 +253,7 @@ encryptUserIdentityToken(UA_Client *client, UA_SecurityPolicy *utsp,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(UA_SecurityPolicy_isEccPolicy(utsp->policyUri)) {
+    if(utsp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
         retval = encryptUserIdentityTokenEcc(client->config.logging, tokenData,
                                              client->serverSessionNonce,
                                              client->serverEphemeralPubKey, utsp,

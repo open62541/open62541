@@ -460,10 +460,10 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
 
     /* Compute the padding if the payload is encrypted (not ECC policy) */
     size_t padSize = 0;
-    if(((messageType != UA_MESSAGETYPE_OPN) &&
-        (channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)) ||
-       (messageType == UA_MESSAGETYPE_OPN && encryptionAlgorithm->uri.length > 0 &&
-        !isEccPolicy(sp))) {
+    if((messageType != UA_MESSAGETYPE_OPN &&
+        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) ||
+       (messageType == UA_MESSAGETYPE_OPN &&
+        sp->policyType == UA_SECURITYPOLICYTYPE_RSA)) {
         padSize = decodePadding(channel, encryptionAlgorithm, chunk, sigsize);
         UA_LOG_TRACE_CHANNEL(sp->logger, channel, "Calculated padding size to be %lu",
                              (long unsigned)padSize);
