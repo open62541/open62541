@@ -1040,20 +1040,18 @@ UA_Server_createSigningRequest(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_ByteString *newPrivateKey = NULL;
-    if(regenerateKey && *regenerateKey == true) {
+    if(regenerateKey && *regenerateKey == true)
         newPrivateKey = UA_ByteString_new();
-    }
 
-    const UA_String securityPolicyNoneUri =
-           UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     for(size_t i = 0; i < server->config.endpointsSize; i++) {
-        UA_SecurityPolicy *sp = getSecurityPolicyByUri(server, &server->config.endpoints[i].securityPolicyUri);
+        UA_SecurityPolicy *sp =
+            getSecurityPolicyByUri(server, &server->config.endpoints[i].securityPolicyUri);
         if(!sp) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
 
-        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri))
+        if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
             continue;
 
         if(UA_NodeId_equal(&certificateTypeId, &sp->certificateTypeId) &&
@@ -1093,11 +1091,9 @@ getSecurityPolicyByUri(const UA_Server *server, const UA_String *securityPolicyU
  * SecurityPolicies */
 static UA_StatusCode
 verifyServerApplicationURI(const UA_Server *server) {
-    const UA_String securityPolicyNoneUri =
-        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
-        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) &&
+        if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE &&
            sp->localCertificate.length == 0)
             continue;
         UA_StatusCode retval =

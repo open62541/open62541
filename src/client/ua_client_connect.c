@@ -90,7 +90,7 @@ fallbackEndpointUrl(UA_Client* client) {
 static UA_SecurityPolicy *
 getSecurityPolicy(UA_Client *client, UA_String policyUri) {
     if(policyUri.length == 0)
-        policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+        policyUri = UA_SECURITY_POLICY_NONE_URI;
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         if(UA_String_equal(&policyUri, &client->config.securityPolicies[i].policyUri))
             return &client->config.securityPolicies[i];
@@ -932,7 +932,6 @@ activateSessionAsync(UA_Client *client) {
 
     UA_SecurityPolicy *utsp = NULL;
     UA_SecureChannel *channel = &client->channel;
-    static const UA_String noneUri = UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
     UA_String tokenSecurityPolicyUri = (utp->securityPolicyUri.length > 0) ?
         utp->securityPolicyUri : client->endpoint.securityPolicyUri;
 
@@ -942,8 +941,8 @@ activateSessionAsync(UA_Client *client) {
     /* Does the UserTokenPolicy have encryption? If not specifically defined in
      * the UserTokenPolicy, then the SecurityPolicy of the underlying endpoint
      * (SecureChannel) is used. */
-    if(UA_String_equal(&noneUri, &tokenSecurityPolicyUri)) {
-        if(UA_String_equal(&noneUri, &client->channel.securityPolicy->policyUri)) {
+    if(UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &tokenSecurityPolicyUri)) {
+        if(client->channel.securityPolicy->policyType == UA_SECURITYPOLICYTYPE_NONE) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "!!! Warning !!! AuthenticationToken is transmitted "
                            "without encryption");
@@ -1092,7 +1091,8 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint) {
     UA_UserTokenPolicy *requiredTokenPolicy = NULL;
     UA_UserTokenPolicy tmp;
     UA_UserTokenPolicy_init(&tmp);
-    if(!UA_equal(&tmp, &client->config.userTokenPolicy, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]))
+    if(!UA_equal(&tmp, &client->config.userTokenPolicy,
+                 &UA_TYPES[UA_TYPES_USERTOKENPOLICY]))
         requiredTokenPolicy = &client->config.userTokenPolicy;
 
     for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
@@ -1107,9 +1107,10 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint) {
         if(client->config.userIdentityToken.content.decoded.type &&
            client->config.userIdentityToken.content.decoded.type !=
                &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
-            const UA_String none = UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
-            /* activateSessionAsync() handles the None case separately without accessing authSecurityPolicies */
-            if(!UA_String_equal(&none, &tokenPolicyUri) && !getAuthSecurityPolicy(client, tokenPolicyUri))
+            /* activateSessionAsync() handles the None case separately without
+             * accessing authSecurityPolicies */
+            if(!UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &tokenPolicyUri) &&
+               !getAuthSecurityPolicy(client, tokenPolicyUri))
                 continue;
         }
 
@@ -1120,8 +1121,8 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint) {
             continue;
 
         /* Match (entire) UserTokenPolicy if defined in the configuration? */
-        if(requiredTokenPolicy &&
-           !UA_equal(requiredTokenPolicy, tokenPolicy, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]))
+        if(requiredTokenPolicy && !UA_equal(requiredTokenPolicy, tokenPolicy,
+                                            &UA_TYPES[UA_TYPES_USERTOKENPOLICY]))
             continue;
 
         /* Match with the configured UserToken */

@@ -396,8 +396,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     UA_assert(channel->securityToken.channelId != 0);
 
-    if(!UA_String_equal(&channel->securityPolicy->policyUri,
-                            &UA_SECURITY_POLICY_NONE_URI) &&
+    if(channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
        request->clientNonce.length < 32) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNONCEINVALID;
         return;
@@ -470,7 +469,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Return the server certificate from the SecurityPolicy of the current
      * channel. Or, if the channel is unencrypted, return the standard policy
      * used for usertoken encryption. */
-    if(UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &sp->policyUri) ||
+    if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE ||
        sp->localCertificate.length == 0)
         sp = getDefaultEncryptedSecurityPolicy(server);
     if(sp)
@@ -625,7 +624,7 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                  * updateEndpointUserIdentityToken (ua_services_discovery.c). */
                 if(pol->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
                    !(sc->allowNonePolicyPassword && pol->tokenType == UA_USERTOKENTYPE_USERNAME) &&
-                   UA_String_equal(&channel->securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI))
+                   channel->securityPolicy->policyType == UA_SECURITYPOLICYTYPE_NONE)
                     *tokenSp = getDefaultEncryptedSecurityPolicy(server);
             } else if(pol->securityPolicyUri.length > 0) {
                 /* Manually defined UserTokenPolicy. Lookup by URI */
@@ -639,7 +638,7 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
              * allowNonePolicyPassword option has been set. */
             if(pol->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
                !(sc->allowNonePolicyPassword && pol->tokenType == UA_USERTOKENTYPE_USERNAME) &&
-               UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &(*tokenSp)->policyUri))
+               (*tokenSp)->policyType == UA_SECURITYPOLICYTYPE_NONE)
                 continue;
 #endif
 
@@ -672,7 +671,7 @@ decryptUserToken(UA_Server *server, UA_Session *session,
                  UA_SecureChannel *channel, const UA_SecurityPolicy *sp,
                  const UA_String encryptionAlgorithm, UA_ByteString *encrypted) {
     /* If SecurityPolicy is None there shall be no EncryptionAlgorithm  */
-    if(UA_String_equal(&sp->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
+    if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE) {
         if(encryptionAlgorithm.length > 0)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE) {
@@ -770,7 +769,7 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
                          const UA_SecurityPolicy *sp, UA_X509IdentityToken* token,
                          const UA_SignatureData *tokenSignature) {
     /* The SecurityPolicy must not be None for the signature */
-    if(UA_String_equal(&sp->policyUri, &UA_SECURITY_POLICY_NONE_URI))
+    if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
     /* We need a channel context with the user certificate in order to reuse

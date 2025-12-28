@@ -305,7 +305,7 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server) {
     }
     for(size_t i = server->config.securityPoliciesSize; i > 0; i--) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i-1];
-        if(!UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &sp->policyUri))
+        if(sp->policyType != UA_SECURITYPOLICYTYPE_NONE)
             return sp;
     }
     return NULL; /* No encrypted policy found */
@@ -444,7 +444,7 @@ setCurrentEndPointsArray(UA_Server *server, const UA_String endpointUrl,
              * SecureChannel is unencrypted, select the default encrypted
              * SecurityPolicy. */
             UA_SecurityPolicy *sp = getSecurityPolicyByUri(server, &ed->securityPolicyUri);
-            if(!sp || UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &sp->policyUri))
+            if(!sp || sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
                 sp = getDefaultEncryptedSecurityPolicy(server);
             if(sp) {
                 UA_ByteString_clear(&ed->serverCertificate);
