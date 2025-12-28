@@ -514,16 +514,8 @@ UA_StatusCode
 decryptUserTokenEcc(UA_Logger *logger, UA_ByteString sessionServerNonce,
                     const UA_SecurityPolicy *sp, const UA_String encryptionAlgorithm,
                     UA_EccEncryptedSecret *es) {
-    /* If SecurityPolicy is None there shall be no EncryptionAlgorithm  */
-    if(UA_String_equal(&sp->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
-        if(encryptionAlgorithm.length > 0)
-            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* Not an ECC SecurityPolicy? */
-    if(sp->policyType != UA_SECURITYPOLICYTYPE_ECC)
-        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+    /* ECC usage verified before calling into this function */
+    UA_assert(sp->policyType == UA_SECURITYPOLICYTYPE_ECC);
 
     /* Test if the correct encryption algorithm is used */
     if(!UA_String_equal(&encryptionAlgorithm, &sp->asymEncryptionAlgorithm.uri))

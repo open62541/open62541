@@ -105,7 +105,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
         /* Set the SecurityMode */
         if(request->securityMode != UA_MESSAGESECURITYMODE_NONE &&
-           UA_String_equal(&sp->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
+           sp->policyType == UA_SECURITYPOLICYTYPE_NONE) {
             response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURITYMODEREJECTED;
             goto error;
         }
