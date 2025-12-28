@@ -2356,7 +2356,13 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
        el->state != UA_EVENTLOOPSTATE_FRESH &&
        el->state != UA_EVENTLOOPSTATE_STOPPED) {
         while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
-            el->run(el, 100);
+            UA_StatusCode runStatus = el->run(el, 100);
+            if(runStatus != UA_STATUSCODE_GOOD) {
+                UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                             "EventLoop run returned %s during synchronous disconnect, "
+                             "stopping wait loop", UA_StatusCode_name(runStatus));
+                break;
+            }
         }
     }
 
