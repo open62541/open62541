@@ -178,7 +178,7 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
     if(!connected) {
         retval = connectSecureChannel(client, serverUrl);
         if(retval != UA_STATUSCODE_GOOD) {
-            lockClient(client);
+            unlockClient(client);
             return retval;
         }
     }
