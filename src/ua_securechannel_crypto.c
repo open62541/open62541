@@ -38,7 +38,7 @@ UA_StatusCode
 UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
-    UA_LOG_TRACE_CHANNEL(sp->logger, channel, "Generating new local keys");
+    UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new local keys");
 
     void *cc = channel->channelContext;
     const UA_SecurityPolicyEncryptionAlgorithm *ea = &sp->symEncryptionAlgorithm;
@@ -84,7 +84,7 @@ UA_StatusCode
 generateRemoteKeys(const UA_SecureChannel *channel) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
-    UA_LOG_TRACE_CHANNEL(sp->logger, channel, "Generating new remote keys");
+    UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new remote keys");
 
     void *cc = channel->channelContext;
     const UA_SecurityPolicyEncryptionAlgorithm *ea = &sp->symEncryptionAlgorithm;;
