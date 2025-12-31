@@ -158,9 +158,8 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
 
     void *cc = channel->channelContext;
 
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE) {
-        *encryptedLength = totalLength;
-    } else {
+    *encryptedLength = totalLength;
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE) {
         size_t dataToEncryptLength = totalLength -
             (UA_SECURECHANNEL_CHANNELHEADER_LENGTH + securityHeaderLength);
         size_t plainTextBlockSize = sp->asymEncryptionAlgorithm.
@@ -213,37 +212,40 @@ prependHeadersAsym(UA_SecureChannel *const channel, UA_Byte *header_pos,
 void
 hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
               const UA_Byte **buf_end) {
-    /* Set buf_start to the beginning of the payload body */
+    /* Set buf_start to the beginning of the encrypted body */
     *buf_start += UA_SECURECHANNEL_CHANNELHEADER_LENGTH;
     *buf_start += calculateAsymAlgSecurityHeaderLength(channel);
-    *buf_start += UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
 
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
+    /* Hide only the SequenceHeader for None  */
+    if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE) {
+        *buf_start += UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
         return;
+    }
 
-    /* Make space for the certificate */
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    /* The max plaintext length depends on the number of encrypted blocks that
+     * can fit into the remaining chunk */
     void *cc = channel->channelContext;
-
-    *buf_end -= sp->asymSignatureAlgorithm.getLocalSignatureSize(sp, cc);
-
-    /* Block sizes depend on the remote key (certificate) */
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
     size_t plainTextBlockSize =
         sp->asymEncryptionAlgorithm.getRemotePlainTextBlockSize(sp, cc);
     size_t encryptedBlockSize =
         sp->asymEncryptionAlgorithm.getRemoteBlockSize(sp, cc);
+
+    size_t max_encrypted = (size_t)(*buf_end - *buf_start);
+    size_t max_blocks = max_encrypted / encryptedBlockSize;
+    size_t max_plaintext = max_blocks * plainTextBlockSize;
+
+    /* Reserve plaintext length for the SequenceHeader and Footer.
+     * But don't reserve for the the padding itself -- which can be zero. */
+    max_plaintext -= UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
+    max_plaintext -= sp->asymSignatureAlgorithm.getLocalSignatureSize(sp, cc);
     UA_Boolean extraPadding =
         (sp->asymEncryptionAlgorithm.getRemoteKeyLength(sp, cc) > 2048);
+    max_plaintext -= (UA_LIKELY(!extraPadding)) ? 1u : 2u;
 
-    /* Compute the maximum number of encrypted blocks that can fit entirely
-     * before the signature. From that compute the maximum usable plaintext
-     * size. */
-    size_t maxEncrypted = (size_t)(*buf_end - *buf_start) +
-        UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
-    size_t max_blocks = maxEncrypted / encryptedBlockSize;
-    size_t paddingBytes = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
-    *buf_end = *buf_start + (max_blocks * plainTextBlockSize) -
-        UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH - paddingBytes;
+    /* Adjust the buffer */
+    *buf_end = *buf_start + max_plaintext;
+    *buf_start += UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
 }
 
 /* Assumes that pos can be advanced to the end of the current block */
@@ -264,6 +266,9 @@ padChunk(UA_SecureChannel *channel,
 
     size_t lastBlock = ((bytesToWrite + signatureSize + paddingBytes) % plainTextBlockSize);
     size_t paddingLength = (lastBlock != 0) ? plainTextBlockSize - lastBlock : 0;
+
+    UA_assert((bytesToWrite + signatureSize +
+               paddingBytes + paddingLength) % plainTextBlockSize == 0);
 
     UA_LOG_TRACE_CHANNEL(sp->logger, channel,
                          "Add %lu bytes of padding plus %lu padding size bytes",
