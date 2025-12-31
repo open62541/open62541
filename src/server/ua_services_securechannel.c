@@ -94,23 +94,29 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
     switch(request->requestType) {
     /* Open the channel */
-    case UA_SECURITYTOKENREQUESTTYPE_ISSUE:
+    case UA_SECURITYTOKENREQUESTTYPE_ISSUE: {
         /* We must expect an OPN handshake */
         if(channel->state != UA_SECURECHANNELSTATE_ACK_SENT) {
             UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                                 "Called open on already open or closed channel");
+                                 "OpenSecureChannel | Cannot open "
+                                 "already open or closed channel");
             response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-            goto error;
+            return;
         }
 
-        /* Set the SecurityMode */
-        if(request->securityMode != UA_MESSAGESECURITYMODE_NONE &&
-           sp->policyType == UA_SECURITYPOLICYTYPE_NONE) {
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURITYMODEREJECTED;
-            goto error;
+        /* Set the SecurityMode. This overwrites the "temporary SecurityMode"
+         * that has been set set in UA_SecureChannel_setSecurityPolicy.*/
+        response->responseHeader.serviceResult =
+            UA_SecureChannel_setSecurityMode(channel, request->securityMode);
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                                 "OpenSecureChannel | Client tries mismatching "
+                                 "MessageSecurityMode==%u for SecurityPolicy %S",
+                                 request->securityMode, sp->policyUri);
+            return;
         }
-        channel->securityMode = request->securityMode;
         break;
+    }
 
     /* Renew the channel */
     case UA_SECURITYTOKENREQUESTTYPE_RENEW:
