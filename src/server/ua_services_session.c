@@ -551,6 +551,7 @@ checkCertificateSignature(const UA_Server *server, const UA_SecurityPolicy *sp,
 
 static void
 selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
+                             UA_Session *session,
                              const UA_ExtensionObject *identityToken,
                              const UA_EndpointDescription **ed,
                              const UA_UserTokenPolicy **utp,
@@ -564,7 +565,8 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
             continue;
 
         /* Match the SecurityPolicy of the endpoint with the current channel */
-        if(!UA_String_equal(&desc->securityPolicyUri, &channel->securityPolicy->policyUri))
+        if(!UA_String_equal(&desc->securityPolicyUri,
+                            &channel->securityPolicy->policyUri))
             continue;
 
         /* If no UserTokenPolicies are configured in the endpoint, then use
@@ -610,37 +612,38 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                 continue;
             }
 
-            /* All valid token data types start with a string policyId */
+            /* The default is to use the SecurityPolicy of the SecureChannel to
+             * encrypt the token */
+            *tokenSp = channel->securityPolicy;
+
+            /* Manually defined UserTokenPolicy. Lookup by Uri. */
+            if(pol->securityPolicyUri.length > 0) {
+                *tokenSp = getSecurityPolicyByUri(server, &pol->securityPolicyUri);
+                if(!*tokenSp) {
+                    UA_LOG_WARNING_SESSION(server->config.logging, session,
+                                           "ActivateSession: The UserTokenPolicy of "
+                                           "the endpoint defines an unknown "
+                                           "SecurityPolicy %S",
+                                           pol->securityPolicyUri);
+                    continue;
+                }
+            }
+
+            /* A non-anonymous authentication token is transmitted over an
+             * unencrypted SecureChannel */
+            if(pol->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
+               (*tokenSp)->policyType == UA_SECURITYPOLICYTYPE_NONE) {
+                /* Check if the allowNonePolicyPassword option is set.
+                 * But this exception only works for Username/Password. */
+                if(!sc->allowNonePolicyPassword ||
+                   pol->tokenType != UA_USERTOKENTYPE_USERNAME)
+                    continue;
+            }
+
+            /* All valid token data types start with a string policyId. Casting
+             * to anonymous hence works for all of them. */
             UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken*)
                 identityToken->content.decoded.data;
-
-            /* Select the SecurityPolicy used to encrypt the token.
-             * The default is to use the SecurityPolicy of the SecureChannel. */
-            *tokenSp = channel->securityPolicy;
-#ifdef UA_ENABLE_ENCRYPTION
-            if(identPolicies == sc->accessControl.userTokenPolicies) {
-                /* If the standard UserTokenPolicies from the AccessControl
-                 * plugin are used, use the same logic as in
-                 * updateEndpointUserIdentityToken (ua_services_discovery.c). */
-                if(pol->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
-                   !(sc->allowNonePolicyPassword && pol->tokenType == UA_USERTOKENTYPE_USERNAME) &&
-                   channel->securityPolicy->policyType == UA_SECURITYPOLICYTYPE_NONE)
-                    *tokenSp = getDefaultEncryptedSecurityPolicy(server);
-            } else if(pol->securityPolicyUri.length > 0) {
-                /* Manually defined UserTokenPolicy. Lookup by URI */
-                *tokenSp = getSecurityPolicyByUri(server, &pol->securityPolicyUri);
-            }
-            if(!*tokenSp)
-                continue;
-
-            /* Anonymous tokens don't need encryption. All other tokens require
-             * encryption with the exception of Username/Password if also the
-             * allowNonePolicyPassword option has been set. */
-            if(pol->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
-               !(sc->allowNonePolicyPassword && pol->tokenType == UA_USERTOKENTYPE_USERNAME) &&
-               (*tokenSp)->policyType == UA_SECURITYPOLICYTYPE_NONE)
-                continue;
-#endif
 
             /* In setCurrentEndPointsArray we prepend the PolicyId with the
              * SecurityMode of the endpoint and the postfix of the
@@ -880,7 +883,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Find the matching Endpoint with UserTokenPolicy.
      * Also sets the SecurityPolicy used to encrypt the token. */
-    selectEndpointAndTokenPolicy(server, channel, &req->userIdentityToken,
+    selectEndpointAndTokenPolicy(server, channel, session,
+                                 &req->userIdentityToken,
                                  &ed, &utp, &tokenSp);
     if(!ed || !tokenSp) {
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
