@@ -1547,14 +1547,30 @@ initSecurityPolicy(UA_Client *client) {
         return (client->channel.securityPolicy == sp) ?
             UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
 
-    /* Set the SecurityMode -- none if no endpoint is selected so far */
-    client->channel.securityMode = client->endpoint.securityMode;
-    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_INVALID)
-        client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
-
     /* Instantiate the SecurityPolicy context with the remote certificate */
-    return UA_SecureChannel_setSecurityPolicy(&client->channel, sp,
-                                              &client->endpoint.serverCertificate);
+    UA_StatusCode res =
+        UA_SecureChannel_setSecurityPolicy(&client->channel, sp,
+                                           &client->endpoint.serverCertificate);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Cannot instantiate the SecurityPolicy %S "
+                     "with the supplied server certificate", sp->policyUri);
+        return res;
+    }
+
+    /* Set the SecurityMode. Replace INVALID with NONE as a workaround for
+     * misconfigured endpoints. */
+    UA_MessageSecurityMode securityMode = client->endpoint.securityMode;
+    if(securityMode == UA_MESSAGESECURITYMODE_INVALID)
+        securityMode = UA_MESSAGESECURITYMODE_NONE;
+    res = UA_SecureChannel_setSecurityMode(&client->channel, securityMode);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Client configuration uses mismatching "
+                     "MessageSecurityMode==%u for SecurityPolicy %S",
+                     securityMode, sp->policyUri);
+    }
+    return res;
 }
 
 static void
