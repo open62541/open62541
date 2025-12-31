@@ -195,14 +195,6 @@ UA_Boolean
 UA_SecureChannel_checkTimeout(UA_SecureChannel *channel,
                               UA_DateTime nowMonotonic);
 
-/* When a fatal error occurs the Server shall send an Error Message to the
- * Client and close the socket. When a Client encounters one of these errors, it
- * shall also close the socket but does not send an Error Message. After the
- * socket is closed a Client shall try to reconnect automatically using the
- * mechanisms described in [...]. */
-void
-UA_SecureChannel_sendError(UA_SecureChannel *channel, UA_TcpErrorMessage *error);
-
 /* Remove (partially) received unprocessed chunks */
 void
 UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel);
@@ -223,14 +215,25 @@ generateRemoteKeys(const UA_SecureChannel *channel);
  * Sending Messages
  * ---------------- */
 
-UA_StatusCode
-UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                          const void *content, const UA_DataType *contentType);
+/* When a fatal error occurs the Server shall send an Error Message to the
+ * Client and close the socket. When a Client encounters one of these errors, it
+ * shall also close the socket but does not send an Error Message. After the
+ * socket is closed a Client shall try to reconnect automatically using the
+ * mechanisms described in [...]. */
+void
+UA_SecureChannel_sendERR(UA_SecureChannel *channel, UA_TcpErrorMessage *error);
 
 UA_StatusCode
-UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                      UA_MessageType messageType, void *payload,
-                                      const UA_DataType *payloadType);
+UA_SecureChannel_sendOPN(UA_SecureChannel *channel, UA_UInt32 requestId,
+                         const void *content, const UA_DataType *contentType);
+
+UA_StatusCode
+UA_SecureChannel_sendMSG(UA_SecureChannel *channel, UA_UInt32 requestId,
+                         void *payload, const UA_DataType *payloadType);
+
+UA_StatusCode
+UA_SecureChannel_sendCLO(UA_SecureChannel *channel, UA_UInt32 requestId,
+                         UA_CloseSecureChannelRequest *req);
 
 /* The MessageContext is forwarded into the encoding layer so that we can send
  * chunks before continuing to encode. This lets us reuse a fixed chunk-sized

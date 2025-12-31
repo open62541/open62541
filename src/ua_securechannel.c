@@ -86,7 +86,7 @@ UA_SecureChannel_isConnected(UA_SecureChannel *channel) {
 }
 
 void
-UA_SecureChannel_sendError(UA_SecureChannel *channel, UA_TcpErrorMessage *error) {
+UA_SecureChannel_sendERR(UA_SecureChannel *channel, UA_TcpErrorMessage *error) {
     if(!UA_SecureChannel_isConnected(channel))
         return;
 
@@ -245,13 +245,14 @@ UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Sends an OPN message using asymmetric encryption if defined */
+/* Send an OPN message using asymmetric encryption.
+ * Specification part 6, 6.7.4: The OpenSecureChannel Messages are signed and
+ * encrypted if the SecurityMode is not None (even if the SecurityMode is
+ * SignOnly). */
 UA_StatusCode
-UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
-                                          UA_UInt32 requestId, const void *content,
-                                          const UA_DataType *contentType) {
-    UA_CHECK(channel->securityMode != UA_MESSAGESECURITYMODE_INVALID,
-             return UA_STATUSCODE_BADSECURITYMODEREJECTED);
+UA_SecureChannel_sendOPN(UA_SecureChannel *channel,
+                         UA_UInt32 requestId, const void *content,
+                         const UA_DataType *contentType) {
 
     /* Can we use the connection manager? */
     UA_ConnectionManager *cm = channel->connectionManager;
@@ -538,10 +539,11 @@ UA_MessageContext_abort(UA_MessageContext *mc) {
     cm->freeNetworkBuffer(cm, mc->channel->connectionId, &mc->messageBuffer);
 }
 
-UA_StatusCode
-UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                      UA_MessageType messageType, void *payload,
-                                      const UA_DataType *payloadType) {
+/* Send a MSG or CLO message using symmetric encryption */
+static UA_StatusCode
+sendSymmetric(UA_SecureChannel *channel, UA_UInt32 requestId,
+              UA_MessageType messageType, void *payload,
+              const UA_DataType *payloadType) {
     if(!channel || !payload || !payloadType)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -565,6 +567,20 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
     UA_CHECK_STATUS(res, return res);
 
     return UA_MessageContext_finish(&mc);
+}
+
+UA_StatusCode
+UA_SecureChannel_sendMSG(UA_SecureChannel *channel, UA_UInt32 requestId,
+                         void *payload, const UA_DataType *payloadType) {
+    return sendSymmetric(channel, requestId, UA_MESSAGETYPE_MSG,
+                         payload, payloadType);
+}
+
+UA_StatusCode
+UA_SecureChannel_sendCLO(UA_SecureChannel *channel, UA_UInt32 requestId,
+                         UA_CloseSecureChannelRequest *req) {
+    return sendSymmetric(channel, requestId, UA_MESSAGETYPE_CLO, req,
+                         &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
 }
 
 /********************************/
