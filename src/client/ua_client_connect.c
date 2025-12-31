@@ -932,20 +932,32 @@ activateSessionAsync(UA_Client *client) {
 
     UA_SecurityPolicy *utsp = NULL;
     UA_SecureChannel *channel = &client->channel;
+
+    /* If not specifically defined in the UserTokenPolicy, then the
+     * SecurityPolicy of the underlying endpoint (SecureChannel) is used. */
     UA_String tokenSecurityPolicyUri = (utp->securityPolicyUri.length > 0) ?
         utp->securityPolicyUri : client->endpoint.securityPolicyUri;
 
-    if(request.userIdentityToken.content.decoded.type == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN])
+    /* The anonymous token is not encrypted */
+    if(request.userIdentityToken.content.decoded.type ==
+       &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN])
         goto utp_done;
 
-    /* Does the UserTokenPolicy have encryption? If not specifically defined in
-     * the UserTokenPolicy, then the SecurityPolicy of the underlying endpoint
-     * (SecureChannel) is used. */
+    /* Does the UserTokenPolicy have encryption?
+     * Check if a token is transmitted in cleartext. */
     if(UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &tokenSecurityPolicyUri)) {
         if(client->channel.securityPolicy->policyType == UA_SECURITYPOLICYTYPE_NONE) {
-            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "!!! Warning !!! AuthenticationToken is transmitted "
-                           "without encryption");
+            if(!client->config.allowNonePolicyPassword) {
+                UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                             "AuthenticationToken must not be transmitted "
+                             "without encryption. Override with the "
+                             "allowNonePolicyPassword setting.");
+                retval = UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+            } else {
+                UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                               "!!! Warning !!! AuthenticationToken is transmitted "
+                               "without encryption");
+            }
         }
         goto utp_done;
     }
