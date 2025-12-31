@@ -1104,8 +1104,12 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint) {
     UA_UserTokenPolicy tmp;
     UA_UserTokenPolicy_init(&tmp);
     if(!UA_equal(&tmp, &client->config.userTokenPolicy,
-                 &UA_TYPES[UA_TYPES_USERTOKENPOLICY]))
+                 &UA_TYPES[UA_TYPES_USERTOKENPOLICY])) {
         requiredTokenPolicy = &client->config.userTokenPolicy;
+        UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                    "Client config requires the use of the UserTokenPolicy %S",
+                    requiredTokenPolicy->policyId);
+    }
 
     for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
         /* Is the SecurityPolicy available? */
@@ -1122,24 +1126,45 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint) {
             /* activateSessionAsync() handles the None case separately without
              * accessing authSecurityPolicies */
             if(!UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &tokenPolicyUri) &&
-               !getAuthSecurityPolicy(client, tokenPolicyUri))
+               !getAuthSecurityPolicy(client, tokenPolicyUri)) {
+                UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                            "Rejecting UserTokenPolicy %S: SecurityPolicy %S "
+                            "not found", tokenPolicy->policyId,
+                            tokenPolicyUri);
                 continue;
+            }
         }
 
         /* Required SecurityPolicyUri in the configuration? */
         if(!UA_String_isEmpty(&client->config.authSecurityPolicyUri) &&
            !UA_String_equal(&client->config.authSecurityPolicyUri,
-                            &tokenPolicyUri))
+                            &tokenPolicyUri)) {
+            UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                        "Rejecting UserTokenPolicy %S: Uses SecurityPolicy %S, "
+                        "but the client configuration requires SecurityPolicy %S",
+                        tokenPolicy->policyId, tokenPolicyUri,
+                        client->config.authSecurityPolicyUri);
             continue;
+        }
 
         /* Match (entire) UserTokenPolicy if defined in the configuration? */
-        if(requiredTokenPolicy && !UA_equal(requiredTokenPolicy, tokenPolicy,
-                                            &UA_TYPES[UA_TYPES_USERTOKENPOLICY]))
+        if(requiredTokenPolicy &&
+           !UA_equal(requiredTokenPolicy, tokenPolicy,
+                     &UA_TYPES[UA_TYPES_USERTOKENPOLICY])) {
+            UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                        "Rejecting UserTokenPolicy %S: Different UserTokenPolicy "
+                        "specified in the client config", tokenPolicy->policyId);
             continue;
+        }
 
         /* Match with the configured UserToken */
-        if(!matchUserToken(client, tokenPolicy))
+        if(!matchUserToken(client, tokenPolicy)) {
+            UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                        "Rejecting UserTokenPolicy %S: Does not match the "
+                        "configured type of UserIdentityToken",
+                        tokenPolicy->policyId);
             continue;
+        }
 
         /* Found a match? */
         return tokenPolicy;
@@ -1509,11 +1534,15 @@ initSecurityPolicy(UA_Client *client) {
     UA_SecurityPolicy *sp =
         getSecurityPolicy(client, client->endpoint.securityPolicyUri);
 
-    /* Unknown SecurityPolicy -- we would never select such an endpoint */
-    if(!sp)
+    /* Unknown SecurityPolicy */
+    if(!sp) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "SecurityPolicy %S not configured",
+                     client->endpoint.securityPolicyUri);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
-    /* Already initialized -- check we are using the configured SecurityPolicy */
+    /* Already initialized -- check we are using the same SecurityPolicy */
     if(client->channel.securityPolicy)
         return (client->channel.securityPolicy == sp) ?
             UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
