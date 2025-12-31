@@ -55,8 +55,17 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel, UA_SecurityPolicy 
     UA_CHECK_STATUS_WARN(res, return res, sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Could not create the certificate thumbprint");
 
-    /* Set the policy */
+    /* Set the SecurityPolicy */
     channel->securityPolicy = sp;
+
+    /* Set a temporary SecurityMode. The client sets the final SecurityMode
+     * right after. The server only after fully decoding the OPN message in the
+     * OpenSecureChannel service. But we need the SecurityMode for decoding. The
+     * OPN message is always signed and encrypted when not #None. */
+    if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
+        channel->securityMode = UA_MESSAGESECURITYMODE_NONE;
+    else
+        channel->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -272,14 +281,26 @@ UA_StatusCode
 UA_SecureChannel_sendOPN(UA_SecureChannel *channel,
                          UA_UInt32 requestId, const void *content,
                          const UA_DataType *contentType) {
+    if(!content || !contentType)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* The SecurityPolicy must be configured before sending OPN */
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+
+    /* Check for a valid security mode */
+    UA_assert(channel->securityMode > UA_MESSAGESECURITYMODE_INVALID &&
+              channel->securityMode <= UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+
+    /* The #None SecurityPolicy must use the NONE MessageSecurityMode.
+     * All other SecurityPolicies must not. */
+    UA_assert((sp->policyType == UA_SECURITYPOLICYTYPE_NONE) ==
+              (channel->securityMode == UA_MESSAGESECURITYMODE_NONE));
 
     /* Can we use the connection manager? */
     UA_ConnectionManager *cm = channel->connectionManager;
     if(!UA_SecureChannel_isConnected(channel))
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
-
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
-    UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
 
     /* Allocate the message buffer */
     UA_ByteString buf = UA_BYTESTRING_NULL;
