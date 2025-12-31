@@ -620,6 +620,12 @@ struct UA_ClientConfig {
                               * the intial one is lost. Instead abort the
                               * connection when the Session is lost. */
 
+    /* Allow clients without encryption support to connect with username and
+     * password. This requires to transmit the password in plain text over the
+     * network which is why this option is disabled by default. Make sure you
+     * really need this before enabling plain text passwords. */
+    UA_Boolean allowNonePolicyPassword;
+
     /* If either endpoint or userTokenPolicy has been set, then they are used
      * directly. Otherwise this information comes from the GetEndpoints response
      * from the server (filtered and selected for the SecurityMode, etc.). */
