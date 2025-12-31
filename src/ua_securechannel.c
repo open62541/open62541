@@ -328,11 +328,8 @@ UA_SecureChannel_sendOPN(UA_SecureChannel *channel,
     /* Compute the header length */
     securityHeaderLength = calculateAsymAlgSecurityHeaderLength(channel);
 
-    /* Add padding to the chunk. Also pad if the securityMode is SIGN_ONLY,
-     * since we are using asymmetric communication to exchange keys and thus
-     * need to encrypt. */
-    if((channel->securityMode != UA_MESSAGESECURITYMODE_NONE) &&
-       sp->policyType != UA_SECURITYPOLICYTYPE_ECC)
+    /* Add padding to the chunk */
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
         padChunk(channel, &sp->asymSignatureAlgorithm, &sp->asymEncryptionAlgorithm,
                  &buf.data[UA_SECURECHANNEL_CHANNELHEADER_LENGTH + securityHeaderLength],
                  &buf_pos);
@@ -340,8 +337,7 @@ UA_SecureChannel_sendOPN(UA_SecureChannel *channel,
     /* The total message length */
     pre_sig_length = (uintptr_t)buf_pos - (uintptr_t)buf.data;
     total_length = pre_sig_length;
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
         total_length += sp->asymSignatureAlgorithm.
             getLocalSignatureSize(sp, channel->channelContext);
 
@@ -351,6 +347,7 @@ UA_SecureChannel_sendOPN(UA_SecureChannel *channel,
                              securityHeaderLength, requestId, &encryptedLength);
     UA_CHECK_STATUS(res, goto error);
 
+    /* Add the signature and encrypt the message */
     res = signAndEncryptAsym(channel, pre_sig_length, &buf,
                              securityHeaderLength, total_length);
     UA_CHECK_STATUS(res, goto error);
