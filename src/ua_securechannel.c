@@ -656,7 +656,8 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk) {
     UA_CHECK_STATUS(res, return res);
 
     if(asymHeader.senderCertificate.length > 0) {
-        if(channel->certificateVerification && channel->certificateVerification->verifyCertificate)
+        if(channel->certificateVerification &&
+           channel->certificateVerification->verifyCertificate)
             res = channel->certificateVerification->
                 verifyCertificate(channel->certificateVerification,
                                   &asymHeader.senderCertificate);
@@ -772,7 +773,8 @@ unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk,
 }
 
 static UA_StatusCode
-extractCompleteChunk(UA_SecureChannel *channel, UA_Chunk *chunk, UA_DateTime nowMonotonic) {
+extractCompleteChunk(UA_SecureChannel *channel, UA_Chunk *chunk,
+                     UA_DateTime nowMonotonic) {
     /* At least 8 byte needed for the header */
     size_t offset = channel->unprocessedOffset;
     size_t remaining = channel->unprocessed.length - offset;
