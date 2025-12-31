@@ -186,6 +186,10 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
                                    UA_SecurityPolicy *securityPolicy,
                                    const UA_ByteString *remoteCertificate);
 
+UA_StatusCode
+UA_SecureChannel_setSecurityMode(UA_SecureChannel *channel,
+                                 UA_MessageSecurityMode securityMode);
+
 UA_Boolean
 UA_SecureChannel_isConnected(UA_SecureChannel *channel);
 
