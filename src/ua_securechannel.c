@@ -60,6 +60,25 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel, UA_SecurityPolicy 
     return UA_STATUSCODE_GOOD;
 }
 
+/* The #None SecurityPolicy must use the NONE SecurityMode. All other
+ * SecurityPolicies must not. */
+UA_StatusCode
+UA_SecureChannel_setSecurityMode(UA_SecureChannel *channel,
+                                 UA_MessageSecurityMode securityMode) {
+    if(securityMode == UA_MESSAGESECURITYMODE_INVALID ||
+       securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(!sp)
+        return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+    UA_Boolean isNonePolicy = (sp->policyType == UA_SECURITYPOLICYTYPE_NONE);
+    UA_Boolean isNoneMode = (securityMode == UA_MESSAGESECURITYMODE_NONE);
+    if(isNonePolicy != isNoneMode)
+        return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+    channel->securityMode = securityMode;
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Hides some errors before sending them to a client according to the
  * standard. */
 static void
