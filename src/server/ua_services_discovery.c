@@ -300,22 +300,40 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 }
 #endif
 
-static const UA_String UA_SECURITY_POLICY_BASIC256SHA256_URI =
-    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
-
+/* Get an encrypted policy or NULL if no encrypted policy is defined */
 UA_SecurityPolicy *
 getDefaultEncryptedSecurityPolicy(UA_Server *server) {
+    /* Use Basic256Sha256 if available */
+    static const UA_String UA_SECURITY_POLICY_BASIC256SHA256_URI =
+        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
         if(UA_String_equal(&UA_SECURITY_POLICY_BASIC256SHA256_URI, &sp->policyUri))
             return sp;
     }
-    for(size_t i = server->config.securityPoliciesSize; i > 0; i--) {
-        UA_SecurityPolicy *sp = &server->config.securityPolicies[i-1];
-        if(sp->policyType != UA_SECURITYPOLICYTYPE_NONE)
-            return sp;
+    /* Search the best RSA policy */
+    UA_SecurityPolicy *best = NULL;
+    UA_Byte securityLevel = 0;
+    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+        if(sp->policyType == UA_SECURITYPOLICYTYPE_RSA &&
+           sp->securityLevel >= securityLevel) {
+            best = sp;
+            securityLevel = sp->securityLevel;
+        }
     }
-    return NULL; /* No encrypted policy found */
+    if(best)
+        return best;
+    /* Return the best encrypted policy or return NULL */
+    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+        if(sp->policyType != UA_SECURITYPOLICYTYPE_NONE &&
+           sp->securityLevel >= securityLevel) {
+            best = sp;
+            securityLevel = sp->securityLevel;
+        }
+    }
+    return best;
 }
 
 static const char *securityModeStrs[4] = {"-invalid", "-none", "-sign", "-sign+encrypt"};
