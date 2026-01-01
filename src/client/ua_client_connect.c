@@ -579,8 +579,9 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
                             "renewed with a revised lifetime of %.2fs", lifetime);
     } else {
         UA_LOG_INFO_CHANNEL(client->config.logging, &client->channel,
-                            "SecureChannel opened with SecurityPolicy %S "
-                            "and a revised lifetime of %.2fs",
+                            "SecureChannel opened with SecurityMode %s for "
+                            "SecurityPolicy %S and a revised lifetime of %.2fs",
+                            securityModeNames[client->channel.securityMode],
                             client->channel.securityPolicy->policyUri,
                             lifetime);
     }

@@ -104,6 +104,11 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
             return;
         }
 
+        /* Ensure the SecurityMode does not cause a wrong array access during
+         * logging */
+        if(request->securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+            request->securityMode = UA_MESSAGESECURITYMODE_INVALID;
+
         /* Set the SecurityMode. This overwrites the "temporary SecurityMode"
          * that has been set set in UA_SecureChannel_setSecurityPolicy.*/
         response->responseHeader.serviceResult =
@@ -111,8 +116,9 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
                                  "OpenSecureChannel | Client tries mismatching "
-                                 "MessageSecurityMode==%u for SecurityPolicy %S",
-                                 request->securityMode, sp->policyUri);
+                                 "SecurityMode %s for SecurityPolicy %S",
+                                 securityModeNames[request->securityMode],
+                                 sp->policyUri);
             return;
         }
         break;
@@ -190,9 +196,9 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     /* Success */
     if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_ISSUE) {
         UA_LOG_INFO_CHANNEL(server->config.logging, channel,
-                            "SecureChannel opened with SecurityMode %u for "
+                            "SecureChannel opened with SecurityMode %s for "
                             "SecurityPolicy %S and a revised lifetime of %.2fs",
-                            channel->securityMode,
+                            securityModeNames[channel->securityMode],
                             channel->securityPolicy->policyUri,
                             (UA_Float)response->securityToken.revisedLifetime / 1000);
 

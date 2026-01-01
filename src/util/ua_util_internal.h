@@ -135,6 +135,12 @@ nodeId_printEscape(const UA_NodeId *id, UA_String *output,
 UA_StatusCode
 encodeDateTime(const UA_DateTime dt, UA_String *output);
 
+/***************/
+/* Log Helpers */
+/***************/
+
+extern char * securityModeNames[4];
+
 /**
  * Error checking macros
  */
