@@ -172,12 +172,11 @@ Service_FindServers(UA_Server *server, UA_Session *session,
  cleanup:
 
     /* Set the final size */
-    if(pos > 0) {
-        response->serversSize = pos;
-    } else {
+    if(pos == 0) {
         UA_free(response->servers);
         response->servers = NULL;
     }
+    response->serversSize = pos;
 #endif
 
     /* Mirror back the expected EndpointUrl */
@@ -188,10 +187,13 @@ Service_FindServers(UA_Server *server, UA_Session *session,
                             &UA_TYPES[UA_TYPES_STRING]);
             ad->discoveryUrls = NULL;
             ad->discoveryUrlsSize = 0;
-            response->responseHeader.serviceResult |=
-                UA_Array_appendCopy((void**)&ad->discoveryUrls,
-                                    &ad->discoveryUrlsSize, &request->endpointUrl,
-                                    &UA_TYPES[UA_TYPES_STRING]);
+            response->responseHeader.serviceResult =
+                UA_Array_copy(&request->endpointUrl, 1,
+                              (void**)&ad->discoveryUrls,
+                              &UA_TYPES[UA_TYPES_STRING]);
+            if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+                break;
+            ad->discoveryUrlsSize = 1;
         }
     }
 
@@ -316,6 +318,7 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server) {
     UA_Byte securityLevel = 0;
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+        UA_assert(sp != NULL);
         if(sp->policyType == UA_SECURITYPOLICYTYPE_RSA &&
            sp->securityLevel >= securityLevel) {
             best = sp;
