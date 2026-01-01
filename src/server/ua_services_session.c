@@ -549,6 +549,115 @@ checkCertificateSignature(const UA_Server *server, const UA_SecurityPolicy *sp,
     return retval;
 }
 
+/* Always sets tokenSp (default: SecurityPolicy of the channel) */
+static const UA_UserTokenPolicy *
+selectTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
+                  UA_Session *session, const UA_ExtensionObject *identityToken,
+                  const UA_EndpointDescription *ed,
+                  const UA_SecurityPolicy **tokenSp) {
+    /* If no UserTokenPolicies are configured in the endpoint, then use
+     * those configured in the AccessControl plugin. */
+    size_t identPoliciesSize = ed->userIdentityTokensSize;
+    const UA_UserTokenPolicy *identPolicies = ed->userIdentityTokens;
+    if(identPoliciesSize == 0) {
+        identPoliciesSize = server->config.accessControl.userTokenPoliciesSize;
+        identPolicies = server->config.accessControl.userTokenPolicies;
+    }
+
+    /* Match the UserTokenType */
+    const UA_DataType *tokenDataType = identityToken->content.decoded.type;
+    for(size_t j = 0; j < identPoliciesSize; j++) {
+        const UA_UserTokenPolicy *pol = &identPolicies[j];
+
+        /* Part 4, Section 5.6.3.2, Table 17: A NULL or empty
+         * UserIdentityToken should be treated as Anonymous */
+        if(identityToken->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY &&
+           pol->tokenType == UA_USERTOKENTYPE_ANONYMOUS) {
+            *tokenSp = channel->securityPolicy;
+            return pol;
+        }
+
+        /* Expect decoded content if not anonymous */
+        if(!tokenDataType)
+            continue;
+
+        /* Match the DataType of the provided token with the policy */
+        switch(pol->tokenType) {
+        case UA_USERTOKENTYPE_ANONYMOUS:
+            if(tokenDataType != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN])
+                continue;
+            break;
+        case UA_USERTOKENTYPE_USERNAME:
+            if(tokenDataType != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])
+                continue;
+            break;
+        case UA_USERTOKENTYPE_CERTIFICATE:
+            if(tokenDataType != &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN])
+                continue;
+            break;
+        case UA_USERTOKENTYPE_ISSUEDTOKEN:
+            if(tokenDataType != &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN])
+                continue;
+            break;
+        default:
+            continue;
+        }
+
+        /* Get the SecurityPolicy for the endpoint */
+        UA_SecurityPolicy *candidateSp = channel->securityPolicy;
+        if(pol->securityPolicyUri.length > 0) {
+            candidateSp = getSecurityPolicyByUri(server, &pol->securityPolicyUri);
+            if(!candidateSp) {
+                UA_LOG_WARNING_SESSION(server->config.logging, session,
+                                       "ActivateSession: The UserTokenPolicy of "
+                                       "the endpoint defines an unknown "
+                                       "SecurityPolicy %S",
+                                       pol->securityPolicyUri);
+                continue;
+            }
+        }
+
+        /* A non-anonymous authentication token is transmitted over an
+         * unencrypted SecureChannel */
+        if(pol->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
+           channel->securityPolicy->policyType == UA_SECURITYPOLICYTYPE_NONE &&
+           candidateSp->policyType == UA_SECURITYPOLICYTYPE_NONE) {
+            /* Check if the allowNonePolicyPassword option is set.
+             * But this exception only works for Username/Password. */
+            if(!server->config.allowNonePolicyPassword ||
+               pol->tokenType != UA_USERTOKENTYPE_USERNAME)
+                continue;
+        }
+
+        /* All valid token data types start with a string policyId. Casting
+         * to anonymous hence works for all of them. */
+        UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken*)
+            identityToken->content.decoded.data;
+
+        /* In setCurrentEndPointsArray we prepend the PolicyId with the
+         * SecurityMode of the endpoint and the postfix of the
+         * SecurityPolicyUri to make it unique. Check the SecurityPolicyUri
+         * postfix. */
+        if(pol->policyId.length > token->policyId.length)
+            continue;
+        UA_String policyPrefix = token->policyId;
+        policyPrefix.length = pol->policyId.length;
+        if(!UA_String_equal(&policyPrefix, &pol->policyId))
+            continue;
+
+        UA_String secPolPostfix = securityPolicyUriPostfix(candidateSp->policyUri);
+        UA_String utPolPostfix = securityPolicyUriPostfix(token->policyId);
+        if(!UA_String_equal(&secPolPostfix, &utPolPostfix))
+            continue;
+
+        /* Found a match policy */
+        *tokenSp = candidateSp;
+        return pol;
+    }
+
+    return NULL;
+}
+
 static void
 selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                              UA_Session *session,
@@ -569,101 +678,12 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                             &channel->securityPolicy->policyUri))
             continue;
 
-        /* If no UserTokenPolicies are configured in the endpoint, then use
-         * those of the AccessControl plugin. */
-        size_t identPoliciesSize = desc->userIdentityTokensSize;
-        const UA_UserTokenPolicy *identPolicies = desc->userIdentityTokens;
-        if(identPoliciesSize == 0) {
-            identPoliciesSize = sc->accessControl.userTokenPoliciesSize;
-            identPolicies = sc->accessControl.userTokenPolicies;
-        }
-
-        /* Match the UserTokenType */
-        const UA_DataType *tokenDataType = identityToken->content.decoded.type;
-        for(size_t j = 0; j < identPoliciesSize ; j++) {
-            const UA_UserTokenPolicy *pol = &identPolicies[j];
-
-            /* Part 4, Section 5.6.3.2, Table 17: A NULL or empty
-             * UserIdentityToken should be treated as Anonymous */
-            if(identityToken->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY &&
-               pol->tokenType == UA_USERTOKENTYPE_ANONYMOUS) {
-                *ed = desc;
-                *utp = pol;
-                return;
-            }
-
-            /* Expect decoded content if not anonymous */
-            if(!tokenDataType)
-                continue;
-
-            if(pol->tokenType == UA_USERTOKENTYPE_ANONYMOUS) {
-                if(tokenDataType != &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN])
-                    continue;
-            } else if(pol->tokenType == UA_USERTOKENTYPE_USERNAME) {
-                if(tokenDataType != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])
-                    continue;
-            } else if(pol->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
-                if(tokenDataType != &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN])
-                    continue;
-            } else if(pol->tokenType == UA_USERTOKENTYPE_ISSUEDTOKEN) {
-                if(tokenDataType != &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN])
-                    continue;
-            } else {
-                continue;
-            }
-
-            /* The default is to use the SecurityPolicy of the SecureChannel to
-             * encrypt the token */
-            *tokenSp = channel->securityPolicy;
-
-            /* Manually defined UserTokenPolicy. Lookup by Uri. */
-            if(pol->securityPolicyUri.length > 0) {
-                *tokenSp = getSecurityPolicyByUri(server, &pol->securityPolicyUri);
-                if(!*tokenSp) {
-                    UA_LOG_WARNING_SESSION(server->config.logging, session,
-                                           "ActivateSession: The UserTokenPolicy of "
-                                           "the endpoint defines an unknown "
-                                           "SecurityPolicy %S",
-                                           pol->securityPolicyUri);
-                    continue;
-                }
-            }
-
-            /* A non-anonymous authentication token is transmitted over an
-             * unencrypted SecureChannel */
-            if(pol->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
-               (*tokenSp)->policyType == UA_SECURITYPOLICYTYPE_NONE) {
-                /* Check if the allowNonePolicyPassword option is set.
-                 * But this exception only works for Username/Password. */
-                if(!sc->allowNonePolicyPassword ||
-                   pol->tokenType != UA_USERTOKENTYPE_USERNAME)
-                    continue;
-            }
-
-            /* All valid token data types start with a string policyId. Casting
-             * to anonymous hence works for all of them. */
-            UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken*)
-                identityToken->content.decoded.data;
-
-            /* In setCurrentEndPointsArray we prepend the PolicyId with the
-             * SecurityMode of the endpoint and the postfix of the
-             * SecurityPolicyUri to make it unique. Check the SecurityPolicyUri
-             * postfix. */
-            if(pol->policyId.length > token->policyId.length)
-                continue;
-            UA_String policyPrefix = token->policyId;
-            policyPrefix.length = pol->policyId.length;
-            if(!UA_String_equal(&policyPrefix, &pol->policyId))
-                continue;
-
-            UA_String secPolPostfix = securityPolicyUriPostfix((*tokenSp)->policyUri);
-            UA_String utPolPostfix = securityPolicyUriPostfix(token->policyId);
-            if(!UA_String_equal(&secPolPostfix, &utPolPostfix))
-                continue;
-
+        /* Select the UserTokenPolicy from the Endpoint */
+        *utp = selectTokenPolicy(server, channel, session,
+                                 identityToken, desc, tokenSp);
+        if(*utp) {
             /* Match found */
             *ed = desc;
-            *utp = pol;
             return;
         }
     }
@@ -887,6 +907,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                  &req->userIdentityToken,
                                  &ed, &utp, &tokenSp);
     if(!ed || !tokenSp) {
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
+                               "ActivateSession: Requested Endpoint/UserTokenPolicy "
+                               "not available");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         UA_SESSION_REJECT;
     }
