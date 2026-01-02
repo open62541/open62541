@@ -5,7 +5,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import re
-import sys
 import copy
 from collections import OrderedDict
 import argparse
@@ -134,8 +133,7 @@ def makeCIdentifier(value):
     sanitized = re.sub(r'[^\w]', '', value)
     if sanitized in keywords:
         return "_" + sanitized
-    else:
-        return sanitized
+    return sanitized
 
 def getNodeidTypeAndId(nodeId):
     if not nodeId:
@@ -216,7 +214,7 @@ class CGenerator:
             return self.get_struct_overlayable(datatype)
         raise RuntimeError("Unknown datatype")
 
-    def print_datatype(self, datatype, namespaceMap):
+    def print_datatype(self, datatype):
         typeid = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.nodeId))
         binaryEncodingId = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.binaryEncodingId))
         xmlEncodingId = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.xmlEncodingId))
@@ -236,7 +234,7 @@ class CGenerator:
                "}"
 
     @staticmethod
-    def print_members(datatype, namespaceMap):
+    def print_members(datatype):
         idName = makeCIdentifier(datatype.name)
         if len(datatype.members) == 0:
             return "#define %s_members NULL" % (idName)
@@ -271,7 +269,7 @@ class CGenerator:
             if not before and not isUnion:
                 m += "0,"
             elif isUnion:
-                    m += "offsetof(UA_{}, fields.{}),".format(idName, member_name)
+                m += "offsetof(UA_{}, fields.{}),".format(idName, member_name)
             else:
                 if member.is_array:
                     m += "offsetof(UA_{}, {}Size)".format(idName, member_name)
@@ -319,7 +317,7 @@ class CGenerator:
     @staticmethod
     def print_enum_typedef(enum, gen_doc=False):
         values = enum.elements.items()
-        if enum.isOptionSet == True:
+        if enum.isOptionSet:
             elements = map(lambda kv: "#define " + makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) + " " + kv[1], values)
             return "typedef " + enum.strDataType + " " + makeCIdentifier("UA_" + enum.name) + ";\n\n" + "\n".join(elements)
         else:
@@ -390,8 +388,7 @@ class CGenerator:
             returnstr += "    } fields;\n"
         if struct.is_recursive:
             return returnstr + "};"
-        else:
-            return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
+        return returnstr + "} UA_%s;" % makeCIdentifier(struct.name)
 
     @staticmethod
     def print_datatype_typedef(datatype, gen_doc=False):
@@ -523,7 +520,7 @@ _UA_END_DECLS
 
     def print_doc(self):
         for ns in self.filtered_types:
-            for i, t_name in enumerate(self.filtered_types[ns]):
+            for _, t_name in enumerate(self.filtered_types[ns]):
                 t = self.filtered_types[ns][t_name]
                 if isinstance(t, BuiltinType):
                     continue
@@ -546,21 +543,21 @@ _UA_END_DECLS
         totalCount = 0
         for ns in self.filtered_types:
             totalCount += len(self.filtered_types[ns])
-            for i, t_name in enumerate(self.filtered_types[ns]):
+            for _, t_name in enumerate(self.filtered_types[ns]):
                 t = self.filtered_types[ns][t_name]
                 self.printc("")
                 self.printc("/* " + t.name + " */")
-                self.printc(CGenerator.print_members(t, self.namespaceMap))
+                self.printc(CGenerator.print_members(t))
 
         if totalCount > 0:
             self.printc(
                 "UA_DataType UA_{}[UA_{}_COUNT] = {{".format(self.parser.outname.upper(), self.parser.outname.upper()))
 
             for ns in self.filtered_types:
-                for i, t_name in enumerate(self.filtered_types[ns]):
+                for _, t_name in enumerate(self.filtered_types[ns]):
                     t = self.filtered_types[ns][t_name]
                     self.printc("/* " + t.name + " */")
-                    self.printc(self.print_datatype(t, self.namespaceMap) + ",")
+                    self.printc(self.print_datatype(t) + ",")
             self.printc("};\n")
 
 ###########################################
