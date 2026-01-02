@@ -603,18 +603,32 @@ selectTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
             continue;
         }
 
-        /* Get the SecurityPolicy for the endpoint */
-        UA_SecurityPolicy *candidateSp = channel->securityPolicy;
-        if(pol->securityPolicyUri.length > 0) {
-            candidateSp = getSecurityPolicyByUri(server, &pol->securityPolicyUri);
-            if(!candidateSp) {
-                UA_LOG_WARNING_SESSION(server->config.logging, session,
-                                       "ActivateSession: The UserTokenPolicy of "
-                                       "the endpoint defines an unknown "
-                                       "SecurityPolicy %S",
-                                       pol->securityPolicyUri);
-                continue;
-            }
+        /* All valid token data types start with a string policyId. Casting
+         * to anonymous hence works for all of them. */
+        UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken*)
+            identityToken->content.decoded.data;
+
+        /* In setCurrentEndPointsArray we prepend the PolicyId with the
+         * SecurityMode of the endpoint and the postfix of the
+         * SecurityPolicyUri to make it unique. Check the PolicyId. */
+        if(pol->policyId.length > token->policyId.length)
+            continue;
+        UA_String policyPrefix = token->policyId;
+        policyPrefix.length = pol->policyId.length;
+        if(!UA_String_equal(&policyPrefix, &pol->policyId))
+            continue;
+
+        /* Get the SecurityPolicy for the endpoint from the postfix */
+        UA_String utPolPostfix = securityPolicyUriPostfix(token->policyId);
+        UA_SecurityPolicy *candidateSp =
+            getSecurityPolicyByPostfix(server, utPolPostfix);
+        if(!candidateSp) {
+            UA_LOG_WARNING_SESSION(server->config.logging, session,
+                                   "ActivateSession: The UserTokenPolicy of "
+                                   "the endpoint defines an unknown "
+                                   "SecurityPolicy %S",
+                                   pol->securityPolicyUri);
+            continue;
         }
 
         /* A non-anonymous authentication token is transmitted over an
@@ -628,27 +642,6 @@ selectTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                pol->tokenType != UA_USERTOKENTYPE_USERNAME)
                 continue;
         }
-
-        /* All valid token data types start with a string policyId. Casting
-         * to anonymous hence works for all of them. */
-        UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken*)
-            identityToken->content.decoded.data;
-
-        /* In setCurrentEndPointsArray we prepend the PolicyId with the
-         * SecurityMode of the endpoint and the postfix of the
-         * SecurityPolicyUri to make it unique. Check the SecurityPolicyUri
-         * postfix. */
-        if(pol->policyId.length > token->policyId.length)
-            continue;
-        UA_String policyPrefix = token->policyId;
-        policyPrefix.length = pol->policyId.length;
-        if(!UA_String_equal(&policyPrefix, &pol->policyId))
-            continue;
-
-        UA_String secPolPostfix = securityPolicyUriPostfix(candidateSp->policyUri);
-        UA_String utPolPostfix = securityPolicyUriPostfix(token->policyId);
-        if(!UA_String_equal(&secPolPostfix, &utPolPostfix))
-            continue;
 
         /* Found a match policy */
         *tokenSp = candidateSp;

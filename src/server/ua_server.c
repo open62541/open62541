@@ -1080,9 +1080,20 @@ cleanup:
 UA_SecurityPolicy *
 getSecurityPolicyByUri(const UA_Server *server, const UA_String *securityPolicyUri) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
-        UA_SecurityPolicy *securityPolicyCandidate = &server->config.securityPolicies[i];
-        if(UA_String_equal(securityPolicyUri, &securityPolicyCandidate->policyUri))
-            return securityPolicyCandidate;
+        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+        if(UA_String_equal(securityPolicyUri, &sp->policyUri))
+            return sp;
+    }
+    return NULL;
+}
+
+UA_SecurityPolicy *
+getSecurityPolicyByPostfix(const UA_Server *server, const UA_String uriPostfix) {
+    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+        UA_String spPostfix = securityPolicyUriPostfix(sp->policyUri);
+        if(UA_String_equal(&uriPostfix, &spPostfix))
+            return sp;
     }
     return NULL;
 }

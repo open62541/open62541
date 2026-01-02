@@ -354,7 +354,7 @@ securityPolicyUriPostfix(const UA_String uri) {
 
 static UA_StatusCode
 updateEndpointUserIdentityToken(UA_Server *server, UA_EndpointDescription *ed) {
-    /* Don't change the UserIdentityTokens if there are manually configured
+    /* Don't modify the UserIdentityTokens if there are manually configured
      * entries */
     if(ed->userIdentityTokensSize > 0)
         return UA_STATUSCODE_GOOD;
@@ -366,14 +366,18 @@ updateEndpointUserIdentityToken(UA_Server *server, UA_EndpointDescription *ed) {
     UA_ServerConfig *sc = &server->config;
     for(size_t i = 0; i < sc->accessControl.userTokenPoliciesSize; i++) {
         UA_UserTokenPolicy *utp = &sc->accessControl.userTokenPolicies[i];
+
+        /* Append the UserTokenPolicy from the AccesssControl plugin */
         res = UA_Array_appendCopy((void**)&ed->userIdentityTokens,
                                   &ed->userIdentityTokensSize, utp,
                                   &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
         if(res != UA_STATUSCODE_GOOD)
             return res;
 
-        /* Select the SecurityPolicy for the UserTokenType.
-         * If empty, the SecurityPolicy of the SecureChannel is used. */
+        /* Now we modify the freshly copied last entry and ignore whatever
+         * SecurityPolicy was set in sc->accessControl.userTokenPolicies and
+         * choose something appropriate. If empty, the SecurityPolicy of the
+         * SecureChannel is used. */
         utp = &ed->userIdentityTokens[ed->userIdentityTokensSize - 1];
         UA_String_clear(&utp->securityPolicyUri);
 
@@ -383,8 +387,8 @@ updateEndpointUserIdentityToken(UA_Server *server, UA_EndpointDescription *ed) {
          * allowNonePolicyPassword option has been set. The same logic is used
          * in selectEndpointAndTokenPolicy (ua_services_session.c). */
         if(utp->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
-           !(sc->allowNonePolicyPassword && utp->tokenType == UA_USERTOKENTYPE_USERNAME) &&
-           UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI)) {
+           UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI) &&
+           (!sc->allowNonePolicyPassword || utp->tokenType != UA_USERTOKENTYPE_USERNAME)) {
             UA_SecurityPolicy *encSP = getDefaultEncryptedSecurityPolicy(server);
             if(!encSP) {
                 /* No encrypted SecurityPolicy available */
