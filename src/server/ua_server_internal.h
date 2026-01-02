@@ -300,6 +300,14 @@ UA_SecurityPolicy *
 getSecurityPolicyByUri(const UA_Server *server,
                        const UA_String *securityPolicyUri);
 
+/* Get only the #None or #Basic256Sha256 postfix of a SecurityPolicyUri */
+UA_String
+securityPolicyUriPostfix(const UA_String uri);
+
+UA_SecurityPolicy *
+getSecurityPolicyByPostfix(const UA_Server *server,
+                           const UA_String uriPostfix);
+
 void
 notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
                     UA_ApplicationNotificationType type);
@@ -609,9 +617,6 @@ UA_ServerComponent * UA_BinaryProtocolManager_new(UA_Server *server);
 #ifdef UA_ENABLE_PUBSUB
 UA_ServerComponent * UA_PubSubManager_new(UA_Server *server);
 #endif
-
-UA_String
-securityPolicyUriPostfix(const UA_String uri);
 
 /***********/
 /* RefTree */
