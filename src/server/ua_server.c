@@ -16,7 +16,7 @@
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
- *    Copyright 2022 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2022-2025 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
@@ -564,8 +564,15 @@ UA_Server_init(UA_Server *server) {
     UA_AsyncManager_init(&server->asyncManager, server);
 #endif
 
-    /* Initialize namespace 0*/
+    /* Initialize namespace 0 */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    /* Standard configuration: generate NS0 nodes at runtime */
     res = initNS0(server);
+#else
+    /* NONE configuration: NS0 pre-loaded by external nodestore (e.g., ROM).
+     * Only connect data sources for dynamic values like ServerTime, ServerStatus, etc. */
+    res = initNS0_dataSources(server);
+#endif
     UA_CHECK_STATUS(res, goto cleanup);
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
@@ -967,7 +974,7 @@ UA_Server_updateCertificate(UA_Server *server,
         if(!UA_NodeId_equal(&sp->certificateTypeId, &certificateTypeId))
             continue;
 
-        retval = sp->updateCertificateAndPrivateKey(sp, certificate, newPrivateKey);
+        retval = sp->updateCertificate(sp, certificate, newPrivateKey);
         if(retval != UA_STATUSCODE_GOOD) {
             unlockServer(server);
             return retval;
@@ -1033,20 +1040,18 @@ UA_Server_createSigningRequest(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_ByteString *newPrivateKey = NULL;
-    if(regenerateKey && *regenerateKey == true) {
+    if(regenerateKey && *regenerateKey == true)
         newPrivateKey = UA_ByteString_new();
-    }
 
-    const UA_String securityPolicyNoneUri =
-           UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     for(size_t i = 0; i < server->config.endpointsSize; i++) {
-        UA_SecurityPolicy *sp = getSecurityPolicyByUri(server, &server->config.endpoints[i].securityPolicyUri);
+        UA_SecurityPolicy *sp =
+            getSecurityPolicyByUri(server, &server->config.endpoints[i].securityPolicyUri);
         if(!sp) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
 
-        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri))
+        if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
             continue;
 
         if(UA_NodeId_equal(&certificateTypeId, &sp->certificateTypeId) &&
@@ -1075,9 +1080,20 @@ cleanup:
 UA_SecurityPolicy *
 getSecurityPolicyByUri(const UA_Server *server, const UA_String *securityPolicyUri) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
-        UA_SecurityPolicy *securityPolicyCandidate = &server->config.securityPolicies[i];
-        if(UA_String_equal(securityPolicyUri, &securityPolicyCandidate->policyUri))
-            return securityPolicyCandidate;
+        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+        if(UA_String_equal(securityPolicyUri, &sp->policyUri))
+            return sp;
+    }
+    return NULL;
+}
+
+UA_SecurityPolicy *
+getSecurityPolicyByPostfix(const UA_Server *server, const UA_String uriPostfix) {
+    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+        UA_String spPostfix = securityPolicyUriPostfix(sp->policyUri);
+        if(UA_String_equal(&uriPostfix, &spPostfix))
+            return sp;
     }
     return NULL;
 }
@@ -1086,11 +1102,9 @@ getSecurityPolicyByUri(const UA_Server *server, const UA_String *securityPolicyU
  * SecurityPolicies */
 static UA_StatusCode
 verifyServerApplicationURI(const UA_Server *server) {
-    const UA_String securityPolicyNoneUri =
-        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
-        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) &&
+        if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE &&
            sp->localCertificate.length == 0)
             continue;
         UA_StatusCode retval =

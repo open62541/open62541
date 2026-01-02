@@ -706,9 +706,7 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
  *   /SourceNode => NodeId(i=2253)
  *
  * The order of the keys is identical to the order of SimpleAttributeOperands in
- * the select-clause. This feature requires the build flag ``UA_ENABLE_PARSING``
- * enabled. Otherwise the key-value map uses empty keys (the order of fields is
- * still the same as the specified select-clauses). */
+ * the select-clause. */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 

@@ -23,21 +23,20 @@ static UA_StatusCode
 setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *request,
                                               UA_ApplicationDescription *target,
                                               const UA_RegisteredServer *rs) {
-    UA_ApplicationDescription_init(target);
-    UA_StatusCode retval =
-        UA_String_copy(&rs->serverUri, &target->applicationUri);
+    UA_StatusCode retval =  UA_STATUSCODE_GOOD;
+    target->applicationType = rs->serverType;
+    retval |= UA_String_copy(&rs->serverUri, &target->applicationUri);
+    retval |= UA_String_copy(&rs->productUri, &target->productUri);
+    retval |= UA_String_copy(&rs->gatewayServerUri, &target->gatewayServerUri);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = UA_String_copy(&rs->productUri, &target->productUri);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    // if the client requests a specific locale, select the corresponding server name
+    /* If the client requests a specific locale, select the corresponding server
+     * name */
     if(request->localeIdsSize) {
         UA_Boolean appNameFound = false;
-        for(size_t i =0; i<request->localeIdsSize && !appNameFound; i++) {
-            for(size_t j =0; j<rs->serverNamesSize; j++) {
+        for(size_t i = 0; i < request->localeIdsSize && !appNameFound; i++) {
+            for(size_t j =0; j < rs->serverNamesSize; j++) {
                 if(UA_String_equal(&request->localeIds[i],
                                    &rs->serverNames[j].locale)) {
                     retval = UA_LocalizedText_copy(&rs->serverNames[j],
@@ -50,8 +49,8 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
             }
         }
 
-        // server does not have the requested local, therefore we can select the
-        // most suitable one
+        /* Server does not have the requested local, therefore we can select the
+         * most suitable one */
         if(!appNameFound && rs->serverNamesSize) {
             retval = UA_LocalizedText_copy(&rs->serverNames[0],
                                            &target->applicationName);
@@ -59,31 +58,24 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
                 return retval;
         }
     } else if(rs->serverNamesSize) {
-        // just take the first name
+        /* Just take the first name */
         retval = UA_LocalizedText_copy(&rs->serverNames[0],
                                        &target->applicationName);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
 
-    target->applicationType = rs->serverType;
-    retval = UA_String_copy(&rs->gatewayServerUri, &target->gatewayServerUri);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    // TODO where do we get the discoveryProfileUri for application data?
+    /* TODO: Where do we get the discoveryProfileUri for application data? */
 
-    target->discoveryUrlsSize = rs->discoveryUrlsSize;
-    if(rs->discoveryUrlsSize) {
-        size_t duSize = sizeof(UA_String) * rs->discoveryUrlsSize;
-        target->discoveryUrls = (UA_String *)UA_malloc(duSize);
+    if(rs->discoveryUrlsSize > 0) {
+        target->discoveryUrls = (UA_String *)
+            UA_calloc(rs->discoveryUrlsSize, sizeof(UA_String));
         if(!target->discoveryUrls)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        for(size_t i = 0; i < rs->discoveryUrlsSize; i++) {
-            retval = UA_String_copy(&rs->discoveryUrls[i],
-                                    &target->discoveryUrls[i]);
-            if(retval != UA_STATUSCODE_GOOD)
-                return retval;
-        }
+        target->discoveryUrlsSize = rs->discoveryUrlsSize;
+        for(size_t i = 0; i < rs->discoveryUrlsSize; i++)
+            retval |= UA_String_copy(&rs->discoveryUrls[i],
+                                     &target->discoveryUrls[i]);
     }
 
     return retval;
@@ -94,7 +86,8 @@ UA_Boolean
 Service_FindServers(UA_Server *server, UA_Session *session,
                     const UA_FindServersRequest *request,
                     UA_FindServersResponse *response) {
-    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing FindServersRequest");
+    UA_ServerConfig *sc = &server->config;
+    UA_LOG_DEBUG_SESSION(sc->logging, session, "Processing FindServersRequest");
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Return the server itself? */
@@ -102,7 +95,7 @@ Service_FindServers(UA_Server *server, UA_Session *session,
     if(request->serverUrisSize) {
         for(size_t i = 0; i < request->serverUrisSize; i++) {
             if(UA_String_equal(&request->serverUris[i],
-                               &server->config.applicationDescription.applicationUri)) {
+                               &sc->applicationDescription.applicationUri)) {
                 foundSelf = true;
                 break;
             }
@@ -116,8 +109,7 @@ Service_FindServers(UA_Server *server, UA_Session *session,
         return true;
 
     response->responseHeader.serviceResult =
-        UA_Array_copy(&server->config.applicationDescription, 1,
-                      (void**)&response->servers,
+        UA_Array_copy(&sc->applicationDescription, 1, (void**)&response->servers,
                       &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return true;
@@ -140,13 +132,20 @@ Service_FindServers(UA_Server *server, UA_Session *session,
         return true;
     }
 
-    /* Copy into the response. TODO: Evaluate return codes */
     size_t pos = 0;
-    if(foundSelf)
-        UA_ApplicationDescription_copy(&server->config.applicationDescription,
-                                       &response->servers[pos++]);
-
     registeredServer *current;
+
+    /* Copy "self" ApplicationDescriptions into the response */
+    if(foundSelf) {
+        response->responseHeader.serviceResult =
+            UA_ApplicationDescription_copy(&sc->applicationDescription,
+                                           &response->servers[pos]);
+        pos++;
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Copy registered ApplicationDescriptions into the response */
     LIST_FOREACH(current, &dm->registeredServers, pointers) {
         UA_Boolean usable = (request->serverUrisSize == 0);
         if(!usable) {
@@ -160,31 +159,41 @@ Service_FindServers(UA_Server *server, UA_Session *session,
             }
         }
 
-        if(usable)
-            setApplicationDescriptionFromRegisteredServer(request, &response->servers[pos++],
+        if(!usable)
+            continue;
+
+        response->responseHeader.serviceResult |=
+            setApplicationDescriptionFromRegisteredServer(request,
+                                                          &response->servers[pos],
                                                           &current->registeredServer);
+        pos++;
     }
 
+ cleanup:
+
     /* Set the final size */
-    if(pos > 0) {
-        response->serversSize = pos;
-    } else {
+    if(pos == 0) {
         UA_free(response->servers);
         response->servers = NULL;
     }
+    response->serversSize = pos;
 #endif
 
-    if(request->endpointUrl.length > 0 && response->servers != NULL) {
+    /* Mirror back the expected EndpointUrl */
+    if(request->endpointUrl.length > 0) {
         for(size_t i = 0; i < response->serversSize; i++) {
-            UA_Array_delete(response->servers[i].discoveryUrls,
-                            response->servers[i].discoveryUrlsSize,
+            UA_ApplicationDescription *ad = &response->servers[i];
+            UA_Array_delete(ad->discoveryUrls, ad->discoveryUrlsSize,
                             &UA_TYPES[UA_TYPES_STRING]);
-            response->servers[i].discoveryUrls = NULL;
-            response->servers[i].discoveryUrlsSize = 0;
-            response->responseHeader.serviceResult |=
-                UA_Array_appendCopy((void**)&response->servers[i].discoveryUrls,
-                                    &response->servers[i].discoveryUrlsSize,
-                                    &request->endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
+            ad->discoveryUrls = NULL;
+            ad->discoveryUrlsSize = 0;
+            response->responseHeader.serviceResult =
+                UA_Array_copy(&request->endpointUrl, 1,
+                              (void**)&ad->discoveryUrls,
+                              &UA_TYPES[UA_TYPES_STRING]);
+            if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+                break;
+            ad->discoveryUrlsSize = 1;
         }
     }
 
@@ -293,22 +302,41 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 }
 #endif
 
-static const UA_String UA_SECURITY_POLICY_BASIC256SHA256_URI =
-    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
-
+/* Get an encrypted policy or NULL if no encrypted policy is defined */
 UA_SecurityPolicy *
 getDefaultEncryptedSecurityPolicy(UA_Server *server) {
+    /* Use Basic256Sha256 if available */
+    static const UA_String UA_SECURITY_POLICY_BASIC256SHA256_URI =
+        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
         if(UA_String_equal(&UA_SECURITY_POLICY_BASIC256SHA256_URI, &sp->policyUri))
             return sp;
     }
-    for(size_t i = server->config.securityPoliciesSize; i > 0; i--) {
-        UA_SecurityPolicy *sp = &server->config.securityPolicies[i-1];
-        if(!UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &sp->policyUri))
-            return sp;
+    /* Search the best RSA policy */
+    UA_SecurityPolicy *best = NULL;
+    UA_Byte securityLevel = 0;
+    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+        UA_assert(sp != NULL);
+        if(sp->policyType == UA_SECURITYPOLICYTYPE_RSA &&
+           sp->securityLevel >= securityLevel) {
+            best = sp;
+            securityLevel = sp->securityLevel;
+        }
     }
-    return NULL; /* No encrypted policy found */
+    if(best)
+        return best;
+    /* Return the best encrypted policy or return NULL */
+    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+        if(sp->policyType != UA_SECURITYPOLICYTYPE_NONE &&
+           sp->securityLevel >= securityLevel) {
+            best = sp;
+            securityLevel = sp->securityLevel;
+        }
+    }
+    return best;
 }
 
 static const char *securityModeStrs[4] = {"-invalid", "-none", "-sign", "-sign+encrypt"};
@@ -326,35 +354,41 @@ securityPolicyUriPostfix(const UA_String uri) {
 
 static UA_StatusCode
 updateEndpointUserIdentityToken(UA_Server *server, UA_EndpointDescription *ed) {
-    /* Don't change the UserIdentityTokens if there are manually configured
+    /* Don't modify the UserIdentityTokens if there are manually configured
      * entries */
     if(ed->userIdentityTokensSize > 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Copy the UserTokenPolicies from the AccessControl plugin, but only the matching ones to the securityPolicyUri.
+    /* Copy the UserTokenPolicies from the AccessControl plugin, but only the
+     * matching ones to the securityPolicyUri.
      * TODO: Different instances of the AccessControl plugin per Endpoint */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_ServerConfig *sc = &server->config;
     for(size_t i = 0; i < sc->accessControl.userTokenPoliciesSize; i++) {
         UA_UserTokenPolicy *utp = &sc->accessControl.userTokenPolicies[i];
+
+        /* Append the UserTokenPolicy from the AccesssControl plugin */
         res = UA_Array_appendCopy((void**)&ed->userIdentityTokens,
                                   &ed->userIdentityTokensSize, utp,
                                   &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
         if(res != UA_STATUSCODE_GOOD)
             return res;
 
-        /* Select the SecurityPolicy for the UserTokenType.
-         * If not set, the SecurityPolicy of the SecureChannel is used. */
+        /* Now we modify the freshly copied last entry and ignore whatever
+         * SecurityPolicy was set in sc->accessControl.userTokenPolicies and
+         * choose something appropriate. If empty, the SecurityPolicy of the
+         * SecureChannel is used. */
         utp = &ed->userIdentityTokens[ed->userIdentityTokensSize - 1];
         UA_String_clear(&utp->securityPolicyUri);
+
 #ifdef UA_ENABLE_ENCRYPTION
         /* Anonymous tokens don't need encryption. All other tokens require
          * encryption with the exception of Username/Password if also the
          * allowNonePolicyPassword option has been set. The same logic is used
          * in selectEndpointAndTokenPolicy (ua_services_session.c). */
         if(utp->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
-           !(sc->allowNonePolicyPassword && utp->tokenType == UA_USERTOKENTYPE_USERNAME) &&
-           UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI)) {
+           UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI) &&
+           (!sc->allowNonePolicyPassword || utp->tokenType != UA_USERTOKENTYPE_USERNAME)) {
             UA_SecurityPolicy *encSP = getDefaultEncryptedSecurityPolicy(server);
             if(!encSP) {
                 /* No encrypted SecurityPolicy available */
@@ -398,31 +432,35 @@ updateEndpointUserIdentityToken(UA_Server *server, UA_EndpointDescription *ed) {
     return res;
 }
 
-/* Also reused to create the EndpointDescription array in the CreateSessionResponse */
+/* Also reused to create the EndpointDescription array in the
+ * CreateSessionResponse */
 UA_StatusCode
 setCurrentEndPointsArray(UA_Server *server, const UA_String endpointUrl,
                          UA_String *profileUris, size_t profileUrisSize,
                          UA_EndpointDescription **arr, size_t *arrSize) {
+    UA_ServerConfig *sc = &server->config;
+
     /* Clone the endpoint for each discoveryURL? */
     size_t clone_times = 1;
     if(endpointUrl.length == 0)
-        clone_times = server->config.applicationDescription.discoveryUrlsSize;
+        clone_times = sc->applicationDescription.discoveryUrlsSize;
 
     /* Allocate the array */
     *arr = (UA_EndpointDescription*)
-        UA_Array_new(server->config.endpointsSize * clone_times,
+        UA_Array_new(sc->endpointsSize * clone_times,
                      &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     if(!*arr)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     size_t pos = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    for(size_t j = 0; j < server->config.endpointsSize; ++j) {
+    for(size_t j = 0; j < sc->endpointsSize; ++j) {
         /* Test if the supported binary profile shall be returned */
         UA_Boolean usable = (profileUrisSize == 0);
         if(!usable) {
             for(size_t i = 0; i < profileUrisSize; ++i) {
-                if(!UA_String_equal(&profileUris[i], &server->config.endpoints[j].transportProfileUri))
+                UA_EndpointDescription *ep = &sc->endpoints[j];
+                if(!UA_String_equal(&profileUris[i], &ep->transportProfileUri))
                     continue;
                 usable = true;
                 break;
@@ -435,20 +473,22 @@ setCurrentEndPointsArray(UA_Server *server, const UA_String endpointUrl,
         for(size_t i = 0; i < clone_times; ++i) {
             /* Copy the endpoint with a current ApplicationDescription */
             UA_EndpointDescription *ed = &(*arr)[pos];
-            retval |= UA_EndpointDescription_copy(&server->config.endpoints[j], ed);
+            retval |= UA_EndpointDescription_copy(&sc->endpoints[j], ed);
             UA_ApplicationDescription_clear(&ed->server);
-            retval |= UA_ApplicationDescription_copy(&server->config.applicationDescription,
+            retval |= UA_ApplicationDescription_copy(&sc->applicationDescription,
                                                      &ed->server);
 
             /* Return the certificate for the SecurityPolicy. If the
              * SecureChannel is unencrypted, select the default encrypted
              * SecurityPolicy. */
-            UA_SecurityPolicy *sp = getSecurityPolicyByUri(server, &ed->securityPolicyUri);
-            if(!sp || UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &sp->policyUri))
+            UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
+                                                           &ed->securityPolicyUri);
+            if(!sp || sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
                 sp = getDefaultEncryptedSecurityPolicy(server);
             if(sp) {
                 UA_ByteString_clear(&ed->serverCertificate);
-                retval |= UA_ByteString_copy(&sp->localCertificate, &ed->serverCertificate);
+                retval |= UA_ByteString_copy(&sp->localCertificate,
+                                             &ed->serverCertificate);
             }
 
             /* Set the User Identity Token list fromt the AccessControl plugin */
@@ -457,23 +497,25 @@ setCurrentEndPointsArray(UA_Server *server, const UA_String endpointUrl,
             /* Set the EndpointURL */
             UA_String_clear(&ed->endpointUrl);
             if(endpointUrl.length == 0) {
-                retval |= UA_String_copy(&server->config.applicationDescription.
-                                         discoveryUrls[i], &ed->endpointUrl);
+                retval |= UA_String_copy(&sc->applicationDescription.discoveryUrls[i],
+                                         &ed->endpointUrl);
             } else {
                 /* Mirror back the requested EndpointUrl and also add it to the
                  * array of discovery urls */
                 retval |= UA_String_copy(&endpointUrl, &ed->endpointUrl);
 
-                /* Check if the ServerUrl is already present in the DiscoveryUrl array */
+                /* Check if the ServerUrl is already present in the DiscoveryUrl
+                 * array */
                 size_t k = 0;
                 for(; k < ed->server.discoveryUrlsSize; k++) {
                     if(UA_String_equal(&ed->endpointUrl, &ed->server.discoveryUrls[k]))
                         break;
                 }
                 if(k == ed->server.discoveryUrlsSize) {
-                    retval |= UA_Array_appendCopy(
-                        (void **)&ed->server.discoveryUrls, &ed->server.discoveryUrlsSize,
-                        &endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
+                    retval |= UA_Array_appendCopy((void **)&ed->server.discoveryUrls,
+                                                  &ed->server.discoveryUrlsSize,
+                                                  &endpointUrl,
+                                                  &UA_TYPES[UA_TYPES_STRING]);
                 }
             }
             if(retval != UA_STATUSCODE_GOOD)
@@ -487,7 +529,7 @@ setCurrentEndPointsArray(UA_Server *server, const UA_String endpointUrl,
     return UA_STATUSCODE_GOOD;
 
  error:
-    UA_Array_delete(*arr, server->config.endpointsSize * clone_times,
+    UA_Array_delete(*arr, sc->endpointsSize * clone_times,
                     &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     *arr = NULL;
     return retval;
@@ -499,17 +541,12 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
                      UA_GetEndpointsResponse *response) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
+                         "Processing GetEndpointsRequest with endpointUrl %S",
+                         request->endpointUrl);
+
     /* If the client expects to see a specific endpointurl, mirror it back. If
      * not, clone the endpoints with the discovery url of all networklayers. */
-    if(request->endpointUrl.length > 0) {
-        UA_LOG_DEBUG_SESSION(server->config.logging, session,
-                             "Processing GetEndpointsRequest with endpointUrl "
-                             UA_PRINTF_STRING_FORMAT, UA_PRINTF_STRING_DATA(request->endpointUrl));
-    } else {
-        UA_LOG_DEBUG_SESSION(server->config.logging, session,
-                             "Processing GetEndpointsRequest with an empty endpointUrl");
-    }
-
     response->responseHeader.serviceResult =
         setCurrentEndPointsArray(server, request->endpointUrl,
                                  request->profileUris, request->profileUrisSize,
@@ -537,7 +574,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     if(!dm)
         return;
 
-    if(server->config.applicationDescription.applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+    UA_ServerConfig *sc = &server->config;
+    if(sc->applicationDescription.applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER) {
         responseHeader->serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
         return;
     }
@@ -594,8 +632,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         char* filePath = (char*)
             UA_malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
         if(!filePath) {
-            UA_LOG_ERROR_SESSION(server->config.logging, session,
-                                 "Cannot allocate memory for semaphore path. Out of memory.");
+            UA_LOG_ERROR_SESSION(sc->logging, session,
+                                 "Cannot allocate memory for semaphore path. "
+                                 "Out of memory.");
             responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
         }
@@ -609,14 +648,14 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         }
         UA_free(filePath);
 #else
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_CLIENT,
                        "Ignoring semaphore file path. open62541 not compiled "
                        "with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
 #endif
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.mdnsEnabled) {
+    if(sc->mdnsEnabled) {
         for(size_t i = 0; i < requestServer->discoveryUrlsSize; i++) {
             /* create TXT if is online and first index, delete TXT if is offline
              * and last index */
@@ -630,10 +669,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 #endif
 
     if(!requestServer->isOnline) {
-        // server is shutting down. Remove it from the registered servers list
+        /* Server is shutting down. Remove it from the registered servers list */
         if(!rs) {
-            // server not found, show warning
-            UA_LOG_WARNING_SESSION(server->config.logging, session,
+            /* Server not found, show warning */
+            UA_LOG_WARNING_SESSION(sc->logging, session,
                                    "Could not unregister server %S. Not registered.",
                                    requestServer->serverUri);
             responseHeader->serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -643,7 +682,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         if(dm->registerServerCallback)
             dm->registerServerCallback(requestServer, dm->registerServerCallbackData);
 
-        // server found, remove from list
+        /* Server found, remove from list */
         LIST_REMOVE(rs, pointers);
         UA_RegisteredServer_clear(&rs->registeredServer);
         UA_free(rs);
@@ -654,8 +693,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!rs) {
-        // server not yet registered, register it by adding it to the list
-        UA_LOG_DEBUG_SESSION(server->config.logging, session,
+        /* Server not yet registered, register it by adding it to the list */
+        UA_LOG_DEBUG_SESSION(sc->logging, session,
                              "Registering new server: %S",
                              requestServer->serverUri);
 
@@ -671,16 +710,16 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         UA_RegisteredServer_clear(&rs->registeredServer);
     }
 
-    // Always call the callback, if it is set. Previously we only called it if
-    // it was a new register call. It may be the case that this endpoint
-    // registered before, then crashed, restarts and registeres again. In that
-    // case the entry is not deleted and the callback would not be called.
+    /* Always call the callback, if it is set. Previously we only called it if
+     * it was a new register call. It may be the case that this endpoint
+     * registered before, then crashed, restarts and registeres again. In that
+     * case the entry is not deleted and the callback would not be called. */
     if(dm->registerServerCallback)
         dm->registerServerCallback(requestServer,
                                    dm->registerServerCallbackData);
 
-    // copy the data from the request into the list
-    UA_EventLoop *el = server->config.eventLoop;
+    /* Ccopy the data from the request into the list */
+    UA_EventLoop *el = sc->eventLoop;
     UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     UA_RegisteredServer_copy(requestServer, &rs->registeredServer);
     rs->lastSeen = nowMonotonic;
@@ -707,10 +746,14 @@ Service_RegisterServer2(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RegisterServer2Request");
     UA_LOCK_ASSERT(&server->serviceMutex);
-    process_RegisterServer(server, session, &request->requestHeader, &request->server,
-                           request->discoveryConfigurationSize, request->discoveryConfiguration,
-                           &response->responseHeader, &response->configurationResultsSize,
-                           &response->configurationResults, &response->diagnosticInfosSize,
+    process_RegisterServer(server, session, &request->requestHeader,
+                           &request->server,
+                           request->discoveryConfigurationSize,
+                           request->discoveryConfiguration,
+                           &response->responseHeader,
+                           &response->configurationResultsSize,
+                           &response->configurationResults,
+                           &response->diagnosticInfosSize,
                            response->diagnosticInfos);
     return true;
 }

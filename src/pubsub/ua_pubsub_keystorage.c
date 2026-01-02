@@ -182,36 +182,30 @@ splitCurrentKeyMaterial(UA_PubSubKeyStorage *ks, UA_ByteString *signingKey,
                         UA_ByteString *encryptingKey, UA_ByteString *keyNonce) {
     if(!ks)
         return UA_STATUSCODE_BADNOTFOUND;
-
     if(!ks->policy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_PubSubSecurityPolicy *policy = ks->policy;
-
     UA_ByteString key = ks->currentItem->key;
 
-    /*Check the main key length is the same according to policy*/
-    if(key.length != policy->symmetricModule.secureChannelNonceLength)
+    /* Check the main key length is the same according to policy */
+    if(key.length != policy->nonceLength)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /*Get Key Length according to policy*/
-    size_t signingkeyLength =
-        policy->symmetricModule.cryptoModule.signatureAlgorithm.getLocalKeyLength(NULL);
-    size_t encryptkeyLength =
-        policy->symmetricModule.cryptoModule.encryptionAlgorithm.getLocalKeyLength(NULL);
-    /*Rest of the part is the keyNonce*/
+    /* Get key length according to policy */
+    size_t signingkeyLength = policy->getSignatureKeyLength(policy, NULL);
+    size_t encryptkeyLength = policy->getEncryptionKeyLength(policy, NULL);
+
+    /* Rest of the part is the keyNonce */
     size_t keyNonceLength = key.length - signingkeyLength - encryptkeyLength;
 
-    /*DivideKeys in origin ByteString*/
+    /* DivideKeys in origin ByteString */
     signingKey->data = key.data;
     signingKey->length = signingkeyLength;
-
     encryptingKey->data = key.data + signingkeyLength;
     encryptingKey->length = encryptkeyLength;
-
     keyNonce->data = key.data + signingkeyLength + encryptkeyLength;
     keyNonce->length = keyNonceLength;
-
     return UA_STATUSCODE_GOOD;
 }
 

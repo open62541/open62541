@@ -12,7 +12,7 @@
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
- *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2021-2025 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2022 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  */
 
@@ -245,7 +245,6 @@ struct UA_Server {
 
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     LIST_HEAD(, UA_ConditionSource) conditionSources;
-    UA_NodeId refreshEvents[2];
 # endif
 #endif
 
@@ -300,6 +299,14 @@ sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 request
 UA_SecurityPolicy *
 getSecurityPolicyByUri(const UA_Server *server,
                        const UA_String *securityPolicyUri);
+
+/* Get only the #None or #Basic256Sha256 postfix of a SecurityPolicyUri */
+UA_String
+securityPolicyUriPostfix(const UA_String uri);
+
+UA_SecurityPolicy *
+getSecurityPolicyByPostfix(const UA_Server *server,
+                           const UA_String uriPostfix);
 
 void
 notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
@@ -611,9 +618,6 @@ UA_ServerComponent * UA_BinaryProtocolManager_new(UA_Server *server);
 UA_ServerComponent * UA_PubSubManager_new(UA_Server *server);
 #endif
 
-UA_String
-securityPolicyUriPostfix(const UA_String uri);
-
 /***********/
 /* RefTree */
 /***********/
@@ -790,6 +794,9 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 /**********************/
 
 UA_StatusCode initNS0(UA_Server *server);
+
+/* Connect data sources to existing NS0 nodes */
+UA_StatusCode initNS0_dataSources(UA_Server *server);
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 UA_StatusCode

@@ -226,6 +226,7 @@ START_TEST(encryption_connect) {
 
     /* Secure client connect */
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    assert(retval == UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant val;

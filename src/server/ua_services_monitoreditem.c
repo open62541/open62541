@@ -727,7 +727,6 @@ UA_Server_createEventMonitoredItemEx(UA_Server *server,
     }
     localMon->eventFields.mapSize = ef->selectClausesSize;
 
-#ifdef UA_ENABLE_PARSING
     for(size_t i = 0; i < ef->selectClausesSize; i++) {
         result.statusCode |=
             UA_SimpleAttributeOperand_print(&ef->selectClauses[i],
@@ -738,7 +737,6 @@ UA_Server_createEventMonitoredItemEx(UA_Server *server,
         UA_free(localMon);
         return result;
     }
-#endif
 
     /* Call the service */
     struct createMonContext cmc;

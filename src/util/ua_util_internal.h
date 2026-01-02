@@ -135,6 +135,12 @@ nodeId_printEscape(const UA_NodeId *id, UA_String *output,
 UA_StatusCode
 encodeDateTime(const UA_DateTime dt, UA_String *output);
 
+/***************/
+/* Log Helpers */
+/***************/
+
+extern char * securityModeNames[4];
+
 /**
  * Error checking macros
  */
@@ -433,8 +439,6 @@ UA_ENCODING_HELPERS(DiagnosticInfo, DIAGNOSTICINFO)
 
 /* ECC Encrypted Secret node ID identifier, arbitrarily chosen*/
 #define NODE_IDENTIFIER_NUMERIC_ECCENCRYPTEDSEC 335
-
-UA_Boolean UA_SecurityPolicy_isEccPolicy(UA_String policyURI);
 
 UA_StatusCode
 encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,

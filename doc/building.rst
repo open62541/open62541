@@ -274,10 +274,6 @@ Detailed SDK Features
 **UA_ENABLE_METHODCALLS**
    Enable the Method service set
 
-**UA_ENABLE_PARSING**
-   Enable parsing human readable formats of builtin data types (Guid, NodeId, etc.).
-   Utility functions that are not essential to the SDK.
-
 **UA_ENABLE_NODEMANAGEMENT**
    Enable dynamic addition and removal of nodes at runtime
 
