@@ -9,7 +9,8 @@
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
 if __name__ == "__main__" and __package__ is None:
-    import os, sys
+    import os
+    import sys
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     __package__ = "nodeset_compiler"
 
@@ -129,8 +130,7 @@ args.typesArray = tmp_list
 def getTypesArray(nsIdx):
     if nsIdx < len(args.typesArray):
         return args.typesArray[nsIdx]
-    else:
-        return "UA_TYPES"
+    return "UA_TYPES"
 
 def hasCustomDataType(xmlfile):
     tree = etree.parse(xmlfile)
