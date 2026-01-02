@@ -14,6 +14,7 @@
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart
  *    Copyright 2022 (c) Linutronix GmbH (Author: Muddasir Shakil)
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_CLIENT_H_
@@ -557,27 +558,14 @@ typedef void (*UA_ClientNotificationCallback)(UA_Client *client,
                                               UA_ApplicationNotificationType type,
                                               const UA_KeyValueMap payload);
 
-
 /**
  * .. _client-config:
  *
  * Client Configuration
  * --------------------
- *
- * The client configuration is used for setting connection parameters and
- * additional settings used by the client.
- * The configuration should not be modified after it is passed to a client.
- * Currently, only one client can use a configuration at a time.
- *
- * Examples for configurations are provided in the ``/plugins`` folder.
- * The usual usage is as follows:
- *
- * 1. Create a client configuration with default settings as a starting point
- * 2. Modifiy the configuration, e.g. modifying the timeout
- * 3. Instantiate a client with it
- * 4. After shutdown of the client, clean up the configuration (free memory)
- *
- * The :ref:`tutorials` provide a good starting point for this. */
+ * The configuration used for setting connection parameters and additional
+ * client settings. The :ref:`tutorials` provide examples for many of the
+ * client settings. */
 
 struct UA_ClientConfig {
     void *clientContext; /* User-defined pointer attached to the client */
@@ -589,14 +577,10 @@ struct UA_ClientConfig {
      * setting a non-null "timeoutHint" in the request header. */
     UA_UInt32 timeout;
 
-    /* The description must be internally consistent.
-     * - The ApplicationUri set in the ApplicationDescription must match the
-     *   URI set in the certificate */
+    /* Self-description of the client.
+     * The ApplicationUri set in the ApplicationDescription must match the URI
+     * set in the certificate */
     UA_ApplicationDescription clientDescription;
-
-    /* The endpoint for the client to connect to.
-     * Such as "opc.tcp://host:port". */
-    UA_String endpointUrl;
 
     /* Connection configuration
      * ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -604,21 +588,78 @@ struct UA_ClientConfig {
      * client has when connecting to a server. If no connection can be made
      * under these restrictions, then the connection will abort with an error
      * message. */
-    UA_ExtensionObject userIdentityToken; /* Configured User-Identity Token */
-    UA_MessageSecurityMode securityMode;  /* None, Sign, SignAndEncrypt. The
-                                           * default is "invalid". This
-                                           * indicates the client to select any
-                                           * matching endpoint. */
-    UA_String securityPolicyUri; /* SecurityPolicy for the SecureChannel. An
-                                  * empty string indicates the client to select
-                                  * any matching SecurityPolicy. */
 
-    UA_Boolean noSession;   /* Only open a SecureChannel, but no Session */
-    UA_Boolean noReconnect; /* Don't reconnect SecureChannel when the connection
-                             * is lost without explicitly closing. */
+    UA_String endpointUrl; /* The URI for the client to connect to
+                            * ("opc.tcp://host:port") */
+
+    /* Session config */
+    UA_ExtensionObject userIdentityToken; /* UserIdentityToken containing e.g.
+                                           * username+pwd for authentication.
+                                           * Set by the _connect API. */
+    UA_String sessionName;         /* Client-defined session name */
+    UA_LocaleId *sessionLocaleIds; /* Preferred locales of the client */
+    size_t sessionLocaleIdsSize;
+
+    /* Basic connection behavior */
+    UA_Boolean noSession;    /* Only open a SecureChannel, but no Session */
+    UA_Boolean noReconnect;  /* Don't reconnect SecureChannel when the connection
+                              * is lost without explicitly closing. */
     UA_Boolean noNewSession; /* Don't automatically create a new Session when
                               * the intial one is lost. Instead abort the
                               * connection when the Session is lost. */
+
+    /* Advanced Connection Settings */
+    UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
+                                      * to be renewed) */
+    UA_UInt32 requestedSessionTimeout; /* Session timeout in ms */
+    UA_ConnectionConfig localConnectionConfig;
+    UA_UInt32 connectivityCheckInterval; /* Connectivity check interval in ms.
+                                          * 0 -> background task disabled */
+    UA_Boolean tcpReuseAddr; /* Specific to OPC UA with TCP transport. */
+
+    /* Endpoint Selection
+     * ~~~~~~~~~~~~~~~~~~
+     * The Endpoint and UserTokenPolicy define the encryption for the
+     * SecureChannel and for the UserIdentityToken (e.g. to encrypt
+     * username/password). They can be set directly or selected by the client
+     * from the GetEndpoints response via filter criteria. */
+
+    /* Direct definition of Endpoint and UserTokenPolicy. Note that an Endpoint
+     * can define multiple UserTokenPolicies to select. */
+    UA_EndpointDescription endpoint;
+    UA_UserTokenPolicy userTokenPolicy;
+
+    /* Endpoint filtering */
+    UA_String applicationUri; /* Filters the servers considered in the
+                               * FindServers service and the Endpoints
+                               * considered in the GetEndpoints service. */
+    UA_MessageSecurityMode securityMode; /* None, Sign, SignAndEncrypt. The
+                                          * default is "invalid". This lets the
+                                          * client select any matching
+                                          * endpoint. */
+    UA_String securityPolicyUri; /* SecurityPolicy for the SecureChannel. An
+                                  * empty string indicates the client to select
+                                  * any avaialble SecurityPolicy. */
+    UA_String authSecurityPolicyUri; /* For authentication (UserIdentityToken).
+                                      * The empty string lets the client select
+                                      * any matching policy. */
+
+    /* Security Configuration
+     * ~~~~~~~~~~~~~~~~~~~~~~
+     * Additional settings and the plugins providing encryption support. */
+
+    /* Available SecurityPolicies (Plugins) */
+    size_t securityPoliciesSize;
+    UA_SecurityPolicy *securityPolicies;
+
+    /* Certificate Verification Plugin */
+    UA_CertificateGroup certificateVerification;
+
+    /* Additional SecurityPolicies for authentication (e.g. to encrypt the
+     * password). The SecurityPolicies for SecureChannels (above) are also
+     * usable for authentication. */
+    size_t authSecurityPoliciesSize;
+    UA_SecurityPolicy *authSecurityPolicies;
 
     /* Allow clients without encryption support to connect with username and
      * password. This requires to transmit the password in plain text over the
@@ -626,19 +667,19 @@ struct UA_ClientConfig {
      * really need this before enabling plain text passwords. */
     UA_Boolean allowNonePolicyPassword;
 
-    /* If either endpoint or userTokenPolicy has been set, then they are used
-     * directly. Otherwise this information comes from the GetEndpoints response
-     * from the server (filtered and selected for the SecurityMode, etc.). */
-    UA_EndpointDescription endpoint;
-    UA_UserTokenPolicy userTokenPolicy;
+#ifdef UA_ENABLE_ENCRYPTION
+    /* Limits for TrustList */
+    UA_UInt32 maxTrustListSize; /* in bytes, 0 => unlimited */
+    UA_UInt32 maxRejectedListSize; /* 0 => unlimited */
 
-    /* If the EndpointDescription has not been defined, the ApplicationURI
-     * filters the servers considered in the FindServers service and the
-     * Endpoints considered in the GetEndpoints service. */
-    UA_String applicationUri;
-
-    /* The following settings are specific to OPC UA with TCP transport. */
-    UA_Boolean tcpReuseAddr;
+    /* If the private key is in PEM format and password protected, this callback
+     * is called during initialization to get the password to decrypt the
+     * private key. The memory containing the password is freed by the client
+     * after use. The callback should be set early, other parts of the client
+     * config setup may depend on it. */
+    UA_StatusCode (*privateKeyPasswordCallback)(UA_ClientConfig *cc,
+                                                UA_ByteString *password);
+#endif
 
     /* Custom Data Types
      * ~~~~~~~~~~~~~~~~~
@@ -650,6 +691,7 @@ struct UA_ClientConfig {
      *
      * See the section on :ref:`generic-types`. Examples for working with custom
      * data types are provided in ``/examples/custom_datatype/``. */
+
     UA_DataTypeArray *customDataTypes;
 
     /* Namespace Mapping
@@ -674,53 +716,21 @@ struct UA_ClientConfig {
      * - When the client connects, the namespace array of the server is read.
      *   All previously unknown namespaces are added from this to the internal
      *   array of the client. */
+
     UA_String *namespaces;
     size_t namespacesSize;
-
-    /* Advanced Client Configuration
-     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-
-    UA_UInt32 secureChannelLifeTime; /* Lifetime in ms (then the channel needs
-                                        to be renewed) */
-    UA_UInt32 requestedSessionTimeout; /* Session timeout in ms */
-    UA_ConnectionConfig localConnectionConfig;
-    UA_UInt32 connectivityCheckInterval;     /* Connectivity check interval in ms.
-                                              * 0 = background task disabled */
 
     /* Application Notification
      * ~~~~~~~~~~~~~~~~~~~~~~~~
      * The notification callbacks can be NULL. The global callback receives all
      * notifications. The specialized callbacks receive only the subset
      * indicated by their name. */
+
     UA_ClientNotificationCallback globalNotificationCallback;
     UA_ClientNotificationCallback lifecycleNotificationCallback;
     UA_ClientNotificationCallback serviceNotificationCallback;
 
-    /* EventLoop */
-    UA_EventLoop *eventLoop;
-    UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
-
-    /* Available SecurityPolicies */
-    size_t securityPoliciesSize;
-    UA_SecurityPolicy *securityPolicies;
-
-    /* Certificate Verification Plugin */
-    UA_CertificateGroup certificateVerification;
-
-#ifdef UA_ENABLE_ENCRYPTION
-    /* Limits for TrustList */
-    UA_UInt32 maxTrustListSize; /* in bytes, 0 => unlimited */
-    UA_UInt32 maxRejectedListSize; /* 0 => unlimited */
-#endif
-
-    /* Available SecurityPolicies for Authentication. The policy defined by the
-     * AccessControl is selected. If no policy is defined, the policy of the
-     * secure channel is selected.*/
-    size_t authSecurityPoliciesSize;
-    UA_SecurityPolicy *authSecurityPolicies;
-
-    /* SecurityPolicyUri for the Authentication. */
-    UA_String authSecurityPolicyUri;
+    /* Below are the old state-change callbacks */
 
     /* Callback for state changes. The client state is differentated into the
      * SecureChannel state and the Session state. The connectStatus is set if
@@ -734,13 +744,10 @@ struct UA_ClientConfig {
 
     /* When connectivityCheckInterval is greater than 0, every
      * connectivityCheckInterval (in ms), an async read request is performed on
-     * the server. inactivityCallback is called when the client receive no
-     * response for this read request The connection can be closed, this in an
+     * the server. inactivityCallback is called when the client receives no
+     * response for this read request. The connection can be closed, this in an
      * attempt to recreate a healthy connection. */
     void (*inactivityCallback)(UA_Client *client);
-
-    /* Number of PublishResponse queued up in the server */
-    UA_UInt16 outStandingPublishRequests;
 
     /* If the client does not receive a PublishResponse after the defined delay
      * of ``(sub->publishingInterval * sub->maxKeepAliveCount) +
@@ -750,25 +757,20 @@ struct UA_ClientConfig {
                                            UA_UInt32 subscriptionId,
                                            void *subContext);
 
-    /* Session config */
-    UA_String sessionName;
-    UA_LocaleId *sessionLocaleIds;
-    size_t sessionLocaleIdsSize;
+    /* Advanced Settings
+     * ~~~~~~~~~~~~~~~~~ */
 
-#ifdef UA_ENABLE_ENCRYPTION
-    /* If the private key is in PEM format and password protected, this callback
-     * is called during initialization to get the password to decrypt the
-     * private key. The memory containing the password is freed by the client
-     * after use. The callback should be set early, other parts of the client
-     * config setup may depend on it. */
-    UA_StatusCode (*privateKeyPasswordCallback)(UA_ClientConfig *cc,
-                                                UA_ByteString *password);
-#endif
+    /* Number of PublishResponse queued up in the server */
+    UA_UInt16 outStandingPublishRequests;
+
+    /* EventLoop */
+    UA_EventLoop *eventLoop;
+    UA_Boolean externalEventLoop; /* Don't delete the EventLoop with the config */
 };
 
-/* Makes a partial deep copy of the clientconfig. The copies of the plugins
- * (logger, eventloop, securitypolicy) are shallow. Therefore calling _clear on
- * the dst object will also delete the plugins in src object. */
+/* Makes a deep copy of the config. Only The copies of the plugins (logger,
+ * eventloop, securitypolicy) are shallow. Therefore calling _clear on dst will
+ * also delete the plugins of src. */
 UA_EXPORT UA_StatusCode
 UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst);
 
