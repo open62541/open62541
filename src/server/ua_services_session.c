@@ -847,13 +847,10 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         const UA_ActivateSessionRequest *req,
                         UA_ActivateSessionResponse *resp) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    const UA_EndpointDescription *ed = NULL;
-    const UA_UserTokenPolicy *utp = NULL;
-    const UA_SecurityPolicy *tokenSp = NULL;
-    UA_String *tmpLocaleIds;
 
     /* Get the session */
-    UA_Session *session = getSessionByToken(server, &req->requestHeader.authenticationToken);
+    UA_Session *session =
+        getSessionByToken(server, &req->requestHeader.authenticationToken);
     if(!session) {
         UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "ActivateSession: Session not found");
@@ -868,8 +865,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * associated with different SecureChannels. */
     if(!session->activated && session->channel != channel) {
         UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
-                               "ActivateSession: The Session has to be initially activated "
-                               "on the SecureChannel that created it");
+                               "ActivateSession: The Session has to be initially "
+                               "activated on the SecureChannel that created it");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         UA_SESSION_REJECT;
     }
@@ -903,6 +900,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Find the matching Endpoint with UserTokenPolicy.
      * Also sets the SecurityPolicy used to encrypt the token. */
+    const UA_EndpointDescription *ed = NULL;
+    const UA_UserTokenPolicy *utp = NULL;
+    const UA_SecurityPolicy *tokenSp = NULL;
     selectEndpointAndTokenPolicy(server, channel, session,
                                  &req->userIdentityToken,
                                  &ed, &utp, &tokenSp);
@@ -924,8 +924,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
          * With ECC policies, the password is EccEncryptedSecret */
         if(tokenSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
             resp->responseHeader.serviceResult =
-                decryptUserTokenEcc(server->config.logging, session->serverNonce, tokenSp,
-                                    userToken->encryptionAlgorithm, &userToken->password);
+                decryptUserTokenEcc(server->config.logging, session->serverNonce,
+                                    tokenSp, userToken->encryptionAlgorithm,
+                                    &userToken->password);
         } else {
             resp->responseHeader.serviceResult =
             decryptUserToken(server, session, channel, tokenSp,
@@ -993,13 +994,15 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
          * the first call to ActivateSession during a single application
          * Session. If it is not specified the Server shall keep using the
          * current localeIds for the Session. */
+        UA_String *tmpLocaleIds;
         resp->responseHeader.serviceResult |=
             UA_Array_copy(req->localeIds, req->localeIdsSize,
                           (void**)&tmpLocaleIds, &UA_TYPES[UA_TYPES_STRING]);
         if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_Session_detachFromSecureChannel(server, session);
             UA_LOG_WARNING_SESSION(server->config.logging, session,
-                                   "ActivateSession: Could not store the Session LocaleIds");
+                                   "ActivateSession: Could not store the "
+                                   "Session LocaleIds");
             UA_SESSION_REJECT;
         }
         UA_Array_delete(session->localeIds, session->localeIdsSize,
@@ -1009,11 +1012,12 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Update the Session lifetime */
-    nowMonotonic = el->dateTime_nowMonotonic(el);
     UA_DateTime now = el->dateTime_now(el);
+    nowMonotonic = el->dateTime_nowMonotonic(el);
     UA_Session_updateLifetime(session, now, nowMonotonic);
 
-    /* If ECC policy, create the new ephemeral key to be returned in the ActivateSession response */
+    /* If ECC policy, create the new ephemeral key to be returned in the
+     * ActivateSession response */
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     if(sp && sp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
         resp->responseHeader.serviceResult =
