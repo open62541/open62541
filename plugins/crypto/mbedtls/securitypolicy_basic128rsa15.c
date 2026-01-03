@@ -430,7 +430,7 @@ sym_generateKey_basic128rsa15(const UA_SecurityPolicy *policy,
     if(secret == NULL || seed == NULL || out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Basic128Rsa15_PolicyContext *pc =
-        (Basic128Rsa15_PolicyContext *)policy->policyContext;;
+        (Basic128Rsa15_PolicyContext *)policy->policyContext;
     return mbedtls_generateKey(&pc->sha1MdContext, secret, seed, out);
 }
 
@@ -440,7 +440,7 @@ sym_generateNonce_basic128rsa15(const UA_SecurityPolicy *policy,
     if(out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Basic128Rsa15_PolicyContext *pc =
-        (Basic128Rsa15_PolicyContext *)policy->policyContext;;
+        (Basic128Rsa15_PolicyContext *)policy->policyContext;
     int mbedErr = mbedtls_ctr_drbg_random(&pc->drbgContext, out->data, out->length);
     if(mbedErr)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
