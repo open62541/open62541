@@ -954,7 +954,7 @@ UA_ReaderGroup_connect(UA_PubSubManager *psm, UA_ReaderGroup *rg, UA_Boolean val
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
     if(!el) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, rg, "No EventLoop configured");
-        return UA_STATUSCODE_BADINTERNALERROR;;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_PubSubConnection *c = rg->linkedConnection;

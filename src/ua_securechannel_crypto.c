@@ -87,7 +87,7 @@ generateRemoteKeys(const UA_SecureChannel *channel) {
     UA_LOG_DEBUG_CHANNEL(sp->logger, channel, "Generating new remote keys");
 
     void *cc = channel->channelContext;
-    const UA_SecurityPolicyEncryptionAlgorithm *ea = &sp->symEncryptionAlgorithm;;
+    const UA_SecurityPolicyEncryptionAlgorithm *ea = &sp->symEncryptionAlgorithm;
 
     /* Generate symmetric key buffer of the required length */
     UA_ByteString buf;
