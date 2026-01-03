@@ -721,7 +721,7 @@ Test_string_PublisherId_InformationModel(const UA_NodeId connectionId,
     /* Get PublisherId node */
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
-    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);;
+    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
     rpe.isInverse = false;
     rpe.includeSubtypes = true;
     rpe.targetName = UA_QUALIFIEDNAME(0, "PublisherId");

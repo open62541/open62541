@@ -721,7 +721,7 @@ UA_Server_getDataSetWriterState(UA_Server *server, const UA_NodeId dswId,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     lockServer(server);
     UA_DataSetWriter *dsw = UA_DataSetWriter_find(getPSM(server), dswId);
-    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;;
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(dsw) {
         *state = dsw->head.state;
         res = UA_STATUSCODE_GOOD;
