@@ -44,7 +44,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 5)
 set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "-rc1") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
+set(OPEN62541_VER_LABEL "-rc2") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
 # Overwrite the version information based on git if available and we are the main cmake project.
