@@ -1098,29 +1098,30 @@ getSecurityPolicyByPostfix(const UA_Server *server, const UA_String uriPostfix) 
     return NULL;
 }
 
-/* The local ApplicationURI has to match the certificates of the
+/* The local ApplicationUri has to match the certificates of the
  * SecurityPolicies */
-static UA_StatusCode
-verifyServerApplicationURI(const UA_Server *server) {
-    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
-        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+static void
+verifyServerApplicationUri(const UA_Server *server) {
+#if UA_LOGLEVEL <= 400
+    const UA_ServerConfig *sc = &server->config;
+    for(size_t i = 0; i < sc->securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &sc->securityPolicies[i];
         if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE &&
            sp->localCertificate.length == 0)
             continue;
         UA_StatusCode retval =
-            UA_CertificateUtils_verifyApplicationURI(server->config.allowAllCertificateUris,
-                                                     &sp->localCertificate,
-                                                     &server->config.applicationDescription.applicationUri,
-                                                     server->config.logging);
-        UA_CHECK_STATUS_ERROR(retval, return retval, server->config.logging,
-                              UA_LOGCATEGORY_SERVER,
-                              "The configured ApplicationURI \"%S\" does not match the "
-                              "ApplicationURI specified in the certificate for the "
-                              "SecurityPolicy %S",
-                              server->config.applicationDescription.applicationUri,
-                              sp->policyUri);
+            UA_CertificateUtils_verifyApplicationUri(&sp->localCertificate,
+                                &sc->applicationDescription.applicationUri);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                           "The ApplicationUri %S in the server's ApplicationDescription "
+                           "does not match the URI specified in the certificate "
+                           "for the SecurityPolicy %S",
+                           server->config.applicationDescription.applicationUri,
+                           sp->policyUri);
+        }
     }
-    return UA_STATUSCODE_GOOD;
+#endif
 }
 
 UA_ServerStatistics
@@ -1239,9 +1240,8 @@ UA_Server_run_startup(UA_Server *server) {
     /* Take the server lock */
     lockServer(server);
 
-    /* Does the ApplicationURI match the local certificates? */
-    retVal = verifyServerApplicationURI(server);
-    UA_CHECK_STATUS(retVal, unlockServer(server); return retVal);
+    /* Does the ApplicationUri match the local certificates? */
+    verifyServerApplicationUri(server);
 
 #if UA_MULTITHREADING >= 100
     /* Add regulare callback for async operation processing */

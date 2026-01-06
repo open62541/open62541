@@ -402,18 +402,27 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
+    /* Check the client certificate (against the ApplicationDescription,
+     * cryptographic checking is done separately in the SecureChannel) */
     if(request->clientCertificate.length > 0) {
-        response->responseHeader.serviceResult =
-            UA_CertificateUtils_verifyApplicationURI(server->config.allowAllCertificateUris,
-                                                     &request->clientCertificate,
-                                                     &request->clientDescription.applicationUri,
-                                                     server->config.logging);
-        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
-                                   "The client's ApplicationURI did not match the certificate");
-            server->serverDiagnosticsSummary.securityRejectedSessionCount++;
-            server->serverDiagnosticsSummary.rejectedSessionCount++;
-            return;
+        UA_StatusCode res =
+            UA_CertificateUtils_verifyApplicationUri(&request->clientCertificate,
+                                &request->clientDescription.applicationUri);
+        if(res != UA_STATUSCODE_GOOD) {
+            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_WARN) {
+                UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                                     "The client certificate's ApplicationUri "
+                                     "could not be verified against the ApplicationUri "
+                                     "%S from the client's ApplicationDescription (%s)",
+                                     request->clientDescription.applicationUri,
+                                     UA_StatusCode_name(res));
+            }
+            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_ABORT) {
+                response->responseHeader.serviceResult = res;
+                server->serverDiagnosticsSummary.securityRejectedSessionCount++;
+                server->serverDiagnosticsSummary.rejectedSessionCount++;
+                return;
+            }
         }
     }
 
