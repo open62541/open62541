@@ -1003,7 +1003,7 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_none.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
-if(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32)
+if(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/arch/common/timer.h
          ${PROJECT_SOURCE_DIR}/arch/common/timer.c
