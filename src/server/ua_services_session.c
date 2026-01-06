@@ -387,17 +387,24 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
          * (1.04), chapter 6.2.3.*/
         UA_StatusCode res = sp->compareCertificate(sp, cc, &request->clientCertificate);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
-                                   "The client certificate did not validate");
+            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                                 "The client certificate did not validate");
             response->responseHeader.serviceResult = UA_STATUSCODE_BADCERTIFICATEINVALID;
+            server->serverDiagnosticsSummary.securityRejectedSessionCount++;
+            server->serverDiagnosticsSummary.rejectedSessionCount++;
             return;
         }
     }
 
     UA_assert(channel->securityToken.channelId != 0);
 
+    /* Check the nonce */
     if(channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
        request->clientNonce.length < 32) {
+        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                             "The nonce provided by the client has the wrong length");
+        server->serverDiagnosticsSummary.securityRejectedSessionCount++;
+        server->serverDiagnosticsSummary.rejectedSessionCount++;
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNONCEINVALID;
         return;
     }
@@ -458,6 +465,14 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_String_copy(&request->endpointUrl, &newSession->diagnostics.endpointUrl);
 #endif
 
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                             "Could not create the new session (%s)",
+                             UA_StatusCode_name(response->responseHeader.serviceResult));
+        UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
+        return;
+    }
+
     /* Prepare the response */
     response->sessionId = newSession->sessionId;
     response->revisedSessionTimeout = (UA_Double)newSession->timeout;
@@ -466,14 +481,10 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_ByteString_copy(&newSession->serverNonce, &response->serverNonce);
 
     /* Copy the server's endpointdescriptions into the response */
-    response->responseHeader.serviceResult =
+    response->responseHeader.serviceResult |=
         setCurrentEndPointsArray(server, request->endpointUrl, NULL, 0,
                                  &response->serverEndpoints,
                                  &response->serverEndpointsSize);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
-        return;
-    }
 
     /* Return the server certificate from the SecurityPolicy of the current
      * channel. Or, if the channel is unencrypted, return the standard policy
@@ -485,13 +496,26 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult |=
             UA_ByteString_copy(&sp->localCertificate, &response->serverCertificate);
 
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
+        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                             "Could not prepare the CreateSessionResponse (%s)",
+                             UA_StatusCode_name(response->responseHeader.serviceResult));
+        return;
+    }
+
     /* If ECC policy, create an ephemeral key to be returned in the response */
     if(sp && sp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
         response->responseHeader.serviceResult =
             addEphemeralKeyAdditionalHeader(server, sp, channel->channelContext,
                                             &response->responseHeader.additionalHeader);
-        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+            UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
+            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                                 "Could not prepare the ephemeral key (%s)",
+                                 UA_StatusCode_name(response->responseHeader.serviceResult));
             return;
+        }
         UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SESSION,
                     "[CreateSession] Ephemeral Key created");
     }
@@ -499,10 +523,11 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Sign the signature */
     response->responseHeader.serviceResult |=
        signCreateSessionResponse(server, channel, request, response);
-
-    /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
+        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                             "Could not sign the CreateSessionResponse (%s)",
+                             UA_StatusCode_name(response->responseHeader.serviceResult));
         return;
     }
 
