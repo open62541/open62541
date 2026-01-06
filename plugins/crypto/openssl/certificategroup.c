@@ -758,37 +758,25 @@ cleanup:
 }
 
 UA_StatusCode
-UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
-                                         const UA_ByteString *certificate,
-                                         const UA_String *applicationURI,
-                                         UA_Logger *logger) {
-    const unsigned char * pData;
-    X509 *                certificateX509;
-    UA_String             subjectURI = UA_STRING_NULL;
-    GENERAL_NAMES *       pNames;
-    int                   i;
-    UA_StatusCode         ret;
-
-    pData = certificate->data;
-    if (pData == NULL) {
+UA_CertificateUtils_verifyApplicationURI(const UA_ByteString *certificate,
+                                         const UA_String *applicationURI) {
+    const unsigned char *pData = certificate->data;
+    if(pData == NULL)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
 
-    certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
-    if (certificateX509 == NULL) {
+    X509 *certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
+    if(certificateX509 == NULL)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
 
-    pNames = (GENERAL_NAMES *) X509_get_ext_d2i(certificateX509, NID_subject_alt_name,
-                                                NULL, NULL);
-    if (pNames == NULL) {
+    GENERAL_NAMES *pNames = (GENERAL_NAMES *)
+        X509_get_ext_d2i(certificateX509, NID_subject_alt_name, NULL, NULL);
+    if(pNames == NULL) {
         X509_free (certificateX509);
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
-    UA_String_init(&subjectURI);
-
-    for (i = 0; i < sk_GENERAL_NAME_num (pNames); i++) {
+    UA_String subjectURI = UA_STRING_NULL;
+    for(int i = 0; i < sk_GENERAL_NAME_num(pNames); i++) {
         GENERAL_NAME * value = sk_GENERAL_NAME_value (pNames, i);
         if (value->type == GEN_URI) {
             subjectURI.length = (size_t) (value->d.ia5->length);
@@ -801,24 +789,12 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
             (void) memcpy (subjectURI.data, value->d.ia5->data, subjectURI.length);
             break;
         }
-
     }
 
-    ret = UA_STATUSCODE_GOOD;
-    if (UA_Bstrstr (subjectURI.data, subjectURI.length,
-                    applicationURI->data, applicationURI->length) == NULL) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(UA_Bstrstr(subjectURI.data, subjectURI.length,
+                  applicationURI->data, applicationURI->length) == NULL)
         ret = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
-    }
-
-    if(ret != UA_STATUSCODE_GOOD && ruleHandling != UA_RULEHANDLING_ACCEPT) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "The certificate's Subject Alternative Name URI (%S) "
-                       "does not match the ApplicationURI (%S)",
-                       subjectURI, *applicationURI);
-    }
-
-    if(ruleHandling != UA_RULEHANDLING_ABORT)
-        ret = UA_STATUSCODE_GOOD;
 
     X509_free (certificateX509);
     sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
