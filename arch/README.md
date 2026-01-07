@@ -27,11 +27,11 @@ for an overview. The operating system support is classified into three tiers:
   maintainers fix known bugs in the current "stable" release family. But they
   cannot go bug hunting in older release families.
 
-- Tier 3 operating systems are "known to work", but there is no automated
-  continuous integration (CI) environment and the maintainers have no permanent
-  access for manual testing. This can lead to releases of open62541 with
-  undetected issues. Due to the lack of access, there is only minimal support /
-  code review by the maintainers to integrate patches into the master branch.
+- Tier 3 operating systems have no no automated continuous integration (CI)
+  environment and the open62541 maintainers have no permanent access for manual
+  testing. This can lead to releases of open62541 with undetected issues for
+  those OS. There is limited support / code review by the open62541 maintainers
+  to integrate contributions into the master branch.
 
 | Operating System | Support Tier |
 |------------------|--------------|
