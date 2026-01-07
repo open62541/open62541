@@ -35,15 +35,15 @@ for an overview. The operating system support is classified into three tiers:
 
 | Operating System | Support Tier |
 |------------------|--------------|
-| ***Tier 1**      |              |
+| **Tier 1**       |              |
 | Linux            | Tier 1       |
 | Windows          | Tier 1       |
 | MacOS            | Tier 1       |
 | Zephyr           | Tier 1       |
 | FreeRTOS         | Tier 1       |
-| ***Tier 2**      |              |
+| **Tier 2**       |              |
 | BSD              | Tier 2       |
-| ***Tier 3**      |              |
+| **Tier 3**       |              |
 | QNX              | Tier 3       |
 | vxWorks          | Tier 3       |
 
