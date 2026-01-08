@@ -1409,7 +1409,11 @@ UA_OpenSSL_ECDH(const int nid,
         goto errout;
     }
 
-#if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
+#if defined(LIBRESSL_VERSION_NUMBER)
+    /* LibreSSL does currently not support TLS-encoded point APIs required for ECDH */
+    ret = UA_STATUSCODE_BADNOTSUPPORTED;
+    goto errout;
+#elif(OPENSSL_VERSION_NUMBER >= 0x30000000L)
     if(EVP_PKEY_set1_encoded_public_key(remotePubKey, keyPublicRemoteEncoded.data,
                                         keyPublicRemoteEncoded.length) <= 0) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
@@ -1604,7 +1608,11 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
     size_t keyPubEncSize = 0;
 
     /* Get the local ephemeral public key to use in comparison */
-#if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
+#if defined(LIBRESSL_VERSION_NUMBER)
+    ret = UA_STATUSCODE_BADNOTSUPPORTED;
+    goto errout; /* LibreSSL does currently not support TLS-encoded point APIs
+                  * required for ECDH */
+#elif(OPENSSL_VERSION_NUMBER >= 0x30000000L)
     keyPubEncSize = EVP_PKEY_get1_encoded_public_key(localEphemeralKeyPair, &keyPubEnc);
 #else
     keyPubEncSize = EVP_PKEY_get1_tls_encodedpoint(localEphemeralKeyPair, &keyPubEnc);
@@ -1736,7 +1744,11 @@ UA_OpenSSL_ECC_GenerateKey(const int curveId,
         goto errout;
     }
 
-#if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
+#if defined(LIBRESSL_VERSION_NUMBER)
+    ret = UA_STATUSCODE_BADNOTSUPPORTED;
+    goto errout; /* LibreSSL does currently not support TLS-encoded point APIs
+                  * required for ECDH */
+#elif(OPENSSL_VERSION_NUMBER >= 0x30000000L)
     keyPubEncSize = EVP_PKEY_get1_encoded_public_key(*keyPairOut, &keyPubEnc);
 #else
     keyPubEncSize = EVP_PKEY_get1_tls_encodedpoint(*keyPairOut, &keyPubEnc);
