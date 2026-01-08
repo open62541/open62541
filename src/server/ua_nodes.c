@@ -879,10 +879,10 @@ UA_Node_setAttributes(UA_Node *node, const void *attributes, const UA_DataType *
         retval = UA_STATUSCODE_BADNODECLASSINVALID;
     }
 
-    if(retval == UA_STATUSCODE_GOOD)
+    /* No need (and no promise) to call UA_Node_clear in the error case.
+     * Gets caught and handled outside. */
+    if(UA_LIKELY(retval == UA_STATUSCODE_GOOD))
         retval = copyStandardAttributes(&node->head, (const UA_NodeAttributes*)attributes);
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_Node_clear(node);
     return retval;
 }
 
