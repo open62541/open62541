@@ -4,19 +4,18 @@
  *
  *    Copyright 2014-2018, 2024 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Lukas Meling)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 /**
  * This file contains the JSON encoding/decoding following the v1.05 OPC UA
  * specification. The changes in the v1.05 specification are breaking. The
- * encoding is not compatible with previous versions. Enable
- * UA_ENABLE_JSON_ENCODING_LEGACY to use the old JSON encoding instead.
- */
+ * encoding is not compatible with previous versions. */
 
 #include <open62541/config.h>
 #include <open62541/types.h>
 
-#if defined(UA_ENABLE_JSON_ENCODING) && !defined(UA_ENABLE_JSON_ENCODING_LEGACY)
+#if defined(UA_ENABLE_JSON_ENCODING)
 
 #include "ua_types_encoding_json.h"
 
@@ -2496,4 +2495,4 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     return ret;
 }
 
-#endif /* defined(UA_ENABLE_JSON_ENCODING) && !defined(UA_ENABLE_JSON_ENCODING_LEGACY) */
+#endif /* defined(UA_ENABLE_JSON_ENCODING) */
