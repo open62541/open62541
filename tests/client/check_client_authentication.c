@@ -117,6 +117,10 @@ START_TEST(Client_connect_certificate) {
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     cc->securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
 
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri =
+        UA_STRING_ALLOC("urn:open62541.server.application");
+
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey, NULL, 0, NULL, 0);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
