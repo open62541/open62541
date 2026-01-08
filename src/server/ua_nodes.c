@@ -825,11 +825,10 @@ copyMethodNodeAttributes(UA_MethodNode *mnode,
     return UA_STATUSCODE_GOOD;
 }
 
-#define CHECK_ATTRIBUTES(TYPE)                           \
-    if(attributeType != &UA_TYPES[UA_TYPES_##TYPE]) {    \
-        retval = UA_STATUSCODE_BADNODEATTRIBUTESINVALID; \
-        break;                                           \
-    }
+#define CHECK_ATTRIBUTES(TYPE) do {                     \
+    if(attributeType != &UA_TYPES[UA_TYPES_##TYPE])     \
+        return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;  \
+} while(0)
 
 UA_StatusCode
 UA_Node_setAttributes(UA_Node *node, const void *attributes, const UA_DataType *attributeType) {
