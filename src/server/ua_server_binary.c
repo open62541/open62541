@@ -651,10 +651,26 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     connConfig.localMaxChunkCount = config->tcpMaxChunks;
     connConfig.remoteMaxChunkCount = config->tcpMaxChunks;
 
+    /* Set 64kB buffer size if not configured */
     if(connConfig.recvBufferSize == 0)
         connConfig.recvBufferSize = 1 << 16; /* 64kB */
     if(connConfig.sendBufferSize == 0)
         connConfig.sendBufferSize = 1 << 16; /* 64kB */
+
+    /* Further constrain the bufsize if the ConnectionManager has static rx/tx
+     * buffers configured */
+    const UA_UInt32 *bufSize = (const UA_UInt32 *)
+        UA_KeyValueMap_getScalar(&cm->eventSource.params,
+                                 UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    if(bufSize && *bufSize < connConfig.recvBufferSize)
+        connConfig.recvBufferSize = *bufSize;
+    bufSize = (const UA_UInt32 *)
+        UA_KeyValueMap_getScalar(&cm->eventSource.params,
+                                 UA_QUALIFIEDNAME(0, "send-bufsize"),
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    if(bufSize && *bufSize < connConfig.sendBufferSize)
+        connConfig.sendBufferSize = *bufSize;
 
     /* Set up the new SecureChannel */
     UA_SecureChannel_init(channel);
