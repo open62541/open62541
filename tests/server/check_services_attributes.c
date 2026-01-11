@@ -671,8 +671,8 @@ START_TEST(ReadSingleAttributeDataTypeDefinitionWithoutTimestamp) {
     UA_DataValue_clear(&resp);
 } END_TEST
 
-UA_DataValue staticVal;
-UA_DataValue *staticValPtr;
+static UA_DataValue staticVal;
+static UA_DataValue *staticValPtr;
 
 START_TEST(ReadSingleAttributeValueWithExternalSource) {
     UA_DataValue_init(&staticVal);
