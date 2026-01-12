@@ -7,6 +7,7 @@
  */
 
 #include <open62541/types_generated_handling.h>
+#include <open62541/plugin/log_stdout.h>
 
 #include "ua_util_internal.h"
 #include "ua_types_encoding_binary.h"
@@ -1463,6 +1464,12 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
                             const UA_DataType *type =
                                 UA_findDataTypeWithCustom(&dsm->fields[i].dataType,
                                                           customTypes);
+                            if (!type) {
+                                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_PUBSUB,
+                                            "Unknown data type in DataSetMetaData field %" PRIu64,
+                                            (uint64_t)i);
+                                return UA_STATUSCODE_BADTYPEMISMATCH;
+                            }
                             dst->data.keyFrameData.rawFields.length += type->memSize;
                             UA_STACKARRAY(UA_Byte, value, type->memSize);
                             rv = UA_decodeBinaryInternal(&dst->data.keyFrameData.rawFields,
