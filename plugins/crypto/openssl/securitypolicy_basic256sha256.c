@@ -36,18 +36,6 @@ typedef struct {
     UA_ByteString localCertThumbprint;
 } Policy_Context_Basic256Sha256;
 
-typedef struct {
-    UA_ByteString localSymSigningKey;
-    UA_ByteString localSymEncryptingKey;
-    UA_ByteString localSymIv;
-    UA_ByteString remoteSymSigningKey;
-    UA_ByteString remoteSymEncryptingKey;
-    UA_ByteString remoteSymIv;
-
-    UA_ByteString remoteCertificate;
-    X509 *remoteCertificateX509; /* X509 */
-} Channel_Context_Basic256Sha256;
-
 static UA_StatusCode
 UA_Policy_New_Context(UA_SecurityPolicy *securityPolicy,
                        const UA_ByteString localPrivateKey,
@@ -180,8 +168,8 @@ New_Context(const UA_SecurityPolicy * securityPolicy,
     if(securityPolicy == NULL || remoteCertificate == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    Channel_Context_Basic256Sha256 *context = (Channel_Context_Basic256Sha256 *)
-        UA_malloc(sizeof(Channel_Context_Basic256Sha256));
+    openssl_ChannelContext *context = (openssl_ChannelContext *)
+        UA_malloc(sizeof(openssl_ChannelContext));
     if(context == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -222,8 +210,8 @@ Delete_Context(const UA_SecurityPolicy *policy,
     if(!channelContext)
         return;
 
-    Channel_Context_Basic256Sha256 *cc =
-        (Channel_Context_Basic256Sha256 *)channelContext;
+    openssl_ChannelContext *cc =
+        (openssl_ChannelContext *)channelContext;
     X509_free(cc->remoteCertificateX509);
     UA_ByteString_clear(&cc->remoteCertificate);
     UA_ByteString_clear(&cc->localSymSigningKey);
@@ -244,8 +232,8 @@ UA_AsySig_Basic256Sha256_Verify(const UA_SecurityPolicy *policy, void *channelCo
                                 const UA_ByteString *signature) {
     if(message == NULL || signature == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_Basic256Sha256 * cc =
-        (Channel_Context_Basic256Sha256 *) channelContext;
+    openssl_ChannelContext * cc =
+        (openssl_ChannelContext *) channelContext;
     return UA_OpenSSL_RSA_PKCS1_V15_SHA256_Verify(message, cc->remoteCertificateX509,
                                                   signature);
 }
@@ -284,8 +272,8 @@ UA_Asym_Basic256Sha256_getRemoteSignatureSize(const UA_SecurityPolicy *policy,
                                               const void *channelContext) {
     if(channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    const Channel_Context_Basic256Sha256 * cc =
-        (const Channel_Context_Basic256Sha256 *) channelContext;
+    const openssl_ChannelContext * cc =
+        (const openssl_ChannelContext *) channelContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
     return (size_t) keyLen;
@@ -308,8 +296,8 @@ UA_AsymEn_Basic256Sha256_getRemotePlainTextBlockSize(const UA_SecurityPolicy *po
                                                      const void *channelContext) {
     if(channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    const Channel_Context_Basic256Sha256 *cc =
-        (const Channel_Context_Basic256Sha256 *) channelContext;
+    const openssl_ChannelContext *cc =
+        (const openssl_ChannelContext *) channelContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
     return (size_t) keyLen - UA_SECURITYPOLICY_BASIC256SHA256_RSAPADDING_LEN;
@@ -320,8 +308,8 @@ UA_AsymEn_Basic256Sha256_getRemoteBlockSize(const UA_SecurityPolicy *policy,
                                             const void *channelContext) {
     if(channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    const Channel_Context_Basic256Sha256 * cc =
-        (const Channel_Context_Basic256Sha256 *) channelContext;
+    const openssl_ChannelContext * cc =
+        (const openssl_ChannelContext *) channelContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
     return (size_t) keyLen;
@@ -332,8 +320,8 @@ UA_AsymEn_Basic256Sha256_getRemoteKeyLength(const UA_SecurityPolicy *policy,
                                             const void *channelContext) {
     if(channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    const Channel_Context_Basic256Sha256 *cc =
-        (const Channel_Context_Basic256Sha256 *) channelContext;
+    const openssl_ChannelContext *cc =
+        (const openssl_ChannelContext *) channelContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Public_GetKeyLength(cc->remoteCertificateX509, &keyLen);
     return (size_t) keyLen * 8;
@@ -375,8 +363,8 @@ Basic256Sha256_setLocalSymSigningKey(const UA_SecurityPolicy *policy,
                                      const UA_ByteString *key) {
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_Basic256Sha256 *cc =
-        (Channel_Context_Basic256Sha256 *) channelContext;
+    openssl_ChannelContext *cc =
+        (openssl_ChannelContext *) channelContext;
     UA_ByteString_clear(&cc->localSymSigningKey);
     return UA_ByteString_copy(key, &cc->localSymSigningKey);
 }
@@ -387,8 +375,8 @@ Basic256Sha256_setLocalSymEncryptingKey(const UA_SecurityPolicy *policy,
                                         const UA_ByteString *key) {
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_Basic256Sha256 *cc =
-        (Channel_Context_Basic256Sha256 *) channelContext;
+    openssl_ChannelContext *cc =
+        (openssl_ChannelContext *) channelContext;
     UA_ByteString_clear(&cc->localSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
 }
@@ -399,8 +387,8 @@ Basic256Sha256_setLocalSymIv(const UA_SecurityPolicy *policy,
                              const UA_ByteString *iv) {
     if(iv == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_Basic256Sha256 *cc =
-        (Channel_Context_Basic256Sha256 *) channelContext;
+    openssl_ChannelContext *cc =
+        (openssl_ChannelContext *) channelContext;
     UA_ByteString_clear(&cc->localSymIv);
     return UA_ByteString_copy(iv, &cc->localSymIv);
 }
@@ -431,8 +419,8 @@ Basic256Sha256_setRemoteSymSigningKey(const UA_SecurityPolicy *policy,
                                       const UA_ByteString *key) {
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_Basic256Sha256 *cc =
-        (Channel_Context_Basic256Sha256 *) channelContext;
+    openssl_ChannelContext *cc =
+        (openssl_ChannelContext *) channelContext;
     UA_ByteString_clear(&cc->remoteSymSigningKey);
     return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
 }
@@ -443,8 +431,8 @@ Basic256Sha256_setRemoteSymEncryptingKey(const UA_SecurityPolicy *policy,
                                          const UA_ByteString *key) {
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_Basic256Sha256 *cc =
-        (Channel_Context_Basic256Sha256 *) channelContext;
+    openssl_ChannelContext *cc =
+        (openssl_ChannelContext *) channelContext;
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
 }
@@ -455,8 +443,8 @@ Basic256Sha256_setRemoteSymIv(const UA_SecurityPolicy *policy,
                               const UA_ByteString *iv) {
     if(iv == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_Basic256Sha256 *cc =
-        (Channel_Context_Basic256Sha256 *) channelContext;
+    openssl_ChannelContext *cc =
+        (openssl_ChannelContext *) channelContext;
     UA_ByteString_clear(&cc->remoteSymIv);
     return UA_ByteString_copy(iv, &cc->remoteSymIv);
 }
@@ -477,8 +465,8 @@ UA_AsymEn_Basic256Sha256_encrypt(const UA_SecurityPolicy *policy,
                                  void *channelContext, UA_ByteString *data) {
     if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_Basic256Sha256 * cc =
-        (Channel_Context_Basic256Sha256 *) channelContext;
+    openssl_ChannelContext * cc =
+        (openssl_ChannelContext *) channelContext;
     return UA_Openssl_RSA_OAEP_Encrypt(data,
                                        UA_SECURITYPOLICY_BASIC256SHA256_RSAPADDING_LEN,
                                        cc->remoteCertificateX509);
@@ -496,7 +484,7 @@ UA_SymSig_Basic256Sha256_verify(const UA_SecurityPolicy *policy, void *channelCo
                                 const UA_ByteString *signature) {
     if(channelContext == NULL || message == NULL || signature == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_Basic256Sha256 *cc = (Channel_Context_Basic256Sha256*)channelContext;
+    openssl_ChannelContext *cc = (openssl_ChannelContext*)channelContext;
     return UA_OpenSSL_HMAC_SHA256_Verify(message, &cc->remoteSymSigningKey, signature);
 }
 
@@ -506,7 +494,7 @@ UA_SymSig_Basic256Sha256_sign(const UA_SecurityPolicy *policy,
                               UA_ByteString *signature) {
     if(channelContext == NULL || message == NULL || signature == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_Basic256Sha256 *cc = (Channel_Context_Basic256Sha256*)channelContext;
+    openssl_ChannelContext *cc = (openssl_ChannelContext*)channelContext;
     return UA_OpenSSL_HMAC_SHA256_Sign(message, &cc->localSymSigningKey, signature);
 }
 
@@ -521,7 +509,7 @@ UA_SymEn_Basic256Sha256_decrypt(const UA_SecurityPolicy *policy,
                                 void *channelContext, UA_ByteString *data) {
     if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_Basic256Sha256 *cc = (Channel_Context_Basic256Sha256*)channelContext;
+    openssl_ChannelContext *cc = (openssl_ChannelContext*)channelContext;
     return UA_OpenSSL_AES_256_CBC_Decrypt(&cc->remoteSymIv,
                                           &cc->remoteSymEncryptingKey, data);
 }
@@ -531,8 +519,8 @@ UA_SymEn_Basic256Sha256_encrypt(const UA_SecurityPolicy *policy,
                                 void *channelContext, UA_ByteString *data) {
     if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_Basic256Sha256 *cc =
-        (Channel_Context_Basic256Sha256 *) channelContext;
+    openssl_ChannelContext *cc =
+        (openssl_ChannelContext *) channelContext;
     return UA_OpenSSL_AES_256_CBC_Encrypt(&cc->localSymIv,
                                           &cc->localSymEncryptingKey, data);
 }
@@ -543,8 +531,8 @@ Basic256Sha256_compareCertificate(const UA_SecurityPolicy *policy,
                                   const UA_ByteString *certificate) {
     if(channelContext == NULL || certificate == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    const Channel_Context_Basic256Sha256 * cc =
-        (const Channel_Context_Basic256Sha256 *) channelContext;
+    const openssl_ChannelContext * cc =
+        (const openssl_ChannelContext *) channelContext;
     return UA_OpenSSL_X509_compare(certificate, cc->remoteCertificateX509);
 }
 

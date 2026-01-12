@@ -52,6 +52,18 @@ _UA_BEGIN_DECLS
 #define get_error_line_data(pFile, pLine, pData, pFlags) ERR_get_error_all(pFile, pLine, NULL, pData, pFlags)
 #endif
 
+typedef struct {
+    UA_ByteString localSymSigningKey;
+    UA_ByteString localSymEncryptingKey;
+    UA_ByteString localSymIv;
+    UA_ByteString remoteSymSigningKey;
+    UA_ByteString remoteSymEncryptingKey;
+    UA_ByteString remoteSymIv;
+
+    UA_ByteString remoteCertificate;
+    X509 *remoteCertificateX509; /* X509 */
+} openssl_ChannelContext;
+
 void saveDataToFile(const char *fileName, const UA_ByteString *str);
 void UA_Openssl_Init(void);
 
