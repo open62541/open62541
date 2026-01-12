@@ -52,18 +52,6 @@ typedef struct {
     mbedtls_pk_context csrLocalPrivateKey;
 } Aes128Sha256PsaOaep_PolicyContext;
 
-typedef struct {
-    UA_ByteString localSymSigningKey;
-    UA_ByteString localSymEncryptingKey;
-    UA_ByteString localSymIv;
-
-    UA_ByteString remoteSymSigningKey;
-    UA_ByteString remoteSymEncryptingKey;
-    UA_ByteString remoteSymIv;
-
-    mbedtls_x509_crt remoteCertificate;
-} Aes128Sha256PsaOaep_ChannelContext;
-
 /* VERIFY AsymmetricSignatureAlgorithm_RSA-PKCS15-SHA2-256 */
 static UA_StatusCode
 asym_verify_aes128sha256rsaoaep(const UA_SecurityPolicy *policy, void *channelContext,
@@ -81,8 +69,8 @@ asym_verify_aes128sha256rsaoaep(const UA_SecurityPolicy *policy, void *channelCo
 #endif
 
     /* Set the RSA settings */
-    Aes128Sha256PsaOaep_ChannelContext *cc =
-        (Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
     mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
     mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_SHA256);
 
@@ -158,8 +146,8 @@ asym_getRemoteSignatureSize_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
                                                 const void *channelContext) {
     if(channelContext == NULL)
         return 0;
-    const Aes128Sha256PsaOaep_ChannelContext *cc =
-        (const Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    const mbedtls_ChannelContext *cc =
+        (const mbedtls_ChannelContext*)channelContext;
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     return mbedtls_pk_rsa(cc->remoteCertificate.pk)->len;
 #else
@@ -172,8 +160,8 @@ asym_getRemoteBlockSize_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
                                             const void *channelContext) {
     if(channelContext == NULL)
         return 0;
-    const Aes128Sha256PsaOaep_ChannelContext *cc =
-        (const Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    const mbedtls_ChannelContext *cc =
+        (const mbedtls_ChannelContext*)channelContext;
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     return mbedtls_pk_rsa(cc->remoteCertificate.pk)->len;
 #else
@@ -186,8 +174,8 @@ asym_getRemotePlainTextBlockSize_aes128sha256rsaoaep(const UA_SecurityPolicy *po
                                                      const void *channelContext) {
     if(channelContext == NULL)
         return 0;
-    const Aes128Sha256PsaOaep_ChannelContext *cc =
-        (const Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    const mbedtls_ChannelContext *cc =
+        (const mbedtls_ChannelContext*)channelContext;
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
     return rsaContext->len - UA_SECURITYPOLICY_AES128SHA256RSAOAEP_RSAPADDING_LEN;
@@ -206,8 +194,8 @@ asym_encrypt_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADINTERNALERROR;
     Aes128Sha256PsaOaep_PolicyContext *pc =
         (Aes128Sha256PsaOaep_PolicyContext*)policy->policyContext;
-    const Aes128Sha256PsaOaep_ChannelContext *cc =
-        (const Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    const mbedtls_ChannelContext *cc =
+        (const mbedtls_ChannelContext*)channelContext;
     const size_t plainTextBlockSize =
         asym_getRemotePlainTextBlockSize_aes128sha256rsaoaep(policy, cc);
     mbedtls_rsa_context *remoteRsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
@@ -239,8 +227,8 @@ asym_getLocalEncryptionKeyLength_aes128sha256rsaoaep(const UA_SecurityPolicy *po
 static size_t
 asym_getRemoteEncryptionKeyLength_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
                                                       const void *channelContext) {
-    const Aes128Sha256PsaOaep_ChannelContext *cc =
-        (const Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    const mbedtls_ChannelContext *cc =
+        (const mbedtls_ChannelContext*)channelContext;
     return mbedtls_pk_get_len(&cc->remoteCertificate.pk) * 8;
 }
 
@@ -278,8 +266,8 @@ sym_verify_aes128sha256rsaoaep(const UA_SecurityPolicy *policy, void *channelCon
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     Aes128Sha256PsaOaep_PolicyContext *pc =
         (Aes128Sha256PsaOaep_PolicyContext *)policy->policyContext;
-    Aes128Sha256PsaOaep_ChannelContext *cc =
-        (Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
     unsigned char mac[UA_SHA256_LENGTH];
     if(mbedtls_hmac(&pc->sha256MdContext, &cc->remoteSymSigningKey,
                     message, mac) != UA_STATUSCODE_GOOD)
@@ -299,8 +287,8 @@ sym_sign_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
         return UA_STATUSCODE_BADINTERNALERROR;
     Aes128Sha256PsaOaep_PolicyContext *pc =
         (Aes128Sha256PsaOaep_PolicyContext *)policy->policyContext;
-    Aes128Sha256PsaOaep_ChannelContext *cc =
-        (Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
     if(mbedtls_hmac(&pc->sha256MdContext, &cc->localSymSigningKey,
                     message, signature->data) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
@@ -343,8 +331,8 @@ sym_encrypt_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
     if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    Aes128Sha256PsaOaep_ChannelContext *cc =
-        (Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
 
     if(cc->localSymIv.length != UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_ENCRYPTION_BLOCK_SIZE)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -380,8 +368,8 @@ sym_decrypt_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
     if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    Aes128Sha256PsaOaep_ChannelContext *cc =
-        (Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
 
     size_t encryptionBlockSize =
         UA_SECURITYPOLICY_AES128SHA256RSAOAEP_SYM_ENCRYPTION_BLOCK_SIZE;
@@ -437,7 +425,7 @@ sym_generateNonce_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
 
 /* Assumes that the certificate has been verified externally */
 static UA_StatusCode
-parseRemoteCertificate_aes128sha256rsaoaep(Aes128Sha256PsaOaep_ChannelContext *cc,
+parseRemoteCertificate_aes128sha256rsaoaep(mbedtls_ChannelContext *cc,
                                               const UA_ByteString *remoteCertificate) {
     if(remoteCertificate == NULL || cc == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -464,8 +452,8 @@ parseRemoteCertificate_aes128sha256rsaoaep(Aes128Sha256PsaOaep_ChannelContext *c
 static void
 deleteContext_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
                                   void *channelContext) {
-    Aes128Sha256PsaOaep_ChannelContext *cc =
-        (Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->localSymSigningKey);
     UA_ByteString_clear(&cc->localSymEncryptingKey);
     UA_ByteString_clear(&cc->localSymIv);
@@ -484,12 +472,12 @@ newContext_aes128sha256rsaoaep(const UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Allocate the channel context */
-    *channelContext = UA_malloc(sizeof(Aes128Sha256PsaOaep_ChannelContext));
+    *channelContext = UA_malloc(sizeof(mbedtls_ChannelContext));
     if(*channelContext == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    Aes128Sha256PsaOaep_ChannelContext *cc =
-        (Aes128Sha256PsaOaep_ChannelContext *)*channelContext;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext *)*channelContext;
 
     /* Initialize the channel context */
     UA_ByteString_init(&cc->localSymSigningKey);
@@ -517,8 +505,8 @@ setLocalSymEncryptingKey_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
                                              const UA_ByteString *key) {
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Aes128Sha256PsaOaep_ChannelContext *cc =
-        (Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->localSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
 }
@@ -529,8 +517,8 @@ setLocalSymSigningKey_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
                                           const UA_ByteString *key) {
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Aes128Sha256PsaOaep_ChannelContext *cc =
-        (Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->localSymSigningKey);
     return UA_ByteString_copy(key, &cc->localSymSigningKey);
 }
@@ -541,8 +529,8 @@ setLocalSymIv_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
                                   void *channelContext, const UA_ByteString *iv) {
     if(iv == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Aes128Sha256PsaOaep_ChannelContext *cc =
-        (Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->localSymIv);
     return UA_ByteString_copy(iv, &cc->localSymIv);
 }
@@ -553,8 +541,8 @@ setRemoteSymEncryptingKey_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
                                               const UA_ByteString *key) {
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Aes128Sha256PsaOaep_ChannelContext *cc =
-        (Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
 }
@@ -565,8 +553,8 @@ setRemoteSymSigningKey_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
                                            const UA_ByteString *key) {
     if(key == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Aes128Sha256PsaOaep_ChannelContext *cc =
-        (Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->remoteSymSigningKey);
     return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
 }
@@ -576,8 +564,8 @@ setRemoteSymIv_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
                                    void *channelContext, const UA_ByteString *iv) {
     if(iv == NULL || channelContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    Aes128Sha256PsaOaep_ChannelContext *cc =
-        (Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
     UA_ByteString_clear(&cc->remoteSymIv);
     return UA_ByteString_copy(iv, &cc->remoteSymIv);
 }
@@ -595,8 +583,8 @@ compareCertificate_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
     if(mbedErr)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
-    const Aes128Sha256PsaOaep_ChannelContext *cc =
-        (const Aes128Sha256PsaOaep_ChannelContext*)channelContext;
+    const mbedtls_ChannelContext *cc =
+        (const mbedtls_ChannelContext*)channelContext;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(cert.raw.len != cc->remoteCertificate.raw.len ||

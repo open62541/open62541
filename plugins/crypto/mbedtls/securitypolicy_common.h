@@ -56,6 +56,18 @@ _UA_BEGIN_DECLS
 #define MBEDTLS_X509_SAN_REGISTERED_ID                   8
 #endif
 
+typedef struct {
+    UA_ByteString localSymSigningKey;
+    UA_ByteString localSymEncryptingKey;
+    UA_ByteString localSymIv;
+
+    UA_ByteString remoteSymSigningKey;
+    UA_ByteString remoteSymEncryptingKey;
+    UA_ByteString remoteSymIv;
+
+    mbedtls_x509_crt remoteCertificate;
+} mbedtls_ChannelContext;
+
 void
 swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB);
 
