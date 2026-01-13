@@ -638,6 +638,56 @@ auditCancelEvent(UA_Server *server, UA_ApplicationNotificationType type,
                       statusCodeId, payload);
 }
 
+void
+auditCertificateEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                      UA_SecureChannel *channel, UA_Session *session,
+                      const char *serviceName, UA_Boolean status,
+                      UA_StatusCode statusCodeId, UA_ByteString certificate,
+                      const UA_KeyValueMap payload) {
+    /* /Certificate */
+    UA_Variant_setScalar(&payload.map[6].value, &certificate,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    /* /SourceName */
+    UA_String sourceName = UA_STRING("Security/Certificate");
+    UA_Variant_setScalar(&payload.map[7].value, &sourceName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+
+    auditSecurityEvent(server, type, channel, session, serviceName, status,
+                       statusCodeId, payload);
+}
+
+void
+auditCertificateDataMismatchEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                                  UA_SecureChannel *channel, UA_Session *session,
+                                  const char *serviceName, UA_Boolean status,
+                                  UA_StatusCode statusCodeId, UA_ByteString certificate,
+                                  UA_String invalidHostname, UA_String invalidUri,
+                                  const UA_KeyValueMap payload) {
+    /* /InvalidHostname */
+    UA_Variant_setScalar(&payload.map[8].value, &invalidHostname,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    /* /InvalidUri */
+    UA_Variant_setScalar(&payload.map[9].value, &invalidUri,
+                         &UA_TYPES[UA_TYPES_STRING]);
+
+    auditCertificateEvent(server, type, channel, session, serviceName, status,
+                          statusCodeId, certificate, payload);
+}
+
+void
+auditCertificateEvent_withMessage(UA_Server *server, UA_ApplicationNotificationType type,
+                                  UA_SecureChannel *channel, UA_Session *session,
+                                  const char *serviceName, UA_Boolean status,
+                                  UA_StatusCode statusCodeId, UA_ByteString certificate,
+                                  UA_String message, const UA_KeyValueMap payload) {
+
+    /* /Message */
+    UA_Variant_setScalar(&payload.map[8].value, &message, &UA_TYPES[UA_TYPES_STRING]);
+
+    auditCertificateEvent(server, type, channel, session, serviceName, status,
+                          statusCodeId, certificate, payload);
+}
+
 #endif /* UA_ENABLE_AUDITING */
 
 /*********************************/
