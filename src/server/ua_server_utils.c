@@ -541,8 +541,10 @@ auditSecurityEvent(UA_Server *server, UA_ApplicationNotificationType type,
                    UA_SecureChannel *channel, UA_Session *session,
                    const char *serviceName, UA_Boolean status, UA_StatusCode statusCodeId,
                    const UA_KeyValueMap payload) {
+    /* /StatusCodeId */
     UA_Variant_setScalar(&payload.map[5].value, &statusCodeId,
                          &UA_TYPES[UA_TYPES_STATUSCODE]);
+
     auditEvent(server, type, channel, session, serviceName, status, payload);
 }
 
@@ -551,17 +553,21 @@ auditChannelEvent(UA_Server *server, UA_ApplicationNotificationType type,
                   UA_SecureChannel *channel, UA_Session *session, const char *serviceName,
                   UA_Boolean status, UA_StatusCode statusCodeId,
                   const UA_KeyValueMap payload) {
+    /* /SecureChannelId */
     UA_Byte secureChannelNameBuf[32];
     UA_String secureChannelName = {32, secureChannelNameBuf};
     UA_String_format(&secureChannelName, "%lu",
                      (long unsigned)channel->securityToken.channelId);
+    UA_Variant_setScalar(&payload.map[6].value, &secureChannelName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+
+    /* SourceName */
     UA_Byte sourceNameBuf[128];
     UA_String sourceName = {128, sourceNameBuf};
     UA_String_format(&sourceName, "SecureChannel/%s", serviceName);
-    UA_Variant_setScalar(&payload.map[6].value, &secureChannelName,
-                         &UA_TYPES[UA_TYPES_STRING]);
     UA_Variant_setScalar(&payload.map[7].value, &sourceName,
                          &UA_TYPES[UA_TYPES_STRING]);
+
     auditSecurityEvent(server, type, channel, session, serviceName, status,
                        statusCodeId, payload);
 }
@@ -665,6 +671,7 @@ auditCancelEvent(UA_Server *server, UA_ApplicationNotificationType type,
     /* /RequestHandle */
     UA_Variant_setScalar(&payload.map[8].value, &requestHandle,
                          &UA_TYPES[UA_TYPES_UINT32]);
+
     auditSessionEvent(server, type, channel, session, serviceName, status,
                       statusCodeId, payload);
 }
