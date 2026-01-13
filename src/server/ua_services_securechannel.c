@@ -17,9 +17,10 @@
 void
 notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
                     UA_ApplicationNotificationType type) {
+    UA_ServerConfig *sc = &server->config;
+
     /* Nothing to do? */
-    if(!server->config.globalNotificationCallback &&
-       !server->config.secureChannelNotificationCallback)
+    if(!sc->globalNotificationCallback && !sc->secureChannelNotificationCallback)
         return;
 
     /* Prepare the payload */
@@ -79,16 +80,17 @@ notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
                          &UA_TYPES[UA_TYPES_BYTESTRING]);
 
     /* Notify the application */
-    if(server->config.secureChannelNotificationCallback)
-        server->config.secureChannelNotificationCallback(server, type, notifySCMap);
-    if(server->config.globalNotificationCallback)
-        server->config.globalNotificationCallback(server, type, notifySCMap);
+    if(sc->secureChannelNotificationCallback)
+        sc->secureChannelNotificationCallback(server, type, notifySCMap);
+    if(sc->globalNotificationCallback)
+        sc->globalNotificationCallback(server, type, notifySCMap);
 }
 
 void
 Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
                           UA_OpenSecureChannelRequest *request,
                           UA_OpenSecureChannelResponse *response) {
+    UA_ServerConfig *sc = &server->config;
     UA_EventLoop *el = server->config.eventLoop;
     const UA_SecurityPolicy *sp = channel->securityPolicy;
 
@@ -97,7 +99,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     case UA_SECURITYTOKENREQUESTTYPE_ISSUE: {
         /* We must expect an OPN handshake */
         if(channel->state != UA_SECURECHANNELSTATE_ACK_SENT) {
-            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+            UA_LOG_ERROR_CHANNEL(sc->logging, channel,
                                  "OpenSecureChannel | Cannot open "
                                  "already open or closed channel");
             response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
@@ -114,7 +116,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult =
             UA_SecureChannel_setSecurityMode(channel, request->securityMode);
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+            UA_LOG_ERROR_CHANNEL(sc->logging, channel,
                                  "OpenSecureChannel | Client tries mismatching "
                                  "SecurityMode %s for SecurityPolicy %S",
                                  securityModeNames[request->securityMode],
@@ -128,7 +130,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     case UA_SECURITYTOKENREQUESTTYPE_RENEW:
         /* The channel must be open to be renewed */
         if(channel->state != UA_SECURECHANNELSTATE_OPEN) {
-            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+            UA_LOG_ERROR_CHANNEL(sc->logging, channel,
                                  "OpenSecureChannel | The client called renew on "
                                  "channel which is not open");
             response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
@@ -138,7 +140,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
         /* Check whether the nonce was reused */
         if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE &&
            UA_ByteString_equal(&channel->remoteNonce, &request->clientNonce)) {
-            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+            UA_LOG_ERROR_CHANNEL(sc->logging, channel,
                                  "OpenSecureChannel | The client called renew "
                                  "reusing the previous nonce");
             response->responseHeader.serviceResult =
@@ -150,7 +152,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
     /* Unknown request type */
     default:
-        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+        UA_LOG_ERROR_CHANNEL(sc->logging, channel,
                              "OpenSecureChannel | Unknown request type");
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
@@ -162,11 +164,11 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     channel->altSecurityToken.tokenId = server->lastTokenId++;
     channel->altSecurityToken.createdAt = el->dateTime_nowMonotonic(el);
     channel->altSecurityToken.revisedLifetime =
-        (request->requestedLifetime > server->config.maxSecurityTokenLifetime) ?
-        server->config.maxSecurityTokenLifetime : request->requestedLifetime;
+        (request->requestedLifetime > sc->maxSecurityTokenLifetime) ?
+        sc->maxSecurityTokenLifetime : request->requestedLifetime;
     if(channel->altSecurityToken.revisedLifetime == 0)
         channel->altSecurityToken.revisedLifetime =
-            server->config.maxSecurityTokenLifetime;
+            sc->maxSecurityTokenLifetime;
 
     /* Set the nonces. The remote nonce will be "rotated in" when it is first used. */
     UA_ByteString_clear(&channel->remoteNonce);
@@ -175,7 +177,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
     response->responseHeader.serviceResult = UA_SecureChannel_generateLocalNonce(channel);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+        UA_LOG_ERROR_CHANNEL(sc->logging, channel,
                              "OpenSecureChannel | Cannot generate the local nonce");
         return;
     }
@@ -195,7 +197,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
     /* Success */
     if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_ISSUE) {
-        UA_LOG_INFO_CHANNEL(server->config.logging, channel,
+        UA_LOG_INFO_CHANNEL(sc->logging, channel,
                             "SecureChannel opened with SecurityMode %s for "
                             "SecurityPolicy %S and a revised lifetime of %.2fs",
                             securityModeNames[channel->securityMode],
@@ -206,7 +208,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
         notifySecureChannel(server, channel,
                             UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED);
     } else {
-        UA_LOG_INFO_CHANNEL(server->config.logging, channel,
+        UA_LOG_INFO_CHANNEL(sc->logging, channel,
                             "SecureChannel renewed with a revised lifetime of %.2fs",
                             (UA_Float)response->securityToken.revisedLifetime / 1000);
     }
