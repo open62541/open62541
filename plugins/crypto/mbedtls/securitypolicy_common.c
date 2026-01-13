@@ -685,4 +685,141 @@ UA_mbedTLS_CopyDataFormatAware(const UA_ByteString *data) {
     return result;
 }
 
+size_t
+UA_mbedTLS_asym_getRemoteSignatureSize_generic(const UA_SecurityPolicy *policy, const void *channelContext) {
+    if(channelContext == NULL)
+        return 0;
+    const mbedtls_ChannelContext *cc =
+        (const mbedtls_ChannelContext*)channelContext;
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    return mbedtls_pk_rsa(cc->remoteCertificate.pk)->len;
+#else
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
+#endif
+}
+
+size_t
+UA_mbedTLS_asym_getRemoteBlockSize_generic(const UA_SecurityPolicy *policy,
+                                           const void *channelContext) {
+    if(channelContext == NULL)
+        return 0;
+    const mbedtls_ChannelContext *cc =
+        (const mbedtls_ChannelContext*)channelContext;
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    return mbedtls_pk_rsa(cc->remoteCertificate.pk)->len;
+#else
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
+#endif
+}
+
+UA_StatusCode
+UA_mbedTLS_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
+                                            void *channelContext,
+                                            const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
+    UA_ByteString_clear(&cc->localSymEncryptingKey);
+    return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
+}
+
+UA_StatusCode
+UA_mbedTLS_setLocalSymSigningKey_generic(const UA_SecurityPolicy *policy,
+                                         void *channelContext,
+                                         const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    mbedtls_ChannelContext *cc = (mbedtls_ChannelContext *)channelContext;
+    UA_ByteString_clear(&cc->localSymSigningKey);
+    return UA_ByteString_copy(key, &cc->localSymSigningKey);
+}
+
+UA_StatusCode
+UA_mbedTLS_setLocalSymIv_generic(const UA_SecurityPolicy *policy,
+                                 void *channelContext,
+                                 const UA_ByteString *iv) {
+    if(iv == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    mbedtls_ChannelContext *cc = (mbedtls_ChannelContext *)channelContext;
+    UA_ByteString_clear(&cc->localSymIv);
+    return UA_ByteString_copy(iv, &cc->localSymIv);
+}
+
+UA_StatusCode
+UA_mbedTLS_setRemoteSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
+                                             void *channelContext,
+                                             const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
+    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
+    return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
+}
+
+UA_StatusCode
+UA_mbedTLS_setRemoteSymSigningKey_generic(const UA_SecurityPolicy *policy,
+                                          void *channelContext,
+                                          const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
+    UA_ByteString_clear(&cc->remoteSymSigningKey);
+    return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
+}
+
+UA_StatusCode
+UA_mbedTLS_setRemoteSymIv_generic(const UA_SecurityPolicy *policy,
+                                  void *channelContext,
+                                  const UA_ByteString *iv) {
+    if(iv == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    mbedtls_ChannelContext *cc =
+        (mbedtls_ChannelContext*)channelContext;
+    UA_ByteString_clear(&cc->remoteSymIv);
+    return UA_ByteString_copy(iv, &cc->remoteSymIv);
+}
+
+UA_StatusCode
+UA_mbedTLS_compareCertificate_generic(const UA_SecurityPolicy *policy,
+                                      const void *channelContext,
+                                      const UA_ByteString *certificate) {
+    if(channelContext == NULL || certificate == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    int mbedErr = mbedtls_x509_crt_parse(&cert, certificate->data, certificate->length);
+    if(mbedErr)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    const mbedtls_ChannelContext *cc =
+        (const mbedtls_ChannelContext*)channelContext;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(cert.raw.len != cc->remoteCertificate.raw.len ||
+       memcmp(cert.raw.p, cc->remoteCertificate.raw.p, cert.raw.len) != 0)
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    mbedtls_x509_crt_free(&cert);
+    return retval;
+}
+
+size_t
+UA_mbedTLS_getRemoteCertificatePrivateKeyLength(const UA_SecurityPolicy *policy,
+                                                const void *channelContext) {
+    if(channelContext == NULL)
+        return 0;
+    const mbedtls_ChannelContext *cc =
+        (const mbedtls_ChannelContext*)channelContext;
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
+    return rsaContext->len;
+#else
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
+#endif
+}
+
 #endif

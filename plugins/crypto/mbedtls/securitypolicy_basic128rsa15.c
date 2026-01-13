@@ -85,20 +85,6 @@ asym_getLocalSignatureSize_basic128rsa15(const UA_SecurityPolicy *policy,
 #endif
 }
 
-static size_t
-asym_getRemoteSignatureSize_basic128rsa15(const UA_SecurityPolicy *policy,
-                                          const void *channelContext) {
-    if(channelContext == NULL)
-        return 0;
-    const mbedtls_ChannelContext *cc =
-        (const mbedtls_ChannelContext *)channelContext;
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    return mbedtls_pk_rsa(cc->remoteCertificate.pk)->len;
-#else
-    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
-#endif
-}
-
 static UA_StatusCode
 asym_encrypt_basic128rsa15(const UA_SecurityPolicy *policy,
                            void *channelContext, UA_ByteString *data) {
@@ -198,39 +184,11 @@ asym_decrypt_basic128rsa15(const UA_SecurityPolicy *policy,
 }
 
 static size_t
-asym_getLocalEncryptionKeyLength_basic128rsa15(const UA_SecurityPolicy *policy,
-                                               const void *channelContext) {
-    if(channelContext == NULL)
-        return 0;
-    const mbedtls_ChannelContext *cc =
-        (const mbedtls_ChannelContext *)channelContext;
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    return rsaContext->len;
-#else
-    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
-#endif
-}
-
-static size_t
 asym_getRemoteEncryptionKeyLength_basic128rsa15(const UA_SecurityPolicy *policy,
                                                 const void *channelContext) {
     const mbedtls_ChannelContext *cc =
         (const mbedtls_ChannelContext *)channelContext;
     return mbedtls_pk_get_len(&cc->remoteCertificate.pk) * 8;
-}
-
-static size_t
-asym_getRemoteBlockSize_basic128rsa15(const UA_SecurityPolicy *policy,
-                                      const void *channelContext) {
-    const mbedtls_ChannelContext *cc =
-        (const mbedtls_ChannelContext *)channelContext;
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    mbedtls_rsa_context *const rsaContext = mbedtls_pk_rsa(cc->remoteCertificate.pk);
-    return rsaContext->len;
-#else
-    return mbedtls_rsa_get_len(mbedtls_pk_rsa(cc->remoteCertificate.pk));
-#endif
 }
 
 static size_t
@@ -509,96 +467,6 @@ newContext_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     return retval;
 }
 
-static UA_StatusCode
-setLocalSymEncryptingKey_basic128rsa15(const UA_SecurityPolicy *policy,
-                                       void *channelContext,
-                                       const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    mbedtls_ChannelContext *cc = (mbedtls_ChannelContext *)channelContext;
-    UA_ByteString_clear(&cc->localSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
-}
-
-static UA_StatusCode
-setLocalSymSigningKey_basic128rsa15(const UA_SecurityPolicy *policy,
-                                       void *channelContext,
-                                       const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    mbedtls_ChannelContext *cc = (mbedtls_ChannelContext *)channelContext;
-    UA_ByteString_clear(&cc->localSymSigningKey);
-    return UA_ByteString_copy(key, &cc->localSymSigningKey);
-}
-
-
-static UA_StatusCode
-setLocalSymIv_basic128rsa15(const UA_SecurityPolicy *policy,
-                               void *channelContext,
-                               const UA_ByteString *iv) {
-    if(iv == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    mbedtls_ChannelContext *cc = (mbedtls_ChannelContext *)channelContext;
-    UA_ByteString_clear(&cc->localSymIv);
-    return UA_ByteString_copy(iv, &cc->localSymIv);
-}
-
-static UA_StatusCode
-setRemoteSymEncryptingKey_basic128rsa15(const UA_SecurityPolicy *policy,
-                                        void *channelContext,
-                                        const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    mbedtls_ChannelContext *cc = (mbedtls_ChannelContext *)channelContext;
-    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
-}
-
-static UA_StatusCode
-setRemoteSymSigningKey_basic128rsa15(const UA_SecurityPolicy *policy,
-                                     void *channelContext,
-                                     const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    mbedtls_ChannelContext *cc = (mbedtls_ChannelContext *)channelContext;
-    UA_ByteString_clear(&cc->remoteSymSigningKey);
-    return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
-}
-
-static UA_StatusCode
-setRemoteSymIv_basic128rsa15(const UA_SecurityPolicy *policy,
-                             void *channelContext, const UA_ByteString *iv) {
-    if(iv == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    mbedtls_ChannelContext *cc = (mbedtls_ChannelContext *)channelContext;
-    UA_ByteString_clear(&cc->remoteSymIv);
-    return UA_ByteString_copy(iv, &cc->remoteSymIv);
-}
-
-static UA_StatusCode
-compareCertificate_basic128rsa15(const UA_SecurityPolicy *policy,
-                                 const void *channelContext,
-                                 const UA_ByteString *certificate) {
-    if(channelContext == NULL || certificate == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    const mbedtls_ChannelContext *cc =
-        (const mbedtls_ChannelContext *)channelContext;
-
-    mbedtls_x509_crt cert;
-    mbedtls_x509_crt_init(&cert);
-    int mbedErr = mbedtls_x509_crt_parse(&cert, certificate->data, certificate->length);
-    if(mbedErr)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(cert.raw.len != cc->remoteCertificate.raw.len ||
-       memcmp(cert.raw.p, cc->remoteCertificate.raw.p, cert.raw.len) != 0)
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-
-    mbedtls_x509_crt_free(&cert);
-    return retval;
-}
-
 static void
 clear_basic128rsa15(UA_SecurityPolicy *securityPolicy) {
     if(securityPolicy == NULL)
@@ -814,7 +682,7 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *sp,
     asymSig->verify = asym_verify_basic128rsa15;
     asymSig->sign = asym_sign_basic128rsa15;
     asymSig->getLocalSignatureSize = asym_getLocalSignatureSize_basic128rsa15;
-    asymSig->getRemoteSignatureSize = asym_getRemoteSignatureSize_basic128rsa15;
+    asymSig->getRemoteSignatureSize = UA_mbedTLS_asym_getRemoteSignatureSize_generic;
     asymSig->getLocalKeyLength = NULL;
     asymSig->getRemoteKeyLength = NULL;
 
@@ -823,9 +691,9 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *sp,
     asymEnc->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#rsa-1_5");
     asymEnc->encrypt = asym_encrypt_basic128rsa15;
     asymEnc->decrypt = asym_decrypt_basic128rsa15;
-    asymEnc->getLocalKeyLength = asym_getLocalEncryptionKeyLength_basic128rsa15;
+    asymEnc->getLocalKeyLength = UA_mbedTLS_getRemoteCertificatePrivateKeyLength;
     asymEnc->getRemoteKeyLength = asym_getRemoteEncryptionKeyLength_basic128rsa15;
-    asymEnc->getRemoteBlockSize = asym_getRemoteBlockSize_basic128rsa15;
+    asymEnc->getRemoteBlockSize = UA_mbedTLS_getRemoteCertificatePrivateKeyLength;
     asymEnc->getRemotePlainTextBlockSize = asym_getRemotePlainTextBlockSize_basic128rsa15;
 
     /* Symmetric Signature */
@@ -856,13 +724,13 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *sp,
     /* Direct Method Pointers */
     sp->newChannelContext = newContext_basic128rsa15;
     sp->deleteChannelContext = deleteContext_basic128rsa15;
-    sp->setLocalSymEncryptingKey = setLocalSymEncryptingKey_basic128rsa15;
-    sp->setLocalSymSigningKey = setLocalSymSigningKey_basic128rsa15;
-    sp->setLocalSymIv = setLocalSymIv_basic128rsa15;
-    sp->setRemoteSymEncryptingKey = setRemoteSymEncryptingKey_basic128rsa15;
-    sp->setRemoteSymSigningKey = setRemoteSymSigningKey_basic128rsa15;
-    sp->setRemoteSymIv = setRemoteSymIv_basic128rsa15;
-    sp->compareCertificate = compareCertificate_basic128rsa15;
+    sp->setLocalSymEncryptingKey = UA_mbedTLS_setLocalSymEncryptingKey_generic;
+    sp->setLocalSymSigningKey = UA_mbedTLS_setLocalSymSigningKey_generic;
+    sp->setLocalSymIv = UA_mbedTLS_setLocalSymIv_generic;
+    sp->setRemoteSymEncryptingKey = UA_mbedTLS_setRemoteSymEncryptingKey_generic;
+    sp->setRemoteSymSigningKey = UA_mbedTLS_setRemoteSymSigningKey_generic;
+    sp->setRemoteSymIv = UA_mbedTLS_setRemoteSymIv_generic;
+    sp->compareCertificate = UA_mbedTLS_compareCertificate_generic;
     sp->generateKey = sym_generateKey_basic128rsa15;
     sp->generateNonce = sym_generateNonce_basic128rsa15;
     sp->nonceLength = 16;
