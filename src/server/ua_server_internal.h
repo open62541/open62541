@@ -522,6 +522,16 @@ auditCertificateEvent_withMessage(UA_Server *server, UA_ApplicationNotificationT
                                   UA_String message, const UA_KeyValueMap payload);
 #endif
 
+/* Validate the certificate using the CertificateGroup and generate the
+ * appropriate audit events if the validation fails. If the session is non-NULL,
+ * then it gets used for logging. The ApplicationDescription can also be NULL.
+ * Then the ApplicationUri doesn't get checked against the certificate. */
+UA_StatusCode
+validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
+                    UA_SecureChannel *channel, UA_Session *session,
+                    const UA_ApplicationDescription *ad,
+                    UA_ByteString certificate);
+
 void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
 
 void setupNs1Uri(UA_Server *server);

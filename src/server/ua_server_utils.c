@@ -728,6 +728,53 @@ auditCertificateEvent_withMessage(UA_Server *server, UA_ApplicationNotificationT
 
 #endif /* UA_ENABLE_AUDITING */
 
+/**************************/
+/* Certificate Validation */
+/**************************/
+
+UA_StatusCode
+validateCertificate(UA_Server *server, UA_CertificateGroup *cg, UA_SecureChannel *channel,
+                    UA_Session *session, const UA_ApplicationDescription *ad,
+                    UA_ByteString certificate) {
+    /* Verify the ApplicationUri */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(ad) {
+        res = UA_CertificateUtils_verifyApplicationUri(&certificate, &ad->applicationUri);
+        if(res != UA_STATUSCODE_GOOD) {
+            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_WARN) {
+                if(session) {
+                    UA_LOG_ERROR_SESSION(server->config.logging, session,
+                                         "The client certificate's ApplicationUri "
+                                         "could not be verified against the "
+                                         "ApplicationUri %S from the client's "
+                                         "ApplicationDescription (%s)",
+                                         ad->applicationUri, UA_StatusCode_name(res));
+                } else {
+                    UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                                         "The client certificate's ApplicationUri "
+                                         "could not be verified against the "
+                                         "ApplicationUri %S from the lient's "
+                                         "ApplicationDescription (%s)",
+                                         ad->applicationUri, UA_StatusCode_name(res));
+                }
+            }
+            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_ABORT)
+                goto errout;
+        }
+    }
+
+    /* Validate in the CertificateGroup */
+    res = cg->verifyCertificate(cg, &certificate);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    return UA_STATUSCODE_GOOD;
+
+ errout:
+    /* TODO: Generate audit events */
+    return res;
+}
+
 /*********************************/
 /* Default attribute definitions */
 /*********************************/
