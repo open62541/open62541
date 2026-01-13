@@ -141,6 +141,52 @@ UA_StatusCode UA_mbedTLS_LoadLocalCertificate(const UA_ByteString *certData, UA_
 
 UA_ByteString UA_mbedTLS_CopyDataFormatAware(const UA_ByteString *data);
 
+size_t
+UA_mbedTLS_asym_getRemoteSignatureSize_generic(const UA_SecurityPolicy *policy, const void *channelContext);
+
+size_t
+UA_mbedTLS_asym_getRemoteBlockSize_generic(const UA_SecurityPolicy *policy,
+                                           const void *channelContext);
+
+UA_StatusCode
+UA_mbedTLS_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
+                                            void *channelContext,
+                                            const UA_ByteString *key);
+
+UA_StatusCode
+UA_mbedTLS_setLocalSymSigningKey_generic(const UA_SecurityPolicy *policy,
+                                         void *channelContext,
+                                         const UA_ByteString *key);
+
+UA_StatusCode
+UA_mbedTLS_setLocalSymIv_generic(const UA_SecurityPolicy *policy,
+                                 void *channelContext,
+                                 const UA_ByteString *iv);
+
+UA_StatusCode
+UA_mbedTLS_setRemoteSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
+                                             void *channelContext,
+                                             const UA_ByteString *key);
+
+UA_StatusCode
+UA_mbedTLS_setRemoteSymSigningKey_generic(const UA_SecurityPolicy *policy,
+                                          void *channelContext,
+                                          const UA_ByteString *key);
+
+UA_StatusCode
+UA_mbedTLS_setRemoteSymIv_generic(const UA_SecurityPolicy *policy,
+                                  void *channelContext,
+                                  const UA_ByteString *iv);
+
+UA_StatusCode
+UA_mbedTLS_compareCertificate_generic(const UA_SecurityPolicy *policy,
+                                      const void *channelContext,
+                                      const UA_ByteString *certificate);
+
+size_t
+UA_mbedTLS_getRemoteCertificatePrivateKeyLength(const UA_SecurityPolicy *policy,
+                                                const void *channelContext);
+
 _UA_END_DECLS
 
 #endif
