@@ -1399,7 +1399,7 @@ responseFindServers(UA_Client *client, void *userdata,
     for(size_t i = 0; i < fsr->serversSize; i++) {
         UA_ApplicationDescription *server = &fsr->servers[i];
 
-        /* Filter by the ApplicationURI if defined */
+        /* Filter by the ApplicationUri if defined */
         if(client->config.applicationUri.length > 0 &&
            !UA_String_equal(&client->config.applicationUri, &server->applicationUri))
             continue;
@@ -1426,7 +1426,7 @@ responseFindServers(UA_Client *client, void *userdata,
             server->applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER)
             continue;
 
-        /* Filter by the ApplicationURI if defined */
+        /* Filter by the ApplicationUri if defined */
         if(client->config.applicationUri.length > 0 &&
            !UA_String_equal(&client->config.applicationUri, &server->applicationUri))
             continue;
@@ -1791,30 +1791,26 @@ verifyClientSecureChannelHeader(void *application, UA_SecureChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
-/* The local ApplicationURI has to match the certificates of the
+/* The local ApplicationUri has to match the certificates of the
  * SecurityPolicies */
 static void
-verifyClientApplicationURI(const UA_Client *client) {
+verifyClientApplicationUri(const UA_Client *client) {
 #if UA_LOGLEVEL <= 400
-    for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
-        UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
-        if(!sp->localCertificate.data) {
-            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "Skip verifying ApplicationURI for the SecurityPolicy %S",
-                           sp->policyUri);
+    const UA_ClientConfig *cc = &client->config;
+    for(size_t i = 0; i < cc->securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &cc->securityPolicies[i];
+        if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE &&
+           !sp->localCertificate.data)
             continue;
-        }
-
         UA_StatusCode retval =
-            UA_CertificateUtils_verifyApplicationURI(client->allowAllCertificateUris,
-                                                     &sp->localCertificate,
-                                                     &client->config.clientDescription.applicationUri,
-                                                     client->config.logging);
+            UA_CertificateUtils_verifyApplicationUri(&sp->localCertificate,
+                                &cc->clientDescription.applicationUri);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "The configured ApplicationURI does not match the URI "
-                           "specified in the certificate for the SecurityPolicy %S",
-                           sp->policyUri);
+            UA_LOG_WARNING(cc->logging, UA_LOGCATEGORY_CLIENT,
+                           "The ApplicationUri %S in the client's ApplicationDescription "
+                           "does not match the URI specified in the certificate "
+                           "for the SecurityPolicy %S",
+                           cc->clientDescription.applicationUri, sp->policyUri);
         }
     }
 #endif
@@ -2008,9 +2004,9 @@ initConnect(UA_Client *client) {
     client->connectStatus = __UA_Client_startup(client);
     UA_CHECK_STATUS(client->connectStatus, return);
 
-    /* Consistency check the client's own ApplicationURI.
+    /* Consistency check the client's own ApplicationUri.
      * Problems are only logged. */
-    verifyClientApplicationURI(client);
+    verifyClientApplicationUri(client);
 
     /* Initialize the SecureChannel */
     UA_SecureChannel_clear(&client->channel);

@@ -231,6 +231,11 @@ encyrptedclientconnect(UA_Client *client) {
 
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
+    /* Set the ApplicationUri used in the certificate */
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri =
+        UA_STRING_ALLOC("urn:unconfigured:application");
+
     return UA_STATUSCODE_GOOD;
 }
 
