@@ -427,7 +427,9 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
 /*********************/
 
 #ifdef UA_ENABLE_AUDITING
-/* The first five entries of the payload-maps must be /ActionTimeStamp, /Status,
+/* The channel must be non-NULL. The session can be NULL.
+ *
+ * The first five entries of the payload-maps must be /ActionTimeStamp, /Status,
  * /ServerId, /ClientAuditEntryId and /ClientUserId. These field values are set
  * internally. The session pointer can be NULL if none is defined for the
  * current context. */
