@@ -492,6 +492,34 @@ auditCancelEvent(UA_Server *server, UA_ApplicationNotificationType type,
                  const char *serviceName, UA_Boolean status,
                  UA_StatusCode statusCodeId, UA_UInt32 requestHandle,
                  const UA_KeyValueMap payload);
+
+/* In addition to auditSecurityEvent, the seventh entry of the payload-map must be
+ * /Certificate and eighth must be /SourceName */
+void
+auditCertificateEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                      UA_SecureChannel *channel, UA_Session *session,
+                      const char *serviceName, UA_Boolean status,
+                      UA_StatusCode statusCodeId, UA_ByteString certificate,
+                      const UA_KeyValueMap payload);
+
+/* In addition to auditCertificateEvent, the ninth entry of the payload-map must
+ * be /InvalidHostname and the tenth must be /InvalidUri */
+void
+auditCertificateDataMismatchEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                                  UA_SecureChannel *channel, UA_Session *session,
+                                  const char *serviceName, UA_Boolean status,
+                                  UA_StatusCode statusCodeId, UA_ByteString certificate,
+                                  UA_String invalidHostname, UA_String invalidUri,
+                                  const UA_KeyValueMap payload);
+
+/* In addition to auditCertificateEvent, the ninth entry of the payload-map must
+ * be /Message */
+void
+auditCertificateEvent_withMessage(UA_Server *server, UA_ApplicationNotificationType type,
+                                  UA_SecureChannel *channel, UA_Session *session,
+                                  const char *serviceName, UA_Boolean status,
+                                  UA_StatusCode statusCodeId, UA_ByteString certificate,
+                                  UA_String message, const UA_KeyValueMap payload);
 #endif
 
 void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
