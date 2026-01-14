@@ -54,13 +54,20 @@ detectScalarDeadBand(const void *data1, const void *data2,
 static UA_Boolean
 detectVariantDeadband(const UA_Variant *value, const UA_Variant *oldValue,
                       const UA_Double deadbandValue) {
+    /* Be careful to avoid a NULL access. We could have the value a scalar and
+     * oldValue an empty array. Both define a type and arrayLength == 0. */
     if(value->arrayLength != oldValue->arrayLength)
         return true;
     if(value->type != oldValue->type)
         return true;
+    if(UA_Variant_isScalar(value) != UA_Variant_isScalar(oldValue))
+        return true;
+
+    /* Treat scalars as an array of length 1 and iterate */
     size_t length = 1;
     if(!UA_Variant_isScalar(value))
         length = value->arrayLength;
+
     uintptr_t data = (uintptr_t)value->data;
     uintptr_t oldData = (uintptr_t)oldValue->data;
     UA_UInt32 memSize = value->type->memSize;
@@ -103,6 +110,10 @@ detectValueChange(UA_Server *server, UA_MonitoredItem *mon,
     UA_assert(trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
               trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP);
 
+    /* Can we compare values? */
+    if(value->hasValue != mon->lastValue.hasValue)
+       return true;
+
     /* Test absolute deadband */
     if(dcf && dcf->deadbandType == UA_DEADBANDTYPE_ABSOLUTE &&
        value->value.type != NULL && UA_DataType_isNumeric(value->value.type))
@@ -119,8 +130,6 @@ detectValueChange(UA_Server *server, UA_MonitoredItem *mon,
     }
 
     /* Has the value changed? */
-    if(value->hasValue != mon->lastValue.hasValue)
-        return true;
     return (UA_order(&value->value, &mon->lastValue.value,
                      &UA_TYPES[UA_TYPES_VARIANT]) != UA_ORDER_EQ);
 }
