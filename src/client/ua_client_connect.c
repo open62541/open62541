@@ -1347,8 +1347,34 @@ responseGetEndpoints(UA_Client *client, void *userdata,
         return;
     }
 
-    /* Nothing to do. We have selected an endpoint that we can use to open a
-     * Session on the current SecureChannel. */
+    /* We have selected an endpoint that we can use to open a Session on the
+     * current SecureChannel. The remote certificate was validated during
+     * processing of the OPN response. But if client->endpoint.serverCertificate
+     * is empty we do not compare against the expectation from the endpoint. */
+
+    /* Is the same certificate used for the SecureChannel and the selected
+     * endpoint?
+     *
+     * Both the clientCertificate of this request and the remoteCertificate of
+     * the channel may contain a partial or a complete certificate chain. The
+     * compareCertificate function will compare the first certificate of each
+     * chain. The end certificate shall be located first in the chain according
+     * to the OPC UA specification Part 6 (1.04), chapter 6.2.3.*/
+    if(client->channel.securityMode != UA_MESSAGESECURITYMODE_NONE) {
+        void *cc = client->channel.channelContext;
+        UA_StatusCode res = sp->compareCertificate(sp, cc,
+                                                   &client->endpoint.serverCertificate);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                        "The selected endpoint defines a different server certificate "
+                        "from then one used by the server for the initial SecureChannel "
+                        "(to call GetEndpoints). Close the SecureChannel and reconnect.");
+            closeSecureChannel(client);
+            return;
+        }
+    }
+
+    /* Continue with the current SecureChannel */
 }
 
 static UA_StatusCode
