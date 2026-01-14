@@ -10,6 +10,7 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/types_generated_handling.h>
 
 #include "client/ua_client_internal.h"
 
@@ -908,6 +909,86 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterSetOnCreate) {
 }
 END_TEST
 
+static UA_StatusCode
+setEmptyArray(UA_Client *thisClient, UA_NodeId node) {
+    UA_Variant variant;
+    UA_Variant_init (&variant);
+    UA_Variant_setArray(&variant, NULL, 0, &UA_TYPES[UA_TYPES_DOUBLE]);
+    return UA_Client_writeValueAttribute(thisClient, node, &variant);
+}
+
+START_TEST(Server_MonitoredItemsAbsoluteFilterNULLValue) {
+    UA_DataValue_init(&lastValue);
+    /* define a monitored item with an absolute filter with deadbandvalue = 2.0 */
+    UA_MonitoredItemCreateRequest item = UA_MonitoredItemCreateRequest_default(outNodeId);
+    UA_DataChangeFilter filter;
+    UA_DataChangeFilter_init(&filter);
+    filter.trigger = UA_DATACHANGETRIGGER_STATUSVALUE;
+    filter.deadbandType = UA_DEADBANDTYPE_ABSOLUTE;
+    filter.deadbandValue = 2.0;
+    item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
+    item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_DATACHANGEFILTER];
+    item.requestedParameters.filter.content.decoded.data = &filter;
+    UA_UInt32 newMonitoredItemIds[1];
+    UA_Client_DataChangeNotificationCallback callbacks[1];
+    callbacks[0] = dataChangeHandler;
+    UA_Client_DeleteMonitoredItemCallback deleteCallbacks[1] = {NULL};
+    void *contexts[1];
+    contexts[0] = NULL;
+
+    /* Set empty array value so that the initial value data ptr for the monitored item is NULL */
+    ck_assert_uint_eq(setEmptyArray(client, outNodeId), UA_STATUSCODE_GOOD);
+
+    UA_CreateMonitoredItemsRequest createRequest;
+    UA_CreateMonitoredItemsRequest_init(&createRequest);
+    createRequest.subscriptionId = subId;
+    createRequest.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    createRequest.itemsToCreate = &item;
+    createRequest.itemsToCreateSize = 1;
+    UA_CreateMonitoredItemsResponse createResponse =
+       UA_Client_MonitoredItems_createDataChanges(client, createRequest, contexts,
+                                                   callbacks, deleteCallbacks);
+
+    ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(createResponse.resultsSize, 1);
+    ck_assert_uint_eq(createResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
+    UA_CreateMonitoredItemsResponse_clear(&createResponse);
+
+    // Do we get initial value ?
+    notificationReceived = false;
+    countNotificationReceived = 0;
+    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 1);
+    ck_assert(lastValue.value.data == NULL);
+
+    UA_DataValue *dv = &lastValue;
+
+    notificationReceived = false;
+    ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(1, 10), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(notificationReceived, true);
+    ck_assert_uint_eq(countNotificationReceived, 2);
+
+    // remove monitored item
+    UA_DeleteMonitoredItemsRequest deleteRequest;
+    UA_DeleteMonitoredItemsRequest_init(&deleteRequest);
+    deleteRequest.subscriptionId = subId;
+    deleteRequest.monitoredItemIds = newMonitoredItemIds;
+    deleteRequest.monitoredItemIdsSize = 1;
+
+    UA_DeleteMonitoredItemsResponse deleteResponse =
+        UA_Client_MonitoredItems_delete(client, deleteRequest);
+
+    ck_assert_uint_eq(deleteResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(deleteResponse.resultsSize, 1);
+    ck_assert_uint_eq(deleteResponse.results[0], UA_STATUSCODE_GOOD);
+
+    UA_DeleteMonitoredItemsResponse_clear(&deleteResponse);
+}
+END_TEST
+
 START_TEST(Server_MonitoredItemsPercentFilterSetOnCreateMissingEURange) {
     UA_DataValue_init(&lastValue);
     /* define a monitored item with an percent filter with deadbandvalue = 2.0 */
@@ -1124,11 +1205,16 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterSetOnCreateRemoveLater);
     tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetOnCreateMissingEURange);
     tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetLaterMissingEURange);
+
+
+    tcase_add_test(tc_server, Server_MonitoredItemsAbsoluteFilterNULLValue);
+
 #ifdef UA_ENABLE_DA
     tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetOnCreate);
     tcase_add_test(tc_server, Server_MonitoredItemsPercentFilterSetOnCreateDeadBandValueOutOfRange);
 #endif /* UA_ENABLE_DA */
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
+
     suite_add_tcase(s, tc_server);
 
     return s;
