@@ -1080,6 +1080,7 @@ endif()
 # For file based server configuration
 if(UA_ENABLE_JSON_ENCODING)
     list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_file_based.h)
+    list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/client_config_file_based.h)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_config_json.c)
 endif()
 
