@@ -243,77 +243,6 @@ UA_Asy_Basic256_makeCertificateThumbprint(const UA_SecurityPolicy * securityPoli
     return UA_Openssl_X509_GetCertificateThumbprint (certificate, thumbprint, false);
 }
 
-static UA_StatusCode
-Basic256_setLocalSymSigningKey(const UA_SecurityPolicy *policy,
-                               void *channelContext, const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->localSymSigningKey);
-    return UA_ByteString_copy(key, &cc->localSymSigningKey);
-}
-
-static UA_StatusCode
-Basic256_setLocalSymEncryptingKey(const UA_SecurityPolicy *policy,
-                                  void *channelContext, const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->localSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
-}
-
-static UA_StatusCode
-Basic256_setLocalSymIv(const UA_SecurityPolicy *policy,
-                       void *channelContext, const UA_ByteString *iv) {
-    if(iv == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->localSymIv);
-    return UA_ByteString_copy(iv, &cc->localSymIv);
-}
-
-static UA_StatusCode
-Basic256_setRemoteSymSigningKey(const UA_SecurityPolicy *policy,
-                                void *channelContext, const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->remoteSymSigningKey);
-    return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
-}
-
-static UA_StatusCode
-Basic256_setRemoteSymEncryptingKey(const UA_SecurityPolicy *policy,
-                                   void *channelContext, const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
-}
-
-static UA_StatusCode
-Basic256_setRemoteSymIv(const UA_SecurityPolicy *policy,
-                        void *channelContext, const UA_ByteString *iv) {
-    if(iv == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->remoteSymIv);
-    return UA_ByteString_copy(iv, &cc->remoteSymIv);
-}
-
-static UA_StatusCode
-Basic256_compareCertificate(const UA_SecurityPolicy *policy,
-                            const void *channelContext,
-                            const UA_ByteString *certificate) {
-    if(channelContext == NULL || certificate == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    const openssl_ChannelContext *cc =
-        (const openssl_ChannelContext *) channelContext;
-    return UA_OpenSSL_X509_compare(certificate, cc->remoteCertificateX509);
-}
-
 static size_t
 UA_AsySig_Basic256_getRemoteSignatureSize(const UA_SecurityPolicy *policy,
                                           const void *channelContext) {
@@ -582,13 +511,13 @@ UA_SecurityPolicy_Basic256(UA_SecurityPolicy *sp,
     /* Direct Method Pointers */
     sp->newChannelContext = Basic256_New_Context;
     sp->deleteChannelContext = Basic256_Delete_Context;
-    sp->setLocalSymEncryptingKey = Basic256_setLocalSymEncryptingKey;
-    sp->setLocalSymSigningKey = Basic256_setLocalSymSigningKey;
-    sp->setLocalSymIv = Basic256_setLocalSymIv;
-    sp->setRemoteSymEncryptingKey = Basic256_setRemoteSymEncryptingKey;
-    sp->setRemoteSymSigningKey = Basic256_setRemoteSymSigningKey;
-    sp->setRemoteSymIv = Basic256_setRemoteSymIv;
-    sp->compareCertificate = Basic256_compareCertificate;
+    sp->setLocalSymEncryptingKey = UA_OpenSSL_setLocalSymEncryptingKey_generic;
+    sp->setLocalSymSigningKey = UA_OpenSSL_setLocalSymSigningKey_generic;
+    sp->setLocalSymIv = UA_OpenSSL_setLocalSymIv_generic;
+    sp->setRemoteSymEncryptingKey = UA_OpenSSL_setRemoteSymEncryptingKey_generic;
+    sp->setRemoteSymSigningKey = UA_OpenSSL_setRemoteSymSigningKey_generic;
+    sp->setRemoteSymIv = UA_OpenSSL_setRemoteSymIv_generic;
+    sp->compareCertificate = UA_OpenSSL_compareCertificate_generic;
     sp->generateKey = UA_Sym_Basic256_generateKey;
     sp->generateNonce = UA_Sym_Basic256_generateNonce;
     sp->nonceLength = 32;

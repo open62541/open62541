@@ -233,83 +233,6 @@ Basic128Rsa15_Delete_Context(const UA_SecurityPolicy *policy,
 }
 
 static UA_StatusCode
-Basic128Rsa15_setLocalSymSigningKey(const UA_SecurityPolicy *policy,
-                                    void *channelContext,
-                                    const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->localSymSigningKey);
-    return UA_ByteString_copy(key, &cc->localSymSigningKey);
-}
-
-static UA_StatusCode
-Basic128Rsa15_setLocalSymEncryptingKey(const UA_SecurityPolicy *policy,
-                                       void *channelContext,
-                                       const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->localSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
-}
-
-static UA_StatusCode
-Basic128Rsa15_setLocalSymIv(const UA_SecurityPolicy *policy,
-                            void *channelContext,
-                            const UA_ByteString *iv) {
-    if(iv == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->localSymIv);
-    return UA_ByteString_copy(iv, &cc->localSymIv);
-}
-
-static UA_StatusCode
-Basic128Rsa15_setRemoteSymSigningKey(const UA_SecurityPolicy *policy,
-                                     void *channelContext,
-                                     const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->remoteSymSigningKey);
-    return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
-}
-
-static UA_StatusCode
-Basic128Rsa15_setRemoteSymEncryptingKey(const UA_SecurityPolicy *policy,
-                                        void *channelContext,
-                                        const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
-    return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
-}
-
-static UA_StatusCode
-Basic128Rsa15_setRemoteSymIv(const UA_SecurityPolicy *policy,
-                             void *channelContext,
-                             const UA_ByteString *iv) {
-    if(iv == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
-    UA_ByteString_clear(&cc->remoteSymIv);
-    return UA_ByteString_copy(iv, &cc->remoteSymIv);
-}
-
-static UA_StatusCode
-Basic128Rsa15_compareCertificate(const UA_SecurityPolicy *policy,
-                                 const void *channelContext,
-                                 const UA_ByteString *certificate) {
-    if(channelContext == NULL || certificate == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    const openssl_ChannelContext * cc =
-        (const openssl_ChannelContext *) channelContext;
-    return UA_OpenSSL_X509_compare(certificate, cc->remoteCertificateX509);
-}
-
-static UA_StatusCode
 UA_Asy_Basic128Rsa15_compareCertThumbprint(const UA_SecurityPolicy *securityPolicy,
                                            const UA_ByteString *certificateThumbprint) {
     if(securityPolicy == NULL || certificateThumbprint == NULL)
@@ -595,13 +518,13 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *sp,
     /* Direct Method Pointers */
     sp->newChannelContext = Basic128Rsa15_New_Context;
     sp->deleteChannelContext = Basic128Rsa15_Delete_Context;
-    sp->setLocalSymEncryptingKey = Basic128Rsa15_setLocalSymEncryptingKey;
-    sp->setLocalSymSigningKey = Basic128Rsa15_setLocalSymSigningKey;
-    sp->setLocalSymIv = Basic128Rsa15_setLocalSymIv;
-    sp->setRemoteSymEncryptingKey = Basic128Rsa15_setRemoteSymEncryptingKey;
-    sp->setRemoteSymSigningKey = Basic128Rsa15_setRemoteSymSigningKey;
-    sp->setRemoteSymIv = Basic128Rsa15_setRemoteSymIv;
-    sp->compareCertificate = Basic128Rsa15_compareCertificate;
+    sp->setLocalSymEncryptingKey = UA_OpenSSL_setLocalSymEncryptingKey_generic;
+    sp->setLocalSymSigningKey = UA_OpenSSL_setLocalSymSigningKey_generic;
+    sp->setLocalSymIv = UA_OpenSSL_setLocalSymIv_generic;
+    sp->setRemoteSymEncryptingKey = UA_OpenSSL_setRemoteSymEncryptingKey_generic;
+    sp->setRemoteSymSigningKey = UA_OpenSSL_setRemoteSymSigningKey_generic;
+    sp->setRemoteSymIv = UA_OpenSSL_setRemoteSymIv_generic;
+    sp->compareCertificate = UA_OpenSSL_compareCertificate_generic;
     sp->generateKey = UA_Sym_Basic128Rsa15_generateKey;
     sp->generateNonce = UA_Sym_Basic128Rsa15_generateNonce;
     sp->nonceLength = 16;  /* 128 bits*/
