@@ -8,82 +8,71 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2023 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Phuong Nguyen)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/types.h>
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
-void
-notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                    UA_ApplicationNotificationType type) {
-    UA_ServerConfig *sc = &server->config;
+/* The OpenSecureChannel Service in the server is split as follows:
+ *
+ * - Decode the OPN Asymmetric Header (SecureChannel)
+ * - Process the OPN Asymmetric Header (here, via channel->processOPNHeader callback)
+ *   - Verify the remote certificate and configure the SecureChannel
+ * - Verify the OPN message signature and decrypt (SecureChannel)
+ * - Process the OpenSecureChannelRequest (here, via standard service call logic)
+ */
 
-    /* Nothing to do? */
-    if(!sc->globalNotificationCallback && !sc->secureChannelNotificationCallback)
-        return;
-
-    /* Prepare the payload */
-    static UA_THREAD_LOCAL UA_KeyValuePair notifySCData[15] = {
-        {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
-        {{0, UA_STRING_STATIC("connection-manager-name")}, {0}},
-        {{0, UA_STRING_STATIC("connection-id")}, {0}},
-        {{0, UA_STRING_STATIC("remote-address")}, {0}},
-        {{0, UA_STRING_STATIC("protocol-version")}, {0}},
-        {{0, UA_STRING_STATIC("recv-buffer-size")}, {0}},
-        {{0, UA_STRING_STATIC("recv-max-message-size")}, {0}},
-        {{0, UA_STRING_STATIC("recv-max-chunk-count")}, {0}},
-        {{0, UA_STRING_STATIC("send-buffer-size")}, {0}},
-        {{0, UA_STRING_STATIC("send-max-message-size")}, {0}},
-        {{0, UA_STRING_STATIC("send-max-chunk-count")}, {0}},
-        {{0, UA_STRING_STATIC("endpoint-url")}, {0}},
-        {{0, UA_STRING_STATIC("security-mode")}, {0}},
-        {{0, UA_STRING_STATIC("security-policy-url")}, {0}},
-        {{0, UA_STRING_STATIC("remote-certificate")}, {0}}
-    };
-    UA_KeyValueMap notifySCMap = {15, notifySCData};
-
-    UA_Variant_setScalar(&notifySCData[0].value, &channel->securityToken.channelId,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[1].value,
-                         &channel->connectionManager->eventSource.name,
-                         &UA_TYPES[UA_TYPES_STRING]);
-    UA_UInt64 connectionId = channel->connectionId;
-    UA_Variant_setScalar(&notifySCData[2].value, &connectionId,
-                         &UA_TYPES[UA_TYPES_UINT64]);
-    UA_Variant_setScalar(&notifySCData[3].value, &channel->remoteAddress,
-                         &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalar(&notifySCData[4].value, &channel->config.protocolVersion,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[5].value, &channel->config.recvBufferSize,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[6].value, &channel->config.localMaxMessageSize,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[7].value, &channel->config.localMaxChunkCount,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[8].value, &channel->config.sendBufferSize,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[9].value, &channel->config.remoteMaxMessageSize,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[10].value, &channel->config.remoteMaxChunkCount,
-                         &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifySCData[11].value, &channel->endpointUrl,
-                         &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalar(&notifySCData[12].value, &channel->securityMode,
-                         &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
-    UA_String securityPolicyUri = UA_STRING_NULL;
+UA_StatusCode
+processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
+                      const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
     if(channel->securityPolicy)
-        securityPolicyUri = channel->securityPolicy->policyUri;
-    UA_Variant_setScalar(&notifySCData[13].value, &securityPolicyUri,
-                         &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalar(&notifySCData[14].value, &channel->remoteCertificate,
-                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+        return UA_STATUSCODE_GOOD;
 
-    /* Notify the application */
-    if(sc->secureChannelNotificationCallback)
-        sc->secureChannelNotificationCallback(server, type, notifySCMap);
-    if(sc->globalNotificationCallback)
-        sc->globalNotificationCallback(server, type, notifySCMap);
+    /* Iterate over available endpoints and choose the correct one */
+    UA_Server *server = (UA_Server *)application;
+    UA_ServerConfig *sc = &server->config;
+    UA_SecurityPolicy *securityPolicy = NULL;
+    for(size_t i = 0; i < sc->securityPoliciesSize; ++i) {
+        UA_SecurityPolicy *policy = &sc->securityPolicies[i];
+        if(!UA_String_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
+            continue;
+
+        UA_StatusCode res = policy->
+            compareCertThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
+        if(res != UA_STATUSCODE_GOOD)
+            continue;
+
+        /* We found the correct policy (except for security mode). The endpoint
+         * needs to be selected by the client / server to match the security
+         * mode in the endpoint for the session. */
+        securityPolicy = policy;
+        break;
+    }
+
+    if(!securityPolicy)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+
+    /* TODO: Check the URI in the certificate */
+
+    /* Verify the client certificate (chain) */
+    if(asymHeader->senderCertificate.length > 0) {
+        UA_StatusCode res = sc->secureChannelPKI.
+            verifyCertificate(&sc->secureChannelPKI,
+                              &asymHeader->senderCertificate);
+        UA_CHECK_STATUS(res, return res);
+    }
+
+    /* If the sender provides a chain of certificates then we shall extract the
+     * ApplicationInstanceCertificate. and ignore the extra bytes. See also: OPC
+     * UA Part 6, V1.04, 6.7.2.3 Security Header, Table 42 - Asymmetric
+     * algorithm Security header */
+    UA_ByteString appInstCert = getLeafCertificate(asymHeader->senderCertificate);
+
+    /* Create the channel context and parse the sender (remote) certificate used
+     * for the secureChannel. */
+    return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy, &appInstCert);
 }
 
 void
@@ -218,4 +207,76 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 void
 Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
     UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
+}
+
+void
+notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                    UA_ApplicationNotificationType type) {
+    UA_ServerConfig *sc = &server->config;
+
+    /* Nothing to do? */
+    if(!sc->globalNotificationCallback && !sc->secureChannelNotificationCallback)
+        return;
+
+    /* Prepare the payload */
+    static UA_THREAD_LOCAL UA_KeyValuePair notifySCData[15] = {
+        {{0, UA_STRING_STATIC("securechannel-id")}, {0}},
+        {{0, UA_STRING_STATIC("connection-manager-name")}, {0}},
+        {{0, UA_STRING_STATIC("connection-id")}, {0}},
+        {{0, UA_STRING_STATIC("remote-address")}, {0}},
+        {{0, UA_STRING_STATIC("protocol-version")}, {0}},
+        {{0, UA_STRING_STATIC("recv-buffer-size")}, {0}},
+        {{0, UA_STRING_STATIC("recv-max-message-size")}, {0}},
+        {{0, UA_STRING_STATIC("recv-max-chunk-count")}, {0}},
+        {{0, UA_STRING_STATIC("send-buffer-size")}, {0}},
+        {{0, UA_STRING_STATIC("send-max-message-size")}, {0}},
+        {{0, UA_STRING_STATIC("send-max-chunk-count")}, {0}},
+        {{0, UA_STRING_STATIC("endpoint-url")}, {0}},
+        {{0, UA_STRING_STATIC("security-mode")}, {0}},
+        {{0, UA_STRING_STATIC("security-policy-url")}, {0}},
+        {{0, UA_STRING_STATIC("remote-certificate")}, {0}}
+    };
+    UA_KeyValueMap notifySCMap = {15, notifySCData};
+
+    UA_Variant_setScalar(&notifySCData[0].value, &channel->securityToken.channelId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[1].value,
+                         &channel->connectionManager->eventSource.name,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_UInt64 connectionId = channel->connectionId;
+    UA_Variant_setScalar(&notifySCData[2].value, &connectionId,
+                         &UA_TYPES[UA_TYPES_UINT64]);
+    UA_Variant_setScalar(&notifySCData[3].value, &channel->remoteAddress,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&notifySCData[4].value, &channel->config.protocolVersion,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[5].value, &channel->config.recvBufferSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[6].value, &channel->config.localMaxMessageSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[7].value, &channel->config.localMaxChunkCount,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[8].value, &channel->config.sendBufferSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[9].value, &channel->config.remoteMaxMessageSize,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[10].value, &channel->config.remoteMaxChunkCount,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&notifySCData[11].value, &channel->endpointUrl,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&notifySCData[12].value, &channel->securityMode,
+                         &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
+    UA_String securityPolicyUri = UA_STRING_NULL;
+    if(channel->securityPolicy)
+        securityPolicyUri = channel->securityPolicy->policyUri;
+    UA_Variant_setScalar(&notifySCData[13].value, &securityPolicyUri,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&notifySCData[14].value, &channel->remoteCertificate,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+
+    /* Notify the application */
+    if(sc->secureChannelNotificationCallback)
+        sc->secureChannelNotificationCallback(server, type, notifySCMap);
+    if(sc->globalNotificationCallback)
+        sc->globalNotificationCallback(server, type, notifySCMap);
 }
