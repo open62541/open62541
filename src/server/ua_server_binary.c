@@ -688,7 +688,6 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     /* Set up the new SecureChannel */
     UA_SecureChannel_init(channel);
     channel->config = connConfig;
-    channel->certificateVerification = &config->secureChannelPKI;
     channel->processOPNHeader = configServerSecureChannel;
     channel->processOPNHeaderApplication = server;
     channel->connectionManager = cm;

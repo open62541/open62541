@@ -2072,7 +2072,6 @@ initConnect(UA_Client *client) {
     /* Initialize the SecureChannel */
     UA_SecureChannel_clear(&client->channel);
     client->channel.config = client->config.localConnectionConfig;
-    client->channel.certificateVerification = &client->config.certificateVerification;
     client->channel.processOPNHeader = verifyClientSecureChannelHeader;
     client->channel.processOPNHeaderApplication = client;
 
@@ -2481,7 +2480,6 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
 
     UA_SecureChannel_init(&client->channel);
     client->channel.config = client->config.localConnectionConfig;
-    client->channel.certificateVerification = &client->config.certificateVerification;
     client->channel.processOPNHeader = verifyClientSecureChannelHeader;
     client->channel.processOPNHeaderApplication = client;
     client->channel.connectionId = 0;
