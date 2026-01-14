@@ -44,9 +44,9 @@ processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
         if(res != UA_STATUSCODE_GOOD)
             continue;
 
-        /* We found the correct policy (except for security mode). The endpoint
-         * needs to be selected by the client / server to match the security
-         * mode in the endpoint for the session. */
+        /* We found the correct policy. The endpoint is selected later during
+         * CreateSession. There the channel's SecurityMode also gets checked
+         * against the endpoint definition. */
         securityPolicy = policy;
         break;
     }
@@ -65,13 +65,15 @@ processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
     }
 
     /* If the sender provides a chain of certificates then we shall extract the
-     * ApplicationInstanceCertificate. and ignore the extra bytes. See also: OPC
+     * ApplicationInstanceCertificate and ignore the extra bytes. See also: OPC
      * UA Part 6, V1.04, 6.7.2.3 Security Header, Table 42 - Asymmetric
      * algorithm Security header */
     UA_ByteString appInstCert = getLeafCertificate(asymHeader->senderCertificate);
 
     /* Create the channel context and parse the sender (remote) certificate used
-     * for the secureChannel. */
+     * for the secureChannel. This sets a "temporary SecurityMode" so that we
+     * can properly decrypt the remaining OPN message. The final SecurityMode is
+     * set in the OpenSecureChannel service. */
     return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy, &appInstCert);
 }
 
