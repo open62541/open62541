@@ -569,7 +569,6 @@ auditCreateSessionEvent(UA_Server *server, UA_ApplicationNotificationType type,
                         UA_SecureChannel *channel, UA_Session *session,
                         const char *serviceName, UA_Boolean status,
                         UA_StatusCode statusCodeId, UA_ByteString clientCertificate,
-                        UA_ByteString clientCertificateThumbprint,
                         const UA_KeyValueMap payload) {
     /* /SecureChannelId */
     UA_Byte secureChannelNameBuf[32];
@@ -579,10 +578,29 @@ auditCreateSessionEvent(UA_Server *server, UA_ApplicationNotificationType type,
     UA_Variant_setScalar(&payload.map[8].value, &secureChannelName,
                          &UA_TYPES[UA_TYPES_STRING]);
 
-    /* /ClientCertificate and /ClientCertificateThumbprint */
+    /* /ClientCertificate */
     UA_Variant_setScalar(&payload.map[9].value, &clientCertificate,
                          &UA_TYPES[UA_TYPES_BYTESTRING]);
-    UA_Variant_setScalar(&payload.map[10].value, &clientCertificateThumbprint,
+
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    UA_assert(sp);
+
+    /* /ClientCertificateThumbprint
+     *
+     * Upon success we can take the certificate thumbprint from the
+     * SecureChannel. Because we know it must be the same as the client
+     * certificate from the CreateSession request. And this is checked in
+     * _CreateSession. */
+    UA_ByteString certThumbprint;
+    if(status == true) {
+        certThumbprint.data = channel->remoteCertificateThumbprint;
+        certThumbprint.length = 20;
+    } else {
+        UA_ByteString_init(&certThumbprint);
+        sp->makeCertThumbprint(sp, &clientCertificate,
+                               &certThumbprint); /* Ignore error */
+    }
+    UA_Variant_setScalar(&payload.map[10].value, &certThumbprint,
                          &UA_TYPES[UA_TYPES_BYTESTRING]);
 
     /* /ReviseSessionTimeout */
@@ -594,6 +612,9 @@ auditCreateSessionEvent(UA_Server *server, UA_ApplicationNotificationType type,
 
     auditSessionEvent(server, type, channel, session, serviceName, status,
                        statusCodeId, payload);
+
+    if(status != true)
+        UA_ByteString_clear(&certThumbprint);
 }
 
 void

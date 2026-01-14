@@ -646,14 +646,10 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Create Audit Event */
 #ifdef UA_ENABLE_AUDITING
     UA_KeyValueMap payloadMap = {12, sessionCreateAuditPayload};
-    UA_ByteString certThumbprint = UA_BYTESTRING_NULL;
-    sp->makeCertThumbprint(sp, &request->clientCertificate, &certThumbprint); /* Ignore error */
     auditCreateSessionEvent(server,
                             UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CREATE,
                             channel, newSession, "CreateSession", true,
-                            UA_STATUSCODE_GOOD, request->clientCertificate,
-                            certThumbprint, payloadMap);
-    UA_ByteString_clear(&certThumbprint);
+                            UA_STATUSCODE_GOOD, request->clientCertificate, payloadMap);
 #endif
 }
 

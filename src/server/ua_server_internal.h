@@ -443,7 +443,6 @@ auditCreateSessionEvent(UA_Server *server, UA_ApplicationNotificationType type,
                         UA_SecureChannel *channel, UA_Session *session,
                         const char *serviceName, UA_Boolean status,
                         UA_StatusCode statusCodeId, UA_ByteString clientCertificate,
-                        UA_ByteString clientCertificateThumbprint,
                         const UA_KeyValueMap payload);
 
 /* In addition to auditSessionEvent, the entries 9--11 of the payload-map must
