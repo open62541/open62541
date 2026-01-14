@@ -581,6 +581,8 @@ purgeFirstChannelWithoutSession(UA_BinaryProtocolManager *bpm) {
     return false;
 }
 
+/* Validate the remote certificate received in the OPN message and create the
+ * SecureChannel context. This is needed before OPN is decrypted. */
 static UA_StatusCode
 configServerSecureChannel(void *application, UA_SecureChannel *channel,
                           const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
@@ -589,9 +591,10 @@ configServerSecureChannel(void *application, UA_SecureChannel *channel,
 
     /* Iterate over available endpoints and choose the correct one */
     UA_Server *server = (UA_Server *)application;
+    UA_ServerConfig *sc = &server->config;
     UA_SecurityPolicy *securityPolicy = NULL;
-    for(size_t i = 0; i < server->config.securityPoliciesSize; ++i) {
-        UA_SecurityPolicy *policy = &server->config.securityPolicies[i];
+    for(size_t i = 0; i < sc->securityPoliciesSize; ++i) {
+        UA_SecurityPolicy *policy = &sc->securityPolicies[i];
         if(!UA_String_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
             continue;
 
@@ -609,6 +612,16 @@ configServerSecureChannel(void *application, UA_SecureChannel *channel,
 
     if(!securityPolicy)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+
+    /* Verify the client certificate (chain) */
+    if(asymHeader->senderCertificate.length > 0) {
+        if(!sc->secureChannelPKI.verifyCertificate)
+            return UA_STATUSCODE_BADINTERNALERROR;
+        UA_StatusCode res =
+            sc->secureChannelPKI.verifyCertificate(&sc->secureChannelPKI,
+                                                   &asymHeader->senderCertificate);
+        UA_CHECK_STATUS(res, return res);
+    }
 
     /* If the sender provides a chain of certificates then we shall extract the
      * ApplicationInstanceCertificate. and ignore the extra bytes. See also: OPC

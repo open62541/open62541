@@ -375,6 +375,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     void *cc = channel->channelContext;
+    UA_assert(sp != NULL);
 
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
