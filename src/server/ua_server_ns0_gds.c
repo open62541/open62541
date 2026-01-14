@@ -813,9 +813,9 @@ readTrustList(UA_Server *server,
 
     UA_ByteString readBuffer = UA_BYTESTRING_NULL;
     if(length > 0) {
-        readBuffer.length = length;
+        readBuffer.length = (size_t)length;
         readBuffer.data = fileContext->file.data+fileContext->currentPos;
-        fileContext->currentPos += length;
+        fileContext->currentPos += (UA_UInt64)length;
     }
 
     UA_Variant_setScalarCopy(output, &readBuffer, &UA_TYPES[UA_TYPES_BYTESTRING]);

@@ -153,7 +153,7 @@ UA_EccEncryptedSecret_checkAndExtractPayload(const UA_ByteString *payload,
         return false;
     }
 
-    UA_Byte padd = paddingSize & 0xFF;
+    UA_Byte padd = (UA_Byte)(paddingSize & 0xFF);
 
     for(size_t i=payload->length-3, j=paddingSize; j>0; i--, j--) {
         if(payload->data[i] != padd) {
