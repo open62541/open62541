@@ -7,8 +7,10 @@
 
 #include <open62541/plugin/log.h>
 #include <open62541/server_config_file_based.h>
+#include <open62541/client_config_file_based.h>
 #include "cj5.h"
 #include "open62541/server_config_default.h"
+#include "open62541/client_config_default.h"
 #ifdef UA_ENABLE_ENCRYPTION
 #include "open62541/plugin/certificategroup_default.h"
 #endif
@@ -97,6 +99,17 @@ PARSE_JSON(UInt64Field) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     UA_UInt64 *field = (UA_UInt64*)configField;
+    *field = out;
+    return retval;
+}
+PARSE_JSON(Int32Field) {
+    cj5_token tok = ctx->tokens[++ctx->index];
+    UA_ByteString buf = getJsonPart(tok, ctx->json);
+    UA_Int32 out;
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_INT32], NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_Int32 *field = (UA_Int32*)configField;
     *field = out;
     return retval;
 }
@@ -256,6 +269,49 @@ PARSE_JSON(UInt32RangeField) {
 #endif
 
 /*----------------------Advanced Types------------------------*/
+PARSE_JSON(StringArrayField) {
+    if(configFieldSize == NULL) {
+        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Pointer to the array size is not set.");
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
+    }
+    cj5_token tok = ctx->tokens[++ctx->index];
+    UA_String *stringArray = (UA_String*)UA_malloc(sizeof(UA_String) * tok.size);
+    size_t stringArraySize = 0;
+    for(size_t j = tok.size; j > 0; j--) {
+        UA_String out = {.length = 0, .data = NULL};
+        StringField_parseJson(ctx, &out, NULL);
+        UA_String_copy(&out, &stringArray[stringArraySize++]);
+        UA_String_clear(&out);
+    }
+    /* Add to the config */
+    UA_String **field = (UA_String**)configField;
+    if(*configFieldSize > 0) {
+        UA_Array_delete(*field, *configFieldSize,
+                        &UA_TYPES[UA_TYPES_STRING]);
+        *field = NULL;
+        *configFieldSize = 0;
+    }
+    UA_StatusCode retval =
+        UA_Array_copy(stringArray, stringArraySize,
+                      (void**)field, &UA_TYPES[UA_TYPES_STRING]);
+    *configFieldSize = stringArraySize;
+
+    /* Clean up */
+    UA_Array_delete(stringArray, stringArraySize, &UA_TYPES[UA_TYPES_STRING]);
+    return retval;
+}
+PARSE_JSON(DateTimeField) {
+    cj5_token tok = ctx->tokens[++ctx->index];
+    UA_ByteString buf = getJsonPart(tok, ctx->json);
+    UA_DateTime out;
+    UA_DateTime_init(&out);
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_DATETIME], NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_DateTime *field = (UA_DateTime*)configField;
+    *field = out;
+    return retval;
+}
 PARSE_JSON(BuildInfo) {
     UA_BuildInfo *field = (UA_BuildInfo*)configField;
     cj5_token tok = ctx->tokens[++ctx->index];
@@ -289,6 +345,16 @@ PARSE_JSON(BuildInfo) {
         }
     }
     return UA_STATUSCODE_GOOD;
+}
+
+PARSE_JSON(ApplicationTypeField) {
+    UA_UInt32 enum_value;
+    UA_StatusCode retval = UInt32Field_parseJson(ctx, &enum_value, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_ApplicationType *field = (UA_ApplicationType*)configField;
+    *field = (UA_ApplicationType)enum_value;
+    return retval;
 }
 PARSE_JSON(ApplicationDescriptionField) {
     UA_ApplicationDescription *field = (UA_ApplicationDescription*)configField;
@@ -326,37 +392,7 @@ PARSE_JSON(ApplicationDescriptionField) {
     }
     return UA_STATUSCODE_GOOD;
 }
-PARSE_JSON(StringArrayField) {
-    if(configFieldSize == NULL) {
-        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Pointer to the array size is not set.");
-        return UA_STATUSCODE_BADARGUMENTSMISSING;
-    }
-    cj5_token tok = ctx->tokens[++ctx->index];
-    UA_String *stringArray = (UA_String*)UA_malloc(sizeof(UA_String) * tok.size);
-    size_t stringArraySize = 0;
-    for(size_t j = tok.size; j > 0; j--) {
-        UA_String out = {.length = 0, .data = NULL};
-        StringField_parseJson(ctx, &out, NULL);
-        UA_String_copy(&out, &stringArray[stringArraySize++]);
-        UA_String_clear(&out);
-    }
-    /* Add to the config */
-    UA_String **field = (UA_String**)configField;
-    if(*configFieldSize > 0) {
-        UA_Array_delete(*field, *configFieldSize,
-                        &UA_TYPES[UA_TYPES_STRING]);
-        *field = NULL;
-        *configFieldSize = 0;
-    }
-    UA_StatusCode retval =
-        UA_Array_copy(stringArray, stringArraySize,
-                      (void**)field, &UA_TYPES[UA_TYPES_STRING]);
-    *configFieldSize = stringArraySize;
-
-    /* Clean up */
-    UA_Array_delete(stringArray, stringArraySize, &UA_TYPES[UA_TYPES_STRING]);
-    return retval;
-}
+#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD) && !defined(UA_HAS_GETIFADDR)
 PARSE_JSON(UInt32ArrayField) {
     if(configFieldSize == NULL) {
         UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Pointer to the array size is not set.");
@@ -390,19 +426,7 @@ PARSE_JSON(UInt32ArrayField) {
     UA_Array_delete(numberArray, numberArraySize, &UA_TYPES[UA_TYPES_UINT32]);
     return retval;
 }
-PARSE_JSON(DateTimeField) {
-    cj5_token tok = ctx->tokens[++ctx->index];
-    UA_ByteString buf = getJsonPart(tok, ctx->json);
-    UA_DateTime out;
-    UA_DateTime_init(&out);
-    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_DATETIME], NULL);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    UA_DateTime *field = (UA_DateTime*)configField;
-    *field = out;
-    return retval;
-}
-
+#endif
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 PARSE_JSON(MdnsConfigurationField) {
     UA_ServerConfig *config = (UA_ServerConfig*)configField;
@@ -793,17 +817,6 @@ PARSE_JSON(SecurityPkiField) {
     return UA_STATUSCODE_GOOD;
 }
 #endif
-
-/*----------------------Enumerations------------------------*/
-PARSE_JSON(ApplicationTypeField) {
-    UA_UInt32 enum_value;
-    UA_StatusCode retval = UInt32Field_parseJson(ctx, &enum_value, NULL);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    UA_ApplicationType *field = (UA_ApplicationType*)configField;
-    *field = (UA_ApplicationType)enum_value;
-    return retval;
-}
 PARSE_JSON(RuleHandlingField) {
     UA_UInt32 enum_value;
     UA_StatusCode retval = UInt32Field_parseJson(ctx, &enum_value, NULL);
@@ -829,7 +842,7 @@ skipUnknownItem(ParsingCtx* ctx) {
 }
 
 static UA_StatusCode
-parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
+parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
     // Parsing json config
     const char *json = (const char*)json_config.data;
     cj5_token tokens[MAX_TOKENS];
@@ -980,7 +993,7 @@ UA_Server_newFromFile(const UA_ByteString json_config) {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
     UA_StatusCode res = UA_ServerConfig_setDefault(&config);
-    res |= parseJSONConfig(&config, json_config);
+    res |= parseJSONServerConfig(&config, json_config);
     if(res != UA_STATUSCODE_GOOD)
         return NULL;
     return UA_Server_newWithConfig(&config);
@@ -988,7 +1001,221 @@ UA_Server_newFromFile(const UA_ByteString json_config) {
 
 UA_StatusCode
 UA_ServerConfig_updateFromFile(UA_ServerConfig *config, const UA_ByteString json_config) {
-    UA_StatusCode res = parseJSONConfig(config, json_config);
+    UA_StatusCode res = parseJSONServerConfig(config, json_config);
+    return res;
+}
+
+PARSE_JSON(ConnectionConfig) {
+    UA_ConnectionConfig *field = (UA_ConnectionConfig*)configField;
+    cj5_token tok = ctx->tokens[++ctx->index];
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = ctx->tokens[++ctx->index];
+        switch (tok.type) {
+        case CJ5_TOKEN_STRING: {
+            char *field_str = (char*)UA_malloc(tok.size + 1);
+            unsigned int str_len = 0;
+            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
+            if(strcmp(field_str, "protocolVersion") == 0)
+                UInt32Field_parseJson(ctx, &field->protocolVersion, NULL);
+            else if(strcmp(field_str, "recvBufferSize") == 0)
+                UInt32Field_parseJson(ctx, &field->recvBufferSize, NULL);
+            else if(strcmp(field_str, "sendBufferSize") == 0)
+                UInt32Field_parseJson(ctx, &field->sendBufferSize, NULL);
+            else if(strcmp(field_str, "localMaxMessageSize") == 0)
+                UInt32Field_parseJson(ctx, &field->localMaxMessageSize, NULL);
+            else if(strcmp(field_str, "remoteMaxMessageSize") == 0)
+                UInt32Field_parseJson(ctx, &field->remoteMaxMessageSize, NULL);
+            else if(strcmp(field_str, "localMaxChunkCount") == 0)
+                UInt32Field_parseJson(ctx, &field->localMaxChunkCount, NULL);
+            else if(strcmp(field_str, "remoteMaxChunkCount") == 0)
+                UInt32Field_parseJson(ctx, &field->remoteMaxChunkCount, NULL);
+            else {
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+            }
+            UA_free(field_str);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+PARSE_JSON(EndpointDescription) {
+    UA_EndpointDescription *field = (UA_EndpointDescription*)configField;
+    cj5_token tok = ctx->tokens[++ctx->index];
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = ctx->tokens[++ctx->index];
+        switch (tok.type) {
+        case CJ5_TOKEN_STRING: {
+            char *field_str = (char*)UA_malloc(tok.size + 1);
+            unsigned int str_len = 0;
+            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
+            if(strcmp(field_str, "endpointUrl") == 0)
+                StringField_parseJson(ctx, &field->endpointUrl, NULL);
+            else if(strcmp(field_str, "server") == 0)
+                ApplicationDescriptionField_parseJson(ctx, &field->server, NULL);
+            // TODO
+            //else if(strcmp(field_str, "serverCertificate") == 0)
+            //    ByteString_parseJson(ctx, &field->serverCertificate, NULL);
+            // TODO
+            //else if(strcmp(field_str, "securityMode") == 0)
+            //   MessageSecurityMode_parseJson(ctx, &field->securityMode, NULL);
+            else if(strcmp(field_str, "securityPolicyUri") == 0)
+               StringField_parseJson(ctx, &field->securityPolicyUri, NULL);
+            // TODO
+            //else if(strcmp(field_str, "userIdentityTokens") == 0)
+            //   UserTokenPolicyArray_parseJson(ctx, &field->userIdentityTokens, &field->userIdentityTokensSize);
+            else if(strcmp(field_str, "transportProfileUri") == 0)
+                StringField_parseJson(ctx, &field->transportProfileUri, NULL);
+            // TODO
+            //else if(strcmp(field_str, "transportProfileUri") == 0)
+            //    ByteField_parseJson(ctx, &field->securityLevel, NULL);
+            else {
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+            }
+            UA_free(field_str);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+
+
+static UA_StatusCode
+parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
+    // Parsing json config
+    const char *json = (const char*)json_config.data;
+    cj5_token tokens[MAX_TOKENS];
+    cj5_result r = cj5_parse(json, (unsigned int)json_config.length, tokens, MAX_TOKENS, NULL);
+
+    ParsingCtx ctx;
+    ctx.json = json;
+    ctx.result = r;
+    ctx.tokens = r.tokens;
+    ctx.tokensSize = r.num_tokens;
+    ctx.index = 1; // The first token is ignored because it is known and not needed.
+
+    ctx.logging = config->logging;
+
+    size_t clientConfigSize = 0;
+    if(ctx.tokens)
+        clientConfigSize = (ctx.tokens[ctx.index-1].size/2);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for (size_t j = clientConfigSize; j > 0; j--) {
+        cj5_token tok = ctx.tokens[ctx.index];
+        switch (tok.type) {
+            case CJ5_TOKEN_STRING: {
+                char *field = (char*)UA_malloc(tok.size + 1);
+                unsigned int str_len = 0;
+                cj5_get_str(&ctx.result, (unsigned int)ctx.index, field, &str_len);
+                if(strcmp(field, "timeout") == 0)
+                    retval = Int32Field_parseJson(&ctx, &config->timeout, NULL);
+                else if(strcmp(field, "applicationDescription") == 0)
+                    retval = ApplicationDescriptionField_parseJson(&ctx, &config->clientDescription, NULL);
+                else if(strcmp(field, "endpointUrl") == 0)
+                    retval = StringField_parseJson(&ctx, &config->endpointUrl, NULL);
+                // TODO missing userIdentityToken ?
+                else if(strcmp(field, "sessionName") == 0)
+                    retval = StringField_parseJson(&ctx, &config->sessionName, NULL);
+                else if(strcmp(field, "sessionLocaleIds") == 0)
+                    // TODO missing constraints for type?
+                    retval = StringArrayField_parseJson(&ctx, &config->sessionLocaleIds, &config->sessionLocaleIdsSize);
+                else if(strcmp(field, "noSession") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->noSession, NULL);
+                else if(strcmp(field, "noReconnect") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->noReconnect, NULL);
+                else if(strcmp(field, "noNewSession") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->noNewSession, NULL);
+                else if(strcmp(field, "secureChannelLifeTime") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->secureChannelLifeTime, NULL);
+                else if(strcmp(field, "requestedSessionTimeout") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->requestedSessionTimeout, NULL);
+                else if(strcmp(field, "localConnectionConfig") == 0)
+                    retval = ConnectionConfig_parseJson(&ctx, &config->localConnectionConfig, NULL);
+                else if(strcmp(field, "connectivityCheckInterval") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->connectivityCheckInterval, NULL);
+                else if(strcmp(field, "tcpReuseAddr") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->tcpReuseAddr, NULL);
+                else if(strcmp(field, "endpoint") == 0)
+                    retval = EndpointDescription_parseJson(&ctx, &config->endpoint, NULL);
+                //else if(strcmp(field, "userTokenPolicy") == 0)
+                //    retval = UserTokenPolicy_parseJson(&ctx, &config->userTokenPolicy, NULL);
+                else if(strcmp(field, "applicationUri") == 0)
+                    retval = StringField_parseJson(&ctx, &config->applicationUri, NULL);
+                //else if(strcmp(field, "securityMode") == 0)
+                //    retval = SecurityMode_parseJson(&ctx, &config->securityMode, NULL);
+                else if(strcmp(field, "securityPolicyUri") == 0)
+                    retval = StringField_parseJson(&ctx, &config->securityPolicyUri, NULL);
+                else if(strcmp(field, "authSecurityPolicyUri") == 0)
+                    retval = StringField_parseJson(&ctx, &config->authSecurityPolicyUri, NULL);
+                else if(strcmp(field, "securityPolicies") == 0)
+                    retval = SecurityPolciesField_parseJson(&ctx, &config->securityPolicies, &config->securityPoliciesSize);
+                else if(strcmp(field, "authSecurityPolicies") == 0)
+                    retval = SecurityPolciesField_parseJson(&ctx, &config->authSecurityPolicies, &config->authSecurityPoliciesSize);
+                //else if(strcmp(field, "certificateVerification") == 0)
+                //    retval = CertificateGroup_parseJson(&ctx, &config->certificateVerification, NULL);
+                else if(strcmp(field, "allowNonePolicyPassword") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->allowNonePolicyPassword, NULL);
+#ifdef UA_ENABLE_ENCRYPTION
+                else if(strcmp(field, "maxTrustListSize") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->maxTrustListSize, NULL);
+                else if(strcmp(field, "maxRejectedListSize") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->maxRejectedListSize, NULL);
+#endif
+                /* TODO missing customDataTypes */
+                else if(strcmp(field, "namespaces") == 0)
+                    retval = StringArrayField_parseJson(&ctx, &config->namespaces, &config->namespacesSize);
+                else if(strcmp(field, "outStandingPublishRequests") == 0)
+                    retval = UInt16Field_parseJson(&ctx, &config->outStandingPublishRequests, NULL);
+                else {
+                    UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
+                                   "Field name '%s' unknown or misspelled. Maybe the feature is not enabled either.", field);
+                    /* skip the name of item */
+                    ++ctx.index;
+                    /* skip value of unknown item */
+                    skipUnknownItem(&ctx);
+                    /* after skipUnknownItem() ctx->index points to the name of the following item.
+                       We must decrement index in oder following increment will
+                       still set index to the right position (name of the following item) */
+                    --ctx.index;
+                }
+                UA_free(field);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_LOG_ERROR(ctx.logging, UA_LOGCATEGORY_APPLICATION, "An error occurred while parsing the configuration file.");
+                    return retval;
+                }
+                break;
+            }
+            default:
+                break;
+        }
+        ctx.index += 1;
+    }
+    return retval;
+}
+
+UA_Client *
+UA_Client_newFromFile(const UA_ByteString json_config)
+{
+    UA_ClientConfig config;
+    memset(&config, 0, sizeof(UA_ClientConfig));
+    UA_StatusCode res = UA_ClientConfig_setDefault(&config);
+    res |= parseJSONClientConfig(&config, json_config);
+    if(res != UA_STATUSCODE_GOOD)
+        return NULL;
+    return UA_Client_newWithConfig(&config);
+}
+
+UA_StatusCode
+UA_ClientConfig_updateFromFile(UA_ClientConfig *config, const UA_ByteString json_config)
+{
+    UA_StatusCode res = parseJSONClientConfig(config, json_config);
     return res;
 }
 
