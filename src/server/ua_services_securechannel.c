@@ -54,8 +54,6 @@ processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
     if(!securityPolicy)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
-    /* TODO: Check the URI in the certificate */
-
     /* Verify the client certificate (chain).
      * Here we don't have the ApplicationDescription.
      * This check follows in the CreateSession service. */
