@@ -61,6 +61,9 @@ detectVariantDeadband(const UA_Variant *value, const UA_Variant *oldValue,
     size_t length = 1;
     if(!UA_Variant_isScalar(value))
         length = value->arrayLength;
+    if (!value->data || !oldValue->data)
+        return false;
+
     uintptr_t data = (uintptr_t)value->data;
     uintptr_t oldData = (uintptr_t)oldValue->data;
     UA_UInt32 memSize = value->type->memSize;
@@ -102,6 +105,15 @@ detectValueChange(UA_Server *server, UA_MonitoredItem *mon, const UA_DataValue *
     UA_assert(trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
               trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP);
 
+    if(dv->hasValue != mon->lastValue.hasValue)
+       return true;
+
+    const UA_Variant *lastValue = &mon->lastValue.value;
+    const UA_Variant *newValue= &dv->value;
+
+    if(!lastValue->data && newValue->data) return true;
+    if(!newValue->data && lastValue->data) return true;
+
     /* Test absolute deadband */
     if(dcf && dcf->deadbandType == UA_DEADBANDTYPE_ABSOLUTE &&
        dv->value.type != NULL && UA_DataType_isNumeric(dv->value.type))
@@ -118,8 +130,6 @@ detectValueChange(UA_Server *server, UA_MonitoredItem *mon, const UA_DataValue *
     }
 
     /* Has the value changed? */
-    if(dv->hasValue != mon->lastValue.hasValue)
-        return true;
     return !UA_equal(&dv->value, &mon->lastValue.value,
                      &UA_TYPES[UA_TYPES_VARIANT]);
 }
