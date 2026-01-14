@@ -176,7 +176,7 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
         UA_DataType_clear(type);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    type->membersSize = (UA_UInt32)sd->fieldsSize;
+    type->membersSize = (UA_Byte)sd->fieldsSize;
 
     /* Try to get pointerFree and overlayable handling shortcuts.
      * Verified for each member and end-padding. */
@@ -249,9 +249,9 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
 
         /* For unions, leave space for the switchfield in the padding */
         if(type->typeKind == UA_DATATYPEKIND_UNION) {
-            UA_Byte fieldPadding = (dtm->isArray) ?
+            UA_Byte fieldPadding = (UA_Byte)((dtm->isArray) ?
                 PADDING(sizeof(UA_UInt32), offsetof(struct _pad_size_t, x)) :
-                PADDING(sizeof(UA_UInt32), type_alignment(dtm->memberType));
+                PADDING(sizeof(UA_UInt32), type_alignment(dtm->memberType)));
             dtm->padding = sizeof(UA_UInt32) + fieldPadding;
             UA_assert(!type->pointerFree); /* Set above */
         }
@@ -260,10 +260,10 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
         if(type->typeKind == UA_DATATYPEKIND_UNION) {
             /* Increase the memSize if the current member is the largest */
             if(memSize + dtm->padding > type->memSize)
-                type->memSize = (UA_UInt32)(memSize + dtm->padding);
+                type->memSize = (UA_UInt16)(memSize + dtm->padding);
         } else {
             /* Increase the memSize for the current member */
-            type->memSize += (UA_UInt32)(memSize + dtm->padding);
+            type->memSize += (UA_UInt16)(memSize + dtm->padding);
         }
 
         /* Overlayable types cannot have padding */
@@ -275,7 +275,7 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
 
     /* Add final padding according to the member alignment requirements */
     UA_Byte self_alignment = type_alignment(type);
-    UA_Byte end_padding = PADDING(type->memSize, self_alignment);
+    UA_Byte end_padding = (UA_Byte)(PADDING(type->memSize, self_alignment));
     type->memSize += end_padding;
 
     /* Finalize handling shortcuts. Types with pointer are never overlayable.  */
@@ -383,7 +383,7 @@ UA_DataType_fromEnumDescription(UA_DataType *type,
         UA_DataType_clear(type);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    type->membersSize = (UA_UInt32)descr->enumDefinition.fieldsSize;
+    type->membersSize = (UA_Byte)descr->enumDefinition.fieldsSize;
 
     /* Copy the enum fields into the members array */
     for(size_t i = 0; i < type->membersSize; i++) {
