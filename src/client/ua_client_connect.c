@@ -1640,10 +1640,29 @@ initSecurityPolicy(UA_Client *client) {
         return (client->channel.securityPolicy == sp) ?
             UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
 
+    /* Verify the remote server certificate */
+    UA_StatusCode res;
+    if(client->endpoint.serverCertificate.length > 0) {
+        res = client->config.certificateVerification.
+            verifyCertificate(&client->config.certificateVerification,
+                              &client->endpoint.serverCertificate);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "Cannot validate the server certificate "
+                         "defined for the selected endpoint");
+            return res;
+        }
+    }
+
+    /* If the sender provides a chain of certificates then we shall extract the
+     * ApplicationInstanceCertificate and ignore the extra bytes. See also: OPC
+     * UA Part 6, V1.04, 6.7.2.3 Security Header, Table 42 - Asymmetric
+     * algorithm Security header */
+    UA_ByteString appInstCert =
+        getLeafCertificate(client->endpoint.serverCertificate);
+
     /* Instantiate the SecurityPolicy context with the remote certificate */
-    UA_StatusCode res =
-        UA_SecureChannel_setSecurityPolicy(&client->channel, sp,
-                                           &client->endpoint.serverCertificate);
+    res = UA_SecureChannel_setSecurityPolicy(&client->channel, sp, &appInstCert);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Cannot instantiate the SecurityPolicy %S "
@@ -1771,6 +1790,12 @@ connectActivity(UA_Client *client) {
     }
 }
 
+/* Verify the OPN response. Note that the client knows the remote server
+ * certificate before opening the SecureChannel (from the EndpointDescription).
+ *
+ * The server certificate is used to initialize the SecureChannel/SecurityPolicy
+ * before connecting in initSecurityPolicy. The certificate from the endpoint is
+ * checked to be the same used in the AsymHeader. */
 static UA_StatusCode
 verifyClientSecureChannelHeader(void *application, UA_SecureChannel *channel,
                                 const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
@@ -1790,31 +1815,37 @@ verifyClientSecureChannelHeader(void *application, UA_SecureChannel *channel,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
-    /* Get the remote certificate.
-     * Omit the remainder if an entire certificate chain was sent. */
-    UA_ByteString serverCert = getLeafCertificate(asymHeader->senderCertificate);
-
-    /* If encryption is enabled, then a server certificate is defined.
-     * Otherwise the creation of the SecureChannel would have failed. */
-    UA_assert(channel->securityMode == UA_MESSAGESECURITYMODE_NONE ||
-              serverCert.length > 0);
-
-    /* If a server certificate is sent in the asymHeader, check that the same
-     * certificate was defined for the endpoint */
-    if(serverCert.length > 0 &&
-       !UA_String_equal(&serverCert, &client->endpoint.serverCertificate)) {
-        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                     "The server certificate is different from the EndpointDescription");
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    /* In initSecurityPolicy we already verified
+     * client->endpoint.serverCertificate and loaded it into the channel context
+     * of the SecurityPolicy.
+     *
+     * If the securityPolicyUri is None (== SecurityMode is None), the server
+     * shall ignore the ApplicationInstanceCertificate. Otherwise compare that
+     * the certificate in OPN is the same as in the endpoint.
+     *
+     * Both the clientCertificate of this request and of the endpoint may
+     * contain a partial or a complete certificate chain. The compareCertificate
+     * function will compare the first certificate of each chain. The end
+     * certificate shall be located first in the chain according to the OPC UA
+     * specification Part 6 (1.04), chapter 6.2.3.*/
+    UA_StatusCode res;
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE) {
+        void *cc = channel->channelContext;
+        res = sp->compareCertificate(sp, cc, &asymHeader->senderCertificate);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "The server certificate in the OPN message is "
+                         "different from the EndpointDescription");
+            return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        }
     }
 
     /* Verify the certificate the server assumes on our end */
-    UA_StatusCode res =
-        sp->compareCertThumbprint(sp, &asymHeader->receiverCertificateThumbprint);
+    res = sp->compareCertThumbprint(sp, &asymHeader->receiverCertificateThumbprint);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                     "The server does not use the client certificate "
-                     "used for the selected SecurityPolicy");
+                     "The client certificate thumprint in the OPN response "
+                     "is incorrect");
         return res;
     }
 
