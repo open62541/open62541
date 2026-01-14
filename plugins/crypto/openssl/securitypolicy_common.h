@@ -246,6 +246,41 @@ UA_OpenSSL_LoadPemCrl(const UA_ByteString *crl);
 UA_StatusCode
 UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString *target);
 
+UA_StatusCode
+UA_OpenSSL_setLocalSymSigningKey_generic(const UA_SecurityPolicy *policy,
+                                        void *channelContext,
+                                        const UA_ByteString *key);
+
+UA_StatusCode
+UA_OpenSSL_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
+                                           void *channelContext,
+                                           const UA_ByteString *key);
+
+UA_StatusCode
+UA_OpenSSL_setLocalSymIv_generic(const UA_SecurityPolicy *policy,
+                                void *channelContext,
+                                const UA_ByteString *iv);
+
+UA_StatusCode
+UA_OpenSSL_setRemoteSymSigningKey_generic(const UA_SecurityPolicy *policy,
+                                         void *channelContext,
+                                         const UA_ByteString *key);
+
+UA_StatusCode
+UA_OpenSSL_setRemoteSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
+                                            void *channelContext,
+                                            const UA_ByteString *key);
+
+UA_StatusCode
+UA_OpenSSL_setRemoteSymIv_generic(const UA_SecurityPolicy *policy,
+                                 void *channelContext,
+                                 const UA_ByteString *iv);
+
+UA_StatusCode
+UA_OpenSSL_compareCertificate_generic(const UA_SecurityPolicy *policy,
+                                      const void *channelContext,
+                                      const UA_ByteString *certificate);
+
 _UA_END_DECLS
 
 #endif /* defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */

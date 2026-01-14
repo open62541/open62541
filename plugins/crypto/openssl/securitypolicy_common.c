@@ -1352,6 +1352,83 @@ UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString 
     return UA_STATUSCODE_BADINVALIDARGUMENT;
 }
 
+UA_StatusCode
+UA_OpenSSL_setLocalSymSigningKey_generic(const UA_SecurityPolicy *policy,
+                                         void *channelContext,
+                                         const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    UA_ByteString_clear(&cc->localSymSigningKey);
+    return UA_ByteString_copy(key, &cc->localSymSigningKey);
+}
+
+UA_StatusCode
+UA_OpenSSL_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
+                                            void *channelContext,
+                                            const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    UA_ByteString_clear(&cc->localSymEncryptingKey);
+    return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
+}
+
+UA_StatusCode
+UA_OpenSSL_setLocalSymIv_generic(const UA_SecurityPolicy *policy,
+                                 void *channelContext,
+                                 const UA_ByteString *iv) {
+    if(iv == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    UA_ByteString_clear(&cc->localSymIv);
+    return UA_ByteString_copy(iv, &cc->localSymIv);
+}
+
+UA_StatusCode
+UA_OpenSSL_setRemoteSymSigningKey_generic(const UA_SecurityPolicy *policy,
+                                          void *channelContext,
+                                          const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    UA_ByteString_clear(&cc->remoteSymSigningKey);
+    return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
+}
+
+UA_StatusCode
+UA_OpenSSL_setRemoteSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
+                                             void *channelContext,
+                                             const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
+    return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
+}
+
+UA_StatusCode
+UA_OpenSSL_setRemoteSymIv_generic(const UA_SecurityPolicy *policy,
+                                  void *channelContext,
+                                  const UA_ByteString *iv) {
+    if(iv == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    UA_ByteString_clear(&cc->remoteSymIv);
+    return UA_ByteString_copy(iv, &cc->remoteSymIv);
+}
+
+UA_StatusCode
+UA_OpenSSL_compareCertificate_generic(const UA_SecurityPolicy *policy,
+                                      const void *channelContext,
+                                      const UA_ByteString *certificate) {
+    if(channelContext == NULL || certificate == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    const openssl_ChannelContext *cc =
+        (const openssl_ChannelContext *) channelContext;
+    return UA_OpenSSL_X509_compare(certificate, cc->remoteCertificateX509);
+}
+
 #endif
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
