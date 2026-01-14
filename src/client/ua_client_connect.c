@@ -1778,11 +1778,15 @@ verifyClientSecureChannelHeader(void *application, UA_SecureChannel *channel,
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     UA_assert(sp != NULL);
 
-    /* Check the SecurityPolicyUri */
-    if(asymHeader->securityPolicyUri.length > 0 &&
+    /* Check the SecurityPolicyUri if it is defined. If the SecurityMode is not
+     * None, then the SecurityPolicyUri must be defined. For None we allow an
+     * empty SecurityPolicyUri to support all (historical) server behaviors. */
+    if((asymHeader->securityPolicyUri.length > 0 ||
+        channel->securityMode != UA_MESSAGESECURITYMODE_NONE) &&
        !UA_String_equal(&sp->policyUri, &asymHeader->securityPolicyUri)) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                     "The server uses a different SecurityPolicy from the client");
+                     "The server uses a different SecurityPolicy than "
+                     "the SecureChannel/Endpoint configured in the client");
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
