@@ -1321,9 +1321,9 @@ responseGetEndpoints(UA_Client *client, void *userdata,
 
     /* A different SecurityMode or SecurityPolicy is defined by the Endpoint.
      * Close the SecureChannel and reconnect. */
+    UA_SecurityPolicy *sp = client->channel.securityPolicy;
     if(client->endpoint.securityMode != client->channel.securityMode ||
-       !UA_String_equal(&client->endpoint.securityPolicyUri,
-                        &client->channel.securityPolicy->policyUri)) {
+       !UA_String_equal(&client->endpoint.securityPolicyUri, &sp->policyUri)) {
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
                     "A different SecurityMode or SecurityPolicy is defined "
                     "by the selected Endpoint. Close the SecureChannel "
@@ -1340,7 +1340,7 @@ responseGetEndpoints(UA_Client *client, void *userdata,
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
                     "The selected endpoint defines an EndpointUrl %S different "
                     "from the Url %S used to connect before calling "
-                    "GetEndpoints. Close the SecureChannel and ceconnect with "
+                    "GetEndpoints. Close the SecureChannel and reconnect with "
                     "the new EndpointUrl to ensure the Endpoint is available.",
                     client->discoveryUrl, client->endpoint.endpointUrl);
         closeSecureChannel(client);
