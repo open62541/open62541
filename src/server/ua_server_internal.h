@@ -294,6 +294,12 @@ UA_StatusCode
 sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
 
+/* Validate the remote certificate received in the OPN message and create the
+ * SecureChannel context. This is needed before OPN is decrypted. */
+UA_StatusCode
+processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
+                      const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
+
 /* Gets the a pointer to the context of a security policy supported by the
  * server matched by the security policy uri. */
 UA_SecurityPolicy *
