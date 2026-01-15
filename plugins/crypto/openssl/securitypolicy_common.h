@@ -64,6 +64,12 @@ typedef struct {
     X509 *remoteCertificateX509; /* X509 */
 } openssl_ChannelContext;
 
+typedef struct {
+    EVP_PKEY *localPrivateKey;
+    EVP_PKEY *csrLocalPrivateKey;
+    UA_ByteString localCertThumbprint;
+} openssl_PolicyContext;
+
 void saveDataToFile(const char *fileName, const UA_ByteString *str);
 void UA_Openssl_Init(void);
 

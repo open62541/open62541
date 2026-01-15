@@ -25,18 +25,12 @@
 #define UA_SECURITYPOLICY_BASIC128RSA15_SYM_SIGNING_KEY_LENGTH       16
 #define UA_SHA1_LENGTH                                               20
 
-typedef struct {
-    EVP_PKEY *localPrivateKey;
-    EVP_PKEY *csrLocalPrivateKey;
-    UA_ByteString localCertThumbprint;
-} Policy_Context_Basic128Rsa15;
-
 static UA_StatusCode
 UA_Policy_Basic128Rsa15_New_Context(UA_SecurityPolicy * securityPolicy,
                                     const UA_ByteString localPrivateKey,
                                     const UA_Logger *   logger) {
-    Policy_Context_Basic128Rsa15 * context = (Policy_Context_Basic128Rsa15 *)
-                                    UA_malloc(sizeof(Policy_Context_Basic128Rsa15));
+    openssl_PolicyContext * context = (openssl_PolicyContext *)
+                                    UA_malloc(sizeof(openssl_PolicyContext));
     if(context == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -69,7 +63,7 @@ UA_Policy_Basic128Rsa15_Clear_Context(UA_SecurityPolicy *policy) {
     }
     UA_ByteString_clear(&policy->localCertificate);
 
-    Policy_Context_Basic128Rsa15 *ctx = (Policy_Context_Basic128Rsa15 *)
+    openssl_PolicyContext *ctx = (openssl_PolicyContext *)
         policy->policyContext;
     if(ctx == NULL)
         return;
@@ -92,8 +86,8 @@ updateCertificate_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
     if(securityPolicy->policyContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    Policy_Context_Basic128Rsa15 *pc =
-        (Policy_Context_Basic128Rsa15 *)securityPolicy->policyContext;
+    openssl_PolicyContext *pc =
+        (openssl_PolicyContext *)securityPolicy->policyContext;
 
     UA_Boolean isLocalKey = false;
     if(newPrivateKey.length <= 0) {
@@ -158,8 +152,8 @@ createSigningRequest_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
     if(securityPolicy->policyContext == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    Policy_Context_Basic128Rsa15 *pc =
-            (Policy_Context_Basic128Rsa15 *) securityPolicy->policyContext;
+    openssl_PolicyContext *pc =
+            (openssl_PolicyContext *) securityPolicy->policyContext;
 
     return UA_OpenSSL_CreateSigningRequest(pc->localPrivateKey, &pc->csrLocalPrivateKey,
                                            securityPolicy, subjectName, nonce,
@@ -237,7 +231,7 @@ UA_Asy_Basic128Rsa15_compareCertThumbprint(const UA_SecurityPolicy *securityPoli
                                            const UA_ByteString *certificateThumbprint) {
     if(securityPolicy == NULL || certificateThumbprint == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    Policy_Context_Basic128Rsa15 *pc = (Policy_Context_Basic128Rsa15 *)
+    openssl_PolicyContext *pc = (openssl_PolicyContext *)
                                        securityPolicy->policyContext;
     if(!UA_ByteString_equal(certificateThumbprint, &pc->localCertThumbprint)) {
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
@@ -269,8 +263,8 @@ UA_AsySig_Basic128Rsa15_getLocalSignatureSize(const UA_SecurityPolicy *policy,
                                               const void *channelContext) {
     if(channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    Policy_Context_Basic128Rsa15 *pc =
-        (Policy_Context_Basic128Rsa15 *)policy->policyContext;
+    openssl_PolicyContext *pc =
+        (openssl_PolicyContext *)policy->policyContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Private_GetKeyLength(pc->localPrivateKey, &keyLen);
     return (size_t) keyLen;
@@ -292,8 +286,8 @@ UA_AsySig_Basic128Rsa15_Sign(const UA_SecurityPolicy *policy, void *channelConte
                              const UA_ByteString *message, UA_ByteString *signature) {
     if(channelContext == NULL || message == NULL || signature == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    const Policy_Context_Basic128Rsa15 *pc =
-        (const Policy_Context_Basic128Rsa15*) policy->policyContext;
+    const openssl_PolicyContext *pc =
+        (const openssl_PolicyContext*) policy->policyContext;
     return UA_Openssl_RSA_PKCS1_V15_SHA1_Sign(message, pc->localPrivateKey, signature);
 }
 
@@ -338,8 +332,8 @@ UA_AsymEn_Basic128Rsa15_getLocalKeyLength(const UA_SecurityPolicy *policy,
                                           const void *channelContext) {
     if(channelContext == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    const Policy_Context_Basic128Rsa15 *pc =
-        (const Policy_Context_Basic128Rsa15 *)policy->policyContext;
+    const openssl_PolicyContext *pc =
+        (const openssl_PolicyContext *)policy->policyContext;
     UA_Int32 keyLen = 0;
     UA_Openssl_RSA_Private_GetKeyLength(pc->localPrivateKey, &keyLen);
     return (size_t) keyLen * 8;
@@ -350,8 +344,8 @@ UA_AsymEn_Basic128Rsa15_Decrypt(const UA_SecurityPolicy *policy,
                                 void *channelContext, UA_ByteString *data) {
     if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    const Policy_Context_Basic128Rsa15 *pc =
-        (const Policy_Context_Basic128Rsa15 *)policy->policyContext;
+    const openssl_PolicyContext *pc =
+        (const openssl_PolicyContext *)policy->policyContext;
     return UA_Openssl_RSA_PKCS1_V15_Decrypt(data, pc->localPrivateKey);
 }
 
