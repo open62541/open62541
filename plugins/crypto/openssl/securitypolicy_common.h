@@ -287,6 +287,23 @@ UA_OpenSSL_compareCertificate_generic(const UA_SecurityPolicy *policy,
                                       const void *channelContext,
                                       const UA_ByteString *certificate);
 
+void
+UA_OpenSSL_Policy_clearContext_generic(UA_SecurityPolicy *policy);
+
+UA_StatusCode
+UA_OpenSSL_Policy_newContext_generic(UA_SecurityPolicy *securityPolicy,
+                                     const UA_ByteString localPrivateKey,
+                                     const UA_Logger *logger);
+
+UA_StatusCode
+UA_OpenSSL_SecurityPolicy_updateCertificate_generic(UA_SecurityPolicy *securityPolicy,
+                                                    const UA_ByteString newCertificate,
+                                                    const UA_ByteString newPrivateKey);
+
+UA_StatusCode
+UA_OpenSSL_SecurityPolicy_compareCertThumbprint_generic(const UA_SecurityPolicy *securityPolicy,
+                                                        const UA_ByteString *certificateThumbprint);
+
 _UA_END_DECLS
 
 #endif /* defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */

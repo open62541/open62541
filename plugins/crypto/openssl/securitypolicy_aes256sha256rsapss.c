@@ -30,55 +30,6 @@
 #define UA_SECURITYPOLICY_AES256SHA256RSAPSS_MAXASYMKEYLENGTH 512
 
 static UA_StatusCode
-UA_Policy_Aes256Sha256RsaPss_New_Context(UA_SecurityPolicy *securityPolicy,
-                                         const UA_ByteString localPrivateKey,
-                                         const UA_Logger *logger) {
-    openssl_PolicyContext *context =
-        (openssl_PolicyContext *)UA_malloc(
-            sizeof(openssl_PolicyContext));
-    if(context == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    context->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&localPrivateKey);
-    if(!context->localPrivateKey) {
-        UA_free(context);
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
-    context->csrLocalPrivateKey = NULL;
-
-    UA_StatusCode retval = UA_Openssl_X509_GetCertificateThumbprint(
-        &securityPolicy->localCertificate, &context->localCertThumbprint, true);
-    if(retval != UA_STATUSCODE_GOOD) {
-        EVP_PKEY_free(context->localPrivateKey);
-        UA_free(context);
-        return retval;
-    }
-
-    securityPolicy->policyContext = context;
-
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-UA_Policy_Aes256Sha256RsaPss_Clear_Context(UA_SecurityPolicy *policy) {
-    if(policy == NULL)
-        return;
-
-    UA_ByteString_clear(&policy->localCertificate);
-
-    openssl_PolicyContext *pc =
-        (openssl_PolicyContext *)policy->policyContext;
-    if(pc == NULL)
-        return;
-
-    EVP_PKEY_free(pc->localPrivateKey);
-    EVP_PKEY_free(pc->csrLocalPrivateKey);
-    UA_ByteString_clear(&pc->localCertThumbprint);
-    UA_free(pc);
-}
-
-static UA_StatusCode
 createSigningRequest_sp_aes128sha256rsapss(UA_SecurityPolicy *securityPolicy,
                                            const UA_String *subjectName,
                                            const UA_ByteString *nonce,
@@ -94,66 +45,6 @@ createSigningRequest_sp_aes128sha256rsapss(UA_SecurityPolicy *securityPolicy,
     return UA_OpenSSL_CreateSigningRequest(pc->localPrivateKey, &pc->csrLocalPrivateKey,
                                            securityPolicy, subjectName,
                                            nonce, csr, newPrivateKey);
-}
-
-static UA_StatusCode
-updateCertificateAndPrivateKey_sp_aes128sha256rsapss(UA_SecurityPolicy *securityPolicy,
-                                                     const UA_ByteString newCertificate,
-                                                     const UA_ByteString newPrivateKey) {
-    if(!securityPolicy)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    if(!securityPolicy->policyContext)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    openssl_PolicyContext *pc =
-        (openssl_PolicyContext *)securityPolicy->policyContext;
-
-    UA_Boolean isLocalKey = false;
-    if(newPrivateKey.length <= 0) {
-        if(UA_CertificateUtils_comparePublicKeys(&newCertificate,
-                                                 &securityPolicy->localCertificate) == 0)
-            isLocalKey = true;
-    }
-
-    UA_ByteString_clear(&securityPolicy->localCertificate);
-    UA_ByteString_clear(&pc->localCertThumbprint);
-
-    UA_StatusCode retval =
-        UA_OpenSSL_LoadLocalCertificate(&newCertificate,
-                                        &securityPolicy->localCertificate);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Set the new private key */
-    if(newPrivateKey.length > 0) {
-        EVP_PKEY_free(pc->localPrivateKey);
-        pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
-    } else {
-        if(!isLocalKey) {
-            EVP_PKEY_free(pc->localPrivateKey);
-            pc->localPrivateKey = pc->csrLocalPrivateKey;
-            pc->csrLocalPrivateKey = NULL;
-        }
-    }
-
-    if(!pc->localPrivateKey) {
-        retval = UA_STATUSCODE_BADNOTSUPPORTED;
-        goto error;
-    }
-
-    retval = UA_Openssl_X509_GetCertificateThumbprint(&securityPolicy->localCertificate,
-                                                      &pc->localCertThumbprint, true);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto error;
-
-    return UA_STATUSCODE_GOOD;
-
-error:
-    UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "Could not update certificate and private key");
-    if(securityPolicy->policyContext)
-        UA_Policy_Aes256Sha256RsaPss_Clear_Context(securityPolicy);
-    return retval;
 }
 
 static UA_StatusCode
@@ -229,18 +120,6 @@ UA_AsySig_Aes256Sha256RsaPss_Verify(const UA_SecurityPolicy *policy, void *chann
     openssl_ChannelContext *cc =
         (openssl_ChannelContext *)channelContext;
     return UA_OpenSSL_RSA_PSS_SHA256_Verify(message, cc->remoteCertificateX509, signature);
-}
-
-static UA_StatusCode
-UA_compareCertificateThumbprint_Aes256Sha256RsaPss(const UA_SecurityPolicy *securityPolicy,
-                                                   const UA_ByteString *certificateThumbprint) {
-    if(securityPolicy == NULL || certificateThumbprint == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    openssl_PolicyContext *pc =
-        (openssl_PolicyContext *)securityPolicy->policyContext;
-    if(!UA_ByteString_equal(certificateThumbprint, &pc->localCertThumbprint))
-        return UA_STATUSCODE_BADCERTIFICATEINVALID;
-    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -585,10 +464,10 @@ UA_SecurityPolicy_Aes256Sha256RsaPss(UA_SecurityPolicy *sp,
     sp->generateNonce = UA_Sym_Aes256Sha256RsaPss_generateNonce;
     sp->nonceLength = 32;
     sp->makeCertThumbprint = UA_makeCertificateThumbprint_Aes256Sha256RsaPss;
-    sp->compareCertThumbprint = UA_compareCertificateThumbprint_Aes256Sha256RsaPss;
-    sp->updateCertificate = updateCertificateAndPrivateKey_sp_aes128sha256rsapss;
+    sp->compareCertThumbprint = UA_OpenSSL_SecurityPolicy_compareCertThumbprint_generic;
+    sp->updateCertificate = UA_OpenSSL_SecurityPolicy_updateCertificate_generic;
     sp->createSigningRequest = createSigningRequest_sp_aes128sha256rsapss;
-    sp->clear = UA_Policy_Aes256Sha256RsaPss_Clear_Context;
+    sp->clear = UA_OpenSSL_Policy_clearContext_generic;
 
     /* Parse the certificate */
     UA_Openssl_Init();
@@ -598,7 +477,7 @@ UA_SecurityPolicy_Aes256Sha256RsaPss(UA_SecurityPolicy *sp,
         return res;
 
     /* Create the policy context */
-    res = UA_Policy_Aes256Sha256RsaPss_New_Context(sp, localPrivateKey, logger);
+    res = UA_OpenSSL_Policy_newContext_generic(sp, localPrivateKey, logger);
     if(res != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&sp->localCertificate);
         return res;
