@@ -61,20 +61,6 @@ asym_sign_basic128rsa15(const UA_SecurityPolicy *policy,
     return mbedtls_sign_sha1(&pc->localPrivateKey, &pc->drbgContext, message, signature);
 }
 
-static size_t
-asym_getLocalSignatureSize_basic128rsa15(const UA_SecurityPolicy *policy,
-                                         const void *channelContext) {
-    if(channelContext == NULL)
-        return 0;
-    mbedtls_PolicyContext *pc =
-        (mbedtls_PolicyContext*)policy->policyContext;
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    return mbedtls_pk_rsa(pc->localPrivateKey)->len;
-#else
-    return mbedtls_rsa_get_len(mbedtls_pk_rsa(pc->localPrivateKey));
-#endif
-}
-
 static UA_StatusCode
 asym_encrypt_basic128rsa15(const UA_SecurityPolicy *policy,
                            void *channelContext, UA_ByteString *data) {
@@ -204,18 +190,6 @@ asym_makeThumbprint_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
     if(securityPolicy == NULL || certificate == NULL || thumbprint == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     return mbedtls_thumbprint_sha1(certificate, thumbprint);
-}
-
-static UA_StatusCode
-compareCertificateThumbprint_basic128rsa15(const UA_SecurityPolicy *securityPolicy,
-                                           const UA_ByteString *certificateThumbprint) {
-    if(securityPolicy == NULL || certificateThumbprint == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    mbedtls_PolicyContext *pc =
-        (mbedtls_PolicyContext *)securityPolicy->policyContext;
-    if(!UA_ByteString_equal(certificateThumbprint, &pc->localCertThumbprint))
-        return UA_STATUSCODE_BADCERTIFICATEINVALID;
-    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -357,30 +331,6 @@ sym_decrypt_basic128rsa15(const UA_SecurityPolicy *policy,
         retval = UA_STATUSCODE_BADINTERNALERROR;
     UA_ByteString_clear(&ivCopy);
     return retval;
-}
-
-static UA_StatusCode
-sym_generateKey_basic128rsa15(const UA_SecurityPolicy *policy,
-                              void *channelContext, const UA_ByteString *secret,
-                              const UA_ByteString *seed, UA_ByteString *out) {
-    if(secret == NULL || seed == NULL || out == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    mbedtls_PolicyContext *pc =
-        (mbedtls_PolicyContext *)policy->policyContext;
-    return mbedtls_generateKey(&pc->mdContext, secret, seed, out);
-}
-
-static UA_StatusCode
-sym_generateNonce_basic128rsa15(const UA_SecurityPolicy *policy,
-                                void *channelContext, UA_ByteString *out) {
-    if(out == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    mbedtls_PolicyContext *pc =
-        (mbedtls_PolicyContext *)policy->policyContext;
-    int mbedErr = mbedtls_ctr_drbg_random(&pc->drbgContext, out->data, out->length);
-    if(mbedErr)
-        return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    return UA_STATUSCODE_GOOD;
 }
 
 /* Assumes that the certificate has been verified externally */
@@ -544,30 +494,6 @@ updateCertificateAndPrivateKey_basic128rsa15(UA_SecurityPolicy *securityPolicy,
 }
 
 static UA_StatusCode
-createSigningRequest_basic128rsa15(UA_SecurityPolicy *securityPolicy,
-                                       const UA_String *subjectName,
-                                       const UA_ByteString *nonce,
-                                       const UA_KeyValueMap *params,
-                                       UA_ByteString *csr,
-                                       UA_ByteString *newPrivateKey) {
-    /* Check parameter */
-    if (securityPolicy == NULL || csr == NULL) {
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
-    if(securityPolicy->policyContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    mbedtls_PolicyContext *pc =
-            (mbedtls_PolicyContext *) securityPolicy->policyContext;
-
-    return mbedtls_createSigningRequest(&pc->localPrivateKey, &pc->csrLocalPrivateKey,
-                                        &pc->entropyContext, &pc->drbgContext,
-                                        securityPolicy, subjectName, nonce,
-                                        csr, newPrivateKey);
-}
-
-static UA_StatusCode
 policyContext_newContext_basic128rsa15(UA_SecurityPolicy *securityPolicy,
                                        const UA_ByteString localPrivateKey) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -671,7 +597,7 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *sp,
     asymSig->uri = UA_STRING("http://www.w3.org/2000/09/xmldsig#rsa-sha1");
     asymSig->verify = asym_verify_basic128rsa15;
     asymSig->sign = asym_sign_basic128rsa15;
-    asymSig->getLocalSignatureSize = asym_getLocalSignatureSize_basic128rsa15;
+    asymSig->getLocalSignatureSize = UA_mbedTLS_getLocalPrivateKeyLength;
     asymSig->getRemoteSignatureSize = UA_mbedTLS_asym_getRemoteSignatureSize_generic;
     asymSig->getLocalKeyLength = NULL;
     asymSig->getRemoteKeyLength = NULL;
@@ -721,13 +647,13 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *sp,
     sp->setRemoteSymSigningKey = UA_mbedTLS_setRemoteSymSigningKey_generic;
     sp->setRemoteSymIv = UA_mbedTLS_setRemoteSymIv_generic;
     sp->compareCertificate = UA_mbedTLS_compareCertificate_generic;
-    sp->generateKey = sym_generateKey_basic128rsa15;
-    sp->generateNonce = sym_generateNonce_basic128rsa15;
+    sp->generateKey = UA_mbedTLS_sym_generateKey_generic;
+    sp->generateNonce = UA_mbedTLS_sym_generateNonce_generic;
     sp->nonceLength = 16;
     sp->makeCertThumbprint = asym_makeThumbprint_basic128rsa15;
-    sp->compareCertThumbprint = compareCertificateThumbprint_basic128rsa15;
+    sp->compareCertThumbprint = UA_mbedTLS_compareCertificateThumbprint_generic;
     sp->updateCertificate = updateCertificateAndPrivateKey_basic128rsa15;
-    sp->createSigningRequest = createSigningRequest_basic128rsa15;
+    sp->createSigningRequest = UA_mbedTLS_createSigningRequest_generic;
     sp->clear = clear_basic128rsa15;
 
     /* Load the certificate */

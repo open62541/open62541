@@ -822,4 +822,73 @@ UA_mbedTLS_getRemoteCertificatePrivateKeyLength(const UA_SecurityPolicy *policy,
 #endif
 }
 
+size_t
+UA_mbedTLS_getLocalPrivateKeyLength(const UA_SecurityPolicy *policy,
+                                    const void *channelContext) {
+    if(channelContext == NULL)
+        return 0;
+    mbedtls_PolicyContext *pc =
+        (mbedtls_PolicyContext*)policy->policyContext;
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    return mbedtls_pk_rsa(pc->localPrivateKey)->len;
+#else
+    return mbedtls_rsa_get_len(mbedtls_pk_rsa(pc->localPrivateKey));
+#endif
+}
+
+UA_StatusCode
+UA_mbedTLS_compareCertificateThumbprint_generic(const UA_SecurityPolicy *securityPolicy,
+                                                const UA_ByteString *certificateThumbprint) {
+    if(securityPolicy == NULL || certificateThumbprint == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    const mbedtls_PolicyContext *pc =
+        (const mbedtls_PolicyContext *)securityPolicy->policyContext;
+    if(!UA_ByteString_equal(certificateThumbprint, &pc->localCertThumbprint))
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_mbedTLS_sym_generateKey_generic(const UA_SecurityPolicy *policy,
+                                   void *channelContext, const UA_ByteString *secret,
+                                   const UA_ByteString *seed, UA_ByteString *out) {
+    if(secret == NULL || seed == NULL || out == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    mbedtls_PolicyContext *pc =
+        (mbedtls_PolicyContext *)policy->policyContext;
+    return mbedtls_generateKey(&pc->mdContext, secret, seed, out);
+}
+
+UA_StatusCode
+UA_mbedTLS_sym_generateNonce_generic(const UA_SecurityPolicy *policy,
+                                     void *channelContext, UA_ByteString *out) {
+    if(out == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    mbedtls_PolicyContext *pc =
+        (mbedtls_PolicyContext *)policy->policyContext;
+    int mbedErr = mbedtls_ctr_drbg_random(&pc->drbgContext, out->data, out->length);
+    if(mbedErr)
+        return UA_STATUSCODE_BADUNEXPECTEDERROR;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_mbedTLS_createSigningRequest_generic(UA_SecurityPolicy *securityPolicy,
+                                        const UA_String *subjectName,
+                                        const UA_ByteString *nonce,
+                                        const UA_KeyValueMap *params,
+                                        UA_ByteString *csr,
+                                        UA_ByteString *newPrivateKey) {
+    if(securityPolicy == NULL || csr == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(securityPolicy->policyContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    mbedtls_PolicyContext *pc =
+            (mbedtls_PolicyContext *) securityPolicy->policyContext;
+    return mbedtls_createSigningRequest(&pc->localPrivateKey, &pc->csrLocalPrivateKey,
+                                        &pc->entropyContext, &pc->drbgContext,
+                                        securityPolicy, subjectName, nonce,
+                                        csr, newPrivateKey);
+}
+
 #endif
