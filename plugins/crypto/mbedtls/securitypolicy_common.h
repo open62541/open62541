@@ -158,6 +158,10 @@ size_t
 UA_mbedTLS_asym_getRemoteBlockSize_generic(const UA_SecurityPolicy *policy,
                                            const void *channelContext);
 
+size_t
+UA_mbedTLS_asym_cert_getLocalSignatureSize_generic(const UA_SecurityPolicy *policy,
+                                                    const void *channelContext);
+
 UA_StatusCode
 UA_mbedTLS_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
                                             void *channelContext,
@@ -196,6 +200,31 @@ UA_mbedTLS_compareCertificate_generic(const UA_SecurityPolicy *policy,
 size_t
 UA_mbedTLS_getRemoteCertificatePrivateKeyLength(const UA_SecurityPolicy *policy,
                                                 const void *channelContext);
+
+size_t
+UA_mbedTLS_getLocalPrivateKeyLength(const UA_SecurityPolicy *policy,
+                                    const void *channelContext);
+
+UA_StatusCode
+UA_mbedTLS_compareCertificateThumbprint_generic(const UA_SecurityPolicy *securityPolicy,
+                                                const UA_ByteString *certificateThumbprint);
+
+UA_StatusCode
+UA_mbedTLS_sym_generateKey_generic(const UA_SecurityPolicy *policy,
+                                   void *channelContext, const UA_ByteString *secret,
+                                   const UA_ByteString *seed, UA_ByteString *out);
+
+UA_StatusCode
+UA_mbedTLS_sym_generateNonce_generic(const UA_SecurityPolicy *policy,
+                                     void *channelContext, UA_ByteString *out);
+
+UA_StatusCode
+UA_mbedTLS_createSigningRequest_generic(UA_SecurityPolicy *securityPolicy,
+                                        const UA_String *subjectName,
+                                        const UA_ByteString *nonce,
+                                        const UA_KeyValueMap *params,
+                                        UA_ByteString *csr,
+                                        UA_ByteString *newPrivateKey);
 
 _UA_END_DECLS
 
