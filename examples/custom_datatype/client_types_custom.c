@@ -7,8 +7,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define STRING_BUFFER_SIZE 20
-
 int main(void) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
@@ -31,7 +29,7 @@ int main(void) {
     UA_NodeId nodeId = UA_NODEID_STRING(1, "3D.Point");
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_String out = UA_STRING_NULL;;
+        UA_String out = UA_STRING_NULL;
         UA_print(value.data, value.type, &out);
         printf("Point = %*s\n", (int)out.length, out.data);
         UA_String_clear(&out);
@@ -43,7 +41,7 @@ int main(void) {
     nodeId = UA_NODEID_STRING(1, "Temp.Measurement");
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_String out = UA_STRING_NULL;;
+        UA_String out = UA_STRING_NULL;
         UA_print(value.data, value.type, &out);
         printf("Measurement = %*s\n", (int)out.length, out.data);
         UA_String_clear(&out);
@@ -54,7 +52,7 @@ int main(void) {
     /* nodeId = UA_NODEID_STRING(1, "Optstruct.Value"); */
     /* retval = UA_Client_readValueAttribute(client, nodeId, &value); */
     /* if(retval == UA_STATUSCODE_GOOD) { */
-    /*     UA_String out = UA_STRING_NULL;; */
+    /*     UA_String out = UA_STRING_NULL; */
     /*     UA_print(value.data, value.type, &out); */
     /*     printf("OptStruct = %s\n", out.data); */
     /*     UA_String_clear(&out); */
@@ -65,7 +63,7 @@ int main(void) {
     /* nodeId = UA_NODEID_STRING(1, "Union.Value"); */
     /* retval = UA_Client_readValueAttribute(client, nodeId, &value); */
     /* if(retval == UA_STATUSCODE_GOOD) { */
-    /*     UA_String out = UA_STRING_NULL;; */
+    /*     UA_String out = UA_STRING_NULL; */
     /*     UA_print(value.data, value.type, &out); */
     /*     printf("Union = %s\n", out.data); */
     /*     UA_String_clear(&out); */
