@@ -68,6 +68,16 @@ typedef struct {
     mbedtls_x509_crt remoteCertificate;
 } mbedtls_ChannelContext;
 
+typedef struct {
+    UA_ByteString localCertThumbprint;
+
+    mbedtls_ctr_drbg_context drbgContext;
+    mbedtls_entropy_context entropyContext;
+    mbedtls_md_context_t mdContext;
+    mbedtls_pk_context localPrivateKey;
+    mbedtls_pk_context csrLocalPrivateKey;
+} mbedtls_PolicyContext;
+
 void
 swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB);
 
