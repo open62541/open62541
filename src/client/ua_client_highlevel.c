@@ -465,6 +465,7 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
 /*********************/
 /* Historical Access */
 /*********************/
+#ifdef UA_ENABLE_HISTORIZING
 
 static UA_HistoryReadResponse
 __UA_Client_HistoryRead(UA_Client *client, const UA_NodeId *nodeId,
@@ -728,6 +729,8 @@ cleanup:
     UA_NodeId_clear(&details.nodeId);
     return ret;
 }
+
+#endif
 
 /*******************/
 /* Async Functions */
