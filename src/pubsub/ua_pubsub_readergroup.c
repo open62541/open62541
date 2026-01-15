@@ -230,7 +230,8 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
     }
 
     if(rg->config.securityPolicy && rg->securityPolicyContext) {
-        rg->config.securityPolicy->deleteContext(rg->securityPolicyContext);
+        UA_PubSubSecurityPolicy *sp = rg->config.securityPolicy;
+        sp->deleteGroupContext(sp, rg->securityPolicyContext);
         rg->securityPolicyContext = NULL;
     }
 
@@ -405,7 +406,9 @@ UA_ReaderGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                               "only defined for the UADP message mapping.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if(!rg->config.securityPolicy) {
+
+    UA_PubSubSecurityPolicy *sp = rg->config.securityPolicy;
+    if(!sp) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
                               "No SecurityPolicy configured for the ReaderGroup");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -418,16 +421,13 @@ UA_ReaderGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_ReaderGroup *rg,
 
     /* Create a new context */
     if(!rg->securityPolicyContext) {
-        return rg->config.securityPolicy->
-            newContext(rg->config.securityPolicy->policyContext,
-                       &signingKey, &encryptingKey, &keyNonce,
-                       &rg->securityPolicyContext);
+        return sp->newGroupContext(sp, &signingKey, &encryptingKey, &keyNonce,
+                                   &rg->securityPolicyContext);
     }
 
     /* Update the context */
-    return rg->config.securityPolicy->
-        setSecurityKeys(rg->securityPolicyContext, &signingKey,
-                        &encryptingKey, &keyNonce);
+    return sp->setSecurityKeys(sp, rg->securityPolicyContext, &signingKey,
+                               &encryptingKey, &keyNonce);
 }
 
 UA_Boolean
@@ -670,27 +670,25 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
     if(!doValidate && !doDecrypt)
         return UA_STATUSCODE_GOOD;
 
-    UA_PubSubSecurityPolicy *securityPolicy = rg->config.securityPolicy;
-    UA_CHECK_MEM_ERROR(securityPolicy, return UA_STATUSCODE_BADINVALIDARGUMENT,
+    UA_PubSubSecurityPolicy *sp = rg->config.securityPolicy;
+    UA_CHECK_MEM_ERROR(sp, return UA_STATUSCODE_BADINVALIDARGUMENT,
                        logger, UA_LOGCATEGORY_PUBSUB,
                        "PubSub receive. securityPolicy must be set when security mode"
                        "is enabled to sign and/or encrypt");
 
-    void *channelContext = rg->securityPolicyContext;
-    UA_CHECK_MEM_ERROR(channelContext, return UA_STATUSCODE_BADINVALIDARGUMENT,
+    void *cc = rg->securityPolicyContext;
+    UA_CHECK_MEM_ERROR(cc, return UA_STATUSCODE_BADINVALIDARGUMENT,
                        logger, UA_LOGCATEGORY_PUBSUB,
                        "PubSub receive. securityPolicyContext must be initialized "
                        "when security mode is enabled to sign and/or encrypt");
 
     /* Validate the signature */
     if(doValidate) {
-        size_t sigSize = securityPolicy->symmetricModule.cryptoModule.
-            signatureAlgorithm.getLocalSignatureSize(channelContext);
+        size_t sigSize = sp->getSignatureSize(sp, cc);
         UA_ByteString toBeVerified = {buffer.length - sigSize, buffer.data};
         UA_ByteString signature = {sigSize, buffer.data + buffer.length - sigSize};
 
-        rv = securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
-            verify(channelContext, &toBeVerified, &signature);
+        rv = sp->verify(sp, cc, &toBeVerified, &signature);
         UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Signature invalid");
 
@@ -704,13 +702,12 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
             (size_t)nm->securityHeader.messageNonceSize,
             (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
         };
-        rv = securityPolicy->setMessageNonce(channelContext, &nonce);
+        rv = sp->setMessageNonce(sp, cc, &nonce);
         UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Faulty Nonce set");
 
         UA_ByteString toBeDecrypted = {(uintptr_t)(ctx->end - ctx->pos), ctx->pos};
-        rv = securityPolicy->symmetricModule.cryptoModule
-            .encryptionAlgorithm.decrypt(channelContext, &toBeDecrypted);
+        rv = sp->decrypt(sp, cc, &toBeDecrypted);
         UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Faulty Decryption");
     }

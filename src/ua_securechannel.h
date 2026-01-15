@@ -186,6 +186,10 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
                                    UA_SecurityPolicy *securityPolicy,
                                    const UA_ByteString *remoteCertificate);
 
+UA_StatusCode
+UA_SecureChannel_setSecurityMode(UA_SecureChannel *channel,
+                                 UA_MessageSecurityMode securityMode);
+
 UA_Boolean
 UA_SecureChannel_isConnected(UA_SecureChannel *channel);
 
@@ -194,14 +198,6 @@ UA_SecureChannel_isConnected(UA_SecureChannel *channel);
 UA_Boolean
 UA_SecureChannel_checkTimeout(UA_SecureChannel *channel,
                               UA_DateTime nowMonotonic);
-
-/* When a fatal error occurs the Server shall send an Error Message to the
- * Client and close the socket. When a Client encounters one of these errors, it
- * shall also close the socket but does not send an Error Message. After the
- * socket is closed a Client shall try to reconnect automatically using the
- * mechanisms described in [...]. */
-void
-UA_SecureChannel_sendError(UA_SecureChannel *channel, UA_TcpErrorMessage *error);
 
 /* Remove (partially) received unprocessed chunks */
 void
@@ -223,14 +219,25 @@ generateRemoteKeys(const UA_SecureChannel *channel);
  * Sending Messages
  * ---------------- */
 
-UA_StatusCode
-UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                          const void *content, const UA_DataType *contentType);
+/* When a fatal error occurs the Server shall send an Error Message to the
+ * Client and close the socket. When a Client encounters one of these errors, it
+ * shall also close the socket but does not send an Error Message. After the
+ * socket is closed a Client shall try to reconnect automatically using the
+ * mechanisms described in [...]. */
+void
+UA_SecureChannel_sendERR(UA_SecureChannel *channel, UA_TcpErrorMessage *error);
 
 UA_StatusCode
-UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                      UA_MessageType messageType, void *payload,
-                                      const UA_DataType *payloadType);
+UA_SecureChannel_sendOPN(UA_SecureChannel *channel, UA_UInt32 requestId,
+                         const void *content, const UA_DataType *contentType);
+
+UA_StatusCode
+UA_SecureChannel_sendMSG(UA_SecureChannel *channel, UA_UInt32 requestId,
+                         void *payload, const UA_DataType *payloadType);
+
+UA_StatusCode
+UA_SecureChannel_sendCLO(UA_SecureChannel *channel, UA_UInt32 requestId,
+                         UA_CloseSecureChannelRequest *req);
 
 /* The MessageContext is forwarded into the encoding layer so that we can send
  * chunks before continuing to encode. This lets us reuse a fixed chunk-sized
@@ -314,9 +321,9 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
  * with the SequenceHeader).*/
 UA_StatusCode
 decryptAndVerifyChunk(const UA_SecureChannel *channel,
-                      const UA_SecurityPolicyCryptoModule *cryptoModule,
-                      UA_MessageType messageType, UA_ByteString *chunk,
-                      size_t offset);
+                      const UA_SecurityPolicySignatureAlgorithm *signatureAlgorithm,
+                      const UA_SecurityPolicyEncryptionAlgorithm *encryptionAlgorithm,
+                      UA_MessageType messageType, UA_ByteString *chunk, size_t offset);
 
 size_t
 calculateAsymAlgSecurityHeaderLength(const UA_SecureChannel *channel);
@@ -339,7 +346,9 @@ checkAsymHeader(UA_SecureChannel *channel,
                 const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 void
-padChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cm,
+padChunk(UA_SecureChannel *channel,
+         const UA_SecurityPolicySignatureAlgorithm *signatureAlgorithm,
+         const UA_SecurityPolicyEncryptionAlgorithm *encryptionAlgorithm,
          const UA_Byte *start, UA_Byte **pos);
 
 UA_StatusCode
@@ -350,9 +359,6 @@ signAndEncryptAsym(UA_SecureChannel *channel, size_t preSignLength,
 UA_StatusCode
 signAndEncryptSym(UA_MessageContext *messageContext,
                   size_t preSigLength, size_t totalLength);
-
-
-UA_Boolean isEccPolicy(const UA_SecurityPolicy* const p);
 
 /**
  * Log Helper

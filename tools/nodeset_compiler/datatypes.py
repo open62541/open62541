@@ -8,7 +8,6 @@
 ###    Copyright 2014-2017, 2025 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
-import re
 import xml.dom.minidom as dom
 
 import logging
@@ -38,11 +37,11 @@ class LocalizedText():
             self.locale = tmp
         else:
             tmp = xmlvalue.getElementsByTagName("Locale")
-            if len(tmp) > 0 and tmp[0].firstChild != None:
+            if len(tmp) > 0 and tmp[0].firstChild is not None:
                 self.locale = tmp[0].firstChild.data.strip(' \t\n\r')
 
         tmp = xmlvalue.getElementsByTagName("Text")
-        if len(tmp) > 0 and tmp[0].firstChild != None:
+        if len(tmp) > 0 and tmp[0].firstChild is not None:
             self.text = tmp[0].firstChild.data.strip(' \t\n\r')
         else:
             tmp = xmlvalue.firstChild
@@ -55,8 +54,7 @@ class LocalizedText():
             return "None"
         if self.locale is not None and len(self.locale) > 0:
             return "(" + self.locale + ":" + self.text + ")"
-        else:
-            return self.text
+        return self.text
 
 class NodeId():
     def __init__(self, idstring=None):
@@ -127,9 +125,9 @@ class NodeId():
     def __str__(self):
         s = "ns=" + str(self.ns) + ";"
         # Order of preference is numeric, guid, bytestring, string
-        if self.i != None:
+        if self.i is not None:
             return s + "i=" + str(self.i)
-        elif self.g != None:
+        if self.g is not None:
             s = s + "g="
             tmp = []
             for i in self.g:
@@ -137,9 +135,9 @@ class NodeId():
             for i in tmp:
                 s = s + "-" + i
             return s.replace("g=-", "g=")
-        elif self.b != None:
+        if self.b is not None:
             return s + "b=" + str(self.b)
-        elif self.s != None:
+        if self.s is not None:
             return s + "s=" + str(self.s)
 
     def __eq__(self, nodeId2):

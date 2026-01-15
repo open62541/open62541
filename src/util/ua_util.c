@@ -25,11 +25,14 @@
 #include "itoa.h"
 
 #if defined(UA_ARCHITECTURE_WIN32)
+#include <WTypes.h>
 #include <WinBase.h>
 #endif
 
 #include "../../deps/parse_num.h"
 #include "../../deps/libc_time.h"
+
+char *securityModeNames[4] = {"Invalid", "None", "Sign", "SignAndEncrypt"};
 
 static const char * attributeIdNames[28] = {
     "Invalid", "NodeId", "NodeClass", "BrowseName", "DisplayName", "Description",

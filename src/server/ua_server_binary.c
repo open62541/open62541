@@ -181,9 +181,8 @@ sendServiceFault(UA_Server *server, UA_SecureChannel *channel,
 
     /* Send error message. Message type is MSG and not ERR, since we are on a
      * SecureChannel! */
-    return UA_SecureChannel_sendSymmetricMessage(channel, requestId,
-                                                 UA_MESSAGETYPE_MSG, &response,
-                                                 &UA_TYPES[UA_TYPES_SERVICEFAULT]);
+    return UA_SecureChannel_sendMSG(channel, requestId, &response,
+                                    &UA_TYPES[UA_TYPES_SERVICEFAULT]);
 }
 
 /* This is not an ERR message, the connection is not closed afterwards */
@@ -198,11 +197,11 @@ decodeHeaderSendServiceFault(UA_Server *server, UA_SecureChannel *channel,
                                 &UA_TYPES[UA_TYPES_REQUESTHEADER], NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    retval = sendServiceFault(server, channel, requestId, requestHeader.requestHandle, error);
+    retval = sendServiceFault(server, channel, requestId,
+                              requestHeader.requestHandle, error);
     UA_RequestHeader_clear(&requestHeader);
     return retval;
 }
-
 
 /*************************/
 /* Process Message Types */
@@ -334,8 +333,8 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Send the response */
-    retval = UA_SecureChannel_sendAsymmetricOPNMessage(channel, requestId, &openScResponse,
-                                                       &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
+    retval = UA_SecureChannel_sendOPN(channel, requestId, &openScResponse,
+                                      &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
     UA_OpenSecureChannelResponse_clear(&openScResponse);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
@@ -545,7 +544,7 @@ processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
         UA_TcpErrorMessage errMsg;
         UA_TcpErrorMessage_init(&errMsg);
         errMsg.error = retval;
-        UA_SecureChannel_sendError(channel, &errMsg);
+        UA_SecureChannel_sendERR(channel, &errMsg);
         UA_ShutdownReason reason;
         switch(retval) {
         case UA_STATUSCODE_BADSECURITYMODEREJECTED:
@@ -596,8 +595,8 @@ configServerSecureChannel(void *application, UA_SecureChannel *channel,
         if(!UA_String_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
             continue;
 
-        UA_StatusCode res = policy->asymmetricModule.
-            compareCertificateThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
+        UA_StatusCode res = policy->
+            compareCertThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
         if(res != UA_STATUSCODE_GOOD)
             continue;
 
@@ -652,10 +651,26 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     connConfig.localMaxChunkCount = config->tcpMaxChunks;
     connConfig.remoteMaxChunkCount = config->tcpMaxChunks;
 
+    /* Set 64kB buffer size if not configured */
     if(connConfig.recvBufferSize == 0)
         connConfig.recvBufferSize = 1 << 16; /* 64kB */
     if(connConfig.sendBufferSize == 0)
         connConfig.sendBufferSize = 1 << 16; /* 64kB */
+
+    /* Further constrain the bufsize if the ConnectionManager has static rx/tx
+     * buffers configured */
+    const UA_UInt32 *bufSize = (const UA_UInt32 *)
+        UA_KeyValueMap_getScalar(&cm->eventSource.params,
+                                 UA_QUALIFIEDNAME(0, "recv-bufsize"),
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    if(bufSize && *bufSize < connConfig.recvBufferSize)
+        connConfig.recvBufferSize = *bufSize;
+    bufSize = (const UA_UInt32 *)
+        UA_KeyValueMap_getScalar(&cm->eventSource.params,
+                                 UA_QUALIFIEDNAME(0, "send-bufsize"),
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    if(bufSize && *bufSize < connConfig.sendBufferSize)
+        connConfig.sendBufferSize = *bufSize;
 
     /* Set up the new SecureChannel */
     UA_SecureChannel_init(channel);
@@ -872,7 +887,7 @@ serverNetworkCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectionId,
         UA_TcpErrorMessage error;
         error.error = retval;
         error.reason = UA_STRING_NULL;
-        UA_SecureChannel_sendError(channel, &error);
+        UA_SecureChannel_sendERR(channel, &error);
         UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_ABORT);
     }
 }
@@ -1347,7 +1362,7 @@ serverReverseConnectCallbackLocked(UA_ConnectionManager *cm, uintptr_t connectio
         UA_TcpErrorMessage error;
         error.error = retval;
         error.reason = UA_STRING_NULL;
-        UA_SecureChannel_sendError(context->channel, &error);
+        UA_SecureChannel_sendERR(context->channel, &error);
         UA_SecureChannel_shutdown(context->channel, UA_SHUTDOWNREASON_ABORT);
         setReverseConnectState(bpm->sc.server, context, UA_SECURECHANNELSTATE_CLOSING);
         return;

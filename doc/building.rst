@@ -274,10 +274,6 @@ Detailed SDK Features
 **UA_ENABLE_METHODCALLS**
    Enable the Method service set
 
-**UA_ENABLE_PARSING**
-   Enable parsing human readable formats of builtin data types (Guid, NodeId, etc.).
-   Utility functions that are not essential to the SDK.
-
 **UA_ENABLE_NODEMANAGEMENT**
    Enable dynamic addition and removal of nodes at runtime
 
@@ -340,9 +336,7 @@ Detailed SDK Features
 
 **UA_ENABLE_JSON_ENCODING**
    Enable JSON encoding. Enabled by default. The JSON encoding changed with the
-   1.05 version of the OPC UA specification. The legacy encoding can be enabled
-   via the ``UA_ENABLE_JSON_ENCODING_LEGACY`` option. Note that this legacy
-   feature wil get removed at some point in the future.
+   1.05 version of the OPC UA specification.
 
 Some options are marked as advanced. The advanced options need to be toggled to
 be visible in the cmake GUIs.
