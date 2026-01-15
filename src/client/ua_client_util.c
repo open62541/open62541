@@ -134,23 +134,28 @@ getRemoteDataTypes(UA_Client *client, UA_ReadRequest *req,
         if(typeName->hasStatus && typeName->status != UA_STATUSCODE_GOOD)
             continue;
         if(!typeName->hasValue || !UA_Variant_hasScalarType(&typeName->value,
-                                                            &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]))
+                                                            &UA_TYPES[UA_TYPES_QUALIFIEDNAME]))
             continue;
-        UA_LocalizedText *name = (UA_LocalizedText*)typeName->value.data;
 
-        res = UA_DataType_fromStructureDefinition(&dta->types[dta->typesSize], sd,
-                                                  req->nodesToRead[i].nodeId, name->text,
-                                                  client->config.customDataTypes);
+        UA_StructureDescription descr;
+        descr.structureDefinition = *sd;
+        descr.dataTypeId = req->nodesToRead[i].nodeId;
+        descr.name = *(UA_QualifiedName*)typeName->value.data;
+        UA_ExtensionObject eo;
+        UA_ExtensionObject_setValue(&eo, &descr, &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
+
+        res = UA_DataType_fromDescription(&dta->types[dta->typesSize], &eo,
+                                                   client->config.customDataTypes);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                         "Could not add the DataType %S (%N) with status code %s",
-                         name->text, req->nodesToRead[i].nodeId, UA_StatusCode_name(res));
+                         "Could not add the DataType %Q (%N) with status code %s",
+                         descr.name, req->nodesToRead[i].nodeId, UA_StatusCode_name(res));
             continue;
         }
 
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                    "Added DataType %S (%N) to the DataTypeArray",
-                    name->text, req->nodesToRead[i].nodeId);
+                    "Added DataType %Q (%N) to the DataTypeArray",
+                    descr.name, req->nodesToRead[i].nodeId);
         dta->typesSize++;
     }
 
@@ -235,11 +240,11 @@ UA_Client_getRemoteDataTypes(UA_Client *client,
         }
     }
 
-    /* Prepare reading the Displayname attributes additionally */
+    /* Prepare reading the BrowseName attributes additionally */
     for(size_t i = 0; i < req.nodesToReadSize; i++) {
         res |= UA_NodeId_copy(&req.nodesToRead[i].nodeId,
                               &req.nodesToRead[i + req.nodesToReadSize].nodeId);
-        req.nodesToRead[i + req.nodesToReadSize].attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
+        req.nodesToRead[i + req.nodesToReadSize].attributeId = UA_ATTRIBUTEID_BROWSENAME;
     }
     req.nodesToReadSize *= 2;
     if(res != UA_STATUSCODE_GOOD) {

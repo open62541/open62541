@@ -469,27 +469,31 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
             break;
         }
 
-        /* Create the StructureDefinition */
-        if(UA_DATATYPEKIND_STRUCTURE == type->typeKind ||
-           UA_DATATYPEKIND_OPTSTRUCT == type->typeKind ||
-           UA_DATATYPEKIND_UNION == type->typeKind) {
-            UA_StructureDefinition *def = UA_StructureDefinition_new();
-            if(!def) {
-                retval = UA_STATUSCODE_BADOUTOFMEMORY;
-                break;
-            }
-
-            retval = UA_DataType_toStructureDefinition(type, def);
-            if(UA_STATUSCODE_GOOD != retval) {
-                UA_free(def);
-                break;
-            }
-
-            UA_Variant_setScalar(&v->value, def, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+        UA_ExtensionObject typeDescr;
+        retval = UA_DataType_toDescription(type, &typeDescr);
+        if(UA_STATUSCODE_GOOD != retval)
             break;
+
+        if(typeDescr.content.decoded.type == &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]) {
+            UA_StructureDescription *sd = (UA_StructureDescription*)
+                typeDescr.content.decoded.data;
+            UA_NodeId_clear(&sd->dataTypeId);
+            UA_QualifiedName_clear(&sd->name);
+            memmove(sd, &sd->structureDefinition, sizeof(UA_StructureDefinition));
+            UA_Variant_setScalar(&v->value, sd, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+        } else if(typeDescr.content.decoded.type == &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]) {
+            UA_EnumDescription *ed = (UA_EnumDescription*)
+                typeDescr.content.decoded.data;
+            UA_NodeId_clear(&ed->dataTypeId);
+            UA_QualifiedName_clear(&ed->name);
+            memmove(ed, &ed->enumDefinition, sizeof(UA_EnumDefinition));
+            UA_Variant_setScalar(&v->value, ed, &UA_TYPES[UA_TYPES_ENUMDEFINITION]);
+        } else {
+            retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         }
-#endif
+#else
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+#endif
         break;
     }
     case UA_ATTRIBUTEID_ROLEPERMISSIONS:

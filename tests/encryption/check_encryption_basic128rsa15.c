@@ -87,11 +87,6 @@ static void setup(void) {
      * Otherwise Basic128Rsa15 will not work. */
     UA_AccessControl_default(config, true, NULL, 0, NULL);
 
-    /* Set the ApplicationUri used in the certificate */
-    UA_String_clear(&config->applicationDescription.applicationUri);
-    config->applicationDescription.applicationUri =
-        UA_STRING_ALLOC("urn:unconfigured:application");
-
     for(size_t i = 0; i < trustListSize; i++)
         UA_ByteString_clear(&trustList[i]);
 
@@ -124,11 +119,6 @@ static void setup2(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
     UA_CertificateGroup_AcceptAll(&config->sessionPKI);
-
-    /* Set the ApplicationUri used in the certificate */
-    UA_String_clear(&config->applicationDescription.applicationUri);
-    config->applicationDescription.applicationUri =
-        UA_STRING_ALLOC("urn:unconfigured:application");
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
@@ -226,6 +216,7 @@ START_TEST(encryption_connect) {
 
     /* Secure client connect */
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    assert(retval == UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Variant val;
@@ -297,6 +288,11 @@ START_TEST(encryption_connect_pem) {
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+
+    /* Set the ApplicationUri used in the certificate */
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri =
+        UA_STRING_ALLOC("urn:unconfigured:application");
 
     /* Manually add the Basic128Rsa15 SecurityPolicy.
      * It does not get added by default as it is considered unsecure. */

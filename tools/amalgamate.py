@@ -73,8 +73,7 @@ for fname in args.inputs:
         pos = fname.find("src")
     if pos < 0:
         continue
-    if pos - 1 < initial:
-        initial = pos - 1
+    initial = min(initial, pos - 1)
 
 for fname in args.inputs:
     with open(fname, encoding='utf8', errors='replace') as infile:

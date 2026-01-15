@@ -1140,7 +1140,9 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
     }
 
     UA_NodeId tmpOutId = UA_NODEID_NULL;
-    /* Fill the node attributes */
+
+    /* Fill the node attributes. If an error occurs, the memory in the node is
+     * cleaned up inside UA_NODESTORE_DELETE. */
     node->head.context = nodeContext;
     UA_StatusCode retval =
         UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->head.nodeId);
