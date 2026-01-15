@@ -586,9 +586,24 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
     if(field->config.field.variable.rtValueSource.rtInformationModelNode) {
         const UA_VariableNode *rtNode = (const UA_VariableNode *)
             UA_NODESTORE_GET(server, &params->publishedVariable);
+        if(!rtNode) {
+            UA_DataValue_init(value);
+            value->hasStatus = true;
+            value->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
+            return;
+        }
+        if(rtNode->head.nodeClass != UA_NODECLASS_VARIABLE ||
+        rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL ||
+        !rtNode->valueBackend.backend.external.value) {
+            UA_NODESTORE_RELEASE(server, (const UA_Node *)rtNode);
+            UA_DataValue_init(value);
+            value->hasStatus = true;
+            value->status = UA_STATUSCODE_BADINTERNALERROR;
+            return;
+        }
         *value = **rtNode->valueBackend.backend.external.value;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
-        UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
+        UA_NODESTORE_RELEASE(server, (const UA_Node *)rtNode);
     } else if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled == false){
         UA_ReadValueId rvid;
         UA_ReadValueId_init(&rvid);
