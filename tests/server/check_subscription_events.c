@@ -668,7 +668,7 @@ START_TEST(evaluateFilterWhereClause) {
 END_TEST
 
 // Create an audit event that shall be delivered *only* to the AdminSession
-START_TEST(auditEvent) {
+START_TEST(createAuditEvent) {
     UA_NodeId adminSessionId = UA_NODEID("g=00000001-0000-0000-0000-000000000000");
 
     UA_EventDescription ed = {0};
@@ -700,7 +700,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, discardNewestOverflow);
     tcase_add_test(tc_server, eventStressing);
     tcase_add_test(tc_server, evaluateFilterWhereClause);
-    tcase_add_test(tc_server, auditEvent);
+    tcase_add_test(tc_server, createAuditEvent);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
 
