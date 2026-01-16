@@ -22,8 +22,6 @@
 #include <open62541/types.h>
 #include <open62541/client.h>
 
-#include <filesystem/ua_filetypes.h>
-
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/certificategroup.h>
 #include <open62541/plugin/eventloop.h>

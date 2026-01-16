@@ -1,6 +1,6 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server.h>
-#include "../src/driver/ua_fileserver_driver.h"
+#include <open62541/driver/ua_fileserver_driver.h>
 #include <open62541/plugin/log_stdout.h>
 
 /* Helper function: Manually define a "Pump" object in the OPC UA information model.
@@ -63,8 +63,8 @@ manuallyDefinePump(UA_Server *server, UA_FileServerDriver *driver) {
      * This allows clients to access files (e.g., logs) associated with the pump.
      */
     UA_NodeId filesystemId; /* NodeId assigned by the server for the FileSystem */
-    UA_FileServerDriver_addFileSystem(driver, server, &pumpId,
-                                      "/var/log/opcua", &filesystemId);
+    UA_FileServerDriver_addFileDirectory(driver, server, &pumpId,
+                                      "./var/log/opcua", &filesystemId);
 }
 
 int main(void) {
@@ -86,13 +86,17 @@ int main(void) {
     /* Mount two additional FileSystems directly under the Objects folder */
     UA_NodeId nodeId1 = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId newFsNodeId1;
-    UA_FileServerDriver_addFileSystem(fsDriver, server, &nodeId1,
-                                      "/etc/opcua/config", &newFsNodeId1);
+    UA_FileServerDriver_addFileDirectory(fsDriver, server, &nodeId1,
+                                      "./etc/opcua/config", &newFsNodeId1);
 
     UA_NodeId nodeId2 = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId newFsNodeId2;
-    UA_FileServerDriver_addFileSystem(fsDriver, server, &nodeId2,
-                                      "/var/log/opcua", &newFsNodeId2);
+    UA_FileServerDriver_addFileDirectory(fsDriver, server, &nodeId2,
+                                      "./var/log/opcua", &newFsNodeId2);
+
+    UA_NodeId newFsNodeId3;
+    UA_FileServerDriver_addFileDirectory(NULL, server, &newFsNodeId2,
+                                      "Test", &newFsNodeId3);
 
     /* Start the driver (could open resources or spawn threads here) */
     fsDriver->base.lifecycle.start((UA_Driver*)fsDriver);

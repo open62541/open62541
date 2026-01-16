@@ -1,64 +1,18 @@
-#include "ua_fileserver_driver.h"
+#include <open62541/driver/ua_fileserver_driver.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/util.h>
+#include <filesystem/ua_filetypes.h>
 #include <process.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* Helper function: Create a FileSystemNode in the OPC UA information model.
- *
- * This function adds a new Object node of type BaseObjectType to the server’s
- * address space. It represents a file system mount point or directory that
- * can later be extended with FileType nodes and methods (Open, Read, Write, etc.).
- *
- * Parameters:
- *  - server:      The UA_Server instance where the node will be created.
- *  - parentNode:  The NodeId of the parent under which this new node is organized.
- *  - browseName:  The human-readable name used for browsing in the address space.
- *  - mountPath:   The underlying path in the host file system that this node represents.
- *  - fsNode:      A pointer to the FileSystemNode structure where metadata is stored.
- *
- * Returns:
- *  - UA_STATUSCODE_GOOD if the node was successfully created.
- *  - An error code otherwise.
- */
-static UA_StatusCode
-createFileSystemNode(UA_Server *server,
-                     const UA_NodeId *parentNode,
-                     const char *mountPath,
-                     UA_FileSystemNode *fsNode,
-                     UA_NodeId *newNodeId) {
-
-    /* Example: Create a FileSystemType node in the address space.
-     * Here we use BaseObjectType as the type definition. Later, this could be
-     * specialized to FileType or a custom subtype if needed.
-     */
-    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "FileSystem");
-
-    UA_StatusCode retval = UA_Server_addObjectNode(server,
-        UA_NODEID_NULL,                /* Let the server assign a new NodeId automatically */
-        *parentNode,                   /* Parent node under which this object is organized */
-        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), /* Reference type: Organizes */
-        UA_QUALIFIEDNAME_ALLOC(1, "FileSystem"),   /* Qualified name in namespace 1 */
-        UA_NODEID_NUMERIC(0, UA_NS0ID_FILEDIRECTORYTYPE), /* Type definition: BaseObjectType */
-        oAttr, NULL, newNodeId);
-
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Store metadata about the newly created node in the driver’s internal structure.
-     * This allows the driver to later access the mount path and associate additional
-     * context (such as open file handles or platform-specific state).
-     */
-    fsNode->nodeId = *newNodeId;
-    fsNode->mountPath = strdup(mountPath);
-    fsNode->fsContext = NULL; /* Could hold a pointer to a file system handle or context */
-
-    return UA_STATUSCODE_GOOD;
+void cleanupFunction(UA_Server *server, void *data) {
+    FileDirectoryContext *ctx = (FileDirectoryContext*)data;
+    free(ctx->path);
+    free(ctx);
 }
 
 /* Wrapper for start */
@@ -167,6 +121,7 @@ FileServerDriver_init(UA_Server *server, UA_Driver *driver, UA_DriverContext *ct
     fsDriver->fsCount = 0;
     fsDriver->fsNodes = NULL;
     fsDriver->base.state = UA_DRIVER_STATE_UNINITIALIZED;
+    fsDriver->base.context = ctx;
 
     /* --- Add Methods for lifecycle functions --- */
     UA_MethodAttributes mAttr = UA_MethodAttributes_default;
@@ -218,8 +173,10 @@ FileServerDriver_init(UA_Server *server, UA_Driver *driver, UA_DriverContext *ct
                               UA_NS0ID(BASEDATAVARIABLETYPE),
                               stateAttr, NULL, NULL);
 
+    UA_StatusCode res = initFileSystemManagement(fsDriver);
+
     fsDriver->base.state = UA_DRIVER_STATE_STOPPED;
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 /* Lifecycle function: Start the FileServerDriver.
@@ -254,8 +211,10 @@ static UA_StatusCode
 FileServerDriver_cleanup(UA_Server *server, UA_Driver *driver) {
     UA_FileServerDriver *fsDriver = (UA_FileServerDriver*) driver;
     for(size_t i = 0; i < fsDriver->fsCount; i++) {
-        UA_Server_deleteNode(server, fsDriver->fsNodes[i].nodeId, true);
-        free(fsDriver->fsNodes[i].mountPath);
+        UA_Server_deleteNode(server, fsDriver->fsNodes[i], true);
+        FileDirectoryContext *nodeContext;
+        UA_Server_getNodeContext(server, fsDriver->fsNodes[i], (void**)&nodeContext);
+        free(nodeContext->path);
     }
     free(fsDriver->fsNodes);
     fsDriver->fsNodes = NULL;
@@ -276,9 +235,11 @@ static void FileServerDriver_updateLoop(UA_Server *server, void *data) {
     UA_FileServerDriver *fsDriver = (UA_FileServerDriver*) data;
     if (fsDriver->base.state == UA_DRIVER_STATE_WATCHING) {                                 
         for(size_t i = 0; i < fsDriver->fsCount; i++) {
+            FileDirectoryContext *nodeContext;
+            UA_Server_getNodeContext(server, fsDriver->fsNodes[i], (void**)&nodeContext);
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
                         "Update tick: checking FS changes for %s",
-                        fsDriver->fsNodes[i].mountPath);
+                        nodeContext->path);
         }
     } else {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
@@ -322,23 +283,62 @@ FileServerDriver_update(UA_Server *server, UA_Driver *driver) {
  *  - An error code otherwise.
  */
 UA_StatusCode
-UA_FileServerDriver_addFileSystem(UA_FileServerDriver *driver,
+UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
                                   UA_Server *server,
                                   const UA_NodeId *parentNode,
                                   const char *mountPath,
                                   UA_NodeId *newNodeId) {
-    driver->fsNodes = (UA_FileSystemNode*) realloc(driver->fsNodes,
-        sizeof(UA_FileSystemNode) * (driver->fsCount + 1));
+
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", mountPath);
+
+    FileDirectoryContext *fsNode = (FileDirectoryContext*)UA_calloc(1, sizeof(FileDirectoryContext));
+    if(!fsNode)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    fsNode->path = strdup(mountPath);
+
+    UA_StatusCode retval = UA_Server_addObjectNode(server,
+        UA_NODEID_NULL,                /* Let the server assign a new NodeId automatically */
+        *parentNode,                   /* Parent node under which this object is organized */
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), /* Reference type: Organizes */
+        UA_QUALIFIEDNAME_ALLOC(1, driver != NULL ? "FileSystem" : mountPath),   /* Qualified name in namespace 1 */
+        UA_NODEID_NUMERIC(0, UA_NS0ID_FILEDIRECTORYTYPE), /* Type definition: FileDirectoryType */
+        oAttr, fsNode, newNodeId);
+    
+    if (driver == NULL){
+        return retval; 
+    }
+
+    driver->fsNodes = (UA_NodeId*) realloc(driver->fsNodes,
+        sizeof(UA_NodeId) * (driver->fsCount + 1));
 
     if(!driver->fsNodes)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_FileSystemNode *fsNode = &driver->fsNodes[driver->fsCount];
-    UA_StatusCode retval = createFileSystemNode(server, parentNode,
-                                                mountPath, fsNode, newNodeId);
+    driver->fsNodes[driver->fsCount] = *newNodeId;
     if(retval == UA_STATUSCODE_GOOD)
         driver->fsCount++;
 
+    return retval;
+}
+
+UA_StatusCode
+UA_FileServerDriver_addFile(UA_Server *server,
+                            const UA_NodeId *parentNode,
+                            const char *filePath,
+                            UA_NodeId *newNodeId) {
+                                
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", filePath);
+
+    UA_StatusCode retval = UA_Server_addObjectNode(server,
+        UA_NODEID_NULL,                /* Let the server assign a new NodeId automatically */
+        *parentNode,                   /* Parent node under which this object is organized */
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), /* Reference type: Organizes */
+        UA_QUALIFIEDNAME_ALLOC(1, filePath),   /* Qualified name in namespace 1 */
+        UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE), /* Type definition: FileType */
+        oAttr, NULL, newNodeId);
+    
     return retval;
 }
 

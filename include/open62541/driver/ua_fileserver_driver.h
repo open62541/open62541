@@ -2,19 +2,7 @@
 #define UA_FILESERVER_DRIVER_H
 
 #include <open62541/driver/driver.h>
-
-/* TEMP Structure representing a single FileSystem node in the OPC UA information model.
- *
- * Each FileSystemNode corresponds to a mount point or directory in the real
- * operating system file system. It holds the NodeId of the OPC UA object,
- * the underlying path in the host file system, and an optional context pointer
- * for driver-specific data (such as handles or platform-dependent state).
- */
-typedef struct {
-    UA_NodeId nodeId;           /* Entry point in the OPC UA information model */
-    char *mountPath;            /* Path in the actual operating system file system */
-    void *fsContext;            /* Driver-specific context or additional data */
-} UA_FileSystemNode;
+#include <filesystem/ua_filetypes.h>
 
 /* Structure representing the FileServer driver.
  *
@@ -23,11 +11,14 @@ typedef struct {
  * additional fields for tracking the number of managed file systems and
  * storing their metadata.
  */
-typedef struct {
+typedef struct UA_FileServerDriver {
     UA_Driver base;             /* Generic driver base type (common lifecycle hooks) */
     size_t fsCount;             /* Number of FileSystemNodes currently managed */
-    UA_FileSystemNode *fsNodes; /* Dynamically allocated array of FileSystemNodes */
+    UA_NodeId *fsNodes; /* FileSystems dynamically allocated array of FileSystemNodeIds */
 } UA_FileServerDriver;
+
+UA_StatusCode
+initFileSystemManagement(UA_FileServerDriver *fileDriver);
 
 /* API function: Add a new FileSystem to the driver and the OPC UA server.
  *
@@ -47,12 +38,33 @@ typedef struct {
  *  - UA_STATUSCODE_GOOD if the file system was successfully added.
  *  - An error code otherwise.
  */
-UA_StatusCode UA_FileServerDriver_addFileSystem(
+UA_StatusCode UA_FileServerDriver_addFileDirectory(
     UA_FileServerDriver *driver,
     UA_Server *server,
     const UA_NodeId *parentNode,
     const char *mountPath,
     UA_NodeId *newNodeId);
+    
+/* API function: Add a new File node to the OPC UA server.
+ *
+ * This function registers a new File object under a given parent node in
+ * the server’s address space. It creates the corresponding OPC UA object
+ * representing a file.
+ * 
+ * Parameters:
+ * - server:     The UA_Server where the new node should be created.
+ * - parentNode: The NodeId of the parent node under which the new file node is organized.
+ * - filePath:   The name of the file represented by this node.
+ * - newNodeId:  Output parameter to receive the NodeId of the newly created node.
+ * 
+ * Returns:
+ * - UA_STATUSCODE_GOOD if the file node was successfully added.
+ * - An error code otherwise.
+ */
+UA_StatusCode UA_FileServerDriver_addFile(UA_Server *server,
+                            const UA_NodeId *parentNode,
+                            const char *filePath,
+                            UA_NodeId *newNodeId);
 
 /* Factory function: Create a new FileServerDriver instance.
  *
