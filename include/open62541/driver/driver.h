@@ -75,6 +75,7 @@ struct UA_Driver{
     const char *name;
     void *userData;                  /* Driver-specific context or private data */
     enum DriverState state;
+    UA_DriverContext *context;    /* Access to server and configuration */
     UA_DriverLifecycle lifecycle;    /* Function pointers for lifecycle management */
 };
 
