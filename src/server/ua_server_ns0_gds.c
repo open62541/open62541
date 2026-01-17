@@ -1300,7 +1300,9 @@ openFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    const UA_Node *objectType = getNodeType(server, &object->head);
+    const UA_Node *objectType =
+        getNodeType(server, &object->head, ~(UA_UInt32)0,
+                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
 
     UA_NodeId trustListType = UA_NODEID_NUMERIC(0, UA_NS0ID_TRUSTLISTTYPE);
     UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -1329,7 +1331,9 @@ readFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    const UA_Node *objectType = getNodeType(server, &object->head);
+    const UA_Node *objectType =
+        getNodeType(server, &object->head, ~(UA_UInt32)0,
+                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
 
     UA_NodeId trustListType = UA_NODEID_NUMERIC(0, UA_NS0ID_TRUSTLISTTYPE);
     UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -1358,7 +1362,9 @@ writeFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    const UA_Node *objectType = getNodeType(server, &object->head);
+    const UA_Node *objectType =
+        getNodeType(server, &object->head, ~(UA_UInt32)0,
+                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
 
     UA_NodeId trustListType = UA_NODEID_NUMERIC(0, UA_NS0ID_TRUSTLISTTYPE);
     UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -1387,7 +1393,9 @@ closeFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    const UA_Node *objectType = getNodeType(server, &object->head);
+    const UA_Node *objectType =
+        getNodeType(server, &object->head, ~(UA_UInt32)0,
+                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
 
     UA_NodeId trustListType = UA_NODEID_NUMERIC(0, UA_NS0ID_TRUSTLISTTYPE);
     UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -1416,7 +1424,9 @@ getPositionFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    const UA_Node *objectType = getNodeType(server, &object->head);
+    const UA_Node *objectType =
+        getNodeType(server, &object->head, ~(UA_UInt32)0,
+                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
 
     UA_NodeId trustListType = UA_NODEID_NUMERIC(0, UA_NS0ID_TRUSTLISTTYPE);
     UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -1445,7 +1455,9 @@ setPositionFile(UA_Server *server,
          size_t outputSize, UA_Variant *output) {
 
     const UA_Node *object = UA_NODESTORE_GET(server, objectId);
-    const UA_Node *objectType = getNodeType(server, &object->head);
+    const UA_Node *objectType =
+        getNodeType(server, &object->head, ~(UA_UInt32)0,
+                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
 
     UA_NodeId trustListType = UA_NODEID_NUMERIC(0, UA_NS0ID_TRUSTLISTTYPE);
     UA_StatusCode retval = UA_STATUSCODE_BADNOTIMPLEMENTED;

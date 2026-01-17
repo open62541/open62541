@@ -127,16 +127,27 @@ UA_Server_addDataTypeFromDescription(UA_Server *server,
 /* Information Model Operations */
 /********************************/
 
+struct ReturnTypeContext {
+    UA_Server *server;
+    UA_UInt32 attributeMask;
+    UA_ReferenceTypeSet references;
+    UA_BrowseDirection referenceDirections;
+};
+
 static void *
 returnFirstType(void *context, UA_ReferenceTarget *t) {
-    UA_Server *server = (UA_Server*)context;
+    struct ReturnTypeContext *ctx = (struct ReturnTypeContext*)context;
     /* Don't release the node that is returned.
      * Continues to iterate if NULL is returned. */
-    return (void*)(uintptr_t)UA_NODESTORE_GETFROMREF(server, t->targetId);
+    return (void *)(uintptr_t)UA_NODESTORE_GETFROMREF_SELECTIVE(
+        ctx->server, t->targetId, ctx->attributeMask, ctx->references,
+        ctx->referenceDirections);
 }
 
 const UA_Node *
-getNodeType(UA_Server *server, const UA_NodeHead *head) {
+getNodeType(UA_Server *server, const UA_NodeHead *head,
+            UA_UInt32 attributeMask, UA_ReferenceTypeSet references,
+            UA_BrowseDirection referenceDirections) {
     /* The reference to the parent is different for variable and variabletype */
     UA_Byte parentRefIndex;
     UA_Boolean inverse;
@@ -157,6 +168,12 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
         return NULL;
     }
 
+    struct ReturnTypeContext ctx;
+    ctx.server = server;
+    ctx.attributeMask = attributeMask;
+    ctx.references = references;
+    ctx.referenceDirections = referenceDirections;
+
     /* Return the first matching candidate */
     for(size_t i = 0; i < head->referencesSize; ++i) {
         UA_NodeReferenceKind *rk = &head->references[i];
@@ -165,7 +182,7 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
         if(rk->referenceTypeIndex != parentRefIndex)
             continue;
         const UA_Node *type = (const UA_Node*)
-            UA_NodeReferenceKind_iterate(rk, returnFirstType, server);
+            UA_NodeReferenceKind_iterate(rk, returnFirstType, &ctx);
         if(type)
             return type;
     }
