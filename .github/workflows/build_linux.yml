@@ -166,27 +166,46 @@ jobs:
             build:
               name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
               cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
-              cmd_action: unit_tests_valgrind MBEDTLS          
+              cmd_action: unit_tests_valgrind MBEDTLS posix
 
           - os: ubuntu-24.04
             build:
               name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
               cmd_deps: sudo apt-get install -y -qq valgrind openssl
-              cmd_action: unit_tests_valgrind OPENSSL          
+              cmd_action: unit_tests_valgrind OPENSSL posix
+
+          - os: ubuntu-24.04
+            build:
+              name: "Valgrind Build & Unit Tests with lwIP and OpenSSL (gcc)"
+              cmd_deps: sudo apt-get install -y -qq valgrind openssl \
+                        build-essential cmake gcc git iproute2 libpcap-dev
+              cmd_action: |
+                install_lwip
+                unit_tests_valgrind OPENSSL posix-lwip
 
           - os: ubuntu-24.04
             build:
               name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
               cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev \
                         python3-netifaces
-              cmd_action: examples_valgrind MBEDTLS MDNSD          
+              cmd_action: examples_valgrind MBEDTLS MDNSD posix
 
           - os: ubuntu-24.04
             build:
-              name: "Valgrind Examples with OpenSSL and avahi-mdns(gcc)"
+              name: "Valgrind Examples with OpenSSL and avahi-mdns (gcc)"
               cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev \
                         python3-netifaces libavahi-client-dev libavahi-common-dev
-              cmd_action: examples_valgrind OPENSSL AVAHI          
+              cmd_action: examples_valgrind OPENSSL AVAHI posix
+
+          - os: ubuntu-24.04
+            build:
+              name: "Valgrind Examples with lwIP, OpenSSL and avahi-mdns (gcc)"
+              cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev \
+                        python3-netifaces libavahi-client-dev libavahi-common-dev \
+                        build-essential cmake gcc git iproute2 libpcap-dev
+              cmd_action: |
+                install_lwip
+                examples_valgrind OPENSSL AVAHI posix-lwip
 
           # Clang Static Analyzer Builds
           - os: ubuntu-20.04

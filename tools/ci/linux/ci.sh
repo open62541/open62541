@@ -432,6 +432,7 @@ function unit_tests_pubsub_sks {
 function unit_tests_valgrind {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_ARCHITECTURE=$2 \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
@@ -509,6 +510,7 @@ function examples_valgrind {
     cp ../examples/json_config/server_json_config.json5 server_json_config.json5
 
     cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_ARCHITECTURE=$3 \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
