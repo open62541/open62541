@@ -20,6 +20,10 @@ typedef struct UA_FileServerDriver {
 UA_StatusCode
 initFileSystemManagement(UA_FileServerDriver *fileDriver);
 
+/* Initialize FileType Open/Close operations */
+UA_StatusCode
+initFileTypeOperations(UA_FileServerDriver *fileDriver);
+
 /* API function: Add a new FileSystem to the driver and the OPC UA server.
  *
  * This function registers a new FileSystemNode under a given parent node in

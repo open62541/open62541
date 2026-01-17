@@ -175,6 +175,9 @@ FileServerDriver_init(UA_Server *server, UA_Driver *driver, UA_DriverContext *ct
 
     UA_StatusCode res = initFileSystemManagement(fsDriver);
 
+    /* Initialize FileType operations (Open/Close) */
+    res |= initFileTypeOperations(fsDriver);
+
     fsDriver->base.state = UA_DRIVER_STATE_STOPPED;
     return res;
 }
@@ -331,13 +334,34 @@ UA_FileServerDriver_addFile(UA_Server *server,
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", filePath);
 
+    /* Create FileContext for this file node */
+    FileContext *fileCtx = (FileContext*)UA_calloc(1, sizeof(FileContext));
+    if (!fileCtx) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    
+    fileCtx->path = strdup(filePath);
+    if (!fileCtx->path) {
+        UA_free(fileCtx);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    fileCtx->driver = NULL;
+    fileCtx->fileHandle = NULL;
+    fileCtx->currentPosition = 0;
+    fileCtx->writable = false;
+
     UA_StatusCode retval = UA_Server_addObjectNode(server,
         UA_NODEID_NULL,                /* Let the server assign a new NodeId automatically */
         *parentNode,                   /* Parent node under which this object is organized */
         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), /* Reference type: Organizes */
         UA_QUALIFIEDNAME_ALLOC(1, filePath),   /* Qualified name in namespace 1 */
         UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE), /* Type definition: FileType */
-        oAttr, NULL, newNodeId);
+        oAttr, fileCtx, newNodeId);
+    
+    if (retval != UA_STATUSCODE_GOOD) {
+        free(fileCtx->path);
+        UA_free(fileCtx);
+    }
     
     return retval;
 }

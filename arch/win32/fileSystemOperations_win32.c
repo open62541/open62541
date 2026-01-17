@@ -24,4 +24,26 @@ makeFile(const char *path) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* Open a file for reading or writing */
+UA_StatusCode
+openFile(const char *path, UA_Boolean writable, FileHandle *handle) {
+    const char *mode = writable ? "r+b" : "rb";
+    handle->handle = fopen(path, mode);
+    if (!handle->handle) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    handle->position = 0;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Close an open file */
+UA_StatusCode
+closeFile(FileHandle *handle) {
+    if (handle->handle) {
+        fclose(handle->handle);
+        handle->handle = NULL;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 #endif // UA_ARCHITECTURE_WIN32
