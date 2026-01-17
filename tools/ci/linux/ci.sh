@@ -71,6 +71,53 @@ function install_lwip {
     echo 'export PRECONFIGURED_TAPIF=tap0' >> ~/.bashrc
 }
 
+#######################
+# Install tpm2-pkcs11 #
+#######################
+
+function install_tpm2_pkcs11 {
+    # Store the current directory and go to ${HOME}
+    CURRDIR="$PWD"
+    cd "${HOME}"
+
+    # Get tpm2-tss
+    git clone https://github.com/tpm2-software/tpm2-tss.git
+    cd ./tpm2-tss
+    git checkout $1
+
+    # Build and install
+    ./bootstrap
+    ./configure --with-udevrulesdir=/etc/udev/rules.d \
+                --with-udevrulesprefix=70- \
+                --with-systemdsystemunitdir=no
+    make -j$(nproc)
+    sudo make install
+    sudo ldconfig
+    sudo udevadm control --reload-rules
+    sudo udevadm trigger
+
+    cd "${HOME}" # Go back to $HOME
+
+    # Get tpm2-pkcs11 code
+    git clone https://github.com/tpm2-software/tpm2-pkcs11.git
+    cd ./tpm2-pkcs11
+    git checkout $2
+
+    # Build and install
+    ./bootstrap
+    ./configure
+    make -j$(nproc)
+    sudo make install
+    sudo ldconfig
+    sudo cp ./src/pkcs11.h /usr/include
+
+    # Build and install python package
+    cd ./tools/
+    pip3 install --break-system-packages .
+
+    cd "${CURRDIR}" # Reset directory
+}
+
 #####################################
 # Build Documentation including PDF #
 #####################################
