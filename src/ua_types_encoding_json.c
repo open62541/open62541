@@ -495,10 +495,14 @@ ENCODE_JSON(String) {
     if(!src->data)
         return writeChars(ctx, "null", 4);
 
-    if(src->length == 0)
-        return writeJsonQuote(ctx) | writeJsonQuote(ctx);
+    status ret = UA_STATUSCODE_GOOD;
+    if(src->length == 0) {
+        ret |= writeJsonQuote(ctx);
+        ret |= writeJsonQuote(ctx);
+        return ret;
+    }
 
-    UA_StatusCode ret = writeJsonQuote(ctx);
+    ret |= writeJsonQuote(ctx);
 
     const unsigned char *str = src->data;
     const unsigned char *pos = str;
@@ -1060,8 +1064,12 @@ ENCODE_JSON(Variant) {
     /* If type is 0 (NULL) the Variant contains a NULL value and the containing
      * JSON object shall be omitted or replaced by the JSON literal ‘null’ (when
      * an element of a JSON array). */
-    if(!src->type)
-        return writeJsonObjStart(ctx) | writeJsonObjEnd(ctx);
+    status ret = UA_STATUSCODE_GOOD;
+    if(!src->type) {
+        ret |= writeJsonObjStart(ctx);
+        ret |= writeJsonObjEnd(ctx);
+        return ret;
+    }
 
     /* Set the content type in the encoding mask */
     const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
@@ -1076,7 +1084,7 @@ ENCODE_JSON(Variant) {
     if(src->type == &UA_TYPES[UA_TYPES_VARIANT] && !isArray)
         wrapEO = true;
 
-    status ret = writeJsonObjStart(ctx);
+    ret = writeJsonObjStart(ctx);
 
     /* Write the type NodeId */
     if(ctx->useReversible) {
