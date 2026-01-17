@@ -260,6 +260,7 @@ encryptUserIdentityToken(UA_Client *client, UA_SecurityPolicy *utsp,
                                              client->serverSessionNonce,
                                              client->serverEphemeralPubKey, utsp,
                                              channelContext);
+        /* Don't reuse the Ephemeral Public Key */
         UA_ByteString_clear(&client->serverEphemeralPubKey);
     } else {
         /* Compute the encrypted length (at least one byte padding) */
@@ -793,6 +794,10 @@ readNamespacesArrayAsync(UA_Client *client) {
 
 static void
 extractEphemeralKeyFromAddHeader(UA_Client *client, UA_ExtensionObject *ah) {
+    const UA_DataType *ahType = &UA_TYPES[UA_TYPES_ADDITIONALPARAMETERSTYPE];
+    if(!UA_ExtensionObject_hasDecodedType(ah, ahType))
+        return;
+
     UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_SESSION,
                  "Server Ephemeral Key in the response");
 
@@ -861,10 +866,9 @@ responseActivateSession(UA_Client *client, void *userdata,
     client->serverSessionNonce = ar->serverNonce;
     UA_ByteString_init(&ar->serverNonce);
 
-    /* Extract the server's ephemeral public key from the additional header */
-    UA_ExtensionObject *ah = &ar->responseHeader.additionalHeader;
-    if(UA_ExtensionObject_hasDecodedType(ah, &UA_TYPES[UA_TYPES_ADDITIONALPARAMETERSTYPE]))
-        extractEphemeralKeyFromAddHeader(client, ah);
+    /* Extract the server's ECC ephemeral public key from the ActivateSession
+     * response */
+    extractEphemeralKeyFromAddHeader(client, &ar->responseHeader.additionalHeader);
 
     client->sessionState = UA_SESSIONSTATE_ACTIVATED;
     notifyClientState(client);
@@ -1519,8 +1523,8 @@ createSessionCallback(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, void *response) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
-    UA_CreateSessionResponse *sessionResponse = (UA_CreateSessionResponse*)response;
-    UA_StatusCode res = sessionResponse->responseHeader.serviceResult;
+    UA_CreateSessionResponse *csr = (UA_CreateSessionResponse*)response;
+    UA_StatusCode res = csr->responseHeader.serviceResult;
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
@@ -1528,37 +1532,33 @@ createSessionCallback(UA_Client *client, void *userdata,
        client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         /* Verify the session response was created with the same certificate as
          * the SecureChannel */
-        if(!UA_ByteString_equal(&sessionResponse->serverCertificate,
+        if(!UA_ByteString_equal(&csr->serverCertificate,
                                 &client->channel.remoteCertificate)) {
             res = UA_STATUSCODE_BADCERTIFICATEINVALID;
             goto cleanup;
         }
 
         /* Verify the client signature */
-        res = checkCreateSessionSignature(client, &client->channel, sessionResponse);
+        res = checkCreateSessionSignature(client, &client->channel, csr);
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
     }
 
     /* Copy the SessionId */
     UA_NodeId_clear(&client->sessionId);
-    res |= UA_NodeId_copy(&sessionResponse->sessionId, &client->sessionId);
+    res |= UA_NodeId_copy(&csr->sessionId, &client->sessionId);
 
     /* Copy nonce and AuthenticationToken */
     UA_ByteString_clear(&client->serverSessionNonce);
     UA_NodeId_clear(&client->authenticationToken);
-    res |= UA_ByteString_copy(&sessionResponse->serverNonce,
-                              &client->serverSessionNonce);
-    res |= UA_NodeId_copy(&sessionResponse->authenticationToken,
-                          &client->authenticationToken);
+    res |= UA_ByteString_copy(&csr->serverNonce, &client->serverSessionNonce);
+    res |= UA_NodeId_copy(&csr->authenticationToken, &client->authenticationToken);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-
-    /* Extract the server's ephemeral public key from the response */
-    UA_ExtensionObject *ah = &sessionResponse->responseHeader.additionalHeader;
-    if(UA_ExtensionObject_hasDecodedType(ah, &UA_TYPES[UA_TYPES_ADDITIONALPARAMETERSTYPE]))
-        extractEphemeralKeyFromAddHeader(client, ah);
+    /* Extract the server's ECC ephemeral public key from the CreateSession
+     * response */
+    extractEphemeralKeyFromAddHeader(client, &csr->responseHeader.additionalHeader);
 
     /* Activate the new Session */
     client->sessionState = UA_SESSIONSTATE_CREATED;
@@ -2633,7 +2633,7 @@ cleanupSession(UA_Client *client) {
 
     client->sessionState = UA_SESSIONSTATE_CLOSED;
 
-    /* Clean the latest server's ephemeral public key received in the Activate Session response. */
+    /* Clean the latest server's ephemeral public key */
     UA_ByteString_clear(&client->serverEphemeralPubKey);
 }
 
