@@ -1646,13 +1646,13 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_DISPLAYNAME:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DISPLAYNAME);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        retval = UA_Node_insertOrUpdateDisplayName(&node->head,
+        retval = UA_Node_insertOrUpdateDisplayName(node,
                                                    (const UA_LocalizedText *)value);
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DESCRIPTION);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        retval = UA_Node_insertOrUpdateDescription(&node->head,
+        retval = UA_Node_insertOrUpdateDescription(node,
                                                    (const UA_LocalizedText *)value);
         break;
     case UA_ATTRIBUTEID_WRITEMASK:

@@ -940,14 +940,6 @@ UA_LocalizedText
 UA_Session_getNodeDescription(const UA_Session *session,
                               const UA_NodeHead *head);
 
-UA_StatusCode
-UA_Node_insertOrUpdateDisplayName(UA_NodeHead *head,
-                                  const UA_LocalizedText *value);
-
-UA_StatusCode
-UA_Node_insertOrUpdateDescription(UA_NodeHead *head,
-                                  const UA_LocalizedText *value);
-
 _UA_END_DECLS
 
 #endif /* UA_SERVER_INTERNAL_H_ */
