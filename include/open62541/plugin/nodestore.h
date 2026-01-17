@@ -558,6 +558,16 @@ UA_StatusCode UA_EXPORT
 UA_Node_setAttributes(UA_Node *node, const void *attributes,
                       const UA_DataType *attributeType);
 
+/* Nodes can carry multiples locales for DisplayName and Description. The
+ * following inserts a new locales or updates an existing one with new text. */
+UA_EXPORT UA_StatusCode
+UA_Node_insertOrUpdateDisplayName(UA_Node *node,
+                                  const UA_LocalizedText *displayName);
+
+UA_EXPORT UA_StatusCode
+UA_Node_insertOrUpdateDescription(UA_Node *node,
+                                  const UA_LocalizedText *description);
+
 /* Reset the destination node and copy the content of the source */
 UA_StatusCode UA_EXPORT
 UA_Node_copy(const UA_Node *src, UA_Node *dst);
