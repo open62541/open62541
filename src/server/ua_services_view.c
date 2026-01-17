@@ -650,14 +650,22 @@ browseReferencTargetCallback(void *context, UA_ReferenceTarget *t) {
     /* Remote references are ignored */
     if(!UA_NodePointer_isLocal(t->targetId))
         return NULL;
+
+    /* Include references only for figuring out the TypeDefinition within
+     * addReferenceDescription. */
+    UA_BrowseDirection direction = UA_BROWSEDIRECTION_INVALID;
+    UA_ReferenceTypeSet refs = UA_REFERENCETYPESET_NONE;
+    if(bd->resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
+        direction = UA_BROWSEDIRECTION_BOTH;
+        UA_ReferenceTypeSet_add(&refs, UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
+        UA_ReferenceTypeSet_add(&refs, UA_REFERENCETYPEINDEX_HASSUBTYPE);
+    }
     
-    /* Get the node. Include only the ReferenceTypes we are interested in,
-     * including those for figuring out the TypeDefinition (if that was
-     * requested). */
+    /* Get the node */
     const UA_Node *target =
         UA_NODESTORE_GETFROMREF_SELECTIVE(bc->server, t->targetId,
                                           resultMask2AttributesMask(bd->resultMask),
-                                          bc->resultRefs, bd->browseDirection);
+                                          refs, direction);
     if(!target)
         return NULL;
     
@@ -905,12 +913,6 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     bc.done = false;
     bc.activeCP = false;
     bc.resultRefs = cp.relevantReferences;
-    if(cp.browseDescription.resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
-        /* Get the node with additional reference types if we need to lookup the
-         * TypeDefinition */
-        UA_ReferenceTypeSet_add(&bc.resultRefs, UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
-        UA_ReferenceTypeSet_add(&bc.resultRefs, UA_REFERENCETYPEINDEX_HASSUBTYPE);
-    }
     result->statusCode = RefResult_init(&bc.rr);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
@@ -1070,12 +1072,6 @@ Operation_BrowseNext(UA_Server *server, UA_Session *session,
     bc.done = false;
     bc.activeCP = true;
     bc.resultRefs = cp->relevantReferences;
-    if(cp->browseDescription.resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
-        /* Get the node with additional reference types if we need to lookup the
-         * TypeDefinition */
-        UA_ReferenceTypeSet_add(&bc.resultRefs, UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
-        UA_ReferenceTypeSet_add(&bc.resultRefs, UA_REFERENCETYPEINDEX_HASSUBTYPE);
-    }
     result->statusCode = RefResult_init(&bc.rr);
     if(result->statusCode != UA_STATUSCODE_GOOD)
         return;
