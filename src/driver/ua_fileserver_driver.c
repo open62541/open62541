@@ -346,9 +346,7 @@ UA_FileServerDriver_addFile(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     fileCtx->driver = NULL;
-    fileCtx->fileHandle = NULL;
-    fileCtx->currentPosition = 0;
-    fileCtx->writable = false;
+    fileCtx->sessions = NULL;  /* No sessions initially */
 
     UA_StatusCode retval = UA_Server_addObjectNode(server,
         UA_NODEID_NULL,                /* Let the server assign a new NodeId automatically */

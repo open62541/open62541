@@ -24,24 +24,38 @@ makeFile(const char *path) {
     return UA_STATUSCODE_GOOD;
 }
 
-/* Open a file for reading or writing */
+/* Open a file for reading or writing based on openMode */
 UA_StatusCode
-openFile(const char *path, UA_Boolean writable, FileHandle *handle) {
-    const char *mode = writable ? "r+b" : "rb";
-    handle->handle = fopen(path, mode);
-    if (!handle->handle) {
+openFile(const char *path, UA_Byte openMode, FILE **handle) {
+    /* OPC UA Open modes:
+     * Bit 0: Read
+     * Bit 1: Write
+     * Bit 2: EraseExisting
+     * Bit 3: Append
+     */
+    const char *mode;
+    if (openMode & 0x04) {  /* EraseExisting */
+        mode = "w+b";
+    } else if (openMode & 0x08) {  /* Append */
+        mode = "a+b";
+    } else if (openMode & 0x02) {  /* Write */
+        mode = "r+b";
+    } else {  /* Read only */
+        mode = "rb";
+    }
+    
+    *handle = fopen(path, mode);
+    if (!*handle) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    handle->position = 0;
     return UA_STATUSCODE_GOOD;
 }
 
 /* Close an open file */
 UA_StatusCode
-closeFile(FileHandle *handle) {
-    if (handle->handle) {
-        fclose(handle->handle);
-        handle->handle = NULL;
+closeFile(FILE *handle) {
+    if (handle) {
+        fclose(handle);
     }
     return UA_STATUSCODE_GOOD;
 }

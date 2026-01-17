@@ -12,12 +12,7 @@ UA_StatusCode
 makeFile(const char *path);
 
 /* File operations - for FileType Open/Close */
-typedef struct {
-    FILE *handle;
-    UA_UInt64 position;
-} FileHandle;
-
-UA_StatusCode openFile(const char *path, UA_Boolean writable, FileHandle *handle);
-UA_StatusCode closeFile(FileHandle *handle);
+UA_StatusCode openFile(const char *path, UA_Byte openMode, FILE **handle);
+UA_StatusCode closeFile(FILE *handle);
 
 #endif /* UA_FILESYSTEMOPERATIONS_COMMON_H_ */
