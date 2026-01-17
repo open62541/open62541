@@ -308,12 +308,12 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, const UA_SecurityPolicy *sp,
     /* Create the signature
      * TODO: Check whether the symmetric or asymmetric signing algorithm is
      * needed here */
-    size_t signatureSize = sp->symSignatureAlgorithm.
+    size_t signatureSize = sp->asymSignatureAlgorithm.
         getLocalSignatureSize(sp, channelContext);
     res = UA_ByteString_allocBuffer(&ephKey->signature, signatureSize);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    return sp->symSignatureAlgorithm.
+    return sp->asymSignatureAlgorithm.
         sign(sp, channelContext, &ephKey->publicKey, &ephKey->signature);
 }
 
