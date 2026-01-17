@@ -1565,12 +1565,14 @@ writeIsAbstract(UA_Node *node, UA_Boolean value) {
         break;                                              \
     }
 
-#define GET_NODETYPE                                \
-    type = (const UA_VariableTypeNode*)             \
-        getNodeType(server, &node->head);           \
-    if(!type) {                                     \
-        retval = UA_STATUSCODE_BADTYPEMISMATCH;     \
-        break;                                      \
+#define GET_NODETYPE                                    \
+    type = (const UA_VariableTypeNode*)                 \
+        getNodeType(server, &node->head, ~(UA_UInt32)0, \
+                    UA_REFERENCETYPESET_NONE,           \
+                    UA_BROWSEDIRECTION_INVALID);        \
+    if(!type) {                                         \
+        retval = UA_STATUSCODE_BADTYPEMISMATCH;         \
+        break;                                          \
     }
 
 /* Update a localized text. Don't touch the target if copying fails
@@ -1643,13 +1645,13 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_DISPLAYNAME:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DISPLAYNAME);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        retval = UA_Node_insertOrUpdateDisplayName(&node->head,
+        retval = UA_Node_insertOrUpdateDisplayName(node,
                                                    (const UA_LocalizedText *)value);
         break;
     case UA_ATTRIBUTEID_DESCRIPTION:
         CHECK_USERWRITEMASK(UA_WRITEMASK_DESCRIPTION);
         CHECK_DATATYPE_SCALAR(LOCALIZEDTEXT);
-        retval = UA_Node_insertOrUpdateDescription(&node->head,
+        retval = UA_Node_insertOrUpdateDescription(node,
                                                    (const UA_LocalizedText *)value);
         break;
     case UA_ATTRIBUTEID_WRITEMASK:
