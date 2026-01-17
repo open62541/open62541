@@ -1340,10 +1340,13 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
             continue;
         }
 
+        /* TODO: Do we need all attributes and references here?  */
         const UA_Node *targetType = NULL;
         if(target->head.nodeClass == UA_NODECLASS_VARIABLE ||
            target->head.nodeClass == UA_NODECLASS_OBJECT) {
-            targetType = getNodeType(server, &target->head);
+            targetType = getNodeType(server, &target->head, ~(UA_UInt32)0,
+                                     UA_REFERENCETYPESET_ALL,
+                                     UA_BROWSEDIRECTION_BOTH);
             if(!targetType) {
                 UA_NODESTORE_RELEASE(server, target);
                 retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
@@ -1569,11 +1572,13 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
             goto cleanup;
     }
 
-    /* Get the type node */
+    /* Get the type node
+     * TODO: Do we need all attributes and references here?  */
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE ||
        node->head.nodeClass == UA_NODECLASS_VARIABLETYPE ||
        node->head.nodeClass == UA_NODECLASS_OBJECT) {
-        type = getNodeType(server, &node->head);
+        type = getNodeType(server, &node->head, ~(UA_UInt32)0,
+                           UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
         if(!type) {
             if(server->bootstrapNS0)
                 goto constructor;
@@ -1979,11 +1984,14 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
         if(!member)
             continue;
 
-        /* Call the type-level destructor */
+        /* Call the type-level destructor
+         * TODO: Do we need all attributes and references here?  */
         void *context = member->head.context; /* No longer needed after this function */
         if(member->head.nodeClass == UA_NODECLASS_OBJECT ||
            member->head.nodeClass == UA_NODECLASS_VARIABLE) {
-            const UA_Node *type = getNodeType(server, &member->head);
+            const UA_Node *type =
+                getNodeType(server, &member->head, ~(UA_UInt32)0,
+                            UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
             if(type) {
                /* Get the lifecycle */
                const UA_NodeTypeLifecycle *lifecycle;

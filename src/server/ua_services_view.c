@@ -617,7 +617,10 @@ addReferenceDescription(struct BrowseContext *bc, UA_NodePointer nodeP,
     if(bd->resultMask & UA_BROWSERESULTMASK_TYPEDEFINITION) {
         if(curr->head.nodeClass == UA_NODECLASS_OBJECT ||
            curr->head.nodeClass == UA_NODECLASS_VARIABLE) {
-            const UA_Node *type = getNodeType(bc->server, &curr->head);
+            const UA_Node *type =
+                getNodeType(bc->server, &curr->head, 0,
+                            UA_REFERENCETYPESET_NONE,
+                            UA_BROWSEDIRECTION_INVALID);
             if(type) {
                 res |= UA_NodeId_copy(&type->head.nodeId,
                                       &descr->typeDefinition.nodeId);
