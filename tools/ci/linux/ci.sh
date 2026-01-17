@@ -19,6 +19,58 @@ fi
 # Allow to reuse TIME-WAIT sockets for new connections
 sudo sysctl -w net.ipv4.tcp_tw_reuse=1
 
+##################################
+# Install lwip and setup TUN/TAP #
+##################################
+
+function install_lwip {
+    # Store the current directory and go to ${HOME}
+    CURRDIR="$PWD"
+    cd "${HOME}"
+
+    # Get lwip
+    git clone https://github.com/lwip-tcpip/lwip.git
+    cd ./lwip
+    git checkout tags/STABLE-2_2_1_RELEASE
+
+    # Apply the modification to lwipopts.h
+    sed -i '30a\
+    #define MEMP_NUM_TCP_PCB 128\n\
+    #define MEMP_NUM_UDP_PCB 128\n\
+    #define MEMP_NUM_REASSDATA 128\n\
+    #define MEMP_NUM_TCP_PCB_LISTEN 128\n\
+    #define MEMP_NUM_TCP_SEG 128\n\
+    #define MEMP_NUM_PBUF 128\n\
+    #define MEMP_NUM_RAW_PCB 128\n\
+    #define MEMP_NUM_SELECT_CB 128\n\
+    #define MEMP_NUM_NETBUF 128\n\
+    #define MEMP_NUM_NETCONN 128\n\
+    #define PBUF_POOL_SIZE 128\n\
+    #define MEM_SIZE 64000\n\
+    #define LWIP_SOCKET 1\n\
+    #define LWIP_DNS 0' ./contrib/ports/unix/posixlib/lwipopts.h
+
+    # Make and install
+    cd ./contrib/ports/unix/posixlib
+    mkdir build
+    cd ./build
+    cmake ..
+    make -j$(nproc)
+    sudo make install
+
+    cd "${CURRDIR}" # Reset directory
+
+    # Setup the tun/tap device
+    sudo ip tuntap add dev tap0 mode tap
+    sudo ip link set dev tap0 up
+    sudo ip addr add 192.168.0.1/24 dev tap0
+    sudo sysctl -w net.ipv4.ip_forward=1
+
+    # Set the environment variable of the tap0 device to use
+    export PRECONFIGURED_TAPIF=tap0
+    echo 'export PRECONFIGURED_TAPIF=tap0' >> ~/.bashrc
+}
+
 #####################################
 # Build Documentation including PDF #
 #####################################
