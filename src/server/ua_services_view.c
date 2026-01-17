@@ -1185,9 +1185,9 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
             result->targets = tmpResults;
 
             /* Copy over the result */
-            res = UA_ExpandedNodeId_copy(&current->targets[i],
-                                         &result->targets[result->targetsSize].targetId);
-            result->targets[result->targetsSize].remainingPathIndex = (UA_UInt32)pathIndex;
+            UA_BrowsePathTarget *newEntry = &result->targets[result->targetsSize];
+            res = UA_ExpandedNodeId_copy(&current->targets[i], &newEntry->targetId);
+            newEntry->remainingPathIndex = (UA_UInt32)pathIndex;
             result->targetsSize++;
             if(res != UA_STATUSCODE_GOOD)
                 break;
@@ -1371,7 +1371,7 @@ Operation_TranslateBrowsePathToNodeIds(UA_Server *server, UA_Session *session,
         if(!match)
             continue;
 
-        /* Move to the target to the results array */
+        /* Move the target to the results array */
         result->targets[result->targetsSize].targetId = next->targets[k];
         result->targets[result->targetsSize].remainingPathIndex = UA_UINT32_MAX;
         UA_ExpandedNodeId_init(&next->targets[k]);
