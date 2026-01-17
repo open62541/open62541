@@ -179,8 +179,16 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
                             UA_SecurityPolicy *sp, void *tempChannelContext) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
+    UA_ByteString sig;
+    UA_ByteString_init(&sig);
+    UA_ByteString payload;
+    UA_ByteString_init(&payload);
+    UA_ByteString symEncKeyMaterial;
+    UA_ByteString_init(&symEncKeyMaterial);
     UA_EccEncryptedSecretStruct secret;
     UA_EccEncryptedSecretStruct_init(&secret);
+    UA_EccEncryptedSecret eccEncSecSer;
+    UA_EccEncryptedSecret_init(&eccEncSecSer);
 
     /* Filling out Common Header fields */
     secret.typeId = UA_NODEID_NUMERIC(1, NODE_IDENTIFIER_NUMERIC_ECCENCRYPTEDSEC);
@@ -293,7 +301,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
     UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
                  "[EncryptedSecret] Initialization vector length: %d", ivLen);
 
-    UA_ByteString symEncKeyMaterial;
     retval = UA_ByteString_allocBuffer(&symEncKeyMaterial, symKeyLen+ivLen);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
@@ -361,8 +368,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
 
     /* Constructing payload, refer to
      * https://reference.opcfoundation.org/Core/Part4/v105/docs/7.41.2.3 */
-    UA_ByteString payload;
-    UA_ByteString_init(&payload);
     size_t payloadLen = secret.nonce.length + secret.secret.length + paddingLen + 2;
     retval = UA_ByteString_allocBuffer(&payload, payloadLen);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -399,8 +404,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
     secret.length += payload.length;
 
     /* Init the EccEncryptedSecret (serialized) and calculate the lengths*/
-    UA_EccEncryptedSecret eccEncSecSer;
-
     size_t commonHeaderSerLen = UA_EccEncryptedSecret_getCommonHeaderSize(&secret);
     size_t signatureLen = sp->asymSignatureAlgorithm.
         getLocalSignatureSize(sp, tempChannelContext);
@@ -476,7 +479,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
                  "[EncryptedSecret] After serializing the payload:");
 
     /* Sign */
-    UA_ByteString sig;
     retval = UA_ByteString_allocBuffer(&sig, signatureLen);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
