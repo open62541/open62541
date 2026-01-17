@@ -144,6 +144,98 @@ closeFileMethod(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Read method - uses sessionId for per-client context */
+static UA_StatusCode
+readFileMethod(UA_Server *server,
+         const UA_NodeId *sessionId, void *sessionHandle,
+         const UA_NodeId *methodId, void *methodContext,
+         const UA_NodeId *objectId, void *objectContext,
+         size_t inputSize, const UA_Variant *input,
+         size_t outputSize, UA_Variant *output) {
+    
+    /* Get file context from node */
+    FileContext *fileCtx = NULL;
+    UA_Server_getNodeContext(server, *objectId, (void**)&fileCtx);
+    
+    if (!fileCtx) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    
+    /* Find session context for this client */
+    FileSessionContext *sessionCtx = findSessionContext(fileCtx, sessionId);
+    if (!sessionCtx || !sessionCtx->fileHandle.handle) {
+        return UA_STATUSCODE_BADINVALIDSTATE;  /* Not open for this session */
+    }
+    
+    /* Check read permission (Bit 0) */
+    if (!(sessionCtx->fileHandle.openMode & 0x01)) {
+        return UA_STATUSCODE_BADNOTREADABLE;
+    }
+    
+    /* Get length from input (UA_Int32) */
+    UA_Int32 length = *(UA_Int32*)input[0].data;
+    
+    /* Read from file */
+    UA_ByteString data;
+    UA_ByteString_init(&data);
+    
+    UA_StatusCode res = readFile(sessionCtx->fileHandle.handle, length, &data);
+    if (res != UA_STATUSCODE_GOOD) {
+        return res;
+    }
+    
+    /* Update position */
+    sessionCtx->fileHandle.position += data.length;
+    
+    /* Return data */
+    UA_Variant_setScalarCopy(&output[0], &data, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_ByteString_clear(&data);
+    
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Write method - uses sessionId for per-client context */
+static UA_StatusCode
+writeFileMethod(UA_Server *server,
+          const UA_NodeId *sessionId, void *sessionHandle,
+          const UA_NodeId *methodId, void *methodContext,
+          const UA_NodeId *objectId, void *objectContext,
+          size_t inputSize, const UA_Variant *input,
+          size_t outputSize, UA_Variant *output) {
+    
+    /* Get file context from node */
+    FileContext *fileCtx = NULL;
+    UA_Server_getNodeContext(server, *objectId, (void**)&fileCtx);
+    
+    if (!fileCtx) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    
+    /* Find session context for this client */
+    FileSessionContext *sessionCtx = findSessionContext(fileCtx, sessionId);
+    if (!sessionCtx || !sessionCtx->fileHandle.handle) {
+        return UA_STATUSCODE_BADINVALIDSTATE;  /* Not open for this session */
+    }
+    
+    /* Check write permission (Bit 1) */
+    if (!(sessionCtx->fileHandle.openMode & 0x02)) {
+        return UA_STATUSCODE_BADNOTWRITABLE;
+    }
+    
+    /* Get data from input (UA_ByteString) */
+    UA_ByteString *data = (UA_ByteString*)input[0].data;
+    
+    /* Write to file */
+    UA_StatusCode res = writeFile(sessionCtx->fileHandle.handle, data);
+    if (res != UA_STATUSCODE_GOOD) {
+        return res;
+    }
+    
+    /* Update position */
+    sessionCtx->fileHandle.position += data->length;
+    
+    return UA_STATUSCODE_GOOD;
+}
 
 /* Thread-safe wrapper for Open */
 static UA_StatusCode
@@ -181,6 +273,146 @@ closeFileAction(UA_Server *server,
     return res;
 }
 
+/* Thread-safe wrapper for Read */
+static UA_StatusCode
+readFileAction(UA_Server *server,
+               const UA_NodeId *sessionId, void *sessionContext,
+               const UA_NodeId *methodId, void *methodContext,
+               const UA_NodeId *objectId, void *objectContext,
+               size_t inputSize, const UA_Variant *input,
+               size_t outputSize, UA_Variant *output) {
+    lockServer(server);
+    UA_StatusCode res = readFileMethod(server, sessionId, sessionContext,
+                                 methodId, methodContext,
+                                 objectId, objectContext,
+                                 inputSize, input,
+                                 outputSize, output);
+    unlockServer(server);
+    return res;
+}
+
+/* Thread-safe wrapper for Write */
+static UA_StatusCode
+writeFileAction(UA_Server *server,
+                const UA_NodeId *sessionId, void *sessionContext,
+                const UA_NodeId *methodId, void *methodContext,
+                const UA_NodeId *objectId, void *objectContext,
+                size_t inputSize, const UA_Variant *input,
+                size_t outputSize, UA_Variant *output) {
+    lockServer(server);
+    UA_StatusCode res = writeFileMethod(server, sessionId, sessionContext,
+                                  methodId, methodContext,
+                                  objectId, objectContext,
+                                  inputSize, input,
+                                  outputSize, output);
+    unlockServer(server);
+    return res;
+}
+
+/* GetPosition method - uses sessionId for per-client context */
+static UA_StatusCode
+getPositionMethod(UA_Server *server,
+            const UA_NodeId *sessionId, void *sessionHandle,
+            const UA_NodeId *methodId, void *methodContext,
+            const UA_NodeId *objectId, void *objectContext,
+            size_t inputSize, const UA_Variant *input,
+            size_t outputSize, UA_Variant *output) {
+    
+    /* Get file context from node */
+    FileContext *fileCtx = NULL;
+    UA_Server_getNodeContext(server, *objectId, (void**)&fileCtx);
+    
+    if (!fileCtx) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    
+    /* Find session context for this client */
+    FileSessionContext *sessionCtx = findSessionContext(fileCtx, sessionId);
+    if (!sessionCtx || !sessionCtx->fileHandle.handle) {
+        return UA_STATUSCODE_BADINVALIDSTATE;  /* Not open for this session */
+    }
+    
+    /* Return current position */
+    UA_UInt64 position = sessionCtx->fileHandle.position;
+    UA_Variant_setScalarCopy(&output[0], &position, &UA_TYPES[UA_TYPES_UINT64]);
+    
+    return UA_STATUSCODE_GOOD;
+}
+
+/* SetPosition method - uses sessionId for per-client context */
+static UA_StatusCode
+setPositionMethod(UA_Server *server,
+            const UA_NodeId *sessionId, void *sessionHandle,
+            const UA_NodeId *methodId, void *methodContext,
+            const UA_NodeId *objectId, void *objectContext,
+            size_t inputSize, const UA_Variant *input,
+            size_t outputSize, UA_Variant *output) {
+    
+    /* Get file context from node */
+    FileContext *fileCtx = NULL;
+    UA_Server_getNodeContext(server, *objectId, (void**)&fileCtx);
+    
+    if (!fileCtx) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    
+    /* Find session context for this client */
+    FileSessionContext *sessionCtx = findSessionContext(fileCtx, sessionId);
+    if (!sessionCtx || !sessionCtx->fileHandle.handle) {
+        return UA_STATUSCODE_BADINVALIDSTATE;  /* Not open for this session */
+    }
+    
+    /* Get position from input (UA_UInt64) */
+    UA_UInt64 position = *(UA_UInt64*)input[0].data;
+    
+    /* Seek to position */
+    UA_StatusCode res = seekFile(sessionCtx->fileHandle.handle, position);
+    if (res != UA_STATUSCODE_GOOD) {
+        return res;
+    }
+    
+    /* Update position in context */
+    sessionCtx->fileHandle.position = position;
+    
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Thread-safe wrapper for GetPosition */
+static UA_StatusCode
+getPositionAction(UA_Server *server,
+                  const UA_NodeId *sessionId, void *sessionContext,
+                  const UA_NodeId *methodId, void *methodContext,
+                  const UA_NodeId *objectId, void *objectContext,
+                  size_t inputSize, const UA_Variant *input,
+                  size_t outputSize, UA_Variant *output) {
+    lockServer(server);
+    UA_StatusCode res = getPositionMethod(server, sessionId, sessionContext,
+                                    methodId, methodContext,
+                                    objectId, objectContext,
+                                    inputSize, input,
+                                    outputSize, output);
+    unlockServer(server);
+    return res;
+}
+
+/* Thread-safe wrapper for SetPosition */
+static UA_StatusCode
+setPositionAction(UA_Server *server,
+                  const UA_NodeId *sessionId, void *sessionContext,
+                  const UA_NodeId *methodId, void *methodContext,
+                  const UA_NodeId *objectId, void *objectContext,
+                  size_t inputSize, const UA_Variant *input,
+                  size_t outputSize, UA_Variant *output) {
+    lockServer(server);
+    UA_StatusCode res = setPositionMethod(server, sessionId, sessionContext,
+                                    methodId, methodContext,
+                                    objectId, objectContext,
+                                    inputSize, input,
+                                    outputSize, output);
+    unlockServer(server);
+    return res;
+}
+
 /* Method registration - as shown in guide */
 UA_StatusCode
 initFileTypeOperations(UA_FileServerDriver *fileDriver) {
@@ -195,6 +427,26 @@ initFileTypeOperations(UA_FileServerDriver *fileDriver) {
         fileDriver->base.context->server,
         UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_CLOSE),
         (UA_MethodCallback)closeFileAction);
+    
+    retval |= UA_Server_setMethodNodeCallback(
+        fileDriver->base.context->server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_READ),
+        (UA_MethodCallback)readFileAction);
+    
+    retval |= UA_Server_setMethodNodeCallback(
+        fileDriver->base.context->server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_WRITE),
+        (UA_MethodCallback)writeFileAction);
+    
+    retval |= UA_Server_setMethodNodeCallback(
+        fileDriver->base.context->server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_GETPOSITION),
+        (UA_MethodCallback)getPositionAction);
+    
+    retval |= UA_Server_setMethodNodeCallback(
+        fileDriver->base.context->server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE_SETPOSITION),
+        (UA_MethodCallback)setPositionAction);
     
     return retval;
 }

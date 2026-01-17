@@ -886,6 +886,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 # driver
                 ${PROJECT_SOURCE_DIR}/src/driver/ua_fileserver_driver.c
                 ${PROJECT_SOURCE_DIR}/src/filesystem/ua_server_ns0_fdt.c
+                ${PROJECT_SOURCE_DIR}/src/filesystem/ua_server_ns0_filetype.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
@@ -1030,7 +1031,8 @@ if(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32)
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c
          ${PROJECT_SOURCE_DIR}/arch/common/fileSystemOperations_common.h
-         ${PROJECT_SOURCE_DIR}/arch/win32/fileSystemOperations_win32.c)
+         ${PROJECT_SOURCE_DIR}/arch/win32/fileSystemOperations_win32.c
+         ${PROJECT_SOURCE_DIR}/arch/win32/fileSystemOperations_posix.c)
 endif()
 
 if(UA_ARCHITECTURE_ZEPHYR)
