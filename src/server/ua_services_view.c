@@ -595,7 +595,10 @@ addReferenceDescription(struct BrowseContext *bc, UA_NodePointer nodeP,
     if(bd->resultMask & UA_BROWSERESULTMASK_REFERENCETYPEID) {
         const UA_NodeId *refTypeId =
             UA_NODESTORE_GETREFERENCETYPEID(bc->server, bc->rk->referenceTypeIndex);
-        res |= UA_NodeId_copy(refTypeId, &descr->referenceTypeId);
+        if(UA_LIKELY(refTypeId != NULL))
+            res |= UA_NodeId_copy(refTypeId, &descr->referenceTypeId);
+        else
+            res |= UA_STATUSCODE_BADINTERNALERROR;
     }
     if(bd->resultMask & UA_BROWSERESULTMASK_ISFORWARD)
         descr->isForward = !bc->rk->isInverse;
