@@ -1000,6 +1000,12 @@ UA_Node_addReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForward,
         if(found)
             return UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED;
 
+        /* If there are many references, attempt to switch to the
+         * tree-representation. This speeds up all reference lookups. Continue
+         * with the array-representation in case of an error. */
+        if(!refs->hasRefTree && refs->targetsSize >= 31)
+            UA_NodeReferenceKind_switch(refs);
+
         /* Add to existing ReferenceKind */
         return addReferenceTarget(refs, UA_NodePointer_fromExpandedNodeId(targetNodeId),
                                   targetBrowseNameHash);
