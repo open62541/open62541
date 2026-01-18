@@ -256,8 +256,51 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 }
 
 static UA_StatusCode
-addEphemeralKeyAdditionalHeader(UA_Server *server, const UA_SecurityPolicy *sp,
-                                void *channelContext, UA_ExtensionObject *ah) {
+createCheckSessionAuthSecurityPolicyContext(UA_Server *server, UA_Session *session,
+                                            UA_SecurityPolicy *sp,
+                                            const UA_ByteString remoteCertificate) {
+    /* The session is already "taken" by a different SecurityPolicy */
+    if(session->authSp && session->authSp != sp) {
+        UA_LOG_ERROR_SESSION(server->config.logging, session,
+                             "Cannot instantiate SecurityPolicyContext %S for the "
+                             "Session. A different SecurityPolicy %S is "
+                             "already in place",
+                             sp->policyUri, session->authSp->policyUri);
+    }
+    session->authSp = sp;
+
+    /* Existing SecurityPolicy context, check for the identical remote
+     * certificate */
+    UA_StatusCode res;
+    if(session->authSpContext) {
+        res = sp->compareCertificate(sp, session->authSpContext, &remoteCertificate);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_SESSION(server->config.logging, session,
+                                 "The client tries to use a different certificate "
+                                 "for authentication");
+        }
+        return res;
+    }
+
+    /* Instantiate a new context */
+    res = sp->newChannelContext(sp, &remoteCertificate, &session->authSpContext);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_SESSION(server->config.logging, session,
+                             "Could not use the supplied certificate "
+                             "to instantiate the SecurityPolicy %S for the "
+                             "validation of the UserIdentityToken",
+                             sp->policyUri);
+    }
+    return res;
+}
+
+static UA_StatusCode
+addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
+                                UA_ExtensionObject *ah) {
+    UA_assert(session->authSp && session->authSpContext);
+    UA_SecurityPolicy *sp = session->authSp;
+    void *spContext = session->authSpContext;
+
     /* Allocate additional parameters */
     UA_AdditionalParametersType *ap = UA_AdditionalParametersType_new();
     if(!ap)
@@ -299,22 +342,23 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, const UA_SecurityPolicy *sp,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* Generate the ephemeral key
-     * TODO: Don't we have to persist the key locally? */
-    res = sp->generateNonce(sp, channelContext, &ephKey->publicKey);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    /* Create the signature
-     * TODO: Check whether the symmetric or asymmetric signing algorithm is
-     * needed here */
-    size_t signatureSize = sp->asymSignatureAlgorithm.
-        getLocalSignatureSize(sp, channelContext);
+    /* Allocate the signature buffer */
+    size_t signatureSize =
+        sp->asymSignatureAlgorithm.getLocalSignatureSize(sp, spContext);
     res = UA_ByteString_allocBuffer(&ephKey->signature, signatureSize);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-    return sp->asymSignatureAlgorithm.
-        sign(sp, channelContext, &ephKey->publicKey, &ephKey->signature);
+
+    /* Generate the ephemeral key and signature */
+    res |= sp->generateNonce(sp, spContext, &ephKey->publicKey);
+    res |= sp->asymSignatureAlgorithm.sign(sp, spContext, &ephKey->publicKey,
+                                           &ephKey->signature);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_SESSION(server->config.logging, session,
+                             "Could not prepare the ephemeral key (%s)",
+                             UA_StatusCode_name(res));
+    }
+    return res;
 }
 
 /* Creates and adds a session. But it is not yet attached to a secure channel. */
@@ -373,7 +417,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_LOG_DEBUG_CHANNEL(server->config.logging, channel, "Trying to create session");
 
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    UA_SecurityPolicy *sp = channel->securityPolicy;
     void *cc = channel->channelContext;
     UA_assert(sp != NULL);
 
@@ -499,20 +543,26 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    /* If ECC policy, create an ephemeral key to be returned in the response */
-    if(sp && sp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+    /* If ECC policy, instantiate an auth SecurityPolicy context and create an
+     * ephemeral key to be returned in the response. The private part of the
+     * ephemeral key is persisted in the SecurityPolicy context. Until it gets
+     * overridden during ActivateSession. */
+    if(authSp && authSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
         response->responseHeader.serviceResult =
-            addEphemeralKeyAdditionalHeader(server, sp, channel->channelContext,
+            createCheckSessionAuthSecurityPolicyContext(server, newSession, authSp,
+                                                        request->clientCertificate);
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+            UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
+            return;
+        }
+
+        response->responseHeader.serviceResult =
+            addEphemeralKeyAdditionalHeader(server, newSession,
                                             &response->responseHeader.additionalHeader);
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
-            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                                 "Could not prepare the ephemeral key (%s)",
-                                 UA_StatusCode_name(response->responseHeader.serviceResult));
             return;
         }
-        UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SESSION,
-                    "[CreateSession] Ephemeral Key created");
     }
 
     /* Sign the signature */
@@ -945,9 +995,27 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         /* Differentiate between ECC policy decrpytion and RSA decryption.
          * With ECC policies, the password is EccEncryptedSecret */
         if(tokenSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+            /* The ECC authentication SecurityPolicy gets instantiated when the
+             * Session is created. Because we need to return the initial public
+             * ephemeral key. */
+            if(!session->authSpContext) {
+                resp->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+                UA_SESSION_REJECT;
+            }
+
+            /* More checks. Is the tokenSp the same as before? */
             resp->responseHeader.serviceResult =
-                decryptUserTokenEcc(server->config.logging, session->serverNonce,
-                                    tokenSp, userToken->encryptionAlgorithm,
+                createCheckSessionAuthSecurityPolicyContext(server, session,
+                                           tokenSp, channel->remoteCertificate);
+            if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+                UA_SESSION_REJECT;
+
+            /* Decrypt the token */
+            resp->responseHeader.serviceResult =
+                decryptUserTokenEcc(server->config.logging, channel,
+                                    session->authSp, session->authSpContext,
+                                    session->serverNonce,
+                                    userToken->encryptionAlgorithm,
                                     &userToken->password);
         } else {
             resp->responseHeader.serviceResult =
@@ -973,8 +1041,15 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
            server, session, channel, tokenSp, issuedToken->encryptionAlgorithm,
            &issuedToken->tokenData);
     } /* else Anonymous */
-    if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+
+    if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
+                               "ActivateSession: Could not decrypt/"
+                               "cryptographically validate the UserIdentityToken "
+                               "with the StatusCode %s",
+                               UA_StatusCode_name(resp->responseHeader.serviceResult));
         UA_SECURITY_REJECT;
+    }
 
     /* Callback into userland access control */
     resp->responseHeader.serviceResult = server->config.accessControl.
@@ -1040,15 +1115,14 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* If ECC policy, create the new ephemeral key to be returned in the
      * ActivateSession response */
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
-    if(sp && sp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+    const UA_SecurityPolicy *authSp = session->authSp;
+    if(authSp && session->authSpContext &&
+       authSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
         resp->responseHeader.serviceResult =
-            addEphemeralKeyAdditionalHeader(server, sp, channel->channelContext,
+            addEphemeralKeyAdditionalHeader(server, session,
                                             &resp->responseHeader.additionalHeader);
         if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
             UA_SECURITY_REJECT;
-        UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SESSION,
-                     "[ActivateSession] Ephemeral Key created");
     }
 
     /* Activate the session */
