@@ -158,9 +158,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
     }
     secret.length += secret.certificate.length;
 
-    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
-                 "[EncryptedSecret] Local certificate copied:");
-
     secret.signingTime = UA_DateTime_now();
     secret.length += sizeof(UA_DateTime);
 
@@ -184,9 +181,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
     }
     secret.length += serverEphemeralPubKey.length;
 
-    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
-                 "[EncryptedSecret] Server ephemeral key copied: ");
-
     /* TODO: use proper policy functions */
     size_t ephKeyLen = sp->nonceLength; /* Also length of the ephemeral public key */
     retval = UA_ByteString_allocBuffer(&secret.senderPublicKey, ephKeyLen);
@@ -202,9 +196,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
                      "[EncryptedSecret] Failed to generate local ephemeral key");
         goto cleanup;
     }
-
-    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
-                 "[EncryptedSecret] Client ephemeral key created and copied: ");
 
     /* Sanity check of KeyData length */
     if(secret.keyDataLen != (secret.senderPublicKey.length + secret.receiverPublicKey.length) ) {
@@ -227,9 +218,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
         goto cleanup;
     }
 
-    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
-                 "[EncryptedSecret] Server session nonce copied: ");
-
     /* Creating symmetric encryption key to encrypt the payload */
     size_t symKeyLen =
         sp->symEncryptionAlgorithm.getLocalKeyLength(sp, tempChannelContext);
@@ -242,12 +230,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
         retval = UA_STATUSCODE_BAD;
         goto cleanup;
     }
-
-    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
-                 "[EncryptedSecret] Local symmetric encrypting key length: %d",
-                 symKeyLen);
-    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
-                 "[EncryptedSecret] Initialization vector length: %d", ivLen);
 
     retval = UA_ByteString_allocBuffer(&symEncKeyMaterial, symKeyLen+ivLen);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -276,9 +258,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
                      "[EncryptedSecret] Failed to derive key material");
         goto cleanup;
     }
-
-    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
-                 "[EncryptedSecret] Derived key material: ");
 
     /* Extracting the key and the initialization vector from the key material */
     UA_ByteString encKey = {symKeyLen, symEncKeyMaterial.data};
@@ -310,9 +289,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
     if(tokenData->length + paddingLen < ivLen)
         paddingLen += ivLen;
     UA_Byte pad = paddingLen & 0xFF;
-    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
-                 "[EncryptedSecret] Padding size: %zu; Pad byte: 0x%02x",
-                 paddingLen, pad);
 
     /* Constructing payload, refer to
      * https://reference.opcfoundation.org/Core/Part4/v105/docs/7.41.2.3 */
@@ -346,9 +322,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
         goto cleanup;
     }
 
-    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
-                 "[EncryptedSecret] Encrypted payload (len: %u):", payload.length);
-
     secret.length += payload.length;
 
     /* Init the EccEncryptedSecret (serialized) and calculate the lengths*/
@@ -380,9 +353,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
         goto cleanup;
     }
 
-    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
-                 "[EncryptedSecret] After Common Header serialization:");
-
     /* Serialize the policy header (key data) */
     bufEnd = bufPos + policyHeaderSerLen;
     retval = UA_EccEncryptedSecret_serializePolicyHeader(&secret, &bufPos, bufEnd);
@@ -392,9 +362,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
         goto cleanup;
     }
 
-    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
-                 "[EncryptedSecret] After serializing the policy header (key data):");
-
     /* Serialize the payload */
     bufEnd = bufPos + payloadSerLen;
     retval = UA_ByteString_encodeBinary(&payload, &bufPos, bufEnd);
@@ -403,9 +370,6 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
                      "[EncryptedSecret] Failed to serialize the payload");
         goto cleanup;
     }
-
-    UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SESSION,
-                 "[EncryptedSecret] After serializing the payload:");
 
     /* Sign */
     retval = UA_ByteString_allocBuffer(&sig, signatureLen);
