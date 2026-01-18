@@ -102,15 +102,6 @@ START_TEST(Client_connect_certificate) {
     privateKey.length = CLIENT_KEY_DER_LENGTH;
     privateKey.data = CLIENT_KEY_DER_DATA;
 
-    /* Load client certificate and private key for authentication */
-    UA_ByteString certificateAuth;
-    certificateAuth.length = CLIENT_CERT_AUTH_DER_LENGTH;
-    certificateAuth.data = CLIENT_CERT_AUTH_DER_DATA;
-
-    UA_ByteString privateKeyAuth;
-    privateKeyAuth.length = CLIENT_KEY_AUTH_DER_LENGTH;
-    privateKeyAuth.data = CLIENT_KEY_AUTH_DER_DATA;
-
     UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
 
@@ -125,7 +116,6 @@ START_TEST(Client_connect_certificate) {
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey, NULL, 0, NULL, 0);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
-    UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

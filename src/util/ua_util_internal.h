@@ -11,6 +11,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  *    Copyright 2025 (c) Siemens AG (Author: Tin Raic)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_UTIL_H_
@@ -437,18 +438,19 @@ UA_ENCODING_HELPERS(DiagnosticInfo, DIAGNOSTICINFO)
 /* ECC Encryption */
 /******************/
 
-/* ECC Encrypted Secret node ID identifier, arbitrarily chosen*/
-#define NODE_IDENTIFIER_NUMERIC_ECCENCRYPTEDSEC 335
-
 UA_StatusCode
 encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
                             const UA_ByteString serverSessionNonce,
                             const UA_ByteString serverEphemeralPubKey,
                             UA_SecurityPolicy *sp, void *tempChannelContext);
 
+/* If the EccEncryptedSecret does not define a certificate, check if the
+ * SecureChannel uses the same SecurityPolicy and reuse its context. */
 UA_StatusCode
-decryptUserTokenEcc(UA_Logger *logger, UA_ByteString sessionServerNonce,
-                    const UA_SecurityPolicy *sp, const UA_String encryptionAlgorithm,
+decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
+                    const UA_SecurityPolicy *sp, void *spContext,
+                    UA_ByteString sessionServerNonce,
+                    const UA_String encryptionAlgorithm,
                     UA_EccEncryptedSecret *es);
 
 _UA_END_DECLS
