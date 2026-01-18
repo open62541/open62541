@@ -122,6 +122,7 @@ endif()
 
 if(UA_ENABLE_JSON_ENCODING)
     add_example(server_json_config server_json_config.c)
+    add_example(client_json_config client_json_config.c)
 endif()
 
 if(UA_ENABLE_HISTORIZING)
