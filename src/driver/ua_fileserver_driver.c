@@ -267,6 +267,28 @@ FileServerDriver_update(UA_Server *server, UA_Driver *driver) {
     }
 }
 
+static bool
+childExists(UA_Server *server, const UA_NodeId *parentNode, const char *browseName) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+
+    bd.nodeId = *parentNode;
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+
+    for (size_t i = 0; i < br.referencesSize; i++) {
+        UA_QualifiedName qn = br.references[i].browseName;
+
+        if (qn.name.data && strcmp((char*)qn.name.data, browseName) == 0) {
+            UA_BrowseResult_clear(&br);
+            return true;
+        }
+    }
+    UA_BrowseResult_clear(&br);
+    return false;
+}
+
 /* API function: Add a new FileSystem to the driver.
  *
  * This function allows external code to register a new file system mount
@@ -275,7 +297,7 @@ FileServerDriver_update(UA_Server *server, UA_Driver *driver) {
  * address space, and stores metadata about the mount path.
  *
  * Parameters:
- *  - driver:     The FileServerDriver instance.
+ *  - driver:     The FileServerDriver instance (ONLY send if implemented as FileSystem).
  *  - server:     The UA_Server where the node should be created.
  *  - parentNode: The parent NodeId under which the new file system node is organized.
  *  - mountPath:  The underlying file system path represented by this node.
@@ -292,8 +314,40 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
                                   const char *mountPath,
                                   UA_NodeId *newNodeId) {
 
+    char *name;
+    if (driver == NULL) {
+        name = mountPath;
+        
+        if (childExists(server, parentNode, name)) {
+            return UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
+        }
+    } else {
+        UA_Boolean exists;
+        directoryExists(mountPath, &exists);
+        if (!exists) {
+            return UA_STATUSCODE_BADNOTFOUND;
+        }
+
+        name = "FileSystem";
+        
+        if (childExists(server, parentNode, name)) {
+            uint32_t hash = 2166136261u; // FNV-1a
+            for(const char *p = mountPath; *p; p++) {
+                hash ^= (uint8_t)*p;
+                hash *= 16777619u;
+            }
+
+            char nameBuf[MAX_PATH];
+            snprintf(nameBuf, sizeof(nameBuf), "%s_%08X", "FileSystem", hash);
+            name = nameBuf;
+            if (childExists(server, parentNode, name)) {
+                return UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
+            }
+        }
+    }
+
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", mountPath);
+    oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", name);
 
     FileDirectoryContext *fsNode = (FileDirectoryContext*)UA_calloc(1, sizeof(FileDirectoryContext));
     if(!fsNode)
@@ -304,13 +358,15 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
         UA_NODEID_NULL,                /* Let the server assign a new NodeId automatically */
         *parentNode,                   /* Parent node under which this object is organized */
         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), /* Reference type: Organizes */
-        UA_QUALIFIEDNAME_ALLOC(1, driver != NULL ? "FileSystem" : mountPath),   /* Qualified name in namespace 1 */
+        UA_QUALIFIEDNAME_ALLOC(1, name),   /* Qualified name in namespace 1 */
         UA_NODEID_NUMERIC(0, UA_NS0ID_FILEDIRECTORYTYPE), /* Type definition: FileDirectoryType */
         oAttr, fsNode, newNodeId);
     
     if (driver == NULL){
         return retval; 
     }
+
+    scanDirectoryRecursive(server, newNodeId, mountPath, &UA_FileServerDriver_addFileDirectory, &UA_FileServerDriver_addFile);
 
     driver->fsNodes = (UA_NodeId*) realloc(driver->fsNodes,
         sizeof(UA_NodeId) * (driver->fsCount + 1));
@@ -330,7 +386,11 @@ UA_FileServerDriver_addFile(UA_Server *server,
                             const UA_NodeId *parentNode,
                             const char *filePath,
                             UA_NodeId *newNodeId) {
-                                
+            
+    if (childExists(server, parentNode, filePath)) {
+        return UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
+    }
+
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", filePath);
 
