@@ -581,10 +581,11 @@ readObjectProperty(UA_Server *server, const UA_NodeId objectId,
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
 
-/* Returns a configured SecurityPolicy with encryption. Use Basic256Sha256 if
- * available. Otherwise use any encrypted SecurityPolicy. */
+/* Returns the "best" configured SecurityPolicy with encryption. The _NONE type
+ * is the wildcard for any SecurityPolicy. */
 UA_SecurityPolicy *
-getDefaultEncryptedSecurityPolicy(UA_Server *server);
+getDefaultEncryptedSecurityPolicy(UA_Server *server,
+                                  UA_SecurityPolicyType type);
 
 UA_StatusCode
 setCurrentEndPointsArray(UA_Server *server, const UA_String endpointURL,
