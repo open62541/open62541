@@ -1187,6 +1187,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
                      const UA_CloseSessionRequest *request,
                      UA_CloseSessionResponse *response) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_ResponseHeader *rh = &response->responseHeader;
 
     /* Part 4, 5.6.4: When the CloseSession Service is called before the Session
      * is successfully activated, the Server shall reject the request if the
@@ -1196,11 +1197,11 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
      * A non-activated Session is already bound to the SecureChannel that
      * created the Session. */
     UA_Session *session = NULL;
-    response->responseHeader.serviceResult =
-        getBoundSession(server, channel, &request->requestHeader.authenticationToken, &session);
-    if(!session && response->responseHeader.serviceResult == UA_STATUSCODE_GOOD)
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    const UA_NodeId *authToken = &request->requestHeader.authenticationToken;
+    rh->serviceResult = getBoundSession(server, channel, authToken, &session);
+    if(!session && rh->serviceResult == UA_STATUSCODE_GOOD)
+        rh->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "CloseSession: No Session activated to the SecureChannel");
         return;
@@ -1231,7 +1232,8 @@ Service_Cancel(UA_Server *server, UA_Session *session,
     /* If multithreading is disabled, then there are no async services. If all
      * services are answered "right away", then there are no services that can
      * be cancelled. */
-    response->cancelCount = UA_AsyncManager_cancel(server, session, request->requestHandle);
+    response->cancelCount = UA_AsyncManager_cancel(server, session,
+                                                   request->requestHandle);
 
     /* Publish requests for Subscriptions are stored separately */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
