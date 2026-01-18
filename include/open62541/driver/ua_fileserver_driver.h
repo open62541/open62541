@@ -1,6 +1,7 @@
 #ifndef UA_FILESERVER_DRIVER_H
 #define UA_FILESERVER_DRIVER_H
 
+#include <../../arch/common/fileSystemOperations_common.h>
 #include <open62541/driver/driver.h>
 #include <filesystem/ua_filetypes.h>
 

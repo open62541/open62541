@@ -1032,7 +1032,7 @@ if(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32)
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c
          ${PROJECT_SOURCE_DIR}/arch/common/fileSystemOperations_common.h
          ${PROJECT_SOURCE_DIR}/arch/win32/fileSystemOperations_win32.c
-         ${PROJECT_SOURCE_DIR}/arch/win32/fileSystemOperations_posix.c)
+         ${PROJECT_SOURCE_DIR}/arch/posix/fileSystemOperations_posix.c)
 endif()
 
 if(UA_ARCHITECTURE_ZEPHYR)

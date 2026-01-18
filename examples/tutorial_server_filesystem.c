@@ -94,10 +94,6 @@ int main(void) {
     UA_FileServerDriver_addFileDirectory(fsDriver, server, &nodeId2,
                                       "./var/log/opcua", &newFsNodeId2);
 
-    UA_NodeId newFsNodeId3;
-    UA_FileServerDriver_addFileDirectory(NULL, server, &newFsNodeId2,
-                                      "Test", &newFsNodeId3);
-
     /* Start the driver (could open resources or spawn threads here) */
     fsDriver->base.lifecycle.start((UA_Driver*)fsDriver);
 
