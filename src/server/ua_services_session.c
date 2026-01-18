@@ -921,6 +921,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         const UA_ActivateSessionRequest *req,
                         UA_ActivateSessionResponse *resp) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_ResponseHeader *rh = &resp->responseHeader;
 
     /* Get the session */
     UA_Session *session =
@@ -928,7 +929,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     if(!session) {
         UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "ActivateSession: Session not found");
-        resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        rh->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         UA_SESSION_REJECT;
     }
 
@@ -941,7 +942,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "ActivateSession: The Session has to be initially "
                                "activated on the SecureChannel that created it");
-        resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        rh->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         UA_SESSION_REJECT;
     }
 
@@ -951,23 +952,23 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     if(session->validTill < nowMonotonic) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: The Session has timed out");
-        resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        rh->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         UA_SESSION_REJECT;
     }
 
     /* Check the client signature */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        resp->responseHeader.serviceResult =
+        rh->serviceResult =
             checkCertificateSignature(server, channel->securityPolicy,
                                       channel->channelContext,
                                       &session->serverNonce,
                                       &req->clientSignature, false);
-        if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        if(rh->serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_SESSION(server->config.logging, session,
                                    "ActivateSession: Client signature check failed "
                                    "with StatusCode %s",
-                                   UA_StatusCode_name(resp->responseHeader.serviceResult));
+                                   UA_StatusCode_name(rh->serviceResult));
             UA_SECURITY_REJECT;
         }
     }
@@ -984,7 +985,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Requested Endpoint/UserTokenPolicy "
                                "not available");
-        resp->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        rh->serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         UA_SESSION_REJECT;
     }
 
@@ -1001,26 +1002,26 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
              * Session is created. Because we need to return the initial public
              * ephemeral key. */
             if(!session->authSpContext) {
-                resp->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+                rh->serviceResult = UA_STATUSCODE_BADINTERNALERROR;
                 UA_SESSION_REJECT;
             }
 
             /* More checks. Is the tokenSp the same as before? */
-            resp->responseHeader.serviceResult =
+            rh->serviceResult =
                 createCheckSessionAuthSecurityPolicyContext(server, session,
                                            tokenSp, channel->remoteCertificate);
-            if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+            if(rh->serviceResult != UA_STATUSCODE_GOOD)
                 UA_SESSION_REJECT;
 
             /* Decrypt the token */
-            resp->responseHeader.serviceResult =
+            rh->serviceResult =
                 decryptUserTokenEcc(server->config.logging, channel,
                                     session->authSp, session->authSpContext,
                                     session->serverNonce,
                                     userToken->encryptionAlgorithm,
                                     &userToken->password);
         } else {
-            resp->responseHeader.serviceResult =
+            rh->serviceResult =
             decryptUserToken(server, session, channel, tokenSp,
                              userToken->encryptionAlgorithm, &userToken->password);
         }
@@ -1032,37 +1033,37 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
          * entire token is forwarded in the call to ActivateSession. */
         UA_X509IdentityToken* x509token = (UA_X509IdentityToken*)
             req->userIdentityToken.content.decoded.data;
-        resp->responseHeader.serviceResult =
+        rh->serviceResult =
             checkActivateSessionX509(server, session, tokenSp,
                                      x509token, &req->userTokenSignature);
     } else if(utp->tokenType == UA_USERTOKENTYPE_ISSUEDTOKEN) {
         /* IssuedTokens are encrypted */
        UA_IssuedIdentityToken *issuedToken = (UA_IssuedIdentityToken*)
            req->userIdentityToken.content.decoded.data;
-       resp->responseHeader.serviceResult = decryptUserToken(
-           server, session, channel, tokenSp, issuedToken->encryptionAlgorithm,
+       rh->serviceResult = decryptUserToken(server, session, channel, tokenSp,
+                                            issuedToken->encryptionAlgorithm,
            &issuedToken->tokenData);
     } /* else Anonymous */
 
-    if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Could not decrypt/"
                                "cryptographically validate the UserIdentityToken "
                                "with the StatusCode %s",
-                               UA_StatusCode_name(resp->responseHeader.serviceResult));
+                               UA_StatusCode_name(rh->serviceResult));
         UA_SECURITY_REJECT;
     }
 
     /* Callback into userland access control */
-    resp->responseHeader.serviceResult = server->config.accessControl.
+    rh->serviceResult = server->config.accessControl.
         activateSession(server, &server->config.accessControl, ed,
                         &channel->remoteCertificate, &session->sessionId,
                         &req->userIdentityToken, &session->context);
-    if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: The AccessControl "
                                "plugin denied the activation with the StatusCode %s",
-                               UA_StatusCode_name(resp->responseHeader.serviceResult));
+                               UA_StatusCode_name(rh->serviceResult));
         UA_SECURITY_REJECT;
     }
 
@@ -1077,10 +1078,10 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Generate a new session nonce for the next time ActivateSession is called */
-    resp->responseHeader.serviceResult = UA_Session_generateNonce(session);
-    resp->responseHeader.serviceResult |=
-        UA_ByteString_copy(&session->serverNonce, &resp->serverNonce);
-    if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    rh->serviceResult = UA_Session_generateNonce(session);
+    rh->serviceResult |= UA_ByteString_copy(&session->serverNonce,
+                                            &resp->serverNonce);
+    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_Session_detachFromSecureChannel(server, session);
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Could not generate the server nonce");
@@ -1094,10 +1095,10 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
          * Session. If it is not specified the Server shall keep using the
          * current localeIds for the Session. */
         UA_String *tmpLocaleIds;
-        resp->responseHeader.serviceResult |=
-            UA_Array_copy(req->localeIds, req->localeIdsSize,
-                          (void**)&tmpLocaleIds, &UA_TYPES[UA_TYPES_STRING]);
-        if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        rh->serviceResult |= UA_Array_copy(req->localeIds, req->localeIdsSize,
+                                           (void**)&tmpLocaleIds,
+                                           &UA_TYPES[UA_TYPES_STRING]);
+        if(rh->serviceResult != UA_STATUSCODE_GOOD) {
             UA_Session_detachFromSecureChannel(server, session);
             UA_LOG_WARNING_SESSION(server->config.logging, session,
                                    "ActivateSession: Could not store the "
@@ -1120,10 +1121,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     const UA_SecurityPolicy *authSp = session->authSp;
     if(authSp && session->authSpContext &&
        authSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
-        resp->responseHeader.serviceResult =
-            addEphemeralKeyAdditionalHeader(server, session,
-                                            &resp->responseHeader.additionalHeader);
-        if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        rh->serviceResult = addEphemeralKeyAdditionalHeader(server, session,
+                                                            &rh->additionalHeader);
+        if(rh->serviceResult != UA_STATUSCODE_GOOD)
             UA_SECURITY_REJECT;
     }
 
