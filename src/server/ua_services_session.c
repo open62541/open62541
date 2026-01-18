@@ -480,15 +480,16 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                  &response->serverEndpoints,
                                  &response->serverEndpointsSize);
 
-    /* Return the server certificate from the SecurityPolicy of the current
-     * channel. Or, if the channel is unencrypted, return the standard policy
-     * used for usertoken encryption. */
-    if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE ||
-       sp->localCertificate.length == 0)
-        sp = getDefaultEncryptedSecurityPolicy(server);
-    if(sp)
+    /* Get the authentication SecurityPolicy matching the SecureChannel. The
+     * same selection is done fr the generated endpoints. Don't mix RSA/ECC
+     * between channel and authentication. Return the server certificate used
+     * for usertoken encryption */
+    UA_SecurityPolicy *authSp =
+        getDefaultEncryptedSecurityPolicy(server, sp->policyType);
+    if(authSp)
         response->responseHeader.serviceResult |=
-            UA_ByteString_copy(&sp->localCertificate, &response->serverCertificate);
+            UA_ByteString_copy(&authSp->localCertificate,
+                               &response->serverCertificate);
 
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
@@ -582,7 +583,7 @@ static const UA_UserTokenPolicy *
 selectTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                   UA_Session *session, const UA_ExtensionObject *identityToken,
                   const UA_EndpointDescription *ed,
-                  const UA_SecurityPolicy **tokenSp) {
+                  UA_SecurityPolicy **tokenSp) {
     /* If no UserTokenPolicies are configured in the endpoint, then use
      * those configured in the AccessControl plugin. */
     size_t identPoliciesSize = ed->userIdentityTokensSize;
@@ -685,7 +686,7 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                              const UA_ExtensionObject *identityToken,
                              const UA_EndpointDescription **ed,
                              const UA_UserTokenPolicy **utp,
-                             const UA_SecurityPolicy **tokenSp) {
+                             UA_SecurityPolicy **tokenSp) {
     UA_ServerConfig *sc = &server->config;
     for(size_t i = 0; i < sc->endpointsSize; ++i) {
         const UA_EndpointDescription *desc = &sc->endpoints[i];
@@ -923,7 +924,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * Also sets the SecurityPolicy used to encrypt the token. */
     const UA_EndpointDescription *ed = NULL;
     const UA_UserTokenPolicy *utp = NULL;
-    const UA_SecurityPolicy *tokenSp = NULL;
+    UA_SecurityPolicy *tokenSp = NULL;
     selectEndpointAndTokenPolicy(server, channel, session,
                                  &req->userIdentityToken,
                                  &ed, &utp, &tokenSp);
