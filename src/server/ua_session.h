@@ -45,6 +45,13 @@ struct UA_Session {
     UA_String sessionName;
     UA_Boolean activated;
 
+    /* For ECC, client and server exchange EphemeralKeys that are only used for
+     * authentication. They are independent from the SecureChannel. Since we
+     * store the private local EphemeralKey only inside the policy context, we
+     * keep a separe SecurityPolicy and context pointer here. */
+    UA_SecurityPolicy *authSp;
+    void *authSpContext;
+
     void *context; /* Pointer assigned by the user in the
                     * accessControl->activateSession context */
 
