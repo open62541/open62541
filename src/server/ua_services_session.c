@@ -417,8 +417,9 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_LOG_DEBUG_CHANNEL(server->config.logging, channel, "Trying to create session");
 
-    UA_SecurityPolicy *sp = channel->securityPolicy;
     void *cc = channel->channelContext;
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    UA_ResponseHeader *rh = &response->responseHeader;
     UA_assert(sp != NULL);
 
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
@@ -435,9 +436,9 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
             UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
                                  "The client uses a different certificate for "
                                  "SecureChannel and Session");
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADCERTIFICATEINVALID;
             server->serverDiagnosticsSummary.securityRejectedSessionCount++;
             server->serverDiagnosticsSummary.rejectedSessionCount++;
+            rh->serviceResult = UA_STATUSCODE_BADCERTIFICATEINVALID;
             return;
         }
     }
@@ -451,7 +452,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                              "The nonce provided by the client has the wrong length");
         server->serverDiagnosticsSummary.securityRejectedSessionCount++;
         server->serverDiagnosticsSummary.rejectedSessionCount++;
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNONCEINVALID;
+        rh->serviceResult = UA_STATUSCODE_BADNONCEINVALID;
         return;
     }
 
@@ -460,11 +461,16 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
      * CertificateGroup and we now also have the ApplicationDescription to check
      * the ApplicationUri. */
     if(request->clientCertificate.length > 0) {
-        response->responseHeader.serviceResult =
+        rh->serviceResult =
             validateCertificate(server, &server->config.sessionPKI,
                                 channel, NULL, &request->clientDescription,
                                 request->clientCertificate);
-        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                                 "The client certificate's ApplicationUri "
+                                 "could not be verified against the ApplicationUri "
+                                 "%S from the client's ApplicationDescription",
+                                 request->clientDescription.applicationUri);
             server->serverDiagnosticsSummary.securityRejectedSessionCount++;
             server->serverDiagnosticsSummary.rejectedSessionCount++;
             return;
@@ -473,9 +479,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Create the Session */
     UA_Session *newSession = NULL;
-    response->responseHeader.serviceResult =
-        UA_Session_create(server, channel, request, &newSession);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    rh->serviceResult = UA_Session_create(server, channel, request, &newSession);
+    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "Processing CreateSessionRequest failed");
         server->serverDiagnosticsSummary.rejectedSessionCount++;
@@ -483,30 +488,29 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* If the session name is empty, use the generated SessionId */
-    response->responseHeader.serviceResult |=
-        UA_String_copy(&request->sessionName, &newSession->sessionName);
+    rh->serviceResult |= UA_String_copy(&request->sessionName,
+                                        &newSession->sessionName);
     if(newSession->sessionName.length == 0)
-        response->responseHeader.serviceResult |=
-            UA_NodeId_print(&newSession->sessionId, &newSession->sessionName);
+        rh->serviceResult |= UA_NodeId_print(&newSession->sessionId,
+                                             &newSession->sessionName);
 
-    response->responseHeader.serviceResult |= UA_Session_generateNonce(newSession);
+    rh->serviceResult |= UA_Session_generateNonce(newSession);
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
     newSession->maxRequestMessageSize = channel->config.localMaxMessageSize;
-    response->responseHeader.serviceResult |=
-        UA_ApplicationDescription_copy(&request->clientDescription,
-                                       &newSession->clientDescription);
+    rh->serviceResult |= UA_ApplicationDescription_copy(&request->clientDescription,
+                                                        &newSession->clientDescription);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
-    response->responseHeader.serviceResult |=
-        UA_String_copy(&request->serverUri, &newSession->diagnostics.serverUri);
-    response->responseHeader.serviceResult |=
-        UA_String_copy(&request->endpointUrl, &newSession->diagnostics.endpointUrl);
+    rh->serviceResult |= UA_String_copy(&request->serverUri,
+                                        &newSession->diagnostics.serverUri);
+    rh->serviceResult |= UA_String_copy(&request->endpointUrl,
+                                        &newSession->diagnostics.endpointUrl);
 #endif
 
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
                              "Could not create the new session (%s)",
-                             UA_StatusCode_name(response->responseHeader.serviceResult));
+                             UA_StatusCode_name(rh->serviceResult));
         UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
         return;
     }
@@ -515,14 +519,14 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->sessionId = newSession->sessionId;
     response->revisedSessionTimeout = (UA_Double)newSession->timeout;
     response->authenticationToken = newSession->authenticationToken;
-    response->responseHeader.serviceResult |=
-        UA_ByteString_copy(&newSession->serverNonce, &response->serverNonce);
+    rh->serviceResult |= UA_ByteString_copy(&newSession->serverNonce,
+                                            &response->serverNonce);
 
     /* Copy the server's endpointdescriptions into the response */
-    response->responseHeader.serviceResult |=
-        setCurrentEndPointsArray(server, request->endpointUrl, NULL, 0,
-                                 &response->serverEndpoints,
-                                 &response->serverEndpointsSize);
+    rh->serviceResult |= setCurrentEndPointsArray(server, request->endpointUrl,
+                                                  NULL, 0,
+                                                  &response->serverEndpoints,
+                                                  &response->serverEndpointsSize);
 
     /* Get the authentication SecurityPolicy matching the SecureChannel. The
      * same selection is done fr the generated endpoints. Don't mix RSA/ECC
@@ -531,15 +535,14 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_SecurityPolicy *authSp =
         getDefaultEncryptedSecurityPolicy(server, sp->policyType);
     if(authSp)
-        response->responseHeader.serviceResult |=
-            UA_ByteString_copy(&authSp->localCertificate,
-                               &response->serverCertificate);
+        rh->serviceResult |= UA_ByteString_copy(&authSp->localCertificate,
+                                                &response->serverCertificate);
 
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
         UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
                              "Could not prepare the CreateSessionResponse (%s)",
-                             UA_StatusCode_name(response->responseHeader.serviceResult));
+                             UA_StatusCode_name(rh->serviceResult));
         return;
     }
 
@@ -548,31 +551,30 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
      * ephemeral key is persisted in the SecurityPolicy context. Until it gets
      * overridden during ActivateSession. */
     if(authSp && authSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
-        response->responseHeader.serviceResult =
+        rh->serviceResult =
             createCheckSessionAuthSecurityPolicyContext(server, newSession, authSp,
                                                         request->clientCertificate);
-        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        if(rh->serviceResult != UA_STATUSCODE_GOOD) {
             UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
             return;
         }
 
-        response->responseHeader.serviceResult =
-            addEphemeralKeyAdditionalHeader(server, newSession,
-                                            &response->responseHeader.additionalHeader);
-        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+        rh->serviceResult = addEphemeralKeyAdditionalHeader(server, newSession,
+                                                            &rh->additionalHeader);
+        if(rh->serviceResult != UA_STATUSCODE_GOOD) {
             UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
             return;
         }
     }
 
     /* Sign the signature */
-    response->responseHeader.serviceResult |=
-       signCreateSessionResponse(server, channel, request, response);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    rh->serviceResult |= signCreateSessionResponse(server, channel,
+                                                   request, response);
+    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
         UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
                              "Could not sign the CreateSessionResponse (%s)",
-                             UA_StatusCode_name(response->responseHeader.serviceResult));
+                             UA_StatusCode_name(rh->serviceResult));
         return;
     }
 

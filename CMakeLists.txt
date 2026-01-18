@@ -828,9 +828,9 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                 ${PROJECT_SOURCE_DIR}/deps/parse_num.h
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
-                ${PROJECT_SOURCE_DIR}/src/util/ua_util_internal.h
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.h
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
+                ${PROJECT_SOURCE_DIR}/src/util/ua_util_internal.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_session.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
