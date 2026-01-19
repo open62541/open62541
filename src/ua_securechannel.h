@@ -159,7 +159,6 @@ struct UA_SecureChannel {
     UA_Boolean unprocessedCopied;
     UA_DelayedCallback unprocessedDelayed;
 
-    UA_CertificateGroup *certificateVerification;
     void *processOPNHeaderApplication;
     UA_StatusCode (*processOPNHeader)(void *application, UA_SecureChannel *channel,
                                       const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
