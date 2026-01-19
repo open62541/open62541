@@ -256,10 +256,11 @@ encryptUserIdentityToken(UA_Client *client, UA_SecurityPolicy *utsp,
     }
 
     if(utsp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
-        retval = encryptUserIdentityTokenEcc(client->config.logging, tokenData,
+        // XXX use a dedicated sp context for the utsp
+        retval = encryptUserIdentityTokenEcc(client->config.logging, &client->channel,
+                                             utsp, channelContext, tokenData,
                                              client->serverSessionNonce,
-                                             client->serverEphemeralPubKey, utsp,
-                                             channelContext);
+                                             client->serverEphemeralPubKey);
         /* Don't reuse the Ephemeral Public Key */
         UA_ByteString_clear(&client->serverEphemeralPubKey);
     } else {
