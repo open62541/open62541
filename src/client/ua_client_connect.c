@@ -264,50 +264,8 @@ encryptUserIdentityToken(UA_Client *client, UA_SecurityPolicy *utsp,
         /* Don't reuse the Ephemeral Public Key */
         UA_ByteString_clear(&client->serverEphemeralPubKey);
     } else {
-        /* Compute the encrypted length (at least one byte padding) */
-        size_t plainTextBlockSize = utsp->asymEncryptionAlgorithm.
-            getRemotePlainTextBlockSize(utsp, channelContext);
-        size_t encryptedBlockSize = utsp->asymEncryptionAlgorithm.
-            getRemoteBlockSize(utsp, channelContext);
-        UA_UInt32 length =
-            (UA_UInt32)(tokenData->length + client->serverSessionNonce.length);
-        UA_UInt32 totalLength = length + 4; /* Including the length field */
-        size_t blocks = totalLength / plainTextBlockSize;
-        if(totalLength % plainTextBlockSize != 0)
-            blocks++;
-        size_t encryptedLength = blocks * encryptedBlockSize;
-    
-        /* Allocate memory for encryption overhead */
-        UA_ByteString encrypted;
-        retval = UA_ByteString_allocBuffer(&encrypted, encryptedLength);
-        if(retval != UA_STATUSCODE_GOOD) {
-            utsp->deleteChannelContext(utsp, channelContext);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-    
-        UA_Byte *pos = encrypted.data;
-        const UA_Byte *end = &encrypted.data[encrypted.length];
-        retval = UA_UInt32_encodeBinary(&length, &pos, end);
-        memcpy(pos, tokenData->data, tokenData->length);
-        memcpy(&pos[tokenData->length], client->serverSessionNonce.data,
-               client->serverSessionNonce.length);
-        UA_assert(retval == UA_STATUSCODE_GOOD);
-    
-        /* Add padding
-         *
-         * 7.36.2.2 Legacy Encrypted Token Secret Format: A Client should not add any
-         * padding after the secret. If a Client adds padding then all bytes shall
-         * be zero. A Server shall check for padding added by Clients and ensure
-         * that all padding bytes are zeros. */
-        size_t paddedLength = plainTextBlockSize * blocks;
-        for(size_t i = totalLength; i < paddedLength; i++)
-            encrypted.data[i] = 0;
-        encrypted.length = paddedLength;
-    
-        retval = utsp->asymEncryptionAlgorithm.encrypt(utsp, channelContext, &encrypted);
-        encrypted.length = encryptedLength;
-        UA_ByteString_clear(tokenData);
-        *tokenData = encrypted;
+        retval = encryptSecretLegacy(utsp, channelContext,
+                                     client->serverSessionNonce, tokenData);
     }
 
     /* Delete the temporary channel context */
