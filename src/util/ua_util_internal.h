@@ -435,6 +435,15 @@ UA_ENCODING_HELPERS(DataValue, DATAVALUE)
 UA_ENCODING_HELPERS(Variant, VARIANT)
 UA_ENCODING_HELPERS(DiagnosticInfo, DIAGNOSTICINFO)
 
+/****************************/
+/* Legacy Secret Encryption */
+/****************************/
+
+UA_StatusCode
+encryptSecretLegacy(const UA_SecurityPolicy *sp, void *spContext,
+                    const UA_ByteString serverSessionNonce,
+                    UA_ByteString *tokenData);
+
 /******************/
 /* ECC Encryption */
 /******************/

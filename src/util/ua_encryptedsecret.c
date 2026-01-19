@@ -8,6 +8,10 @@
 
 #include "ua_util_internal.h"
 
+/************************/
+/* ECC Encrypted Secret */
+/************************/
+
 typedef struct {
     /* Common Header */
     UA_NodeId typeId;
@@ -462,4 +466,65 @@ cleanecc:
     UA_ByteString_clear(&symEncKeyMaterial);
     UA_ByteString_clear(&pass);
     return res;
+}
+
+/***************************/
+/* Legacy Encrypted Secret */
+/***************************/
+
+UA_StatusCode
+encryptSecretLegacy(const UA_SecurityPolicy *sp, void *spContext,
+                    const UA_ByteString serverSessionNonce,
+                    UA_ByteString *tokenData) {
+    /* Compute the encrypted length (at least one byte padding) */
+    size_t plainTextBlockSize = sp->asymEncryptionAlgorithm.
+        getRemotePlainTextBlockSize(sp, spContext);
+    size_t encryptedBlockSize = sp->asymEncryptionAlgorithm.
+        getRemoteBlockSize(sp, spContext);
+    UA_UInt32 length =
+        (UA_UInt32)(tokenData->length + serverSessionNonce.length);
+    UA_UInt32 totalLength = length + 4; /* Including the length field */
+    size_t blocks = totalLength / plainTextBlockSize;
+    if(totalLength % plainTextBlockSize != 0)
+        blocks++;
+    size_t encryptedLength = blocks * encryptedBlockSize;
+
+    /* Allocate memory for the encrypted secret */
+    UA_ByteString encrypted;
+    UA_StatusCode res = UA_ByteString_allocBuffer(&encrypted, encryptedLength);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Copy the secret and the nonce into the output */
+    UA_Byte *pos = encrypted.data;
+    const UA_Byte *end = &encrypted.data[encrypted.length];
+    res = UA_UInt32_encodeBinary(&length, &pos, end);
+    memcpy(pos, tokenData->data, tokenData->length);
+    memcpy(&pos[tokenData->length], serverSessionNonce.data,
+           serverSessionNonce.length);
+    UA_assert(res == UA_STATUSCODE_GOOD);
+
+    /* Add padding
+     *
+     * 7.36.2.2 Legacy Encrypted Token Secret Format: A Client should not add
+     * any padding after the secret. If a Client adds padding then all bytes
+     * shall be zero. A Server shall check for padding added by Clients and
+     * ensure that all padding bytes are zeros. */
+    size_t paddedLength = plainTextBlockSize * blocks;
+    for(size_t i = totalLength; i < paddedLength; i++)
+        encrypted.data[i] = 0;
+    encrypted.length = paddedLength;
+
+    /* Encrypt */
+    res = sp->asymEncryptionAlgorithm.encrypt(sp, spContext, &encrypted);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&encrypted);
+        return res;
+    }
+
+    /* Replace the tokenData with the output */
+    encrypted.length = encryptedLength;
+    UA_ByteString_clear(tokenData);
+    *tokenData = encrypted;
+    return UA_STATUSCODE_GOOD;
 }
