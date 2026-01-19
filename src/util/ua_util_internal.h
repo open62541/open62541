@@ -440,10 +440,11 @@ UA_ENCODING_HELPERS(DiagnosticInfo, DIAGNOSTICINFO)
 /******************/
 
 UA_StatusCode
-encryptUserIdentityTokenEcc(UA_Logger *logger, UA_ByteString *tokenData,
+encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
+                            const UA_SecurityPolicy *sp, void *spContext,
+                            UA_ByteString *tokenData,
                             const UA_ByteString serverSessionNonce,
-                            const UA_ByteString serverEphemeralPubKey,
-                            UA_SecurityPolicy *sp, void *tempChannelContext);
+                            const UA_ByteString serverEphemeralPubKey);
 
 /* If the EccEncryptedSecret does not define a certificate, check if the
  * SecureChannel uses the same SecurityPolicy and reuse its context. */
