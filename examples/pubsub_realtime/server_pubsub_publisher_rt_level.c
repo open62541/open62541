@@ -7,6 +7,7 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/types.h>
 
+#include <pthread.h>
 #include <signal.h>
 
 #define PUBSUB_CONFIG_PUBLISH_CYCLE_MS 100
