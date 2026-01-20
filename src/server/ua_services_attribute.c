@@ -481,7 +481,10 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
             UA_QualifiedName_clear(&sd->name);
             memmove(sd, &sd->structureDefinition, sizeof(UA_StructureDefinition));
             UA_Variant_setScalar(&v->value, sd, &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
-        } else if(typeDescr.content.decoded.type == &UA_TYPES[UA_TYPES_ENUMDESCRIPTION]) {
+        } else if(typeDescr.content.decoded.type == &UA_TYPES[UA_TYPES_ENUMDESCRIPTION] && type->membersSize > 0) {
+            /* UaExpert doesn't fall back to the EnumStrings property if the DataTypeDefinition attribute
+               can be read but has no fields. This breaks its method call dialog for enum parameters. */
+
             UA_EnumDescription *ed = (UA_EnumDescription*)
                 typeDescr.content.decoded.data;
             UA_NodeId_clear(&ed->dataTypeId);
