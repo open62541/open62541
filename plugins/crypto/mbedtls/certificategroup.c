@@ -24,11 +24,6 @@
 
 #include "securitypolicy_common.h"
 
-#define REMOTECERTIFICATETRUSTED 1
-#define ISSUERKNOWN              2
-#define DUALPARENT               3
-#define PARENTFOUND              4
-
 /* Configuration parameters */
 
 #define MEMORYCERTSTORE_PARAMETERSSIZE 2
