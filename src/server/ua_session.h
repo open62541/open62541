@@ -59,6 +59,9 @@ struct UA_Session {
     UA_ByteString serverNonce;
 
     UA_ApplicationDescription clientDescription;
+    UA_ByteString clientCertificate; /* Must be the same as for the
+                                      * SecureChannel. If the SecureChannel is
+                                      * #None, verify and store here. */
     UA_String clientUserIdOfSession;
     UA_Double timeout; /* in ms */
     UA_DateTime validTill;

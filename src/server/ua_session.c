@@ -43,6 +43,7 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
 
     UA_Session_detachFromSecureChannel(server, session);
     UA_ApplicationDescription_clear(&session->clientDescription);
+    UA_ByteString_clear(&session->clientCertificate);
     UA_NodeId_clear(&session->authenticationToken);
     UA_String_clear(&session->clientUserIdOfSession);
     UA_NodeId_clear(&session->sessionId);
