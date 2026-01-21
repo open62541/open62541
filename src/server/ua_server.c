@@ -901,7 +901,7 @@ UA_Server_removeCertificates(UA_Server *server,
 
 typedef struct UpdateCertInfo {
     UA_Server *server;
-    const UA_NodeId *certificateTypeId;
+    UA_NodeId certificateTypeId;
 } UpdateCertInfo;
 
 static void
@@ -912,9 +912,10 @@ secureChannel_delayedClose(void *application, void *context) {
     UA_SecureChannel *channel;
     TAILQ_FOREACH(channel, &info->server->channels, serverEntry) {
         const UA_SecurityPolicy *policy = channel->securityPolicy;
-        if(UA_NodeId_equal(&policy->certificateTypeId, info->certificateTypeId))
+        if(UA_NodeId_equal(&policy->certificateTypeId, &(info->certificateTypeId)))
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
+    UA_NodeId_clear(&(info->certificateTypeId));
     UA_free(info);
     UA_free(dc);
 }
@@ -992,7 +993,7 @@ UA_Server_updateCertificate(UA_Server *server,
 
     UpdateCertInfo *certInfo = (UpdateCertInfo*)UA_calloc(1, sizeof(UpdateCertInfo));
     certInfo->server = server;
-    certInfo->certificateTypeId = &certificateTypeId;
+    UA_NodeId_copy(&certificateTypeId, &(certInfo->certificateTypeId));
 
     dc->callback = secureChannel_delayedClose;
     dc->application = certInfo;
