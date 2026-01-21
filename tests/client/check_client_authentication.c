@@ -71,6 +71,7 @@ static void setup(void) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config->sessionPKI);
 
     /* Add username/password auth */
     UA_UsernamePasswordLogin login;
