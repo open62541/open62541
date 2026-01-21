@@ -57,8 +57,8 @@ typedef struct {
 /********************/
 
 typedef enum {
-    UA_GDSTRANSACIONSTATE_FRESH,
-    UA_GDSTRANSACIONSTATE_PENDING,
+    UA_GDSTRANSACTIONSTATE_FRESH,
+    UA_GDSTRANSACTIONSTATE_PENDING,
 } UA_GDSTransactionState;
 
 typedef struct {

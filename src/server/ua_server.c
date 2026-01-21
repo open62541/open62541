@@ -189,7 +189,7 @@ UA_GDSTransaction_init(UA_GDSTransaction *transaction, UA_Server *server, const 
 
     memset(transaction, 0, sizeof(UA_GDSTransaction));
 
-    transaction->state = UA_GDSTRANSACIONSTATE_PENDING;
+    transaction->state = UA_GDSTRANSACTIONSTATE_PENDING;
     UA_NodeId_copy(&sessionId, &transaction->sessionId);
     transaction->server = server;
     transaction->localCsrCertificate = csr;
@@ -205,7 +205,7 @@ UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
         return NULL;
 
     /* Check if transaction was initialized */
-    if(transaction->state != UA_GDSTRANSACIONSTATE_PENDING)
+    if(transaction->state != UA_GDSTRANSACTIONSTATE_PENDING)
         return NULL;
 
     for(size_t i = 0; i < transaction->certGroupSize; i++) {
@@ -259,7 +259,7 @@ UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Check if transaction was initialized */
-    if(transaction->state != UA_GDSTRANSACIONSTATE_PENDING)
+    if(transaction->state != UA_GDSTRANSACTIONSTATE_PENDING)
         return UA_STATUSCODE_BADINVALIDSTATE;
 
     /* Check if an entry with certificateGroupId and certificateTypeId already exists */
@@ -305,7 +305,7 @@ void UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
     if(!transaction)
         return;
 
-    transaction->state = UA_GDSTRANSACIONSTATE_FRESH;
+    transaction->state = UA_GDSTRANSACTIONSTATE_FRESH;
     transaction->server = NULL;
     UA_NodeId_clear(&transaction->sessionId);
     UA_ByteString_clear(&transaction->localCsrCertificate);
@@ -930,7 +930,7 @@ UA_Server_updateCertificate(UA_Server *server,
 
     lockServer(server);
 
-    if(server->gdsManager.transaction.state == UA_GDSTRANSACIONSTATE_PENDING) {
+    if(server->gdsManager.transaction.state == UA_GDSTRANSACTIONSTATE_PENDING) {
         unlockServer(server);
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
     }
