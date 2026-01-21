@@ -561,7 +561,9 @@ removeCertificate(UA_Server *server,
         UA_ByteString certificate = certificates[i];
         retval = certGroup->getCertificateCrls(certGroup, &certificate, isTrustedCertificate,
                                                &crls, &crlsSize);
-        if(retval != UA_STATUSCODE_GOOD) {
+        /* Tolerate "Bad_NoMatch" to support removing CA certificates that do
+         * not have an associated CRL. */
+        if((retval != UA_STATUSCODE_GOOD) && (retval != UA_STATUSCODE_BADNOMATCH)) {
             goto cleanup;
         }
 
