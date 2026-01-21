@@ -444,6 +444,11 @@ encryptSecretLegacy(const UA_SecurityPolicy *sp, void *spContext,
                     const UA_ByteString serverSessionNonce,
                     UA_ByteString *tokenData);
 
+UA_StatusCode
+decryptSecretLegacy(const UA_SecurityPolicy *sp, void *spContext,
+                    const UA_ByteString serverSessionNonce,
+                    UA_ByteString *tokenData);
+
 /******************/
 /* ECC Encryption */
 /******************/
@@ -461,8 +466,7 @@ UA_StatusCode
 decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
                     const UA_SecurityPolicy *sp, void *spContext,
                     UA_ByteString sessionServerNonce,
-                    const UA_String encryptionAlgorithm,
-                    UA_EccEncryptedSecret *es);
+                    UA_ByteString *es);
 
 _UA_END_DECLS
 

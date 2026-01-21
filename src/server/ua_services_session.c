@@ -764,104 +764,6 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
 }
 
 static UA_StatusCode
-decryptUserToken(UA_Server *server, UA_Session *session,
-                 UA_SecureChannel *channel, const UA_SecurityPolicy *sp,
-                 const UA_String encryptionAlgorithm, UA_ByteString *encrypted) {
-    /* If SecurityPolicy is None there shall be no EncryptionAlgorithm  */
-    if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE) {
-        if(encryptionAlgorithm.length > 0)
-            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE) {
-            UA_LOG_WARNING_SESSION(server->config.logging, session, "ActivateSession: "
-                                   "Received an unencrypted UserToken. "
-                                   "Is the server misconfigured to allow that?");
-        }
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* Test if the correct encryption algorithm is used */
-    if(!UA_String_equal(&encryptionAlgorithm, &sp->asymEncryptionAlgorithm.uri))
-        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-
-    /* Encrypted password -- Create a temporary channel context.
-     * TODO: We should not need a ChannelContext at all for asymmetric
-     * decryption where the remote certificate is not used. */
-    void *tempChannelContext = NULL;
-    UA_StatusCode res = sp->newChannelContext(sp, &sp->localCertificate,
-                                              &tempChannelContext);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(server->config.logging, session,
-                               "ActivateSession: Failed to create a context for "
-                               "the SecurityPolicy %S", sp->policyUri);
-        return res;
-    }
-
-    UA_UInt32 secretLen = 0;
-    UA_ByteString secret, tokenNonce;
-    size_t tokenpos = 0;
-    size_t offset = 0;
-    UA_ByteString *sn = &session->serverNonce;
-    const UA_SecurityPolicyEncryptionAlgorithm *asymEnc = &sp->asymEncryptionAlgorithm;
-
-    res = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-
-    /* Decrypt the secret */
-    if(UA_ByteString_copy(encrypted, &secret) != UA_STATUSCODE_GOOD ||
-       asymEnc->decrypt(sp, tempChannelContext, &secret) != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* The secret starts with a UInt32 length for the content */
-    if(UA_UInt32_decodeBinary(&secret, &offset, &secretLen) != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
-    /* The decrypted data must be large enough to include the Encrypted Token
-     * Secret Format and the length field must indicate enough data to include
-     * the server nonce. */
-    if(secret.length < sizeof(UA_UInt32) + sn->length ||
-       secret.length < sizeof(UA_UInt32) + secretLen ||
-       secretLen < sn->length)
-        goto cleanup;
-
-    /* If the Encrypted Token Secret contains padding, the padding must be
-     * zeroes according to the 1.04.1 specification errata, chapter 3. */
-    for(size_t i = sizeof(UA_UInt32) + secretLen; i < secret.length; i++) {
-        if(secret.data[i] != 0)
-            goto cleanup;
-    }
-
-    /* The server nonce must match according to the 1.04.1 specification errata,
-     * chapter 3. */
-    tokenpos = sizeof(UA_UInt32) + secretLen - sn->length;
-    tokenNonce.length = sn->length;
-    tokenNonce.data = &secret.data[tokenpos];
-    if(!UA_ByteString_equal(sn, &tokenNonce))
-        goto cleanup;
-
-    /* The password was decrypted successfully. Replace usertoken with the
-     * decrypted password. The encryptionAlgorithm and policyId fields are left
-     * in the UserToken as an indication for the AccessControl plugin that
-     * evaluates the decrypted content. */
-    memcpy(encrypted->data,
-           &secret.data[sizeof(UA_UInt32)], secretLen - sn->length);
-    encrypted->length = secretLen - sn->length;
-    res = UA_STATUSCODE_GOOD;
-
- cleanup:
-    UA_ByteString_clear(&secret);
-
-    /* Remove the temporary channel context */
-    sp->deleteChannelContext(sp, tempChannelContext);
-
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(server->config.logging, session,
-                               "ActivateSession: Failed to decrypt the "
-                               "password with the StatusCode %s",
-                               UA_StatusCode_name(res));
-    }
-    return res;
-}
-
-static UA_StatusCode
 checkActivateSessionX509(UA_Server *server, UA_Session *session,
                          const UA_SecurityPolicy *sp, UA_X509IdentityToken* token,
                          const UA_SignatureData *tokenSignature) {
@@ -989,43 +891,51 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_SESSION_REJECT;
     }
 
+    /* Nothing to decrypt */
+    if(utp->tokenType == UA_USERTOKENTYPE_ANONYMOUS)
+        goto activate_session;
+
+    /* Not encrypted */
+    if(tokenSp->policyType == UA_SECURITYPOLICYTYPE_NONE) {
+        if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE) {
+            UA_LOG_WARNING_SESSION(server->config.logging, session,
+                                   "ActivateSession: Processing an unencrypted "
+                                   "UserToken. This is dangerous for the server "
+                                   "to allow.");
+        }
+        goto activate_session;
+    }
+
+    /* Ensure the session has an instance of the authentication SecurityPolicy
+     * to decrypt the UserIdentityToken */
+    rh->serviceResult =
+        createCheckSessionAuthSecurityPolicyContext(server, session, tokenSp,
+                                                    channel->remoteCertificate);
+    if(rh->serviceResult != UA_STATUSCODE_GOOD)
+        UA_SESSION_REJECT;
+
+    /* SecurityPolicies with encryption always set a context */
+    UA_assert(session->authSpContext);
+
     /* Decrypt (or validate the signature) of the UserToken. The DataType of the
-     * UserToken was already checked in selectEndpointAndTokenPolicy */
-    if(utp->tokenType == UA_USERTOKENTYPE_USERNAME) {
-        /* If it is a UserNameIdentityToken, the password may be encrypted */
+     * UserToken was already checked in selectEndpointAndTokenPolicy. This
+     * replaces the content of the token in-situ. */
+    UA_ByteString *token = NULL;
+    switch(utp->tokenType) {
+    case UA_USERTOKENTYPE_USERNAME: {
         UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken *)
            req->userIdentityToken.content.decoded.data;
-        /* Differentiate between ECC policy decrpytion and RSA decryption.
-         * With ECC policies, the password is EccEncryptedSecret */
-        if(tokenSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
-            /* The ECC authentication SecurityPolicy gets instantiated when the
-             * Session is created. Because we need to return the initial public
-             * ephemeral key. */
-            if(!session->authSpContext) {
-                rh->serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-                UA_SESSION_REJECT;
-            }
 
-            /* More checks. Is the tokenSp the same as before? */
-            rh->serviceResult =
-                createCheckSessionAuthSecurityPolicyContext(server, session,
-                                           tokenSp, channel->remoteCertificate);
-            if(rh->serviceResult != UA_STATUSCODE_GOOD)
-                UA_SESSION_REJECT;
-
-            /* Decrypt the token */
-            rh->serviceResult =
-                decryptUserTokenEcc(server->config.logging, channel,
-                                    session->authSp, session->authSpContext,
-                                    session->serverNonce,
-                                    userToken->encryptionAlgorithm,
-                                    &userToken->password);
-        } else {
-            rh->serviceResult =
-            decryptUserToken(server, session, channel, tokenSp,
-                             userToken->encryptionAlgorithm, &userToken->password);
+        /* Test if the correct encryption algorithm is used */
+        if(!UA_String_equal(&tokenSp->asymEncryptionAlgorithm.uri,
+                            &userToken->encryptionAlgorithm)) {
+            rh->serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+            UA_SESSION_REJECT;
         }
-    } else if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+
+        token = &userToken->password;
+        break; }
+    case UA_USERTOKENTYPE_CERTIFICATE: {
         /* If it is a X509IdentityToken, check the userTokenSignature. Note this
          * only validates that the user has the corresponding private key for
          * the given user certificate. Checking whether the user certificate is
@@ -1036,15 +946,40 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         rh->serviceResult =
             checkActivateSessionX509(server, session, tokenSp,
                                      x509token, &req->userTokenSignature);
-    } else if(utp->tokenType == UA_USERTOKENTYPE_ISSUEDTOKEN) {
-        /* IssuedTokens are encrypted */
-       UA_IssuedIdentityToken *issuedToken = (UA_IssuedIdentityToken*)
-           req->userIdentityToken.content.decoded.data;
-       rh->serviceResult = decryptUserToken(server, session, channel, tokenSp,
-                                            issuedToken->encryptionAlgorithm,
-           &issuedToken->tokenData);
-    } /* else Anonymous */
+        goto activate_session; }
+    case UA_USERTOKENTYPE_ISSUEDTOKEN: {
+        UA_IssuedIdentityToken *issuedToken = (UA_IssuedIdentityToken*)
+            req->userIdentityToken.content.decoded.data;
 
+        /* Test if the correct encryption algorithm is used */
+        if(!UA_String_equal(&tokenSp->asymEncryptionAlgorithm.uri,
+                            &issuedToken->encryptionAlgorithm)) {
+            rh->serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+            UA_SESSION_REJECT;
+        }
+
+        token = &issuedToken->tokenData;
+        break; }
+    default:
+        rh->serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        goto activate_session;
+    }
+
+    /* Decrypt the token. Differentiate between secret encryptions (ECC,
+     * legacy).
+     * TODO: Implement "modern" RSA* secret encryption */
+    if(tokenSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+        rh->serviceResult =
+            decryptUserTokenEcc(server->config.logging, channel,
+                                session->authSp, session->authSpContext,
+                                session->serverNonce, token);
+    } else {
+        rh->serviceResult =
+            decryptSecretLegacy(session->authSp, session->authSpContext,
+                                session->serverNonce, token);
+    }
+
+ activate_session:
     if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Could not decrypt/"

@@ -295,18 +295,9 @@ UA_StatusCode
 decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
                     const UA_SecurityPolicy *sp, void *spContext,
                     UA_ByteString sessionServerNonce,
-                    const UA_String encryptionAlgorithm,
                     UA_EccEncryptedSecret *es) {
     /* ECC usage verified before calling into this function */
     UA_assert(sp->policyType == UA_SECURITYPOLICYTYPE_ECC);
-
-    /* Test if the correct encryption algorithm is used */
-    if(encryptionAlgorithm.length > 0 &&
-       !UA_String_equal(&encryptionAlgorithm, &sp->asymEncryptionAlgorithm.uri)) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SESSION,
-                     "[EccEncryptedSecret] Wrong encryption algorithm");
-        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-    }
 
     /* Define and initialize in case of clean-up */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -527,4 +518,61 @@ encryptSecretLegacy(const UA_SecurityPolicy *sp, void *spContext,
     UA_ByteString_clear(tokenData);
     *tokenData = encrypted;
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+decryptSecretLegacy(const UA_SecurityPolicy *sp, void *spContext,
+                    const UA_ByteString serverSessionNonce,
+                    UA_ByteString *tokenData) {
+    UA_UInt32 secretLen = 0;
+    UA_ByteString secret, tokenNonce;
+    size_t tokenpos = 0;
+    size_t offset = 0;
+    const UA_SecurityPolicyEncryptionAlgorithm *asymEnc = &sp->asymEncryptionAlgorithm;
+
+    /* Decrypt the secret */
+    UA_StatusCode res = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+    if(UA_ByteString_copy(tokenData, &secret) != UA_STATUSCODE_GOOD ||
+       asymEnc->decrypt(sp, spContext, &secret) != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    /* The secret starts with a UInt32 length for the content */
+    if(UA_UInt32_decodeBinary(&secret, &offset, &secretLen) != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    /* The decrypted data must be large enough to include the Encrypted Token
+     * Secret Format and the length field must indicate enough data to include
+     * the server nonce. */
+    if(secret.length < sizeof(UA_UInt32) + serverSessionNonce.length ||
+       secret.length < sizeof(UA_UInt32) + secretLen ||
+       secretLen < serverSessionNonce.length)
+        goto cleanup;
+
+    /* If the Encrypted Token Secret contains padding, the padding must be
+     * zeroes according to the 1.04.1 specification errata, chapter 3. */
+    for(size_t i = sizeof(UA_UInt32) + secretLen; i < secret.length; i++) {
+        if(secret.data[i] != 0)
+            goto cleanup;
+    }
+
+    /* The server nonce must match according to the 1.04.1 specification errata,
+     * chapter 3. */
+    tokenpos = sizeof(UA_UInt32) + secretLen - serverSessionNonce.length;
+    tokenNonce.length = serverSessionNonce.length;
+    tokenNonce.data = &secret.data[tokenpos];
+    if(!UA_ByteString_equal(&serverSessionNonce, &tokenNonce))
+        goto cleanup;
+
+    /* The password was decrypted successfully. Replace usertoken with the
+     * decrypted password. The encryptionAlgorithm and policyId fields are left
+     * in the UserToken as an indication for the AccessControl plugin that
+     * evaluates the decrypted content. */
+    size_t outLen = secretLen - serverSessionNonce.length;
+    memcpy(tokenData->data, &secret.data[sizeof(UA_UInt32)], outLen);
+    tokenData->length = outLen;
+    res = UA_STATUSCODE_GOOD;
+
+ cleanup:
+    UA_ByteString_clear(&secret);
+    return res;
 }
