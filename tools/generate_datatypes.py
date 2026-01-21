@@ -249,6 +249,7 @@ class CGenerator:
         before = None
         size = len(datatype.elements) if isEnum else len(datatype.members)
         if isEnum:
+            # Print all enumerators as UA_DataTypeMember
             for i, name in enumerate(datatype.elements):
                 m = "\n{\n"
                 m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % name
@@ -256,24 +257,28 @@ class CGenerator:
                 m += "    0, /* .padding */\n"
                 m += "    false, /* .isArray */\n"
                 m += "    false /* .isOptional */\n}"
+                # Don't add a trailing comma for the last entry
                 if i != size - 1:
                     m += ","
                 members += m
         else:
+            # Print all structure fields as UA_DataTypeMember
             for i, member in enumerate(datatype.members):
 
-                # Abfrage member_type
+                # Build the type name for the current field
                 if not member.member_type.members and isinstance(member.member_type, StructType):
                     type_name = "ExtensionObject"
                 else:
                     type_name = member.member_type.name
 
+                # Build the type name for the previous field (used to calculate padding)
                 if before:
                     if not before.member_type.members and isinstance(before.member_type, StructType):
                         type_name_before = "ExtensionObject"
                     else:
                         type_name_before = before.member_type.name
 
+                # Build a valid identifier as member name with capital first letter
                 member_name = makeCIdentifier(member.name)
                 member_name_capital = member_name
                 if len(member_name) > 0:
@@ -284,6 +289,7 @@ class CGenerator:
                     member.member_type.outname.upper(), member.member_type.outname.upper(),
                     makeCIdentifier(type_name.upper()))
                 m += "    "
+                # Print code to calculate type specific padding for the member
                 if not before and not isUnion:
                     m += "0,"
                 elif isUnion:
@@ -301,6 +307,7 @@ class CGenerator:
                 m += " /* .padding */\n"
                 m += ("    true" if member.is_array else "    false") + ", /* .isArray */\n"
                 m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n}"
+                # Don't add a trailing comma for the last entry
                 if i != size - 1:
                     m += ","
                 members += m
