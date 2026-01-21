@@ -866,7 +866,11 @@ UA_Server_removeCertificates(UA_Server *server,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < certificatesSize; i++) {
         retval = certGroup->getCertificateCrls(certGroup, &certificates[i], isTrusted, &crls, &crlsSize);
-        if(retval != UA_STATUSCODE_GOOD) {
+        /* Tolerate "Bad_NoMatch", as it must be possible to remove CA
+         * certificates that do not have a valid associated CRL (this includes
+         * expired CRLs).
+         */
+        if((retval != UA_STATUSCODE_GOOD) && (retval != UA_STATUSCODE_BADNOMATCH)) {
             UA_Array_delete(crls, crlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
             return retval;
         }
