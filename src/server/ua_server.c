@@ -1068,7 +1068,11 @@ UA_Server_createSigningRequest(UA_Server *server,
 
 cleanup:
     if(newPrivateKey)
+    {
+        /* wipe private key before freeing its memory */
+        memset(newPrivateKey->data, 0, newPrivateKey->length);
         UA_ByteString_delete(newPrivateKey);
+    }
 
     return retval;
 }
