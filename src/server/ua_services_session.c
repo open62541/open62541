@@ -411,27 +411,19 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    /* Check the client certificate (against the ApplicationDescription,
-     * cryptographic checking is done separately in the SecureChannel) */
+    /* Check the client certificate and ApplicationDescription. It was already
+     * checked for the SecureChannel. But here we use the Session
+     * CertificateGroup and we now also have the ApplicationDescription to check
+     * the ApplicationUri. */
     if(request->clientCertificate.length > 0) {
-        UA_StatusCode res =
-            UA_CertificateUtils_verifyApplicationUri(&request->clientCertificate,
-                                &request->clientDescription.applicationUri);
-        if(res != UA_STATUSCODE_GOOD) {
-            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_WARN) {
-                UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                                     "The client certificate's ApplicationUri "
-                                     "could not be verified against the ApplicationUri "
-                                     "%S from the client's ApplicationDescription (%s)",
-                                     request->clientDescription.applicationUri,
-                                     UA_StatusCode_name(res));
-            }
-            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_ABORT) {
-                response->responseHeader.serviceResult = res;
-                server->serverDiagnosticsSummary.securityRejectedSessionCount++;
-                server->serverDiagnosticsSummary.rejectedSessionCount++;
-                return;
-            }
+        response->responseHeader.serviceResult =
+            validateCertificate(server, &server->config.sessionPKI,
+                                channel, NULL, &request->clientDescription,
+                                request->clientCertificate);
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+            server->serverDiagnosticsSummary.securityRejectedSessionCount++;
+            server->serverDiagnosticsSummary.rejectedSessionCount++;
+            return;
         }
     }
 
