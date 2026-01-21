@@ -1070,7 +1070,7 @@ cleanup:
     if(newPrivateKey)
     {
         /* wipe private key before freeing its memory */
-        memset(newPrivateKey->data, 0, newPrivateKey->length);
+        UA_ByteString_memZero(newPrivateKey);
         UA_ByteString_delete(newPrivateKey);
     }
 
