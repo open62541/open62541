@@ -474,18 +474,22 @@ setCurrentEndPointsArray(UA_Server *server, const UA_String endpointUrl,
              * SecurityPolicy. */
             UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
                                                            &ed->securityPolicyUri);
-            if(!sp || sp->policyType == UA_SECURITYPOLICYTYPE_NONE) {
-                UA_SecurityPolicyType pt = (sp) ?
-                    sp->policyType : UA_SECURITYPOLICYTYPE_NONE;
-                sp = getDefaultEncryptedSecurityPolicy(server, pt);
-            }
-            if(sp) {
-                UA_ByteString_clear(&ed->serverCertificate);
-                retval |= UA_ByteString_copy(&sp->localCertificate,
-                                             &ed->serverCertificate);
+            if(!sp) {
+                UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                             "GetEndpoints: Endpoint defines SecurityPolicy "
+                             "%S which is not available", ed->securityPolicyUri);
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto error;
             }
 
-            /* Set the User Identity Token list fromt the AccessControl plugin */
+            /* Set the local certificate configured for the SecurityPolicy */
+            UA_ByteString_clear(&ed->serverCertificate);
+            retval |= UA_ByteString_copy(&sp->localCertificate,
+                                         &ed->serverCertificate);
+
+            /* Set the User Identity Token list from the AccessControl plugin.
+             * This also selects an appropriate SecurityPolicy for the
+             * AuthenticationToken. */
             retval |= updateEndpointUserIdentityToken(server, sp->policyType, ed);
 
             /* Set the EndpointURL */
