@@ -337,23 +337,17 @@ void UA_GDSTransaction_delete(UA_GDSTransaction *transaction) {
     UA_free(transaction);
 }
 
-/********************/
-/*   GDS Manager    */
-/********************/
-
+#ifndef UA_ENABLE_GDS_PUSHMANAGEMENT
+/* Minimal stub: when GDS push management is not compiled in,
+ * only the embedded transaction needs to be cleared. */
 void
 UA_GDSManager_clear(UA_GDSManager *gdsManager) {
     if(!gdsManager)
         return;
     gdsManager->checkSessionCallbackId = 0;
     UA_GDSTransaction_clear(&gdsManager->transaction);
-    void *fileInfoContext = gdsManager->fileInfoContext;
-    while(fileInfoContext) {
-        void *next = *((void **)fileInfoContext);
-        UA_free(fileInfoContext);
-        fileInfoContext = next;
-    }
 }
+#endif
 
 /*********************/
 /* Server Components */
