@@ -759,17 +759,25 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
     unlockServer(server);
 }
 
+/* When the trustlist changes, re-check the certificates of all
+ * SecureChannels */
 static void
 secureChannel_delayedCloseTrustList(void *application, void *context) {
     UA_DelayedCallback *dc = (UA_DelayedCallback*)context;
     UA_Server *server = (UA_Server*)application;
 
-    UA_CertificateGroup certGroup = server->config.secureChannelPKI;
+    UA_CertificateGroup *certGroup = &server->config.secureChannelPKI;
     UA_SecureChannel *channel;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
-        if(channel->state != UA_SECURECHANNELSTATE_CLOSED && channel->state != UA_SECURECHANNELSTATE_CLOSING)
+        if(channel->state != UA_SECURECHANNELSTATE_CLOSED &&
+           channel->state != UA_SECURECHANNELSTATE_CLOSING)
             continue;
-        if(certGroup.verifyCertificate(&certGroup, &channel->remoteCertificate) != UA_STATUSCODE_GOOD)
+        if(channel->remoteCertificate.length == 0)
+            continue; /* SecureChannels w/o security */
+        UA_StatusCode res =
+            validateCertificate(server, certGroup, channel, channel->sessions,
+                                NULL, channel->remoteCertificate);
+        if(res != UA_STATUSCODE_GOOD)
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
     UA_free(dc);
