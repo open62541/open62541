@@ -302,6 +302,8 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 }
 #endif
 
+static UA_String basic256Sha256Uri = UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+
 /* Get an encrypted policy or NULL if no encrypted policy is defined */
 UA_SecurityPolicy *
 getDefaultEncryptedSecurityPolicy(UA_Server *server,
@@ -319,6 +321,10 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server,
         if(sp->policyType == UA_SECURITYPOLICYTYPE_ECC &&
            type == UA_SECURITYPOLICYTYPE_RSA)
             continue;
+        /* Return early with Basic256Sha256 when available. "Secure enough" and
+         * most clients support it.*/
+        if(UA_String_equal(&basic256Sha256Uri, &sp->policyUri))
+            return sp;
         if(sp->securityLevel >= securityLevel) {
             best = sp;
             securityLevel = sp->securityLevel;
