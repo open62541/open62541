@@ -56,11 +56,13 @@ processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
 
     /* TODO: Check the URI in the certificate */
 
-    /* Verify the client certificate (chain) */
+    /* Verify the client certificate (chain).
+     * Here we don't have the ApplicationDescription.
+     * This check follows in the CreateSession service. */
     if(asymHeader->senderCertificate.length > 0) {
-        UA_StatusCode res = sc->secureChannelPKI.
-            verifyCertificate(&sc->secureChannelPKI,
-                              &asymHeader->senderCertificate);
+        UA_StatusCode res =
+            validateCertificate(server, &sc->secureChannelPKI, channel,
+                                NULL, NULL, asymHeader->senderCertificate);
         UA_CHECK_STATUS(res, return res);
     }
 
