@@ -389,7 +389,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_StatusCode res = sp->compareCertificate(sp, cc, &request->clientCertificate);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                                 "The client certificate did not validate");
+                                 "The client uses a different certificate for "
+                                 "SecureChannel and Session");
             response->responseHeader.serviceResult = UA_STATUSCODE_BADCERTIFICATEINVALID;
             server->serverDiagnosticsSummary.securityRejectedSessionCount++;
             server->serverDiagnosticsSummary.rejectedSessionCount++;
