@@ -216,7 +216,7 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP AND NOT UA
     ua_add_test(check_eventloop_eth.c)
 endif()
 
-if(UA_ENABLE_MQTT)
+if(UA_ENABLE_MQTT AND ${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     ua_add_test(check_eventloop_mqtt.c)
 endif()
 
@@ -324,7 +324,7 @@ if(UA_ENABLE_PUBSUB)
         ua_add_test(pubsub/check_pubsub_informationmodel.c)
         ua_add_test(pubsub/check_pubsub_informationmodel_methods.c)
     endif()
-    if(UA_ENABLE_MQTT)
+    if(UA_ENABLE_MQTT AND ${CMAKE_SYSTEM_NAME} MATCHES "Linux")
         ua_add_test(pubsub/check_pubsub_connection_mqtt.c)
         ua_add_test(pubsub/check_pubsub_mqtt.c)
     endif()
