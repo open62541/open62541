@@ -266,7 +266,7 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
 typedef void
 (*UA_ClientAsyncModifyMonitoredItemsCallback)(
     UA_Client *client, void *userdata, UA_UInt32 requestId,
-    UA_DeleteMonitoredItemsResponse *response);
+    UA_ModifyMonitoredItemsResponse *response);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_MonitoredItems_modify_async(UA_Client *client,
