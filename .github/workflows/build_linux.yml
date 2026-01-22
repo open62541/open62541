@@ -98,6 +98,7 @@ jobs:
             build:
               name: "Debug Build & Unit Tests with lwip (gcc)"
               cmd_deps: |
+                sudo apt-get update
                 sudo apt-get install -y -qq build-essential cmake gcc git \
                      iproute2 libpcap-dev
               cmd_action: |
@@ -109,6 +110,7 @@ jobs:
             build:
               name: "TPM Tool Build ubuntu-22.04"
               cmd_deps: |
+                sudo apt-get update
                 sudo apt-get install -y -qq acl autoconf autoconf-archive \
                      automake build-essential cmake doxygen gcc git iproute2 \
                      libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev \
@@ -123,6 +125,7 @@ jobs:
             build:
               name: "TPM Tool Build ubuntu-24.04"
               cmd_deps: |
+                sudo apt-get update
                 sudo apt-get install -y -qq acl autoconf autoconf-archive \
                      automake build-essential cmake doxygen gcc git iproute2 \
                      libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev \
@@ -157,7 +160,9 @@ jobs:
           - os: ubuntu-24.04
             build:
               name: "Valgrind Build & Unit Tests with lwIP and OpenSSL (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind openssl \
+              cmd_deps: |
+                sudo apt-get update
+                sudo apt-get install -y -qq valgrind openssl \
                         build-essential cmake gcc git iproute2 libpcap-dev
               cmd_action: |
                 install_lwip
@@ -166,21 +171,27 @@ jobs:
           - os: ubuntu-24.04
             build:
               name: "Valgrind Examples with MbedTLS and mDNSD (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev \
+              cmd_deps: |
+                sudo apt-get update
+                sudo apt-get install -y -qq valgrind libmbedtls-dev \
                         python3-netifaces
               cmd_action: examples_valgrind MBEDTLS MDNSD posix
 
           - os: ubuntu-24.04
             build:
               name: "Valgrind Examples with OpenSSL and avahi-mdns (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev \
+              cmd_deps: |
+                sudo apt-get update
+                sudo apt-get install -y -qq valgrind openssl libmbedtls-dev \
                         python3-netifaces libavahi-client-dev libavahi-common-dev
               cmd_action: examples_valgrind OPENSSL AVAHI posix
 
           - os: ubuntu-24.04
             build:
               name: "Valgrind Examples with lwIP, OpenSSL and avahi-mdns (gcc)"
-              cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev \
+              cmd_deps: |
+                sudo apt-get update
+                sudo apt-get install -y -qq valgrind openssl libmbedtls-dev \
                         python3-netifaces libavahi-client-dev libavahi-common-dev \
                         build-essential cmake gcc git iproute2 libpcap-dev
               cmd_action: |
