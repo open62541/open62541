@@ -155,13 +155,15 @@ handlerEventsWithModification(UA_Client *lclient, UA_UInt32 subId, void *subCont
 }
 
 UA_Boolean monitoredItemModificationCallbackCalled = false;
+UA_Boolean asyncMonitoredItemModificationErrorExpected = false;
 
 static void
 modifyMonitoredItemsCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
                              UA_ModifyMonitoredItemsResponse *response) {
     ck_assert_uint_eq(response->resultsSize, 1);
-    ck_assert_uint_eq(response->results->statusCode, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(response->results->filterResult.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
+    ck_assert_uint_eq(response->results->statusCode,
+                      asyncMonitoredItemModificationErrorExpected ?
+                          UA_STATUSCODE_BADEVENTFILTERINVALID : UA_STATUSCODE_GOOD);
 
     monitoredItemModificationCallbackCalled = true;
 }
@@ -776,6 +778,20 @@ START_TEST(modifySelectFilterSync) {
     createTestEvent();
     checkForEvent(&createResult, true);
 
+    /* Attempt to update with an invalid event filter */
+    filter.selectClausesSize = 0;
+    modifyResult = modifyMonitoredItem(&filter, true);
+    ck_assert_uint_eq(modifyResult.resultsSize, 1);
+    ck_assert_uint_eq(modifyResult.results->statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResult);
+
+    /* Check if the client handle is unchanged and the notifications are still processed */
+    severityExpected = true;
+    createTestEvent();
+    checkForEvent(&createResult, true);
+
+    /* Free event filter members */
+    filter.selectClausesSize = 2;
     UA_EventFilter_clear(&filter);
     UA_MonitoredItemCreateResult_clear(&createResult);
 
@@ -813,6 +829,7 @@ START_TEST(modifySelectFilterAsync) {
     /* Attempt to update the monitored item's event filter with a second select clause */
     filter.selectClauses[1].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
     filter.selectClausesSize = 2;
+    asyncMonitoredItemModificationErrorExpected = false;
     modifyMonitoredItemAsync(&filter, true);
 
     /* Check if the event fields map in the client's local monitored item was updated with the new filter */
@@ -820,6 +837,18 @@ START_TEST(modifySelectFilterAsync) {
     createTestEvent();
     checkForEvent(&createResult, true);
 
+    /* Attempt to update with an invalid event filter */
+    filter.selectClausesSize = 0;
+    asyncMonitoredItemModificationErrorExpected = true;
+    modifyMonitoredItemAsync(&filter, true);
+
+    /* Check if the client handle is unchanged and the notifications are still processed */
+    severityExpected = true;
+    createTestEvent();
+    checkForEvent(&createResult, true);
+
+    /* Free event filter members */
+    filter.selectClausesSize = 2;
     UA_EventFilter_clear(&filter);
     UA_MonitoredItemCreateResult_clear(&createResult);
 
