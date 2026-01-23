@@ -487,6 +487,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
+    /* Configure the Session */
+
     /* If the session name is empty, use the generated SessionId */
     rh->serviceResult |= UA_String_copy(&request->sessionName,
                                         &newSession->sessionName);
@@ -499,6 +501,14 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     newSession->maxRequestMessageSize = channel->config.localMaxMessageSize;
     rh->serviceResult |= UA_ApplicationDescription_copy(&request->clientDescription,
                                                         &newSession->clientDescription);
+
+    /* The SecureChannel certificate must correspond to the client's
+     * ApplicationCertificate. But for unencrypted SecureChannels we store the
+     * certificate directly in the Session. We need it later when an encrypted
+     * UserIdentityToken is sent over an unencrypted SecureChannel. */
+    if(channel->remoteCertificate.length == 0)
+        rh->serviceResult |= UA_ByteString_copy(&request->clientCertificate,
+                                                &newSession->clientCertificate);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
     rh->serviceResult |= UA_String_copy(&request->serverUri,
@@ -877,6 +887,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Find the matching Endpoint with UserTokenPolicy.
      * Also sets the SecurityPolicy used to encrypt the token. */
+    UA_ByteString applicationCert;
     const UA_EndpointDescription *ed = NULL;
     const UA_UserTokenPolicy *utp = NULL;
     UA_SecurityPolicy *tokenSp = NULL;
@@ -908,9 +919,11 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Ensure the session has an instance of the authentication SecurityPolicy
      * to decrypt the UserIdentityToken */
+    applicationCert = (channel->remoteCertificate.length > 0) ?
+        channel->remoteCertificate : session->clientCertificate;
     rh->serviceResult =
         createCheckSessionAuthSecurityPolicyContext(server, session, tokenSp,
-                                                    channel->remoteCertificate);
+                                                    applicationCert);
     if(rh->serviceResult != UA_STATUSCODE_GOOD)
         UA_SESSION_REJECT;
 
