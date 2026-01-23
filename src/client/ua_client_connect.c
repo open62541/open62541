@@ -1560,9 +1560,19 @@ createSessionAsync(UA_Client *client) {
     request.endpointUrl = client->endpoint.endpointUrl;
     request.clientDescription = client->config.clientDescription;
     request.sessionName = client->config.sessionName;
-    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        request.clientCertificate = client->channel.securityPolicy->localCertificate;
+
+    /* Send the certificate that is used for the UserIdentiyToken as the
+     * ApplicationCertificate */
+    const UA_UserTokenPolicy *utp = findUserTokenPolicy(client, &client->endpoint, NULL);
+    if(utp) {
+        /* If not specifically defined in the UserTokenPolicy, then the
+         * SecurityPolicy of the underlying endpoint (SecureChannel) is used. */
+        UA_String tokenSecurityPolicyUri = (utp->securityPolicyUri.length > 0) ?
+            utp->securityPolicyUri : client->endpoint.securityPolicyUri;
+        /* Get the SecurityPolicy for authentication */
+        UA_SecurityPolicy *utsp = getAuthSecurityPolicy(client, tokenSecurityPolicyUri);
+        if(utsp)
+            request.clientCertificate = utsp->localCertificate;
     }
 
     res = __Client_AsyncService(client, &request,
