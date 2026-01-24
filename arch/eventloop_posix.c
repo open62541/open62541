@@ -38,7 +38,7 @@ UA_EventLoopPOSIX_addCyclicCallback(UA_EventLoop *public_el,
                                     UA_Callback cb,
                                     void *application, void *data,
                                     UA_Double interval_ms,
-                                    UA_DateTime *baseTime,
+                                    const UA_DateTime *baseTime,
                                     UA_TimerPolicy timerPolicy,
                                     UA_UInt64 *callbackId) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
@@ -51,7 +51,7 @@ static UA_StatusCode
 UA_EventLoopPOSIX_modifyCyclicCallback(UA_EventLoop *public_el,
                                        UA_UInt64 callbackId,
                                        UA_Double interval_ms,
-                                       UA_DateTime *baseTime,
+                                       const UA_DateTime *baseTime,
                                        UA_TimerPolicy timerPolicy) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     return UA_Timer_changeRepeatedCallback(&el->timer, callbackId,
