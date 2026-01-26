@@ -187,7 +187,7 @@ checkSessionActive(UA_Server *server, void *data) {
     UA_GDSManager *gdsManager = &server->gdsManager;
     UA_GDSTransaction *transaction = &gdsManager->transaction;
     UA_Boolean removingCallback = false;
-    if(transaction->state != UA_GDSTRANSACIONSTATE_FRESH) {
+    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH) {
         UA_Boolean foundSession = false;
         session_list_entry *session;
         LIST_FOREACH(session, &server->sessions, pointers) {
@@ -309,7 +309,7 @@ updateCertificate(UA_Server *server,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_GDSManager *gdsManager = &server->gdsManager;
     UA_GDSTransaction *transaction = &gdsManager->transaction;
-    if(transaction->state == UA_GDSTRANSACIONSTATE_FRESH) {
+    if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
         retval = UA_GDSTransaction_init(transaction, server, *sessionId);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -446,7 +446,7 @@ addCertificate(UA_Server *server,
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
     UA_GDSManager *gdsManager = &server->gdsManager;
-    if(gdsManager->transaction.state != UA_GDSTRANSACIONSTATE_FRESH)
+    if(gdsManager->transaction.state != UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     /* CA certificates cannot be added using this method because it does not support adding CRLs */
@@ -506,7 +506,7 @@ removeCertificate(UA_Server *server,
 
     UA_GDSManager *gdsManager = &server->gdsManager;
     UA_GDSTransaction *transaction = &gdsManager->transaction;
-    if(transaction->state != UA_GDSTRANSACIONSTATE_FRESH)
+    if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     /* When a certificate is removed, a transaction is created which is then executed directly.
@@ -630,7 +630,7 @@ openTrustList(UA_Server *server,
     UA_GDSManager *gdsManager = &server->gdsManager;
     UA_GDSTransaction *transaction = &gdsManager->transaction;
     /* Cannot be opened when a transaction is running */
-    if(transaction->state == UA_GDSTRANSACIONSTATE_PENDING)
+    if(transaction->state == UA_GDSTRANSACTIONSTATE_PENDING)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
@@ -720,7 +720,7 @@ openTrustListWithMask(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_GDSManager *gdsManager = &server->gdsManager;
-    if(gdsManager->transaction.state == UA_GDSTRANSACIONSTATE_PENDING)
+    if(gdsManager->transaction.state == UA_GDSTRANSACTIONSTATE_PENDING)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -813,9 +813,9 @@ readTrustList(UA_Server *server,
 
     UA_ByteString readBuffer = UA_BYTESTRING_NULL;
     if(length > 0) {
-        readBuffer.length = length;
+        readBuffer.length = (size_t)length;
         readBuffer.data = fileContext->file.data+fileContext->currentPos;
-        fileContext->currentPos += length;
+        fileContext->currentPos += (UA_UInt64)length;
     }
 
     UA_Variant_setScalarCopy(output, &readBuffer, &UA_TYPES[UA_TYPES_BYTESTRING]);
@@ -1197,7 +1197,7 @@ applyChanges(UA_Server *server,
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_GDSManager *gdsManager = &server->gdsManager;
     UA_GDSTransaction *transaction = &gdsManager->transaction;
-    if(transaction->state == UA_GDSTRANSACIONSTATE_FRESH)
+    if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADNOTHINGTODO;
 
     if(!UA_NodeId_equal(&transaction->sessionId, sessionId))

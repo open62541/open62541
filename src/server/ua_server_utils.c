@@ -221,6 +221,51 @@ editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     return retval;
 }
 
+/**************************/
+/* Certificate Validation */
+/**************************/
+
+UA_StatusCode
+validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
+                    UA_SecureChannel *channel, UA_Session *session,
+                    const UA_ApplicationDescription *ad,
+                    const UA_ByteString certificate) {
+    /* Verify the ApplicationUri */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(ad) {
+        res = UA_CertificateUtils_verifyApplicationUri(&certificate,
+                                                       &ad->applicationUri);
+        if(res != UA_STATUSCODE_GOOD) {
+            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_WARN) {
+                if(session) {
+                    UA_LOG_ERROR_SESSION(server->config.logging, session,
+                                         "The client's ApplicationUri "
+                                         "could not be verified against the "
+                                         "ApplicationUri %S from the client's "
+                                         "ApplicationDescription", ad->applicationUri);
+                } else if(channel) {
+                    UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                                         "The client certificate's ApplicationUri "
+                                         "could not be verified against the "
+                                         "ApplicationUri %S from the client's "
+                                         "ApplicationDescription", ad->applicationUri);
+                } else {
+                    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                                 "The server certificate's ApplicationUri "
+                                 "could not be verified against the "
+                                 "ApplicationUri %S from its "
+                                 "ApplicationDescription", ad->applicationUri);
+                }
+            }
+            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_ABORT)
+                return UA_STATUSCODE_BADCERTIFICATEINVALID;
+        }
+    }
+
+    /* Validate in the CertificateGroup */
+    return cg->verifyCertificate(cg, &certificate);
+}
+
 /*********************************/
 /* Default attribute definitions */
 /*********************************/
