@@ -942,7 +942,7 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
     retval = checkParentReference(server, session, head, parentNodeId, referenceTypeId);
     if(retval != UA_STATUSCODE_GOOD) {
         logAddNode(server->config.logging, session, nodeId,
-                   "The parent reference for is invalid");
+                   "The parent reference is invalid");
         goto cleanup;
     }
 
@@ -1119,14 +1119,16 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
     /* Check the NamespaceIndex */
     if(item->requestedNewNodeId.nodeId.namespaceIndex >= server->namespacesSize) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
-                            "AddNode: Namespace invalid");
+                            "AddNode (%N): Namespace invalid",
+                            item->requestedNewNodeId.nodeId);
         return UA_STATUSCODE_BADNODEIDINVALID;
     }
 
     if(item->nodeAttributes.encoding != UA_EXTENSIONOBJECT_DECODED &&
        item->nodeAttributes.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
-                            "AddNode: Node attributes invalid");
+                            "AddNode (%N): Node attributes invalid",
+                            item->requestedNewNodeId.nodeId);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1134,7 +1136,7 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
     UA_Node *node = UA_NODESTORE_NEW(server, item->nodeClass);
     if(!node) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
-                            "AddNode: Node could not create a node "
+                            "AddNode: Could not create a node "
                             "in the nodestore");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -1159,22 +1161,25 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
         goto create_error;
 
     /* Create a current source timestamp for values that don't have any */
-    if(node->head.nodeClass == UA_NODECLASS_VARIABLE &&
-       node->variableNode.valueSourceType == UA_VALUESOURCETYPE_INTERNAL &&
-       !node->variableNode.valueSource.internal.value.hasSourceTimestamp) {
-        UA_EventLoop *el = server->config.eventLoop;
-        node->variableNode.valueSource.internal.value.sourceTimestamp = el->dateTime_now(el);
-        node->variableNode.valueSource.internal.value.hasSourceTimestamp = true;
+    if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
+        UA_VariableNode *vn = &node->variableNode;
+        if(vn->valueSourceType == UA_VALUESOURCETYPE_INTERNAL &&
+           !vn->valueSource.internal.value.hasSourceTimestamp) {
+            UA_EventLoop *el = server->config.eventLoop;
+            vn->valueSource.internal.value.sourceTimestamp = el->dateTime_now(el);
+            vn->valueSource.internal.value.hasSourceTimestamp = true;
+        }
     }
 
-    /* Add the node to the nodestore */
+    /* Add the node to the Nodestore */
     if(!outNewNodeId)
         outNewNodeId = &tmpOutId;
     retval = UA_NODESTORE_INSERT(server, node, outNewNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
-                            "AddNode: Node could not add the new node "
-                            "to the nodestore with error code %s",
+                            "AddNode (%N): Could not add the new node "
+                            "to the Nodestore with status %s",
+                            item->requestedNewNodeId.nodeId,
                             UA_StatusCode_name(retval));
         return retval;
     }
@@ -1186,8 +1191,9 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
 
 create_error:
     UA_LOG_INFO_SESSION(server->config.logging, session,
-                        "AddNode: Node could not create a node "
-                        "with error code %s", UA_StatusCode_name(retval));
+                        "AddNode (%N): Could not create node "
+                        "with status %s", node->head.nodeId,
+                        UA_StatusCode_name(retval));
     UA_NODESTORE_DELETE(server, node);
     return retval;
 }
