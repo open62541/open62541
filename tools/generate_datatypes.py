@@ -220,6 +220,8 @@ class CGenerator:
         xmlEncodingId = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.xmlEncodingId))
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
+        # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
+        isEnum = isinstance(datatype, EnumerationType)  and not datatype.isOptionSet
         return "{\n" + \
                "    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
                "    " + typeid + ", /* .typeId */\n" + \
@@ -229,64 +231,85 @@ class CGenerator:
                "    " + self.get_type_kind(datatype) + ", /* .typeKind */\n" + \
                "    " + pointerfree + ", /* .pointerFree */\n" + \
                "    " + self.get_type_overlayable(datatype) + ", /* .overlayable */\n" + \
-               "    " + str(len(datatype.members)) + ", /* .membersSize */\n" + \
+               "    " + str(len(datatype.elements) if isEnum else len(datatype.members)) + ", /* .membersSize */\n" + \
                "    %s_members" % idName + "  /* .members */\n" + \
                "}"
 
     @staticmethod
     def print_members(datatype):
         idName = makeCIdentifier(datatype.name)
-        if len(datatype.members) == 0:
+        # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
+        isEnum = isinstance(datatype, EnumerationType) and not datatype.isOptionSet
+        if (not isEnum and len(datatype.members) == 0) or (isEnum and len(datatype.elements) == 0):
             return "#define %s_members NULL" % (idName)
         isUnion = isinstance(datatype, StructType) and datatype.is_union
-        members = "static UA_DataTypeMember {}_members[{}] = {{".format(idName, len(datatype.members))
+        members = "static UA_DataTypeMember {}_members[{}] = {{".format(idName, len(datatype.elements) if isEnum else len(datatype.members))
         before = None
-        size = len(datatype.members)
-        for i, member in enumerate(datatype.members):
+        size = len(datatype.elements) if isEnum else len(datatype.members)
+        if isEnum:
+            # Print all enumerators as UA_DataTypeMember
+            for i, name in enumerate(datatype.elements):
+                m = "\n{\n"
+                m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % name
+                m += "    (const UA_DataType *){}, /* .memberType */\n".format(i)
+                m += "    0, /* .padding */\n"
+                m += "    false, /* .isArray */\n"
+                m += "    false /* .isOptional */\n}"
+                # Don't add a trailing comma for the last entry
+                if i != size - 1:
+                    m += ","
+                members += m
+        else:
+            # Print all structure fields as UA_DataTypeMember
+            for i, member in enumerate(datatype.members):
 
-            # Abfrage member_type
-            if not member.member_type.members and isinstance(member.member_type, StructType):
-                type_name = "ExtensionObject"
-            else:
-                type_name = member.member_type.name
+                # Build the type name for the current field
+                if not member.member_type.members and isinstance(member.member_type, StructType):
+                    type_name = "ExtensionObject"
+                else:
+                    type_name = member.member_type.name
 
-            if before:
-                if not before.member_type.members and isinstance(before.member_type, StructType):
-                    type_name_before = "ExtensionObject"
-                else:
-                    type_name_before = before.member_type.name
+                # Build the type name for the previous field (used to calculate padding)
+                if before:
+                    if not before.member_type.members and isinstance(before.member_type, StructType):
+                        type_name_before = "ExtensionObject"
+                    else:
+                        type_name_before = before.member_type.name
 
-            member_name = makeCIdentifier(member.name)
-            member_name_capital = member_name
-            if len(member_name) > 0:
-                member_name_capital = member_name[0].upper() + member_name[1:]
-            m = "\n{\n"
-            m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % member_name_capital
-            m += "    &UA_{}[UA_{}_{}], /* .memberType */\n".format(
-                member.member_type.outname.upper(), member.member_type.outname.upper(),
-                makeCIdentifier(type_name.upper()))
-            m += "    "
-            if not before and not isUnion:
-                m += "0,"
-            elif isUnion:
-                m += "offsetof(UA_{}, fields.{}),".format(idName, member_name)
-            else:
-                if member.is_array:
-                    m += "offsetof(UA_{}, {}Size)".format(idName, member_name)
+                # Build a valid identifier as member name with capital first letter
+                member_name = makeCIdentifier(member.name)
+                member_name_capital = member_name
+                if len(member_name) > 0:
+                    member_name_capital = member_name[0].upper() + member_name[1:]
+                m = "\n{\n"
+                m += "    UA_TYPENAME(\"%s\") /* .memberName */\n" % member_name_capital
+                m += "    &UA_{}[UA_{}_{}], /* .memberType */\n".format(
+                    member.member_type.outname.upper(), member.member_type.outname.upper(),
+                    makeCIdentifier(type_name.upper()))
+                m += "    "
+                # Print code to calculate type specific padding for the member
+                if not before and not isUnion:
+                    m += "0,"
+                elif isUnion:
+                    m += "offsetof(UA_{}, fields.{}),".format(idName, member_name)
                 else:
-                    m += "offsetof(UA_{}, {})".format(idName, member_name)
-                m += " - offsetof(UA_{}, {})".format(idName, makeCIdentifier(before.name))
-                if before.is_array or before.is_optional:
-                    m += " - sizeof(void *),"
-                else:
-                    m += " - sizeof(UA_%s)," % makeCIdentifier(type_name_before)
-            m += " /* .padding */\n"
-            m += ("    true" if member.is_array else "    false") + ", /* .isArray */\n"
-            m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n}"
-            if i != size:
-                m += ","
-            members += m
-            before = member
+                    if member.is_array:
+                        m += "offsetof(UA_{}, {}Size)".format(idName, member_name)
+                    else:
+                        m += "offsetof(UA_{}, {})".format(idName, member_name)
+                    m += " - offsetof(UA_{}, {})".format(idName, makeCIdentifier(before.name))
+                    if before.is_array or before.is_optional:
+                        m += " - sizeof(void *),"
+                    else:
+                        m += " - sizeof(UA_%s)," % makeCIdentifier(type_name_before)
+                m += " /* .padding */\n"
+                m += ("    true" if member.is_array else "    false") + ", /* .isArray */\n"
+                m += ("    true" if member.is_optional else "    false") + "  /* .isOptional */\n}"
+                # Don't add a trailing comma for the last entry
+                if i != size - 1:
+                    m += ","
+                members += m
+                before = member
         return members + "};"
 
     @staticmethod

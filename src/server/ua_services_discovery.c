@@ -302,36 +302,30 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 }
 #endif
 
+static UA_String basic256Sha256Uri = UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+
 /* Get an encrypted policy or NULL if no encrypted policy is defined */
 UA_SecurityPolicy *
-getDefaultEncryptedSecurityPolicy(UA_Server *server) {
-    /* Use Basic256Sha256 if available */
-    static const UA_String UA_SECURITY_POLICY_BASIC256SHA256_URI =
-        UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
-    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
-        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
-        if(UA_String_equal(&UA_SECURITY_POLICY_BASIC256SHA256_URI, &sp->policyUri))
-            return sp;
-    }
-    /* Search the best RSA policy */
+getDefaultEncryptedSecurityPolicy(UA_Server *server,
+                                  UA_SecurityPolicyType type) {
     UA_SecurityPolicy *best = NULL;
     UA_Byte securityLevel = 0;
+
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
-        UA_assert(sp != NULL);
+        if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
+            continue;
         if(sp->policyType == UA_SECURITYPOLICYTYPE_RSA &&
-           sp->securityLevel >= securityLevel) {
-            best = sp;
-            securityLevel = sp->securityLevel;
-        }
-    }
-    if(best)
-        return best;
-    /* Return the best encrypted policy or return NULL */
-    for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
-        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
-        if(sp->policyType != UA_SECURITYPOLICYTYPE_NONE &&
-           sp->securityLevel >= securityLevel) {
+           type == UA_SECURITYPOLICYTYPE_ECC)
+            continue;
+        if(sp->policyType == UA_SECURITYPOLICYTYPE_ECC &&
+           type == UA_SECURITYPOLICYTYPE_RSA)
+            continue;
+        /* Return early with Basic256Sha256 when available. "Secure enough" and
+         * most clients support it.*/
+        if(UA_String_equal(&basic256Sha256Uri, &sp->policyUri))
+            return sp;
+        if(sp->securityLevel >= securityLevel) {
             best = sp;
             securityLevel = sp->securityLevel;
         }
@@ -353,7 +347,9 @@ securityPolicyUriPostfix(const UA_String uri) {
 }
 
 static UA_StatusCode
-updateEndpointUserIdentityToken(UA_Server *server, UA_EndpointDescription *ed) {
+updateEndpointUserIdentityToken(UA_Server *server,
+                                UA_SecurityPolicyType policyType,
+                                UA_EndpointDescription *ed) {
     /* Don't modify the UserIdentityTokens if there are manually configured
      * entries */
     if(ed->userIdentityTokensSize > 0)
@@ -389,7 +385,8 @@ updateEndpointUserIdentityToken(UA_Server *server, UA_EndpointDescription *ed) {
         if(utp->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
            UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI) &&
            (!sc->allowNonePolicyPassword || utp->tokenType != UA_USERTOKENTYPE_USERNAME)) {
-            UA_SecurityPolicy *encSP = getDefaultEncryptedSecurityPolicy(server);
+            UA_SecurityPolicy *encSP =
+                getDefaultEncryptedSecurityPolicy(server, policyType);
             if(!encSP) {
                 /* No encrypted SecurityPolicy available */
                 UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_CLIENT,
@@ -483,16 +480,23 @@ setCurrentEndPointsArray(UA_Server *server, const UA_String endpointUrl,
              * SecurityPolicy. */
             UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
                                                            &ed->securityPolicyUri);
-            if(!sp || sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
-                sp = getDefaultEncryptedSecurityPolicy(server);
-            if(sp) {
-                UA_ByteString_clear(&ed->serverCertificate);
-                retval |= UA_ByteString_copy(&sp->localCertificate,
-                                             &ed->serverCertificate);
+            if(!sp) {
+                UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                             "GetEndpoints: Endpoint defines SecurityPolicy "
+                             "%S which is not available", ed->securityPolicyUri);
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto error;
             }
 
-            /* Set the User Identity Token list fromt the AccessControl plugin */
-            retval |= updateEndpointUserIdentityToken(server, ed);
+            /* Set the local certificate configured for the SecurityPolicy */
+            UA_ByteString_clear(&ed->serverCertificate);
+            retval |= UA_ByteString_copy(&sp->localCertificate,
+                                         &ed->serverCertificate);
+
+            /* Set the User Identity Token list from the AccessControl plugin.
+             * This also selects an appropriate SecurityPolicy for the
+             * AuthenticationToken. */
+            retval |= updateEndpointUserIdentityToken(server, sp->policyType, ed);
 
             /* Set the EndpointURL */
             UA_String_clear(&ed->endpointUrl);

@@ -11,6 +11,9 @@
 #ifndef UA_SECURECHANNEL_H_
 #define UA_SECURECHANNEL_H_
 
+struct UA_SecureChannel;
+typedef struct UA_SecureChannel UA_SecureChannel;
+
 #include <open62541/util.h>
 #include <open62541/types.h>
 #include <open62541/plugin/log.h>
@@ -22,9 +25,6 @@
 #include "util/ua_util_internal.h"
 
 _UA_BEGIN_DECLS
-
-struct UA_SecureChannel;
-typedef struct UA_SecureChannel UA_SecureChannel;
 
 /* Forward-Declaration so the SecureChannel can point to a singly-linked list of
  * Sessions. This is only used in the server, not in the client. */
@@ -159,7 +159,6 @@ struct UA_SecureChannel {
     UA_Boolean unprocessedCopied;
     UA_DelayedCallback unprocessedDelayed;
 
-    UA_CertificateGroup *certificateVerification;
     void *processOPNHeaderApplication;
     UA_StatusCode (*processOPNHeader)(void *application, UA_SecureChannel *channel,
                                       const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);

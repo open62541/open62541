@@ -57,8 +57,8 @@ typedef struct {
 /********************/
 
 typedef enum {
-    UA_GDSTRANSACIONSTATE_FRESH,
-    UA_GDSTRANSACIONSTATE_PENDING,
+    UA_GDSTRANSACTIONSTATE_FRESH,
+    UA_GDSTRANSACTIONSTATE_PENDING,
 } UA_GDSTransactionState;
 
 typedef struct {
@@ -283,6 +283,14 @@ ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
 /* SecureChannel Handling */
 /**************************/
 
+/* Session and channel can be NULL, only used for logging.
+ * Ad can be NULL, then the ApplicationUri is not checked. */
+UA_StatusCode
+validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
+                    UA_SecureChannel *channel, UA_Session *session,
+                    const UA_ApplicationDescription *ad,
+                    const UA_ByteString certificate);
+
 void
 serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                       void *application, void **connectionContext,
@@ -293,6 +301,12 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 UA_StatusCode
 sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
+
+/* Validate the remote certificate received in the OPN message and create the
+ * SecureChannel context. This is needed before OPN is decrypted. */
+UA_StatusCode
+processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
+                      const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 
 /* Gets the a pointer to the context of a security policy supported by the
  * server matched by the security policy uri. */
@@ -567,10 +581,11 @@ readObjectProperty(UA_Server *server, const UA_NodeId objectId,
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
 
-/* Returns a configured SecurityPolicy with encryption. Use Basic256Sha256 if
- * available. Otherwise use any encrypted SecurityPolicy. */
+/* Returns the "best" configured SecurityPolicy with encryption. The _NONE type
+ * is the wildcard for any SecurityPolicy. */
 UA_SecurityPolicy *
-getDefaultEncryptedSecurityPolicy(UA_Server *server);
+getDefaultEncryptedSecurityPolicy(UA_Server *server,
+                                  UA_SecurityPolicyType type);
 
 UA_StatusCode
 setCurrentEndPointsArray(UA_Server *server, const UA_String endpointURL,
