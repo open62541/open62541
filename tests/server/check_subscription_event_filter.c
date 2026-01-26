@@ -9,6 +9,7 @@
 #include <open62541/server_config_default.h>
 #include "server/ua_services.h"
 #include "server/ua_server_internal.h"
+#include "client/ua_client_internal.h"
 
 #include <open62541/client_config_default.h>
 #include <open62541/client_subscriptions.h>
@@ -760,6 +761,12 @@ START_TEST(modifySelectFilterSync) {
     ck_assert_int_eq(createResult.filterResult.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
     monitoredItemId = createResult.monitoredItemId;
 
+    UA_Client_Subscription *sub = findSubscriptionById(client, subscriptionId);
+    ck_assert(sub != NULL);
+    UA_Client_MonitoredItem *mon = findMonitoredItemById(sub, monitoredItemId);
+    ck_assert(mon != NULL);
+    UA_UInt32 oldClientHandle = mon->clientHandle;
+
     severityExpected = false;
     createTestEvent();
     checkForEvent(&createResult, true);
@@ -772,6 +779,10 @@ START_TEST(modifySelectFilterSync) {
     ck_assert_uint_eq(modifyResult.results->statusCode, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(modifyResult.results->filterResult.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
     UA_ModifyMonitoredItemsResponse_clear(&modifyResult);
+
+    /* Make sure the client handle was updated */
+    ck_assert_uint_ne(oldClientHandle, mon->clientHandle);
+    oldClientHandle = mon->clientHandle;
 
     /* Check if the event fields map in the client's local monitored item was updated with the new filter */
     severityExpected = true;
@@ -786,6 +797,7 @@ START_TEST(modifySelectFilterSync) {
     UA_ModifyMonitoredItemsResponse_clear(&modifyResult);
 
     /* Check if the client handle is unchanged and the notifications are still processed */
+    ck_assert_uint_eq(oldClientHandle, mon->clientHandle);
     severityExpected = true;
     createTestEvent();
     checkForEvent(&createResult, true);
@@ -822,6 +834,12 @@ START_TEST(modifySelectFilterAsync) {
     ck_assert_int_eq(createResult.filterResult.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
     monitoredItemId = createResult.monitoredItemId;
 
+    UA_Client_Subscription *sub = findSubscriptionById(client, subscriptionId);
+    ck_assert(sub != NULL);
+    UA_Client_MonitoredItem *mon = findMonitoredItemById(sub, monitoredItemId);
+    ck_assert(mon != NULL);
+    UA_UInt32 oldClientHandle = mon->clientHandle;
+
     severityExpected = false;
     createTestEvent();
     checkForEvent(&createResult, true);
@@ -831,6 +849,10 @@ START_TEST(modifySelectFilterAsync) {
     filter.selectClausesSize = 2;
     asyncMonitoredItemModificationErrorExpected = false;
     modifyMonitoredItemAsync(&filter, true);
+
+    /* Make sure the client handle was updated */
+    ck_assert_uint_ne(oldClientHandle, mon->clientHandle);
+    oldClientHandle = mon->clientHandle;
 
     /* Check if the event fields map in the client's local monitored item was updated with the new filter */
     severityExpected = true;
@@ -843,6 +865,7 @@ START_TEST(modifySelectFilterAsync) {
     modifyMonitoredItemAsync(&filter, true);
 
     /* Check if the client handle is unchanged and the notifications are still processed */
+    ck_assert_uint_eq(oldClientHandle, mon->clientHandle);
     severityExpected = true;
     createTestEvent();
     checkForEvent(&createResult, true);

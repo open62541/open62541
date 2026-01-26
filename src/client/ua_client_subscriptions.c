@@ -160,7 +160,7 @@ UA_Client_Subscriptions_create_async(UA_Client *client, const UA_CreateSubscript
     return res;
 }
 
-static UA_Client_Subscription *
+UA_Client_Subscription *
 findSubscriptionById(const UA_Client *client, UA_UInt32 subscriptionId) {
     UA_Client_Subscription *sub = NULL;
     LIST_FOREACH(sub, &client->subscriptions, listEntry) {
@@ -1045,7 +1045,7 @@ ua_MonitoredItem_findByID(void *data, UA_Client_MonitoredItem *mon) {
     return NULL;
 }
 
-static UA_Client_MonitoredItem *
+UA_Client_MonitoredItem *
 findMonitoredItemById(UA_Client_Subscription *sub, UA_UInt32 monitoredItemId) {
     return (UA_Client_MonitoredItem *)
     ZIP_ITER(MonitorItemsTree, &sub->monitoredItems,

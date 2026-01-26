@@ -249,6 +249,12 @@ Client_warnEndpointsResult(UA_Client *client,
                            const UA_GetEndpointsResponse *response,
                            const UA_String *endpointUrl);
 
+UA_Client_MonitoredItem *
+findMonitoredItemById(UA_Client_Subscription *sub, UA_UInt32 monitoredItemId);
+
+UA_Client_Subscription *
+findSubscriptionById(const UA_Client *client, UA_UInt32 subscriptionId);
+
 _UA_END_DECLS
 
 #endif /* UA_CLIENT_INTERNAL_H_ */
