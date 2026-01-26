@@ -348,6 +348,19 @@ editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
 /* Certificate Validation */
 /**************************/
 
+#ifdef UA_ENABLE_AUDITING
+static UA_THREAD_LOCAL UA_KeyValuePair validateCertificateAuditPayload[8] = {
+    {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+    {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+    {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+    {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+    {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+    {{0, UA_STRING_STATIC("/StatusCodeId")}, {0}},                /* 5 */
+    {{0, UA_STRING_STATIC("/Certificate")}, {0}},                 /* 6 */
+    {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 7 */
+};
+#endif
+
 UA_StatusCode
 validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                     UA_SecureChannel *channel, UA_Session *session,
@@ -380,13 +393,25 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                                  "ApplicationDescription", ad->applicationUri);
                 }
             }
-            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_ABORT)
-                return UA_STATUSCODE_BADCERTIFICATEINVALID;
+            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_ABORT) {
+                res = UA_STATUSCODE_BADCERTIFICATEINVALID;
+                goto errout;
+            }
         }
     }
 
     /* Validate in the CertificateGroup */
-    return cg->verifyCertificate(cg, &certificate);
+    res = cg->verifyCertificate(cg, &certificate);
+
+errout:
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_KeyValueMap payload = {8, validateCertificateAuditPayload};
+        auditCertificateEvent(server,
+                              UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE,
+                              channel, session, "", false, res,
+                              certificate, payload);
+    }
+    return res;
 }
 
 /************/
@@ -717,53 +742,6 @@ auditCertificateEvent_withMessage(UA_Server *server, UA_ApplicationNotificationT
 }
 
 #endif /* UA_ENABLE_AUDITING */
-
-/**************************/
-/* Certificate Validation */
-/**************************/
-
-UA_StatusCode
-validateCertificate(UA_Server *server, UA_CertificateGroup *cg, UA_SecureChannel *channel,
-                    UA_Session *session, const UA_ApplicationDescription *ad,
-                    UA_ByteString certificate) {
-    /* Verify the ApplicationUri */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(ad) {
-        res = UA_CertificateUtils_verifyApplicationUri(&certificate, &ad->applicationUri);
-        if(res != UA_STATUSCODE_GOOD) {
-            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_WARN) {
-                if(session) {
-                    UA_LOG_ERROR_SESSION(server->config.logging, session,
-                                         "The client certificate's ApplicationUri "
-                                         "could not be verified against the "
-                                         "ApplicationUri %S from the client's "
-                                         "ApplicationDescription (%s)",
-                                         ad->applicationUri, UA_StatusCode_name(res));
-                } else {
-                    UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                                         "The client certificate's ApplicationUri "
-                                         "could not be verified against the "
-                                         "ApplicationUri %S from the lient's "
-                                         "ApplicationDescription (%s)",
-                                         ad->applicationUri, UA_StatusCode_name(res));
-                }
-            }
-            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_ABORT)
-                goto errout;
-        }
-    }
-
-    /* Validate in the CertificateGroup */
-    res = cg->verifyCertificate(cg, &certificate);
-    if(res != UA_STATUSCODE_GOOD)
-        goto errout;
-
-    return UA_STATUSCODE_GOOD;
-
- errout:
-    /* TODO: Generate audit events */
-    return res;
-}
 
 /*********************************/
 /* Default attribute definitions */

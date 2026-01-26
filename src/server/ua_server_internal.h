@@ -294,14 +294,6 @@ ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
 /* SecureChannel Handling */
 /**************************/
 
-/* Session and channel can be NULL, only used for logging.
- * Ad can be NULL, then the ApplicationUri is not checked. */
-UA_StatusCode
-validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
-                    UA_SecureChannel *channel, UA_Session *session,
-                    const UA_ApplicationDescription *ad,
-                    const UA_ByteString certificate);
-
 void
 serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                       void *application, void **connectionContext,
