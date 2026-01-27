@@ -484,6 +484,15 @@ auditCertificateEvent_withMessage(UA_Server *server, UA_ApplicationNotificationT
                                   const char *serviceName, UA_Boolean status,
                                   UA_StatusCode statusCodeId, UA_ByteString certificate,
                                   UA_String message, const UA_KeyValueMap payload);
+
+/* In addition to auditEvent, the sixth entry of the payload-map must
+ * be /SourceName and the seventh node must be /NodesToDelete */
+void
+auditDeleteNodesEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                      UA_SecureChannel *channel, UA_Session *session,
+                      const char *serviceName, UA_Boolean status,
+                      size_t itemsSize, UA_DeleteNodesItem *items,
+                      const UA_KeyValueMap payload);
 #endif
 
 /* Validate the certificate using the CertificateGroup and generate the

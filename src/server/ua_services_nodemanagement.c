@@ -2220,6 +2220,13 @@ Service_DeleteNodes(UA_Server *server, UA_Session *session,
                                       &UA_TYPES[UA_TYPES_DELETENODESITEM],
                                       &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_STATUSCODE]);
+
+#ifdef UA_ENABLE_AUDITING
+    UA_Boolean done = (response->responseHeader.serviceResult == UA_STATUSCODE_GOOD);
+    auditDeleteNodesEvent(server, UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_DELETE,
+                          channel, session, "DeleteNodes", done,
+                          request->nodesToDeleteSize, request->nodesToDelete);
+#endif
     return true;
 }
 
