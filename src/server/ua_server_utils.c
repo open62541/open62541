@@ -434,6 +434,7 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
     }
 
 errout:
+#ifdef UA_ENABLE_AUDITING
     if(res != UA_STATUSCODE_GOOD) {
         UA_KeyValueMap payload = {8, validateCertificateAuditPayload};
         auditCertificateEvent(server,
@@ -441,6 +442,7 @@ errout:
                               channel, session, "", false, res,
                               certificate, payload);
     }
+#endif
     return res;
 }
 
@@ -769,6 +771,45 @@ auditCertificateEvent_withMessage(UA_Server *server, UA_ApplicationNotificationT
 
     auditCertificateEvent(server, type, channel, session, serviceName, status,
                           statusCodeId, certificate, payload);
+}
+
+static void
+auditNodeManagementEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                         UA_SecureChannel *channel, UA_Session *session,
+                         const char *serviceName, UA_Boolean status,
+                         const UA_KeyValueMap payload) {
+    /* /SourceName */
+    UA_Byte sourceNameBuf[128];
+    UA_String sourceName = {128, sourceNameBuf};
+    UA_String_format(&sourceName, "NodeManagement/%s", serviceName);
+    UA_Variant_setScalar(&payload.map[5].value, &sourceName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+
+    auditEvent(server, type, channel, session, serviceName, status, payload);
+}
+
+void
+auditDeleteNodesEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                      UA_SecureChannel *channel, UA_Session *session,
+                      const char *serviceName, UA_Boolean status,
+                      size_t itemsSize, UA_DeleteNodesItem *items) {
+    static UA_THREAD_LOCAL UA_KeyValuePair deleteNodesPayload[12] = {
+        {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+        {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+        {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+        {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+        {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+        {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 5 */
+        {{0, UA_STRING_STATIC("/NodesToDelete")}, {0}}                /* 6 */
+    };
+    UA_KeyValueMap payload = {7, deleteNodesPayload};
+
+    /* /NodesToDelete */
+    UA_Variant_setArray(&payload.map[6].value, items, itemsSize,
+                        &UA_TYPES[UA_TYPES_DELETENODESITEM]);
+
+    auditNodeManagementEvent(server, type, channel, session,
+                             serviceName, status, payload);
 }
 
 #endif /* UA_ENABLE_AUDITING */
