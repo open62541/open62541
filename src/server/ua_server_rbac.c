@@ -9,13 +9,6 @@
 
 #ifdef UA_ENABLE_RBAC
 
-#define UA_ENABLE_RBAC_INFORMATIONMODEL
-
-#ifdef UA_ENABLE_RBAC_INFORMATIONMODEL
-UA_StatusCode addRoleRepresentation(UA_Server *server, UA_Role *role);
-UA_StatusCode removeRoleRepresentation(UA_Server *server, const UA_NodeId *roleId);
-#endif
-
 struct ApplyToHierarchicalChildrenContext {
     UA_Server *server;
     const UA_ReferenceTypeSet *hierarchRefsSet;
@@ -497,6 +490,73 @@ initializeRolesFromConfig(UA_Server *server) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* Apply default role permissions (OPC UA Part 3, 18) */
+static UA_StatusCode
+applyDefaultRolePermissions(UA_Server *server) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    
+    if(server->config.allPermissionsForAnonymousRole) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                      "RBAC: allPermissionsForAnonymousRole is enabled. "
+                      "Anonymous users have full NS0 permissions.");
+        
+        /* Set DefaultRolePermissions for NS0 to grant Anonymous role all permissions */
+        UA_RolePermissionEntry defaultPerms[1];
+        defaultPerms[0].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+        defaultPerms[0].permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+                                     UA_PERMISSIONTYPE_WRITE | UA_PERMISSIONTYPE_WRITEATTRIBUTE |
+                                     UA_PERMISSIONTYPE_WRITEHISTORIZING | UA_PERMISSIONTYPE_CALL |
+                                     UA_PERMISSIONTYPE_READHISTORY | UA_PERMISSIONTYPE_INSERTHISTORY |
+                                     UA_PERMISSIONTYPE_MODIFYHISTORY | UA_PERMISSIONTYPE_DELETEHISTORY |
+                                     UA_PERMISSIONTYPE_RECEIVEEVENTS | UA_PERMISSIONTYPE_ADDREFERENCE |
+                                     UA_PERMISSIONTYPE_REMOVEREFERENCE | UA_PERMISSIONTYPE_DELETENODE |
+                                     UA_PERMISSIONTYPE_ADDNODE | UA_PERMISSIONTYPE_READROLEPERMISSIONS |
+                                     UA_PERMISSIONTYPE_WRITEROLEPERMISSIONS;
+        
+        res = UA_Server_setNamespaceDefaultRolePermissions(server, 0, 1, defaultPerms);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                        "RBAC: Failed to set default permissions for NS0: %s",
+                        UA_StatusCode_name(res));
+            return res;
+        }
+        return UA_STATUSCODE_GOOD;
+    }
+    
+    /* Restricted mode: Configure default permissions (OPC UA Part 18)
+     * Section 4.8.2 - Default RolePermissions for well-known roles:
+     * - Anonymous: BROWSE only (minimal access)
+     * - AuthenticatedUser: BROWSE | READ (basic authenticated access)
+     * - ConfigureAdmin: All permissions (full administrative access) */
+    UA_RolePermissionEntry defaultPerms[3];
+    defaultPerms[0].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+    defaultPerms[0].permissions = UA_PERMISSIONTYPE_BROWSE;
+    
+    defaultPerms[1].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+    defaultPerms[1].permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    
+    defaultPerms[2].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN);
+    defaultPerms[2].permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+                                  UA_PERMISSIONTYPE_WRITE | UA_PERMISSIONTYPE_WRITEATTRIBUTE |
+                                  UA_PERMISSIONTYPE_WRITEHISTORIZING | UA_PERMISSIONTYPE_CALL |
+                                  UA_PERMISSIONTYPE_READHISTORY | UA_PERMISSIONTYPE_INSERTHISTORY |
+                                  UA_PERMISSIONTYPE_MODIFYHISTORY | UA_PERMISSIONTYPE_DELETEHISTORY |
+                                  UA_PERMISSIONTYPE_RECEIVEEVENTS | UA_PERMISSIONTYPE_ADDREFERENCE |
+                                  UA_PERMISSIONTYPE_REMOVEREFERENCE | UA_PERMISSIONTYPE_DELETENODE |
+                                  UA_PERMISSIONTYPE_ADDNODE | UA_PERMISSIONTYPE_READROLEPERMISSIONS |
+                                  UA_PERMISSIONTYPE_WRITEROLEPERMISSIONS;
+    
+    res = UA_Server_setNamespaceDefaultRolePermissions(server, 0, 3, defaultPerms);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                    "RBAC: Failed to set default permissions for NS0: %s",
+                    UA_StatusCode_name(res));
+        return res;
+    }
+    
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_Role*
 findRoleById(UA_Server *server, const UA_NodeId *roleId) {
     for(size_t i = 0; i < server->rolesSize; i++) {
@@ -709,8 +769,8 @@ UA_Server_addRole(UA_Server *server, UA_String roleName,
     roleAdded = true;
 
 #ifdef UA_ENABLE_RBAC_INFORMATIONMODEL
-    /* Add NS0 representation only for custom roles (not well-known roles)
-     * Note: newRole->roleId is already set (either predefined or generated above) */
+    /* Add NS0 representation only for custom roles (not well-known roles).
+     * Well-known roles already exist in the OPC UA nodeset (NS0). */
     if(!isWellKnownRole(&newRole->roleId)) {
         res = addRoleRepresentation(server, newRole);
         if(res != UA_STATUSCODE_GOOD)
@@ -1151,29 +1211,67 @@ cleanup:
 
 UA_StatusCode
 UA_Server_initializeRBAC(UA_Server *server) {
-    return initializeRolesFromConfig(server);
+    UA_StatusCode res = initializeRolesFromConfig(server);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    
+    /* Initialize namespace metadata array (calloc zero-initializes) */
+    if(server->namespacesSize > 0) {
+        server->namespaceMetadata = (UA_NamespaceMetadata*)
+            UA_calloc(server->namespacesSize, sizeof(UA_NamespaceMetadata));
+        if(!server->namespaceMetadata)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        
+        server->namespaceMetadataSize = server->namespacesSize;
+    }
+    
+    res = applyDefaultRolePermissions(server);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    
+#ifdef UA_ENABLE_RBAC_INFORMATIONMODEL
+    /* Set up callbacks for DefaultRolePermissions properties in NS0 namespace objects */
+    for(size_t i = 0; i < server->namespacesSize; i++) {
+        res = UA_Server_setNamespaceDefaultPermissionsProperty(server, (UA_UInt16)i);
+    }
+#endif
+
+    return UA_STATUSCODE_GOOD;
 }
 
 void
 UA_Server_cleanupRBAC(UA_Server *server) {
-    if(!server->roles)
-        return;
-
+    if(server->roles) {
 #if UA_MULTITHREADING >= 100
-    UA_LOCK(&server->serviceMutex);
+        UA_LOCK(&server->serviceMutex);
 #endif
 
-    for(size_t i = 0; i < server->rolesSize; i++) {
-        UA_Role_clear(&server->roles[i]);
+        for(size_t i = 0; i < server->rolesSize; i++) {
+            UA_Role_clear(&server->roles[i]);
+        }
+        
+        UA_free(server->roles);
+        server->roles = NULL;
+        server->rolesSize = 0;
+
+#if UA_MULTITHREADING >= 100
+        UA_UNLOCK(&server->serviceMutex);
+#endif
     }
     
-    UA_free(server->roles);
-    server->roles = NULL;
-    server->rolesSize = 0;
-
-#if UA_MULTITHREADING >= 100
-    UA_UNLOCK(&server->serviceMutex);
-#endif
+    if(server->namespaceMetadata) {
+        for(size_t i = 0; i < server->namespaceMetadataSize; i++) {
+            if(server->namespaceMetadata[i].entries) {
+                for(size_t j = 0; j < server->namespaceMetadata[i].entriesSize; j++) {
+                    UA_NodeId_clear(&server->namespaceMetadata[i].entries[j].roleId);
+                }
+                UA_free(server->namespaceMetadata[i].entries);
+            }
+        }
+        UA_free(server->namespaceMetadata);
+        server->namespaceMetadata = NULL;
+        server->namespaceMetadataSize = 0;
+    }
 }
 
 /* RBAC Query Functions */
@@ -2242,31 +2340,50 @@ cleanup:
 }
 
 /* Helper function to compute effective permissions for a set of roles on a node.
- * Must be called with server mutex held. */
+ * 
+ * Per OPC UA Part 5: If node has no explicit RolePermissions, use 
+ * DefaultRolePermissions from the namespace's NamespaceMetadata. */
 static UA_PermissionType
 computeEffectivePermissions(UA_Server *server, const UA_Node *node,
                             size_t rolesSize, const UA_NodeId *roles) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     
-    /* If node has no permission configuration, return full permissions
-     * (default permissive behavior) */
-    if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID)
-        return 0xFFFFFFFF;
+    UA_PermissionIndex permIdx = node->head.permissionIndex;
+    const UA_RolePermissionEntry *entries = NULL;
+    size_t entriesSize = 0;
     
-    if(node->head.permissionIndex >= server->config.rolePermissionsSize)
-        return 0xFFFFFFFF;
+    /* If node has explicit permission configuration, use it */
+    if(permIdx != UA_PERMISSION_INDEX_INVALID) {
+        if(permIdx >= server->config.rolePermissionsSize) {
+            return 0;
+        }
+        
+        const UA_RolePermissions *rp = &server->config.rolePermissions[permIdx];
+        entries = rp->entries;
+        entriesSize = rp->entriesSize;
+    } else {
+        /* No explicit permissions, check namespace defaults */
+        UA_UInt16 nsIdx = node->head.nodeId.namespaceIndex;
+        if(nsIdx < server->namespaceMetadataSize && server->namespaceMetadata) {
+            entries = server->namespaceMetadata[nsIdx].entries;
+            entriesSize = server->namespaceMetadata[nsIdx].entriesSize;
+        }
+    }
     
-    const UA_RolePermissions *rp = &server->config.rolePermissions[node->head.permissionIndex];
-    if(!rp->entries || rp->entriesSize == 0)
-        return 0xFFFFFFFF;
+    /* If no permissions configured (neither explicit nor namespace defaults),
+     * deny access*/
+    if(!entries || entriesSize == 0)
+        return 0;
     
     /* Compute logical OR of permissions for all session roles */
     UA_PermissionType effectivePerms = 0;
     
     for(size_t i = 0; i < rolesSize; i++) {
-        for(size_t j = 0; j < rp->entriesSize; j++) {
-            if(UA_NodeId_equal(&roles[i], &rp->entries[j].roleId)) {
-                effectivePerms |= rp->entries[j].permissions;
+        /* Role NodeIds are always numeric in NS0 - fast comparison */
+        UA_UInt32 roleNumeric = roles[i].identifier.numeric;
+        for(size_t j = 0; j < entriesSize; j++) {
+            if(entries[j].roleId.identifier.numeric == roleNumeric) {
+                effectivePerms |= entries[j].permissions;
                 break;
             }
         }
@@ -2416,6 +2533,151 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
     *entries = result;
     
     UA_NODESTORE_RELEASE(server, node);
+
+cleanup:
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+    return res;
+}
+
+/* Namespace DefaultRolePermissions - Per OPC UA Part 5 */
+
+UA_StatusCode
+UA_Server_setNamespaceDefaultRolePermissions(UA_Server *server, 
+                                             UA_UInt16 namespaceIndex,
+                                             size_t entriesSize,
+                                             const UA_RolePermissionEntry *entries) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    
+    if(entriesSize > 0 && !entries)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    
+    if(namespaceIndex >= server->namespacesSize) {
+        res = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        goto cleanup;
+    }
+    
+    if(!server->namespaceMetadata) {
+        /* First time initialization (calloc zero-initializes) */
+        server->namespaceMetadata = (UA_NamespaceMetadata*)
+            UA_calloc(server->namespacesSize, sizeof(UA_NamespaceMetadata));
+        if(!server->namespaceMetadata) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+        server->namespaceMetadataSize = server->namespacesSize;
+    } else if(server->namespaceMetadataSize < server->namespacesSize) {
+        /* Resize: new namespaces were added after initial allocation */
+        UA_NamespaceMetadata *newMetadata = (UA_NamespaceMetadata*)
+            UA_realloc(server->namespaceMetadata, 
+                      server->namespacesSize * sizeof(UA_NamespaceMetadata));
+        if(!newMetadata) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+        server->namespaceMetadata = newMetadata;
+        
+        /* Initialize newly added entries */
+        memset(&server->namespaceMetadata[server->namespaceMetadataSize], 0,
+               (server->namespacesSize - server->namespaceMetadataSize) * sizeof(UA_NamespaceMetadata));
+        server->namespaceMetadataSize = server->namespacesSize;
+    }
+    
+    /* Clear old entries */
+    if(server->namespaceMetadata[namespaceIndex].entries) {
+        for(size_t i = 0; i < server->namespaceMetadata[namespaceIndex].entriesSize; i++) {
+            UA_NodeId_clear(&server->namespaceMetadata[namespaceIndex].entries[i].roleId);
+        }
+        UA_free(server->namespaceMetadata[namespaceIndex].entries);
+        server->namespaceMetadata[namespaceIndex].entries = NULL;
+        server->namespaceMetadata[namespaceIndex].entriesSize = 0;
+    }
+    
+    /* Set new entries if provided */
+    if(entriesSize > 0) {
+        server->namespaceMetadata[namespaceIndex].entries = (UA_RolePermissionEntry*)
+            UA_malloc(entriesSize * sizeof(UA_RolePermissionEntry));
+        if(!server->namespaceMetadata[namespaceIndex].entries) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+        
+        /* Copy entries */
+        for(size_t i = 0; i < entriesSize; i++) {
+            res = UA_NodeId_copy(&entries[i].roleId,
+                                &server->namespaceMetadata[namespaceIndex].entries[i].roleId);
+            if(res != UA_STATUSCODE_GOOD) {
+                /* Cleanup partial copy */
+                for(size_t j = 0; j < i; j++) {
+                    UA_NodeId_clear(&server->namespaceMetadata[namespaceIndex].entries[j].roleId);
+                }
+                UA_free(server->namespaceMetadata[namespaceIndex].entries);
+                server->namespaceMetadata[namespaceIndex].entries = NULL;
+                server->namespaceMetadata[namespaceIndex].entriesSize = 0;
+                goto cleanup;
+            }
+            server->namespaceMetadata[namespaceIndex].entries[i].permissions = entries[i].permissions;
+        }
+        server->namespaceMetadata[namespaceIndex].entriesSize = entriesSize;
+    }
+
+cleanup:
+#if UA_MULTITHREADING >= 100
+    UA_UNLOCK(&server->serviceMutex);
+#endif
+
+#ifdef UA_ENABLE_RBAC_INFORMATIONMODEL
+    if(res == UA_STATUSCODE_GOOD) {
+        /* Update NS0 property to reflect the change */
+        UA_StatusCode propRes = UA_Server_setNamespaceDefaultPermissionsProperty(server, namespaceIndex);
+        if(propRes != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                          "RBAC: Updated namespace %u metadata but could not update NS0 property, status: %s",
+                          namespaceIndex, UA_StatusCode_name(propRes));
+        }
+    }
+#endif
+
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getNamespaceDefaultRolePermissions(UA_Server *server,
+                                             UA_UInt16 namespaceIndex,
+                                             size_t *entriesSize,
+                                             const UA_RolePermissionEntry **entries) {
+    if(!server || !entriesSize || !entries)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK(&server->serviceMutex);
+#endif
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    
+    /* Validate namespace index */
+    if(namespaceIndex >= server->namespacesSize) {
+        res = UA_STATUSCODE_BADINDEXRANGEINVALID;
+        goto cleanup;
+    }
+    
+    /* Return the defaults (shallow copy) */
+    if(server->namespaceMetadata && namespaceIndex < server->namespaceMetadataSize) {
+        *entriesSize = server->namespaceMetadata[namespaceIndex].entriesSize;
+        *entries = server->namespaceMetadata[namespaceIndex].entries;
+    } else {
+        *entriesSize = 0;
+        *entries = NULL;
+    }
 
 cleanup:
 #if UA_MULTITHREADING >= 100

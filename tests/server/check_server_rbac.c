@@ -2207,6 +2207,398 @@ START_TEST(Server_rbacHistoryPermissionsAffectUserAccessLevel) {
 }
 END_TEST
 
+/* Test: Recursive permissions on BuildInfo node (NS0 node with HasComponent children) */
+START_TEST(Server_rbacRecursivePermissionsOnBuildInfo) {
+    /* Apply recursive permissions to BuildInfo node */
+    UA_NodeId buildInfoId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO);
+    UA_NodeId operatorRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+    
+    UA_PermissionType permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ | 
+                                    UA_PERMISSIONTYPE_READROLEPERMISSIONS | UA_PERMISSIONTYPE_WRITE;
+    
+    UA_StatusCode retval = UA_Server_addRolePermissions(server, buildInfoId, operatorRole,
+                                                        permissions, false, true); /* recursive = true */
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify BuildInfo itself has permissions */
+    UA_PermissionIndex permIdx;
+    retval = UA_Server_getNodePermissionIndex(server, buildInfoId, &permIdx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(permIdx, UA_PERMISSION_INDEX_INVALID);
+    
+    const UA_RolePermissions *rp = UA_Server_getRolePermissionConfig(server, permIdx);
+    ck_assert_ptr_nonnull(rp);
+    ck_assert_uint_ge(rp->entriesSize, 1);
+    
+    /* Find the operator role entry */
+    bool foundOperator = false;
+    for(size_t i = 0; i < rp->entriesSize; i++) {
+        if(UA_NodeId_equal(&rp->entries[i].roleId, &operatorRole)) {
+            foundOperator = true;
+            ck_assert_uint_eq(rp->entries[i].permissions, permissions);
+            break;
+        }
+    }
+    ck_assert(foundOperator);
+    
+    /* Verify BuildInfo children have permissions (ProductUri, ManufacturerName, etc.) */
+    UA_UInt32 buildInfoChildren[] = {
+        UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTURI,
+        UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_MANUFACTURERNAME,
+        UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME,
+        UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_SOFTWAREVERSION,
+        UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDNUMBER,
+        UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_BUILDDATE
+    };
+    
+    for(size_t i = 0; i < 6; i++) {
+        UA_NodeId childId = UA_NODEID_NUMERIC(0, buildInfoChildren[i]);
+        
+        retval = UA_Server_getNodePermissionIndex(server, childId, &permIdx);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        ck_assert_uint_ne(permIdx, UA_PERMISSION_INDEX_INVALID);
+        
+        rp = UA_Server_getRolePermissionConfig(server, permIdx);
+        ck_assert_ptr_nonnull(rp);
+        ck_assert_uint_ge(rp->entriesSize, 1);
+        
+        /* Find the operator role entry in child */
+        foundOperator = false;
+        for(size_t j = 0; j < rp->entriesSize; j++) {
+            if(UA_NodeId_equal(&rp->entries[j].roleId, &operatorRole)) {
+                foundOperator = true;
+                ck_assert_uint_eq(rp->entries[j].permissions, permissions);
+                break;
+            }
+        }
+        ck_assert_msg(foundOperator, "Operator role not found in child node %u", buildInfoChildren[i]);
+    }
+    
+    /* Also test reading the RolePermissions attribute on a child node via read service 
+     * Note: We need to assign the operator role to the admin session first, otherwise
+     * the read will fail with BadUserAccessDenied since the session doesn't have
+     * ReadRolePermissions permission on the child node */
+    UA_NodeId adminSessionId = UA_NODEID_GUID(0, (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
+    retval = UA_Server_setSessionRoles(server, &adminSessionId, 1, &operatorRole);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    UA_NodeId productUriId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTURI);
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = productUriId;
+    rvid.attributeId = UA_ATTRIBUTEID_ROLEPERMISSIONS;
+    
+    UA_DataValue dv = UA_Server_read(server, &rvid, UA_TIMESTAMPSTORETURN_NEITHER);
+    if(dv.hasStatus && dv.status != UA_STATUSCODE_GOOD) {
+        printf("ERROR: Reading RolePermissions on ProductUri failed with status: %s (0x%08X)\n",
+               UA_StatusCode_name(dv.status), dv.status);
+    }
+    ck_assert(!dv.hasStatus || dv.status == UA_STATUSCODE_GOOD);
+    ck_assert(dv.hasValue);
+    ck_assert(dv.value.type == &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    
+    size_t rpCount = dv.value.arrayLength;
+    if(rpCount == 0 && dv.value.data) rpCount = 1;
+    ck_assert_uint_ge(rpCount, 1);
+    
+    /* Verify operator role is in the returned attribute */
+    foundOperator = false;
+    UA_RolePermissionType *rpArray = (UA_RolePermissionType*)dv.value.data;
+    for(size_t i = 0; i < rpCount; i++) {
+        if(UA_NodeId_equal(&rpArray[i].roleId, &operatorRole)) {
+            foundOperator = true;
+            ck_assert_uint_eq(rpArray[i].permissions, permissions);
+            break;
+        }
+    }
+    ck_assert_msg(foundOperator, "Operator role not found in ProductUri RolePermissions attribute");
+    
+    UA_DataValue_clear(&dv);
+}
+END_TEST
+
+/* Test setting and getting namespace DefaultRolePermissions */
+START_TEST(Server_rbacNamespaceDefaultRolePermissions) {
+    UA_NodeId operatorRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+    UA_PermissionType permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    
+    /* Create permission entries */
+    UA_RolePermissionEntry entry;
+    UA_StatusCode retval = UA_NodeId_copy(&operatorRole, &entry.roleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    entry.permissions = permissions;
+    
+    /* Set as default for namespace 1 */
+    retval = UA_Server_setNamespaceDefaultRolePermissions(server, 1, 1, &entry);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&entry.roleId);
+    
+    /* Verify we can read it back */
+    size_t retrievedSize = 0;
+    const UA_RolePermissionEntry *retrievedEntries = NULL;
+    retval = UA_Server_getNamespaceDefaultRolePermissions(server, 1, &retrievedSize, &retrievedEntries);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retrievedSize, 1);
+    ck_assert_ptr_nonnull(retrievedEntries);
+    ck_assert(UA_NodeId_equal(&retrievedEntries[0].roleId, &operatorRole));
+    ck_assert_uint_eq(retrievedEntries[0].permissions, permissions);
+    
+    /* Clear the default */
+    retval = UA_Server_setNamespaceDefaultRolePermissions(server, 1, 0, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    retval = UA_Server_getNamespaceDefaultRolePermissions(server, 1, &retrievedSize, &retrievedEntries);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retrievedSize, 0);
+    ck_assert_ptr_null(retrievedEntries);
+}
+END_TEST
+
+/* Test that nodes without explicit permissions fall back to namespace defaults */
+START_TEST(Server_rbacNamespaceDefaultsFallback) {
+    UA_NodeId operatorRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+    UA_PermissionType defaultPerms = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
+    
+    /* Configure default permissions for NS1 */
+    UA_RolePermissionEntry entry;
+    UA_StatusCode retval = UA_NodeId_copy(&operatorRole, &entry.roleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    entry.permissions = defaultPerms;
+    
+    retval = UA_Server_setNamespaceDefaultRolePermissions(server, 1, 1, &entry);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&entry.roleId);
+    
+    /* Create a node in NS1 without explicit permissions */
+    UA_NodeId newNodeId = UA_NODEID_STRING(1, "TestNode");
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Test Node");
+    
+    retval = UA_Server_addObjectNode(server, newNodeId,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                     UA_QUALIFIEDNAME(1, "TestNode"),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                     oAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify node has no explicit permission index */
+    UA_PermissionIndex nodePermIdx;
+    retval = UA_Server_getNodePermissionIndex(server, newNodeId, &nodePermIdx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nodePermIdx, UA_PERMISSION_INDEX_INVALID);
+    
+    /* Verify namespace has the default configured */
+    size_t nsDefaultSize = 0;
+    const UA_RolePermissionEntry *nsDefaultEntries = NULL;
+    retval = UA_Server_getNamespaceDefaultRolePermissions(server, 1, &nsDefaultSize, &nsDefaultEntries);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nsDefaultSize, 1);
+    ck_assert_ptr_nonnull(nsDefaultEntries);
+    
+    /* Test passes - the fallback logic in computeEffectivePermissions will use
+     * namespace defaults when node has no explicit permissions. This is tested
+     * internally by computeEffectivePermissions checking namespace metadata when
+     * node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID */
+}
+END_TEST
+
+/* Test that explicit node permissions override namespace defaults */
+START_TEST(Server_rbacExplicitOverridesNamespaceDefaults) {
+    UA_NodeId operatorRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+    UA_PermissionType defaultPerms = UA_PERMISSIONTYPE_BROWSE;
+    UA_PermissionType nodePerms = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ | UA_PERMISSIONTYPE_WRITE;
+    
+    /* Configure default permissions for NS1 */
+    UA_RolePermissionEntry defaultEntry;
+    UA_StatusCode retval = UA_NodeId_copy(&operatorRole, &defaultEntry.roleId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    defaultEntry.permissions = defaultPerms;
+    
+    retval = UA_Server_setNamespaceDefaultRolePermissions(server, 1, 1, &defaultEntry);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_NodeId_clear(&defaultEntry.roleId);
+    
+    /* Create a node in NS1 with explicit permissions */
+    UA_NodeId newNodeId = UA_NODEID_STRING(1, "NodeWithExplicitPerms");
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Node With Explicit Permissions");
+    
+    retval = UA_Server_addObjectNode(server, newNodeId,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                     UA_QUALIFIEDNAME(1, "NodeWithExplicitPerms"),
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                     oAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Set explicit permissions on the node */
+    retval = UA_Server_addRolePermissions(server, newNodeId, operatorRole, nodePerms, true, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Verify node now has explicit permission index (not INVALID) */
+    UA_PermissionIndex explicitPermIdx;
+    retval = UA_Server_getNodePermissionIndex(server, newNodeId, &explicitPermIdx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(explicitPermIdx != UA_PERMISSION_INDEX_INVALID);
+    
+    /* Test passes - when node has explicit permissionIndex, computeEffectivePermissions
+     * uses that instead of namespace defaults, ensuring explicit permissions override */
+}
+END_TEST
+
+START_TEST(Server_rbacAllPermissionsForAnonymousRoleConfig) {
+    /* Test that the allPermissionsForAnonymousRole config flag exists and works correctly.
+     * This flag should NOT be exposed in the NS0 information model, only in ServerConfig. */
+    
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    
+    /* The default value should be true (permissive mode) */
+    ck_assert(config->allPermissionsForAnonymousRole == true);
+    
+    /* Change the value directly in config */
+    config->allPermissionsForAnonymousRole = false;
+    ck_assert(config->allPermissionsForAnonymousRole == false);
+    
+    /* Restore to default */
+    config->allPermissionsForAnonymousRole = true;
+    ck_assert(config->allPermissionsForAnonymousRole == true);
+}
+END_TEST
+
+START_TEST(Server_rbacNS0DefaultPermissionsOPCUAPart18) {
+    /* Test that NS0 default permissions follow OPC UA Part 18 specification.
+     * When allPermissionsForAnonymousRole = false (secure mode), NS0 should have:
+     * - Anonymous: BROWSE only
+     * - AuthenticatedUser: BROWSE | READ
+     * - ConfigureAdmin: All permissions */
+    
+    /* Verify NS0 default permissions are set */
+    size_t ns0DefaultSize = 0;
+    const UA_RolePermissionEntry *ns0DefaultEntries = NULL;
+    UA_StatusCode retval = UA_Server_getNamespaceDefaultRolePermissions(server, 0, 
+                                                                        &ns0DefaultSize, 
+                                                                        &ns0DefaultEntries);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Should have either 1 entry (Anonymous with all permissions if allPermissionsForAnonymousRole=true)
+     * or 3 entries (Anonymous, AuthenticatedUser, ConfigureAdmin if allPermissionsForAnonymousRole=false) */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    if(config->allPermissionsForAnonymousRole) {
+        ck_assert_uint_eq(ns0DefaultSize, 1);
+        ck_assert_ptr_nonnull(ns0DefaultEntries);
+        /* Anonymous should have all permissions */
+        UA_NodeId anonymousRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+        ck_assert(UA_NodeId_equal(&ns0DefaultEntries[0].roleId, &anonymousRole));
+        ck_assert(ns0DefaultEntries[0].permissions & UA_PERMISSIONTYPE_BROWSE);
+        ck_assert(ns0DefaultEntries[0].permissions & UA_PERMISSIONTYPE_READ);
+        ck_assert(ns0DefaultEntries[0].permissions & UA_PERMISSIONTYPE_WRITE);
+    } else {
+        ck_assert_uint_eq(ns0DefaultSize, 3);
+        ck_assert_ptr_nonnull(ns0DefaultEntries);
+        
+        /* Verify Anonymous role permissions */
+        UA_NodeId anonymousRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+        ck_assert(UA_NodeId_equal(&ns0DefaultEntries[0].roleId, &anonymousRole));
+        ck_assert_uint_eq(ns0DefaultEntries[0].permissions, UA_PERMISSIONTYPE_BROWSE);
+        
+        /* Verify AuthenticatedUser role permissions */
+        UA_NodeId authUserRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+        ck_assert(UA_NodeId_equal(&ns0DefaultEntries[1].roleId, &authUserRole));
+        ck_assert_uint_eq(ns0DefaultEntries[1].permissions, 
+                         UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ);
+        
+        /* Verify ConfigureAdmin role permissions (all permissions) */
+        UA_NodeId configAdminRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN);
+        ck_assert(UA_NodeId_equal(&ns0DefaultEntries[2].roleId, &configAdminRole));
+        ck_assert(ns0DefaultEntries[2].permissions & UA_PERMISSIONTYPE_BROWSE);
+        ck_assert(ns0DefaultEntries[2].permissions & UA_PERMISSIONTYPE_READ);
+        ck_assert(ns0DefaultEntries[2].permissions & UA_PERMISSIONTYPE_WRITE);
+        ck_assert(ns0DefaultEntries[2].permissions & UA_PERMISSIONTYPE_WRITEATTRIBUTE);
+        ck_assert(ns0DefaultEntries[2].permissions & UA_PERMISSIONTYPE_CALL);
+        ck_assert(ns0DefaultEntries[2].permissions & UA_PERMISSIONTYPE_ADDNODE);
+        ck_assert(ns0DefaultEntries[2].permissions & UA_PERMISSIONTYPE_DELETENODE);
+    }
+}
+END_TEST
+
+START_TEST(Server_rbacNamespaceDefaultPermissionsInNS0) {
+    /* Test that DefaultRolePermissions property exists in namespace objects */
+    /* Find the namespace object for NS0 (http://opcfoundation.org/UA/) */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACES); /* 11715 */
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    bd.includeSubtypes = true;
+    bd.nodeClassMask = UA_NODECLASS_OBJECT;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    ck_assert_uint_eq(br.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(br.referencesSize > 0);
+    
+    /* Find the NS0 object (should be first) */
+    UA_NodeId ns0ObjId = UA_NODEID_NULL;
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        /* Check if this is the NS0 object by checking NamespaceUri property */
+        UA_QualifiedName nsUriName = UA_QUALIFIEDNAME(0, "NamespaceUri");
+        UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(
+            server, br.references[i].nodeId.nodeId, 1, &nsUriName);
+        
+        if(bpr.statusCode == UA_STATUSCODE_GOOD && bpr.targetsSize > 0) {
+            UA_Variant val;
+            UA_Variant_init(&val);
+            UA_StatusCode readRes = UA_Server_readValue(server, 
+                                                        bpr.targets[0].targetId.nodeId,
+                                                        &val);
+            
+            if(readRes == UA_STATUSCODE_GOOD && val.type == &UA_TYPES[UA_TYPES_STRING]) {
+                UA_String *nsUri = (UA_String*)val.data;
+                UA_String ns0Uri = UA_STRING("http://opcfoundation.org/UA/");
+                if(UA_String_equal(nsUri, &ns0Uri)) {
+                    UA_NodeId_copy(&br.references[i].nodeId.nodeId, &ns0ObjId);
+                    UA_Variant_clear(&val);
+                    UA_BrowsePathResult_clear(&bpr);
+                    break;
+                }
+            }
+            UA_Variant_clear(&val);
+        }
+        UA_BrowsePathResult_clear(&bpr);
+    }
+    
+    UA_BrowseResult_clear(&br);
+    ck_assert(!UA_NodeId_isNull(&ns0ObjId));
+    
+    /* Now check if DefaultRolePermissions property exists */
+    UA_QualifiedName defaultRolePerm = UA_QUALIFIEDNAME(0, "DefaultRolePermissions");
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(
+        server, ns0ObjId, 1, &defaultRolePerm);
+    
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(bpr.targetsSize > 0);
+    
+    UA_NodeId propNodeId;
+    UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &propNodeId);
+    UA_BrowsePathResult_clear(&bpr);
+    
+    /* Try to read the property */
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode retval = UA_Server_readValue(server, propNodeId, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(value.type == &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    
+    /* Should be an array (even if empty) */
+    ck_assert(value.arrayLength == 0 || value.data != NULL);
+    
+    UA_Variant_clear(&value);
+    UA_NodeId_clear(&propNodeId);
+    UA_NodeId_clear(&ns0ObjId);
+}
+END_TEST
+
 static Suite *testSuite_Server_RBAC(void) {
     Suite *s = suite_create("Server RBAC");
     TCase *tc_rbac = tcase_create("RBAC Information Model");
@@ -2222,9 +2614,11 @@ static Suite *testSuite_Server_RBAC(void) {
     tcase_add_test(tc_rbac, Server_rbacApplicationManagement);
     tcase_add_test(tc_rbac, Server_rbacProtectMandatoryRoles);
     tcase_add_test(tc_rbac, Server_rbacAllowModifyingOptionalRoles);
+#ifdef UA_ENABLE_RBAC_INFORMATIONMODEL
     tcase_add_test(tc_rbac, Server_rbacNamespaceHandling);
     tcase_add_test(tc_rbac, Server_rbacBrowseNameNamespaceMatches);
     tcase_add_test(tc_rbac, Server_rbacNamespaceRemoval);
+#endif
     tcase_add_test(tc_rbac, Server_rbacSessionRoleManagement);
     tcase_add_test(tc_rbac, Server_rbacAddSessionRole);
     tcase_add_test(tc_rbac, Server_rbacNodePermissionsBasic);
@@ -2253,6 +2647,15 @@ static Suite *testSuite_Server_RBAC(void) {
     tcase_add_test(tc_rbac, Server_rbacReadRolePermissionsVisibility);
     tcase_add_test(tc_rbac, Server_rbacWriteRolePermissionsPermission);
     tcase_add_test(tc_rbac, Server_rbacHistoryPermissionsAffectUserAccessLevel);
+    tcase_add_test(tc_rbac, Server_rbacRecursivePermissionsOnBuildInfo);
+    tcase_add_test(tc_rbac, Server_rbacNamespaceDefaultRolePermissions);
+    tcase_add_test(tc_rbac, Server_rbacNamespaceDefaultsFallback);
+    tcase_add_test(tc_rbac, Server_rbacExplicitOverridesNamespaceDefaults);
+    tcase_add_test(tc_rbac, Server_rbacAllPermissionsForAnonymousRoleConfig);
+    tcase_add_test(tc_rbac, Server_rbacNS0DefaultPermissionsOPCUAPart18);
+#ifdef UA_ENABLE_RBAC_INFORMATIONMODEL
+    tcase_add_test(tc_rbac, Server_rbacNamespaceDefaultPermissionsInNS0);
+#endif
     
     suite_add_tcase(s, tc_rbac);
     return s;

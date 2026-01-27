@@ -16,9 +16,6 @@
 
 #ifdef UA_ENABLE_RBAC
 
-/* Use the same flag for information model */
-#define UA_ENABLE_RBAC_INFORMATIONMODEL
-
 /* OPC UA Part 18 Role-Based Access Control Implementation
  * 
  * Reference: OPC 10000-18: UA Part 18: Role-Based Security
@@ -29,8 +26,6 @@
  * - DataSource callbacks for role properties (Identities, Applications, Endpoints)
  * - Method callbacks for role management operations
  */
-
-UA_StatusCode initNS0RBAC(UA_Server *server);
 
 #ifdef UA_ENABLE_RBAC_INFORMATIONMODEL
 
@@ -261,60 +256,31 @@ addRoleMethodCallback(UA_Server *server,
                       const UA_NodeId *inputType, void *inputContext,
                       size_t inputSize, const UA_Variant *input,
                       size_t outputSize, UA_Variant *output) {
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "AddRole method called");
-    
-    if(inputSize != 2) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddRole: Expected 2 input parameters, got %zu", inputSize);
+    if(inputSize != 2 ||
+       input[0].type != &UA_TYPES[UA_TYPES_STRING] ||
+       input[1].type != &UA_TYPES[UA_TYPES_STRING])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-    
-    if(input[0].type != &UA_TYPES[UA_TYPES_STRING] ||
-       input[1].type != &UA_TYPES[UA_TYPES_STRING]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddRole: Invalid parameter types");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
     
     UA_String *roleName = (UA_String*)input[0].data;
     UA_String *namespaceUri = (UA_String*)input[1].data;
     
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "AddRole: RoleName=%.*s, NamespaceUri=%.*s",
-                (int)roleName->length, roleName->data,
-                (int)namespaceUri->length, namespaceUri->data);
-    
     UA_Role role;
     UA_Role_init(&role);
     role.customConfiguration = true;
-    
     UA_QualifiedName_init(&role.roleName);
     UA_String_copy(roleName, &role.roleName.name);
     
     UA_NodeId newRoleId = UA_NODEID_NULL;
     UA_StatusCode retval = UA_Server_addRole(server, *roleName, *namespaceUri, &role, &newRoleId);
-    
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddRole: Failed to add role, status: %s", UA_StatusCode_name(retval));
-        UA_Role_clear(&role);
-        return retval;
-    }
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "AddRole: Successfully added role with NodeId: %s",
-                UA_NodeId_print(&newRoleId, NULL));
-    
-    /* Set output parameter with the new role NodeId */
-    if(outputSize >= 1) {
-        UA_Variant_setScalarCopy(&output[0], &newRoleId, &UA_TYPES[UA_TYPES_NODEID]);
-    }
-    
     UA_Role_clear(&role);
-    UA_NodeId_clear(&newRoleId);
     
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    
+    if(outputSize >= 1)
+        UA_Variant_setScalarCopy(&output[0], &newRoleId, &UA_TYPES[UA_TYPES_NODEID]);
+    
+    UA_NodeId_clear(&newRoleId);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -325,41 +291,10 @@ removeRoleMethodCallback(UA_Server *server,
                          const UA_NodeId *inputType, void *inputContext,
                          size_t inputSize, const UA_Variant *input,
                          size_t outputSize, UA_Variant *output) {
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "RemoveRole method called");
-    
-    if(inputSize != 1) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveRole: Expected 1 input parameter, got %zu", inputSize);
+    if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_NODEID])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
     
-    if(input[0].type != &UA_TYPES[UA_TYPES_NODEID]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveRole: Invalid parameter type, expected NodeId");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-    
-    UA_NodeId *roleId = (UA_NodeId*)input[0].data;
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "RemoveRole: RoleId=%s",
-                UA_NodeId_print(roleId, NULL));
-    
-    UA_StatusCode retval = UA_Server_removeRole(server, *roleId);
-    
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveRole: Failed to remove role, status: %s", UA_StatusCode_name(retval));
-        return retval;
-    }
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "RemoveRole: Successfully removed role with NodeId: %s",
-                UA_NodeId_print(roleId, NULL));
-    
-    return UA_STATUSCODE_GOOD;
+    return UA_Server_removeRole(server, *(UA_NodeId*)input[0].data);
 }
 
 static UA_StatusCode
@@ -369,49 +304,16 @@ addIdentityMethodCallback(UA_Server *server,
                          const UA_NodeId *inputType, void *inputContext,
                          size_t inputSize, const UA_Variant *input,
                          size_t outputSize, UA_Variant *output) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "AddIdentity method called");
-    
-    if(inputSize != 1) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddIdentity: Expected 1 input parameter, got %zu", inputSize);
+    if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-    
-    if(input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddIdentity: Invalid parameter type, expected IdentityMappingRuleType");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
     
     UA_ExtensionObject *extObj = (UA_ExtensionObject*)input[0].data;
-    
     if(!extObj->content.decoded.data || 
-       extObj->content.decoded.type != &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddIdentity: Invalid IdentityMappingRuleType data");
+       extObj->content.decoded.type != &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
     
     UA_IdentityMappingRuleType *rule = (UA_IdentityMappingRuleType*)extObj->content.decoded.data;
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "AddIdentity: Rule CriteriaType=%u, Criteria=%.*s",
-                rule->criteriaType, (int)rule->criteria.length, rule->criteria.data);
-    
-    UA_StatusCode retval = UA_Server_addRoleIdentity(server, *objectId, 
-                                                       rule->criteriaType, rule->criteria);
-    
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddIdentity: Failed to add identity, status: %s", UA_StatusCode_name(retval));
-        return retval;
-    }
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "AddIdentity: Successfully added identity criteria");
-    
-    return UA_STATUSCODE_GOOD;
+    return UA_Server_addRoleIdentity(server, *objectId, rule->criteriaType, rule->criteria);
 }
 
 static UA_StatusCode
@@ -421,48 +323,16 @@ removeIdentityMethodCallback(UA_Server *server,
                             const UA_NodeId *inputType, void *inputContext,
                             size_t inputSize, const UA_Variant *input,
                             size_t outputSize, UA_Variant *output) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "RemoveIdentity method called");
-    
-    if(inputSize != 1) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveIdentity: Expected 1 input parameter, got %zu", inputSize);
+    if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-    
-    if(input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveIdentity: Invalid parameter type, expected IdentityMappingRuleType");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
     
     UA_ExtensionObject *extObj = (UA_ExtensionObject*)input[0].data;
-    
     if(!extObj->content.decoded.data || 
-       extObj->content.decoded.type != &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveIdentity: Invalid IdentityMappingRuleType data");
+       extObj->content.decoded.type != &UA_TYPES[UA_TYPES_IDENTITYMAPPINGRULETYPE])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
     
     UA_IdentityMappingRuleType *rule = (UA_IdentityMappingRuleType*)extObj->content.decoded.data;
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "RemoveIdentity: Rule CriteriaType=%u, Criteria=%.*s",
-                rule->criteriaType, (int)rule->criteria.length, rule->criteria.data);
-    
-    UA_StatusCode retval = UA_Server_removeRoleIdentity(server, *objectId, rule->criteriaType);
-    
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveIdentity: Failed to remove identity, status: %s", UA_StatusCode_name(retval));
-        return retval;
-    }
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "RemoveIdentity: Successfully removed identity criteria");
-    
-    return UA_STATUSCODE_GOOD;
+    return UA_Server_removeRoleIdentity(server, *objectId, rule->criteriaType);
 }
 
 static UA_StatusCode
@@ -472,39 +342,10 @@ addApplicationMethodCallback(UA_Server *server,
                             const UA_NodeId *inputType, void *inputContext,
                             size_t inputSize, const UA_Variant *input,
                             size_t outputSize, UA_Variant *output) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "AddApplication method called");
-    
-    if(inputSize != 1) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddApplication: Expected 1 input parameter, got %zu", inputSize);
+    if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_STRING])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
     
-    if(input[0].type != &UA_TYPES[UA_TYPES_STRING]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddApplication: Invalid parameter type, expected String");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-    
-    UA_String *applicationUri = (UA_String*)input[0].data;
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "AddApplication: ApplicationUri=%.*s",
-                (int)applicationUri->length, applicationUri->data);
-    
-    UA_StatusCode retval = UA_Server_addRoleApplication(server, *objectId, *applicationUri);
-    
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddApplication: Failed to add application, status: %s", UA_StatusCode_name(retval));
-        return retval;
-    }
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "AddApplication: Successfully added application");
-    
-    return UA_STATUSCODE_GOOD;
+    return UA_Server_addRoleApplication(server, *objectId, *(UA_String*)input[0].data);
 }
 
 static UA_StatusCode
@@ -514,39 +355,10 @@ removeApplicationMethodCallback(UA_Server *server,
                                const UA_NodeId *inputType, void *inputContext,
                                size_t inputSize, const UA_Variant *input,
                                size_t outputSize, UA_Variant *output) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "RemoveApplication method called");
-    
-    if(inputSize != 1) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveApplication: Expected 1 input parameter, got %zu", inputSize);
+    if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_STRING])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
     
-    if(input[0].type != &UA_TYPES[UA_TYPES_STRING]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveApplication: Invalid parameter type, expected String");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-    
-    UA_String *applicationUri = (UA_String*)input[0].data;
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "RemoveApplication: ApplicationUri=%.*s",
-                (int)applicationUri->length, applicationUri->data);
-    
-    UA_StatusCode retval = UA_Server_removeRoleApplication(server, *objectId, *applicationUri);
-    
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveApplication: Failed to remove application, status: %s", UA_StatusCode_name(retval));
-        return retval;
-    }
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "RemoveApplication: Successfully removed application");
-    
-    return UA_STATUSCODE_GOOD;
+    return UA_Server_removeRoleApplication(server, *objectId, *(UA_String*)input[0].data);
 }
 
 static UA_StatusCode
@@ -556,48 +368,15 @@ addEndpointMethodCallback(UA_Server *server,
                          const UA_NodeId *inputType, void *inputContext,
                          size_t inputSize, const UA_Variant *input,
                          size_t outputSize, UA_Variant *output) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "AddEndpoint method called");
-    
-    if(inputSize != 1) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddEndpoint: Expected 1 input parameter, got %zu", inputSize);
+    if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-    
-    if(input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddEndpoint: Invalid parameter type, expected EndpointType");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
     
     UA_ExtensionObject *extObj = (UA_ExtensionObject*)input[0].data;
-    
     if(!extObj->content.decoded.data || 
-       extObj->content.decoded.type != &UA_TYPES[UA_TYPES_ENDPOINTTYPE]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddEndpoint: Invalid EndpointType data");
+       extObj->content.decoded.type != &UA_TYPES[UA_TYPES_ENDPOINTTYPE])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
     
-    UA_EndpointType *endpoint = (UA_EndpointType*)extObj->content.decoded.data;
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "AddEndpoint: EndpointUrl=%.*s",
-                (int)endpoint->endpointUrl.length, endpoint->endpointUrl.data);
-    
-    UA_StatusCode retval = UA_Server_addRoleEndpoint(server, *objectId, *endpoint);
-    
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "AddEndpoint: Failed to add endpoint, status: %s", UA_StatusCode_name(retval));
-        return retval;
-    }
-    
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "AddEndpoint: Successfully added endpoint");
-    
-    return UA_STATUSCODE_GOOD;
+    return UA_Server_addRoleEndpoint(server, *objectId, *(UA_EndpointType*)extObj->content.decoded.data);
 }
 
 static UA_StatusCode
@@ -607,48 +386,204 @@ removeEndpointMethodCallback(UA_Server *server,
                             const UA_NodeId *inputType, void *inputContext,
                             size_t inputSize, const UA_Variant *input,
                             size_t outputSize, UA_Variant *output) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "RemoveEndpoint method called");
-    
-    if(inputSize != 1) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveEndpoint: Expected 1 input parameter, got %zu", inputSize);
+    if(inputSize != 1 || input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-    
-    if(input[0].type != &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveEndpoint: Invalid parameter type, expected EndpointType");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
     
     UA_ExtensionObject *extObj = (UA_ExtensionObject*)input[0].data;
-    
     if(!extObj->content.decoded.data || 
-       extObj->content.decoded.type != &UA_TYPES[UA_TYPES_ENDPOINTTYPE]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveEndpoint: Invalid EndpointType data");
+       extObj->content.decoded.type != &UA_TYPES[UA_TYPES_ENDPOINTTYPE])
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+    
+    return UA_Server_removeRoleEndpoint(server, *objectId, *(UA_EndpointType*)extObj->content.decoded.data);
+}
+
+/* Namespace DefaultRolePermissions Property Callback */
+
+static UA_StatusCode
+readNamespaceDefaultPermissions(UA_Server *server,
+                               const UA_NodeId *sessionId, void *sessionContext,
+                               const UA_NodeId *nodeId, void *nodeContext,
+                               UA_Boolean includeSourceTimeStamp,
+                               const UA_NumericRange *range,
+                               UA_DataValue *value) {
+    /* Navigate to parent namespace object (inverse HasProperty reference) */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *nodeId;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
+    bd.referenceTypeId = UA_NS0ID(HASPROPERTY);
+    bd.includeSubtypes = false;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    if(br.statusCode != UA_STATUSCODE_GOOD || br.referencesSize == 0) {
+        UA_BrowseResult_clear(&br);
+        UA_Variant_setArray(&value->value, NULL, 0,
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        value->hasValue = true;
+        return UA_STATUSCODE_GOOD;
     }
     
-    UA_EndpointType *endpoint = (UA_EndpointType*)extObj->content.decoded.data;
+    UA_NodeId namespaceObjId = br.references[0].nodeId.nodeId;
+    UA_BrowseResult_clear(&br);
     
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "RemoveEndpoint: EndpointUrl=%.*s",
-                (int)endpoint->endpointUrl.length, endpoint->endpointUrl.data);
+    /* Find NamespaceUri property from the namespace object */
+    UA_QualifiedName namespaceUriName = UA_QUALIFIEDNAME(0, "NamespaceUri");
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(
+        server, namespaceObjId, 1, &namespaceUriName);
     
-    UA_StatusCode retval = UA_Server_removeRoleEndpoint(server, *objectId, *endpoint);
-    
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "RemoveEndpoint: Failed to remove endpoint, status: %s", UA_StatusCode_name(retval));
-        return retval;
+    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize == 0) {
+        UA_BrowsePathResult_clear(&bpr);
+        UA_Variant_setArray(&value->value, NULL, 0,
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        value->hasValue = true;
+        return UA_STATUSCODE_GOOD;
     }
     
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "RemoveEndpoint: Successfully removed endpoint");
+    UA_Variant nsUriVar;
+    UA_Variant_init(&nsUriVar);
+    UA_StatusCode res = UA_Server_readValue(server, bpr.targets[0].targetId.nodeId, &nsUriVar);
+    UA_BrowsePathResult_clear(&bpr);
     
+    if(res != UA_STATUSCODE_GOOD || nsUriVar.type != &UA_TYPES[UA_TYPES_STRING]) {
+        UA_Variant_clear(&nsUriVar);
+        UA_Variant_setArray(&value->value, NULL, 0,
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        value->hasValue = true;
+        return UA_STATUSCODE_GOOD;
+    }
+    
+    UA_String *nsUri = (UA_String*)nsUriVar.data;
+    size_t nsIdx = 0;
+    UA_StatusCode findRes = UA_Server_getNamespaceByName(server, *nsUri, &nsIdx);
+    UA_Variant_clear(&nsUriVar);
+    
+    if(findRes != UA_STATUSCODE_GOOD || !server->namespaceMetadata || 
+       nsIdx >= server->namespaceMetadataSize) {
+        UA_Variant_setArray(&value->value, NULL, 0,
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        value->hasValue = true;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Get the entries directly from namespace metadata */
+    size_t entriesSize = server->namespaceMetadata[nsIdx].entriesSize;
+    const UA_RolePermissionEntry *entries = server->namespaceMetadata[nsIdx].entries;
+
+    if(!entries || entriesSize == 0) {
+        UA_Variant_setArray(&value->value, NULL, 0, 
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        value->hasValue = true;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Convert to RolePermissionType array */
+    UA_RolePermissionType *perms = (UA_RolePermissionType*)
+        UA_Array_new(entriesSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    if(!perms)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    for(size_t i = 0; i < entriesSize; i++) {
+        UA_RolePermissionType_init(&perms[i]);
+        UA_NodeId_copy(&entries[i].roleId, &perms[i].roleId);
+        perms[i].permissions = entries[i].permissions;
+    }
+
+    UA_Variant_setArray(&value->value, perms, entriesSize,
+                       &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    value->hasValue = true;
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setNamespaceDefaultPermissionsProperty(UA_Server *server,
+                                                 UA_UInt16 namespaceIndex) {
+    if(!server || namespaceIndex >= server->namespacesSize)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    /* Find the namespace object under Server.Namespaces (NodeId 11715).
+     * Only namespaces with NamespaceMetadataType objects will have the
+     * DefaultRolePermissions property defined by the spec. */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = UA_NS0ID(SERVER_NAMESPACES); /* 11715 */
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.referenceTypeId = UA_NS0ID(HASCOMPONENT);
+    bd.includeSubtypes = true;
+    bd.nodeClassMask = UA_NODECLASS_OBJECT;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    if(br.statusCode != UA_STATUSCODE_GOOD) {
+        UA_BrowseResult_clear(&br);
+        return br.statusCode;
+    }
+
+    /* Find the namespace object by checking NamespaceUri property */
+    UA_NodeId namespaceObjId = UA_NODEID_NULL;
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        /* Read the NamespaceUri property of this object */
+        UA_QualifiedName namespaceUriName = UA_QUALIFIEDNAME(0, "NamespaceUri");
+        UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(
+            server, br.references[i].nodeId.nodeId, 1, &namespaceUriName);
+        
+        if(bpr.statusCode == UA_STATUSCODE_GOOD && bpr.targetsSize > 0) {
+            UA_Variant val;
+            UA_Variant_init(&val);
+            UA_StatusCode readRes = UA_Server_readValue(server, 
+                                                        bpr.targets[0].targetId.nodeId,
+                                                        &val);
+            
+            if(readRes == UA_STATUSCODE_GOOD && val.type == &UA_TYPES[UA_TYPES_STRING]) {
+                UA_String *nsUri = (UA_String*)val.data;
+                if(UA_String_equal(nsUri, &server->namespaces[namespaceIndex])) {
+                    UA_NodeId_copy(&br.references[i].nodeId.nodeId, &namespaceObjId);
+                    UA_Variant_clear(&val);
+                    UA_BrowsePathResult_clear(&bpr);
+                    break;
+                }
+            }
+            UA_Variant_clear(&val);
+        }
+        UA_BrowsePathResult_clear(&bpr);
+    }
+    
+    UA_BrowseResult_clear(&br);
+
+    if(UA_NodeId_isNull(&namespaceObjId))
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    /* Find the DefaultRolePermissions property (defined by NamespaceMetadataType) */
+    UA_QualifiedName defaultRolePerm = UA_QUALIFIEDNAME(0, "DefaultRolePermissions");
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(
+        server, namespaceObjId, 1, &defaultRolePerm);
+    
+    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize == 0) {
+        UA_NodeId_clear(&namespaceObjId);
+        UA_BrowsePathResult_clear(&bpr);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    
+    UA_NodeId propNodeId;
+    UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &propNodeId);
+    UA_BrowsePathResult_clear(&bpr);
+
+    /* Set up the data source */
+    UA_CallbackValueSource dataSource;
+    dataSource.read = readNamespaceDefaultPermissions;
+    dataSource.write = NULL;
+    
+    UA_StatusCode res = UA_Server_setVariableNode_callbackValueSource(
+        server, propNodeId, dataSource);
+    
+    UA_NodeId_clear(&namespaceObjId);
+    UA_NodeId_clear(&propNodeId);
+    
+    return res;
+#else
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
 }
 
 UA_StatusCode

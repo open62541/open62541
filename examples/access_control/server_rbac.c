@@ -33,11 +33,24 @@ int main(void) {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
     UA_StatusCode retval = UA_ServerConfig_setDefault(&config);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
-                     "Failed to set default config: %s", UA_StatusCode_name(retval));
-        return EXIT_FAILURE;
-    }
+    
+    /* Configure RBAC mode: allPermissionsForAnonymousRole
+     * This controls the default role permissions applied to namespace 0 (NS0) per OPC UA Part 18.
+     * 
+     * If FALSE (recommended for production):
+     *   - Anonymous role: BROWSE only
+     *   - AuthenticatedUser role: BROWSE | READ
+     *   - ConfigureAdmin role: All permissions (BROWSE, READ, WRITE, CALL, etc.)
+     * 
+     * If TRUE (INSECURE - for testing/development only):
+     *   - Anonymous role: All permissions
+     * 
+     * These defaults apply to all nodes in NS0 that don't have explicit RolePermissions.
+     * Change this to 'true' for testing without authentication. */
+    config.allPermissionsForAnonymousRole = false;
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                "RBAC Mode: allPermissionsForAnonymousRole = %s",
+                config.allPermissionsForAnonymousRole ? "true (INSECURE)" : "false (secure)");
     
     /* Configure users for authentication */
     UA_UsernamePasswordLogin logins[3] = {
@@ -56,7 +69,7 @@ int main(void) {
     }
     
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
-                "Configured users: admin, operator, guest (and anonymous)");
+                "Configured users: admin, operator, guest and anonymous");
 
     /* Step 2: Create a custom role via ServerConfig with UserName identity mapping
      * This role will be automatically assigned to users named "admin" */
@@ -137,16 +150,45 @@ int main(void) {
     UA_UInt32 permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
                             UA_PERMISSIONTYPE_READROLEPERMISSIONS;
     
+    /* Add permissions for OperatorRole on ServerStatus */
     retval = UA_Server_addRolePermissions(server, serverStatusId, operatorRoleId, 
                                           permissions, false, false);
     if(retval == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
                     "Added BROWSE|READ|READROLEPERMISSIONS permissions for OperatorRole on ServerStatus");
     }
+    
+    /* Step 5: Configure permissions on BuildInfo node with recursive flag */
+    UA_NodeId buildInfoId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO);
+    UA_UInt32 buildInfoPermissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+                                     UA_PERMISSIONTYPE_READROLEPERMISSIONS | 
+                                     UA_PERMISSIONTYPE_WRITE;
+    
+    /* Add permissions for OperatorRole on BuildInfo and all its children (recursive) */
+    retval = UA_Server_addRolePermissions(server, buildInfoId, operatorRoleId, 
+                                          buildInfoPermissions, false, true);
+    if(retval == UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                    "Added BROWSE|READ|READROLEPERMISSIONS|WRITE permissions for OperatorRole on BuildInfo (recursive)");
+    } else {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Failed to add recursive permissions for OperatorRole on BuildInfo: %s",
+                     UA_StatusCode_name(retval));
+    }
+    
+    /* Verify one child node has permissions set (recursive example) */
+    UA_NodeId productUriId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTURI);
+    UA_PermissionIndex permIdx;
+    retval = UA_Server_getNodePermissionIndex(server, productUriId, &permIdx);
+    if(retval == UA_STATUSCODE_GOOD && permIdx != UA_PERMISSION_INDEX_INVALID) {
+        const UA_RolePermissions *rp = UA_Server_getRolePermissionConfig(server, permIdx);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                    "BuildInfo.ProductUri has %zu role permission entries (via recursive flag)",
+                    rp ? rp->entriesSize : 0);
+    }
 
     /* Print all available roles */
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "=== Available Roles ===");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n=== Available Roles ===");
     size_t allRolesSize = 0;
     UA_NodeId *allRoleIds = NULL;
     retval = UA_Server_getRoles(server, &allRolesSize, &allRoleIds);
@@ -186,24 +228,17 @@ int main(void) {
         UA_Array_delete(allRoleIds, allRolesSize, &UA_TYPES[UA_TYPES_NODEID]);
     }
     
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "=== Role Assignment ===");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
-                "When clients connect, roles are automatically assigned based on:");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
-                "  - Anonymous login -> Anonymous role + any role with AuthenticatedUser criteria");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
-                "  - user 'admin'    -> AdminRole + any role with AuthenticatedUser criteria");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
-                "  - user 'operator' -> OperatorRole + any role with AuthenticatedUser criteria");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                "\n=== Role Assignment ===\n"
+                "When clients connect, roles are automatically assigned based on:\n"
+                "  - Anonymous login -> Anonymous role + any role with AuthenticatedUser criteria\n"
+                "  - user 'admin'    -> AdminRole + any role with AuthenticatedUser criteria\n"
+                "  - user 'operator' -> OperatorRole + any role with AuthenticatedUser criteria\n"
                 "  - user 'guest'    -> Only roles with AuthenticatedUser criteria");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "");
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Server is running...");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
-                "Connect with: opc.tcp://localhost:4840");
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, 
+                "\nServer is running...\n"
+                "Connect with: opc.tcp://localhost:4840\n"
                 "Try users: admin/admin123, operator/operator123, guest/guest123");
 
     /* Run the server until interrupted */

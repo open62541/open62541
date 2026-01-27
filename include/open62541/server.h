@@ -2151,6 +2151,15 @@ struct UA_ServerConfig {
      * UA_PERMISSION_INDEX_INVALID in a node means use default behavior. */
     size_t rolePermissionsSize;
     UA_RolePermissions *rolePermissions;
+    
+    /* RBAC Default Configuration: Allow full access for anonymous users.
+     * If true, anonymous users have full permissions (INSECURE - for testing only).
+     * If false (recommended), default NS0 permissions per OPC UA Part 18:
+     *   - Anonymous: BROWSE only
+     *   - AuthenticatedUser: BROWSE | READ
+     *   - ConfigureAdmin: All permissions (requires identity mapping configuration
+     *     to assign this role to specific users/certificates) */
+    UA_Boolean allPermissionsForAnonymousRole;
 #endif
     UA_AccessControl accessControl;
 
@@ -2580,6 +2589,61 @@ UA_Server_setNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
                                  UA_PermissionIndex *permissionIndex);
+
+/**
+ * Namespace DefaultRolePermissions
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Per OPC UA Part 5: NamespaceMetadataType defines DefaultRolePermissions
+ * which apply to all nodes in a namespace when no explicit RolePermissions
+ * are set on the node. */
+
+/* Set default role permissions for a namespace.
+ * 
+ * Configures the DefaultRolePermissions for a namespace per OPC UA Part 5.
+ * These permissions apply to all nodes in the namespace that don't have
+ * explicit RolePermissions set. The permissions are stored directly in the
+ * namespace metadata.
+ * 
+ * @param server The server instance
+ * @param namespaceIndex Index of the namespace (0 for NS0, 1 for NS1, etc.)
+ * @param entriesSize Number of role-permission entries (0 to clear defaults)
+ * @param entries Array of UA_RolePermissionEntry defining default permissions
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setNamespaceDefaultRolePermissions(UA_Server *server, 
+                                             UA_UInt16 namespaceIndex,
+                                             size_t entriesSize,
+                                             const UA_RolePermissionEntry *entries);
+
+/* Get default role permissions for a namespace.
+ * 
+ * Retrieves the DefaultRolePermissions for a namespace.
+ * Returns a shallow copy (do not free). Returns NULL if no defaults configured.
+ * 
+ * @param server The server instance
+ * @param namespaceIndex Index of the namespace
+ * @param entriesSize Output parameter for the number of entries
+ * @param entries Output parameter for the entries array (shallow copy)
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getNamespaceDefaultRolePermissions(UA_Server *server,
+                                             UA_UInt16 namespaceIndex,
+                                             size_t *entriesSize,
+                                             const UA_RolePermissionEntry **entries);
+
+/* Update the DefaultRolePermissions property in NS0 for a namespace.
+ * 
+ * This populates the DefaultRolePermissions property on the namespace object
+ * under Server.Namespaces (NodeId 11715) to reflect the configured default
+ * permissions for the namespace. Only works when UA_GENERATED_NAMESPACE_ZERO
+ * is enabled.
+ * 
+ * @param server The server instance
+ * @param namespaceIndex The index of the namespace to update
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setNamespaceDefaultPermissionsProperty(UA_Server *server,
+                                                 UA_UInt16 namespaceIndex);
 
 /* Compute effective permissions for a session on a node.
  * 

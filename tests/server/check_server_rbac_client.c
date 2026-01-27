@@ -48,6 +48,7 @@ static void setup(void) {
 
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     sc->allowNonePolicyPassword = true;
+    sc->allPermissionsForAnonymousRole = false;  /* For testing, use restricted mode */
 
     /* Configure AccessControl with usernames */
     UA_SecurityPolicy *sp = &sc->securityPolicies[sc->securityPoliciesSize-1];
@@ -72,6 +73,15 @@ static void setup(void) {
                                     UA_PERMISSIONTYPE_READROLEPERMISSIONS;
     retval = UA_Server_addRolePermissions(server, serverStatusId, operatorRoleId, 
                                           permissions, false, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Add recursive permissions on BuildInfo node and its children */
+    UA_NodeId buildInfoId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO);
+    UA_PermissionType buildInfoPermissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ |
+                                              UA_PERMISSIONTYPE_READROLEPERMISSIONS |
+                                              UA_PERMISSIONTYPE_WRITE;
+    retval = UA_Server_addRolePermissions(server, buildInfoId, operatorRoleId,
+                                          buildInfoPermissions, false, true); /* recursive = true */
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     
     /* Verify role was created with identity mapping */
@@ -173,11 +183,105 @@ START_TEST(Client_login_assigns_roles) {
 }
 END_TEST
 
+/* Test that recursive permissions on BuildInfo apply to all children */
+START_TEST(Client_buildinfo_recursive_permissions) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    
+    /* Connect with username "operator" */
+    UA_StatusCode retval = UA_Client_connectUsername(client, 
+                                                      "opc.tcp://localhost:4840", 
+                                                      "operator", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Read BuildInfo and its children's RolePermissions and UserRolePermissions */
+    UA_UInt32 buildInfoNodes[] = {
+        UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO,
+        UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTURI,
+        UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_MANUFACTURERNAME,
+        UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTNAME
+    };
+    
+    size_t nodeCount = 4;
+    UA_ReadValueId *rvid = (UA_ReadValueId*)UA_Array_new(nodeCount * 2, &UA_TYPES[UA_TYPES_READVALUEID]);
+    
+    for(size_t i = 0; i < nodeCount; i++) {
+        /* RolePermissions */
+        rvid[i*2].nodeId = UA_NODEID_NUMERIC(0, buildInfoNodes[i]);
+        rvid[i*2].attributeId = UA_ATTRIBUTEID_ROLEPERMISSIONS;
+        
+        /* UserRolePermissions */
+        rvid[i*2+1].nodeId = UA_NODEID_NUMERIC(0, buildInfoNodes[i]);
+        rvid[i*2+1].attributeId = UA_ATTRIBUTEID_USERROLEPERMISSIONS;
+    }
+    
+    UA_ReadRequest req;
+    UA_ReadRequest_init(&req);
+    req.nodesToRead = rvid;
+    req.nodesToReadSize = nodeCount * 2;
+    
+    UA_ReadResponse resp = UA_Client_Service_read(client, req);
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(resp.resultsSize, nodeCount * 2);
+    
+    const char *nodeNames[] = {"BuildInfo", "ProductUri", "ManufacturerName", "ProductName"};
+    
+    for(size_t i = 0; i < nodeCount; i++) {
+        printf("=== %s (i=%u) ===\n", nodeNames[i], buildInfoNodes[i]);
+        
+        /* Check RolePermissions */
+        printf("  RolePermissions: ");
+        if(resp.results[i*2].status == UA_STATUSCODE_GOOD && resp.results[i*2].hasValue) {
+            size_t rpCount = resp.results[i*2].value.arrayLength;
+            if(rpCount == 0 && resp.results[i*2].value.data) rpCount = 1;
+            printf("%zu entries\n", rpCount);
+            
+            UA_RolePermissionType *rp = (UA_RolePermissionType*)resp.results[i*2].value.data;
+            for(size_t j = 0; j < rpCount; j++) {
+                printf("    [%zu] roleId=ns=%u;i=%u, permissions=0x%08x\n",
+                       j, rp[j].roleId.namespaceIndex, rp[j].roleId.identifier.numeric,
+                       rp[j].permissions);
+            }
+            ck_assert_uint_ge(rpCount, 1);
+        } else {
+            printf("Failed - %s\n", UA_StatusCode_name(resp.results[i*2].status));
+            ck_assert_uint_eq(resp.results[i*2].status, UA_STATUSCODE_GOOD);
+        }
+        
+        /* Check UserRolePermissions */
+        printf("  UserRolePermissions: ");
+        if(resp.results[i*2+1].status == UA_STATUSCODE_GOOD && resp.results[i*2+1].hasValue) {
+            size_t urpCount = resp.results[i*2+1].value.arrayLength;
+            if(urpCount == 0 && resp.results[i*2+1].value.data) urpCount = 1;
+            printf("%zu entries\n", urpCount);
+            
+            UA_RolePermissionType *urp = (UA_RolePermissionType*)resp.results[i*2+1].value.data;
+            for(size_t j = 0; j < urpCount; j++) {
+                printf("    [%zu] roleId=ns=%u;i=%u, permissions=0x%08x\n",
+                       j, urp[j].roleId.namespaceIndex, urp[j].roleId.identifier.numeric,
+                       urp[j].permissions);
+            }
+            ck_assert_uint_ge(urpCount, 1);
+        } else {
+            printf("Failed - %s\n", UA_StatusCode_name(resp.results[i*2+1].status));
+            ck_assert_uint_eq(resp.results[i*2+1].status, UA_STATUSCODE_GOOD);
+        }
+        
+        printf("\n");
+    }
+    
+    UA_Array_delete(rvid, nodeCount * 2, &UA_TYPES[UA_TYPES_READVALUEID]);
+    UA_ReadResponse_clear(&resp);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite *testSuite_Server_RBAC_Client(void) {
     Suite *s = suite_create("Server RBAC Client Integration");
     TCase *tc = tcase_create("Client Login and Role Assignment");
     tcase_add_unchecked_fixture(tc, setup, teardown);
     tcase_add_test(tc, Client_login_assigns_roles);
+    tcase_add_test(tc, Client_buildinfo_recursive_permissions);
     suite_add_tcase(s, tc);
     return s;
 }

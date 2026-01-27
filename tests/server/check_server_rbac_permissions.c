@@ -221,11 +221,12 @@ START_TEST(Server_getEffectivePermissions_NoPermissionsOnNode) {
     /* Get the admin session ID */
     UA_NodeId adminSessionId = UA_NODEID_GUID(0, (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
     
-    /* Get effective permissions - node has no permissions, should return all perms (0xFFFFFFFF) */
-    UA_UInt32 effectivePerms = 0;
+    /* Get effective permissions - node has no permissions and NS1 has no defaults, 
+     * should return 0 (deny access for security - fail-safe behavior) */
+    UA_UInt32 effectivePerms = 0xFFFFFFFF;  /* Set to non-zero to verify it gets cleared */
     retval = UA_Server_getEffectivePermissions(server, &adminSessionId, &testNodeId, &effectivePerms);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(effectivePerms, 0xFFFFFFFF);  /* All permissions when no RolePermissions defined */
+    ck_assert_uint_eq(effectivePerms, 0);  /* No permissions when no RolePermissions defined (secure default) */
     
     /* Clean up */
     UA_Server_deleteNode(server, testNodeId, true);
