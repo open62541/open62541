@@ -34,6 +34,9 @@ int main(void) {
     memset(&config, 0, sizeof(UA_ServerConfig));
     UA_StatusCode retval = UA_ServerConfig_setDefault(&config);
     
+    /* Allow username/password authentication over unencrypted connection (for demo) */
+    config.allowNonePolicyPassword = true;
+    
     /* Configure RBAC mode: allPermissionsForAnonymousRole
      * This controls the default role permissions applied to namespace 0 (NS0) per OPC UA Part 18.
      * 

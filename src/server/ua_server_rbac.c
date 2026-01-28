@@ -1232,7 +1232,11 @@ UA_Server_initializeRBAC(UA_Server *server) {
 #ifdef UA_ENABLE_RBAC_INFORMATIONMODEL
     /* Set up callbacks for DefaultRolePermissions properties in NS0 namespace objects */
     for(size_t i = 0; i < server->namespacesSize; i++) {
-        res = UA_Server_setNamespaceDefaultPermissionsProperty(server, (UA_UInt16)i);
+        UA_StatusCode propRes = UA_Server_setNamespaceDefaultPermissionsProperty(server, (UA_UInt16)i);
+        /* Ignore BADNOTFOUND - not all namespaces have namespace objects in NS0 */
+        if(propRes != UA_STATUSCODE_GOOD && propRes != UA_STATUSCODE_BADNOTFOUND) {
+            res = propRes;
+        }
     }
 #endif
 

@@ -406,60 +406,18 @@ readNamespaceDefaultPermissions(UA_Server *server,
                                UA_Boolean includeSourceTimeStamp,
                                const UA_NumericRange *range,
                                UA_DataValue *value) {
-    /* Navigate to parent namespace object (inverse HasProperty reference) */
-    UA_BrowseDescription bd;
-    UA_BrowseDescription_init(&bd);
-    bd.nodeId = *nodeId;
-    bd.resultMask = UA_BROWSERESULTMASK_ALL;
-    bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
-    bd.referenceTypeId = UA_NS0ID(HASPROPERTY);
-    bd.includeSubtypes = false;
-
-    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
-    if(br.statusCode != UA_STATUSCODE_GOOD || br.referencesSize == 0) {
-        UA_BrowseResult_clear(&br);
+    /* The namespace index is stored in the node context */
+    if(!nodeContext) {
         UA_Variant_setArray(&value->value, NULL, 0,
                            &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
         value->hasValue = true;
         return UA_STATUSCODE_GOOD;
     }
     
-    UA_NodeId namespaceObjId = br.references[0].nodeId.nodeId;
-    UA_BrowseResult_clear(&br);
+    UA_UInt16 nsIdx = *(UA_UInt16*)nodeContext;
     
-    /* Find NamespaceUri property from the namespace object */
-    UA_QualifiedName namespaceUriName = UA_QUALIFIEDNAME(0, "NamespaceUri");
-    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(
-        server, namespaceObjId, 1, &namespaceUriName);
-    
-    if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize == 0) {
-        UA_BrowsePathResult_clear(&bpr);
-        UA_Variant_setArray(&value->value, NULL, 0,
-                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-        value->hasValue = true;
-        return UA_STATUSCODE_GOOD;
-    }
-    
-    UA_Variant nsUriVar;
-    UA_Variant_init(&nsUriVar);
-    UA_StatusCode res = UA_Server_readValue(server, bpr.targets[0].targetId.nodeId, &nsUriVar);
-    UA_BrowsePathResult_clear(&bpr);
-    
-    if(res != UA_STATUSCODE_GOOD || nsUriVar.type != &UA_TYPES[UA_TYPES_STRING]) {
-        UA_Variant_clear(&nsUriVar);
-        UA_Variant_setArray(&value->value, NULL, 0,
-                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-        value->hasValue = true;
-        return UA_STATUSCODE_GOOD;
-    }
-    
-    UA_String *nsUri = (UA_String*)nsUriVar.data;
-    size_t nsIdx = 0;
-    UA_StatusCode findRes = UA_Server_getNamespaceByName(server, *nsUri, &nsIdx);
-    UA_Variant_clear(&nsUriVar);
-    
-    if(findRes != UA_STATUSCODE_GOOD || !server->namespaceMetadata || 
-       nsIdx >= server->namespaceMetadataSize) {
+    /* Validate namespace index */
+    if(!server->namespaceMetadata || nsIdx >= server->namespaceMetadataSize) {
         UA_Variant_setArray(&value->value, NULL, 0,
                            &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
         value->hasValue = true;
@@ -569,12 +527,29 @@ UA_Server_setNamespaceDefaultPermissionsProperty(UA_Server *server,
     UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, &propNodeId);
     UA_BrowsePathResult_clear(&bpr);
 
+    /* Store namespace index in node context to avoid recursion */
+    UA_UInt16 *nsContext = (UA_UInt16*)UA_malloc(sizeof(UA_UInt16));
+    if(!nsContext) {
+        UA_NodeId_clear(&namespaceObjId);
+        UA_NodeId_clear(&propNodeId);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    *nsContext = namespaceIndex;
+    
+    UA_StatusCode res = UA_Server_setNodeContext(server, propNodeId, nsContext);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(nsContext);
+        UA_NodeId_clear(&namespaceObjId);
+        UA_NodeId_clear(&propNodeId);
+        return res;
+    }
+
     /* Set up the data source */
     UA_CallbackValueSource dataSource;
     dataSource.read = readNamespaceDefaultPermissions;
     dataSource.write = NULL;
     
-    UA_StatusCode res = UA_Server_setVariableNode_callbackValueSource(
+    res = UA_Server_setVariableNode_callbackValueSource(
         server, propNodeId, dataSource);
     
     UA_NodeId_clear(&namespaceObjId);

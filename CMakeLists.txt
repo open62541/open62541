@@ -897,7 +897,7 @@ if(UA_ENABLE_RBAC)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.c)
     
     # Enable information model by default with RBAC (required for OPC UA compliance)
-    if(NOT DEFINED UA_ENABLE_RBAC_INFORMATIONMODEL OR UA_ENABLE_RBAC_INFORMATIONMODEL)
+    if(NOT UA_ENABLE_RBAC_INFORMATIONMODEL MATCHES "OFF")
         set(UA_ENABLE_RBAC_INFORMATIONMODEL ON CACHE BOOL "Enable RBAC information model representation in NS0" FORCE)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_rbac.c)
     endif()
