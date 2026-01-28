@@ -930,6 +930,18 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
         return;
     }
 
+    /* Extract DataSetOrdering from messageSettings */
+    UA_DataSetOrderingType dataSetOrdering = UA_DATASETORDERINGTYPE_UNDEFINED;
+    if(wg->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED ||
+       wg->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) {
+        if(wg->config.messageSettings.content.decoded.type ==
+           &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]) {
+            UA_UadpWriterGroupMessageDataType *wgm =
+                (UA_UadpWriterGroupMessageDataType *)wg->config.messageSettings.content.decoded.data;
+            dataSetOrdering = wgm->dataSetOrdering;
+        }
+    }
+
     /* How many DSM can be sent in one NM? */
     UA_Byte maxDSM = (UA_Byte)wg->config.maxEncapsulatedDataSetMessageCount;
     if(wg->config.maxEncapsulatedDataSetMessageCount > UA_BYTE_MAX)
@@ -937,23 +949,55 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     if(maxDSM == 0)
         maxDSM = 1; /* Send at least one dsm */
 
+    /* For AscendingWriterIdSingle, only one DataSetMessage per NetworkMessage */
+    if(dataSetOrdering == UA_DATASETORDERINGTYPE_ASCENDINGWRITERIDSINGLE)
+        maxDSM = 1;
+
+    /* Build array of enabled writers for ordering (DataSetOrdering, OPC UA Part 14 6.3.1.1.3) */
+    UA_STACKARRAY(UA_DataSetWriter*, writers, wg->writersCount);
+    size_t enabledWriters = 0;
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        if(dsw->head.state != UA_PUBSUBSTATE_OPERATIONAL)
+            continue;
+        writers[enabledWriters++] = dsw;
+    }
+
+    /* No enabled Writers */
+    if(enabledWriters == 0) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, wg,
+                              "Cannot publish -- No Writers are enabled");
+        unlockServer(psm->sc.server);
+        return;
+    }
+
+    /* Sort (insertion sort) writers by WriterId if ordering is AscendingWriterId 
+     * or AscendingWriterIdSingle */
+    if(dataSetOrdering == UA_DATASETORDERINGTYPE_ASCENDINGWRITERID ||
+       dataSetOrdering == UA_DATASETORDERINGTYPE_ASCENDINGWRITERIDSINGLE) {
+        for(size_t i = 1; i < enabledWriters; i++) {
+            UA_DataSetWriter *key = writers[i];
+            UA_UInt16 keyWriterId = key->config.dataSetWriterId;
+            size_t j = i;
+            while(j > 0 && writers[j - 1]->config.dataSetWriterId > keyWriterId) {
+                writers[j] = writers[j - 1];
+                j--;
+            }
+            writers[j] = key;
+        }
+    }
+
     /* It is possible to put several DataSetMessages into one NetworkMessage.
      * But only if they do not contain promoted fields. NM with promoted fields
      * are sent out right away. The others are kept in a buffer for
      * "batching". */
     size_t dsmCount = 0;
-    UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
-    UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
+    UA_STACKARRAY(UA_UInt16, dsWriterIds, enabledWriters);
+    UA_STACKARRAY(UA_DataSetMessage, dsmStore, enabledWriters);
 
-    size_t enabledWriters = 0;
-
-    UA_DataSetWriter *dsw;
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
-    LIST_FOREACH(dsw, &wg->writers, listEntry) {
-        if(dsw->head.state != UA_PUBSUBSTATE_OPERATIONAL)
-            continue;
-
-        enabledWriters++;
+    for(size_t i = 0; i < enabledWriters; i++) {
+        dsw = writers[i];
 
         /* PDS can be NULL -> Heartbeat */
         UA_PublishedDataSet *pds = dsw->connectedDataSet;
@@ -980,14 +1024,6 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
         }
 
         dsmCount++;
-    }
-
-    /* No enabled Writers */
-    if(enabledWriters == 0) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, wg,
-                              "Cannot publish -- No Writers are enabled");
-        unlockServer(psm->sc.server);
-        return;
     }
 
     /* Send the NetworkMessages with batched DataSetMessages */
