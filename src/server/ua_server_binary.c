@@ -415,17 +415,17 @@ getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
     }
 
     /* Session exists on another SecureChannel */
-#ifdef UA_ENABLE_DIAGNOSTICS
     UA_Session *tmpSession = getSessionByToken(server, token);
-    if(tmpSession)
+    if(tmpSession) {
+#ifdef UA_ENABLE_DIAGNOSTICS
         tmpSession->diagnostics.unauthorizedRequestCount++;
 #endif
+        return UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+    }
 
     /* The StatusCode indicates if the Session doesn't exist or whether it does
      * not match to SecureChannel */
-    return (tmpSession) ?
-        UA_STATUSCODE_BADSECURECHANNELIDINVALID :
-        UA_STATUSCODE_BADSESSIONIDINVALID;
+    return UA_STATUSCODE_BADSESSIONIDINVALID;
 }
 
 static UA_StatusCode
