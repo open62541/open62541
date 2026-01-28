@@ -164,6 +164,12 @@ createNS0_base(UA_Server *server) {
     ret |= addReferenceTypeNode(server, "HasInterface", "InterfaceOf",
                          UA_NS0ID_HASINTERFACE, false, false, UA_NS0ID_NONHIERARCHICALREFERENCES);
 
+    ret |= addReferenceTypeNode(server, "HasArgumentDescription", "ArgumentDescriptionOf", 
+                         UA_NS0ID_HASARGUMENTDESCRIPTION, false, false, UA_NS0ID_HASCOMPONENT);
+
+    ret |= addReferenceTypeNode(server, "HasOptionalInputArgumentDescription", "OptionalInputArgumentDescriptionOf",
+                         UA_NS0ID_HASOPTIONALINPUTARGUMENTDESCRIPTION, false, false, UA_NS0ID_HASARGUMENTDESCRIPTION);                         
+
     /**************/
     /* Data Types */
     /**************/
