@@ -7,8 +7,10 @@
 
 #include <open62541/plugin/log.h>
 #include <open62541/server_config_file_based.h>
+#include <open62541/client_config_file_based.h>
 #include "cj5.h"
 #include "open62541/server_config_default.h"
+#include "open62541/client_config_default.h"
 #ifdef UA_ENABLE_ENCRYPTION
 #include "open62541/plugin/certificategroup_default.h"
 #endif
@@ -53,45 +55,8 @@ static UA_ByteString
 loadCertificateFile(const char *const path);
 #endif
 
-/* The DataType "kind" is an internal type classification. It is used to
- * dispatch handling to the correct routines. */
-#define UA_SERVERCONFIGFIELDKINDS 25
-typedef enum {
-    /* Basic Types */
-    UA_SERVERCONFIGFIELD_INT64 = 0,
-    UA_SERVERCONFIGFIELD_UINT16,
-    UA_SERVERCONFIGFIELD_UINT32,
-    UA_SERVERCONFIGFIELD_UINT64,
-    UA_SERVERCONFIGFIELD_STRING,
-    UA_SERVERCONFIGFIELD_LOCALIZEDTEXT,
-    UA_SERVERCONFIGFIELD_DOUBLE,
-    UA_SERVERCONFIGFIELD_BOOLEAN,
-    UA_SERVERCONFIGFIELD_DURATION,
-    UA_SERVERCONFIGFIELD_DURATIONRANGE,
-    UA_SERVERCONFIGFIELD_UINT32RANGE,
-
-    /* Advanced Types */
-    UA_SERVERCONFIGFIELD_BUILDINFO,
-    UA_SERVERCONFIGFIELD_APPLICATIONDESCRIPTION,
-    UA_SERVERCONFIGFIELD_STRINGARRAY,
-    UA_SERVERCONFIGFIELD_UINT32ARRAY,
-    UA_SERVERCONFIGFIELD_DATETIME,
-    UA_SERVERCONFIGFIELD_SUBSCRIPTIONCONFIGURATION,
-    UA_SERVERCONFIGFIELD_TCPCONFIGURATION,
-    UA_SERVERCONFIGFIELD_PUBSUBCONFIGURATION,
-    UA_SERVERCONFIGFIELD_HISTORIZINGCONFIGURATION,
-    UA_SERVERCONFIGFIELD_MDNSCONFIGURATION,
-    UA_SERVERCONFIGFIELD_SECURITYPOLICIES,
-    UA_SERVERCONFIGFIELD_SECURITYPKI,
-
-    /* Enumerations */
-    UA_SERVERCONFIGFIELD_APPLICATIONTYPE,
-    UA_SERVERCONFIGFIELD_RULEHANDLING
-} UA_ServerConfigFieldKind;
-
-extern const parseJsonSignature parseJsonJumpTable[UA_SERVERCONFIGFIELDKINDS];
-
 /*----------------------Basic Types------------------------*/
+#if 0
 PARSE_JSON(Int64Field) {
     cj5_token tok = ctx->tokens[++ctx->index];
     UA_ByteString buf = getJsonPart(tok, ctx->json);
@@ -103,6 +68,7 @@ PARSE_JSON(Int64Field) {
     *field = out;
     return retval;
 }
+#endif
 PARSE_JSON(UInt16Field) {
     cj5_token tok = ctx->tokens[++ctx->index];
     UA_ByteString buf = getJsonPart(tok, ctx->json);
@@ -133,6 +99,17 @@ PARSE_JSON(UInt64Field) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     UA_UInt64 *field = (UA_UInt64*)configField;
+    *field = out;
+    return retval;
+}
+PARSE_JSON(Int32Field) {
+    cj5_token tok = ctx->tokens[++ctx->index];
+    UA_ByteString buf = getJsonPart(tok, ctx->json);
+    UA_Int32 out;
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_INT32], NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_Int32 *field = (UA_Int32*)configField;
     *field = out;
     return retval;
 }
@@ -227,6 +204,7 @@ PARSE_JSON(BooleanField) {
     *field = out;
     return UA_STATUSCODE_GOOD;
 }
+#ifdef UA_ENABLE_SUBSCRIPTIONS
 PARSE_JSON(DurationField) {
     UA_Double double_value;
     UA_StatusCode retval = DoubleField_parseJson(ctx, &double_value, NULL);
@@ -247,9 +225,9 @@ PARSE_JSON(DurationRangeField) {
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "min") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_DURATION](ctx, &field->min, NULL);
+                DurationField_parseJson(ctx, &field->min, NULL);
             else if(strcmp(field_str, "max") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_DURATION](ctx, &field->max, NULL);
+                DurationField_parseJson(ctx, &field->max, NULL);
             else {
                 UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
@@ -273,9 +251,9 @@ PARSE_JSON(UInt32RangeField) {
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "min") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &field->min, NULL);
+                UInt32Field_parseJson(ctx, &field->min, NULL);
             else if(strcmp(field_str, "max") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &field->max, NULL);
+                UInt32Field_parseJson(ctx, &field->max, NULL);
             else {
                 UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
@@ -288,78 +266,9 @@ PARSE_JSON(UInt32RangeField) {
     }
     return UA_STATUSCODE_GOOD;
 }
+#endif
 
 /*----------------------Advanced Types------------------------*/
-PARSE_JSON(BuildInfo) {
-    UA_BuildInfo *field = (UA_BuildInfo*)configField;
-    cj5_token tok = ctx->tokens[++ctx->index];
-    for(size_t j = tok.size/2; j > 0; j--) {
-        tok = ctx->tokens[++ctx->index];
-        switch (tok.type) {
-        case CJ5_TOKEN_STRING: {
-            char *field_str = (char*)UA_malloc(tok.size + 1);
-            unsigned int str_len = 0;
-            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
-            if(strcmp(field_str, "productUri") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &field->productUri, NULL);
-            else if(strcmp(field_str, "manufacturerName") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &field->manufacturerName, NULL);
-            else if(strcmp(field_str, "productName") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &field->productName, NULL);
-            else if(strcmp(field_str, "softwareVersion") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &field->softwareVersion, NULL);
-            else if(strcmp(field_str, "buildNumber") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &field->buildNumber, NULL);
-            else if(strcmp(field_str, "buildDate") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_DATETIME](ctx, &field->buildDate, NULL);
-            else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
-            }
-            UA_free(field_str);
-            break;
-        }
-        default:
-            break;
-        }
-    }
-    return UA_STATUSCODE_GOOD;
-}
-PARSE_JSON(ApplicationDescriptionField) {
-    UA_ApplicationDescription *field = (UA_ApplicationDescription*)configField;
-    cj5_token tok = ctx->tokens[++ctx->index];
-    for(size_t j = tok.size/2; j > 0; j--) {
-        tok = ctx->tokens[++ctx->index];
-        switch (tok.type) {
-        case CJ5_TOKEN_STRING: {
-            char *field_str = (char*)UA_malloc(tok.size + 1);
-            unsigned int str_len = 0;
-            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
-            if(strcmp(field_str, "applicationUri") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &field->applicationUri, NULL);
-            else if(strcmp(field_str, "productUri") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &field->productUri, NULL);
-            else if(strcmp(field_str, "applicationName") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_LOCALIZEDTEXT](ctx, &field->applicationName, NULL);
-            else if(strcmp(field_str, "applicationType") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_APPLICATIONTYPE](ctx, &field->applicationType, NULL);
-            else if(strcmp(field_str, "gatewayServerUri") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &field->gatewayServerUri, NULL);
-            else if(strcmp(field_str, "discoveryProfileUri") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &field->discoveryProfileUri, NULL);
-            else if(strcmp(field_str, "discoveryUrls") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRINGARRAY](ctx, &field->discoveryUrls, &field->discoveryUrlsSize);
-            else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
-            }
-            UA_free(field_str);
-            break;
-        }
-        default:
-            break;
-        }
-    }
-    return UA_STATUSCODE_GOOD;
-}
 PARSE_JSON(StringArrayField) {
     if(configFieldSize == NULL) {
         UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Pointer to the array size is not set.");
@@ -370,7 +279,7 @@ PARSE_JSON(StringArrayField) {
     size_t stringArraySize = 0;
     for(size_t j = tok.size; j > 0; j--) {
         UA_String out = {.length = 0, .data = NULL};
-        parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &out, NULL);
+        StringField_parseJson(ctx, &out, NULL);
         UA_String_copy(&out, &stringArray[stringArraySize++]);
         UA_String_clear(&out);
     }
@@ -391,6 +300,99 @@ PARSE_JSON(StringArrayField) {
     UA_Array_delete(stringArray, stringArraySize, &UA_TYPES[UA_TYPES_STRING]);
     return retval;
 }
+PARSE_JSON(DateTimeField) {
+    cj5_token tok = ctx->tokens[++ctx->index];
+    UA_ByteString buf = getJsonPart(tok, ctx->json);
+    UA_DateTime out;
+    UA_DateTime_init(&out);
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_DATETIME], NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_DateTime *field = (UA_DateTime*)configField;
+    *field = out;
+    return retval;
+}
+PARSE_JSON(BuildInfo) {
+    UA_BuildInfo *field = (UA_BuildInfo*)configField;
+    cj5_token tok = ctx->tokens[++ctx->index];
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = ctx->tokens[++ctx->index];
+        switch (tok.type) {
+        case CJ5_TOKEN_STRING: {
+            char *field_str = (char*)UA_malloc(tok.size + 1);
+            unsigned int str_len = 0;
+            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
+            if(strcmp(field_str, "productUri") == 0)
+                StringField_parseJson(ctx, &field->productUri, NULL);
+            else if(strcmp(field_str, "manufacturerName") == 0)
+                StringField_parseJson(ctx, &field->manufacturerName, NULL);
+            else if(strcmp(field_str, "productName") == 0)
+                StringField_parseJson(ctx, &field->productName, NULL);
+            else if(strcmp(field_str, "softwareVersion") == 0)
+                StringField_parseJson(ctx, &field->softwareVersion, NULL);
+            else if(strcmp(field_str, "buildNumber") == 0)
+                StringField_parseJson(ctx, &field->buildNumber, NULL);
+            else if(strcmp(field_str, "buildDate") == 0)
+                DateTimeField_parseJson(ctx, &field->buildDate, NULL);
+            else {
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+            }
+            UA_free(field_str);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+PARSE_JSON(ApplicationTypeField) {
+    UA_UInt32 enum_value;
+    UA_StatusCode retval = UInt32Field_parseJson(ctx, &enum_value, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_ApplicationType *field = (UA_ApplicationType*)configField;
+    *field = (UA_ApplicationType)enum_value;
+    return retval;
+}
+PARSE_JSON(ApplicationDescriptionField) {
+    UA_ApplicationDescription *field = (UA_ApplicationDescription*)configField;
+    cj5_token tok = ctx->tokens[++ctx->index];
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = ctx->tokens[++ctx->index];
+        switch (tok.type) {
+        case CJ5_TOKEN_STRING: {
+            char *field_str = (char*)UA_malloc(tok.size + 1);
+            unsigned int str_len = 0;
+            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
+            if(strcmp(field_str, "applicationUri") == 0)
+                StringField_parseJson(ctx, &field->applicationUri, NULL);
+            else if(strcmp(field_str, "productUri") == 0)
+                StringField_parseJson(ctx, &field->productUri, NULL);
+            else if(strcmp(field_str, "applicationName") == 0)
+                LocalizedTextField_parseJson(ctx, &field->applicationName, NULL);
+            else if(strcmp(field_str, "applicationType") == 0)
+                ApplicationTypeField_parseJson(ctx, &field->applicationType, NULL);
+            else if(strcmp(field_str, "gatewayServerUri") == 0)
+                StringField_parseJson(ctx, &field->gatewayServerUri, NULL);
+            else if(strcmp(field_str, "discoveryProfileUri") == 0)
+                StringField_parseJson(ctx, &field->discoveryProfileUri, NULL);
+            else if(strcmp(field_str, "discoveryUrls") == 0)
+                StringArrayField_parseJson(ctx, &field->discoveryUrls, &field->discoveryUrlsSize);
+            else {
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+            }
+            UA_free(field_str);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+#if defined(UA_ENABLE_DISCOVERY_MULTICAST) && defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD) && !defined(UA_HAS_GETIFADDR)
 PARSE_JSON(UInt32ArrayField) {
     if(configFieldSize == NULL) {
         UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Pointer to the array size is not set.");
@@ -424,21 +426,9 @@ PARSE_JSON(UInt32ArrayField) {
     UA_Array_delete(numberArray, numberArraySize, &UA_TYPES[UA_TYPES_UINT32]);
     return retval;
 }
-PARSE_JSON(DateTimeField) {
-    cj5_token tok = ctx->tokens[++ctx->index];
-    UA_ByteString buf = getJsonPart(tok, ctx->json);
-    UA_DateTime out;
-    UA_DateTime_init(&out);
-    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_DATETIME], NULL);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    UA_DateTime *field = (UA_DateTime*)configField;
-    *field = out;
-    return retval;
-}
-
-PARSE_JSON(MdnsConfigurationField) {
+#endif
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
+PARSE_JSON(MdnsConfigurationField) {
     UA_ServerConfig *config = (UA_ServerConfig*)configField;
     cj5_token tok = ctx->tokens[++ctx->index];
     for(size_t j = tok.size/2; j > 0; j--) {
@@ -449,16 +439,16 @@ PARSE_JSON(MdnsConfigurationField) {
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "mdnsServerName") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &config->mdnsConfig.mdnsServerName, NULL);
+                StringField_parseJson(ctx, &config->mdnsConfig.mdnsServerName, NULL);
             else if(strcmp(field_str, "serverCapabilities") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRINGARRAY](ctx, &config->mdnsConfig.serverCapabilities, &config->mdnsConfig.serverCapabilitiesSize);
+                StringArrayField_parseJson(ctx, &config->mdnsConfig.serverCapabilities, &config->mdnsConfig.serverCapabilitiesSize);
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
             else if(strcmp(field_str, "mdnsInterfaceIP") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &config->mdnsInterfaceIP, NULL);
+                StringField_parseJson(ctx, &config->mdnsInterfaceIP, NULL);
             /* mdnsIpAddressList and mdnsIpAddressListSize are only available if UA_HAS_GETIFADDR is not defined: */
 # if !defined(UA_HAS_GETIFADDR)
             else if(strcmp(field_str, "mdnsIpAddressList") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32ARRAY](ctx, &config->mdnsIpAddressList, &config->mdnsIpAddressListSize);
+                UInt32ArrayField_parseJson(ctx, &config->mdnsIpAddressList, &config->mdnsIpAddressListSize);
 # endif
 #endif
             else {
@@ -471,12 +461,12 @@ PARSE_JSON(MdnsConfigurationField) {
         break;
         }
     }
-#endif
     return UA_STATUSCODE_GOOD;
 }
+#endif
 
-PARSE_JSON(SubscriptionConfigurationField) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+PARSE_JSON(SubscriptionConfigurationField) {
     UA_ServerConfig *config = (UA_ServerConfig*)configField;
     cj5_token tok = ctx->tokens[++ctx->index];
     for(size_t j = tok.size/2; j > 0; j--) {
@@ -487,35 +477,35 @@ PARSE_JSON(SubscriptionConfigurationField) {
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "maxSubscriptions") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->maxSubscriptions, NULL);
+                UInt32Field_parseJson(ctx, &config->maxSubscriptions, NULL);
             else if(strcmp(field_str, "maxSubscriptionsPerSession") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->maxSubscriptionsPerSession, NULL);
+                UInt32Field_parseJson(ctx, &config->maxSubscriptionsPerSession, NULL);
             else if(strcmp(field_str, "publishingIntervalLimits") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_DURATIONRANGE](ctx, &config->publishingIntervalLimits, NULL);
+                DurationRangeField_parseJson(ctx, &config->publishingIntervalLimits, NULL);
             else if(strcmp(field_str, "lifeTimeCountLimits") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32RANGE](ctx, &config->lifeTimeCountLimits, NULL);
+                UInt32RangeField_parseJson(ctx, &config->lifeTimeCountLimits, NULL);
             else if(strcmp(field_str, "keepAliveCountLimits") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32RANGE](ctx, &config->keepAliveCountLimits, NULL);
+                UInt32RangeField_parseJson(ctx, &config->keepAliveCountLimits, NULL);
             else if(strcmp(field_str, "maxNotificationsPerPublish") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->maxNotificationsPerPublish, NULL);
+                UInt32Field_parseJson(ctx, &config->maxNotificationsPerPublish, NULL);
             else if(strcmp(field_str, "enableRetransmissionQueue") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->enableRetransmissionQueue, NULL);
+                BooleanField_parseJson(ctx, &config->enableRetransmissionQueue, NULL);
             else if(strcmp(field_str, "maxRetransmissionQueueSize") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->maxRetransmissionQueueSize, NULL);
+                UInt32Field_parseJson(ctx, &config->maxRetransmissionQueueSize, NULL);
 # ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
             else if(strcmp(field_str, "maxEventsPerNode") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->maxEventsPerNode, NULL);
+                UInt32Field_parseJson(ctx, &config->maxEventsPerNode, NULL);
 # endif
             else if(strcmp(field_str, "maxMonitoredItems") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->maxMonitoredItems, NULL);
+                UInt32Field_parseJson(ctx, &config->maxMonitoredItems, NULL);
             else if(strcmp(field_str, "maxMonitoredItemsPerSubscription") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->maxMonitoredItemsPerSubscription, NULL);
+                UInt32Field_parseJson(ctx, &config->maxMonitoredItemsPerSubscription, NULL);
             else if(strcmp(field_str, "samplingIntervalLimits") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_DURATIONRANGE](ctx, &config->samplingIntervalLimits, NULL);
+                DurationRangeField_parseJson(ctx, &config->samplingIntervalLimits, NULL);
             else if(strcmp(field_str, "queueSizeLimits") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32RANGE](ctx, &config->queueSizeLimits, NULL);
+                UInt32RangeField_parseJson(ctx, &config->queueSizeLimits, NULL);
             else if(strcmp(field_str, "maxPublishReqPerSession") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->maxPublishReqPerSession, NULL);
+                UInt32Field_parseJson(ctx, &config->maxPublishReqPerSession, NULL);
             else {
                 UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
@@ -526,9 +516,9 @@ PARSE_JSON(SubscriptionConfigurationField) {
             break;
         }
     }
-#endif
     return UA_STATUSCODE_GOOD;
 }
+#endif
 
 PARSE_JSON(TcpConfigurationField) {
     UA_ServerConfig *config = (UA_ServerConfig*)configField;
@@ -541,11 +531,11 @@ PARSE_JSON(TcpConfigurationField) {
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "tcpBufSize") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->tcpBufSize, NULL);
+                UInt32Field_parseJson(ctx, &config->tcpBufSize, NULL);
             else if(strcmp(field_str, "tcpMaxMsgSize") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->tcpMaxMsgSize, NULL);
+                UInt32Field_parseJson(ctx, &config->tcpMaxMsgSize, NULL);
             else if(strcmp(field_str, "tcpMaxChunks") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->tcpMaxChunks, NULL);
+                UInt32Field_parseJson(ctx, &config->tcpMaxChunks, NULL);
             else {
                 UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
@@ -559,8 +549,8 @@ PARSE_JSON(TcpConfigurationField) {
     return UA_STATUSCODE_GOOD;
 }
 
-PARSE_JSON(PubsubConfigurationField) {
 #ifdef UA_ENABLE_PUBSUB
+PARSE_JSON(PubsubConfigurationField) {
     UA_PubSubConfiguration *field = (UA_PubSubConfiguration*)configField;
     cj5_token tok = ctx->tokens[++ctx->index];
     for(size_t j = tok.size/2; j > 0; j--) {
@@ -571,10 +561,10 @@ PARSE_JSON(PubsubConfigurationField) {
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "enableDeltaFrames") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &field->enableDeltaFrames, NULL);
+                BooleanField_parseJson(ctx, &field->enableDeltaFrames, NULL);
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
             else if(strcmp(field_str, "enableInformationModelMethods") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &field->enableInformationModelMethods, NULL);
+                BooleanField_parseJson(ctx, &field->enableInformationModelMethods, NULL);
 #endif
             else {
                 UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
@@ -586,12 +576,12 @@ PARSE_JSON(PubsubConfigurationField) {
             break;
         }
     }
-#endif
     return UA_STATUSCODE_GOOD;
 }
+#endif
 
-PARSE_JSON(HistorizingConfigurationField) {
 #ifdef UA_ENABLE_HISTORIZING
+PARSE_JSON(HistorizingConfigurationField) {
     UA_ServerConfig *config = (UA_ServerConfig*)configField;
     cj5_token tok = ctx->tokens[++ctx->index];
     for(size_t j = tok.size/2; j > 0; j--) {
@@ -602,33 +592,33 @@ PARSE_JSON(HistorizingConfigurationField) {
             unsigned int str_len = 0;
             cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
             if(strcmp(field_str, "accessHistoryDataCapability") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->accessHistoryDataCapability, NULL);
+                BooleanField_parseJson(ctx, &config->accessHistoryDataCapability, NULL);
             else if(strcmp(field_str, "maxReturnDataValues") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->maxReturnDataValues, NULL);
+                UInt32Field_parseJson(ctx, &config->maxReturnDataValues, NULL);
             else if(strcmp(field_str, "accessHistoryEventsCapability") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->accessHistoryEventsCapability, NULL);
+                BooleanField_parseJson(ctx, &config->accessHistoryEventsCapability, NULL);
             else if(strcmp(field_str, "maxReturnEventValues") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](ctx, &config->maxReturnEventValues, NULL);
+                UInt32Field_parseJson(ctx, &config->maxReturnEventValues, NULL);
             else if(strcmp(field_str, "insertDataCapability") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->insertDataCapability, NULL);
+                BooleanField_parseJson(ctx, &config->insertDataCapability, NULL);
             else if(strcmp(field_str, "insertEventCapability") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->insertEventCapability, NULL);
+                BooleanField_parseJson(ctx, &config->insertEventCapability, NULL);
             else if(strcmp(field_str, "insertAnnotationsCapability") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->insertAnnotationsCapability, NULL);
+                BooleanField_parseJson(ctx, &config->insertAnnotationsCapability, NULL);
             else if(strcmp(field_str, "replaceDataCapability") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->replaceDataCapability, NULL);
+                BooleanField_parseJson(ctx, &config->replaceDataCapability, NULL);
             else if(strcmp(field_str, "replaceEventCapability") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->replaceEventCapability, NULL);
+                BooleanField_parseJson(ctx, &config->replaceEventCapability, NULL);
             else if(strcmp(field_str, "updateDataCapability") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->updateDataCapability, NULL);
+                BooleanField_parseJson(ctx, &config->updateDataCapability, NULL);
             else if(strcmp(field_str, "updateEventCapability") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->updateEventCapability, NULL);
+                BooleanField_parseJson(ctx, &config->updateEventCapability, NULL);
             else if(strcmp(field_str, "deleteRawCapability") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->deleteRawCapability, NULL);
+                BooleanField_parseJson(ctx, &config->deleteRawCapability, NULL);
             else if(strcmp(field_str, "deleteEventCapability") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->deleteEventCapability, NULL);
+                BooleanField_parseJson(ctx, &config->deleteEventCapability, NULL);
             else if(strcmp(field_str, "deleteAtTimeDataCapability") == 0)
-                parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](ctx, &config->deleteAtTimeDataCapability, NULL);
+                BooleanField_parseJson(ctx, &config->deleteAtTimeDataCapability, NULL);
             else {
                 UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
             }
@@ -639,9 +629,9 @@ PARSE_JSON(HistorizingConfigurationField) {
             break;
         }
     }
-#endif
     return UA_STATUSCODE_GOOD;
 }
+#endif
 
 PARSE_JSON(SecurityPolciesField) {
 #ifdef UA_ENABLE_ENCRYPTION
@@ -671,7 +661,7 @@ PARSE_JSON(SecurityPolciesField) {
                 cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
                 if(strcmp(field_str, "certificate") == 0) {
                     UA_String out = {.length = 0, .data = NULL};
-                    parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &out, NULL);
+                    StringField_parseJson(ctx, &out, NULL);
 
                     if(out.length > 0) {
                         char *certfile = (char *)UA_malloc(out.length + 1);
@@ -683,7 +673,7 @@ PARSE_JSON(SecurityPolciesField) {
                     }
                 } else if(strcmp(field_str, "privateKey") == 0) {
                     UA_String out = {.length = 0, .data = NULL};
-                    parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &out, NULL);
+                    StringField_parseJson(ctx, &out, NULL);
 
                     if(out.length > 0) {
                         char *keyfile = (char *)UA_malloc(out.length + 1);
@@ -694,7 +684,7 @@ PARSE_JSON(SecurityPolciesField) {
                         UA_free(keyfile);
                     }
                 } else if(strcmp(field_str, "policy") == 0) {
-                    parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &policy, NULL);
+                    StringField_parseJson(ctx, &policy, NULL);
                 } else {
                     UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
                 }
@@ -773,8 +763,8 @@ PARSE_JSON(SecurityPolciesField) {
     return UA_STATUSCODE_GOOD;
 }
 
-PARSE_JSON(SecurityPkiField) {
 #ifdef UA_ENABLE_ENCRYPTION
+PARSE_JSON(SecurityPkiField) {
     UA_ServerConfig *config = (UA_ServerConfig*)configField;
     UA_String pkiFolder = {.length = 0, .data = NULL};
 
@@ -824,20 +814,9 @@ PARSE_JSON(SecurityPkiField) {
     /* Clean up */
     UA_String_clear(&pkiFolder);
 #endif
-#endif
     return UA_STATUSCODE_GOOD;
 }
-
-/*----------------------Enumerations------------------------*/
-PARSE_JSON(ApplicationTypeField) {
-    UA_UInt32 enum_value;
-    UA_StatusCode retval = UInt32Field_parseJson(ctx, &enum_value, NULL);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    UA_ApplicationType *field = (UA_ApplicationType*)configField;
-    *field = (UA_ApplicationType)enum_value;
-    return retval;
-}
+#endif
 PARSE_JSON(RuleHandlingField) {
     UA_UInt32 enum_value;
     UA_StatusCode retval = UInt32Field_parseJson(ctx, &enum_value, NULL);
@@ -847,39 +826,6 @@ PARSE_JSON(RuleHandlingField) {
     *field = (UA_RuleHandling)enum_value;
     return retval;
 }
-
-const parseJsonSignature parseJsonJumpTable[UA_SERVERCONFIGFIELDKINDS] = {
-    /* Basic Types */
-    (parseJsonSignature)Int64Field_parseJson,
-    (parseJsonSignature)UInt16Field_parseJson,
-    (parseJsonSignature)UInt32Field_parseJson,
-    (parseJsonSignature)UInt64Field_parseJson,
-    (parseJsonSignature)StringField_parseJson,
-    (parseJsonSignature)LocalizedTextField_parseJson,
-    (parseJsonSignature)DoubleField_parseJson,
-    (parseJsonSignature)BooleanField_parseJson,
-    (parseJsonSignature)DurationField_parseJson,
-    (parseJsonSignature)DurationRangeField_parseJson,
-    (parseJsonSignature)UInt32RangeField_parseJson,
-
-    /* Advanced Types */
-    (parseJsonSignature)BuildInfo_parseJson,
-    (parseJsonSignature)ApplicationDescriptionField_parseJson,
-    (parseJsonSignature)StringArrayField_parseJson,
-    (parseJsonSignature)UInt32ArrayField_parseJson,
-    (parseJsonSignature)DateTimeField_parseJson,
-    (parseJsonSignature)SubscriptionConfigurationField_parseJson,
-    (parseJsonSignature)TcpConfigurationField_parseJson,
-    (parseJsonSignature)PubsubConfigurationField_parseJson,
-    (parseJsonSignature)HistorizingConfigurationField_parseJson,
-    (parseJsonSignature)MdnsConfigurationField_parseJson,
-    (parseJsonSignature)SecurityPolciesField_parseJson,
-    (parseJsonSignature)SecurityPkiField_parseJson,
-
-    /* Enumerations */
-    (parseJsonSignature)ApplicationTypeField_parseJson,
-    (parseJsonSignature)RuleHandlingField_parseJson,
-};
 
 /* Skips unknown item (simple, object or array) in config file. 
 * Unknown items may happen if we don't support some features. 
@@ -896,7 +842,7 @@ skipUnknownItem(ParsingCtx* ctx) {
 }
 
 static UA_StatusCode
-parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
+parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
     // Parsing json config
     const char *json = (const char*)json_config.data;
     cj5_token tokens[MAX_TOKENS];
@@ -923,97 +869,97 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
                 unsigned int str_len = 0;
                 cj5_get_str(&ctx.result, (unsigned int)ctx.index, field, &str_len);
                 if(strcmp(field, "buildInfo") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BUILDINFO](&ctx, &config->buildInfo, NULL);
+                    retval = BuildInfo_parseJson(&ctx, &config->buildInfo, NULL);
                 else if(strcmp(field, "applicationDescription") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_APPLICATIONDESCRIPTION](&ctx, &config->applicationDescription, NULL);
+                    retval = ApplicationDescriptionField_parseJson(&ctx, &config->applicationDescription, NULL);
                 else if(strcmp(field, "shutdownDelay") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_DOUBLE](&ctx, &config->shutdownDelay, NULL);
+                    retval = DoubleField_parseJson(&ctx, &config->shutdownDelay, NULL);
                 else if(strcmp(field, "verifyRequestTimestamp") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_RULEHANDLING](&ctx, &config->verifyRequestTimestamp, NULL);
+                    retval = RuleHandlingField_parseJson(&ctx, &config->verifyRequestTimestamp, NULL);
                 else if(strcmp(field, "allowEmptyVariables") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_RULEHANDLING](&ctx, &config->allowEmptyVariables, NULL);
+                    retval = RuleHandlingField_parseJson(&ctx, &config->allowEmptyVariables, NULL);
                 else if(strcmp(field, "serverUrls") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRINGARRAY](&ctx, &config->serverUrls, &config->serverUrlsSize);
+                    retval = StringArrayField_parseJson(&ctx, &config->serverUrls, &config->serverUrlsSize);
                 else if(strcmp(field, "tcpEnabled") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->tcpEnabled, NULL);
+                    retval = BooleanField_parseJson(&ctx, &config->tcpEnabled, NULL);
                 else if(strcmp(field, "tcp") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_TCPCONFIGURATION](&ctx, config, NULL);
+                    retval = TcpConfigurationField_parseJson(&ctx, config, NULL);
                 else if(strcmp(field, "securityPolicyNoneDiscoveryOnly") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->securityPolicyNoneDiscoveryOnly, NULL);
+                    retval = BooleanField_parseJson(&ctx, &config->securityPolicyNoneDiscoveryOnly, NULL);
                 else if(strcmp(field, "modellingRulesOnInstances") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->modellingRulesOnInstances, NULL);
+                    retval = BooleanField_parseJson(&ctx, &config->modellingRulesOnInstances, NULL);
                 else if(strcmp(field, "maxSecureChannels") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT16](&ctx, &config->maxSecureChannels, NULL);
+                    retval = UInt16Field_parseJson(&ctx, &config->maxSecureChannels, NULL);
                 else if(strcmp(field, "maxSecurityTokenLifetime") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](&ctx, &config->maxSecurityTokenLifetime, NULL);
+                    retval = UInt32Field_parseJson(&ctx, &config->maxSecurityTokenLifetime, NULL);
                 else if(strcmp(field, "maxSessions") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT16](&ctx, &config->maxSessions, NULL);
+                    retval = UInt16Field_parseJson(&ctx, &config->maxSessions, NULL);
                 else if(strcmp(field, "maxSessionTimeout") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_DOUBLE](&ctx, &config->maxSessionTimeout, NULL);
+                    retval = DoubleField_parseJson(&ctx, &config->maxSessionTimeout, NULL);
                 else if(strcmp(field, "maxNodesPerRead") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](&ctx, &config->maxNodesPerRead, NULL);
+                    retval = UInt32Field_parseJson(&ctx, &config->maxNodesPerRead, NULL);
                 else if(strcmp(field, "maxNodesPerWrite") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](&ctx, &config->maxNodesPerWrite, NULL);
+                    retval = UInt32Field_parseJson(&ctx, &config->maxNodesPerWrite, NULL);
                 else if(strcmp(field, "maxNodesPerMethodCall") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](&ctx, &config->maxNodesPerMethodCall, NULL);
+                    retval = UInt32Field_parseJson(&ctx, &config->maxNodesPerMethodCall, NULL);
                 else if(strcmp(field, "maxNodesPerBrowse") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](&ctx, &config->maxNodesPerBrowse, NULL);
+                    retval = UInt32Field_parseJson(&ctx, &config->maxNodesPerBrowse, NULL);
                 else if(strcmp(field, "maxNodesPerRegisterNodes") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](&ctx, &config->maxNodesPerRegisterNodes, NULL);
+                    retval = UInt32Field_parseJson(&ctx, &config->maxNodesPerRegisterNodes, NULL);
                 else if(strcmp(field, "maxNodesPerTranslateBrowsePathsToNodeIds") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](&ctx, &config->maxNodesPerTranslateBrowsePathsToNodeIds, NULL);
+                    retval = UInt32Field_parseJson(&ctx, &config->maxNodesPerTranslateBrowsePathsToNodeIds, NULL);
                 else if(strcmp(field, "maxNodesPerNodeManagement") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](&ctx, &config->maxNodesPerNodeManagement, NULL);
+                    retval = UInt32Field_parseJson(&ctx, &config->maxNodesPerNodeManagement, NULL);
                 else if(strcmp(field, "maxMonitoredItemsPerCall") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](&ctx, &config->maxMonitoredItemsPerCall, NULL);
+                    retval = UInt32Field_parseJson(&ctx, &config->maxMonitoredItemsPerCall, NULL);
                 else if(strcmp(field, "maxReferencesPerNode") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](&ctx, &config->maxReferencesPerNode, NULL);
+                    retval = UInt32Field_parseJson(&ctx, &config->maxReferencesPerNode, NULL);
                 else if(strcmp(field, "reverseReconnectInterval") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](&ctx, &config->reverseReconnectInterval, NULL);
+                    retval = UInt32Field_parseJson(&ctx, &config->reverseReconnectInterval, NULL);
 
 #if UA_MULTITHREADING >= 100
                 else if(strcmp(field, "asyncOperationTimeout") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_DOUBLE](&ctx, &config->asyncOperationTimeout, NULL);
+                    retval = DoubleField_parseJson(&ctx, &config->asyncOperationTimeout, NULL);
                 else if(strcmp(field, "maxAsyncOperationQueueSize") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT64](&ctx, &config->maxAsyncOperationQueueSize, NULL);
+                    retval = UInt64Field_parseJson(&ctx, &config->maxAsyncOperationQueueSize, NULL);
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
                 else if(strcmp(field, "discoveryCleanupTimeout") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32](&ctx, &config->discoveryCleanupTimeout, NULL);
+                    retval = UInt32Field_parseJson(&ctx, &config->discoveryCleanupTimeout, NULL);
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
                 else if(strcmp(field, "mdnsEnabled") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->mdnsEnabled, NULL);
+                    retval = BooleanField_parseJson(&ctx, &config->mdnsEnabled, NULL);
                 else if(strcmp(field, "mdns") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_MDNSCONFIGURATION](&ctx, config, NULL);
+                    retval = MdnsConfigurationField_parseJson(&ctx, config, NULL);
 #endif
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
                 else if(strcmp(field, "subscriptionsEnabled") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->subscriptionsEnabled, NULL);
+                    retval = BooleanField_parseJson(&ctx, &config->subscriptionsEnabled, NULL);
                 else if(strcmp(field, "subscriptions") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_SUBSCRIPTIONCONFIGURATION](&ctx, config, NULL);
+                    retval = SubscriptionConfigurationField_parseJson(&ctx, config, NULL);
 # endif
 
 #ifdef UA_ENABLE_HISTORIZING
                 else if(strcmp(field, "historizingEnabled") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->historizingEnabled, NULL);
+                    retval = BooleanField_parseJson(&ctx, &config->historizingEnabled, NULL);
                 else if(strcmp(field, "historizing") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_HISTORIZINGCONFIGURATION](&ctx, config, NULL);
+                    retval = HistorizingConfigurationField_parseJson(&ctx, config, NULL);
 #endif
 
 #ifdef UA_ENABLE_PUBSUB
                 else if(strcmp(field, "pubsubEnabled") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_BOOLEAN](&ctx, &config->pubsubEnabled, NULL);
+                    retval = BooleanField_parseJson(&ctx, &config->pubsubEnabled, NULL);
                 else if(strcmp(field, "pubsub") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_PUBSUBCONFIGURATION](&ctx, &config->pubSubConfig, NULL);
+                    retval = PubsubConfigurationField_parseJson(&ctx, &config->pubSubConfig, NULL);
 #endif
 #ifdef UA_ENABLE_ENCRYPTION
                 else if(strcmp(field, "securityPolicies") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_SECURITYPOLICIES](&ctx, config, NULL);
+                    retval = SecurityPolciesField_parseJson(&ctx, config, NULL);
                 else if(strcmp(field, "pkiFolder") == 0)
-                    retval = parseJsonJumpTable[UA_SERVERCONFIGFIELD_SECURITYPKI](&ctx, config, NULL);
+                    retval = SecurityPkiField_parseJson(&ctx, config, NULL);
 #endif
                 else {
                     UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
@@ -1047,7 +993,7 @@ UA_Server_newFromFile(const UA_ByteString json_config) {
     UA_ServerConfig config;
     memset(&config, 0, sizeof(UA_ServerConfig));
     UA_StatusCode res = UA_ServerConfig_setDefault(&config);
-    res |= parseJSONConfig(&config, json_config);
+    res |= parseJSONServerConfig(&config, json_config);
     if(res != UA_STATUSCODE_GOOD)
         return NULL;
     return UA_Server_newWithConfig(&config);
@@ -1055,7 +1001,221 @@ UA_Server_newFromFile(const UA_ByteString json_config) {
 
 UA_StatusCode
 UA_ServerConfig_updateFromFile(UA_ServerConfig *config, const UA_ByteString json_config) {
-    UA_StatusCode res = parseJSONConfig(config, json_config);
+    UA_StatusCode res = parseJSONServerConfig(config, json_config);
+    return res;
+}
+
+PARSE_JSON(ConnectionConfig) {
+    UA_ConnectionConfig *field = (UA_ConnectionConfig*)configField;
+    cj5_token tok = ctx->tokens[++ctx->index];
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = ctx->tokens[++ctx->index];
+        switch (tok.type) {
+        case CJ5_TOKEN_STRING: {
+            char *field_str = (char*)UA_malloc(tok.size + 1);
+            unsigned int str_len = 0;
+            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
+            if(strcmp(field_str, "protocolVersion") == 0)
+                UInt32Field_parseJson(ctx, &field->protocolVersion, NULL);
+            else if(strcmp(field_str, "recvBufferSize") == 0)
+                UInt32Field_parseJson(ctx, &field->recvBufferSize, NULL);
+            else if(strcmp(field_str, "sendBufferSize") == 0)
+                UInt32Field_parseJson(ctx, &field->sendBufferSize, NULL);
+            else if(strcmp(field_str, "localMaxMessageSize") == 0)
+                UInt32Field_parseJson(ctx, &field->localMaxMessageSize, NULL);
+            else if(strcmp(field_str, "remoteMaxMessageSize") == 0)
+                UInt32Field_parseJson(ctx, &field->localMaxMessageSize, NULL);
+            else if(strcmp(field_str, "localMaxChunkCount") == 0)
+                UInt32Field_parseJson(ctx, &field->localMaxChunkCount, NULL);
+            else if(strcmp(field_str, "remoteMaxChunkCount") == 0)
+                UInt32Field_parseJson(ctx, &field->remoteMaxChunkCount, NULL);
+            else {
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+            }
+            UA_free(field_str);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+PARSE_JSON(EndpointDescription) {
+    UA_EndpointDescription *field = (UA_EndpointDescription*)configField;
+    cj5_token tok = ctx->tokens[++ctx->index];
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = ctx->tokens[++ctx->index];
+        switch (tok.type) {
+        case CJ5_TOKEN_STRING: {
+            char *field_str = (char*)UA_malloc(tok.size + 1);
+            unsigned int str_len = 0;
+            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
+            if(strcmp(field_str, "endpointUrl") == 0)
+                StringField_parseJson(ctx, &field->endpointUrl, NULL);
+            if(strcmp(field_str, "server") == 0)
+                ApplicationDescriptionField_parseJson(ctx, &field->server, NULL);
+            // TODO
+            //if(strcmp(field_str, "serverCertificate") == 0)
+            //    ByteString_parseJson(ctx, &field->serverCertificate, NULL);
+            // TODO
+            //if(strcmp(field_str, "securityMode") == 0)
+            //   MessageSecurityMode_parseJson(ctx, &field->securityMode, NULL);
+            if(strcmp(field_str, "securityPolicyUri") == 0)
+               StringField_parseJson(ctx, &field->securityPolicyUri, NULL);
+            // TODO
+            //if(strcmp(field_str, "userIdentityTokens") == 0)
+            //   UserTokenPolicyArray_parseJson(ctx, &field->userIdentityTokens, &field->userIdentityTokensSize);
+            if(strcmp(field_str, "transportProfileUri") == 0)
+                StringField_parseJson(ctx, &field->transportProfileUri, NULL);
+            // TODO
+            //if(strcmp(field_str, "transportProfileUri") == 0)
+            //    ByteField_parseJson(ctx, &field->securityLevel, NULL);
+            else {
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+            }
+            UA_free(field_str);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+
+
+static UA_StatusCode
+parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
+    // Parsing json config
+    const char *json = (const char*)json_config.data;
+    cj5_token tokens[MAX_TOKENS];
+    cj5_result r = cj5_parse(json, (unsigned int)json_config.length, tokens, MAX_TOKENS, NULL);
+
+    ParsingCtx ctx;
+    ctx.json = json;
+    ctx.result = r;
+    ctx.tokens = r.tokens;
+    ctx.tokensSize = r.num_tokens;
+    ctx.index = 1; // The first token is ignored because it is known and not needed.
+
+    ctx.logging = config->logging;
+
+    size_t clientConfigSize = 0;
+    if(ctx.tokens)
+        clientConfigSize = (ctx.tokens[ctx.index-1].size/2);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for (size_t j = clientConfigSize; j > 0; j--) {
+        cj5_token tok = ctx.tokens[ctx.index];
+        switch (tok.type) {
+            case CJ5_TOKEN_STRING: {
+                char *field = (char*)UA_malloc(tok.size + 1);
+                unsigned int str_len = 0;
+                cj5_get_str(&ctx.result, (unsigned int)ctx.index, field, &str_len);
+                if(strcmp(field, "timeout") == 0)
+                    retval = Int32Field_parseJson(&ctx, &config->timeout, NULL);
+                else if(strcmp(field, "applicationDescription") == 0)
+                    retval = ApplicationDescriptionField_parseJson(&ctx, &config->clientDescription, NULL);
+                else if(strcmp(field, "endpointUrl") == 0)
+                    retval = StringField_parseJson(&ctx, &config->endpointUrl, NULL);
+                // TODO missing userIdentityToken ?
+                else if(strcmp(field, "sessionName") == 0)
+                    retval = StringField_parseJson(&ctx, &config->sessionName, NULL);
+                else if(strcmp(field, "sessionLocaleIds") == 0)
+                    // TODO missing constraints for type?
+                    retval = StringArrayField_parseJson(&ctx, &config->sessionLocaleIds, &config->sessionLocaleIdsSize);
+                else if(strcmp(field, "noSession") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->noSession, NULL);
+                else if(strcmp(field, "noReconnect") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->noReconnect, NULL);
+                else if(strcmp(field, "noNewSession") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->noNewSession, NULL);
+                else if(strcmp(field, "secureChannelLifeTime") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->secureChannelLifeTime, NULL);
+                else if(strcmp(field, "requestedSessionTimeout") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->requestedSessionTimeout, NULL);
+                else if(strcmp(field, "localConnectionConfig") == 0)
+                    retval = ConnectionConfig_parseJson(&ctx, &config->localConnectionConfig, NULL);
+                else if(strcmp(field, "connectivityCheckInterval") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->connectivityCheckInterval, NULL);
+                else if(strcmp(field, "tcpReuseAddr") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->tcpReuseAddr, NULL);
+                else if(strcmp(field, "endpoint") == 0)
+                    retval = EndpointDescription_parseJson(&ctx, &config->endpoint, NULL);
+                //else if(strcmp(field, "userTokenPolicy") == 0)
+                //    retval = UserTokenPolicy_parseJson(&ctx, &config->userTokenPolicy, NULL);
+                else if(strcmp(field, "applicationUri") == 0)
+                    retval = StringField_parseJson(&ctx, &config->applicationUri, NULL);
+                //else if(strcmp(field, "securityMode") == 0)
+                //    retval = SecurityMode_parseJson(&ctx, &config->securityMode, NULL);
+                else if(strcmp(field, "securityPolicyUri") == 0)
+                    retval = StringField_parseJson(&ctx, &config->securityPolicyUri, NULL);
+                else if(strcmp(field, "authSecurityPolicyUri") == 0)
+                    retval = StringField_parseJson(&ctx, &config->authSecurityPolicyUri, NULL);
+                else if(strcmp(field, "securityPolicies") == 0)
+                    retval = SecurityPolciesField_parseJson(&ctx, &config->securityPolicies, &config->securityPoliciesSize);
+                else if(strcmp(field, "authSecurityPolicies") == 0)
+                    retval = SecurityPolciesField_parseJson(&ctx, &config->authSecurityPolicies, &config->authSecurityPoliciesSize);
+                //else if(strcmp(field, "certificateVerification") == 0)
+                //    retval = CertificateGroup_parseJson(&ctx, &config->certificateVerification, NULL);
+                else if(strcmp(field, "allowNonePolicyPassword") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->allowNonePolicyPassword, NULL);
+#ifdef UA_ENABLE_ENCRYPTION
+                else if(strcmp(field, "maxTrustListSize") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->maxTrustListSize, NULL);
+                else if(strcmp(field, "maxRejectedListSize") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->maxRejectedListSize, NULL);
+#endif
+                /* TODO missing customDataTypes */
+                else if(strcmp(field, "namespaces") == 0)
+                    retval = StringArrayField_parseJson(&ctx, &config->namespacesSize, NULL);
+                else if(strcmp(field, "outStandingPublishRequests") == 0)
+                    retval = UInt16Field_parseJson(&ctx, &config->outStandingPublishRequests, NULL);
+                else {
+                    UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
+                                   "Field name '%s' unknown or misspelled. Maybe the feature is not enabled either.", field);
+                    /* skip the name of item */
+                    ++ctx.index;
+                    /* skip value of unknown item */
+                    skipUnknownItem(&ctx);
+                    /* after skipUnknownItem() ctx->index points to the name of the following item.
+                       We must decrement index in oder following increment will
+                       still set index to the right position (name of the following item) */
+                    --ctx.index;
+                }
+                UA_free(field);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_LOG_ERROR(ctx.logging, UA_LOGCATEGORY_APPLICATION, "An error occurred while parsing the configuration file.");
+                    return retval;
+                }
+                break;
+            }
+            default:
+                break;
+        }
+        ctx.index += 1;
+    }
+    return retval;
+}
+
+UA_Client *
+UA_Client_newFromFile(const UA_ByteString json_config)
+{
+    UA_ClientConfig config;
+    memset(&config, 0, sizeof(UA_ClientConfig));
+    UA_StatusCode res = UA_ClientConfig_setDefault(&config);
+    res |= parseJSONClientConfig(&config, json_config);
+    if(res != UA_STATUSCODE_GOOD)
+        return NULL;
+    return UA_Client_newWithConfig(&config);
+}
+
+UA_StatusCode
+UA_ClientConfig_updateFromFile(UA_ClientConfig *config, const UA_ByteString json_config)
+{
+    UA_StatusCode res = parseJSONClientConfig(config, json_config);
     return res;
 }
 
