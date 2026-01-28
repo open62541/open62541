@@ -13,6 +13,7 @@
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020-2022 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2025-2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #ifndef UA_SERVER_H_
@@ -2439,6 +2440,92 @@ UA_Server_removeCertificates(UA_Server *server,
                              size_t certificatesSize,
                              const UA_Boolean isTrusted);
 
+/**
+ * Role-Based Access Control (RBAC)
+ * =================================
+ *
+ * Role-Based Access Control implementation per OPC UA Part 18.
+ *
+ * **WARNING**: This feature is EXPERIMENTAL and NOT FOR PRODUCTION USE.
+ * The RBAC implementation is under active development and the API may change.
+ * Use only for testing and development purposes.
+ *
+ * RBAC allows fine-grained access control by assigning roles to sessions and
+ * defining permissions per role on individual nodes or entire namespaces.
+ */
+
+#ifdef UA_ENABLE_RBAC
+
+/**
+ * UA_RolePermissionEntry
+ * ----------------------
+ * Maps a role to its permissions. Used in both node-level and namespace-level
+ * permission configurations. */
+typedef struct {
+    UA_NodeId roleId;
+    UA_UInt32 permissions;      /* Bitmask of UA_PermissionType values */
+} UA_RolePermissionEntry;
+
+/**
+ * UA_RolePermissions
+ * ------------------
+ * Container for role permission entries with reference counting.
+ * Multiple nodes can share the same RolePermissions configuration
+ * through the refCount mechanism. */
+typedef struct {
+    size_t entriesSize;
+    UA_RolePermissionEntry *entries;
+    size_t refCount;            /* Number of nodes referencing this configuration */
+} UA_RolePermissions;
+
+/* UA_RolePermissions Type Management */
+void UA_EXPORT
+UA_RolePermissions_init(UA_RolePermissions *rp);
+
+void UA_EXPORT
+UA_RolePermissions_clear(UA_RolePermissions *rp);
+
+UA_StatusCode UA_EXPORT
+UA_RolePermissions_copy(const UA_RolePermissions *src, UA_RolePermissions *dst);
+
+/**
+ * UA_Role
+ * -------
+ * Represents an OPC UA role with identity mapping rules and optional
+ * application/endpoint restrictions per OPC UA Part 18. */
+typedef struct {
+    UA_NodeId roleId;
+    UA_QualifiedName roleName;              /* BrowseName of the role */
+    
+    /* Identity Mapping Rules - determine which sessions get this role */
+    size_t identityMappingRulesSize;
+    UA_IdentityMappingRuleType *identityMappingRules;
+    
+    /* Application restrictions  (empty list = ignore) */
+    UA_Boolean applicationsExclude;
+    size_t applicationsSize;
+    UA_String *applications;
+    
+    /* Endpoint restrictions (empty list = ignore) */
+    UA_Boolean endpointsExclude;
+    size_t endpointsSize;
+    UA_EndpointType *endpoints;
+} UA_Role;
+
+/* UA_Role Type Management */
+void UA_EXPORT
+UA_Role_init(UA_Role *role);
+
+void UA_EXPORT
+UA_Role_clear(UA_Role *role);
+
+UA_StatusCode UA_EXPORT
+UA_Role_copy(const UA_Role *src, UA_Role *dst);
+
+UA_Boolean UA_EXPORT
+UA_Role_equal(const UA_Role *r1, const UA_Role *r2);
+
+#endif /* UA_ENABLE_RBAC */
 
 _UA_END_DECLS
 
