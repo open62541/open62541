@@ -582,46 +582,6 @@ purgeFirstChannelWithoutSession(UA_BinaryProtocolManager *bpm) {
 }
 
 static UA_StatusCode
-configServerSecureChannel(void *application, UA_SecureChannel *channel,
-                          const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
-    if(channel->securityPolicy)
-        return UA_STATUSCODE_GOOD;
-
-    /* Iterate over available endpoints and choose the correct one */
-    UA_Server *server = (UA_Server *)application;
-    UA_SecurityPolicy *securityPolicy = NULL;
-    for(size_t i = 0; i < server->config.securityPoliciesSize; ++i) {
-        UA_SecurityPolicy *policy = &server->config.securityPolicies[i];
-        if(!UA_String_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
-            continue;
-
-        UA_StatusCode res = policy->
-            compareCertThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
-        if(res != UA_STATUSCODE_GOOD)
-            continue;
-
-        /* We found the correct policy (except for security mode). The endpoint
-         * needs to be selected by the client / server to match the security
-         * mode in the endpoint for the session. */
-        securityPolicy = policy;
-        break;
-    }
-
-    if(!securityPolicy)
-        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-
-    /* If the sender provides a chain of certificates then we shall extract the
-     * ApplicationInstanceCertificate. and ignore the extra bytes. See also: OPC
-     * UA Part 6, V1.04, 6.7.2.3 Security Header, Table 42 - Asymmetric
-     * algorithm Security header */
-    UA_ByteString appInstCert = getLeafCertificate(asymHeader->senderCertificate);
-
-    /* Create the channel context and parse the sender (remote) certificate used
-     * for the secureChannel. */
-    return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy, &appInstCert);
-}
-
-static UA_StatusCode
 createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *cm,
                           uintptr_t connectionId, const UA_KeyValueMap *params,
                           UA_SecureChannel **outChannel) {
@@ -675,8 +635,7 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     /* Set up the new SecureChannel */
     UA_SecureChannel_init(channel);
     channel->config = connConfig;
-    channel->certificateVerification = &config->secureChannelPKI;
-    channel->processOPNHeader = configServerSecureChannel;
+    channel->processOPNHeader = processOPN_AsymHeader;
     channel->processOPNHeaderApplication = server;
     channel->connectionManager = cm;
     channel->connectionId = connectionId;

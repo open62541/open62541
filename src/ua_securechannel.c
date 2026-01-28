@@ -655,18 +655,10 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk) {
              &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER], NULL);
     UA_CHECK_STATUS(res, return res);
 
-    if(asymHeader.senderCertificate.length > 0) {
-        if(channel->certificateVerification &&
-           channel->certificateVerification->verifyCertificate)
-            res = channel->certificateVerification->
-                verifyCertificate(channel->certificateVerification,
-                                  &asymHeader.senderCertificate);
-        else
-            res = UA_STATUSCODE_BADINTERNALERROR;
-        UA_CHECK_STATUS(res, goto error);
-    }
-
-    /* New channel, create a security policy context and attach */
+    /* Client/Server-specific processing. Creates a SecurityPolicy context and
+     * attaches it to the channel. For the client, the remote certificate has
+     * been verified before connecting. For the server the remote certificate is
+     * verified within processOPNHeader. */
     UA_assert(channel->processOPNHeader);
     res = channel->processOPNHeader(channel->processOPNHeaderApplication,
                                     channel, &asymHeader);
@@ -690,10 +682,12 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk) {
     }
 #endif
 
-    /* Check the header for the channel's security policy */
+    /* Generic header checking (for both client and server). Requires the
+     * channel's SecurityPolicy. */
     res = checkAsymHeader(channel, &asymHeader);
+    UA_CHECK_STATUS(res, goto error);
+
     UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
-    UA_CHECK_STATUS(res, return res);
 
     /* Decrypt the chunk payload */
     UA_SecurityPolicy *sp = channel->securityPolicy;

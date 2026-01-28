@@ -43,9 +43,9 @@ START_TEST(Server_compareDiNodeset) {
         const UA_DataType *loadedType = UA_Server_findDataType(server, &compiledType->typeId);
 
         ck_assert(loadedType != NULL);
-        ck_assert(compiledType->typeKind == loadedType->typeKind);
-        ck_assert(compiledType->membersSize == loadedType->membersSize);
-        ck_assert(compiledType->memSize == loadedType->memSize);
+        ck_assert_uint_eq(compiledType->typeKind, loadedType->typeKind);
+        ck_assert_uint_eq(compiledType->membersSize, loadedType->membersSize);
+        ck_assert_uint_eq(compiledType->memSize, loadedType->memSize);
         ck_assert(compiledType->overlayable == loadedType->overlayable);
         ck_assert(compiledType->pointerFree == loadedType->pointerFree);
         ck_assert(!strcmp(compiledType->typeName, loadedType->typeName));

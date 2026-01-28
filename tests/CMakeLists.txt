@@ -178,6 +178,9 @@ if(UA_ENABLE_JSON_ENCODING)
     ua_add_test(check_cj5.c)
     ua_add_test(check_types_builtin_json.c)
 
+    configure_file(${CMAKE_SOURCE_DIR}/tests/server/server_json_config.json5 ${CMAKE_BINARY_DIR}/tests/server_json_config.json5 COPYONLY)
+    ua_add_test(server/check_json_config.c)
+
     if(UA_ENABLE_PUBSUB)
         ua_add_test(pubsub/check_pubsub_encoding_json.c)
         ua_add_test(pubsub/check_pubsub_publish_json.c)

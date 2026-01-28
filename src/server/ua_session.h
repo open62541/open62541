@@ -9,6 +9,7 @@
 #ifndef UA_SESSION_H_
 #define UA_SESSION_H_
 
+#include <open62541/plugin/securitypolicy.h>
 #include <open62541/util.h>
 
 #include "../ua_securechannel.h"
@@ -45,12 +46,22 @@ struct UA_Session {
     UA_String sessionName;
     UA_Boolean activated;
 
+    /* For ECC, client and server exchange EphemeralKeys that are only used for
+     * authentication. They are independent from the SecureChannel. Since we
+     * store the private local EphemeralKey only inside the policy context, we
+     * keep a separe SecurityPolicy and context pointer here. */
+    UA_SecurityPolicy *authSp;
+    void *authSpContext;
+
     void *context; /* Pointer assigned by the user in the
                     * accessControl->activateSession context */
 
     UA_ByteString serverNonce;
 
     UA_ApplicationDescription clientDescription;
+    UA_ByteString clientCertificate; /* Must be the same as for the
+                                      * SecureChannel. If the SecureChannel is
+                                      * #None, verify and store here. */
     UA_String clientUserIdOfSession;
     UA_Double timeout; /* in ms */
     UA_DateTime validTill;

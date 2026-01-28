@@ -57,6 +57,8 @@ int main(int argc, char* argv[]) {
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "Generating Certificate failed: %s",
                 UA_StatusCode_name(statusCertGen));
+            UA_ByteString_clear(&certificate);
+            UA_ByteString_clear(&privateKey);
             return EXIT_SUCCESS;
         }
 
@@ -132,6 +134,8 @@ int main(int argc, char* argv[]) {
     retval = UA_Client_connect(client, endpointUrl);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
+        UA_ByteString_clear(&certificate);
+        UA_ByteString_clear(&privateKey);
         return EXIT_FAILURE;
     }
 
@@ -159,5 +163,7 @@ int main(int argc, char* argv[]) {
     /* Clean up */
     UA_Variant_clear(&value);
     UA_Client_delete(client);
+    UA_ByteString_clear(&certificate);
+    UA_ByteString_clear(&privateKey);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

@@ -37,11 +37,6 @@
 #define SHA1_DIGEST_LENGTH 20          /* 160 bits */
 #define RSA_DECRYPT_BUFFER_LENGTH 2048 /* bytes */
 
-/* Label strings for ECC policies */
-UA_String serverLabel = UA_STRING_STATIC("opcua-server");
-UA_String clientLabel = UA_STRING_STATIC("opcua-client");
-UA_String sessionLabel = UA_STRING_STATIC("opcua-secret");
-
 /* Cast to prevent warnings in LibreSSL */
 #define SHA256EVP() ((EVP_MD *)(uintptr_t)EVP_sha256())
 
@@ -1596,7 +1591,10 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
                           EVP_PKEY *localEphemeralKeyPair,
                           const UA_ByteString *key1, const UA_ByteString *key2,
                           UA_ByteString *out) {
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+#if defined(LIBRESSL_VERSION_NUMBER)
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
+
     UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
     UA_ByteString salt = UA_BYTESTRING_NULL;
 
@@ -1604,31 +1602,30 @@ UA_OpenSSL_ECC_DeriveKeys(const int curveID, char *hashAlgorithm,
      * need to generate the local keys or the remote keys. To figure that out,
      * we compare the public part of localEphemeralKeyPair with key1 and
      * key2. */
-    UA_Byte * keyPubEnc = NULL;
-    size_t keyPubEncSize = 0;
 
     /* Get the local ephemeral public key to use in comparison */
-#if defined(LIBRESSL_VERSION_NUMBER)
-    ret = UA_STATUSCODE_BADNOTSUPPORTED;
-    goto errout; /* LibreSSL does currently not support TLS-encoded point APIs
-                  * required for ECDH */
-#elif(OPENSSL_VERSION_NUMBER >= 0x30000000L)
-    keyPubEncSize = EVP_PKEY_get1_encoded_public_key(localEphemeralKeyPair, &keyPubEnc);
+    UA_Byte *keyPubEnc = NULL;
+#if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    size_t keyPubEncSize =
+        EVP_PKEY_get1_encoded_public_key(localEphemeralKeyPair, &keyPubEnc);
 #else
-    keyPubEncSize = EVP_PKEY_get1_tls_encodedpoint(localEphemeralKeyPair, &keyPubEnc);
+    size_t keyPubEncSize =
+        EVP_PKEY_get1_tls_encodedpoint(localEphemeralKeyPair, &keyPubEnc);
 #endif
-    if(keyPubEncSize <= 0) {
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
+    if(keyPubEncSize <= 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Determine the label for salt generation, remote ephemeral public key for
      * ECDH, and info for HKDF */
     UA_ByteString* label = NULL;
     const UA_ByteString * remoteEphPubKey = NULL;
+    static UA_String serverLabel = UA_STRING_STATIC("opcua-server");
+    static UA_String clientLabel = UA_STRING_STATIC("opcua-client");
+    static UA_String sessionLabel = UA_STRING_STATIC("opcua-secret");
 
     /* (Temporary) measure to signal salt generation for sessions. out should
      * always be allocated before this check, so it shouldn't cause problems. */
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
     if(out->data[0] == 0x03 && out->data[1] == 0x03 && out->data[2] == 0x04 ) {
         label = &sessionLabel;
         if(applicationType == UA_APPLICATIONTYPE_SERVER) {

@@ -665,7 +665,7 @@ UA_SecurityPolicy_Filestore(UA_SecurityPolicy *sp,
     symEnc->getRemotePlainTextBlockSize = sym_getRemotePlainTextBlockSize_filestore;
 
     /* Certificate Signing */
-    UA_SecurityPolicySignatureAlgorithm *certSig = &sp->certSignatureAlgorithm;;
+    UA_SecurityPolicySignatureAlgorithm *certSig = &sp->certSignatureAlgorithm;
     certSig->uri = isp->certSignatureAlgorithm.uri;
     certSig->verify = cert_verify_filestore;
     certSig->sign = cert_sign_filestore;
