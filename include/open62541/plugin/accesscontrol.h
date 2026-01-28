@@ -102,6 +102,16 @@ struct UA_AccessControl {
                                   const UA_NodeId *sessionId, void *sessionContext,
                                   const UA_NodeId *nodeId, void *nodeContext);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    /* Allow reception of events
+     * The node to be checked is either the source node (event origin) or the
+     * event type node.*/
+    UA_Boolean (*allowReceiveEvents)(UA_Server *server, UA_AccessControl *ac,
+                                     const UA_NodeId *sessionId, void *sessionContext,
+                                     const UA_NodeId *nodeId, void *nodeContext);
+
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Allow transfer of a subscription to another session. The Server shall
      * validate that the Client of that Session is operating on behalf of the
