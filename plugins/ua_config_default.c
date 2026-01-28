@@ -458,6 +458,11 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     UA_CertificateGroup_AcceptAll(&conf->secureChannelPKI);
     UA_CertificateGroup_AcceptAll(&conf->sessionPKI);
 
+#ifdef UA_ENABLE_RBAC
+    /* RBAC Configuration: Allow full anonymous access by default */
+    conf->allPermissionsForAnonymousRole = true;
+#endif
+
     /* * Global Node Lifecycle * */
     /* conf->nodeLifecycle.constructor = NULL; */
     /* conf->nodeLifecycle.destructor = NULL; */
