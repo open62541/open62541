@@ -430,6 +430,15 @@ START_TEST(UA_Networkmessage_metaData_oob) {
 END_TEST
 
 
+START_TEST(UA_Networkmessage_malformed_array) {
+    UA_NetworkMessage nm;
+    UA_ByteString bs = UA_STRING("[]");
+    UA_StatusCode rv = UA_NetworkMessage_decodeJson(&bs, &nm, NULL, NULL);
+    ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
+    UA_NetworkMessage_clear(&nm);
+}
+END_TEST
+
 static Suite *testSuite_networkmessage(void) {
     Suite *s = suite_create("Built-in Data Types 62541-6 Json");
     TCase *tc_json_networkmessage = tcase_create("networkmessage_json");
@@ -441,6 +450,7 @@ static Suite *testSuite_networkmessage(void) {
     tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_json_decode_messageObject);
     tcase_add_test(tc_json_networkmessage, UA_Networkmessage_DataSetFieldsNull_json_decode);
     tcase_add_test(tc_json_networkmessage, UA_Networkmessage_metaData_oob);
+    tcase_add_test(tc_json_networkmessage, UA_Networkmessage_malformed_array);
 
     suite_add_tcase(s, tc_json_networkmessage);
     return s;

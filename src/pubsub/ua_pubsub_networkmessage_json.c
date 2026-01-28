@@ -459,6 +459,10 @@ NetworkMessage_decodeJsonInternal(PubSubDecodeJsonCtx *ctx,
     dst->picosecondsEnabled = false;
     dst->promotedFieldsEnabled = false;
 
+    /* The NetworkMessage must be a JSON object */
+    if(currentTokenType(&ctx->ctx) != CJ5_TOKEN_OBJECT)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     /* Is Messages an Array? How big? */
     size_t searchResultMessages = 0;
     status found = lookAheadForKey(&ctx->ctx, UA_DECODEKEY_MESSAGES, &searchResultMessages);
