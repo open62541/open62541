@@ -50,6 +50,40 @@ getFileInfo(UA_GDSManager *gdsManager, UA_NodeId certificateGroupId) {
     return NULL;
 }
 
+
+/********************/
+/*   GDS Manager    */
+/********************/
+
+void
+UA_GDSManager_clear(UA_GDSManager *gdsManager) {
+    if(!gdsManager)
+        return;
+    gdsManager->checkSessionCallbackId = 0;
+    UA_GDSTransaction_clear(&gdsManager->transaction);
+    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)(gdsManager->fileInfoContext);
+
+    /* free all fileInfoContexts */
+    while(fileInfoContext) {
+        UA_FileInfoContext *next = fileInfoContext->next;
+        UA_FileInfo *fileInfo = &(fileInfoContext->fileInfo);
+        UA_FileContext *fileContext = NULL;
+        UA_FileContext *fileContextTmp = NULL;
+
+        /* free all fileContexts in this fileInfoContext */
+        LIST_FOREACH_SAFE(fileContext, &(fileInfo->fileContext), listEntry, fileContextTmp) {
+            UA_ByteString_clear(&(fileContext->file));
+            UA_ByteString_clear(&(fileContext->dataToWrite));
+            LIST_REMOVE(fileContext, listEntry);
+            UA_free(fileContext);
+        }
+
+        UA_free(fileInfoContext);
+        fileInfoContext = next;
+    }
+}
+
+
 static UA_StatusCode
 createFileHandleId(UA_FileInfo *fileInfo, UA_UInt32 *fileHandle) {
     if(!fileInfo || !fileHandle)

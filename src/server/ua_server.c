@@ -337,24 +337,6 @@ void UA_GDSTransaction_delete(UA_GDSTransaction *transaction) {
     UA_free(transaction);
 }
 
-/********************/
-/*   GDS Manager    */
-/********************/
-
-void
-UA_GDSManager_clear(UA_GDSManager *gdsManager) {
-    if(!gdsManager)
-        return;
-    gdsManager->checkSessionCallbackId = 0;
-    UA_GDSTransaction_clear(&gdsManager->transaction);
-    void *fileInfoContext = gdsManager->fileInfoContext;
-    while(fileInfoContext) {
-        void *next = *((void **)fileInfoContext);
-        UA_free(fileInfoContext);
-        fileInfoContext = next;
-    }
-}
-
 /*********************/
 /* Server Components */
 /*********************/
@@ -481,7 +463,9 @@ UA_Server_delete(UA_Server *server) {
     UA_LOCK_DESTROY(&server->serviceMutex);
 #endif
 
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
     UA_GDSManager_clear(&server->gdsManager);
+#endif
 
     /* Delete the server itself and return */
     UA_free(server);
