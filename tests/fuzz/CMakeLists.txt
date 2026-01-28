@@ -96,6 +96,10 @@ if(UA_ENABLE_JSON_ENCODING)
     endif()
 endif()
 
+if(UA_ENABLE_PUBSUB)
+    add_fuzzer(fuzz_pubsub_binary fuzz_pubsub_binary.cc)
+endif()
+
 if(UA_ENABLE_XML_ENCODING)
     add_fuzzer(fuzz_xml_decode_encode fuzz_xml_decode_encode.cc)
 endif()
