@@ -48,7 +48,7 @@ UA_StatusCode UA_FileServerDriver_addFileDirectory(
     UA_Server *server,
     const UA_NodeId *parentNode,
     const char *mountPath,
-    UA_NodeId *newNodeId);
+    UA_NodeId *newNodeId, const char *scanDir);
     
 /* API function: Add a new File node to the OPC UA server.
  *

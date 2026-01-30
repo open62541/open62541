@@ -312,7 +312,7 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
                                   UA_Server *server,
                                   const UA_NodeId *parentNode,
                                   const char *mountPath,
-                                  UA_NodeId *newNodeId) {
+                                  UA_NodeId *newNodeId, const char *scanDir) {
 
     char *name;
     if (driver == NULL) {
@@ -362,12 +362,14 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
         UA_NODEID_NUMERIC(0, UA_NS0ID_FILEDIRECTORYTYPE), /* Type definition: FileDirectoryType */
         oAttr, fsNode, newNodeId);
     
-    if (driver == NULL){
-        return retval; 
+    if (scanDir != NULL) {
+        scanDirectoryRecursive(server, newNodeId, scanDir, &UA_FileServerDriver_addFileDirectory, &UA_FileServerDriver_addFile);
     }
 
-    scanDirectoryRecursive(server, newNodeId, mountPath, &UA_FileServerDriver_addFileDirectory, &UA_FileServerDriver_addFile);
-
+    if (driver == NULL) {
+        return retval; 
+    }
+    
     driver->fsNodes = (UA_NodeId*) realloc(driver->fsNodes,
         sizeof(UA_NodeId) * (driver->fsCount + 1));
 

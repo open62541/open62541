@@ -64,7 +64,7 @@ manuallyDefinePump(UA_Server *server, UA_FileServerDriver *driver) {
      */
     UA_NodeId filesystemId; /* NodeId assigned by the server for the FileSystem */
     UA_FileServerDriver_addFileDirectory(driver, server, &pumpId,
-                                      "./var/log/opcua", &filesystemId);
+                                      "./var/log/opcua", &filesystemId, "./var/log/opcua");
 }
 
 int main(void) {
@@ -87,12 +87,12 @@ int main(void) {
     UA_NodeId nodeId1 = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId newFsNodeId1;
     UA_FileServerDriver_addFileDirectory(fsDriver, server, &nodeId1,
-                                      "./etc/opcua/config", &newFsNodeId1);
+                                      "./etc/opcua/config", &newFsNodeId1, "./etc/opcua/config");
 
     UA_NodeId nodeId2 = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId newFsNodeId2;
     UA_FileServerDriver_addFileDirectory(fsDriver, server, &nodeId2,
-                                      "./var/log/opcua", &newFsNodeId2);
+                                      "./var/log/opcua", &newFsNodeId2, "./var/log/opcua");
 
     /* Start the driver (could open resources or spawn threads here) */
     fsDriver->base.lifecycle.start((UA_Driver*)fsDriver);
