@@ -120,8 +120,9 @@ checkParentReference(UA_Server *server, UA_Session *session, const UA_NodeHead *
     /* See if the parent exists */
     const UA_Node *parent = UA_NODESTORE_GET(server, parentNodeId);
     if(!parent) {
-        logAddNode(server->config.logging, session, &head->nodeId,
-                   "Parent node not found");
+        UA_LOG_INFO_SESSION(server->config.logging, session,
+                            "AddNode (%N): Parent node %N not found",
+                            head->nodeId, *parentNodeId);
         return UA_STATUSCODE_BADPARENTNODEIDINVALID;
     }
 
@@ -131,15 +132,17 @@ checkParentReference(UA_Server *server, UA_Session *session, const UA_NodeHead *
     /* Check the referencetype exists */
     const UA_Node *referenceType = UA_NODESTORE_GET(server, referenceTypeId);
     if(!referenceType) {
-        logAddNode(server->config.logging, session, &head->nodeId,
-                   "Reference type to the parent not found");
+        UA_LOG_INFO_SESSION(server->config.logging, session,
+                            "AddNode (%N): Reference type %N to the parent not found",
+                            head->nodeId, *referenceTypeId);
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
 
     /* Check if the referencetype is a reference type node */
     if(referenceType->head.nodeClass != UA_NODECLASS_REFERENCETYPE) {
-        logAddNode(server->config.logging, session, &head->nodeId,
-                   "Reference type to the parent is not a ReferenceTypeNode");
+        UA_LOG_INFO_SESSION(server->config.logging, session,
+                            "AddNode (%N): Reference type %N to the parent is "
+                            "not a ReferenceTypeNode", head->nodeId, *referenceTypeId);
         UA_NODESTORE_RELEASE(server, referenceType);
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
     }
@@ -148,8 +151,9 @@ checkParentReference(UA_Server *server, UA_Session *session, const UA_NodeHead *
     UA_Boolean referenceTypeIsAbstract = referenceType->referenceTypeNode.isAbstract;
     UA_NODESTORE_RELEASE(server, referenceType);
     if(referenceTypeIsAbstract == true) {
-        logAddNode(server->config.logging, session, &head->nodeId,
-                   "Abstract reference type to the parent not allowed");
+        UA_LOG_INFO_SESSION(server->config.logging, session,
+                            "AddNode (%N): Reference type %N to the parent is abstract",
+                            head->nodeId, *referenceTypeId);
         return UA_STATUSCODE_BADREFERENCENOTALLOWED;
     }
 
@@ -965,7 +969,9 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         /* Get the type node */
         type = UA_NODESTORE_GET(server, typeDefinitionId);
         if(!type) {
-            logAddNode(server->config.logging, session, nodeId, "Node type not found");
+            UA_LOG_INFO_SESSION(server->config.logging, session,
+                                "AddNode (%N): Node type %N not found ",
+                                *nodeId, *typeDefinitionId);
             retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
             goto cleanup;
         }
