@@ -27,6 +27,91 @@ makeFile(const char *path) {
     return UA_STATUSCODE_GOOD;
 }
 
+bool 
+isDirectory(const char *path) {
+    DWORD attrs = GetFileAttributesA(path);
+    if (attrs == INVALID_FILE_ATTRIBUTES)
+        return false;
+    return (attrs & FILE_ATTRIBUTE_DIRECTORY) != 0;
+}
+
+UA_StatusCode
+deleteDirOrFile(const char *path) {
+    if(isDirectory(path)) {
+        /* Try to remove directory (must be empty) */
+        if(RemoveDirectoryA(path))
+            return UA_STATUSCODE_GOOD;
+        UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER, "Can't delete Directory %s", path);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    } else {
+        /* Delete file */
+        if(DeleteFileA(path))
+            return UA_STATUSCODE_GOOD;
+        UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER, "Can't delete File %s", path);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+}
+
+static UA_StatusCode
+copyFile(const char *src, const char* dst) {
+    if (CopyFileA(src, dst, FALSE))
+        return UA_STATUSCODE_GOOD;
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
+static UA_StatusCode
+copyDirectory(const char *src, const char* dst) {
+    CreateDirectoryA(dst, NULL);
+
+    char pattern[MAX_PATH];
+    snprintf(pattern, MAX_PATH, "%s\\*", src);
+
+    WIN32_FIND_DATAA fd;
+    HANDLE h = FindFirstFileA(pattern, &fd);
+    if(h == INVALID_HANDLE_VALUE)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    do {
+        if(strcmp(fd.cFileName, ".") == 0 || strcmp(fd.cFileName, "..") == 0)
+            continue;
+        
+        char srcPath[MAX_PATH], dstPath[MAX_PATH];
+        snprintf(srcPath, MAX_PATH, "%s\\%s", src, fd.cFileName);
+        snprintf(dstPath, MAX_PATH, "%s\\%s", dst, fd.cFileName);
+
+        if(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            copyDirectory(srcPath, dstPath);
+        } else {
+            copyFile(srcPath, dstPath);
+        }
+    } while (FindNextFileA(h, &fd));
+
+    FindClose(h);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+moveOrCopyItem(const char *sourcePath, const char *destinationPath, bool copy) {
+    bool srcIsDir = isDirectory(sourcePath);
+
+    if(copy) {
+        if(srcIsDir) {
+            return copyDirectory(sourcePath, destinationPath);
+        } else{
+        return copyFile(sourcePath, destinationPath);
+        }
+    } else {
+        if(MoveFileA(sourcePath, destinationPath))
+            return UA_STATUSCODE_GOOD;
+        UA_StatusCode c = srcIsDir ? copyDirectory(sourcePath, destinationPath)
+                            : copyFile(sourcePath, destinationPath);
+        if(c != UA_STATUSCODE_GOOD)
+            return c;
+        return c;
+    }
+}
+
 UA_StatusCode
 directoryExists(const char *path, UA_Boolean *exists) {
     DWORD attribs = GetFileAttributesA(path);
@@ -58,6 +143,8 @@ openFile(const char *path, UA_Byte openMode, FILE **handle) {
         mode = "rb";
     }
     
+    UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER, "path: %s, openmode: %d", path, openMode);
+
     *handle = fopen(path, mode);
     if (!*handle) {
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -161,7 +248,8 @@ getFileSize(const char *path, UA_UInt64 *size) {
 
 UA_StatusCode
 scanDirectoryRecursive(UA_Server *server, const UA_NodeId *parentNode, const char *path, void* addDirFunc, void* addFileFunc) {
-    UA_StatusCode (*addDir)(UA_FileServerDriver* , UA_Server*, const UA_NodeId* , const char *, UA_NodeId *) = addDirFunc;
+    UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER, "Scanning directory: %s", path);
+    UA_StatusCode (*addDir)(UA_FileServerDriver* , UA_Server*, const UA_NodeId* , const char *, UA_NodeId *, const char *) = addDirFunc;
     UA_StatusCode (*addFile)(UA_Server*, const UA_NodeId* , const char *, UA_NodeId *) = addFileFunc;
     char searchPath[MAX_PATH];
     snprintf(searchPath, sizeof(searchPath), "%s\\*", path);
@@ -183,7 +271,7 @@ scanDirectoryRecursive(UA_Server *server, const UA_NodeId *parentNode, const cha
 
         if(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             UA_NodeId newDirNode;
-            if (addDir(NULL, server, parentNode, name, &newDirNode) == UA_STATUSCODE_GOOD) {
+            if (addDir(NULL, server, parentNode, name, &newDirNode, NULL) == UA_STATUSCODE_GOOD) {
                 scanDirectoryRecursive(server, &newDirNode, fullPath, addDirFunc, addFileFunc);
             }
         } else {

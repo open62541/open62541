@@ -7,58 +7,6 @@
 #include <stdio.h>
 
 // #ifdef UA_ENABLE_FILESYSTEM
-
-static UA_StatusCode
-getFullPath(UA_Server *server,
-            const UA_NodeId *startNode,
-            char *buffer,
-            size_t bufferSize)
-{
-    buffer[0] = '\0';
-
-    UA_NodeId current = *startNode;
-
-    while(true) {
-        /* Get the context of the current node */
-        FileDirectoryContext *ctx = NULL;
-        UA_Server_getNodeContext(server, current, (void**)&ctx);
-
-        if(!ctx || !ctx->path) {
-            /* No context means we reached the root */
-            break;
-        }
-
-        /* Prepend this path segment */
-        char temp[2048];
-        snprintf(temp, sizeof(temp), "%s/%s", ctx->path, buffer);
-        strncpy(buffer, temp, bufferSize);
-
-        /* Browse inverse to find the parent */
-        UA_BrowseResult br = UA_Server_browse(server, 10,
-            &(UA_BrowseDescription){
-                .nodeId = current,
-                .browseDirection = UA_BROWSEDIRECTION_INVERSE,
-                .includeSubtypes = true,
-                .referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                .nodeClassMask = UA_NODECLASS_OBJECT
-            });
-
-        if(br.referencesSize == 0) {
-            UA_BrowseResult_clear(&br);
-            break;
-        }
-
-        /* Move to parent */
-        current = br.references[0].nodeId.nodeId;
-
-        UA_BrowseResult_clear(&br);
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-
-
 static UA_StatusCode
 createDirectory(UA_Server *server,
                   const UA_NodeId *sessionId, void *sessionHandle,
@@ -97,7 +45,7 @@ createDirectory(UA_Server *server,
     output[0].data = UA_NodeId_new();      // SAFE allocation
     UA_NodeId_init((UA_NodeId*)output[0].data);
 
-    UA_FileServerDriver_addFileDirectory(NULL, server, objectId, (const char*)folderName.data, (UA_NodeId*)output[0].data);
+    UA_FileServerDriver_addFileDirectory(NULL, server, objectId, (const char*)folderName.data, (UA_NodeId*)output[0].data, NULL);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -161,16 +109,105 @@ createFile(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Recursively delete all child nodes of a given node */
 static UA_StatusCode
-deleteDirectory(UA_Server *server,
+deleteSubtree(UA_Server *server, const UA_NodeId *nodeId, bool deleteFiles) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *nodeId;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    if(br.statusCode != UA_STATUSCODE_GOOD)
+        return br.statusCode;
+
+    /* Iterate over all references */
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        UA_ReferenceDescription *ref = &br.references[i];
+
+        UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER, 
+                     "Found Node %d, %d", &ref->referenceTypeId.identifier.numeric, UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES).identifier.numeric);
+
+        /* Only follow Organizes or HasComponent */
+        UA_NodeId org = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+        if(!UA_NodeId_equal(&ref->referenceTypeId, &org))
+            continue;
+
+        /* Only follow nodes in our namespace */
+        if(ref->nodeId.nodeId.namespaceIndex != nodeId->namespaceIndex)
+            continue;
+
+        /* Only follow FileType or DirectoryType */
+        UA_NodeId ft = UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE);
+        UA_NodeId dt = UA_NODEID_NUMERIC(0, UA_NS0ID_FILEDIRECTORYTYPE);
+        if(!UA_NodeId_equal(&ref->typeDefinition.nodeId, &ft) &&
+           !UA_NodeId_equal(&ref->typeDefinition.nodeId, &dt))
+            continue;
+
+        UA_NodeId childId = UA_NODEID_NULL;
+        UA_NodeId_copy(&ref->nodeId.nodeId, &childId);
+
+        /* Recursively delete children first */
+        deleteSubtree(server, &childId, deleteFiles);
+
+        UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER, 
+                     "Deleting Node %d", childId.identifier.numeric);
+
+        char fullPath[2048];
+        getFullPath(server, &childId, fullPath, 2048);
+        fullPath[strlen(fullPath)-1] = '\0';
+
+        UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                    "FullPath for deletion: %s", fullPath);
+
+        if (deleteFiles)
+            /* Perform filesystem delete */
+            deleteDirOrFile(fullPath);
+
+        /* Delete the child node itself */
+        UA_Server_deleteNode(server, childId, true);
+        UA_NodeId_clear(&childId);
+    }
+
+    UA_BrowseResult_clear(&br);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+deleteItem(UA_Server *server,
                   const UA_NodeId *sessionId, void *sessionHandle,
                   const UA_NodeId *methodId, void *methodContext,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    // Implementation to remove a directory from the filesystem
-    // This is a placeholder and should contain actual filesystem operations
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    /* Validate input count */
+    if(inputSize != 1 || !UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    /* Extract path */
+    UA_NodeId *nodeId = (UA_NodeId*)input[0].data;
+    if(!nodeId)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    deleteSubtree(server, nodeId, true);
+
+    char fullPath[2048];
+    getFullPath(server, nodeId, fullPath, 2048);
+    fullPath[strlen(fullPath)-1] = '\0';
+
+    UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                 "FullPath for deletion: %s", fullPath);
+
+    /* Perform filesystem delete */
+    UA_StatusCode result = deleteDirOrFile(fullPath);
+
+    if (result == UA_STATUSCODE_GOOD) {
+        result = UA_Server_deleteNode(server, *nodeId, true);           
+        UA_NodeId_clear(nodeId);
+    }
+
+    return result;
 }
 
 static UA_StatusCode
@@ -180,9 +217,61 @@ moveOrCopy(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
-    // Implementation to move or copy a file/directory in the filesystem
-    // This is a placeholder and should contain actual filesystem operations
-    return UA_STATUSCODE_BADNOTIMPLEMENTED;
+                    
+    /* Validate input count */
+    if(inputSize != 4 || !UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_NODEID]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+        
+    /* Validate input count */
+    if(!UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_NODEID]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+        
+    /* Validate input count */
+    if(!UA_Variant_hasScalarType(&input[2], &UA_TYPES[UA_TYPES_BOOLEAN]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+        
+    /* Validate input count */
+    if(!UA_Variant_hasScalarType(&input[3], &UA_TYPES[UA_TYPES_STRING]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    UA_NodeId *nodeIdSrc = (UA_NodeId*)input[0].data;
+    UA_NodeId *nodeIdDst = (UA_NodeId*)input[1].data;
+    UA_Boolean *createCopy = (UA_Boolean*)input[2].data;
+    UA_String *newName = (UA_String*)input[3].data;
+
+    char srcPath[MAX_PATH], dstPath[MAX_PATH], temp[MAX_PATH];
+    getFullPath(server, nodeIdSrc, srcPath, MAX_PATH);
+    srcPath[strlen(srcPath)-1] = '\0';
+
+    getFullPath(server, nodeIdDst, temp, MAX_PATH);
+    char name[512];
+    snprintf(name, sizeof(name), "%.*s",
+            (int)newName->length,
+            newName->data);
+    snprintf(temp, sizeof(temp), "%s%s", temp, name);
+    strncpy(dstPath, temp, MAX_PATH);
+
+    // TODO: Add new Nodes to the tree or move old ones
+    bool isDir = isDirectory(srcPath);
+    UA_StatusCode res = moveOrCopyItem(srcPath, dstPath, *createCopy);
+
+    if (res == UA_STATUSCODE_GOOD) {
+        if (!*createCopy) {
+            res |= deleteSubtree(server, nodeIdSrc, false);
+            if (res != UA_STATUSCODE_GOOD)
+                return res;
+
+            res |= UA_Server_deleteNode(server, *nodeIdSrc, true);           
+            UA_NodeId_clear(nodeIdSrc);
+        }
+        if (isDir) {
+            res |= UA_FileServerDriver_addFileDirectory(NULL, server, nodeIdDst, name, (UA_NodeId*)output, dstPath);
+        } else {
+            res |= UA_FileServerDriver_addFile(server, nodeIdDst, name, (UA_NodeId*)output);
+        }
+    }
+
+    return res;
 }
 
 static UA_StatusCode
@@ -227,7 +316,7 @@ deleteAction(UA_Server *server,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output) {
     lockServer(server);
-    UA_StatusCode res = deleteDirectory(server, sessionId, sessionHandle,
+    UA_StatusCode res = deleteItem(server, sessionId, sessionHandle,
                            methodId, methodContext,
                            objectId, objectContext,
                            inputSize, input,

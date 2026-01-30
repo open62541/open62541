@@ -280,6 +280,11 @@ if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
 
+option(UA_ENABLE_FILESYSTEM "Enables FileSystem" ON)
+if(UA_ENABLE_FILESYSTEM AND NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
+    message(FATAL_ERROR "UA_ENABLE_FILESYSTEM requires FULL namespace zero")
+endif()
+
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     # Force enable options not passed in the build script, to also fuzzy-test this code
     set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)

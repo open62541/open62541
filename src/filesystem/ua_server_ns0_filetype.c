@@ -84,12 +84,14 @@ openFileMethod(UA_Server *server,
     UA_Byte openMode = *(UA_Byte*)input[0].data;
     
     /* Open file */
+    char fullPath[MAX_PATH];
+    getFullPath(server, objectId, fullPath, MAX_PATH);
+    fullPath[strlen(fullPath)-1] = '\0';
     FILE *handle = NULL;
-    UA_StatusCode res = openFile(fileCtx->path, openMode, &handle);
+    UA_StatusCode res = openFile(fullPath, openMode, &handle);
     if (res != UA_STATUSCODE_GOOD) {
         return res;
     }
-    
     /* Create or get session context */
     if (!sessionCtx) {
         sessionCtx = createSessionContext(fileCtx, sessionId);

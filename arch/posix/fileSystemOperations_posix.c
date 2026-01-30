@@ -4,6 +4,10 @@
 #if defined(UA_ARCHITECTURE_POSIX)
 #include <sys/stat.h>
 #include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <string.h>
+#include <dirent.h>
 
 UA_StatusCode
 makeDirectory(const char *path) {
@@ -20,6 +24,118 @@ makeFile(const char *path) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     fclose(file);
+    return UA_STATUSCODE_GOOD;
+}
+
+bool
+isDirectory(const char *path) {
+    struct stat st;
+    if(stat(path, &st) != 0)
+        return false;
+    return S_ISDIR(st.st_mode);
+}
+
+UA_StatusCode
+deleteDirOrFile(const char *path) {
+    if(isDirectory(path)) {
+        if(rmdir(path) == 0)
+            return UA_STATUSCODE_GOOD;
+        return UA_STATUSCODE_BADINTERNALERROR;
+    } else {
+        if(unlink(path) == 0)
+            return UA_STATUSCODE_GOOD;
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+}
+
+static UA_StatusCode
+copyFile(const char *src, const char *dst) {
+    int in = open(src, O_RDONLY);
+    if(in < 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    int out = open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if(out < 0) {
+        close(in);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    char buf[8192];
+    ssize_t n;
+    while((n = read(in, buf, sizeof(buf))) > 0) {
+        if(write(out, buf, n) != n) {
+            close(in);
+            close(out);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+    }
+
+    close(in);
+    close(out);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+copyDirectory(const char *src, const char *dst) {
+    mkdir(dst, 0755);
+
+    DIR *dir = opendir(src);
+    if(!dir)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    struct dirent *entry;
+    while((entry = readdir(dir)) != NULL) {
+        if(strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        char srcPath[PATH_MAX], dstPath[PATH_MAX];
+        snprintf(srcPath, sizeof(srcPath), "%s/%s", src, entry->d_name);
+        snprintf(dstPath, sizeof(dstPath), "%s/%s", dst, entry->d_name);
+
+        struct stat st;
+        if(stat(srcPath, &st) != 0)
+            continue;
+
+        if(S_ISDIR(st.st_mode)) {
+            copyDirectory(srcPath, dstPath);
+        } else {
+            copyFile(srcPath, dstPath);
+        }
+    }
+
+    closedir(dir);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+moveOrCopyItem(const char *sourcePath, const char *destinationPath, bool copy) {
+    bool srcIsDir = isDirectory(sourcePath);
+
+    if(copy) {
+        return srcIsDir
+            ? copyDirectory(sourcePath, destinationPath)
+            : copyFile(sourcePath, destinationPath);
+    } else {
+        if(rename(sourcePath, destinationPath) == 0)
+            return UA_STATUSCODE_GOOD;
+
+        UA_StatusCode c = srcIsDir
+            ? copyDirectory(sourcePath, destinationPath)
+            : copyFile(sourcePath, destinationPath);
+
+        return c;
+    }
+}
+
+UA_StatusCode
+directoryExists(const char *path, UA_Boolean *exists) {
+    struct stat st;
+    if(stat(path, &st) != 0) {
+        *exists = UA_FALSE;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    *exists = S_ISDIR(st.st_mode) ? UA_TRUE : UA_FALSE;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -140,6 +256,49 @@ getFileSize(const char *path, UA_UInt64 *size) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     *size = (UA_UInt64)st.st_size;
+    return UA_STATUSCODE_GOOD;
+}
+UA_StatusCode
+scanDirectoryRecursive(UA_Server *server,
+                       const UA_NodeId *parentNode,
+                       const char *path,
+                       void *addDirFunc,
+                       void *addFileFunc)
+{
+    UA_StatusCode (*addDir)(UA_FileServerDriver*, UA_Server*, const UA_NodeId*,
+                            const char*, UA_NodeId*, const char*) = addDirFunc;
+    UA_StatusCode (*addFile)(UA_Server*, const UA_NodeId*, const char*, UA_NodeId*) = addFileFunc;
+
+    DIR *dir = opendir(path);
+    if(!dir)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    struct dirent *entry;
+    while((entry = readdir(dir)) != NULL) {
+        const char *name = entry->d_name;
+
+        if(strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
+            continue;
+
+        char fullPath[PATH_MAX];
+        snprintf(fullPath, sizeof(fullPath), "%s/%s", path, name);
+
+        struct stat st;
+        if(stat(fullPath, &st) != 0)
+            continue;
+
+        if(S_ISDIR(st.st_mode)) {
+            UA_NodeId newDirNode;
+            if(addDir(NULL, server, parentNode, name, &newDirNode, NULL) == UA_STATUSCODE_GOOD) {
+                scanDirectoryRecursive(server, &newDirNode, fullPath, addDirFunc, addFileFunc);
+            }
+        } else {
+            UA_NodeId newFileNode;
+            addFile(server, parentNode, name, &newFileNode);
+        }
+    }
+
+    closedir(dir);
     return UA_STATUSCODE_GOOD;
 }
 
