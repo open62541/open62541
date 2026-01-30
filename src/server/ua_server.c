@@ -16,7 +16,7 @@
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
- *    Copyright 2022 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2022-2025 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
@@ -189,7 +189,7 @@ UA_GDSTransaction_init(UA_GDSTransaction *transaction, UA_Server *server, const 
 
     memset(transaction, 0, sizeof(UA_GDSTransaction));
 
-    transaction->state = UA_GDSTRANSACIONSTATE_PENDING;
+    transaction->state = UA_GDSTRANSACTIONSTATE_PENDING;
     UA_NodeId_copy(&sessionId, &transaction->sessionId);
     transaction->server = server;
     transaction->localCsrCertificate = csr;
@@ -205,7 +205,7 @@ UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
         return NULL;
 
     /* Check if transaction was initialized */
-    if(transaction->state != UA_GDSTRANSACIONSTATE_PENDING)
+    if(transaction->state != UA_GDSTRANSACTIONSTATE_PENDING)
         return NULL;
 
     for(size_t i = 0; i < transaction->certGroupSize; i++) {
@@ -259,7 +259,7 @@ UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Check if transaction was initialized */
-    if(transaction->state != UA_GDSTRANSACIONSTATE_PENDING)
+    if(transaction->state != UA_GDSTRANSACTIONSTATE_PENDING)
         return UA_STATUSCODE_BADINVALIDSTATE;
 
     /* Check if an entry with certificateGroupId and certificateTypeId already exists */
@@ -305,7 +305,7 @@ void UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
     if(!transaction)
         return;
 
-    transaction->state = UA_GDSTRANSACIONSTATE_FRESH;
+    transaction->state = UA_GDSTRANSACTIONSTATE_FRESH;
     transaction->server = NULL;
     UA_NodeId_clear(&transaction->sessionId);
     UA_ByteString_clear(&transaction->localCsrCertificate);
@@ -564,8 +564,15 @@ UA_Server_init(UA_Server *server) {
     UA_AsyncManager_init(&server->asyncManager, server);
 #endif
 
-    /* Initialize namespace 0*/
+    /* Initialize namespace 0 */
+#ifdef UA_GENERATED_NAMESPACE_ZERO
+    /* Standard configuration: generate NS0 nodes at runtime */
     res = initNS0(server);
+#else
+    /* NONE configuration: NS0 pre-loaded by external nodestore (e.g., ROM).
+     * Only connect data sources for dynamic values like ServerTime, ServerStatus, etc. */
+    res = initNS0_dataSources(server);
+#endif
     UA_CHECK_STATUS(res, goto cleanup);
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
@@ -752,17 +759,25 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
     unlockServer(server);
 }
 
+/* When the trustlist changes, re-check the certificates of all
+ * SecureChannels */
 static void
 secureChannel_delayedCloseTrustList(void *application, void *context) {
     UA_DelayedCallback *dc = (UA_DelayedCallback*)context;
     UA_Server *server = (UA_Server*)application;
 
-    UA_CertificateGroup certGroup = server->config.secureChannelPKI;
+    UA_CertificateGroup *certGroup = &server->config.secureChannelPKI;
     UA_SecureChannel *channel;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
-        if(channel->state != UA_SECURECHANNELSTATE_CLOSED && channel->state != UA_SECURECHANNELSTATE_CLOSING)
+        if(channel->state != UA_SECURECHANNELSTATE_CLOSED &&
+           channel->state != UA_SECURECHANNELSTATE_CLOSING)
             continue;
-        if(certGroup.verifyCertificate(&certGroup, &channel->remoteCertificate) != UA_STATUSCODE_GOOD)
+        if(channel->remoteCertificate.length == 0)
+            continue; /* SecureChannels w/o security */
+        UA_StatusCode res =
+            validateCertificate(server, certGroup, channel, channel->sessions,
+                                NULL, channel->remoteCertificate);
+        if(res != UA_STATUSCODE_GOOD)
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
     UA_free(dc);
@@ -894,7 +909,7 @@ UA_Server_removeCertificates(UA_Server *server,
 
 typedef struct UpdateCertInfo {
     UA_Server *server;
-    const UA_NodeId *certificateTypeId;
+    UA_NodeId certificateTypeId;
 } UpdateCertInfo;
 
 static void
@@ -905,9 +920,10 @@ secureChannel_delayedClose(void *application, void *context) {
     UA_SecureChannel *channel;
     TAILQ_FOREACH(channel, &info->server->channels, serverEntry) {
         const UA_SecurityPolicy *policy = channel->securityPolicy;
-        if(UA_NodeId_equal(&policy->certificateTypeId, info->certificateTypeId))
+        if(UA_NodeId_equal(&policy->certificateTypeId, &(info->certificateTypeId)))
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
+    UA_NodeId_clear(&(info->certificateTypeId));
     UA_free(info);
     UA_free(dc);
 }
@@ -923,7 +939,7 @@ UA_Server_updateCertificate(UA_Server *server,
 
     lockServer(server);
 
-    if(server->gdsManager.transaction.state == UA_GDSTRANSACIONSTATE_PENDING) {
+    if(server->gdsManager.transaction.state == UA_GDSTRANSACTIONSTATE_PENDING) {
         unlockServer(server);
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
     }
@@ -967,7 +983,7 @@ UA_Server_updateCertificate(UA_Server *server,
         if(!UA_NodeId_equal(&sp->certificateTypeId, &certificateTypeId))
             continue;
 
-        retval = sp->updateCertificateAndPrivateKey(sp, certificate, newPrivateKey);
+        retval = sp->updateCertificate(sp, certificate, newPrivateKey);
         if(retval != UA_STATUSCODE_GOOD) {
             unlockServer(server);
             return retval;
@@ -985,7 +1001,7 @@ UA_Server_updateCertificate(UA_Server *server,
 
     UpdateCertInfo *certInfo = (UpdateCertInfo*)UA_calloc(1, sizeof(UpdateCertInfo));
     certInfo->server = server;
-    certInfo->certificateTypeId = &certificateTypeId;
+    UA_NodeId_copy(&certificateTypeId, &(certInfo->certificateTypeId));
 
     dc->callback = secureChannel_delayedClose;
     dc->application = certInfo;
@@ -1033,20 +1049,18 @@ UA_Server_createSigningRequest(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_ByteString *newPrivateKey = NULL;
-    if(regenerateKey && *regenerateKey == true) {
+    if(regenerateKey && *regenerateKey == true)
         newPrivateKey = UA_ByteString_new();
-    }
 
-    const UA_String securityPolicyNoneUri =
-           UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     for(size_t i = 0; i < server->config.endpointsSize; i++) {
-        UA_SecurityPolicy *sp = getSecurityPolicyByUri(server, &server->config.endpoints[i].securityPolicyUri);
+        UA_SecurityPolicy *sp =
+            getSecurityPolicyByUri(server, &server->config.endpoints[i].securityPolicyUri);
         if(!sp) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
 
-        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri))
+        if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
             continue;
 
         if(UA_NodeId_equal(&certificateTypeId, &sp->certificateTypeId) &&
@@ -1063,7 +1077,11 @@ UA_Server_createSigningRequest(UA_Server *server,
 
 cleanup:
     if(newPrivateKey)
+    {
+        /* wipe private key before freeing its memory */
+        UA_ByteString_memZero(newPrivateKey);
         UA_ByteString_delete(newPrivateKey);
+    }
 
     return retval;
 }
@@ -1075,38 +1093,48 @@ cleanup:
 UA_SecurityPolicy *
 getSecurityPolicyByUri(const UA_Server *server, const UA_String *securityPolicyUri) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
-        UA_SecurityPolicy *securityPolicyCandidate = &server->config.securityPolicies[i];
-        if(UA_String_equal(securityPolicyUri, &securityPolicyCandidate->policyUri))
-            return securityPolicyCandidate;
+        UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
+        if(UA_String_equal(securityPolicyUri, &sp->policyUri))
+            return sp;
     }
     return NULL;
 }
 
-/* The local ApplicationURI has to match the certificates of the
- * SecurityPolicies */
-static UA_StatusCode
-verifyServerApplicationURI(const UA_Server *server) {
-    const UA_String securityPolicyNoneUri =
-        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+UA_SecurityPolicy *
+getSecurityPolicyByPostfix(const UA_Server *server, const UA_String uriPostfix) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
-        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) &&
+        UA_String spPostfix = securityPolicyUriPostfix(sp->policyUri);
+        if(UA_String_equal(&uriPostfix, &spPostfix))
+            return sp;
+    }
+    return NULL;
+}
+
+/* The local ApplicationUri has to match the certificates of the
+ * SecurityPolicies */
+static void
+verifyServerApplicationUri(const UA_Server *server) {
+#if UA_LOGLEVEL <= 400
+    const UA_ServerConfig *sc = &server->config;
+    for(size_t i = 0; i < sc->securityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &sc->securityPolicies[i];
+        if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE &&
            sp->localCertificate.length == 0)
             continue;
         UA_StatusCode retval =
-            UA_CertificateUtils_verifyApplicationURI(server->config.allowAllCertificateUris,
-                                                     &sp->localCertificate,
-                                                     &server->config.applicationDescription.applicationUri,
-                                                     server->config.logging);
-        UA_CHECK_STATUS_ERROR(retval, return retval, server->config.logging,
-                              UA_LOGCATEGORY_SERVER,
-                              "The configured ApplicationURI \"%S\" does not match the "
-                              "ApplicationURI specified in the certificate for the "
-                              "SecurityPolicy %S",
-                              server->config.applicationDescription.applicationUri,
-                              sp->policyUri);
+            UA_CertificateUtils_verifyApplicationUri(&sp->localCertificate,
+                                &sc->applicationDescription.applicationUri);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                           "The ApplicationUri %S in the server's ApplicationDescription "
+                           "does not match the URI specified in the certificate "
+                           "for the SecurityPolicy %S",
+                           server->config.applicationDescription.applicationUri,
+                           sp->policyUri);
+        }
     }
-    return UA_STATUSCODE_GOOD;
+#endif
 }
 
 UA_ServerStatistics
@@ -1225,9 +1253,8 @@ UA_Server_run_startup(UA_Server *server) {
     /* Take the server lock */
     lockServer(server);
 
-    /* Does the ApplicationURI match the local certificates? */
-    retVal = verifyServerApplicationURI(server);
-    UA_CHECK_STATUS(retVal, unlockServer(server); return retVal);
+    /* Does the ApplicationUri match the local certificates? */
+    verifyServerApplicationUri(server);
 
 #if UA_MULTITHREADING >= 100
     /* Add regulare callback for async operation processing */

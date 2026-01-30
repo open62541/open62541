@@ -865,6 +865,12 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
     pMetaData->fieldsSize = dataSetReader->dataSetMetaData.fieldsSize;
     pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
                         &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    if(pMetaData->fieldsSize > 0 && !pMetaData->fields) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_PUBSUB,
+                     "Failed to allocate memory for DataSetReader MetaData fields");
+        UA_PublisherId_clear(&readerConfig.publisherId);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     for(size_t i = 0; i < pMetaData->fieldsSize; i++){
         UA_FieldMetaData_init (&pMetaData->fields[i]);
         UA_NodeId_copy(&dataSetReader->dataSetMetaData.fields[i].dataType,
@@ -2096,7 +2102,7 @@ connectionTypeDestructor(UA_Server *server,
                          const UA_NodeId *typeId, void *typeContext,
                          const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_PUBSUB,
                 "Connection destructor called!");
     UA_NodeId publisherIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
@@ -2113,7 +2119,7 @@ writerGroupTypeDestructor(UA_Server *server,
                           const UA_NodeId *typeId, void *typeContext,
                           const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_PUBSUB,
                 "WriterGroup destructor called!");
     UA_NodeId intervalNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishingInterval"),
@@ -2139,7 +2145,7 @@ dataSetWriterTypeDestructor(UA_Server *server,
                             const UA_NodeId *typeId, void *typeContext,
                             const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_PUBSUB,
                 "DataSetWriter destructor called!");
 
     UA_NodeId dataSetWriterIdNode =
@@ -2158,7 +2164,7 @@ dataSetReaderTypeDestructor(UA_Server *server,
                             const UA_NodeId *typeId, void *typeContext,
                             const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_PUBSUB,
                 "DataSetReader destructor called!");
     UA_NodeId publisherIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
@@ -2176,7 +2182,7 @@ publishedDataItemsTypeDestructor(UA_Server *server,
                                  const UA_NodeId *typeId, void *typeContext,
                                  const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_PUBSUB,
                 "PublishedDataItems destructor called!");
     void *childContext;
     UA_NodeId node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
@@ -2204,7 +2210,7 @@ subscribedDataSetTypeDestructor(UA_Server *server,
                                 const UA_NodeId *typeId, void *typeContext,
                                 const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_PUBSUB,
                 "Standalone SubscribedDataSet destructor called!");
     void *childContext;
     UA_NodeId node =

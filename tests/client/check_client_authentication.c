@@ -71,6 +71,7 @@ static void setup(void) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config->sessionPKI);
 
     /* Add username/password auth */
     UA_UsernamePasswordLogin login;
@@ -101,15 +102,6 @@ START_TEST(Client_connect_certificate) {
     privateKey.length = CLIENT_KEY_DER_LENGTH;
     privateKey.data = CLIENT_KEY_DER_DATA;
 
-    /* Load client certificate and private key for authentication */
-    UA_ByteString certificateAuth;
-    certificateAuth.length = CLIENT_CERT_AUTH_DER_LENGTH;
-    certificateAuth.data = CLIENT_CERT_AUTH_DER_DATA;
-
-    UA_ByteString privateKeyAuth;
-    privateKeyAuth.length = CLIENT_KEY_AUTH_DER_LENGTH;
-    privateKeyAuth.data = CLIENT_KEY_AUTH_DER_DATA;
-
     UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
 
@@ -117,10 +109,13 @@ START_TEST(Client_connect_certificate) {
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     cc->securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
 
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri =
+        UA_STRING_ALLOC("urn:open62541.server.application");
+
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey, NULL, 0, NULL, 0);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
-    UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

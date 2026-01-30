@@ -307,19 +307,18 @@ checkEqualTypes(const UA_DataType *t1, const UA_DataType *t2) {
 
 static void
 typeRoundTripCheckEqual(const UA_DataType *t) {
-    UA_StructureDefinition def;
+    UA_ExtensionObject descr;
     UA_DataType typeCopy;
-    UA_StatusCode retval = UA_DataType_toStructureDefinition(t, &def);
+    UA_StatusCode retval = UA_DataType_toDescription(t, &descr);
     if(retval != UA_STATUSCODE_GOOD)
         return;
 
-    retval = UA_DataType_fromStructureDefinition(&typeCopy, &def, UA_NODEID_NULL,
-                                                 UA_STRING_NULL,
-                                                 &customDataTypesSelfContainingUnion);
+    retval = UA_DataType_fromDescription(&typeCopy, &descr,
+                                         &customDataTypesSelfContainingUnion);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     checkEqualTypes(t, &typeCopy);
-    UA_StructureDefinition_clear(&def);
+    UA_ExtensionObject_clear(&descr);
     UA_DataType_clear(&typeCopy);
 }
 
@@ -358,13 +357,12 @@ START_TEST(parseCustomScalar) {
 
 START_TEST(customScalarStructureDefinition) {
     /* Roundtrip from StructureDefinition back to UA_DataType */
-    UA_StructureDefinition pointDef;
+    UA_ExtensionObject descr;
     UA_DataType pointTypeCopy;
-    UA_StatusCode retval = UA_DataType_toStructureDefinition(&PointType, &pointDef);
+    UA_StatusCode retval = UA_DataType_toDescription(&PointType, &descr);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_DataType_fromStructureDefinition(&pointTypeCopy, &pointDef,
-                                                 UA_NODEID_NULL, UA_STRING_NULL, NULL);
+    retval = UA_DataType_fromDescription(&pointTypeCopy, &descr, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     checkEqualTypes(&PointType, &pointTypeCopy);
@@ -401,7 +399,7 @@ START_TEST(customScalarStructureDefinition) {
     UA_ByteString_clear(&buf);
     UA_ByteString_clear(&buf2);
 
-    UA_StructureDefinition_clear(&pointDef);
+    UA_ExtensionObject_clear(&descr);
     UA_DataType_clear(&pointTypeCopy);
 } END_TEST
 

@@ -13,6 +13,11 @@ jobs:
             cc_shortname: msvc
             generator: "Visual Studio 17 2022"
             arch: "x64"
+          - compiler: msvcopenssl
+            cc_name: "Visual Studio 17 2022"
+            cc_shortname: msvcopenssl
+            generator: "Visual Studio 17 2022"
+            arch: "x64"
           - compiler: mingw
             cc_name: "MinGW Makefiles"
             cc_shortname: mingw
@@ -28,7 +33,7 @@ jobs:
       GENERATOR: ${{ matrix.generator }}
       ARCH: ${{ matrix.arch }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: true
 
@@ -64,8 +69,14 @@ jobs:
         run: |
           ./tools/ci/win/build.ps1
 
+      - name: MSVC openssl
+        if: matrix.cc_shortname == 'msvcopenssl'
+        shell: pwsh
+        run: |
+          ./tools/ci/win/build_openssl.ps1
+
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: test-results-${{ matrix.cc_shortname }}

@@ -36,7 +36,7 @@
 
 static void
 asyncCall(UA_Server *server, void *data) {
-    UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_USERLAND, "call");
+    UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_APPLICATION, "call");
 
     UA_Variant *out = (UA_Variant*)data;
     UA_Server_setAsyncCallMethodResult(server, out, UA_STATUSCODE_GOOD);
@@ -49,7 +49,7 @@ helloWorldMethodCallback1(UA_Server *server,
                          const UA_NodeId *objectId, void *objectContext,
                          size_t inputSize, const UA_Variant *input,
                          size_t outputSize, UA_Variant *output) {
-    UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_USERLAND, "async");
+    UA_LOG_INFO(UA_Server_getConfig(server)->logging, UA_LOGCATEGORY_APPLICATION, "async");
 
     /* Prepare the output */
     UA_String *inputStr = (UA_String*)input->data;

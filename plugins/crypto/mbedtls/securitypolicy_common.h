@@ -56,6 +56,28 @@ _UA_BEGIN_DECLS
 #define MBEDTLS_X509_SAN_REGISTERED_ID                   8
 #endif
 
+typedef struct {
+    UA_ByteString localSymSigningKey;
+    UA_ByteString localSymEncryptingKey;
+    UA_ByteString localSymIv;
+
+    UA_ByteString remoteSymSigningKey;
+    UA_ByteString remoteSymEncryptingKey;
+    UA_ByteString remoteSymIv;
+
+    mbedtls_x509_crt remoteCertificate;
+} mbedtls_ChannelContext;
+
+typedef struct {
+    UA_ByteString localCertThumbprint;
+
+    mbedtls_ctr_drbg_context drbgContext;
+    mbedtls_entropy_context entropyContext;
+    mbedtls_md_context_t mdContext;
+    mbedtls_pk_context localPrivateKey;
+    mbedtls_pk_context csrLocalPrivateKey;
+} mbedtls_PolicyContext;
+
 void
 swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB);
 
@@ -128,6 +150,81 @@ UA_mbedTLS_LoadPemCrl(const UA_ByteString *crl, mbedtls_x509_crl *target);
 UA_StatusCode UA_mbedTLS_LoadLocalCertificate(const UA_ByteString *certData, UA_ByteString *target);
 
 UA_ByteString UA_mbedTLS_CopyDataFormatAware(const UA_ByteString *data);
+
+size_t
+UA_mbedTLS_asym_getRemoteSignatureSize_generic(const UA_SecurityPolicy *policy, const void *channelContext);
+
+size_t
+UA_mbedTLS_asym_getRemoteBlockSize_generic(const UA_SecurityPolicy *policy,
+                                           const void *channelContext);
+
+size_t
+UA_mbedTLS_asym_cert_getLocalSignatureSize_generic(const UA_SecurityPolicy *policy,
+                                                    const void *channelContext);
+
+UA_StatusCode
+UA_mbedTLS_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
+                                            void *channelContext,
+                                            const UA_ByteString *key);
+
+UA_StatusCode
+UA_mbedTLS_setLocalSymSigningKey_generic(const UA_SecurityPolicy *policy,
+                                         void *channelContext,
+                                         const UA_ByteString *key);
+
+UA_StatusCode
+UA_mbedTLS_setLocalSymIv_generic(const UA_SecurityPolicy *policy,
+                                 void *channelContext,
+                                 const UA_ByteString *iv);
+
+UA_StatusCode
+UA_mbedTLS_setRemoteSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
+                                             void *channelContext,
+                                             const UA_ByteString *key);
+
+UA_StatusCode
+UA_mbedTLS_setRemoteSymSigningKey_generic(const UA_SecurityPolicy *policy,
+                                          void *channelContext,
+                                          const UA_ByteString *key);
+
+UA_StatusCode
+UA_mbedTLS_setRemoteSymIv_generic(const UA_SecurityPolicy *policy,
+                                  void *channelContext,
+                                  const UA_ByteString *iv);
+
+UA_StatusCode
+UA_mbedTLS_compareCertificate_generic(const UA_SecurityPolicy *policy,
+                                      const void *channelContext,
+                                      const UA_ByteString *certificate);
+
+size_t
+UA_mbedTLS_getRemoteCertificatePrivateKeyLength(const UA_SecurityPolicy *policy,
+                                                const void *channelContext);
+
+size_t
+UA_mbedTLS_getLocalPrivateKeyLength(const UA_SecurityPolicy *policy,
+                                    const void *channelContext);
+
+UA_StatusCode
+UA_mbedTLS_compareCertificateThumbprint_generic(const UA_SecurityPolicy *securityPolicy,
+                                                const UA_ByteString *certificateThumbprint);
+
+UA_StatusCode
+UA_mbedTLS_sym_generateKey_generic(const UA_SecurityPolicy *policy,
+                                   void *channelContext, const UA_ByteString *secret,
+                                   const UA_ByteString *seed, UA_ByteString *out);
+
+UA_StatusCode
+UA_mbedTLS_sym_generateNonce_generic(const UA_SecurityPolicy *policy,
+                                     void *channelContext, UA_ByteString *out);
+
+UA_StatusCode
+UA_mbedTLS_createSigningRequest_generic(UA_SecurityPolicy *securityPolicy,
+                                        const UA_String *subjectName,
+                                        const UA_ByteString *nonce,
+                                        const UA_KeyValueMap *params,
+                                        UA_ByteString *csr,
+                                        UA_ByteString *newPrivateKey);
 
 _UA_END_DECLS
 

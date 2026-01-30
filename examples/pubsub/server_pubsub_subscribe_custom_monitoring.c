@@ -163,7 +163,7 @@ pubsubStateChangeCallback(UA_Server *server,
     if(!UA_NodeId_equal(&pubsubComponentId, &readerIdentifier))
         return;
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "State of the Reader changed to '%i' with StatusCode %s",
                 state, UA_StatusCode_name(code));
 }

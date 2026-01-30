@@ -19,12 +19,12 @@ static void InitCallMulti(UA_Client* client);
 static void
 methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
     UA_CallResponse *response) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "**** CallRequest Response - Req:%u with %u results",
                 requestId, (UA_UInt32)response->resultsSize);
     UA_StatusCode retval = response->responseHeader.serviceResult;
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "**** CallRequest Response - Req:%u FAILED", requestId);
         return;
     }
@@ -33,13 +33,13 @@ methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
         retval = response->results[i].statusCode;
         if(retval != UA_STATUSCODE_GOOD) {
             UA_CallResponse_clear(response);
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                         "**** CallRequest Response - Req: %u (%lu) failed",
                         requestId, (unsigned long)i);
             continue;
         }
 
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "---Method call was successful, returned %lu values.\n",
                     (unsigned long)response->results[i].outputArgumentsSize);
     }
@@ -87,7 +87,7 @@ static void InitCallMulti(UA_Client* client) {
     UA_String stringValue = UA_String_fromChars("World 3 (multi)");
     UA_Variant_setScalar(&input, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "**** Initiating CallRequest 3");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "**** Initiating CallRequest 3");
     UA_Client_call_asyncMulti(client, UA_NS0ID(OBJECTSFOLDER),
                               UA_NODEID_NUMERIC(1, 62542), 1, &input,
                               UA_NS0ID(OBJECTSFOLDER), UA_NODEID_NUMERIC(1, 62541), 1,
@@ -99,7 +99,7 @@ static void InitCallMulti(UA_Client* client) {
 #endif /* UA_ENABLE_METHODCALLS */
 
 static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received Ctrl-C");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Received Ctrl-C");
     running = 0;
 }
 
@@ -110,7 +110,7 @@ handler_currentTimeChanged(UA_Client *client, UA_UInt32 subId, void *subContext,
     if(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTime raw_date = *(UA_DateTime *)value->value.data;
         UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
                     dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
     }
@@ -118,13 +118,13 @@ handler_currentTimeChanged(UA_Client *client, UA_UInt32 subId, void *subContext,
 
 static void
 deleteSubscriptionCallback(UA_Client *client, UA_UInt32 subscriptionId, void *subscriptionContext) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "Subscription Id %u was deleted", subscriptionId);
 }
 
 static void
 subscriptionInactivityCallback(UA_Client *client, UA_UInt32 subId, void *subContext) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "Inactivity for subscription %u", subId);
 }
 #endif
@@ -133,7 +133,7 @@ static void
 stateCallback(UA_Client *client, UA_SecureChannelState channelState,
               UA_SessionState sessionState, UA_StatusCode connectStatus) {
     if(sessionState == UA_SESSIONSTATE_ACTIVATED) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "A session with the server is activated");
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -144,7 +144,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
             NULL, NULL, deleteSubscriptionCallback);
 
         if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                         "Create subscription succeeded, id %u", response.subscriptionId);
         else
             return;
@@ -159,7 +159,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
                                                       UA_TIMESTAMPSTORETURN_BOTH,
                 monRequest, NULL, handler_currentTimeChanged, NULL);
         if(monResponse.statusCode == UA_STATUSCODE_GOOD)
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                         "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u",
                         monResponse.monitoredItemId);
 #endif
@@ -172,7 +172,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         UA_Variant_setScalar(&input, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
 
         /* Initiate Call 1 */
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "**** Initiating CallRequest 1");
         UA_Client_call_async(client, UA_NS0ID(OBJECTSFOLDER),
                              UA_NODEID_NUMERIC(1, 62541), 1, &input,
@@ -184,7 +184,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         stringValue = UA_String_fromChars("World 2");
         UA_Variant_setScalar(&input, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
 
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "**** Initiating CallRequest 2");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "**** Initiating CallRequest 2");
         UA_Client_call_async(client, UA_NS0ID(OBJECTSFOLDER),
                              UA_NODEID_NUMERIC(1, 62542), 1, &input,
                              methodCalled, NULL, &reqId);
@@ -194,7 +194,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
     }
 
     if(sessionState == UA_SESSIONSTATE_CLOSED)
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Session disconnected");
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Session disconnected");
 }
 
 int
@@ -216,7 +216,7 @@ main(int argc, char *argv[]) {
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Not connected. Retrying to connect in 1 second");
         UA_Client_delete(client);
         return 0;

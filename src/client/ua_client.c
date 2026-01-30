@@ -406,8 +406,7 @@ sendRequest(UA_Client *client, const void *request,
 
     /* Send the message */
     UA_StatusCode retval =
-        UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId,
-                                              UA_MESSAGETYPE_MSG, rr, requestType);
+        UA_SecureChannel_sendMSG(&client->channel, rqId, rr, requestType);
 
     rr->authenticationToken = oldToken; /* Set back to the original token */
 

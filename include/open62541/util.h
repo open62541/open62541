@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_HELPER_H_
@@ -47,7 +48,6 @@ typedef struct {
  * Event-Filter Parsing
  * --------------------
  */
-#ifdef UA_ENABLE_PARSING
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 #ifdef UA_ENABLE_JSON_ENCODING
 
@@ -59,7 +59,6 @@ UA_EXPORT UA_StatusCode
 UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
                      UA_EventFilterParserOptions *options);
 
-#endif
 #endif
 #endif
 
@@ -85,23 +84,24 @@ UA_Guid UA_EXPORT
 UA_Guid_random(void);   /* no cryptographic entropy */
 
 /**
- * Translate between Namespace and internal DataType definitions
- * -------------------------------------------------------------
- */
-
-/* The generated UA_DataType faithfully generates the padding of
- * the corresponding C-structures. */
-UA_StatusCode
-UA_DataType_fromStructureDefinition(UA_DataType *type,
-                                    const UA_StructureDefinition *sd,
-                                    const UA_NodeId typeId,
-                                    const UA_String typeName,
-                                    const UA_DataTypeArray *customTypes);
+ * Translate between DataTypeDescription and UA_DataType
+ * ------------------------------------------------------
+ *
+ * The ExtensionObject for the description is either of
+ *
+ * - SimpleTypeDescription
+ * - EnumDescription
+ * - StructureDescription
+ *
+ * The generated UA_DataType faithfully generates the padding of the
+ * corresponding C-structures. */
 
 UA_EXPORT UA_StatusCode
-UA_DataType_toStructureDefinition(const UA_DataType *type,
-                                  UA_StructureDefinition *sd);
+UA_DataType_fromDescription(UA_DataType *type, const UA_ExtensionObject *descr,
+                            const UA_DataTypeArray *customTypes);
 
+UA_EXPORT UA_StatusCode
+UA_DataType_toDescription(const UA_DataType *type, UA_ExtensionObject *descr);
 
 /**
  * Key Value Map
@@ -388,7 +388,6 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * - ``<HasChild>``
  */
 
-#ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 
@@ -398,7 +397,6 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
                                 const UA_String str);
-#endif
 
 /* The out-string can be pre-allocated. Then the size is adjusted or an error
  * returned. If the out-string is NULL, then memory is allocated for it. */
@@ -457,7 +455,6 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
  * - ``/3:Truck/5:Wheel``
  * - ``#BrowseName`` */
 
-#ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
 UA_ReadValueId_parse(UA_ReadValueId *rvi,
                      const UA_String str);
@@ -469,7 +466,6 @@ UA_AttributeOperand_parse(UA_AttributeOperand *ao,
 UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
                                 const UA_String str);
-#endif
 
 /* The out-string can be pre-allocated. Then the size is adjusted or an error
  * returned. If the out-string is NULL, then memory is allocated for it. */
