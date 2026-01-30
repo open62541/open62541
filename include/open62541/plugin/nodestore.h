@@ -552,8 +552,8 @@ struct UA_Nodestore {
 /* Attributes must be of a matching type (VariableAttributes, ObjectAttributes,
  * and so on). The attributes are copied. Note that the attributes structs do
  * not contain NodeId, NodeClass and BrowseName. The NodeClass of the node needs
- * to be correctly set before calling this method. UA_Node_clear is called on
- * the node when an error occurs internally. */
+ * to be correctly set before calling this method. This method does not call
+ * UA_Node_clear internally when an error is encountered. */
 UA_StatusCode UA_EXPORT
 UA_Node_setAttributes(UA_Node *node, const void *attributes,
                       const UA_DataType *attributeType);

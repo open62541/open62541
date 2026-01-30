@@ -442,7 +442,7 @@ START_TEST(Client_closes_on_server_error) {
     // send error message from server to client
     UA_TcpErrorMessage errMsg = {.error = UA_STATUSCODE_BADSECURITYCHECKSFAILED,
                                  .reason = UA_STRING_NULL};
-    UA_SecureChannel_sendError(channel, &errMsg);
+    UA_SecureChannel_sendERR(channel, &errMsg);
 
     // client should disconnect and close TCP connections, although err was received
     // note: if it fails to do so the tests might hang here

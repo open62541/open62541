@@ -16,7 +16,7 @@
 
 UA_Boolean running = true;
 static void stopHandler(int sig) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "received ctrl-c");
     running = false;
 }
 
@@ -32,7 +32,7 @@ int main(int argc, char* argv[]) {
         certificate = loadFile(argv[1]);
         privateKey = loadFile(argv[2]);
     } else {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Missing arguments. Arguments are "
                      "<server-certificate.der> <private-key.der> [<path/to/pki/folder>]");
         return EXIT_FAILURE;

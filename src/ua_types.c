@@ -91,6 +91,23 @@ UA_findDataType(const UA_NodeId *typeId) {
     return UA_findDataTypeWithCustom(typeId, NULL);
 }
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+const UA_DataType *
+UA_findDataTypeByName(const UA_QualifiedName *qn) {
+    UA_Byte nameBuf[512];
+    UA_String name = {511, nameBuf};
+    UA_StatusCode res = UA_QualifiedName_print(qn, &name);
+    name.data[name.length] = 0;
+    if(res != UA_STATUSCODE_GOOD)
+        return NULL;
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        if(strcmp((char*)nameBuf, UA_TYPES[i].typeName) == 0)
+            return &UA_TYPES[i];
+    }
+    return NULL;
+}
+#endif
+
 void
 UA_DataType_clear(UA_DataType *type) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -105,6 +122,57 @@ UA_DataType_clear(UA_DataType *type) {
     UA_NodeId_clear(&type->xmlEncodingId);
     UA_free(type->members);
     memset(type, 0, sizeof(UA_DataType));
+}
+
+UA_StatusCode
+UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    memcpy(t2, t1, sizeof(UA_DataType));
+    t2->members = NULL;
+    t2->membersSize = 0;
+
+    /* Copy the typename */
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    size_t nameLen = strlen(t1->typeName) + 1;
+    char *t2Name = (char*)UA_malloc(nameLen);
+    if(!t2Name) {
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto errout;
+    }
+    memcpy(t2Name, t1->typeName, nameLen);
+    *(void**)(uintptr_t)&t2->typeName = t2Name;
+#endif
+
+
+    /* Copy the members */
+    if(t1->membersSize > 0) {
+        t2->members = (UA_DataTypeMember*)
+            UA_calloc(t1->membersSize, sizeof(UA_DataTypeMember));
+        if(!t2->members) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto errout;
+        }
+        for(size_t i = 0; i < t1->membersSize; i++) {
+            const UA_DataTypeMember *m1 = &t1->members[i];
+            UA_DataTypeMember *m2 = &t2->members[i];
+            memcpy(m2, m1, sizeof(UA_DataTypeMember));
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+            nameLen = strlen(m1->memberName) + 1;
+            char *mName = (char*)UA_malloc(nameLen);
+            if(!mName) {
+                res = UA_STATUSCODE_BADOUTOFMEMORY;
+                goto errout;
+            }
+            memcpy(mName, m1->memberName, nameLen);
+            *(void**)(uintptr_t)&m2->memberName = mName;
+#endif
+        }
+    }
+
+ errout:
+    if(res != UA_STATUSCODE_GOOD)
+        UA_DataType_clear(t2);
+    return res;
 }
 
 void
@@ -459,7 +527,6 @@ UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
     return t;
 }
 
-#ifdef UA_ENABLE_PARSING
 UA_StatusCode
 UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
     if(str.length == 0)
@@ -615,7 +682,6 @@ UA_DATETIME(const char *chars) {
         UA_DateTime_init(&dst);
     return dst;
 }
-#endif
 
 /* Guid */
 static const u8 hexmapLower[16] =
@@ -663,14 +729,12 @@ UA_Guid_print(const UA_Guid *guid, UA_String *output) {
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef UA_ENABLE_PARSING
 UA_Guid
 UA_GUID(const char *chars) {
     UA_Guid guid;
     UA_Guid_parse(&guid, UA_STRING((char*)(uintptr_t)chars));
     return guid;
 }
-#endif
 
 /* ByteString */
 UA_StatusCode
@@ -840,7 +904,7 @@ nodeIdSize(const UA_NodeId *id, u8 *nsStr, u8 *numIdStr, UA_String nsUri,
            UA_Escaping idEsc) {
     /* Namespace length */
     size_t len = 0;
-    if(nsUri.length > 0) {
+    if(nsUri.data != NULL) {
         len += 5; /* nsu=; */
         len += UA_String_escapedSize(nsUri, UA_ESCAPING_PERCENT);
     } else if(id->namespaceIndex > 0) {
@@ -880,7 +944,7 @@ printNodeIdBody(const UA_NodeId *id, UA_String nsUri, u8* nsStr, u8* numIdStr, u
     size_t len;
 
     /* Encode the namespace */
-    if(nsUri.length > 0) {
+    if(nsUri.data != NULL) {
         memcpy(pos, "nsu=", 4);
         pos += 4;
         pos += UA_String_escapeInsert(pos, nsUri, UA_ESCAPING_PERCENT);
@@ -979,13 +1043,11 @@ UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
     return UA_NodeId_printEx(id, output, NULL);
 }
 
-#ifdef UA_ENABLE_PARSING
 UA_NodeId UA_NODEID(const char *chars) {
     UA_NodeId id;
     UA_NodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
     return id;
 }
-#endif
 
 /* ExpandedNodeId */
 static void
@@ -1059,14 +1121,12 @@ UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId) {
     return id;
 }
 
-#ifdef UA_ENABLE_PARSING
 UA_ExpandedNodeId
 UA_EXPANDEDNODEID(const char *chars) {
     UA_ExpandedNodeId id;
     UA_ExpandedNodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
     return id;
 }
-#endif
 
 UA_Boolean
 UA_ExpandedNodeId_isLocal(const UA_ExpandedNodeId *n) {
@@ -1095,7 +1155,7 @@ UA_ExpandedNodeId_printEx(const UA_ExpandedNodeId *eid, UA_String *output,
                           size_t serverUrisSize, const UA_String *serverUris) {
     /* Try to map the NamespaceIndex to the Uri */
     UA_String nsUri = eid->namespaceUri;
-    if(nsUri.length == 0 && eid->nodeId.namespaceIndex > 0 && nsMapping)
+    if(nsUri.data == NULL && eid->nodeId.namespaceIndex > 0 && nsMapping)
         UA_NamespaceMapping_index2Uri(nsMapping, eid->nodeId.namespaceIndex, &nsUri);
 
     /* Try to map the ServerIndex to a Uri */

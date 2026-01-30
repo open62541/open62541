@@ -43,6 +43,7 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
 
     UA_Session_detachFromSecureChannel(server, session);
     UA_ApplicationDescription_clear(&session->clientDescription);
+    UA_ByteString_clear(&session->clientCertificate);
     UA_NodeId_clear(&session->authenticationToken);
     UA_String_clear(&session->clientUserIdOfSession);
     UA_NodeId_clear(&session->sessionId);
@@ -67,6 +68,12 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_SessionDiagnosticsDataType_clear(&session->diagnostics);
     UA_SessionSecurityDiagnosticsDataType_clear(&session->securityDiagnostics);
 #endif
+
+    if(session->authSp && session->authSpContext) {
+        session->authSp->deleteChannelContext(session->authSp, session->authSpContext);
+        session->authSp = NULL;
+        session->authSpContext = NULL;
+    }
 }
 
 void
@@ -126,14 +133,14 @@ UA_Session_generateNonce(UA_Session *session) {
     /* Is the length of the previous nonce correct? */
     if(session->serverNonce.length != UA_SESSION_NONCELENTH) {
         UA_ByteString_clear(&session->serverNonce);
-        UA_StatusCode retval =
+        UA_StatusCode res =
             UA_ByteString_allocBuffer(&session->serverNonce, UA_SESSION_NONCELENTH);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
     }
 
-    return channel->securityPolicy->symmetricModule.
-        generateNonce(channel->securityPolicy->policyContext, &session->serverNonce);
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    return sp->generateNonce(sp, channel->channelContext, &session->serverNonce);
 }
 
 void

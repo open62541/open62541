@@ -1421,7 +1421,7 @@ UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
             int extractLen = 10;
             if(pos - begin < 10)
                 extractLen = (int)(pos - begin);
-            UA_LOG_ERROR(ctx.logger, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_ERROR(ctx.logger, UA_LOGCATEGORY_APPLICATION,
                          "Could not process token at line %u, column %u: "
                          "%.*s...", line, col, extractLen, content.data + begin);
             res = UA_STATUSCODE_BADINTERNALERROR;
@@ -1438,7 +1438,7 @@ UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
      * The token could not be read. */
     if(pos < content.length) {
         pos2lines(content, pos, &line, &col);
-        UA_LOG_ERROR(ctx.logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(ctx.logger, UA_LOGCATEGORY_APPLICATION,
                      "Token after the end of the EventFilter expression "
                      "at line %u, column %u", line, col);
         res = UA_STATUSCODE_BADINTERNALERROR;

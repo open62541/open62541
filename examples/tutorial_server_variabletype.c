@@ -105,7 +105,7 @@ writeVariable(UA_Server *server) {
     UA_StatusCode retval =
         UA_Server_writeValueRank(server, pointVariableId,
                                  UA_VALUERANK_ONE_OR_MORE_DIMENSIONS);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "Setting the Value Rank failed with Status Code %s",
                 UA_StatusCode_name(retval));
 }

@@ -5,8 +5,10 @@
  *    Copyright 2022 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
+#include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
 #include "mp_printf.h"
@@ -16,11 +18,11 @@
 
 #if defined(__linux__) || defined(UA_ARCHITECTURE_WIN32)
 
+/* In-Memory security policy as a base */
 typedef struct {
-    /* In-Memory security policy as a base */
     UA_SecurityPolicy *innerPolicy;
     UA_String storePath;
-} SecurityPolicy_FilestoreContext;
+} Filestore_Context;
 
 static bool
 checkCertificateInFilestore(char *path, const UA_ByteString newCertificate) {
@@ -143,11 +145,13 @@ writeCertificateAndPrivateKeyToFilestore(const UA_String storePath,
         return retval;
 
     char newCertFilename[UA_PATH_MAX];
-    if(mp_snprintf(newCertFilename, UA_PATH_MAX, "%s/%s%s", ownCertPathDir, newFilename, ".der") < 0)
+    if(mp_snprintf(newCertFilename, UA_PATH_MAX, "%s/%s%s",
+                   ownCertPathDir, newFilename, ".der") < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     char newKeyFilename[UA_PATH_MAX];
-    if(mp_snprintf(newKeyFilename, UA_PATH_MAX, "%s/%s%s", ownKeyPathDir, newFilename, ".key") < 0)
+    if(mp_snprintf(newKeyFilename, UA_PATH_MAX, "%s/%s%s",
+                   ownKeyPathDir, newFilename, ".key") < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     retval = writeByteStringToFile(newCertFilename, &newCertificate);
@@ -161,187 +165,545 @@ writeCertificateAndPrivateKeyToFilestore(const UA_String storePath,
         return UA_STATUSCODE_GOOD;
 }
 
+/************************/
+/* Asymmetric Signature */
+/************************/
+
+static UA_StatusCode
+asym_verify_filestore(const UA_SecurityPolicy *sp, void *channelContext,
+                      const UA_ByteString *message, const UA_ByteString *signature) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->asymSignatureAlgorithm.verify(isp, channelContext, message, signature);
+}
+
+static UA_StatusCode
+asym_sign_filestore(const UA_SecurityPolicy *sp, void *channelContext,
+                    const UA_ByteString *message, UA_ByteString *signature) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->asymSignatureAlgorithm.sign(isp, channelContext, message, signature);
+}
+
+static size_t
+asym_getLocalSignatureSize_filestore(const UA_SecurityPolicy *sp,
+                                     const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->asymSignatureAlgorithm.getLocalSignatureSize(isp, channelContext);
+}
+
+static size_t
+asym_getRemoteSignatureSize_filestore(const UA_SecurityPolicy *sp,
+                                     const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->asymSignatureAlgorithm.getRemoteSignatureSize(isp, channelContext);
+}
+
+static size_t
+asymSig_getLocalKeyLength_filestore(const UA_SecurityPolicy *sp,
+                                    const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->asymSignatureAlgorithm.getLocalKeyLength(isp, channelContext);
+}
+
+static size_t
+asymSig_getRemoteKeyLength_filestore(const UA_SecurityPolicy *sp,
+                                    const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->asymSignatureAlgorithm.getRemoteKeyLength(isp, channelContext);
+}
+
+/*************************/
+/* Asymmetric Encryption */
+/*************************/
+
+static UA_StatusCode
+asym_encrypt_filestore(const UA_SecurityPolicy *sp, void *channelContext,
+                       UA_ByteString *data) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->asymEncryptionAlgorithm.encrypt(isp, channelContext, data);
+}
+
+static UA_StatusCode
+asym_decrypt_filestore(const UA_SecurityPolicy *sp, void *channelContext,
+                       UA_ByteString *data) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->asymEncryptionAlgorithm.decrypt(isp, channelContext, data);
+}
+
+static size_t
+asym_getLocalKeyLength_filestore(const UA_SecurityPolicy *sp,
+                                 const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->asymEncryptionAlgorithm.getLocalKeyLength(isp, channelContext);
+}
+
+static size_t
+asym_getRemoteKeyLength_filestore(const UA_SecurityPolicy *sp,
+                                  const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->asymEncryptionAlgorithm.getRemoteKeyLength(isp, channelContext);
+}
+
+static size_t
+asym_getRemotePlainTextBlockSize_filestore(const UA_SecurityPolicy *sp,
+                                           const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->asymEncryptionAlgorithm.getRemotePlainTextBlockSize(isp, channelContext);
+}
+
+static size_t
+asym_getRemoteBlockSize_filestore(const UA_SecurityPolicy *sp,
+                                  const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->asymEncryptionAlgorithm.getRemoteBlockSize(isp, channelContext);
+}
+
+/***********************/
+/* Symmetric Signature */
+/***********************/
+
+static UA_StatusCode
+sym_verify_filestore(const UA_SecurityPolicy *sp, void *channelContext,
+                     const UA_ByteString *message, const UA_ByteString *signature) {
+    Filestore_Context *pc =
+        (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symSignatureAlgorithm.verify(isp, channelContext, message, signature);
+}
+
+static UA_StatusCode
+sym_sign_filestore(const UA_SecurityPolicy *sp, void *channelContext,
+                   const UA_ByteString *message, UA_ByteString *signature) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symSignatureAlgorithm.sign(isp, channelContext, message, signature);
+}
+
+static size_t
+sym_getLocalSignatureSize_filestore(const UA_SecurityPolicy *sp,
+                                    const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symSignatureAlgorithm.getLocalSignatureSize(isp, channelContext);
+}
+
+static size_t
+sym_getRemoteSignatureSize_filestore(const UA_SecurityPolicy *sp,
+                                     const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symSignatureAlgorithm.getRemoteSignatureSize(isp, channelContext);
+}
+
+static size_t
+symSig_getLocalKeyLength_filestore(const UA_SecurityPolicy *sp,
+                                    const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symSignatureAlgorithm.getLocalKeyLength(isp, channelContext);
+}
+
+static size_t
+symSig_getRemoteKeyLength_filestore(const UA_SecurityPolicy *sp,
+                                    const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symSignatureAlgorithm.getRemoteKeyLength(isp, channelContext);
+}
+
+/*************************/
+/* Asymmetric Encryption */
+/*************************/
+
+static UA_StatusCode
+sym_encrypt_filestore(const UA_SecurityPolicy *sp, void *channelContext,
+                      UA_ByteString *data) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symEncryptionAlgorithm.encrypt(isp, channelContext, data);
+}
+
+static UA_StatusCode
+sym_decrypt_filestore(const UA_SecurityPolicy *sp, void *channelContext,
+                      UA_ByteString *data) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symEncryptionAlgorithm.decrypt(isp, channelContext, data);
+}
+
+static size_t
+sym_getLocalKeyLength_filestore(const UA_SecurityPolicy *sp,
+                                const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symEncryptionAlgorithm.getLocalKeyLength(isp, channelContext);
+}
+
+static size_t
+sym_getRemoteKeyLength_filestore(const UA_SecurityPolicy *sp,
+                                 const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symEncryptionAlgorithm.getRemoteKeyLength(isp, channelContext);
+}
+
+static size_t
+sym_getRemotePlainTextBlockSize_filestore(const UA_SecurityPolicy *sp,
+                                          const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symEncryptionAlgorithm.getRemotePlainTextBlockSize(isp, channelContext);
+}
+
+static size_t
+sym_getRemoteBlockSize_filestore(const UA_SecurityPolicy *sp,
+                                 const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->symEncryptionAlgorithm.getRemoteBlockSize(isp, channelContext);
+}
+
+/*************************/
+/* Certificate Signature */
+/*************************/
+
+static UA_StatusCode
+cert_verify_filestore(const UA_SecurityPolicy *sp, void *channelContext,
+                      const UA_ByteString *message, const UA_ByteString *signature) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->certSignatureAlgorithm.verify(isp, channelContext, message, signature);
+}
+
+static UA_StatusCode
+cert_sign_filestore(const UA_SecurityPolicy *sp, void *channelContext,
+                    const UA_ByteString *message, UA_ByteString *signature) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->certSignatureAlgorithm.sign(isp, channelContext, message, signature);
+}
+
+static size_t
+cert_getLocalSignatureSize_filestore(const UA_SecurityPolicy *sp,
+                                     const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->certSignatureAlgorithm.getLocalSignatureSize(isp, channelContext);
+}
+
+static size_t
+cert_getRemoteSignatureSize_filestore(const UA_SecurityPolicy *sp,
+                                     const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->certSignatureAlgorithm.getRemoteSignatureSize(isp, channelContext);
+}
+
+
+static size_t
+cert_getLocalKeyLength_filestore(const UA_SecurityPolicy *sp,
+                                 const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->certSignatureAlgorithm.getLocalKeyLength(isp, channelContext);
+}
+
+static size_t
+cert_getRemoteKeyLength_filestore(const UA_SecurityPolicy *sp,
+                                  const void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->certSignatureAlgorithm.getRemoteKeyLength(isp, channelContext);
+}
+
 /********************/
-/* AsymmetricModule */
+/* Direct Callbacks */
 /********************/
 
 static UA_StatusCode
-asym_makeThumbprint_sp_filestore(const UA_SecurityPolicy *securityPolicy,
-                                 const UA_ByteString *certificate,
-                                 UA_ByteString *thumbprint) {
-    SecurityPolicy_FilestoreContext *pc =
-        (SecurityPolicy_FilestoreContext *) securityPolicy->policyContext;
-    return pc->innerPolicy->asymmetricModule.makeCertificateThumbprint(pc->innerPolicy, certificate, thumbprint);
+newChannelContext_filestore(const UA_SecurityPolicy *sp,
+                            const UA_ByteString *remoteCertificate,
+                            void **pp_contextData) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->newChannelContext(isp, remoteCertificate, pp_contextData);
+}
+
+static void
+deleteChannelContext_filestore(const UA_SecurityPolicy *sp, void *channelContext) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    isp->deleteChannelContext(isp, channelContext);
 }
 
 static UA_StatusCode
-asym_compareCertificateThumbprint_sp_filestore(const UA_SecurityPolicy *securityPolicy,
-                                                          const UA_ByteString *certificateThumbprint) {
-    SecurityPolicy_FilestoreContext *pc =
-        (SecurityPolicy_FilestoreContext *) securityPolicy->policyContext;
-    return pc->innerPolicy->asymmetricModule.compareCertificateThumbprint(pc->innerPolicy, certificateThumbprint);
-}
-
-/*******************/
-/* SymmetricModule */
-/*******************/
-
-static UA_StatusCode
-sym_generateKey_sp_filestore(void *policyContext, const UA_ByteString *secret,
-                                  const UA_ByteString *seed, UA_ByteString *out) {
-    SecurityPolicy_FilestoreContext *pc =
-        (SecurityPolicy_FilestoreContext *) policyContext;
-    return pc->innerPolicy->symmetricModule.generateKey(pc->innerPolicy->policyContext, secret, seed, out);
+setLocalSymSigningKey_filestore(const UA_SecurityPolicy *sp,
+                                   void *channelContext, const UA_ByteString *key) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->setLocalSymSigningKey(isp, channelContext, key);
 }
 
 static UA_StatusCode
-sym_generateNonce_sp_filestore(void *policyContext, UA_ByteString *out) {
-    SecurityPolicy_FilestoreContext *pc =
-    (SecurityPolicy_FilestoreContext *) policyContext;
-    return pc->innerPolicy->symmetricModule.generateNonce(pc->innerPolicy->policyContext, out);
-}
-
-/*****************/
-/* ChannelModule */
-/*****************/
-
-static UA_StatusCode
-channelContext_newContext_sp_filestore(const UA_SecurityPolicy *securityPolicy,
-                                       const UA_ByteString *remoteCertificate,
-                                       void **pp_contextData) {
-    SecurityPolicy_FilestoreContext *pc =
-        (SecurityPolicy_FilestoreContext *) securityPolicy->policyContext;
-    return pc->innerPolicy->channelModule.newContext(pc->innerPolicy, remoteCertificate, pp_contextData);
+setLocalSymEncryptingKey_filestore(const UA_SecurityPolicy *sp,
+                                      void *channelContext, const UA_ByteString *key) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->setLocalSymEncryptingKey(isp, channelContext, key);
 }
 
 static UA_StatusCode
-updateCertificateAndPrivateKey_sp_filestore(UA_SecurityPolicy *securityPolicy,
-                                            const UA_ByteString newCertificate,
-                                            const UA_ByteString newPrivateKey) {
-    /* Temporarily save the old certificate file so that it can be removed from CertStore */
+setLocalSymIv_filestore(const UA_SecurityPolicy *sp,
+                           void *channelContext, const UA_ByteString *iv) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->setLocalSymIv(isp, channelContext, iv);
+}
+
+static UA_StatusCode
+setRemoteSymSigningKey_filestore(const UA_SecurityPolicy *sp,
+                                    void *channelContext, const UA_ByteString *key) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->setRemoteSymSigningKey(isp, channelContext, key);
+}
+
+static UA_StatusCode
+setRemoteSymEncryptingKey_filestore(const UA_SecurityPolicy *sp,
+                                       void *channelContext, const UA_ByteString *key) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->setRemoteSymEncryptingKey(isp, channelContext, key);
+}
+
+static UA_StatusCode
+setRemoteSymIv_filestore(const UA_SecurityPolicy *sp,
+                            void *channelContext, const UA_ByteString *iv) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->setRemoteSymIv(isp, channelContext, iv);
+}
+
+static UA_StatusCode
+generateKey_filestore(const UA_SecurityPolicy *sp,
+                         void *channelContext, const UA_ByteString *secret,
+                         const UA_ByteString *seed, UA_ByteString *out) {
+    Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->generateKey(isp, channelContext, secret, seed, out);
+}
+
+static UA_StatusCode
+generateNonce_filestore(const UA_SecurityPolicy *sp,
+                           void *channelContext, UA_ByteString *out) {
+    Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->generateNonce(isp, channelContext, out);
+}
+
+static UA_StatusCode
+compareCertificate_filestore(const UA_SecurityPolicy *sp,
+                                const void *channelContext,
+                                const UA_ByteString *certificate) {
+    Filestore_Context *pc = (Filestore_Context *)sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->compareCertificate(isp, channelContext, certificate);
+}
+
+static UA_StatusCode
+updateCertificate_filestore(UA_SecurityPolicy *sp,
+                            const UA_ByteString newCertificate,
+                            const UA_ByteString newPrivateKey) {
+    /* Temporarily save the old certificate file so that it can be removed from
+     * CertStore */
     UA_ByteString localCertificateTmp;
-    UA_ByteString_copy(&securityPolicy->localCertificate, &localCertificateTmp);
+    UA_ByteString_copy(&sp->localCertificate, &localCertificateTmp);
 
-    SecurityPolicy_FilestoreContext *pc =
-        (SecurityPolicy_FilestoreContext *) securityPolicy->policyContext;
+    Filestore_Context *pc =
+        (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
 
-    UA_StatusCode retval =
-        pc->innerPolicy->updateCertificateAndPrivateKey(pc->innerPolicy, newCertificate, newPrivateKey);
-    if(retval != UA_STATUSCODE_GOOD) {
+    UA_StatusCode retval = isp->updateCertificate(isp, newCertificate, newPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    }
 
-    securityPolicy->localCertificate = pc->innerPolicy->localCertificate;
+    sp->localCertificate = isp->localCertificate;
 
-    retval =
-        writeCertificateAndPrivateKeyToFilestore(pc->storePath, newCertificate, newPrivateKey);
+    retval = writeCertificateAndPrivateKeyToFilestore(pc->storePath,
+                                                      newCertificate, newPrivateKey);
     UA_ByteString_clear(&localCertificateTmp);
 
     return retval;
 }
 
 static UA_StatusCode
-createSigningRequest_sp_filestore(UA_SecurityPolicy *securityPolicy,
-                                  const UA_String *subjectName,
-                                  const UA_ByteString *nonce,
-                                  const UA_KeyValueMap *params,
-                                  UA_ByteString *csr,
-                                  UA_ByteString *newPrivateKey) {
-    SecurityPolicy_FilestoreContext *pc =
-        (SecurityPolicy_FilestoreContext *) securityPolicy->policyContext;
-    return pc->innerPolicy->createSigningRequest(pc->innerPolicy, subjectName, nonce, params, csr, newPrivateKey);
-}
-
-static void
-clear_sp_filestore(UA_SecurityPolicy *securityPolicy) {
-    if(!securityPolicy)
-        return;
-
-    if(!securityPolicy->policyContext)
-        return;
-
-    SecurityPolicy_FilestoreContext *pc =
-            (SecurityPolicy_FilestoreContext *) securityPolicy->policyContext;
-
-    pc->innerPolicy->clear(pc->innerPolicy);
-    UA_String_clear(&pc->storePath);
-
-    UA_free(pc->innerPolicy);
-    UA_free(pc);
-    securityPolicy->policyContext = NULL;
-}
-
-
-static void
-init_sp_filestore(UA_SecurityPolicy *policy) {
-    SecurityPolicy_FilestoreContext *pc =
-            (SecurityPolicy_FilestoreContext *) policy->policyContext;
-
-    policy->policyUri = pc->innerPolicy->policyUri;
-    policy->securityLevel = pc->innerPolicy->securityLevel;
-    policy->localCertificate = pc->innerPolicy->localCertificate;
-    policy->certificateGroupId = pc->innerPolicy->certificateGroupId;
-    policy->certificateTypeId = pc->innerPolicy->certificateTypeId;
-    policy->logger = pc->innerPolicy->logger;
-
-    UA_SecurityPolicyAsymmetricModule *const asymmetricModule = &policy->asymmetricModule;
-    memcpy(asymmetricModule, &pc->innerPolicy->asymmetricModule, sizeof(UA_SecurityPolicyAsymmetricModule));
-    asymmetricModule->makeCertificateThumbprint = asym_makeThumbprint_sp_filestore;
-    asymmetricModule->compareCertificateThumbprint = asym_compareCertificateThumbprint_sp_filestore;
-
-    UA_SecurityPolicySymmetricModule *const symmetricModule = &policy->symmetricModule;
-    memcpy(symmetricModule, &pc->innerPolicy->symmetricModule, sizeof(UA_SecurityPolicySymmetricModule));
-    symmetricModule->generateKey = sym_generateKey_sp_filestore;
-    symmetricModule->generateNonce = sym_generateNonce_sp_filestore;
-
-    UA_SecurityPolicyChannelModule *const channelModule = &policy->channelModule;
-    memcpy(channelModule, &pc->innerPolicy->channelModule, sizeof(UA_SecurityPolicyChannelModule));
-    channelModule->newContext = channelContext_newContext_sp_filestore;
-
-    policy->certificateSigningAlgorithm = pc->innerPolicy->certificateSigningAlgorithm;
-
-    policy->createSigningRequest = createSigningRequest_sp_filestore;
-    policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_filestore;
-    policy->clear = clear_sp_filestore;
+createSigningRequest_filestore(UA_SecurityPolicy *sp,
+                               const UA_String *subjectName,
+                               const UA_ByteString *nonce,
+                               const UA_KeyValueMap *params,
+                               UA_ByteString *csr,
+                               UA_ByteString *newPrivateKey) {
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->createSigningRequest(isp, subjectName, nonce, params, csr, newPrivateKey);
 }
 
 static UA_StatusCode
-policyContext_newContext_sp_filestore(UA_SecurityPolicy *policy, const UA_String storePath) {
+makeThumbprint_filestore(const UA_SecurityPolicy *securityPolicy,
+                         const UA_ByteString *certificate,
+                         UA_ByteString *thumbprint) {
+    Filestore_Context *pc = (Filestore_Context *) securityPolicy->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->makeCertThumbprint(isp, certificate, thumbprint);
+}
+
+static UA_StatusCode
+compareCertificateThumbprint_filestore(const UA_SecurityPolicy *securityPolicy,
+                                       const UA_ByteString *certThumbprint) {
+    Filestore_Context *pc = (Filestore_Context *) securityPolicy->policyContext;
+    UA_SecurityPolicy *isp = pc->innerPolicy;
+    return isp->compareCertThumbprint(isp, certThumbprint);
+}
+
+static void
+clear_filestore(UA_SecurityPolicy *sp) {
+    if(!sp)
+        return;
+    if(!sp->policyContext)
+        return;
+
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
+
+    pc->innerPolicy->clear(pc->innerPolicy);
+    UA_String_clear(&pc->storePath);
+    UA_free(pc->innerPolicy);
+    UA_free(pc);
+    sp->policyContext = NULL;
+}
+
+static UA_StatusCode
+newContext_filestore(UA_SecurityPolicy *policy, const UA_String storePath) {
     if(!policy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    SecurityPolicy_FilestoreContext *pc = (SecurityPolicy_FilestoreContext *)
-        UA_calloc(1, sizeof(SecurityPolicy_FilestoreContext));
+    Filestore_Context *pc = (Filestore_Context *)
+        UA_calloc(1, sizeof(Filestore_Context));
     if(!pc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_String_copy(&storePath, &pc->storePath);
     policy->policyContext = (void *)pc;
-
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_SecurityPolicy_Filestore(UA_SecurityPolicy *policy,
+UA_SecurityPolicy_Filestore(UA_SecurityPolicy *sp,
                             UA_SecurityPolicy *innerPolicy,
                             const UA_String storePath) {
-    if(!policy || !innerPolicy)
+    if(!sp || !innerPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    memset(policy, 0, sizeof(UA_SecurityPolicy));
+    UA_SecurityPolicy *isp = innerPolicy;
 
-    retval = policyContext_newContext_sp_filestore(policy, storePath);
+    memset(sp, 0, sizeof(UA_SecurityPolicy));
+    sp->logger = isp->logger;
+    sp->policyUri = isp->policyUri;
+    sp->certificateGroupId = isp->certificateGroupId;
+    sp->certificateTypeId = isp->certificateTypeId;
+    sp->securityLevel = isp->securityLevel;
+    sp->policyType = isp->policyType;
+
+    /* Asymmetric Signature */
+    UA_SecurityPolicySignatureAlgorithm *asymSig = &sp->asymSignatureAlgorithm;
+    asymSig->uri = isp->asymSignatureAlgorithm.uri;
+    asymSig->verify = asym_verify_filestore;
+    asymSig->sign = asym_sign_filestore;
+    asymSig->getLocalSignatureSize = asym_getLocalSignatureSize_filestore;
+    asymSig->getRemoteSignatureSize = asym_getRemoteSignatureSize_filestore;
+    asymSig->getLocalKeyLength = asymSig_getLocalKeyLength_filestore;
+    asymSig->getRemoteKeyLength = asymSig_getRemoteKeyLength_filestore;
+
+    /* Asymmetric Encryption */
+    UA_SecurityPolicyEncryptionAlgorithm *asymEnc = &sp->asymEncryptionAlgorithm;
+    asymEnc->uri = isp->asymEncryptionAlgorithm.uri;
+    asymEnc->encrypt = asym_encrypt_filestore; 
+    asymEnc->decrypt = asym_decrypt_filestore;
+    asymEnc->getLocalKeyLength = asym_getLocalKeyLength_filestore;
+    asymEnc->getRemoteKeyLength = asym_getRemoteKeyLength_filestore;
+    asymEnc->getRemoteBlockSize = asym_getRemoteBlockSize_filestore;
+    asymEnc->getRemotePlainTextBlockSize = asym_getRemotePlainTextBlockSize_filestore;
+
+    /* Symmetric Signature */
+    UA_SecurityPolicySignatureAlgorithm *symSig = &sp->symSignatureAlgorithm;
+    symSig->uri = isp->symSignatureAlgorithm.uri;
+    symSig->verify = sym_verify_filestore;
+    symSig->sign = sym_sign_filestore;
+    symSig->getLocalSignatureSize = sym_getLocalSignatureSize_filestore;
+    symSig->getRemoteSignatureSize = sym_getRemoteSignatureSize_filestore;
+    symSig->getLocalKeyLength = symSig_getLocalKeyLength_filestore;
+    symSig->getRemoteKeyLength = symSig_getRemoteKeyLength_filestore;
+
+    /* Symmetric Encryption */
+    UA_SecurityPolicyEncryptionAlgorithm *symEnc = &sp->symEncryptionAlgorithm;
+    symEnc->uri = isp->symEncryptionAlgorithm.uri;
+    symEnc->encrypt = sym_encrypt_filestore;
+    symEnc->decrypt = sym_decrypt_filestore;
+    symEnc->getLocalKeyLength = sym_getLocalKeyLength_filestore;
+    symEnc->getRemoteKeyLength = sym_getRemoteKeyLength_filestore;
+    symEnc->getRemoteBlockSize = sym_getRemoteBlockSize_filestore;
+    symEnc->getRemotePlainTextBlockSize = sym_getRemotePlainTextBlockSize_filestore;
+
+    /* Certificate Signing */
+    UA_SecurityPolicySignatureAlgorithm *certSig = &sp->certSignatureAlgorithm;
+    certSig->uri = isp->certSignatureAlgorithm.uri;
+    certSig->verify = cert_verify_filestore;
+    certSig->sign = cert_sign_filestore;
+    certSig->getLocalSignatureSize = cert_getLocalSignatureSize_filestore;
+    certSig->getRemoteSignatureSize = cert_getRemoteSignatureSize_filestore;
+    certSig->getLocalKeyLength = cert_getLocalKeyLength_filestore;
+    certSig->getRemoteKeyLength = cert_getRemoteKeyLength_filestore;
+
+    /* Direct Method Pointers */
+    sp->newChannelContext = newChannelContext_filestore;
+    sp->deleteChannelContext = deleteChannelContext_filestore;
+    sp->setLocalSymEncryptingKey = setLocalSymEncryptingKey_filestore;
+    sp->setLocalSymSigningKey = setLocalSymSigningKey_filestore;
+    sp->setLocalSymIv = setLocalSymIv_filestore;
+    sp->setRemoteSymEncryptingKey = setRemoteSymEncryptingKey_filestore;
+    sp->setRemoteSymSigningKey = setRemoteSymSigningKey_filestore;
+    sp->setRemoteSymIv = setRemoteSymIv_filestore;
+    sp->compareCertificate = compareCertificate_filestore;
+    sp->generateKey = generateKey_filestore;
+    sp->generateNonce = generateNonce_filestore;
+    sp->nonceLength = isp->nonceLength;
+    sp->makeCertThumbprint = makeThumbprint_filestore;
+    sp->compareCertThumbprint = compareCertificateThumbprint_filestore;
+    sp->updateCertificate = updateCertificate_filestore;
+    sp->createSigningRequest = createSigningRequest_filestore;
+    sp->clear = clear_filestore;
+
+    /* Set the state / context */
+    sp->localCertificate = isp->localCertificate;
+    UA_StatusCode retval = newContext_filestore(sp, storePath);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    SecurityPolicy_FilestoreContext *pc =
-            (SecurityPolicy_FilestoreContext *) policy->policyContext;
+    /* Set the inner policy */
+    Filestore_Context *pc = (Filestore_Context *) sp->policyContext;
     pc->innerPolicy = innerPolicy;
 
-    init_sp_filestore(policy);
-
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */

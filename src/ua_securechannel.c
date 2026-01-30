@@ -10,6 +10,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2018-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/types.h>
@@ -24,15 +25,6 @@
 const UA_String UA_SECURITY_POLICY_NONE_URI =
     {47, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#None"};
 
-UA_Boolean isEccPolicy(const UA_SecurityPolicy* const p) {
-    if((0 == strncmp("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256", (const char *) p->policyUri.data, strlen("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256")))
-    || (0 == strncmp("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384", (const char *) p->policyUri.data, strlen("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384")))) {
-        return true;
-    }
-
-    return false;
-}
-
 void
 UA_SecureChannel_init(UA_SecureChannel *channel) {
     /* Normal linked lists are initialized by zeroing out */
@@ -41,34 +33,58 @@ UA_SecureChannel_init(UA_SecureChannel *channel) {
 }
 
 UA_StatusCode
-UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
-                                   UA_SecurityPolicy *securityPolicy,
+UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel, UA_SecurityPolicy *sp,
                                    const UA_ByteString *remoteCertificate) {
     /* Is a policy already configured? */
     UA_CHECK_ERROR(!channel->securityPolicy, return UA_STATUSCODE_BADINTERNALERROR,
-                   securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                    "Security policy already configured");
 
     /* Create the context */
-    UA_StatusCode res = securityPolicy->channelModule.
-        newContext(securityPolicy, remoteCertificate, &channel->channelContext);
+    UA_StatusCode res = sp->newChannelContext(sp, remoteCertificate,
+                                              &channel->channelContext);
     res |= UA_ByteString_copy(remoteCertificate, &channel->remoteCertificate);
-    UA_CHECK_STATUS_WARN(res, return res, securityPolicy->logger,
-                         UA_LOGCATEGORY_SECURITYPOLICY,
+    UA_CHECK_STATUS_WARN(res, return res, sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Could not set up the SecureChannel context");
 
     /* Compute the certificate thumbprint */
     UA_ByteString remoteCertificateThumbprint =
         {20, channel->remoteCertificateThumbprint};
-    res = securityPolicy->asymmetricModule.
-        makeCertificateThumbprint(securityPolicy, &channel->remoteCertificate,
-                                  &remoteCertificateThumbprint);
-    UA_CHECK_STATUS_WARN(res, return res, securityPolicy->logger,
-                         UA_LOGCATEGORY_SECURITYPOLICY,
+    res = sp->makeCertThumbprint(sp, &channel->remoteCertificate,
+                                 &remoteCertificateThumbprint);
+    UA_CHECK_STATUS_WARN(res, return res, sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Could not create the certificate thumbprint");
 
-    /* Set the policy */
-    channel->securityPolicy = securityPolicy;
+    /* Set the SecurityPolicy */
+    channel->securityPolicy = sp;
+
+    /* Set a temporary SecurityMode. The client sets the final SecurityMode
+     * right after. The server only after fully decoding the OPN message in the
+     * OpenSecureChannel service. But we need the SecurityMode for decoding. The
+     * OPN message is always signed and encrypted when not #None. */
+    if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
+        channel->securityMode = UA_MESSAGESECURITYMODE_NONE;
+    else
+        channel->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* The #None SecurityPolicy must use the NONE SecurityMode. All other
+ * SecurityPolicies must not. */
+UA_StatusCode
+UA_SecureChannel_setSecurityMode(UA_SecureChannel *channel,
+                                 UA_MessageSecurityMode securityMode) {
+    if(securityMode == UA_MESSAGESECURITYMODE_INVALID ||
+       securityMode > UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(!sp)
+        return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+    UA_Boolean isNonePolicy = (sp->policyType == UA_SECURITYPOLICYTYPE_NONE);
+    UA_Boolean isNoneMode = (securityMode == UA_MESSAGESECURITYMODE_NONE);
+    if(isNonePolicy != isNoneMode)
+        return UA_STATUSCODE_BADSECURITYMODEREJECTED;
+    channel->securityMode = securityMode;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -98,7 +114,7 @@ UA_SecureChannel_isConnected(UA_SecureChannel *channel) {
 }
 
 void
-UA_SecureChannel_sendError(UA_SecureChannel *channel, UA_TcpErrorMessage *error) {
+UA_SecureChannel_sendERR(UA_SecureChannel *channel, UA_TcpErrorMessage *error) {
     if(!UA_SecureChannel_isConnected(channel))
         return;
 
@@ -178,8 +194,9 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
     UA_assert(channel->sessions == NULL);
 
     /* Delete the channel context for the security policy */
-    if(channel->securityPolicy) {
-        channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(sp) {
+        sp->deleteChannelContext(sp, channel->channelContext);
         channel->securityPolicy = NULL;
         channel->channelContext = NULL;
     }
@@ -256,21 +273,34 @@ UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Sends an OPN message using asymmetric encryption if defined */
+/* Send an OPN message using asymmetric encryption.
+ * Specification part 6, 6.7.4: The OpenSecureChannel Messages are signed and
+ * encrypted if the SecurityMode is not None (even if the SecurityMode is
+ * SignOnly). */
 UA_StatusCode
-UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
-                                          UA_UInt32 requestId, const void *content,
-                                          const UA_DataType *contentType) {
-    UA_CHECK(channel->securityMode != UA_MESSAGESECURITYMODE_INVALID,
-             return UA_STATUSCODE_BADSECURITYMODEREJECTED);
+UA_SecureChannel_sendOPN(UA_SecureChannel *channel,
+                         UA_UInt32 requestId, const void *content,
+                         const UA_DataType *contentType) {
+    if(!content || !contentType)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* The SecurityPolicy must be configured before sending OPN */
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+
+    /* Check for a valid security mode */
+    UA_assert(channel->securityMode > UA_MESSAGESECURITYMODE_INVALID &&
+              channel->securityMode <= UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+
+    /* The #None SecurityPolicy must use the NONE MessageSecurityMode.
+     * All other SecurityPolicies must not. */
+    UA_assert((sp->policyType == UA_SECURITYPOLICYTYPE_NONE) ==
+              (channel->securityMode == UA_MESSAGESECURITYMODE_NONE));
 
     /* Can we use the connection manager? */
     UA_ConnectionManager *cm = channel->connectionManager;
     if(!UA_SecureChannel_isConnected(channel))
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
-
-    const UA_SecurityPolicy *sp = channel->securityPolicy;
-    UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
 
     /* Allocate the message buffer */
     UA_ByteString buf = UA_BYTESTRING_NULL;
@@ -298,22 +328,18 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     /* Compute the header length */
     securityHeaderLength = calculateAsymAlgSecurityHeaderLength(channel);
 
-    /* Add padding to the chunk. Also pad if the securityMode is SIGN_ONLY,
-     * since we are using asymmetric communication to exchange keys and thus
-     * need to encrypt. */
-    if((channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
-    && !isEccPolicy(channel->securityPolicy))
-        padChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
+    /* Add padding to the chunk */
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
+        padChunk(channel, &sp->asymSignatureAlgorithm, &sp->asymEncryptionAlgorithm,
                  &buf.data[UA_SECURECHANNEL_CHANNELHEADER_LENGTH + securityHeaderLength],
                  &buf_pos);
 
     /* The total message length */
     pre_sig_length = (uintptr_t)buf_pos - (uintptr_t)buf.data;
     total_length = pre_sig_length;
-    if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        total_length += sp->asymmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(channel->channelContext);
+    if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
+        total_length += sp->asymSignatureAlgorithm.
+            getLocalSignatureSize(sp, channel->channelContext);
 
     /* The total message length is known here which is why we encode the headers
      * at this step and not earlier. */
@@ -321,6 +347,7 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
                              securityHeaderLength, requestId, &encryptedLength);
     UA_CHECK_STATUS(res, goto error);
 
+    /* Add the signature and encrypt the message */
     res = signAndEncryptAsym(channel, pre_sig_length, &buf,
                              securityHeaderLength, total_length);
     UA_CHECK_STATUS(res, goto error);
@@ -413,7 +440,7 @@ sendSymmetricChunk(UA_MessageContext *mc) {
 
     /* Add padding if the message is encrypted */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        padChunk(channel, &sp->symmetricModule.cryptoModule,
+        padChunk(channel, &sp->symSignatureAlgorithm, &sp->symEncryptionAlgorithm,
                  &mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_UNENCRYPTEDLENGTH],
                  &mc->buf_pos);
 
@@ -422,8 +449,8 @@ sendSymmetricChunk(UA_MessageContext *mc) {
     total_length = pre_sig_length;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-        total_length += sp->symmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(channel->channelContext);
+        total_length += sp->symSignatureAlgorithm.
+            getLocalSignatureSize(sp, channel->channelContext);
 
     UA_LOG_TRACE_CHANNEL(sp->logger, channel,
                          "Send from a symmetric message buffer of length %lu "
@@ -549,10 +576,11 @@ UA_MessageContext_abort(UA_MessageContext *mc) {
     cm->freeNetworkBuffer(cm, mc->channel->connectionId, &mc->messageBuffer);
 }
 
-UA_StatusCode
-UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 requestId,
-                                      UA_MessageType messageType, void *payload,
-                                      const UA_DataType *payloadType) {
+/* Send a MSG or CLO message using symmetric encryption */
+static UA_StatusCode
+sendSymmetric(UA_SecureChannel *channel, UA_UInt32 requestId,
+              UA_MessageType messageType, void *payload,
+              const UA_DataType *payloadType) {
     if(!channel || !payload || !payloadType)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -576,6 +604,20 @@ UA_SecureChannel_sendSymmetricMessage(UA_SecureChannel *channel, UA_UInt32 reque
     UA_CHECK_STATUS(res, return res);
 
     return UA_MessageContext_finish(&mc);
+}
+
+UA_StatusCode
+UA_SecureChannel_sendMSG(UA_SecureChannel *channel, UA_UInt32 requestId,
+                         void *payload, const UA_DataType *payloadType) {
+    return sendSymmetric(channel, requestId, UA_MESSAGETYPE_MSG,
+                         payload, payloadType);
+}
+
+UA_StatusCode
+UA_SecureChannel_sendCLO(UA_SecureChannel *channel, UA_UInt32 requestId,
+                         UA_CloseSecureChannelRequest *req) {
+    return sendSymmetric(channel, requestId, UA_MESSAGETYPE_CLO, req,
+                         &UA_TYPES[UA_TYPES_CLOSESECURECHANNELREQUEST]);
 }
 
 /********************************/
@@ -613,17 +655,10 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk) {
              &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER], NULL);
     UA_CHECK_STATUS(res, return res);
 
-    if(asymHeader.senderCertificate.length > 0) {
-        if(channel->certificateVerification && channel->certificateVerification->verifyCertificate)
-            res = channel->certificateVerification->
-                verifyCertificate(channel->certificateVerification,
-                                  &asymHeader.senderCertificate);
-        else
-            res = UA_STATUSCODE_BADINTERNALERROR;
-        UA_CHECK_STATUS(res, goto error);
-    }
-
-    /* New channel, create a security policy context and attach */
+    /* Client/Server-specific processing. Creates a SecurityPolicy context and
+     * attaches it to the channel. For the client, the remote certificate has
+     * been verified before connecting. For the server the remote certificate is
+     * verified within processOPNHeader. */
     UA_assert(channel->processOPNHeader);
     res = channel->processOPNHeader(channel->processOPNHeaderApplication,
                                     channel, &asymHeader);
@@ -647,14 +682,17 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk) {
     }
 #endif
 
-    /* Check the header for the channel's security policy */
+    /* Generic header checking (for both client and server). Requires the
+     * channel's SecurityPolicy. */
     res = checkAsymHeader(channel, &asymHeader);
+    UA_CHECK_STATUS(res, goto error);
+
     UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
-    UA_CHECK_STATUS(res, return res);
 
     /* Decrypt the chunk payload */
-    res = decryptAndVerifyChunk(channel,
-                                &channel->securityPolicy->asymmetricModule.cryptoModule,
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    res = decryptAndVerifyChunk(channel, &sp->asymSignatureAlgorithm,
+                                &sp->asymEncryptionAlgorithm,
                                 chunk->messageType, &chunk->bytes, offset);
     UA_CHECK_STATUS(res, return res);
 
@@ -704,8 +742,9 @@ unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk,
     UA_CHECK_STATUS(res, return res);
 
     /* Decrypt the chunk payload */
-    res = decryptAndVerifyChunk(channel,
-                                &channel->securityPolicy->symmetricModule.cryptoModule,
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    res = decryptAndVerifyChunk(channel, &sp->symSignatureAlgorithm,
+                                &sp->symEncryptionAlgorithm,
                                 chunk->messageType, &chunk->bytes, offset);
     UA_CHECK_STATUS(res, return res);
 
@@ -728,7 +767,8 @@ unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk,
 }
 
 static UA_StatusCode
-extractCompleteChunk(UA_SecureChannel *channel, UA_Chunk *chunk, UA_DateTime nowMonotonic) {
+extractCompleteChunk(UA_SecureChannel *channel, UA_Chunk *chunk,
+                     UA_DateTime nowMonotonic) {
     /* At least 8 byte needed for the header */
     size_t offset = channel->unprocessedOffset;
     size_t remaining = channel->unprocessed.length - offset;

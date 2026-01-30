@@ -585,6 +585,7 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
 
     /* Copy the references */
     dsthead->references = NULL;
+    dsthead->referencesSize = 0;
     if(srchead->referencesSize > 0) {
         dsthead->references = (UA_NodeReferenceKind*)
             UA_calloc(srchead->referencesSize, sizeof(UA_NodeReferenceKind));
@@ -825,11 +826,10 @@ copyMethodNodeAttributes(UA_MethodNode *mnode,
     return UA_STATUSCODE_GOOD;
 }
 
-#define CHECK_ATTRIBUTES(TYPE)                           \
-    if(attributeType != &UA_TYPES[UA_TYPES_##TYPE]) {    \
-        retval = UA_STATUSCODE_BADNODEATTRIBUTESINVALID; \
-        break;                                           \
-    }
+#define CHECK_ATTRIBUTES(TYPE) do {                     \
+    if(attributeType != &UA_TYPES[UA_TYPES_##TYPE])     \
+        return UA_STATUSCODE_BADNODEATTRIBUTESINVALID;  \
+} while(0)
 
 UA_StatusCode
 UA_Node_setAttributes(UA_Node *node, const void *attributes, const UA_DataType *attributeType) {
@@ -879,10 +879,10 @@ UA_Node_setAttributes(UA_Node *node, const void *attributes, const UA_DataType *
         retval = UA_STATUSCODE_BADNODECLASSINVALID;
     }
 
-    if(retval == UA_STATUSCODE_GOOD)
+    /* No need (and no promise) to call UA_Node_clear in the error case.
+     * Gets caught and handled outside. */
+    if(UA_LIKELY(retval == UA_STATUSCODE_GOOD))
         retval = copyStandardAttributes(&node->head, (const UA_NodeAttributes*)attributes);
-    if(retval != UA_STATUSCODE_GOOD)
-        UA_Node_clear(node);
     return retval;
 }
 
@@ -1087,6 +1087,7 @@ UA_Node_deleteReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForwar
 void
 UA_Node_deleteReferencesSubset(UA_Node *node, const UA_ReferenceTypeSet *keepSet) {
     UA_NodeHead *head = &node->head;
+    UA_assert(head->references != NULL || head->referencesSize == 0);
     for(size_t i = 0; i < head->referencesSize; i++) {
         /* Keep the references of this type? */
         UA_NodeReferenceKind *refs = &head->references[i];
@@ -1096,8 +1097,12 @@ UA_Node_deleteReferencesSubset(UA_Node *node, const UA_ReferenceTypeSet *keepSet
         /* Remove all target entries. Don't remove entries from browseName tree.
          * The entire ReferenceKind will be removed anyway. */
         if(!refs->hasRefTree) {
-            for(size_t j = 0; j < refs->targetsSize; j++)
+            for(size_t j = 0; j < refs->targetsSize; j++) {
+                /* Consistency requirement: If refs->targetsSize > 0, then the
+                 * targets array is non-NULL */
+                UA_assert(refs->targets.array != NULL);
                 UA_NodePointer_clear(&refs->targets.array[j].targetId);
+            }
             UA_free(refs->targets.array);
         } else {
             ZIP_ITER(UA_ReferenceIdTree,

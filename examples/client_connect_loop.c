@@ -67,7 +67,7 @@ int main(void) {
            UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
             UA_DateTime raw_date = *(UA_DateTime *) value.data;
             UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                         "date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
                         dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
         }

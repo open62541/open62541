@@ -24,11 +24,6 @@
 
 #include "securitypolicy_common.h"
 
-#define REMOTECERTIFICATETRUSTED 1
-#define ISSUERKNOWN              2
-#define DUALPARENT               3
-#define PARENTFOUND              4
-
 /* Configuration parameters */
 
 #define MEMORYCERTSTORE_PARAMETERSSIZE 2
@@ -701,52 +696,27 @@ cleanup:
 
 #if !defined(mbedtls_x509_subject_alternative_name)
 
-/* Find binary substring. Taken and adjusted from
- * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
-
-static const unsigned char *
-bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
-    /* find first occurrence of c in char s[] for length l*/
-    for(; l > 0; ++s, --l) {
-        if(*s == ch)
-            return s;
-    }
-    return NULL;
-}
-
 static const unsigned char *
 UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
-    /* find first occurrence of s2[] in s1[] for length l1*/
-    const unsigned char *ss1 = s1;
-    const unsigned char *ss2 = s2;
-    /* handle special case */
-    if(l1 == 0)
-        return (NULL);
     if(l2 == 0)
         return s1;
-
-    /* match prefix */
-    for (; (s1 = bstrchr(s1, *s2, (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1)) != NULL &&
-           (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1 != 0; ++s1) {
-
-        /* match rest of prefix */
-        const unsigned char *sc1, *sc2;
-        for (sc1 = s1, sc2 = s2; ;)
-            if (++sc2 >= ss2+l2)
-                return s1;
-            else if (*++sc1 != *sc2)
-                break;
-           }
+    if(l1 < l2)
+        return NULL;
+    size_t limit = l1 - l2 + 1;
+    for(size_t i = 0; i < limit; ++i) {
+        if(s1[i] == s2[0]) {
+            if(memcmp(s1 + i, s2, l2) == 0)
+                return s1 + i;
+        }
+    }
     return NULL;
 }
 
 #endif
 
 UA_StatusCode
-UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
-                                         const UA_ByteString *certificate,
-                                         const UA_String *applicationURI,
-                                         UA_Logger *logger) {
+UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
+                                         const UA_String *applicationURI) {
     /* Parse the certificate */
     mbedtls_x509_crt remoteCertificate;
     mbedtls_x509_crt_init(&remoteCertificate);
@@ -771,21 +741,11 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
 
         UA_String uri = {san.san.unstructured_name.len, san.san.unstructured_name.p};
         UA_Boolean found = UA_String_equal(&uri, applicationURI);
+        mbedtls_x509_free_subject_alt_name(&san);
         if(found) {
             retval = UA_STATUSCODE_GOOD;
-        } else if(ruleHandling != UA_RULEHANDLING_ACCEPT) {
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                           "The certificate's Subject Alternative Name URI (%S) "
-                           "does not match the ApplicationURI (%S)",
-                           uri, *applicationURI);
+            break;
         }
-        mbedtls_x509_free_subject_alt_name(&san);
-        break;
-    }
-
-    if(!cur && ruleHandling != UA_RULEHANDLING_ACCEPT) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "The certificate has no Subject Alternative Name URI defined");
     }
 #else
     /* Poor man's ApplicationUri verification. mbedTLS does not parse all fields
@@ -794,16 +754,7 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
     if(UA_Bstrstr(remoteCertificate.v3_ext.p, remoteCertificate.v3_ext.len,
                   applicationURI->data, applicationURI->length) == NULL)
         retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
-
-    if(retval != UA_STATUSCODE_GOOD && ruleHandling != UA_RULEHANDLING_ACCEPT) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "The certificate's application URI could not be verified. StatusCode %s",
-                       UA_StatusCode_name(retval));
-    }
 #endif
-
-    if(ruleHandling != UA_RULEHANDLING_ABORT)
-        retval = UA_STATUSCODE_GOOD;
 
     mbedtls_x509_crt_free(&remoteCertificate);
     return retval;
