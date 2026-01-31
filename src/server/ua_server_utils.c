@@ -24,6 +24,14 @@ serverCustomTypes(UA_Server *server) {
     return server->customTypes_internal;
 }
 
+const UA_DataTypeArray *
+UA_Server_getDataTypes(UA_Server *server) {
+    lockServer(server);
+    const UA_DataTypeArray * out = serverCustomTypes(server);
+    unlockServer(server);
+    return out;
+}
+
 const UA_DataType *
 UA_Server_findDataType(UA_Server *server, const UA_NodeId *typeId) {
     return UA_findDataTypeWithCustom(typeId, serverCustomTypes(server));

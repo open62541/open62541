@@ -1153,6 +1153,15 @@ UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_addDataType(UA_Server *server, const UA_NodeId parentNodeId,
                       const UA_DataType *type);
 
+/* Get the entry to the linked list of custom datatypes. This includes both the
+ * datatypes from serverConfig->customDataTypes and the internal custom data
+ * types from UA_Server_addDataType.
+ *
+ * Attention! The output pointer is only valid until the next call to
+ * UA_Server_addDataType. */
+UA_EXPORT UA_THREADSAFE const UA_DataTypeArray *
+UA_Server_getDataTypes(UA_Server *server);
+
 /**
  * ViewNode
  * ~~~~~~~~ */
