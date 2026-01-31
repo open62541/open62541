@@ -1571,6 +1571,7 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
     }
 
     /* Decode */
+    memset(dst, 0, type->memSize); /* Initialize the value */
     UA_StatusCode ret = decodeXmlJumpTable[type->typeKind](&ctx, dst, type);
     if(ret != UA_STATUSCODE_GOOD)
         UA_clear(dst, type);
