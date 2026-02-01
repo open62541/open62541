@@ -325,6 +325,7 @@ UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk) {
     newRk.targets.tree.nameRoot = NULL;
     newRk.targetsSize = 0;
     for(size_t i = 0; i < rk->targetsSize; i++) {
+        UA_assert(newRk.hasRefTree == true);
         UA_StatusCode res =
             addReferenceTarget(&newRk, rk->targets.array[i].targetId,
                                rk->targets.array[i].targetNameHash);
