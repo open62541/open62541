@@ -379,6 +379,65 @@ START_TEST(UA_Networkmessage_DataSetFieldsNull_json_decode) {
 }
 END_TEST
 
+START_TEST(UA_Networkmessage_metaData_oob) {
+    /* Typical metadata: 8 named fields at indices 0..7 */
+#define METADATA_FIELDS 8
+    static char *names[METADATA_FIELDS] = {
+        "Temperature", "Pressure", "Humidity", "Vibration",
+        "Voltage", "Current", "Status", "Energy"
+    };
+
+    UA_FieldMetaData fmd[METADATA_FIELDS];
+    memset(fmd, 0, sizeof(UA_FieldMetaData)*METADATA_FIELDS);
+    for(size_t i = 0; i < METADATA_FIELDS; i++) {
+        fmd[i].name = UA_STRING(names[i]);
+    }
+
+    /* Initialize EncodingMetaData */
+    UA_DataSetMessage_EncodingMetaData emd;
+    memset(&emd, 0, sizeof(emd));
+    emd.dataSetWriterId = 1;
+    emd.fields = fmd;
+    emd.fieldsSize = METADATA_FIELDS;
+
+    /* Setup encoding options */
+    UA_NetworkMessage_EncodingOptions eo;
+    memset(&eo, 0, sizeof(eo));
+    eo.metaData = &emd;
+    eo.metaDataSize = 1;
+
+    /* JSON message to decode.
+     * We provoke an out-of-bounds index by choosing a field name.
+     * Whose index in the field-metadata is higher than the number of
+     * fields in the message. */
+    static char *json =
+        "{"
+          "\"MessageType\":\"ua-data\","
+          "\"Messages\":[{"
+            "\"DataSetWriterId\":1,"
+            "\"Payload\":{\"Energy\":null}"
+          "}]"
+        "}";
+
+    /* Decode JSON with error checking */
+    UA_NetworkMessage nm;
+    UA_ByteString bs = UA_STRING(json);
+    UA_StatusCode rv = UA_NetworkMessage_decodeJson(&bs, &nm, &eo, NULL);
+    ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
+
+    UA_NetworkMessage_clear(&nm);
+}
+END_TEST
+
+
+START_TEST(UA_Networkmessage_malformed_array) {
+    UA_NetworkMessage nm;
+    UA_ByteString bs = UA_STRING("[]");
+    UA_StatusCode rv = UA_NetworkMessage_decodeJson(&bs, &nm, NULL, NULL);
+    ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
+    UA_NetworkMessage_clear(&nm);
+}
+END_TEST
 
 static Suite *testSuite_networkmessage(void) {
     Suite *s = suite_create("Built-in Data Types 62541-6 Json");
@@ -390,6 +449,8 @@ static Suite *testSuite_networkmessage(void) {
     tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_json_decode);
     tcase_add_test(tc_json_networkmessage, UA_NetworkMessage_json_decode_messageObject);
     tcase_add_test(tc_json_networkmessage, UA_Networkmessage_DataSetFieldsNull_json_decode);
+    tcase_add_test(tc_json_networkmessage, UA_Networkmessage_metaData_oob);
+    tcase_add_test(tc_json_networkmessage, UA_Networkmessage_malformed_array);
 
     suite_add_tcase(s, tc_json_networkmessage);
     return s;
