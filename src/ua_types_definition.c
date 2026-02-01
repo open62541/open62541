@@ -179,10 +179,12 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
     type->membersSize = (UA_Byte)sd->fieldsSize;
 
     /* Try to get pointerFree and overlayable handling shortcuts.
-     * Verified for each member and end-padding. */
+     * Adjusted later for each member and end-padding. */
     if(sd->structureType == UA_STRUCTURETYPE_STRUCTURE) {
         type->pointerFree = true;
         type->overlayable = true;
+    } else if(sd->structureType == UA_STRUCTURETYPE_UNION) {
+        type->pointerFree = true;
     }
 
     /* Populate the members array */
@@ -253,7 +255,6 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
                 PADDING(sizeof(UA_UInt32), offsetof(struct _pad_size_t, x)) :
                 PADDING(sizeof(UA_UInt32), type_alignment(dtm->memberType)));
             dtm->padding = sizeof(UA_UInt32) + fieldPadding;
-            UA_assert(!type->pointerFree); /* Set above */
         }
 
         /* Adjust the type size for the latest member */
