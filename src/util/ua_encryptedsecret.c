@@ -395,8 +395,8 @@ decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
 
     /* Set IV and RemoteEncryptingKey. That is all we need to decode the
      * secret. */
-    res = sp->setRemoteSymEncryptingKey(sp, spContext, &encKey);
-    res = sp->setRemoteSymIv(sp, spContext, &iv);
+    res |= sp->setRemoteSymEncryptingKey(sp, spContext, &encKey);
+    res |= sp->setRemoteSymIv(sp, spContext, &iv);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CHANNEL(logger, channel, "EccEncryptedSecret: "
                              "Failed to set IV/RemoteSymEncryptingKey");
