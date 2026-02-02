@@ -213,9 +213,6 @@ Aes128Sha256RsaOaep_New_Context(const UA_SecurityPolicy *securityPolicy,
 
     *channelContext = context;
 
-    UA_LOG_INFO(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The Aes128Sha256RsaOaep security policy channel with openssl is created.");
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -234,8 +231,6 @@ Aes128Sha256RsaOaep_Delete_Context(const UA_SecurityPolicy *policy,
     UA_ByteString_clear(&cc->remoteSymSigningKey);
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     UA_ByteString_clear(&cc->remoteSymIv);
-    UA_LOG_INFO(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The Aes128Sha256RsaOaep security policy channel with openssl is deleted");
     UA_free(cc);
 }
 
@@ -571,9 +566,6 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *sp,
                                       const UA_ByteString localCertificate,
                                       const UA_ByteString localPrivateKey,
                                       const UA_Logger *logger) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The Aes128Sha256RsaOaep security policy with openssl is added.");
-
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
     sp->policyUri =

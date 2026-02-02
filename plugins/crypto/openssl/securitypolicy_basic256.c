@@ -209,8 +209,6 @@ Basic256_New_Context(const UA_SecurityPolicy * securityPolicy,
 
     *channelContext = context;
 
-    UA_LOG_INFO(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The basic256 security policy channel with openssl is created.");
     return UA_STATUSCODE_GOOD;
 }
 
@@ -228,8 +226,6 @@ Basic256_Delete_Context(const UA_SecurityPolicy *policy,
     UA_ByteString_clear(&cc->remoteSymSigningKey);
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     UA_ByteString_clear(&cc->remoteSymIv);
-    UA_LOG_INFO(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The basic256 security policy channel with openssl is deleted.");
     UA_free(cc);
 }
 
@@ -537,9 +533,6 @@ UA_SecurityPolicy_Basic256(UA_SecurityPolicy *sp,
     UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
                    "!! WARNING !! The Basic256 SecurityPolicy is unsecure. "
                    "There are known attacks that break the encryption.");
-
-    UA_LOG_INFO (logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                 "The basic256 security policy with openssl is added.");
 
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
