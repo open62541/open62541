@@ -940,12 +940,15 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken *)
            req->userIdentityToken.content.decoded.data;
 
-        /* Test if the correct encryption algorithm is used */
-        if(!UA_String_equal(&tokenSp->asymEncryptionAlgorithm.uri,
-                            &userToken->encryptionAlgorithm)) {
-            rh->serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-            UA_SESSION_REJECT;
-        }
+        /* Test if the correct encryption algorithm is used for the token
+         * encryption. Not all client's set this correctly. Leave this check out
+         * for now. The tokenSp has been already selected, so at worst the
+         * decryption fails. */
+        /* if(!UA_String_equal(&tokenSp->asymEncryptionAlgorithm.uri, */
+        /*                     &userToken->encryptionAlgorithm)) { */
+        /*     rh->serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID; */
+        /*     UA_SESSION_REJECT; */
+        /* } */
 
         token = &userToken->password;
         break; }
