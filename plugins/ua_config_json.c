@@ -175,7 +175,7 @@ PARSE_JSON(LocalizedTextField) {
             else if(strcmp(field, "text") == 0)
                 retval |= UA_decodeJson(&buf, &text, &UA_TYPES[UA_TYPES_STRING], NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name '%s'.", field);
             }
             UA_free(field);
             break;
@@ -251,7 +251,7 @@ PARSE_JSON(DurationRangeField) {
             else if(strcmp(field_str, "max") == 0)
                 DurationField_parseJson(ctx, &field->max, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name '%s'.", field_str);
             }
             UA_free(field_str);
             break;
@@ -277,7 +277,7 @@ PARSE_JSON(UInt32RangeField) {
             else if(strcmp(field_str, "max") == 0)
                 UInt32Field_parseJson(ctx, &field->max, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name '%s'.", field_str);
             }
             UA_free(field_str);
             break;
@@ -357,7 +357,7 @@ PARSE_JSON(BuildInfo) {
             else if(strcmp(field_str, "buildDate") == 0)
                 DateTimeField_parseJson(ctx, &field->buildDate, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name '%s'.", field_str);
             }
             UA_free(field_str);
             break;
@@ -445,7 +445,7 @@ GenericApplicationDescriptionField_parseJson(ParsingCtx *ctx, void *configField,
             else if(strcmp(field_str, "discoveryUrls") == 0)
                 StringArrayField_parseJson(ctx, &field->discoveryUrls, &field->discoveryUrlsSize);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name '%s'.", field_str);
             }
             UA_free(field_str);
             break;
@@ -560,7 +560,7 @@ PARSE_JSON(MdnsConfigurationField) {
 # endif
 #endif
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name '%s'.", field_str);
             }
             UA_free(field_str);
             break;
@@ -615,7 +615,7 @@ PARSE_JSON(SubscriptionConfigurationField) {
             else if(strcmp(field_str, "maxPublishReqPerSession") == 0)
                 UInt32Field_parseJson(ctx, &config->maxPublishReqPerSession, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name '%s'.", field_str);
             }
             UA_free(field_str);
             break;
@@ -645,7 +645,7 @@ PARSE_JSON(TcpConfigurationField) {
             else if(strcmp(field_str, "tcpMaxChunks") == 0)
                 UInt32Field_parseJson(ctx, &config->tcpMaxChunks, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name '%s'.", field_str);
             }
             UA_free(field_str);
             break;
@@ -675,7 +675,7 @@ PARSE_JSON(PubsubConfigurationField) {
                 BooleanField_parseJson(ctx, &field->enableInformationModelMethods, NULL);
 #endif
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name '%s'.", field_str);
             }
             UA_free(field_str);
             break;
@@ -728,7 +728,7 @@ PARSE_JSON(HistorizingConfigurationField) {
             else if(strcmp(field_str, "deleteAtTimeDataCapability") == 0)
                 BooleanField_parseJson(ctx, &config->deleteAtTimeDataCapability, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name '%s'.", field_str);
             }
             UA_free(field_str);
             break;
@@ -794,7 +794,7 @@ PARSE_JSON(SecurityPolciesField) {
                 } else if(strcmp(field_str, "policy") == 0) {
                     StringField_parseJson(ctx, &policy, NULL);
                 } else {
-                    UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+                    UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name '%s'.", field_str);
                 }
                 UA_free(field_str);
                 break;
@@ -1138,7 +1138,7 @@ PARSE_JSON(ConnectionConfig) {
             else if(strcmp(field_str, "remoteMaxChunkCount") == 0)
                 UInt32Field_parseJson(ctx, &field->remoteMaxChunkCount, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name '%s'.", field_str);
             }
             UA_free(field_str);
             break;
@@ -1178,7 +1178,7 @@ PARSE_JSON(UserTokenPolicy) {
             else if(strcmp(field_str, "securityPolicyUri") == 0)
                 StringField_parseJson(ctx, &field->securityPolicyUri, NULL);
             else {
-                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name.");
+                UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Unknown field name '%s'.", field_str);
             }
             UA_free(field_str);
             break;
