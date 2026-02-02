@@ -14,8 +14,6 @@
 #include "ua_subscription.h"
 #endif
 
-#define UA_SESSION_NONCELENTH 32
-
 void UA_Session_init(UA_Session *session) {
     memset(session, 0, sizeof(UA_Session));
     session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
@@ -131,15 +129,15 @@ UA_Session_generateNonce(UA_Session *session) {
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Is the length of the previous nonce correct? */
-    if(session->serverNonce.length != UA_SESSION_NONCELENTH) {
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    if(session->serverNonce.length != sp->nonceLength) {
         UA_ByteString_clear(&session->serverNonce);
         UA_StatusCode res =
-            UA_ByteString_allocBuffer(&session->serverNonce, UA_SESSION_NONCELENTH);
+            UA_ByteString_allocBuffer(&session->serverNonce, sp->nonceLength);
         if(res != UA_STATUSCODE_GOOD)
             return res;
     }
 
-    UA_SecurityPolicy *sp = channel->securityPolicy;
     return sp->generateNonce(sp, channel->channelContext, &session->serverNonce);
 }
 
