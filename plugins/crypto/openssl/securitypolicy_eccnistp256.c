@@ -186,9 +186,6 @@ EccNistP256_New_Context(const UA_SecurityPolicy *securityPolicy,
     /* Return the new channel context */
     *channelContext = newContext;
 
-    UA_LOG_INFO(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The EccNistP256 security policy channel with openssl is created.");
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -208,8 +205,6 @@ EccNistP256_Delete_Context(const UA_SecurityPolicy *policy,
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     UA_ByteString_clear(&cc->remoteSymIv);
     EVP_PKEY_free(cc->localEphemeralKeyPair);
-    UA_LOG_INFO(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The EccNistP256 security policy channel with openssl is deleted.");
     UA_free(cc);
 }
 
@@ -511,9 +506,6 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
                               const UA_ByteString localCertificate,
                               const UA_ByteString localPrivateKey,
                               const UA_Logger *logger) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The EccNistP256 security policy with openssl is added.");
-
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
     sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256\0");
