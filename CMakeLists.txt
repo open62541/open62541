@@ -134,6 +134,11 @@ endif()
 set(UA_MULTITHREADING ${MULTITHREADING_DEFAULT} CACHE STRING
     "Multithreading support (<100: No multithreading support, >=100: Thread-safety enabled (internal mutexes)")
 
+set(UA_ENABLE_DIRECTORY_SYSTEM OFF)
+if(WIN32 OR UNIX)
+    set(UA_ENABLE_DIRECTORY_SYSTEM ON)
+endif()
+
 option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
 
@@ -425,7 +430,7 @@ if(CMAKE_BUILD_TYPE MATCHES DEBUG)
 endif()
 
 # Build Targets
-option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
+option(UA_BUILD_EXAMPLES "Build example servers and clients" ON)
 option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
@@ -681,7 +686,7 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
         include(CheckIPOSupported)
         check_ipo_supported(RESULT CC_HAS_IPO)
         if(CC_HAS_IPO)
-            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
         endif()
     endif()
 
@@ -791,6 +796,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/common.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/types.h
+                     ${PROJECT_SOURCE_DIR}/include/filesystem/ua_filetypes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/util.h
@@ -806,7 +812,9 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h)
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/driver/driver.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/driver/ua_fileserver_driver.h)
 
 # Main Library
 
@@ -872,6 +880,10 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_monitoreditem.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
+                # driver
+                ${PROJECT_SOURCE_DIR}/src/driver/ua_fileserver_driver.c
+                ${PROJECT_SOURCE_DIR}/src/filesystem/ua_server_ns0_fdt.c
+                ${PROJECT_SOURCE_DIR}/src/filesystem/ua_server_ns0_filetype.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
@@ -1008,7 +1020,10 @@ if(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_tcp.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c)
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c
+         ${PROJECT_SOURCE_DIR}/arch/common/fileSystemOperations_common.h
+         ${PROJECT_SOURCE_DIR}/arch/win32/fileSystemOperations_win32.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/fileSystemOperations_posix.c)
 endif()
 
 if(UA_ARCHITECTURE_ZEPHYR)

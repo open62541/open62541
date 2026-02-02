@@ -280,6 +280,10 @@ if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_local_monitored_item.c)
 endif()
 
+if(UA_ENABLE_FILESYSTEM)
+    ua_add_test(filesystem/check_filesystem_operations.c)
+endif()
+
 if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_encoding.c)
     ua_add_test(pubsub/check_pubsub_encoding_custom.c)
