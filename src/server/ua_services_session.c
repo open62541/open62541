@@ -853,8 +853,10 @@ decryptUserToken(UA_Server *server, UA_Session *session, UA_SecureChannel *chann
         return UA_STATUSCODE_GOOD;
     }
 
-    /* Test if the correct encryption algorithm is used */
-    if(!UA_String_equal(&tokenSp->asymEncryptionAlgorithm.uri,
+    /* Test if the correct encryption algorithm is used. Note that some clients
+     * don't set the EncryptionAlgorithmUri. Skip the check for those.*/
+    if(encryptionAlgorithm.length > 0 &&
+       !UA_String_equal(&tokenSp->asymEncryptionAlgorithm.uri,
                         &encryptionAlgorithm)) {
         UA_LOG_ERROR_SESSION(server->config.logging, session,
                              "ActivateSession: Encryption algorithm used "
