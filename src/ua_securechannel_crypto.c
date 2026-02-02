@@ -24,6 +24,9 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
 
     /* Is the length of the previous nonce correct? */
     size_t nonceLength = sp->nonceLength;
+    if(nonceLength == 0)
+        return UA_STATUSCODE_GOOD;
+
     if(channel->localNonce.length != nonceLength) {
         UA_ByteString_clear(&channel->localNonce);
         UA_StatusCode res = UA_ByteString_allocBuffer(&channel->localNonce, nonceLength);
@@ -31,6 +34,9 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     }
 
     /* Generate the nonce */
+    channel->localNonce.data[0] = 'e';
+    channel->localNonce.data[1] = 'p';
+    channel->localNonce.data[2] = 'h';
     return sp->generateNonce(sp, channel->channelContext, &channel->localNonce);
 }
 
