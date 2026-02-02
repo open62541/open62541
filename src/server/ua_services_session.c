@@ -352,6 +352,9 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
         return res;
 
     /* Generate the ephemeral key and signature */
+    ephKey->publicKey.data[0] = 'e';
+    ephKey->publicKey.data[1] = 'p';
+    ephKey->publicKey.data[2] = 'h';
     res |= sp->generateNonce(sp, spContext, &ephKey->publicKey);
     res |= sp->asymSignatureAlgorithm.sign(sp, spContext, &ephKey->publicKey,
                                            &ephKey->signature);
@@ -493,8 +496,6 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    /* Configure the Session */
-
     /* If the session name is empty, use the generated SessionId */
     rh->serviceResult |= UA_String_copy(&request->sessionName,
                                         &newSession->sessionName);
@@ -502,7 +503,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         rh->serviceResult |= UA_NodeId_print(&newSession->sessionId,
                                              &newSession->sessionName);
 
-    rh->serviceResult |= UA_Session_generateNonce(newSession);
+    /* Configure the Session */
     newSession->maxResponseMessageSize = request->maxResponseMessageSize;
     newSession->maxRequestMessageSize = channel->config.localMaxMessageSize;
     rh->serviceResult |= UA_ApplicationDescription_copy(&request->clientDescription,
@@ -531,42 +532,14 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         return;
     }
 
-    /* Prepare the response */
-    response->sessionId = newSession->sessionId;
-    response->revisedSessionTimeout = (UA_Double)newSession->timeout;
-    response->authenticationToken = newSession->authenticationToken;
-    rh->serviceResult |= UA_ByteString_copy(&newSession->serverNonce,
-                                            &response->serverNonce);
-
-    /* Copy the server's endpointdescriptions into the response */
-    rh->serviceResult |= setCurrentEndPointsArray(server, channel,
-                                                  request->endpointUrl,
-                                                  NULL, 0,
-                                                  &response->serverEndpoints,
-                                                  &response->serverEndpointsSize);
-
-    /* Get the SecurityPolicy for usertoken encryption. The same selection is
-     * done for the local endpoints in updateEndpointUserIdentityToken. Don't
-     * mix RSA/ECC between channel and authentication. */
-    UA_SecurityPolicy *sessionSp =
-        getDefaultEncryptedSecurityPolicy(server, sp->policyType);
-    if(sessionSp)
-        rh->serviceResult |= UA_ByteString_copy(&sessionSp->localCertificate,
-                                                &response->serverCertificate);
-
-    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
-        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                             "CreateSession: Could not prepare the response (%s)",
-                             UA_StatusCode_name(rh->serviceResult));
-        return;
-    }
-
-    /* If ECC policy, instantiate an auth SecurityPolicy context and create an
-     * ephemeral key to be returned in the response. The private part of the
-     * ephemeral key is persisted in the SecurityPolicy context. Until it gets
-     * overridden during ActivateSession. */
-    if(sessionSp && sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+    /* Get the SecurityPolicy for UserToken encryption and instantiate it. The
+     * same selection is done for the local endpoints in
+     * updateEndpointUserIdentityToken. Don't mix RSA/ECC between channel and
+     * authentication. */
+    UA_SecurityPolicy *sessionSp = NULL;
+    if(request->clientCertificate.length > 0)
+        sessionSp = getDefaultEncryptedSecurityPolicy(server, sp->policyType);
+    if(sessionSp) {
         rh->serviceResult =
             createCheckSessionAuthSecurityPolicyContext(server, newSession,
                                                         sessionSp, "CreateSession",
@@ -575,7 +548,24 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
             UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
             return;
         }
+    }
 
+    /* Generate the nonce. This uses the session-SecurityPolicy if defined.
+     * Otherwise the SecurityPolicy of the SecureChannel. */
+    rh->serviceResult = UA_Session_generateNonce(newSession);
+    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                             "CreateSession: Could not create the server nonce (%s)",
+                             UA_StatusCode_name(rh->serviceResult));
+        UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
+        return;
+    }
+
+    /* If an ECC policy, create an ephemeral key to be returned in the response.
+     * The private part of the ephemeral key is persisted in the
+     * Session-SecurityPolicy context. Until it gets overridden during
+     * ActivateSession. */
+    if(sessionSp && sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
         rh->serviceResult = addEphemeralKeyAdditionalHeader(server, newSession,
                                                             &rh->additionalHeader);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
@@ -585,6 +575,31 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
             UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
             return;
         }
+    }
+
+    /* Prepare the response */
+    response->sessionId = newSession->sessionId;
+    response->revisedSessionTimeout = (UA_Double)newSession->timeout;
+    response->authenticationToken = newSession->authenticationToken;
+    rh->serviceResult |= UA_ByteString_copy(&newSession->serverNonce,
+                                            &response->serverNonce);
+    if(sessionSp)
+        rh->serviceResult |= UA_ByteString_copy(&sessionSp->localCertificate,
+                                                &response->serverCertificate);
+
+    /* Copy the server's endpointdescriptions into the response */
+    rh->serviceResult |= setCurrentEndPointsArray(server, channel,
+                                                  request->endpointUrl,
+                                                  NULL, 0,
+                                                  &response->serverEndpoints,
+                                                  &response->serverEndpointsSize);
+
+    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                             "CreateSession: Could not prepare the response (%s)",
+                             UA_StatusCode_name(rh->serviceResult));
+        UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
+        return;
     }
 
     /* Sign the signature */
@@ -858,8 +873,10 @@ decryptUserToken(UA_Server *server, UA_Session *session, UA_SecureChannel *chann
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* SecurityPolicies with encryption always set a context */
-    UA_assert(session->sessionSpContext);
+    /* SecurityPolicies for auth encryption is set during CreateSession.
+     * But only when the client provides a certificate. */
+    if(!session->sessionSpContext)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Decrypt the token. Differentiate between secret encryptions (ECC,
      * legacy).

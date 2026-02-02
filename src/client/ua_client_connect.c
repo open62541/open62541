@@ -32,7 +32,6 @@
  */
 
 #define UA_MINMESSAGESIZE 8192
-#define UA_SESSION_LOCALNONCELENGTH 32
 #define MAX_DATA_SIZE 4096
 
 static void initConnect(UA_Client *client);
@@ -1539,15 +1538,23 @@ createSessionAsync(UA_Client *client) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        if(client->clientSessionNonce.length != UA_SESSION_LOCALNONCELENGTH) {
+        /* Get the nonce length (at leat 32 byte, the SecurityPolicy #None might
+         * not have that */
+        const UA_SecurityPolicy *sp = client->channel.securityPolicy;
+        size_t nonceLength = sp->nonceLength;
+        if(nonceLength < 32)
+            nonceLength = 32;
+
+        /* Allocate the memory */
+        if(client->clientSessionNonce.length != nonceLength) {
            UA_ByteString_clear(&client->clientSessionNonce);
-            res = UA_ByteString_allocBuffer(&client->clientSessionNonce,
-                                            UA_SESSION_LOCALNONCELENGTH);
+            res = UA_ByteString_allocBuffer(&client->clientSessionNonce, nonceLength);
             if(res != UA_STATUSCODE_GOOD)
                 return res;
         }
 
-        const UA_SecurityPolicy *sp = client->channel.securityPolicy;
+        /* Create the nonce. Don't trigger the ephemeral key generation. This
+         * would overwrite the ephemeral keys used for the SecureChannel. */
         void *cc = client->channel.channelContext;
         res = sp->generateNonce(sp, cc, &client->clientSessionNonce);
         if(res != UA_STATUSCODE_GOOD)
