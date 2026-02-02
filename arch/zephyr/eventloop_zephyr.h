@@ -75,7 +75,7 @@
 #define UA_gethostname zsock_gethostname
 
 typedef int UA_socket_fd;
-typedef struct zsock_fd_set UA_fd_set;
+typedef  zsock_fd_set UA_fd_set;
 typedef struct zsock_addrinfo UA_addrinfo;
 typedef struct zsock_pollfd UA_pollfd;
 
