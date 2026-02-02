@@ -533,7 +533,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                             &response->serverNonce);
 
     /* Copy the server's endpointdescriptions into the response */
-    rh->serviceResult |= setCurrentEndPointsArray(server, request->endpointUrl,
+    rh->serviceResult |= setCurrentEndPointsArray(server, channel,
+                                                  request->endpointUrl,
                                                   NULL, 0,
                                                   &response->serverEndpoints,
                                                   &response->serverEndpointsSize);
