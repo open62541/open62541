@@ -17,11 +17,9 @@ the MPLv2 when copied and distributed. The plugins, as well as the server and
 client examples are in the public domain (CC0 license). They can be reused under
 any license and changes do not have to be published.
 
-The sample server (server_ctt) built using open62541 v1.0 is in conformance with
-the 'Micro Embedded Device Server' Profile of OPC Foundation supporting OPC UA
-client/server communication, subscriptions, method calls and security
-(encryption) with the security policies 'Basic128Rsa15', 'Basic256' and
-'Basic256Sha256' and the facets 'method server' and 'node management'. See
+An example server based on the 1.4 release family of open62541 was certified by
+the OPC Foundation for the 'Standard Server 2017' profile. This shows open62541
+to be a good basis for products with certification requirements. See
 https://open62541.org/certification for more details.
 
 OPC Unified Architecture
