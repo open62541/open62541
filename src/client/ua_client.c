@@ -1346,6 +1346,8 @@ UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
     return response;
 }
 
+#ifdef UA_ENABLE_HISTORIZING
+
 UA_HistoryReadResponse
 UA_Client_Service_historyRead(UA_Client *client,
                               const UA_HistoryReadRequest request) {
@@ -1363,6 +1365,8 @@ UA_Client_Service_historyUpdate(UA_Client *client,
                         &response, &UA_TYPES[UA_TYPES_HISTORYUPDATERESPONSE]);
     return response;
 }
+
+#endif
 
 UA_CallResponse
 UA_Client_Service_call(UA_Client *client,
