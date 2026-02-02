@@ -339,11 +339,19 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_calloc(num, size) UA_callocSingleton(num, size)
 # define UA_realloc(ptr, size) UA_reallocSingleton(ptr, size)
 #else
+# ifdef UA_ARCHITECTURE_ZEPHYR // use zephyr's malloc and alloc
+#  include <zephyr/kernel.h>
+#  define UA_free k_free
+#  define UA_malloc k_malloc
+#  define UA_calloc k_calloc
+#  define UA_realloc k_realloc
+# else
 # include <stdlib.h>
 # define UA_free free
 # define UA_malloc malloc
 # define UA_calloc calloc
 # define UA_realloc realloc
+# endif
 #endif
 
 /* Stack-allocation of memory. Use C99 variable-length arrays if possible.
