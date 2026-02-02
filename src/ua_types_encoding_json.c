@@ -436,10 +436,14 @@ ENCODE_JSON(String) {
     if(!src->data)
         return writeChars(ctx, "null", 4);
 
-    if(src->length == 0)
-        return writeJsonQuote(ctx) | writeJsonQuote(ctx);
+    status ret = UA_STATUSCODE_GOOD;
+    if(src->length == 0) {
+        ret |= writeJsonQuote(ctx);
+        ret |= writeJsonQuote(ctx);
+        return ret;
+    }
 
-    UA_StatusCode ret = writeJsonQuote(ctx);
+    ret |= writeJsonQuote(ctx);
 
     const unsigned char *end = src->data + src->length;
     for(const unsigned char *pos = src->data; pos < end; pos++) {

@@ -44,7 +44,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 5)
 set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "-rc2") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
+set(OPEN62541_VER_LABEL "") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
 # Overwrite the version information based on git if available and we are the main cmake project.
@@ -483,13 +483,18 @@ endif()
 
 set(open62541_LIBRARIES "")
 set(open62541_PUBLIC_LIBRARIES "")
+set(pkgcfg_libsprivate "")
+set(pkgcfg_requiresprivate "")
 if("${UA_ARCHITECTURE}" STREQUAL "posix")
     list(APPEND open62541_LIBRARIES "m")
+    list(APPEND pkgcfg_libsprivate "-lm")
     if(UA_MULTITHREADING GREATER_EQUAL 100 OR UA_BUILD_UNIT_TESTS AND NOT ANDROID_NDK_TOOLCHAIN_INCLUDED)
         list(APPEND open62541_PUBLIC_LIBRARIES "pthread")
+        list(APPEND pkgcfg_libsprivate "-lpthread")
     endif()
     if(NOT APPLE AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD") AND NOT ANDROID_NDK_TOOLCHAIN_INCLUDED)
         list(APPEND open62541_LIBRARIES "rt")
+        list(APPEND pkgcfg_libsprivate "-lrt")
     endif()
 elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
     list(APPEND open62541_LIBRARIES "ws2_32")
@@ -501,6 +506,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL)
     # https://cmake.org/cmake/help/v3.13/module/FindOpenSSL.html
     find_package(OpenSSL REQUIRED)
     list(APPEND open62541_LIBRARIES "${OPENSSL_LIBRARIES}")
+    list(APPEND pkgcfg_requiresprivate "openssl")
     if(WIN32)
         # Add bestcrypt for windows systems
         list(APPEND open62541_LIBRARIES bcrypt)
@@ -511,6 +517,7 @@ if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     # See https://github.com/libressl-portable/portable/blob/master/FindLibreSSL.cmake
     find_package(LibreSSL REQUIRED)
     list(APPEND open62541_LIBRARIES ${LIBRESSL_LIBRARIES})
+    list(APPEND pkgcfg_requiresprivate "openssl")
     if(WIN32)
         # Add bestcrypt for random generator and ws2_32 for crypto
         list(APPEND open62541_LIBRARIES ws2_32 bcrypt)
@@ -523,6 +530,7 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     # defined in /tools/cmake/FindMbedTLS.cmake.
     find_package(MbedTLS REQUIRED)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
+    list(APPEND pkgcfg_requiresprivate "mbedtls")
     if(WIN32)
         # Add bestcrypt for windows systems
         list(APPEND open62541_LIBRARIES bcrypt)
@@ -531,6 +539,7 @@ endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
     list(APPEND open62541_LIBRARIES ${TPM2_LIB})
+    list(APPEND pkgcfg_requiresprivate "tpm2-pkcs11")
 endif()
 
 if(MINGW)
@@ -653,6 +662,7 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
     # Threading support
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
         check_add_cc_flag("-pthread")
+        check_add_cc_flag("-ftls-model=initial-exec") # Enable thread-local variables in the .so shared object
     endif()
 
     # Force 32bit build
@@ -1549,6 +1559,12 @@ if(BUILD_SHARED_LIBS)
     endforeach()
 endif()
 
+if(UA_ENABLE_AMALGAMATION)
+    set(PC_EXTRA_CFLAGS "-DUA_ENABLE_AMALGAMATION")
+endif()
+
+string(REPLACE ";" " " pkgcfg_requiresprivate "${pkgcfg_requiresprivate}")
+string(REPLACE ";" " " pkgcfg_libsprivate "${pkgcfg_libsprivate}")
 configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")

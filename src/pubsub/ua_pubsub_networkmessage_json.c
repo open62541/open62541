@@ -348,6 +348,10 @@ DataSetPayload_decodeJsonInternal(PubSubDecodeJsonCtx *ctx, void *data, const UA
         UA_CHECK_STATUS(ret, return ret);
 
         size_t index = decodingFieldIndex(emd, fieldName, i);
+        if(index >= length) {
+            UA_String_clear(&fieldName);
+            return UA_STATUSCODE_BADDECODINGERROR;
+        }
         UA_DataValue_clear(&dsm->data.keyFrameFields[index]);
         UA_String_clear(&fieldName);
         ret = decodeJsonJumpTable[UA_DATATYPEKIND_DATAVALUE]
@@ -454,6 +458,10 @@ NetworkMessage_decodeJsonInternal(PubSubDecodeJsonCtx *ctx,
     dst->payloadHeaderEnabled = false;
     dst->picosecondsEnabled = false;
     dst->promotedFieldsEnabled = false;
+
+    /* The NetworkMessage must be a JSON object */
+    if(currentTokenType(&ctx->ctx) != CJ5_TOKEN_OBJECT)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Is Messages an Array? How big? */
     size_t searchResultMessages = 0;

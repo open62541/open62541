@@ -12,25 +12,142 @@
 
 #include "ua_server_internal.h"
 
+/****************************/
+/* Custom DataType Handling */
+/****************************/
+
+const UA_DataTypeArray *
+serverCustomTypes(UA_Server *server) {
+    if(server->customTypes_internalSize == 0)
+        return server->config.customDataTypes;
+    server->customTypes_internal[server->customTypes_internalSize-1].next = server->config.customDataTypes;
+    return server->customTypes_internal;
+}
+
+const UA_DataTypeArray *
+UA_Server_getDataTypes(UA_Server *server) {
+    lockServer(server);
+    const UA_DataTypeArray * out = serverCustomTypes(server);
+    unlockServer(server);
+    return out;
+}
+
 const UA_DataType *
 UA_Server_findDataType(UA_Server *server, const UA_NodeId *typeId) {
-    return UA_findDataTypeWithCustom(typeId, server->config.customDataTypes);
+    return UA_findDataTypeWithCustom(typeId, serverCustomTypes(server));
+}
+
+/* DataTypes need a stable pointer. So we allocate an array of 64 datatypes.
+ * When that is full we move the server->customTypes_internal into a
+ * heap-structure that gets cleaned up with the server lifecycle. */
+static UA_StatusCode
+addDataType(UA_Server *server, UA_DataType *dt) {
+    /* Allocate the space for the new DataType */
+#define TYPES_LIST_SIZE 64
+    UA_DataTypeArray *current = NULL;
+    if(server->customTypes_internalSize > 0)
+        current = &server->customTypes_internal[server->customTypes_internalSize-1];
+    if(!current || current->typesSize == TYPES_LIST_SIZE) {
+        /* Increase the list-of-lists size */
+        UA_DataTypeArray *lol = (UA_DataTypeArray*)
+            UA_realloc(server->customTypes_internal,
+                       sizeof(UA_DataTypeArray) * (server->customTypes_internalSize+1));
+        if(!lol)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        memset(&lol[server->customTypes_internalSize], 0, sizeof(UA_DataTypeArray));
+        server->customTypes_internal = lol;
+        server->customTypes_internalSize++;
+
+        /* Update the next-pointers for the internal DataTypeArray */
+        for(size_t i = 0; i < server->customTypes_internalSize-1; i++)
+            lol[i].next = &lol[i+1];
+
+        /* Add a new types list. With the space for the datatypes already appended */
+        current = &server->customTypes_internal[server->customTypes_internalSize-1];
+        current->types = (UA_DataType*)UA_calloc(TYPES_LIST_SIZE, sizeof(UA_DataType));
+        current->typesSize = 0;
+        if(!current->types) {
+            server->customTypes_internalSize--;
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+    }
+
+    /* Move the datatype into the stable location in the server */
+    current->types[current->typesSize] = *dt;
+    current->typesSize++;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_addDataType(UA_Server *server, const UA_NodeId parentNodeId,
+                      const UA_DataType *type) {
+    /* Check that the type does not already exist. We do not allow changes to
+     * DataTypes once they are set. */
+    if(UA_Server_findDataType(server, &type->typeId))
+        return UA_STATUSCODE_BADNODEIDEXISTS;
+
+    /* Make a copy of the UA_DataType */
+    UA_DataType dt2;
+    UA_StatusCode res = UA_DataType_copy(type, &dt2);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Add the UA_DataType to the server */
+    res = addDataType(server, &dt2);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_DataType_clear(&dt2);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_addDataTypeFromDescription(UA_Server *server,
+                                     const UA_ExtensionObject *description) {
+    /* Translate into a new UA_DataType */
+    UA_DataType dt;
+    UA_StatusCode res =
+        UA_DataType_fromDescription(&dt, description, serverCustomTypes(server));
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Check that the type does not already exist. We do not allow changes to
+     * DataTypes once they are set. */
+    if(UA_Server_findDataType(server, &dt.typeId)) {
+        UA_DataType_clear(&dt);
+        return UA_STATUSCODE_BADNODEIDEXISTS;
+    }
+
+    /* Add the UA_DataType to the server */
+    res = addDataType(server, &dt);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_DataType_clear(&dt);
+    return res;
 }
 
 /********************************/
 /* Information Model Operations */
 /********************************/
 
+struct ReturnTypeContext {
+    UA_Server *server;
+    UA_UInt32 attributeMask;
+    UA_ReferenceTypeSet references;
+    UA_BrowseDirection referenceDirections;
+};
+
 static void *
 returnFirstType(void *context, UA_ReferenceTarget *t) {
-    UA_Server *server = (UA_Server*)context;
+    struct ReturnTypeContext *ctx = (struct ReturnTypeContext*)context;
     /* Don't release the node that is returned.
      * Continues to iterate if NULL is returned. */
-    return (void*)(uintptr_t)UA_NODESTORE_GETFROMREF(server, t->targetId);
+    return (void *)(uintptr_t)UA_NODESTORE_GETFROMREF_SELECTIVE(
+        ctx->server, t->targetId, ctx->attributeMask, ctx->references,
+        ctx->referenceDirections);
 }
 
 const UA_Node *
-getNodeType(UA_Server *server, const UA_NodeHead *head) {
+getNodeType(UA_Server *server, const UA_NodeHead *head,
+            UA_UInt32 attributeMask, UA_ReferenceTypeSet references,
+            UA_BrowseDirection referenceDirections) {
     /* The reference to the parent is different for variable and variabletype */
     UA_Byte parentRefIndex;
     UA_Boolean inverse;
@@ -51,6 +168,12 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
         return NULL;
     }
 
+    struct ReturnTypeContext ctx;
+    ctx.server = server;
+    ctx.attributeMask = attributeMask;
+    ctx.references = references;
+    ctx.referenceDirections = referenceDirections;
+
     /* Return the first matching candidate */
     for(size_t i = 0; i < head->referencesSize; ++i) {
         UA_NodeReferenceKind *rk = &head->references[i];
@@ -59,7 +182,7 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
         if(rk->referenceTypeIndex != parentRefIndex)
             continue;
         const UA_Node *type = (const UA_Node*)
-            UA_NodeReferenceKind_iterate(rk, returnFirstType, server);
+            UA_NodeReferenceKind_iterate(rk, returnFirstType, &ctx);
         if(type)
             return type;
     }
