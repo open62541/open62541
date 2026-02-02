@@ -1,0 +1,70 @@
+// JSON 5 client configuration
+{
+  timeout: 1000,
+
+  applicationDescription: {
+    applicationUri: "urn:open62541.client.application",
+    productUri: "urn:product.test.org",
+    applicationName: {
+      locale: "en-EN",
+      text: "Test Application"
+    },
+    // Server = 0, Client = 1, Client&Server = 2, Discovery_Server = 3
+    applicationType: 1,
+    gatewayServerUri: "GATEWAY",
+    discoveryProfileUri: "DISC",
+    discoveryUrls: [
+      "opc.tcp://10.0.20.240:2017",
+      "opc.tcp://10.0.20.240:2018",
+      "opc.tcp://10.0.20.241:2020"
+    ],
+  },
+
+  endpointUrl: "opc.tcp://localhost:4840",
+  sessionName: "TestSession",
+  sessionLocaleIds: ["en_US", "de_DE"],
+  localConnectionConfig: {
+    protocolVersion: 0,
+    recvBufferSize: 65536,
+    sendBufferSize: 65536,
+    localMaxMessageSize: 65536,
+    remoteMaxMessageSize: 65536,
+    localMaxChunkCount: 8,
+    remoteMaxChunkCount: 8
+  },
+  noSession: false,
+  noReconnect: false,
+  noNewSession: false,
+  secureChannelLifeTime: 0,
+  requestedSessionTimeout: 1000,
+  connectivityCheckInterval: 0,
+  tcpReuseAddr: true,
+  //endpoint: {
+  //  endpointUrl: "opc.tcp://localhost:4840",
+  //  securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None",
+  //  transportProfileUri: "http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary"
+  //},
+  // not yet implemented
+  //userTokenPolicy,
+  applicationUri: "urn:open62541.unconfigured.application",
+  securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None",
+  authSecurityPolicyUri: "",
+  // not yet implemented
+  //securityMode: {},
+  //securityPolicies: {},
+  //authSecurityPolicies: {},
+  // not yet implemented
+  //certificateVerification: {},
+  allowNonePolicyPassword: false,
+
+  // only if encryption enabled
+  maxTrustListSize: 20,
+  maxRejectedListSize: 20,
+
+  // not yet implemented
+  //customDataTypes: {}
+
+  namespaces: [],
+
+  outStandingPublishRequests: 0
+}
