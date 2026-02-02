@@ -1,0 +1,98 @@
+// JSON 5 client configuration with username/password authentication
+{
+  timeout: 1000,
+
+  applicationDescription: {
+    applicationUri: "urn:open62541.client.application",
+    productUri: "urn:product.test.org",
+    applicationName: {
+      locale: "en-EN",
+      text: "Test Application"
+    }
+  },
+
+  endpointUrl: "opc.tcp://localhost:4840",
+  sessionName: "TestSession",
+  sessionLocaleIds: ["en_US", "de_DE"],
+  localConnectionConfig: {
+    protocolVersion: 0,
+    recvBufferSize: 65536,
+    sendBufferSize: 65536,
+    localMaxMessageSize: 65536,
+    remoteMaxMessageSize: 65536,
+    localMaxChunkCount: 8,
+    remoteMaxChunkCount: 8
+  },
+  noSession: false,
+  noReconnect: false,
+  noNewSession: false,
+  secureChannelLifeTime: 0,
+  requestedSessionTimeout: 1000,
+  connectivityCheckInterval: 0,
+  tcpReuseAddr: true,
+
+  endpoint: {
+    endpointUrl: "opc.tcp://localhost:4840",
+    securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None",
+    securityMode: "None",
+    transportProfileUri: "http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary",
+    server: {
+      applicationUri: "urn:open62541.unconfigured.application",
+      productUri: "http://open62541.org",
+      applicationName: {
+        locale: "en",
+        text: "open62541-based OPC UA Application"
+      },
+      applicationType: "Server"
+    },
+    serverCertificate: "",
+    userIdentityTokens: [
+      {
+        policyId: "anonymous-policy",
+        tokenType: "Anonymous",
+        securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None"
+      },
+      {
+        policyId: "username-policy",
+        tokenType: "Username",
+        securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None"
+      },
+      {
+        policyId: "certificate-policy",
+        tokenType: "Certificate",
+        securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None"
+      }
+    ],
+    securityLevel: 0
+  },
+
+  userTokenPolicy: {
+    policyId: "username-policy",
+    tokenType: "Username",
+    securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None"
+  },
+
+  userIdentityToken: {
+    type: "Username",
+    userName: "user",
+    password: "pass",
+  },
+
+  applicationUri: "urn:open62541.unconfigured.application",
+  securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None",
+  authSecurityPolicyUri: "",
+  securityMode: "Invalid",
+
+  securityPolicies: [],
+  authSecurityPolicies: [],
+
+  allowNonePolicyPassword: true,
+
+  // only if encryption enabled
+  maxTrustListSize: 20,
+  maxRejectedListSize: 20,
+
+  namespaces: [],
+
+  outStandingPublishRequests: 0
+}
