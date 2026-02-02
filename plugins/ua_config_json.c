@@ -1103,17 +1103,17 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 UA_Server *
 UA_Server_newFromFile(const UA_ByteString json_config) {
     UA_ServerConfig config;
-    memset(&config, 0, sizeof(UA_ServerConfig));
-    UA_StatusCode res = UA_ServerConfig_setDefault(&config);
-    res |= parseJSONServerConfig(&config, json_config);
+    UA_StatusCode res = UA_ServerConfig_loadFromFile(&config, json_config);
     if(res != UA_STATUSCODE_GOOD)
         return NULL;
     return UA_Server_newWithConfig(&config);
 }
 
 UA_StatusCode
-UA_ServerConfig_updateFromFile(UA_ServerConfig *config, const UA_ByteString json_config) {
-    UA_StatusCode res = parseJSONServerConfig(config, json_config);
+UA_ServerConfig_loadFromFile(UA_ServerConfig *config, const UA_ByteString json_config) {
+    memset(config, 0, sizeof(UA_ServerConfig));
+    UA_StatusCode res = UA_ServerConfig_setDefault(config);
+    res |= parseJSONServerConfig(config, json_config);
     return res;
 }
 
@@ -1586,18 +1586,18 @@ UA_Client *
 UA_Client_newFromFile(const UA_ByteString json_config)
 {
     UA_ClientConfig config;
-    memset(&config, 0, sizeof(UA_ClientConfig));
-    UA_StatusCode res = UA_ClientConfig_setDefault(&config);
-    res |= parseJSONClientConfig(&config, json_config);
+    UA_StatusCode res = UA_ClientConfig_loadFromFile(&config, json_config);
     if(res != UA_STATUSCODE_GOOD)
         return NULL;
     return UA_Client_newWithConfig(&config);
 }
 
 UA_StatusCode
-UA_ClientConfig_updateFromFile(UA_ClientConfig *config, const UA_ByteString json_config)
+UA_ClientConfig_loadFromFile(UA_ClientConfig *config, const UA_ByteString json_config)
 {
-    UA_StatusCode res = parseJSONClientConfig(config, json_config);
+    memset(config, 0, sizeof(UA_ClientConfig));
+    UA_StatusCode res = UA_ClientConfig_setDefault(config);
+    res |= parseJSONClientConfig(config, json_config);
     return res;
 }
 
