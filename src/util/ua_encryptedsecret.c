@@ -161,6 +161,9 @@ encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
         UA_EccEncryptedSecretStruct_clear(&secret);
         return retval;
     }
+    secret.senderPublicKey.data[0] = 'e';
+    secret.senderPublicKey.data[1] = 'p';
+    secret.senderPublicKey.data[2] = 'h';
     retval = sp->generateNonce(sp, spContext, &secret.senderPublicKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CHANNEL(logger, channel,

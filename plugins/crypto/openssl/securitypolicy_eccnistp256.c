@@ -275,19 +275,15 @@ UA_Sym_EccNistP256_generateNonce(const UA_SecurityPolicy *policy,
     if(!pctx)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
 
-    if(out->length == UA_SECURITYPOLICY_ECCNISTP256_NONCE_LENGTH_BYTES) {
+    /* Detect if we want to create an ephemeral key or just cryptographic random
+     * data */
+    if(out->data[0] == 'e' && out->data[1] == 'p' && out->data[2] == 'h') {
         Channel_Context_EccNistP256 *cctx = (Channel_Context_EccNistP256*)channelContext;
-        UA_StatusCode res =
-            UA_OpenSSL_ECC_NISTP256_GenerateKey(&cctx->localEphemeralKeyPair, out);
-        if(res != UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    } else {
-        UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
-        if(rc != 1)
-            return UA_STATUSCODE_BADUNEXPECTEDERROR;
+        return UA_OpenSSL_ECC_NISTP256_GenerateKey(&cctx->localEphemeralKeyPair, out);
     }
 
-    return UA_STATUSCODE_GOOD;
+    UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
+    return (rc == 1) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
 }
 
 static size_t
