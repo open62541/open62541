@@ -486,10 +486,10 @@ UA_Server_delete(UA_Server *server) {
     /* Clean up the custom datatypes */
     if(server->customTypes_internal != NULL) {
         for(size_t i = 0; i < server->customTypes_internalSize; i++) {
-            UA_DataTypeArray *current = &server->customTypes_internal[i];
-            for(size_t j = 0; j < current->typesSize; j++)
-                UA_DataType_clear(&current->types[j]);
-            UA_free(current->types);
+            UA_DataTypeArray *curr = &server->customTypes_internal[i];
+            for(size_t j = 0; j < curr->typesSize; j++)
+                UA_DataType_clear(&curr->types[j]);
+            UA_free(curr->types);
         }
         UA_free(server->customTypes_internal);
     }

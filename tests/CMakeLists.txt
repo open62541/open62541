@@ -6,7 +6,7 @@ if(MSVC)
         $<$<CONFIG:Release>:/MD>
     )
 else()
-    add_compile_options(-Wno-unused-variable -Wno-unused-function)
+    add_compile_options(-Wno-unused-variable -Wno-unused-function -Wno-shadow)
     add_compile_options(-Wno-gnu-zero-variadic-macro-arguments) # silence warning for the check library
 endif()
 

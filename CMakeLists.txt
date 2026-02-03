@@ -607,6 +607,7 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
     check_add_cc_flag("-Wall")      # Warnings
     check_add_cc_flag("-Wextra")    # More warnings
     check_add_cc_flag("-Wpedantic") # Standard compliance
+    #check_add_cc_flag("-Wshadow")  # still disabled per default
     if(UA_FORCE_WERROR)
         check_add_cc_flag("-Werror") # All warnings are errors
         check_add_cc_flag("-Wunused-command-line-argument") # Warning for command line args instead of error
