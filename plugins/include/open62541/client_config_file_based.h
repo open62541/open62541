@@ -12,19 +12,19 @@ _UA_BEGIN_DECLS
 /* Create a new client from a file.  The client configuration is loaded from a
  * Json5 file.
  *
- * @param json The configuration in json5 format.
+ * @param jsonConfig The configuration in json5 format.
  */
 UA_EXPORT UA_Client *
-UA_Client_newFromFile(const UA_ByteString json_config);
+UA_Client_newFromFile(const UA_ByteString jsonConfig);
 
 /* Loads a client configuration from a file.  The passed client configuration is
  * cleared.
  *
  * @param config The client configuration.
- * @param json The configuration in json5 format.
+ * @param jsonConfig The configuration in json5 format.
  */
 UA_EXPORT UA_StatusCode
-UA_ClientConfig_loadFromFile(UA_ClientConfig *config, const UA_ByteString json_config);
+UA_ClientConfig_loadFromFile(UA_ClientConfig *config, const UA_ByteString jsonConfig);
 
 _UA_END_DECLS
 
