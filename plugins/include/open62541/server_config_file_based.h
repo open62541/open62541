@@ -21,7 +21,7 @@ UA_EXPORT UA_Server *
 UA_Server_newFromFile(const UA_ByteString jsonConfig);
 
 /* Loads a server configuration from a file.  The passed server configuration
- * is cleared.
+ * is cleared.  Memory will be allocated for fields in config.
  *
  * @param config The server configuration.
  * @param jsonConfig The configuration in json5 format.
