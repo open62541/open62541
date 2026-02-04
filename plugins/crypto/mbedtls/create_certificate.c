@@ -172,7 +172,8 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
         /* null-terminate the copied string */
         subAlt[subjectAltName[i].length] = 0;
         /* split into SAN type and value */
-        sanType = strtok(subAlt, ":");
+        char *saveptr;
+        sanType = strtok_r(subAlt, ":", &saveptr);
         sanValue = (char *)subjectAltName[i].data + strlen(sanType) + 1;
         sanValueLength = subjectAltName[i].length - strlen(sanType) - 1;
 
