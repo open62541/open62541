@@ -153,6 +153,18 @@ UA_OpenSSL_AES_256_CBC_Encrypt(const UA_ByteString *iv,
                                UA_ByteString *data  /* [in/out]*/);
 
 UA_StatusCode
+UA_OpenSSL_AES_256_GCM_Decrypt(const UA_ByteString *iv,
+                               const UA_ByteString *key,
+                               UA_ByteString *data /* [in/out] */,
+                               size_t authTagLength);
+
+UA_StatusCode
+UA_OpenSSL_AES_256_GCM_Encrypt(const UA_ByteString *iv,
+                               const UA_ByteString *key,
+                               UA_ByteString *data /* [in/out] */,
+                               size_t authTagLength);
+
+UA_StatusCode
 UA_OpenSSL_X509_compare(const UA_ByteString *cert, const X509 *b);
 
 UA_StatusCode
