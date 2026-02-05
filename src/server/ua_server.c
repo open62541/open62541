@@ -474,6 +474,10 @@ UA_Server_delete(UA_Server *server) {
 
     unlockServer(server); /* The timer has its own mutex */
 
+#ifdef UA_ENABLE_RBAC
+    UA_Server_cleanupRBAC(server);
+#endif
+
     /* Clean up the config */
     UA_ServerConfig_clear(&server->config);
 
@@ -577,6 +581,16 @@ UA_Server_init(UA_Server *server) {
 
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
     res = initNS0PushManagement(server);
+    UA_CHECK_STATUS(res, goto cleanup);
+#endif
+
+#ifdef UA_ENABLE_RBAC
+#ifdef UA_ENABLE_RBAC_INFORMATIONMODEL
+    res = initNS0RBAC(server);
+    UA_CHECK_STATUS(res, goto cleanup);
+#endif
+
+    res = UA_Server_initializeRBAC(server);
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 

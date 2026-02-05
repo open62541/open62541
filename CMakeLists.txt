@@ -121,6 +121,8 @@ option(UA_ENABLE_XML_ENCODING "Enable XML encoding" ON)
 option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
 option(UA_ENABLE_GDS_PUSHMANAGEMENT "Enable GDS pushManagement support" OFF)
 option(UA_ENABLE_DATATYPES_ALL "Generate all datatypes for namespace zero (uses more binary space)" ON)
+option(UA_ENABLE_RBAC "Enable Role-Based Access Control" OFF)
+option(UA_ENABLE_RBAC_INFORMATIONMODEL "Enable RBAC information model representation in NS0 (role objects)" OFF)
 
 if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_BUILD_FUZZING)
     set(UA_ENABLE_NODESET_INJECTOR ON)
@@ -890,6 +892,16 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/deps/itoa.c
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.c
                 ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
+
+if(UA_ENABLE_RBAC)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.c)
+    
+    # Enable information model by default with RBAC (required for OPC UA compliance)
+    if(NOT UA_ENABLE_RBAC_INFORMATIONMODEL MATCHES "OFF")
+        set(UA_ENABLE_RBAC_INFORMATIONMODEL ON CACHE BOOL "Enable RBAC information model representation in NS0" FORCE)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_rbac.c)
+    endif()
+endif()
 
 if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.h)

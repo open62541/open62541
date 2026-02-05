@@ -4,6 +4,7 @@
  *
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2025 (c) Andreas Ebner
  */
 
 #ifndef UA_PLUGIN_ACCESS_CONTROL_H_
@@ -12,6 +13,74 @@
 #include <open62541/util.h>
 
 _UA_BEGIN_DECLS
+
+#ifdef UA_ENABLE_RBAC
+
+/* Permission Index Type
+ * Configurable size for the permission index stored in nodes */
+#if UA_PERMISSION_INDEX_SIZE == 16
+typedef UA_UInt16 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFF
+#elif UA_PERMISSION_INDEX_SIZE == 32
+typedef UA_UInt32 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFF
+#elif UA_PERMISSION_INDEX_SIZE == 64
+typedef UA_UInt64 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFFFFFFFFFF
+#else
+#error "UA_PERMISSION_INDEX_SIZE must be 16, 32, or 64"
+#endif
+
+typedef struct {
+    UA_NodeId roleId;
+    UA_PermissionType permissions;
+} UA_RolePermissionEntry;
+
+
+typedef struct {
+    size_t entriesSize;
+    UA_RolePermissionEntry *entries;
+    size_t refCount;  /* Number of nodes referencing this permission config.
+                       * When refCount > 0, this entry must not be modified.
+                       * Slots with refCount == 0 can be reused. */
+} UA_RolePermissions;
+
+typedef struct {
+    UA_NodeId roleId;
+    UA_QualifiedName roleName;
+    size_t imrtSize;
+    UA_IdentityMappingRuleType *imrt;
+    UA_Boolean applicationsExclude;
+    size_t applicationsSize;
+    UA_String *applications;
+    UA_Boolean endpointsExclude;
+    size_t endpointsSize;
+    UA_EndpointType *endpoints;
+    UA_Boolean customConfiguration;
+} UA_Role;
+
+void UA_EXPORT
+UA_Role_init(UA_Role *role);
+
+void UA_EXPORT
+UA_Role_clear(UA_Role *role);
+
+UA_StatusCode UA_EXPORT
+UA_Role_copy(const UA_Role *src, UA_Role *dst);
+
+UA_Boolean UA_EXPORT
+UA_Role_equal(const UA_Role *r1, const UA_Role *r2);
+
+void UA_EXPORT
+UA_RolePermissions_init(UA_RolePermissions *rp);
+
+void UA_EXPORT
+UA_RolePermissions_clear(UA_RolePermissions *rp);
+
+UA_StatusCode UA_EXPORT
+UA_RolePermissions_copy(const UA_RolePermissions *src, UA_RolePermissions *dst);
+
+#endif /* UA_ENABLE_RBAC */
 
 struct UA_AccessControl;
 typedef struct UA_AccessControl UA_AccessControl;
@@ -43,13 +112,23 @@ struct UA_AccessControl {
      *
      * Note that this callback can be called several times for a Session. For
      * example when a Session is recovered (activated) on a new
-     * SecureChannel. */
+     * SecureChannel.
+     *
+     * When UA_ENABLE_RBAC is enabled, the plugin should also populate the
+     * session roles based on the identity mapping rules. The roleIds array
+     * should be allocated by the plugin and will be freed by the server.
+     * Set rolesSize to 0 and roleIds to NULL if no roles should be assigned. */
     UA_StatusCode (*activateSession)(UA_Server *server, UA_AccessControl *ac,
                                      const UA_EndpointDescription *endpointDescription,
                                      const UA_ByteString *secureChannelRemoteCertificate,
                                      const UA_NodeId *sessionId,
                                      const UA_ExtensionObject *userIdentityToken,
-                                     void **sessionContext);
+                                     void **sessionContext
+#ifdef UA_ENABLE_RBAC
+                                     , size_t *rolesSize,
+                                     UA_NodeId **roleIds
+#endif
+                                     );
 
     /* Deauthenticate a session and cleanup */
     void (*closeSession)(UA_Server *server, UA_AccessControl *ac,

@@ -31,6 +31,20 @@
 
 _UA_BEGIN_DECLS
 
+#ifdef UA_ENABLE_RBAC
+#include "ua_server_rbac.h"
+
+/* Per OPC UA Part 5: NamespaceMetadataType defines DefaultRolePermissions
+ * which apply to all nodes in a namespace when no explicit RolePermissions
+ * are set on the node. The roles and permissions are stored directly here
+ * for all namespaces. */
+typedef struct {
+    size_t entriesSize;
+    UA_RolePermissionEntry *entries; /* Array of role-permission pairs */
+} UA_NamespaceMetadata;
+
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 
@@ -224,6 +238,18 @@ struct UA_Server {
     /* Namespaces */
     size_t namespacesSize;
     UA_String *namespaces;
+
+#ifdef UA_ENABLE_RBAC
+    size_t rolesSize;
+    UA_Role *roles;
+    UA_UInt32 nextCustomRoleId; /* Counter for generating sequential role IDs, starts at 80000 */
+    
+    /* Namespace metadata (RBAC) - per OPC UA Part 5: NamespaceMetadataType
+     * Array parallel to namespaces array. Each entry contains default role
+     * permissions for that namespace. */
+    size_t namespaceMetadataSize;
+    UA_NamespaceMetadata *namespaceMetadata;
+#endif /* UA_ENABLE_RBAC */
 
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
@@ -816,6 +842,24 @@ UA_StatusCode initNS0_dataSources(UA_Server *server);
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 UA_StatusCode
 initNS0PushManagement(UA_Server *server);
+#endif
+
+#ifdef UA_ENABLE_RBAC
+
+#ifdef UA_ENABLE_RBAC_INFORMATIONMODEL
+UA_StatusCode
+initNS0RBAC(UA_Server *server);
+
+UA_StatusCode
+addRoleRepresentation(UA_Server *server, UA_Role *role);
+
+UA_StatusCode
+removeRoleRepresentation(UA_Server *server, const UA_NodeId *roleId);
+
+UA_StatusCode
+UA_Server_setNamespaceDefaultPermissionsProperty(UA_Server *server, UA_UInt16 namespaceIndex);
+#endif
+
 #endif
 
 
