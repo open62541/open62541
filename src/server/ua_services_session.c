@@ -801,8 +801,20 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: User token signature check "
                                "failed with StatusCode %s", UA_StatusCode_name(res));
+        goto out;
     }
 
+    /* Validate the certificate against the SessionPKI */
+    res = validateCertificate(server, &server->config.sessionPKI,
+                              session->channel, session, NULL,
+                              token->certificateData);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
+                               "ActivateSession: User token x509 certificate "
+                               "did not validate");
+    }
+
+ out:
     /* Delete the temporary channel context */
     sp->deleteChannelContext(sp, tempChannelContext);
     return res;

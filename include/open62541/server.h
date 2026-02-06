@@ -2176,7 +2176,13 @@ struct UA_ServerConfig {
      * Make sure you really need this before enabling plain text passwords. */
     UA_Boolean allowNonePolicyPassword;
 
-    /* Different sets of certificates are trusted for SecureChannel / Session */
+    /* Different sets of certificates are trusted for SecureChannel / Session.
+     * They correspond to the CertificateGroups "DefaultApplicationGroup" and
+     * "DefaultUserTokenGroup" from Part 12.
+     *
+     * If the client authenticates with an X509IdentityToken (ActivateSession
+     * Service), then this certificate is validated with the sessionPKI before
+     * forwarding the token to the AccessControl plugin. */
     UA_CertificateGroup secureChannelPKI;
     UA_CertificateGroup sessionPKI;
 
