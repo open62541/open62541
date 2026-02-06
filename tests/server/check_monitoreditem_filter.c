@@ -966,7 +966,7 @@ START_TEST(Server_MonitoredItemsAbsoluteFilterNULLValue) {
 
     notificationReceived = false;
     ck_assert_uint_eq(setDouble(client, outNodeId, 42.0), UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(waitForNotification(1), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(waitForNotification(2), UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(notificationReceived, true);
     ck_assert_uint_eq(countNotificationReceived, 2);
 
