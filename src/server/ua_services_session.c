@@ -463,7 +463,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
      * the ApplicationUri. */
     if(request->clientCertificate.length > 0) {
         rh->serviceResult =
-            validateCertificate(server, &server->config.sessionPKI,
+            validateCertificate(server, &server->config.secureChannelPKI,
                                 channel, NULL, &request->clientDescription,
                                 request->clientCertificate);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
