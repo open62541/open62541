@@ -266,6 +266,7 @@ createCheckSessionAuthSecurityPolicyContext(UA_Server *server, UA_Session *sessi
                              "Session. A different SecurityPolicy %S is "
                              "already in place",
                              sp->policyUri, session->authSp->policyUri);
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTEDl;
     }
     session->authSp = sp;
 
