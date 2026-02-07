@@ -69,10 +69,11 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_SessionSecurityDiagnosticsDataType_clear(&session->securityDiagnostics);
 #endif
 
-    if(session->authSp && session->authSpContext) {
-        session->authSp->deleteChannelContext(session->authSp, session->authSpContext);
-        session->authSp = NULL;
-        session->authSpContext = NULL;
+    if(session->sessionSp && session->sessionSpContext) {
+        session->sessionSp->
+            deleteChannelContext(session->sessionSp, session->sessionSpContext);
+        session->sessionSp = NULL;
+        session->sessionSpContext = NULL;
     }
 }
 
