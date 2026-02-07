@@ -322,8 +322,15 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
 void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server) {
     /* Add a regular callback for cleanup and sending finished responses at a
      * 1s interval. */
-    addRepeatedCallback(server, (UA_ServerCallback)checkTimeouts,
-                        NULL, 1000.0, &am->checkTimeoutCallbackId);
+    UA_StatusCode res = addRepeatedCallback(server, (UA_ServerCallback)checkTimeouts,
+                    NULL, 1000.0, &am->checkTimeoutCallbackId);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                    "Failed to register async timeout callback. "
+                    "Async operations will not be cleaned up on timeout. StatusCode: %s",
+                    UA_StatusCode_name(res));
+        am->checkTimeoutCallbackId = 0;
+    }
 }
 
 void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server) {

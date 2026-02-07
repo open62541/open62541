@@ -970,6 +970,9 @@ asyncServiceTimeoutCheck(UA_Client *client) {
     /* Cancel and remove the elements from the local list */
     LIST_FOREACH_SAFE(ac, &asyncServiceCalls, pointers, ac_tmp) {
         LIST_REMOVE(ac, pointers);
+        /* Reset the pointers to pacify clang-analyzer */
+        ac->pointers.le_next = NULL;
+        ac->pointers.le_prev = NULL;
         __Client_AsyncService_cancel(client, ac, UA_STATUSCODE_BADTIMEOUT);
     }
 }
@@ -1346,6 +1349,8 @@ UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
     return response;
 }
 
+#ifdef UA_ENABLE_HISTORIZING
+
 UA_HistoryReadResponse
 UA_Client_Service_historyRead(UA_Client *client,
                               const UA_HistoryReadRequest request) {
@@ -1363,6 +1368,8 @@ UA_Client_Service_historyUpdate(UA_Client *client,
                         &response, &UA_TYPES[UA_TYPES_HISTORYUPDATERESPONSE]);
     return response;
 }
+
+#endif
 
 UA_CallResponse
 UA_Client_Service_call(UA_Client *client,

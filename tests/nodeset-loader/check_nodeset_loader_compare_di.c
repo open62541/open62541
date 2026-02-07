@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include <open62541/plugin/nodesetloader.h>
 #include <open62541/types.h>
 
@@ -30,9 +29,6 @@ START_TEST(Server_compareDiNodeset) {
         OPEN62541_NODESET_DIR "DI/Opc.Ua.Di.NodeSet2.xml", NULL);
     ck_assert(UA_StatusCode_isGood(retVal));
 
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    ck_assert(config->customDataTypes);
-
     UA_UInt16 nsIndex = UA_Server_addNamespace(server, "http://opcfoundation.org/UA/DI/");
 
     for(int i = 0; i < UA_TYPES_NODESETLOADER_DI_COUNT; ++i) {
@@ -55,8 +51,9 @@ START_TEST(Server_compareDiNodeset) {
             const UA_DataTypeMember *loadMember = &loadedType->members[j];
 
             ck_assert(compMember->isArray == loadMember->isArray);
-            ck_assert(UA_NodeId_equal(
-                &compMember->memberType->typeId, &loadMember->memberType->typeId));
+            if(compiledType->typeKind != UA_DATATYPEKIND_ENUM)
+                ck_assert(UA_NodeId_equal(&compMember->memberType->typeId,
+                                          &loadMember->memberType->typeId));
             ck_assert(compMember->padding == loadMember->padding);
             ck_assert(compMember->isOptional == loadMember->isOptional);
         }

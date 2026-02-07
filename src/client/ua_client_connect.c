@@ -166,17 +166,20 @@ signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* If we have a full certificate chain, isolate the first certificate */
+    UA_ByteString rc = getLeafCertificate(client->channel.remoteCertificate);
+
     /* Create a temporary buffer */
     size_t signDataSize =
-        channel->remoteCertificate.length + client->serverSessionNonce.length;
+        rc.length + client->serverSessionNonce.length;
     if(signDataSize > MAX_DATA_SIZE)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Byte buf[MAX_DATA_SIZE];
     UA_ByteString signData = {signDataSize, buf};
 
     /* Sign the ClientSignature */
-    memcpy(buf, channel->remoteCertificate.data, channel->remoteCertificate.length);
-    memcpy(buf + channel->remoteCertificate.length, client->serverSessionNonce.data,
+    memcpy(buf, rc.data, rc.length);
+    memcpy(buf + rc.length, client->serverSessionNonce.data,
            client->serverSessionNonce.length);
     return signAlg->sign(sp, cc, &signData, &sd->signature);
 }
@@ -2626,7 +2629,13 @@ disconnectSecureChannel(UA_Client *client, UA_Boolean sync) {
        el->state != UA_EVENTLOOPSTATE_FRESH &&
        el->state != UA_EVENTLOOPSTATE_STOPPED) {
         while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
-            el->run(el, 100);
+            UA_StatusCode runStatus = el->run(el, 100);
+            if(runStatus != UA_STATUSCODE_GOOD) {
+                UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                             "EventLoop run returned %s during synchronous disconnect, "
+                             "stopping wait loop", UA_StatusCode_name(runStatus));
+                break;
+            }
         }
     }
 

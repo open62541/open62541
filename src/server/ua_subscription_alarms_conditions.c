@@ -2499,7 +2499,9 @@ UA_Server_addCondition_finish(UA_Server *server, const UA_NodeId conditionId,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    const UA_Node *type = getNodeType(server, &node->head);
+    const UA_Node *type =
+        getNodeType(server, &node->head, ~(UA_UInt32)0,
+                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     if(!type) {
         UA_NODESTORE_RELEASE(server, node);
         unlockServer(server);
@@ -2533,7 +2535,9 @@ addOptionalVariableField(UA_Server *server, const UA_NodeId *originCondition,
     vAttr.dataType = optionalVariableFieldNode->dataType;
 
     /* Get typedefintion */
-    const UA_Node *type = getNodeType(server, &optionalVariableFieldNode->head);
+    const UA_Node *type =
+        getNodeType(server, &optionalVariableFieldNode->head,
+                    ~(UA_UInt32)0, UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     if(!type) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Invalid VariableType. StatusCode %s",
@@ -2572,7 +2576,9 @@ addOptionalObjectField(UA_Server *server, const UA_NodeId *originCondition,
                                                       &optionalObjectFieldNode->head);
 
     /* Get typedefintion */
-    const UA_Node *type = getNodeType(server, &optionalObjectFieldNode->head);
+    const UA_Node *type =
+        getNodeType(server, &optionalObjectFieldNode->head, ~(UA_UInt32)0,
+                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     if(!type) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Invalid ObjectType. StatusCode %s",
