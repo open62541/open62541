@@ -257,14 +257,14 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
 
 static UA_StatusCode
 createCheckSessionAuthSecurityPolicyContext(UA_Server *server, UA_Session *session,
-                                            UA_SecurityPolicy *sp,
+                                            UA_SecurityPolicy *sp, const char *logPrefix,
                                             const UA_ByteString remoteCertificate) {
     /* The session is already "taken" by a different SecurityPolicy */
     if(session->sessionSp && session->sessionSp != sp) {
         UA_LOG_ERROR_SESSION(server->config.logging, session,
-                             "Cannot instantiate SecurityPolicyContext %S for the "
+                             "%s: Cannot instantiate SecurityPolicyContext %S for the "
                              "Session. A different SecurityPolicy %S is "
-                             "already in place", sp->policyUri,
+                             "already in place", logPrefix, sp->policyUri,
                              session->sessionSp->policyUri);
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
     }
@@ -277,8 +277,8 @@ createCheckSessionAuthSecurityPolicyContext(UA_Server *server, UA_Session *sessi
         res = sp->compareCertificate(sp, session->sessionSpContext, &remoteCertificate);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_SESSION(server->config.logging, session,
-                                 "The client tries to use a different certificate "
-                                 "for authentication");
+                                 "%s: The client tries to use a different certificate "
+                                 "for authentication", logPrefix);
         }
         return res;
     }
@@ -287,10 +287,10 @@ createCheckSessionAuthSecurityPolicyContext(UA_Server *server, UA_Session *sessi
     res = sp->newChannelContext(sp, &remoteCertificate, &session->sessionSpContext);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_SESSION(server->config.logging, session,
-                             "Could not use the supplied certificate "
+                             "%s: Could not use the supplied certificate "
                              "to instantiate the SecurityPolicy %S for the "
                              "validation of the UserIdentityToken",
-                             sp->policyUri);
+                             logPrefix, sp->policyUri);
     }
     return res;
 }
@@ -354,11 +354,6 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
     res |= sp->generateNonce(sp, spContext, &ephKey->publicKey);
     res |= sp->asymSignatureAlgorithm.sign(sp, spContext, &ephKey->publicKey,
                                            &ephKey->signature);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_SESSION(server->config.logging, session,
-                             "Could not prepare the ephemeral key (%s)",
-                             UA_StatusCode_name(res));
-    }
     return res;
 }
 
@@ -369,8 +364,9 @@ UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
     UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(server->sessionCount >= server->config.maxSessions) {
-        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
-                               "Could not create a Session - Server limits reached");
+        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                             "CreateSession: Could not create a Session - "
+                             "Server limits reached");
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
     }
 
@@ -416,7 +412,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                       const UA_CreateSessionRequest *request,
                       UA_CreateSessionResponse *response) {
     UA_LOCK_ASSERT(&server->serviceMutex);
-    UA_LOG_DEBUG_CHANNEL(server->config.logging, channel, "Trying to create session");
+    UA_LOG_DEBUG_CHANNEL(server->config.logging, channel, "CreateSession");
 
     void *cc = channel->channelContext;
     UA_SecurityPolicy *sp = channel->securityPolicy;
@@ -450,8 +446,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_StatusCode res = sp->compareCertificate(sp, cc, &request->clientCertificate);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                                 "The client uses a different certificate for "
-                                 "SecureChannel and Session");
+                                 "CreateSession: The client uses a different "
+                                 "certificate for SecureChannel and Session");
             server->serverDiagnosticsSummary.securityRejectedSessionCount++;
             server->serverDiagnosticsSummary.rejectedSessionCount++;
             rh->serviceResult = UA_STATUSCODE_BADCERTIFICATEINVALID;
@@ -466,7 +462,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     if(request->clientCertificate.length > 0) {
         rh->serviceResult =
             validateCertificate(server, &server->config.secureChannelPKI,
-                                channel, NULL, &request->clientDescription,
+                                channel, NULL, "CreateSession",
+                                &request->clientDescription,
                                 request->clientCertificate);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
             server->serverDiagnosticsSummary.securityRejectedSessionCount++;
@@ -479,7 +476,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     if(channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
        (request->clientNonce.length < 32 || request->clientNonce.length > 128)) {
         UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                             "The nonce provided by the client has the wrong length");
+                             "CreateSession: The nonce provided by the client "
+                             "has the wrong length");
         server->serverDiagnosticsSummary.securityRejectedSessionCount++;
         server->serverDiagnosticsSummary.rejectedSessionCount++;
         rh->serviceResult = UA_STATUSCODE_BADNONCEINVALID;
@@ -490,8 +488,6 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_Session *newSession = NULL;
     rh->serviceResult = UA_Session_create(server, channel, request, &newSession);
     if(rh->serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
-                               "Processing CreateSessionRequest failed");
         server->serverDiagnosticsSummary.rejectedSessionCount++;
         return;
     }
@@ -528,7 +524,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                             "Could not create the new session (%s)",
+                             "CreateSession: Could not create new session (%s)",
                              UA_StatusCode_name(rh->serviceResult));
         UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
         return;
@@ -560,7 +556,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
         UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                             "Could not prepare the CreateSessionResponse (%s)",
+                             "CreateSession: Could not prepare the response (%s)",
                              UA_StatusCode_name(rh->serviceResult));
         return;
     }
@@ -571,7 +567,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
      * overridden during ActivateSession. */
     if(authSp && authSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
         rh->serviceResult =
-            createCheckSessionAuthSecurityPolicyContext(server, newSession, authSp,
+            createCheckSessionAuthSecurityPolicyContext(server, newSession,
+                                                        authSp, "CreateSession",
                                                         request->clientCertificate);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
             UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
@@ -581,18 +578,21 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         rh->serviceResult = addEphemeralKeyAdditionalHeader(server, newSession,
                                                             &rh->additionalHeader);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                                 "CreateSession: Could not prepare the ephemeral key (%s)",
+                                 UA_StatusCode_name(rh->serviceResult));
             UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
             return;
         }
     }
 
     /* Sign the signature */
-    rh->serviceResult |= signCreateSessionResponse(server, channel,
-                                                   request, response);
+    rh->serviceResult |=
+        signCreateSessionResponse(server, channel, request, response);
     if(rh->serviceResult != UA_STATUSCODE_GOOD) {
         UA_Session_remove(server, newSession, UA_SHUTDOWNREASON_REJECT);
         UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                             "Could not sign the CreateSessionResponse (%s)",
+                             "CreateSession: Could not sign the response (%s)",
                              UA_StatusCode_name(rh->serviceResult));
         return;
     }
@@ -814,7 +814,8 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
 
     /* Validate the certificate against the SessionPKI */
     res = validateCertificate(server, &server->config.sessionPKI,
-                              session->channel, session, NULL,
+                              session->channel, session,
+                              "ActivateSession", NULL,
                               token->certificateData);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
@@ -944,7 +945,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         channel->remoteCertificate : session->clientCertificate;
     rh->serviceResult =
         createCheckSessionAuthSecurityPolicyContext(server, session, tokenSp,
-                                                    applicationCert);
+                                                    "ActivateSession", applicationCert);
     if(rh->serviceResult != UA_STATUSCODE_GOOD)
         UA_SESSION_REJECT;
 
@@ -1092,8 +1093,13 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
        sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
         rh->serviceResult = addEphemeralKeyAdditionalHeader(server, session,
                                                             &rh->additionalHeader);
-        if(rh->serviceResult != UA_STATUSCODE_GOOD)
+        if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_SESSION(server->config.logging, session,
+                                   "ActivateSession: Could not prepare the "
+                                   "ephemeral key (%s)",
+                                   UA_StatusCode_name(rh->serviceResult));
             UA_SECURITY_REJECT;
+        }
     }
 
     /* Activate the session */

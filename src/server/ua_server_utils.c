@@ -351,6 +351,7 @@ editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
 UA_StatusCode
 validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                     UA_SecureChannel *channel, UA_Session *session,
+                    const char *logPrefix,
                     const UA_ApplicationDescription *ad,
                     const UA_ByteString certificate) {
     /* Verify the ApplicationUri */
@@ -362,22 +363,25 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
             if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_WARN) {
                 if(session) {
                     UA_LOG_ERROR_SESSION(server->config.logging, session,
-                                         "The client's ApplicationUri "
+                                         "%s: The client's ApplicationUri "
                                          "could not be verified against the "
                                          "ApplicationUri %S from the client's "
-                                         "ApplicationDescription", ad->applicationUri);
+                                         "ApplicationDescription", logPrefix,
+                                         ad->applicationUri);
                 } else if(channel) {
                     UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                                         "The client certificate's ApplicationUri "
+                                         "%s: The client certificate's ApplicationUri "
                                          "could not be verified against the "
                                          "ApplicationUri %S from the client's "
-                                         "ApplicationDescription", ad->applicationUri);
+                                         "ApplicationDescription", logPrefix,
+                                         ad->applicationUri);
                 } else {
                     UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                                 "The server certificate's ApplicationUri "
+                                 "%s: The server certificate's ApplicationUri "
                                  "could not be verified against the "
                                  "ApplicationUri %S from its "
-                                 "ApplicationDescription", ad->applicationUri);
+                                 "ApplicationDescription", logPrefix,
+                                 ad->applicationUri);
                 }
             }
             if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_ABORT)
@@ -391,19 +395,19 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
         const char *descr = UA_StatusCode_name(res);
         if(session) {
             UA_LOG_ERROR_SESSION(server->config.logging, session,
-                                 "The client certificate failed the verification "
-                                 "in the CertificateGroup with StatusCode %s ",
-                                 descr);
+                                 "%s: The client certificate failed the verification "
+                                 "in the CertificateGroup with StatusCode %s",
+                                 logPrefix, descr);
         } else if(channel) {
             UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                                 "The client certificate failed the verification "
-                                 "in the CertificateGroup with StatusCode %s ",
-                                 descr);
+                                 "%s: The client certificate failed the verification "
+                                 "in the CertificateGroup with StatusCode %s",
+                                 logPrefix, descr);
         } else {
             UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                         "The client certificate failed the verification "
-                         "in the CertificateGroup with StatusCode %s ",
-                         descr);
+                         "%s: The client certificate failed the verification "
+                         "in the CertificateGroup with StatusCode %s",
+                         logPrefix, descr);
         }
     }
     return res;
