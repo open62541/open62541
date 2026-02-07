@@ -459,19 +459,6 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         }
     }
 
-    UA_assert(channel->securityToken.channelId != 0);
-
-    /* Check the nonce */
-    if(channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
-       request->clientNonce.length < 32) {
-        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                             "The nonce provided by the client has the wrong length");
-        server->serverDiagnosticsSummary.securityRejectedSessionCount++;
-        server->serverDiagnosticsSummary.rejectedSessionCount++;
-        rh->serviceResult = UA_STATUSCODE_BADNONCEINVALID;
-        return;
-    }
-
     /* Check the client certificate and ApplicationDescription. It was already
      * checked for the SecureChannel. But here we use the Session
      * CertificateGroup and we now also have the ApplicationDescription to check
@@ -486,6 +473,17 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
             server->serverDiagnosticsSummary.rejectedSessionCount++;
             return;
         }
+    }
+
+    /* The ClientNonce needs a length between 32 and 128 bytes inclusive */
+    if(channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
+       (request->clientNonce.length < 32 || request->clientNonce.length > 128)) {
+        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                             "The nonce provided by the client has the wrong length");
+        server->serverDiagnosticsSummary.securityRejectedSessionCount++;
+        server->serverDiagnosticsSummary.rejectedSessionCount++;
+        rh->serviceResult = UA_STATUSCODE_BADNONCEINVALID;
+        return;
     }
 
     /* Create the Session */
