@@ -260,21 +260,21 @@ createCheckSessionAuthSecurityPolicyContext(UA_Server *server, UA_Session *sessi
                                             UA_SecurityPolicy *sp,
                                             const UA_ByteString remoteCertificate) {
     /* The session is already "taken" by a different SecurityPolicy */
-    if(session->authSp && session->authSp != sp) {
+    if(session->sessionSp && session->sessionSp != sp) {
         UA_LOG_ERROR_SESSION(server->config.logging, session,
                              "Cannot instantiate SecurityPolicyContext %S for the "
                              "Session. A different SecurityPolicy %S is "
-                             "already in place",
-                             sp->policyUri, session->authSp->policyUri);
-        return UA_STATUSCODE_BADSECURITYPOLICYREJECTEDl;
+                             "already in place", sp->policyUri,
+                             session->sessionSp->policyUri);
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
     }
-    session->authSp = sp;
+    session->sessionSp = sp;
 
     /* Existing SecurityPolicy context, check for the identical remote
      * certificate */
     UA_StatusCode res;
-    if(session->authSpContext) {
-        res = sp->compareCertificate(sp, session->authSpContext, &remoteCertificate);
+    if(session->sessionSpContext) {
+        res = sp->compareCertificate(sp, session->sessionSpContext, &remoteCertificate);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_SESSION(server->config.logging, session,
                                  "The client tries to use a different certificate "
@@ -284,7 +284,7 @@ createCheckSessionAuthSecurityPolicyContext(UA_Server *server, UA_Session *sessi
     }
 
     /* Instantiate a new context */
-    res = sp->newChannelContext(sp, &remoteCertificate, &session->authSpContext);
+    res = sp->newChannelContext(sp, &remoteCertificate, &session->sessionSpContext);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_SESSION(server->config.logging, session,
                              "Could not use the supplied certificate "
@@ -298,9 +298,9 @@ createCheckSessionAuthSecurityPolicyContext(UA_Server *server, UA_Session *sessi
 static UA_StatusCode
 addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
                                 UA_ExtensionObject *ah) {
-    UA_assert(session->authSp && session->authSpContext);
-    UA_SecurityPolicy *sp = session->authSp;
-    void *spContext = session->authSpContext;
+    UA_assert(session->sessionSp && session->sessionSpContext);
+    UA_SecurityPolicy *sp = session->sessionSp;
+    void *spContext = session->sessionSpContext;
 
     /* Allocate additional parameters */
     UA_AdditionalParametersType *ap = UA_AdditionalParametersType_new();
@@ -949,7 +949,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_SESSION_REJECT;
 
     /* SecurityPolicies with encryption always set a context */
-    UA_assert(session->authSpContext);
+    UA_assert(session->sessionSpContext);
 
     /* Decrypt (or validate the signature) of the UserToken. The DataType of the
      * UserToken was already checked in selectEndpointAndTokenPolicy. This
@@ -1005,11 +1005,11 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     if(tokenSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
         rh->serviceResult =
             decryptUserTokenEcc(server->config.logging, channel,
-                                session->authSp, session->authSpContext,
+                                session->sessionSp, session->sessionSpContext,
                                 session->serverNonce, token);
     } else {
         rh->serviceResult =
-            decryptSecretLegacy(session->authSp, session->authSpContext,
+            decryptSecretLegacy(session->sessionSp, session->sessionSpContext,
                                 session->serverNonce, token);
     }
 
@@ -1087,9 +1087,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* If ECC policy, create the new ephemeral key to be returned in the
      * ActivateSession response */
-    const UA_SecurityPolicy *authSp = session->authSp;
-    if(authSp && session->authSpContext &&
-       authSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+    const UA_SecurityPolicy *sessionSp = session->sessionSp;
+    if(sessionSp && session->sessionSpContext &&
+       sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
         rh->serviceResult = addEphemeralKeyAdditionalHeader(server, session,
                                                             &rh->additionalHeader);
         if(rh->serviceResult != UA_STATUSCODE_GOOD)
