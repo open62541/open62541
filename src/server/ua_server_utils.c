@@ -386,7 +386,27 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
     }
 
     /* Validate in the CertificateGroup */
-    return cg->verifyCertificate(cg, &certificate);
+    res = cg->verifyCertificate(cg, &certificate);
+    if(res != UA_STATUSCODE_GOOD) {
+        const char *descr = UA_StatusCode_name(res);
+        if(session) {
+            UA_LOG_ERROR_SESSION(server->config.logging, session,
+                                 "The client certificate failed the verification "
+                                 "in the CertificateGroup with StatusCode %s ",
+                                 descr);
+        } else if(channel) {
+            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                                 "The client certificate failed the verification "
+                                 "in the CertificateGroup with StatusCode %s ",
+                                 descr);
+        } else {
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                         "The client certificate failed the verification "
+                         "in the CertificateGroup with StatusCode %s ",
+                         descr);
+        }
+    }
+    return res;
 }
 
 /*********************************/

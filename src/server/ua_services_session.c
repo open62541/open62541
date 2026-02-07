@@ -467,11 +467,6 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                 channel, NULL, &request->clientDescription,
                                 request->clientCertificate);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                                 "The client certificate's ApplicationUri "
-                                 "could not be verified against the ApplicationUri "
-                                 "%S from the client's ApplicationDescription",
-                                 request->clientDescription.applicationUri);
             server->serverDiagnosticsSummary.securityRejectedSessionCount++;
             server->serverDiagnosticsSummary.rejectedSessionCount++;
             return;
