@@ -328,6 +328,11 @@ UA_Client_Service_read(UA_Client *client, const UA_ReadRequest req);
 UA_WriteResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_write(UA_Client *client, const UA_WriteRequest req);
 
+/*
+ * Historical Access Service Set
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+#ifdef UA_ENABLE_HISTORIZING
+
 UA_HistoryReadResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_historyRead(UA_Client *client,
                               const UA_HistoryReadRequest req);
@@ -335,6 +340,8 @@ UA_Client_Service_historyRead(UA_Client *client,
 UA_HistoryUpdateResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_historyUpdate(UA_Client *client,
                                 const UA_HistoryUpdateRequest req);
+
+#endif
 
 /**
  * Method Service Set

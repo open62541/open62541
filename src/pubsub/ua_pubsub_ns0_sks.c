@@ -22,7 +22,9 @@ isValidParentNode(UA_Server *server, UA_NodeId parentId) {
     const UA_Node *parentNode = UA_NODESTORE_GET(server, &parentId);
 
     if(parentNode) {
-        parentNodeType = getNodeType(server, &parentNode->head);
+        parentNodeType =
+            getNodeType(server, &parentNode->head, ~(UA_UInt32)0,
+                        UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
         if(parentNodeType) {
             retval = UA_NodeId_equal(&parentNodeType->head.nodeId, &parentNodeTypeId);
             UA_NODESTORE_RELEASE(server, parentNodeType);

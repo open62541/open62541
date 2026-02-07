@@ -415,17 +415,17 @@ getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
     }
 
     /* Session exists on another SecureChannel */
-#ifdef UA_ENABLE_DIAGNOSTICS
     UA_Session *tmpSession = getSessionByToken(server, token);
-    if(tmpSession)
+    if(tmpSession) {
+#ifdef UA_ENABLE_DIAGNOSTICS
         tmpSession->diagnostics.unauthorizedRequestCount++;
 #endif
+        return UA_STATUSCODE_BADSECURECHANNELIDINVALID;
+    }
 
     /* The StatusCode indicates if the Session doesn't exist or whether it does
      * not match to SecureChannel */
-    return (tmpSession) ?
-        UA_STATUSCODE_BADSECURECHANNELIDINVALID :
-        UA_STATUSCODE_BADSESSIONIDINVALID;
+    return UA_STATUSCODE_BADSESSIONIDINVALID;
 }
 
 static UA_StatusCode
@@ -468,7 +468,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     size_t requestPos = offset; /* Store the offset (for sendServiceFault) */
     UA_DecodeBinaryOptions opt;
     memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
-    opt.customTypes = server->config.customDataTypes;
+    opt.customTypes = serverCustomTypes(server);
     retval = UA_decodeBinaryInternal(msg, &offset, &request, sd->requestType, &opt);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,

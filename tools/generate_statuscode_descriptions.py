@@ -39,22 +39,22 @@ printh('''/** .. _statuscodes:
  * with the OPC UA standard. */
 
 /* These StatusCodes are manually generated. */
-#define UA_STATUSCODE_INFOTYPE_DATAVALUE 0x00000400
-#define UA_STATUSCODE_INFOBITS_OVERFLOW 0x00000080
+#define UA_STATUSCODE_INFOTYPE_DATAVALUE ((UA_StatusCode) 0x00000400)
+#define UA_STATUSCODE_INFOBITS_OVERFLOW ((UA_StatusCode) 0x00000080)
 ''')
 
 for row in rows:
-    printh("/* {} */\n#define UA_STATUSCODE_{} {}\n".format(row[2][1:-1], row[0].upper(), row[1]))
+    printh("/* {} */\n#define UA_STATUSCODE_{} ((UA_StatusCode) {})\n".format(row[2][1:-1], row[0].upper(), row[1]))
 
 printh('''/* Depending on the version of the schema, the following might be already defined: */
 #ifndef UA_STATUSCODE_GOOD
-# define UA_STATUSCODE_GOOD 0x00000000
+# define UA_STATUSCODE_GOOD ((UA_StatusCode) 0x00000000)
 #endif
 #ifndef UA_STATUSCODE_UNCERTAIN
-# define UA_STATUSCODE_UNCERTAIN 0x40000000
+# define UA_STATUSCODE_UNCERTAIN ((UA_StatusCode) 0x40000000)
 #endif
 #ifndef UA_STATUSCODE_BAD
-# define UA_STATUSCODE_BAD 0x80000000
+# define UA_STATUSCODE_BAD ((UA_StatusCode) 0x80000000)
 #endif
 ''')
 
