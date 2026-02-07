@@ -787,7 +787,7 @@ secureChannel_delayedCloseTrustList(void *application, void *context) {
             continue; /* SecureChannels w/o security */
         UA_StatusCode res =
             validateCertificate(server, certGroup, channel, channel->sessions,
-                                NULL, channel->remoteCertificate);
+                                "RenewTrustList", NULL, channel->remoteCertificate);
         if(res != UA_STATUSCODE_GOOD)
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
