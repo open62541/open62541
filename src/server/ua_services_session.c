@@ -423,15 +423,30 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_ResponseHeader *rh = &response->responseHeader;
     UA_assert(sp != NULL);
 
+    /* Part 4: In many cases, the Certificates used to establish the
+     * SecureChannel will be the ApplicationInstanceCertificates. However, some
+     * Communication Stacks might not support Certificates that are specific to
+     * a single application. Instead, they expect all communication to be
+     * secured with a Certificate specific to a user or the entire machine. For
+     * this reason, OPC UA Applications will need to exchange their
+     * ApplicationInstanceCertificates when creating a Session.
+     *
+     * However Part 6 requires that the asymmetric algorithm security header
+     * contains the "X.509 v3 Certificate assigned to the sending application
+     * Instance." So we assume that the SecureChannel was created with the same
+     * ApplicationInstanceCertificate. This may change in the future for
+     * additional transport types. */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+
         /* Compare the clientCertificate with the remoteCertificate of the
-         * channel. Both the clientCertificate of this request and the
-         * remoteCertificate of the channel may contain a partial or a complete
-         * certificate chain. The compareCertificate function will compare the
-         * first certificate of each chain. The end certificate shall be located
-         * first in the chain according to the OPC UA specification Part 6
-         * (1.04), chapter 6.2.3.*/
+         * channel.
+         *
+         * Both the clientCertificate of this request and the remoteCertificate
+         * of the channel may contain a partial or a complete certificate chain.
+         * The compareCertificate function will compare the first certificate of
+         * each chain. The end certificate shall be located first in the chain
+         * according to the OPC UA specification Part 6 (1.04), chapter 6.2.3.*/
         UA_StatusCode res = sp->compareCertificate(sp, cc, &request->clientCertificate);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
