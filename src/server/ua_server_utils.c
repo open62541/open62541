@@ -389,6 +389,13 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
         }
     }
 
+    if(!cg->verifyCertificate) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "%s: Could not validate the certificate "
+                     "as the CertificateGroup is not configured", logPrefix);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* Validate in the CertificateGroup */
     res = cg->verifyCertificate(cg, &certificate);
     if(res != UA_STATUSCODE_GOOD) {
