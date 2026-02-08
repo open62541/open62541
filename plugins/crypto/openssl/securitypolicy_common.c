@@ -938,6 +938,10 @@ UA_OpenSSL_AES_128_CBC_Encrypt(const UA_ByteString * iv,
     return UA_OpenSSL_Encrypt(iv, key, EVP_aes_128_cbc(), data);
 }
 
+#ifdef _WIN32
+#define strtok_r strtok_s
+#endif
+
 static UA_StatusCode
 UA_OpenSSL_X509_AddSubjectAttributes(const UA_String* subject, X509_NAME* name) {
     char *subj = (char *)UA_malloc(subject->length + 1);
@@ -950,7 +954,8 @@ UA_OpenSSL_X509_AddSubjectAttributes(const UA_String* subject, X509_NAME* name) 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* split string into tokens */
-    char *token = strtok(subj, "/,");
+    char *saveptr;
+    char *token = strtok_r(subj, "/,", &saveptr);
     while(token != NULL) {
         /* find delimiter in attribute */
         size_t delim = 0;
@@ -976,7 +981,7 @@ UA_OpenSSL_X509_AddSubjectAttributes(const UA_String* subject, X509_NAME* name) 
         }
 
         /* get next token */
-        token = strtok(NULL, "/,");
+        token = strtok_r(NULL, "/,", &saveptr);
     }
 
 cleanup:
