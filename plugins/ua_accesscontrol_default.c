@@ -87,13 +87,17 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
             /* Compare against the configured list  */
             UA_Boolean match = false;
             for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
-                if(UA_String_equal(&userToken->userName,
-                                   &context->usernamePasswordLogin[i].username) &&
-                   UA_ByteString_equal(&userToken->password,
-                                       &context->usernamePasswordLogin[i].password)) {
-                    match = true;
-                    break;
-                }
+                UA_UsernamePasswordLogin *upl = &context->usernamePasswordLogin[i];
+                if(!UA_String_equal(&userToken->userName, &upl->username))
+                   continue;
+                if(userToken->password.length != upl->password.length)
+                    continue;
+                if(!UA_constantTimeEqual(userToken->password.data,
+                                         upl->password.data,
+                                         upl->password.length))
+                    continue;
+                match = true;
+                break;
             }
             if(!match)
                 return UA_STATUSCODE_BADUSERACCESSDENIED;
