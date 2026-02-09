@@ -518,6 +518,13 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
     newMonitoredItemIds[0] = createResponse.results[0].monitoredItemId;
     UA_CreateMonitoredItemsResponse_clear(&createResponse);
 
+    /* Only event monitored items are supposed to change their client handle on modify */
+    UA_Client_Subscription *sub = findSubscriptionById(client, subId);
+    ck_assert(sub != NULL);
+    UA_Client_MonitoredItem *mon = findMonitoredItemById(sub, newMonitoredItemIds[0]);
+    ck_assert(mon != NULL);
+    UA_UInt32 oldClientHandle = mon->clientHandle;
+
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
 
     /* Receive the initial value */
@@ -552,6 +559,9 @@ START_TEST(Client_subscription_modifyMonitoredItem) {
     ck_assert_uint_eq(modifyResponse.resultsSize, 1);
     ck_assert_uint_eq(modifyResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
     UA_ModifyMonitoredItemsResponse_clear(&modifyResponse);
+
+    /* Make sure the client handle is still the same */
+    ck_assert_uint_eq(oldClientHandle, mon->clientHandle);
 
     /* Sleep longer than the publishing interval */
     UA_fakeSleep((UA_UInt32)publishingInterval + 1);
