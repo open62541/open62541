@@ -1795,11 +1795,40 @@ UA_Boolean
 Operation_Write(UA_Server *server, UA_Session *session,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
     UA_assert(session != NULL);
+
+    /* Get the old value for the audit event */
+#ifdef UA_ENABLE_AUDITING
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = wv->nodeId;
+    rvi.attributeId = wv->attributeId;
+    rvi.indexRange = wv->indexRange;
+
+    UA_DataValue oldValue = readWithSession(server, session, &rvi,
+                                            UA_TIMESTAMPSTORETURN_NEITHER);
+#endif
+
     *result = editNode(server, session, &wv->nodeId, wv->attributeId,
                        UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
                        (UA_EditNodeCallback)copyAttributeIntoNode,
                        (void*)(uintptr_t)wv);
-    return (*result != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
+    UA_Boolean done = (*result != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
+
+    /* Generate audit event for writing variables.
+     * TODO: Audit events for async writes. */
+#ifdef UA_ENABLE_AUDITING
+    if(done) {
+        auditWriteUpdateEvent(server,
+                              UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_WRITE,
+                              session->channel, session,
+                              (*result == UA_STATUSCODE_GOOD),
+                              wv->attributeId, wv->indexRange,
+                              &wv->value.value, &oldValue.value);
+    }
+    UA_DataValue_clear(&oldValue);
+#endif
+
+    return done;
 }
 
 UA_StatusCode
