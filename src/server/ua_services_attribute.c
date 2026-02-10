@@ -1822,6 +1822,7 @@ Operation_Write(UA_Server *server, UA_Session *session,
                               UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_WRITE,
                               session->channel, session,
                               (*result == UA_STATUSCODE_GOOD),
+                              &wv->nodeId,
                               wv->attributeId, wv->indexRange,
                               &wv->value.value, &oldValue.value);
     }
