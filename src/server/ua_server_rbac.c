@@ -268,9 +268,9 @@ compareRolePermissionEntries(size_t entriesSize1, const UA_RolePermissionEntry *
 }
 
 UA_StatusCode
-UA_Server_addRolePermissionConfig(UA_Server *server,
-                                  size_t entriesSize, const UA_RolePermissionEntry *entries,
-                                  UA_PermissionIndex *outIndex) {
+UA_Server_addRolePermission(UA_Server *server,
+                            size_t entriesSize, const UA_RolePermissionEntry *entries,
+                            UA_PermissionIndex *outIndex) {
     if(!server || (entriesSize > 0 && !entries) || !outIndex)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 

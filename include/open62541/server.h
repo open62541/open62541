@@ -2575,10 +2575,10 @@ UA_Role_equal(const UA_Role *r1, const UA_Role *r2);
  * @param outIndex Output parameter receiving the index (new or existing)
  * @return UA_STATUSCODE_GOOD on success */
 UA_StatusCode UA_EXPORT
-UA_Server_addRolePermissionConfig(UA_Server *server,
-                                  size_t entriesSize,
-                                  const UA_RolePermissionEntry *entries,
-                                  UA_PermissionIndex *outIndex);
+UA_Server_addRolePermission(UA_Server *server,
+                            size_t entriesSize,
+                            const UA_RolePermissionEntry *entries,
+                            UA_PermissionIndex *outIndex);
 
 /* Get a role-permission configuration by index.
  *
