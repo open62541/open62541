@@ -264,6 +264,19 @@ struct UA_Server {
 
     /* GDS Manager for certificate management */
     UA_GDSManager gdsManager;
+
+#ifdef UA_ENABLE_RBAC
+    /* RBAC Runtime Storage
+     * ~~~~~~~~~~~~~~~~~~~~
+     * Runtime storage for roles and permission configurations.
+     * Initialized from UA_ServerConfig during startup and managed
+     * independently during runtime. */
+    size_t rbacRolePermissionsSize;
+    UA_RolePermissions *rbacRolePermissions;
+    
+    size_t rbacRolesSize;
+    UA_Role *rbacRoles;
+#endif
 };
 
 /* In case the configuration was updated. Make the ->next pointer in the
@@ -943,6 +956,18 @@ UA_Session_getNodeDisplayName(const UA_Session *session,
 UA_LocalizedText
 UA_Session_getNodeDescription(const UA_Session *session,
                               const UA_NodeHead *head);
+
+/********************/
+/* RBAC Functions   */
+/********************/
+
+#ifdef UA_ENABLE_RBAC
+UA_StatusCode
+UA_Server_initializeRBAC(UA_Server *server);
+
+void
+UA_Server_cleanupRBAC(UA_Server *server);
+#endif
 
 _UA_END_DECLS
 

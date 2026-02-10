@@ -226,6 +226,12 @@ endif()
 # Test Server
 
 ua_add_test(server/check_accesscontrol.c)
+
+if(UA_ENABLE_RBAC)
+    ua_add_test(server/check_server_rbac.c)
+    ua_add_test(server/check_server_rbac_permissions.c)
+endif()
+
 ua_add_test(server/check_services_view.c)
 ua_add_test(server/check_services_attributes.c)
 ua_add_test(server/check_services_nodemanagement.c)
