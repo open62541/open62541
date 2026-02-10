@@ -789,7 +789,7 @@ UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_Net
     if(dst->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
-    UA_StatusCode rv;
+    UA_StatusCode rv = UA_STATUSCODE_GOOD;
 
     UA_Byte count = 1;
     if(dst->payloadHeaderEnabled) {
@@ -801,6 +801,10 @@ UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_Net
                 UA_CHECK_STATUS(rv, return rv);
             }
         }
+    }
+    if(count == 0) {
+        dst->payload.dataSetPayload.dataSetMessages = NULL;
+        return UA_STATUSCODE_GOOD;
     }
 
     dst->payload.dataSetPayload.dataSetMessages = (UA_DataSetMessage*)
@@ -818,6 +822,7 @@ UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_Net
                                                 &dst->payload.dataSetPayload.dataSetMessages[i],
                                                 dst->payload.dataSetPayload.sizes[i], customTypes,
                                                 dsm);
+            UA_CHECK_STATUS(rv, return rv);
         }
     }
     UA_CHECK_STATUS(rv, return rv);
