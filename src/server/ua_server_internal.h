@@ -426,7 +426,8 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
  * for the current context. */
 void
 auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
-           UA_SecureChannel *channel, UA_Session *session, const char *serviceName,
+           UA_SecureChannel *channel, UA_Session *session,
+           const UA_NodeId *sourceNode, const char *serviceName,
            UA_Boolean status, const UA_KeyValueMap payload);
 
 /* In addition to auditEvent, the sixth entry of the payload-map must be /StatusCodeId */
@@ -549,9 +550,17 @@ auditDeleteReferencesEvent(UA_Server *server, UA_ApplicationNotificationType typ
 void
 auditWriteUpdateEvent(UA_Server *server, UA_ApplicationNotificationType type,
                       UA_SecureChannel *channel, UA_Session *session,
-                      UA_Boolean status, UA_UInt32 attributeId,
-                      UA_String indexRange, const UA_Variant *newValue,
-                      const UA_Variant *oldValue);
+                      UA_Boolean status, const UA_NodeId *sourceNode,
+                      UA_UInt32 attributeId, UA_String indexRange,
+                      const UA_Variant *newValue, const UA_Variant *oldValue);
+
+void
+auditMethodUpdateEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                       UA_SecureChannel *channel, UA_Session *session,
+                       UA_Boolean status, const UA_NodeId *sourceNode,
+                       const UA_NodeId *methodNode, UA_StatusCode statusCodeId,
+                       size_t inputsSize, UA_Variant *inputs,
+                       size_t outputsSize, UA_Variant *outputs);
 #endif
 
 /* Validate the certificate using the CertificateGroup and generate the

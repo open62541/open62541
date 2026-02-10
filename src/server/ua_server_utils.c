@@ -454,7 +454,8 @@ errout:
 
 void
 auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
-           UA_SecureChannel *channel, UA_Session *session, const char *serviceName,
+           UA_SecureChannel *channel, UA_Session *session,
+           const UA_NodeId *sourceNode, const char *serviceName,
            UA_Boolean status, const UA_KeyValueMap payload) {
     UA_ServerConfig *config = &server->config;
 
@@ -497,7 +498,7 @@ auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
     /* Create the Event in the information model */
     UA_EventDescription ed;
     memset(&ed, 0, sizeof(UA_EventDescription));
-    ed.sourceNode = UA_NS0ID(SERVER);
+    ed.sourceNode = (sourceNode) ? *sourceNode : UA_NS0ID(SERVER);
     ed.eventFields = &payload;
     switch(type) {
     case UA_APPLICATIONNOTIFICATIONTYPE_AUDIT:
@@ -570,7 +571,7 @@ auditSecurityEvent(UA_Server *server, UA_ApplicationNotificationType type,
     UA_Variant_setScalar(&payload.map[5].value, &statusCodeId,
                          &UA_TYPES[UA_TYPES_STATUSCODE]);
 
-    auditEvent(server, type, channel, session, serviceName, status, payload);
+    auditEvent(server, type, channel, session, NULL, serviceName, status, payload);
 }
 
 void
@@ -784,7 +785,7 @@ auditNodeManagementEvent(UA_Server *server, UA_ApplicationNotificationType type,
     UA_Variant_setScalar(&payload.map[5].value, &sourceName,
                          &UA_TYPES[UA_TYPES_STRING]);
 
-    auditEvent(server, type, channel, session, serviceName, status, payload);
+    auditEvent(server, type, channel, session, NULL, serviceName, status, payload);
 }
 
 void
@@ -885,9 +886,9 @@ auditDeleteReferencesEvent(UA_Server *server, UA_ApplicationNotificationType typ
 
 static void
 auditUpdateEvent(UA_Server *server, UA_ApplicationNotificationType type,
-                  UA_SecureChannel *channel, UA_Session *session,
-                  const char *serviceName, UA_Boolean status,
-                  const UA_KeyValueMap payload) {
+                 UA_SecureChannel *channel, UA_Session *session,
+                 const UA_NodeId *sourceNode, const char *serviceName,
+                 UA_Boolean status, const UA_KeyValueMap payload) {
     /* SourceName */
     UA_Byte sourceNameBuf[128];
     UA_String sourceName = {128, sourceNameBuf};
@@ -895,15 +896,16 @@ auditUpdateEvent(UA_Server *server, UA_ApplicationNotificationType type,
     UA_Variant_setScalar(&payload.map[5].value, &sourceName,
                          &UA_TYPES[UA_TYPES_STRING]);
 
-    auditEvent(server, type, channel, session, serviceName, status, payload);
+    auditEvent(server, type, channel, session, sourceNode,
+               serviceName, status, payload);
 }
 
 void
 auditWriteUpdateEvent(UA_Server *server, UA_ApplicationNotificationType type,
                       UA_SecureChannel *channel, UA_Session *session,
-                      UA_Boolean status, UA_UInt32 attributeId,
-                      UA_String indexRange, const UA_Variant *newValue,
-                      const UA_Variant *oldValue) {
+                      UA_Boolean status, const UA_NodeId *sourceNode,
+                      UA_UInt32 attributeId, UA_String indexRange,
+                      const UA_Variant *newValue, const UA_Variant *oldValue) {
     static UA_THREAD_LOCAL UA_KeyValuePair deleteNodesPayload[10] = {
         {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
         {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
@@ -936,7 +938,49 @@ auditWriteUpdateEvent(UA_Server *server, UA_ApplicationNotificationType type,
                          (UA_Variant*)(uintptr_t)oldValue,
                          &UA_TYPES[UA_TYPES_VARIANT]);
 
-    auditUpdateEvent(server, type, channel, session, "Write", status, payload);
+    auditUpdateEvent(server, type, channel, session, sourceNode,
+                     "Write", status, payload);
+}
+
+void
+auditMethodUpdateEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                       UA_SecureChannel *channel, UA_Session *session,
+                       UA_Boolean status, const UA_NodeId *sourceNode,
+                       const UA_NodeId *methodNode, UA_StatusCode statusCodeId,
+                       size_t inputsSize, UA_Variant *inputs,
+                       size_t outputsSize, UA_Variant *outputs) {
+    static UA_THREAD_LOCAL UA_KeyValuePair deleteNodesPayload[10] = {
+        {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+        {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+        {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+        {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+        {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+        {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 5 */
+        {{0, UA_STRING_STATIC("/MethodId")}, {0}},                    /* 6 */
+        {{0, UA_STRING_STATIC("/StatusCodeId")}, {0}},                /* 7 */
+        {{0, UA_STRING_STATIC("/InputArguments")}, {0}},              /* 8 */
+        {{0, UA_STRING_STATIC("/OutputArguments")}, {0}}              /* 9 */
+    };
+    UA_KeyValueMap payload = {10, deleteNodesPayload};
+
+    /* /MethodId */
+    UA_Variant_setScalar(&payload.map[6].value, (void*)(uintptr_t)methodNode,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+
+    /* /StatusCodeId */
+    UA_Variant_setScalar(&payload.map[7].value, &statusCodeId,
+                         &UA_TYPES[UA_TYPES_STATUSCODE]);
+
+    /* /InputArguments */
+    UA_Variant_setArray(&payload.map[8].value, inputs, inputsSize,
+                         &UA_TYPES[UA_TYPES_VARIANT]);
+
+    /* /OutputArguments */
+    UA_Variant_setArray(&payload.map[9].value, outputs, outputsSize,
+                         &UA_TYPES[UA_TYPES_VARIANT]);
+
+    auditUpdateEvent(server, type, channel, session, sourceNode,
+                     "Call", status, payload);
 }
 
 #endif /* UA_ENABLE_AUDITING */
