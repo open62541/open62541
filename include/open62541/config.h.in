@@ -71,6 +71,14 @@
 #endif
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
+/* Role-Based Access Control (RBAC)
+ * Permission Index Size - configurable storage size for node permission indices.
+ * Options: 16, 32 (default), 64
+ * The index references a position in the server's rolePermissions array. */
+#ifndef UA_PERMISSION_INDEX_SIZE
+#define UA_PERMISSION_INDEX_SIZE 32
+#endif
+
 /* Multithreading */
 #define UA_MULTITHREADING ${UA_MULTITHREADING}
 
