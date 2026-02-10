@@ -396,8 +396,8 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
  *
  * The first five entries of the payload-maps must be /ActionTimeStamp, /Status,
  * /ServerId, /ClientAuditEntryId and /ClientUserId. These field values are set
- * internally. The session pointer can be NULL if none is defined for the
- * current context. */
+ * internally. The channel and session pointer can be NULL if none is defined
+ * for the current context. */
 void
 auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
            UA_SecureChannel *channel, UA_Session *session, const char *serviceName,
@@ -486,13 +486,36 @@ auditCertificateEvent_withMessage(UA_Server *server, UA_ApplicationNotificationT
                                   UA_String message, const UA_KeyValueMap payload);
 
 /* In addition to auditEvent, the sixth entry of the payload-map must
+ * be /SourceName and the seventh node must be /NodesToAdde */
+void
+auditAddNodesEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                   UA_SecureChannel *channel, UA_Session *session,
+                   const char *serviceName, UA_Boolean status,
+                   size_t itemsSize, UA_AddNodesItem *items);
+
+/* In addition to auditEvent, the sixth entry of the payload-map must
  * be /SourceName and the seventh node must be /NodesToDelete */
 void
 auditDeleteNodesEvent(UA_Server *server, UA_ApplicationNotificationType type,
                       UA_SecureChannel *channel, UA_Session *session,
                       const char *serviceName, UA_Boolean status,
-                      size_t itemsSize, UA_DeleteNodesItem *items,
-                      const UA_KeyValueMap payload);
+                      size_t itemsSize, UA_DeleteNodesItem *items);
+
+/* In addition to auditEvent, the sixth entry of the payload-map must
+ * be /SourceName and the seventh node must be /ReferencesToAdd */
+void
+auditAddReferencesEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                        UA_SecureChannel *channel, UA_Session *session,
+                        const char *serviceName, UA_Boolean status,
+                        size_t itemsSize, UA_AddReferencesItem *items);
+
+/* In addition to auditEvent, the sixth entry of the payload-map must
+ * be /SourceName and the seventh node must be /ReferencesToDelete */
+void
+auditDeleteReferencesEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                           UA_SecureChannel *channel, UA_Session *session,
+                           const char *serviceName, UA_Boolean status,
+                           size_t itemsSize, UA_DeleteReferencesItem *items);
 #endif
 
 /* Validate the certificate using the CertificateGroup and generate the
