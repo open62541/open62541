@@ -1,0 +1,37 @@
+name: Windows Build & Test
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - build_name: "Release Build (VS 2019)"
+            runner: windows-2019
+            cmake_build_type: Release
+            cmake_defines: -DUA_MULTITHREADING=500
+            cmake_generator: "Visual Studio 16 2019"
+            cmake_generator_platform: x64
+          - build_name: "Release Build (VS 2022)"
+            runner: windows-2022
+            cmake_build_type: Release
+            cmake_defines: -DUA_MULTITHREADING=500
+            cmake_generator: "Visual Studio 17 2022"
+            cmake_generator_platform: x64
+    name: ${{matrix.build_name}}
+    runs-on: ${{matrix.runner}}
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: true
+    - name: Configure ${{matrix.build_name}}
+      run: |
+        mkdir build
+        cd build
+        cmake -G "${{ matrix.cmake_generator }}" -A ${{ matrix.cmake_generator_platform }} ${{ matrix.cmake_defines }} ..
+    - name: Build ${{matrix.build_name}}
+      working-directory: build
+      run: cmake --build . --config ${{ matrix.cmake_build_type }}
+
