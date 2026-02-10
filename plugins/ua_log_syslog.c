@@ -51,8 +51,6 @@ UA_Log_Syslog_log(void *context, UA_LogLevel level, UA_LogCategory category,
     }
 
     int logLevelSlot = ((int)level / 100) - 1;
-    if(logLevelSlot < 0 || logLevelSlot > 5)
-        logLevelSlot = 5; /* Set to fatal if the level is outside the range */
 
 #define LOGBUFSIZE 512
     char logbuf[LOGBUFSIZE];
