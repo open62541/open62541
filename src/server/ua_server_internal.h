@@ -542,6 +542,16 @@ auditDeleteReferencesEvent(UA_Server *server, UA_ApplicationNotificationType typ
                            UA_SecureChannel *channel, UA_Session *session,
                            const char *serviceName, UA_Boolean status,
                            size_t itemsSize, UA_DeleteReferencesItem *items);
+
+/* In addition to auditEvent, the sixth entry of the payload-map must be
+ * /SourceName and the seventh node must be /AttributeId, the eighth
+ * /IndexRange, the ninth /NewValue and the tenth /OldValue. */
+void
+auditWriteUpdateEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                      UA_SecureChannel *channel, UA_Session *session,
+                      UA_Boolean status, UA_UInt32 attributeId,
+                      UA_String indexRange, const UA_Variant *newValue,
+                      const UA_Variant *oldValue);
 #endif
 
 /* Validate the certificate using the CertificateGroup and generate the

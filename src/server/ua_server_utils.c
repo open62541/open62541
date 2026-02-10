@@ -883,6 +883,62 @@ auditDeleteReferencesEvent(UA_Server *server, UA_ApplicationNotificationType typ
                              serviceName, status, payload);
 }
 
+static void
+auditUpdateEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                  UA_SecureChannel *channel, UA_Session *session,
+                  const char *serviceName, UA_Boolean status,
+                  const UA_KeyValueMap payload) {
+    /* SourceName */
+    UA_Byte sourceNameBuf[128];
+    UA_String sourceName = {128, sourceNameBuf};
+    UA_String_format(&sourceName, "Attribute/%s", serviceName);
+    UA_Variant_setScalar(&payload.map[5].value, &sourceName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+
+    auditEvent(server, type, channel, session, serviceName, status, payload);
+}
+
+void
+auditWriteUpdateEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                      UA_SecureChannel *channel, UA_Session *session,
+                      UA_Boolean status, UA_UInt32 attributeId,
+                      UA_String indexRange, const UA_Variant *newValue,
+                      const UA_Variant *oldValue) {
+    static UA_THREAD_LOCAL UA_KeyValuePair deleteNodesPayload[10] = {
+        {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+        {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+        {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+        {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+        {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+        {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 5 */
+        {{0, UA_STRING_STATIC("/AttributeId")}, {0}},                 /* 6 */
+        {{0, UA_STRING_STATIC("/IndexRange")}, {0}},                  /* 7 */
+        {{0, UA_STRING_STATIC("/NewValue")}, {0}},                    /* 8 */
+        {{0, UA_STRING_STATIC("/OldValue")}, {0}}                     /* 9 */
+    };
+    UA_KeyValueMap payload = {10, deleteNodesPayload};
+
+    /* /AttributeId */
+    UA_Variant_setScalar(&payload.map[6].value, &attributeId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+
+    /* /IndexRange */
+    UA_Variant_setScalar(&payload.map[7].value, &indexRange,
+                         &UA_TYPES[UA_TYPES_STRING]);
+
+    /* /NewValue */
+    UA_Variant_setScalar(&payload.map[8].value,
+                         (UA_Variant*)(uintptr_t)newValue,
+                         &UA_TYPES[UA_TYPES_VARIANT]);
+
+    /* /OldValue */
+    UA_Variant_setScalar(&payload.map[9].value,
+                         (UA_Variant*)(uintptr_t)oldValue,
+                         &UA_TYPES[UA_TYPES_VARIANT]);
+
+    auditUpdateEvent(server, type, channel, session, "Write", status, payload);
+}
+
 #endif /* UA_ENABLE_AUDITING */
 
 /*********************************/
