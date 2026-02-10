@@ -465,12 +465,11 @@ auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
      * /ClientAuditEntryId -> 3
      * /ClientUserId       -> 4 */
 
-    UA_NodeId sessionId = (session) ? session->sessionId: UA_NODEID_NULL;
+    UA_UInt32 channelId = (channel) ? channel->securityToken.channelId : 0;
+    UA_NodeId sessionId = (session) ? session->sessionId : UA_NODEID_NULL;
     UA_Byte entryIdBuf[521];
     UA_String auditEntryId = {512, entryIdBuf};
-    UA_String_format(&auditEntryId, "%lu:%N:%s",
-                     (long unsigned)channel->securityToken.channelId,
-                     sessionId, serviceName);
+    UA_String_format(&auditEntryId, "%u:%N:%s", channelId, sessionId, serviceName);
     UA_String clientUserId = (session) ?
         session->clientUserIdOfSession : UA_STRING_NULL;
     UA_DateTime actionTimestamp =
@@ -789,6 +788,30 @@ auditNodeManagementEvent(UA_Server *server, UA_ApplicationNotificationType type,
 }
 
 void
+auditAddNodesEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                   UA_SecureChannel *channel, UA_Session *session,
+                   const char *serviceName, UA_Boolean status,
+                   size_t itemsSize, UA_AddNodesItem *items) {
+    static UA_THREAD_LOCAL UA_KeyValuePair deleteNodesPayload[12] = {
+        {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+        {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+        {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+        {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+        {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+        {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 5 */
+        {{0, UA_STRING_STATIC("/NodesToAdd")}, {0}}                   /* 6 */
+    };
+    UA_KeyValueMap payload = {7, deleteNodesPayload};
+
+    /* /NodesToAdd */
+    UA_Variant_setArray(&payload.map[6].value, items, itemsSize,
+                        &UA_TYPES[UA_TYPES_ADDNODESITEM]);
+
+    auditNodeManagementEvent(server, type, channel, session,
+                             serviceName, status, payload);
+}
+
+void
 auditDeleteNodesEvent(UA_Server *server, UA_ApplicationNotificationType type,
                       UA_SecureChannel *channel, UA_Session *session,
                       const char *serviceName, UA_Boolean status,
@@ -807,6 +830,54 @@ auditDeleteNodesEvent(UA_Server *server, UA_ApplicationNotificationType type,
     /* /NodesToDelete */
     UA_Variant_setArray(&payload.map[6].value, items, itemsSize,
                         &UA_TYPES[UA_TYPES_DELETENODESITEM]);
+
+    auditNodeManagementEvent(server, type, channel, session,
+                             serviceName, status, payload);
+}
+
+void
+auditAddReferencesEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                        UA_SecureChannel *channel, UA_Session *session,
+                        const char *serviceName, UA_Boolean status,
+                        size_t itemsSize, UA_AddReferencesItem *items) {
+    static UA_THREAD_LOCAL UA_KeyValuePair deleteNodesPayload[12] = {
+        {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+        {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+        {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+        {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+        {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+        {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 5 */
+        {{0, UA_STRING_STATIC("/ReferencesToAdd")}, {0}}              /* 6 */
+    };
+    UA_KeyValueMap payload = {7, deleteNodesPayload};
+
+    /* /ReferencesToAdd */
+    UA_Variant_setArray(&payload.map[6].value, items, itemsSize,
+                        &UA_TYPES[UA_TYPES_ADDREFERENCESITEM]);
+
+    auditNodeManagementEvent(server, type, channel, session,
+                             serviceName, status, payload);
+}
+
+void
+auditDeleteReferencesEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                           UA_SecureChannel *channel, UA_Session *session,
+                           const char *serviceName, UA_Boolean status,
+                           size_t itemsSize, UA_DeleteReferencesItem *items) {
+    static UA_THREAD_LOCAL UA_KeyValuePair deleteNodesPayload[12] = {
+        {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+        {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+        {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+        {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+        {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+        {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 5 */
+        {{0, UA_STRING_STATIC("/ReferencesToDelete")}, {0}}           /* 6 */
+    };
+    UA_KeyValueMap payload = {7, deleteNodesPayload};
+
+    /* /ReferencesToDelete */
+    UA_Variant_setArray(&payload.map[6].value, items, itemsSize,
+                        &UA_TYPES[UA_TYPES_DELETEREFERENCESITEM]);
 
     auditNodeManagementEvent(server, type, channel, session,
                              serviceName, status, payload);
