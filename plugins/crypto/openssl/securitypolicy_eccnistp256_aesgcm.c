@@ -15,6 +15,10 @@
 #include <openssl/rand.h>
 
 #define UA_SHA256_LENGTH 32 /* 256 bit */
+#define UA_SECURITYPOLICY_NISTP256_AESGCM_SYM_ENCRYPTION_KEY_LENGTH 32 /* AES-256 */
+#define UA_SECURITYPOLICY_NISTP256_AESGCM_SYM_IV_LENGTH 12 /* GCM standard nonce */
+#define UA_SECURITYPOLICY_NISTP256_AESGCM_SYM_TAG_LENGTH 16 /* 128-bit tag */
+
 #define UA_SECURITYPOLICY_ECCNISTP256_ASYM_SIGNING_KEY_LENGTH 32
 #define UA_SECURITYPOLICY_ECCNISTP256_ASYM_SIGNATURE_LENGTH 64
 #define UA_SECURITYPOLICY_ECCNISTP256_SYM_SIGNING_KEY_LENGTH 32
@@ -32,11 +36,9 @@ typedef struct {
 
 typedef struct Channel_Context_EccNistP256 {
     EVP_PKEY *    localEphemeralKeyPair;
-    UA_ByteString localSymSigningKey;
     UA_ByteString localSymEncryptingKey;
-    UA_ByteString localSymIv;
-    UA_ByteString remoteSymSigningKey;
     UA_ByteString remoteSymEncryptingKey;
+    UA_ByteString localSymIv;
     UA_ByteString remoteSymIv;
 
     UA_ByteString remoteCertificate;
@@ -198,10 +200,8 @@ EccNistP256_Delete_Context(const UA_SecurityPolicy *policy,
         (Channel_Context_EccNistP256 *)channelContext;
     X509_free(cc->remoteCertificateX509);
     UA_ByteString_clear(&cc->remoteCertificate);
-    UA_ByteString_clear(&cc->localSymSigningKey);
     UA_ByteString_clear(&cc->localSymEncryptingKey);
     UA_ByteString_clear(&cc->localSymIv);
-    UA_ByteString_clear(&cc->remoteSymSigningKey);
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     UA_ByteString_clear(&cc->remoteSymIv);
     EVP_PKEY_free(cc->localEphemeralKeyPair);
@@ -293,15 +293,13 @@ UA_Sym_EccNistP256_generateNonce(const UA_SecurityPolicy *policy,
 static size_t
 UA_SymEn_EccNistP256_getLocalKeyLength(const UA_SecurityPolicy *policy,
                                        const void *channelContext) {
-    /* 32 bytes 256 bits */
-    return UA_SECURITYPOLICY_ECCNISTP256_SYM_ENCRYPTION_KEY_LENGTH;
+    return UA_SECURITYPOLICY_NISTP256_AESGCM_SYM_ENCRYPTION_KEY_LENGTH;
 }
 
 static size_t
 UA_SymSig_EccNistP256_getLocalKeyLength(const UA_SecurityPolicy *policy,
                                         const void *channelContext) {
-    /* 32 bytes 256 bits */
-    return UA_SECURITYPOLICY_ECCNISTP256_SYM_SIGNING_KEY_LENGTH;
+    return 1;
 }
 
 static UA_StatusCode
@@ -321,11 +319,7 @@ static UA_StatusCode
 EccNistP256_setLocalSymSigningKey(const UA_SecurityPolicy *policy,
                                                    void *channelContext,
                                                    const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_EccNistP256 *cc = (Channel_Context_EccNistP256 *)channelContext;
-    UA_ByteString_clear(&cc->localSymSigningKey);
-    return UA_ByteString_copy(key, &cc->localSymSigningKey);
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -360,25 +354,20 @@ UA_SymEn_EccNistP256_getRemoteKeyLength(const UA_SecurityPolicy *policy,
 static size_t
 UA_SymEn_EccNistP256_getBlockSize(const UA_SecurityPolicy *policy,
                                   const void *channelContext) {
-    return UA_SECURITYPOLICY_ECCNISTP256_SYM_ENCRYPTION_BLOCK_SIZE;
+    return UA_SECURITYPOLICY_NISTP256_AESGCM_SYM_ENCRYPTION_KEY_LENGTH;
 }
 
 static size_t
 UA_SymSig_EccNistP256_getRemoteKeyLength(const UA_SecurityPolicy *policy,
                                          const void *channelContext) {
-    /* 32 bytes 256 bits */
-    return UA_SECURITYPOLICY_ECCNISTP256_SYM_SIGNING_KEY_LENGTH;
+    return 1;
 }
 
 static UA_StatusCode
 EccNistP256_setRemoteSymSigningKey(const UA_SecurityPolicy *policy,
                                    void *channelContext,
                                    const UA_ByteString *key) {
-    if(key == NULL || channelContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_EccNistP256 *cc = (Channel_Context_EccNistP256 *)channelContext;
-    UA_ByteString_clear(&cc->remoteSymSigningKey);
-    return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -433,32 +422,26 @@ UA_Asym_EccNistP256_Dummy(const UA_SecurityPolicy *policy,
 static size_t
 UA_SymSig_EccNistP256_getRemoteSignatureSize(const UA_SecurityPolicy *policy,
                                              const void *channelContext) {
-    return UA_SHA256_LENGTH;
+    return 0; /* Not required for AESGCM */
 }
 
 static UA_StatusCode
 UA_SymSig_EccNistP256_verify(const UA_SecurityPolicy *policy, void *channelContext,
                              const UA_ByteString *message, const UA_ByteString *signature) {
-    if(channelContext == NULL || message == NULL || signature == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_EccNistP256 *cc = (Channel_Context_EccNistP256 *)channelContext;
-    return UA_OpenSSL_HMAC_SHA256_Verify(message, &cc->remoteSymSigningKey, signature);
+    return UA_STATUSCODE_GOOD; /* Not required for AESGCM */
 }
 
 static UA_StatusCode
 UA_SymSig_EccNistP256_sign(const UA_SecurityPolicy *policy,
                            void *channelContext, const UA_ByteString *message,
                            UA_ByteString *signature) {
-    if(channelContext == NULL || message == NULL || signature == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    Channel_Context_EccNistP256 *cc = (Channel_Context_EccNistP256 *)channelContext;
-    return UA_OpenSSL_HMAC_SHA256_Sign(message, &cc->localSymSigningKey, signature);
+    return UA_STATUSCODE_GOOD; /* Not required for AESGCM */
 }
 
 static size_t
 UA_SymSig_EccNistP256_getLocalSignatureSize(const UA_SecurityPolicy *policy,
                                             const void *channelContext) {
-    return UA_SHA256_LENGTH;
+    return 0;
 }
 
 static UA_StatusCode
@@ -467,8 +450,8 @@ UA_SymEn_EccNistP256_decrypt(const UA_SecurityPolicy *policy,
     if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccNistP256 *cc = (Channel_Context_EccNistP256 *)channelContext;
-    return UA_OpenSSL_AES_128_CBC_Decrypt(&cc->remoteSymIv, &cc->remoteSymEncryptingKey,
-                                          data);
+    return UA_OpenSSL_AES_256_GCM_Decrypt(&cc->remoteSymIv, &cc->remoteSymEncryptingKey,
+                                          data, UA_SECURITYPOLICY_NISTP256_AESGCM_SYM_TAG_LENGTH);
 }
 
 static UA_StatusCode
@@ -477,8 +460,8 @@ UA_SymEn_EccNistP256_encrypt(const UA_SecurityPolicy *policy,
     if(channelContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     Channel_Context_EccNistP256 *cc = (Channel_Context_EccNistP256 *)channelContext;
-    return UA_OpenSSL_AES_128_CBC_Encrypt(&cc->localSymIv, &cc->localSymEncryptingKey,
-                                          data);
+    return UA_OpenSSL_AES_256_GCM_Encrypt(&cc->localSymIv, &cc->localSymEncryptingKey,
+                                          data, UA_SECURITYPOLICY_NISTP256_AESGCM_SYM_TAG_LENGTH);
 }
 
 static UA_StatusCode
@@ -500,15 +483,15 @@ UA_AsymEn_EccNistP256_getLocalKeyLength(const UA_SecurityPolicy *policy,
     return 1;
 }
 
-UA_StatusCode
-UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
-                              const UA_ApplicationType applicationType,
-                              const UA_ByteString localCertificate,
-                              const UA_ByteString localPrivateKey,
-                              const UA_Logger *logger) {
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccNistP256_AESGCM(UA_SecurityPolicy *sp,
+                                     const UA_ApplicationType applicationType,
+                                     const UA_ByteString localCertificate,
+                                     const UA_ByteString localPrivateKey,
+                                     const UA_Logger *logger) {
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
-    sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256\0");
+    sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#nistp256_aesgcm");
     sp->certificateGroupId =
         UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     sp->certificateTypeId = UA_NS0ID(ECCNISTP256APPLICATIONCERTIFICATETYPE);
@@ -549,7 +532,7 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
 
     /* Symmetric Encryption */
     UA_SecurityPolicyEncryptionAlgorithm *symEnc = &sp->symEncryptionAlgorithm;
-    symEnc->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#aes128-cbc\0");
+    symEnc->uri = UA_STRING("http://www.w3.org/2009/xmlenc11#aes256-gcm");
     symEnc->encrypt = UA_SymEn_EccNistP256_encrypt;
     symEnc->decrypt = UA_SymEn_EccNistP256_decrypt;
     symEnc->getLocalKeyLength = UA_SymEn_EccNistP256_getLocalKeyLength;

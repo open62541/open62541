@@ -678,6 +678,117 @@ errout:
     return ret;
 }
 
+UA_StatusCode
+UA_OpenSSL_AES_256_GCM_Decrypt(const UA_ByteString *iv,
+                               const UA_ByteString *key,
+                               UA_ByteString *data /* [in/out] */,
+                               size_t authTagLength) {
+
+    EVP_CIPHER_CTX *ctx = NULL;
+    int outLen = 0, tmpLen = 0;
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+
+    if(!iv || !key || !data || data->length < authTagLength)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    size_t cipherLen = data->length - authTagLength;
+    unsigned char *tag = data->data + cipherLen;
+
+    ctx = EVP_CIPHER_CTX_new();
+    if(!ctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    if(EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL) != 1)
+        goto err;
+
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN,
+                            (int)iv->length, NULL) != 1)
+        goto err;
+
+    if(EVP_DecryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
+        goto err;
+
+    if(EVP_DecryptUpdate(ctx, data->data, &outLen,
+                          data->data, (int)cipherLen) != 1)
+        goto err;
+
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG,
+                            (int)authTagLength, tag) != 1)
+        goto err;
+
+    if(EVP_DecryptFinal_ex(ctx, data->data + outLen, &tmpLen) != 1) {
+        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto err;
+    }
+
+    data->length = (size_t)(outLen + tmpLen);
+    ret = UA_STATUSCODE_GOOD;
+
+err:
+    EVP_CIPHER_CTX_free(ctx);
+    return ret;
+}
+
+UA_StatusCode
+UA_OpenSSL_AES_256_GCM_Encrypt(const UA_ByteString *iv,
+                               const UA_ByteString *key,
+                               UA_ByteString *data /* [in/out] */,
+                               size_t authTagLength) {
+    EVP_CIPHER_CTX *ctx = NULL;
+    int outLen = 0, tmpLen = 0;
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+
+    if(!iv || !key || !data)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    size_t plainLen = data->length;
+
+    UA_ByteString resized;
+    ret = UA_ByteString_allocBuffer(&resized, plainLen + authTagLength);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    memcpy(resized.data, data->data, plainLen);
+    UA_ByteString_clear(data);
+    *data = resized;
+
+    unsigned char *tag = data->data + plainLen;
+
+    ctx = EVP_CIPHER_CTX_new();
+    if(!ctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    if(EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL) != 1)
+        goto err;
+
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN,
+                            (int)iv->length, NULL) != 1)
+        goto err;
+
+    if(EVP_EncryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
+        goto err;
+
+    if(EVP_EncryptUpdate(ctx, data->data, &outLen,
+                          data->data, (int)plainLen) != 1)
+        goto err;
+
+    if(EVP_EncryptFinal_ex(ctx, data->data + outLen, &tmpLen) != 1)
+        goto err;
+
+    outLen += tmpLen;
+
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG,
+                            (int)authTagLength, tag) != 1)
+        goto err;
+
+    data->length = plainLen + authTagLength;
+    ret = UA_STATUSCODE_GOOD;
+
+err:
+    EVP_CIPHER_CTX_free(ctx);
+    return ret;
+}
+
 static UA_StatusCode
 UA_OpenSSL_Encrypt(const UA_ByteString * iv,
                    const UA_ByteString * key,
