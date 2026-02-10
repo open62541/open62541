@@ -2366,6 +2366,16 @@ struct UA_ServerConfig {
     UA_StatusCode (*privateKeyPasswordCallback)(UA_ServerConfig *sc,
                                                 UA_ByteString *password);
 #endif
+
+#ifdef UA_ENABLE_RBAC
+    /* Role-Permission Configuration
+     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     * Array of permission configurations. Each entry defines permissions
+     * for a set of roles. Nodes reference these entries via their
+     * permissionIndex field. */
+    size_t rolePermissionsSize;
+    UA_RolePermissions *rolePermissions;
+#endif
 };
 
 void UA_EXPORT
@@ -2462,6 +2472,25 @@ UA_Server_removeCertificates(UA_Server *server,
 
 #ifdef UA_ENABLE_RBAC
 
+/* Permission Index Type
+ * Configurable size index stored in nodes to reference permission configurations */
+#if UA_PERMISSION_INDEX_SIZE == 16
+typedef UA_UInt16 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFF
+#elif UA_PERMISSION_INDEX_SIZE == 32
+typedef UA_UInt32 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFF
+#elif UA_PERMISSION_INDEX_SIZE == 64
+typedef UA_UInt64 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFFFFFFFFFF
+#else
+#error "UA_PERMISSION_INDEX_SIZE must be 16, 32, or 64"
+#endif
+
+/* Forward declarations */
+struct UA_RolePermissions;
+typedef struct UA_RolePermissions UA_RolePermissions;
+
 /**
  * UA_RolePermissionEntry
  * ----------------------
@@ -2478,11 +2507,11 @@ typedef struct {
  * Container for role permission entries with reference counting.
  * Multiple nodes can share the same RolePermissions configuration
  * through the refCount mechanism. */
-typedef struct {
+struct UA_RolePermissions {
     size_t entriesSize;
     UA_RolePermissionEntry *entries;
     size_t refCount;            /* Number of nodes referencing this configuration */
-} UA_RolePermissions;
+};
 
 /* UA_RolePermissions Type Management */
 void UA_EXPORT
@@ -2530,6 +2559,92 @@ UA_Role_copy(const UA_Role *src, UA_Role *dst);
 
 UA_Boolean UA_EXPORT
 UA_Role_equal(const UA_Role *r1, const UA_Role *r2);
+
+/**
+ * Role Permission Configuration Management
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Functions for managing the global role-permission configuration array.
+ * Nodes reference entries in this array via their permissionIndex field. */
+
+/* Add a new role-permission configuration entry.
+ *
+ * Creates a new entry in the server's rolePermissions array that defines
+ * permissions for multiple roles. Nodes can then reference this entry
+ * via their permissionIndex field.
+ *
+ * If an identical configuration already exists in the array, the index of
+ * the existing entry is returned instead of creating a duplicate.
+ *
+ * @param server The server instance
+ * @param entriesSize Number of role-permission entries
+ * @param entries Array of role-permission mappings
+ * @param outIndex Output parameter receiving the index (new or existing)
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT
+UA_Server_addRolePermission(UA_Server *server,
+                            size_t entriesSize,
+                            const UA_RolePermissionEntry *entries,
+                            UA_PermissionIndex *outIndex);
+
+/* Get a role-permission configuration by index.
+ *
+ * @param server The server instance
+ * @param index The permission configuration index
+ * @return Pointer to the configuration, or NULL if invalid index */
+const UA_RolePermissions * UA_EXPORT
+UA_Server_getRolePermissionConfig(UA_Server *server, UA_PermissionIndex index);
+
+/* Update an existing role-permission configuration.
+ *
+ * Replaces all role-permission entries in the configuration at the given index.
+ * The existing entries are cleared before the new entries are set (overwrite behavior).
+ *
+ * @param server The server instance
+ * @param index The permission configuration index to update
+ * @param entriesSize Number of role-permission entries
+ * @param entries New array of role-permission mappings
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT
+UA_Server_updateRolePermissionConfig(UA_Server *server,
+                                     UA_PermissionIndex index,
+                                     size_t entriesSize,
+                                     const UA_RolePermissionEntry *entries);
+
+/**
+ * Node Permission Management
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Functions for assigning permission configurations to individual nodes. */
+
+/* Set the permission index for a node.
+ *
+ * Assigns a permission configuration index to a node, referencing an entry
+ * in the server's rolePermissions array. Use UA_PERMISSION_INDEX_INVALID
+ * to clear the permission configuration (use default behavior).
+ *
+ * @param server The server instance
+ * @param nodeId The NodeId of the node
+ * @param permissionIndex Index into rolePermissions array
+ * @param recursive If true, also set for all child nodes
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT
+UA_Server_setNodePermissionIndex(UA_Server *server,
+                                 const UA_NodeId nodeId,
+                                 UA_PermissionIndex permissionIndex,
+                                 UA_Boolean recursive);
+
+/* Get the permission index of a node.
+ *
+ * Returns the current permission configuration index of a node.
+ * UA_PERMISSION_INDEX_INVALID means no specific configuration is set.
+ *
+ * @param server The server instance
+ * @param nodeId The NodeId of the node
+ * @param permissionIndex Output parameter for the permission index
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT
+UA_Server_getNodePermissionIndex(UA_Server *server,
+                                 const UA_NodeId nodeId,
+                                 UA_PermissionIndex *permissionIndex);
 
 #endif /* UA_ENABLE_RBAC */
 
