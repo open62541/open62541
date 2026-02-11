@@ -1626,7 +1626,7 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
 
     /* Pick up the component NodeIds */
     dsw = NULL;
-    for(size_t i = 0; i < ot->offsetsSize; i++) {
+    for(i = 0; i < ot->offsetsSize; i++) {
         UA_PubSubOffset *o = &ot->offsets[i];
         switch(o->offsetType) {
         case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER:
@@ -1674,7 +1674,7 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     if(res != UA_STATUSCODE_GOOD)
         UA_PubSubOffsetTable_clear(ot);
 
-    for(size_t i = 0; i < dsmCount; i++) {
+    for(i = 0; i < dsmCount; i++) {
         UA_DataSetMessage_clear(&dsmStore[i]);
     }
 

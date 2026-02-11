@@ -263,12 +263,12 @@ reloadTrustStore(UA_CertificateGroup *certGroup) {
     FileCertStore *context = (FileCertStore *)certGroup->context;
 
     char buffer[BUF_LEN];
-    const int length = read(context->inotifyFd, buffer, BUF_LEN );
+    const ssize_t length = read(context->inotifyFd, buffer, BUF_LEN );
     if(length == -1 && errno != EAGAIN)
         return UA_STATUSCODE_BADINTERNALERROR;
 #else
     /* TODO: Implement a way to check for changes in the pki folder */
-    const int length = 0;
+    const ssize_t length = 0;
 #endif /* __linux__ */
 
     /* No events, which means no changes to the pki folder */
