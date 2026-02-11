@@ -231,12 +231,77 @@ UA_Server_initializeRBAC(UA_Server *server) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     
-    /* RBAC initialization will be implemented in subsequent PRs.
-     * This stub ensures the flag is properly defined and the
-     * build system is configured correctly. */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    
+    /* Copy initial roles from ServerConfig to runtime storage.
+     * The ServerConfig remains unchanged to provide stable initial state. */
+    if(server->config.rolesSize > 0) {
+        server->rbacRoles = (UA_Role*)UA_calloc(server->config.rolesSize, sizeof(UA_Role));
+        if(!server->rbacRoles)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        
+        server->rbacRolesSize = server->config.rolesSize;
+        for(size_t i = 0; i < server->config.rolesSize; i++) {
+            res = UA_Role_copy(&server->config.roles[i], &server->rbacRoles[i]);
+            if(res != UA_STATUSCODE_GOOD) {
+                /* Cleanup on failure */
+                for(size_t j = 0; j < i; j++)
+                    UA_Role_clear(&server->rbacRoles[j]);
+                UA_free(server->rbacRoles);
+                server->rbacRoles = NULL;
+                server->rbacRolesSize = 0;
+                return res;
+            }
+        }
+    }
+    
+    /* Copy initial role permissions from ServerConfig to runtime storage */
+    if(server->config.rolePermissionsSize > 0) {
+        server->rbacRolePermissions = (UA_RolePermissions*)
+            UA_calloc(server->config.rolePermissionsSize, sizeof(UA_RolePermissions));
+        if(!server->rbacRolePermissions) {
+            /* Cleanup roles on failure */
+            if(server->rbacRoles) {
+                for(size_t i = 0; i < server->rbacRolesSize; i++)
+                    UA_Role_clear(&server->rbacRoles[i]);
+                UA_free(server->rbacRoles);
+                server->rbacRoles = NULL;
+                server->rbacRolesSize = 0;
+            }
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+        
+        server->rbacRolePermissionsSize = server->config.rolePermissionsSize;
+        for(size_t i = 0; i < server->config.rolePermissionsSize; i++) {
+            res = UA_RolePermissions_copy(&server->config.rolePermissions[i], 
+                                          &server->rbacRolePermissions[i]);
+            if(res != UA_STATUSCODE_GOOD) {
+                /* Cleanup on failure */
+                for(size_t j = 0; j < i; j++)
+                    UA_RolePermissions_clear(&server->rbacRolePermissions[j]);
+                UA_free(server->rbacRolePermissions);
+                server->rbacRolePermissions = NULL;
+                server->rbacRolePermissionsSize = 0;
+                
+                /* Also cleanup roles */
+                if(server->rbacRoles) {
+                    for(size_t j = 0; j < server->rbacRolesSize; j++)
+                        UA_Role_clear(&server->rbacRoles[j]);
+                    UA_free(server->rbacRoles);
+                    server->rbacRoles = NULL;
+                    server->rbacRolesSize = 0;
+                }
+                return res;
+            }
+        }
+    }
     
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                 "RBAC support enabled (EXPERIMENTAL - not for production use)");
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+                "Initialized RBAC with %lu roles and %lu permission configs",
+                (unsigned long)server->rbacRolesSize,
+                (unsigned long)server->rbacRolePermissionsSize);
     
     return UA_STATUSCODE_GOOD;
 }
@@ -246,7 +311,436 @@ UA_Server_cleanupRBAC(UA_Server *server) {
     if(!server)
         return;
     
-    /* RBAC cleanup will be implemented in subsequent PRs */
+    /* Clean up runtime role storage */
+    if(server->rbacRoles) {
+        for(size_t i = 0; i < server->rbacRolesSize; i++)
+            UA_Role_clear(&server->rbacRoles[i]);
+        UA_free(server->rbacRoles);
+        server->rbacRoles = NULL;
+        server->rbacRolesSize = 0;
+    }
+    
+    /* Clean up runtime role permission configurations */
+    if(server->rbacRolePermissions) {
+        for(size_t i = 0; i < server->rbacRolePermissionsSize; i++)
+            UA_RolePermissions_clear(&server->rbacRolePermissions[i]);
+        UA_free(server->rbacRolePermissions);
+        server->rbacRolePermissions = NULL;
+        server->rbacRolePermissionsSize = 0;
+    }
+    
+    /* Note: Initial configuration in server->config is cleaned up separately
+     * by UA_ServerConfig_clear() and remains stable during runtime. */
+}
+
+/* Role Permission Configuration Management */
+
+/* Helper function to compare two role permission entry arrays */
+static UA_Boolean
+compareRolePermissionEntries(size_t entriesSize1, const UA_RolePermissionEntry *entries1,
+                             size_t entriesSize2, const UA_RolePermissionEntry *entries2) {
+    if(entriesSize1 != entriesSize2)
+        return false;
+    
+    for(size_t i = 0; i < entriesSize1; i++) {
+        if(!UA_NodeId_equal(&entries1[i].roleId, &entries2[i].roleId) ||
+           entries1[i].permissions != entries2[i].permissions)
+            return false;
+    }
+    
+    return true;
+}
+
+UA_StatusCode
+UA_Server_addRolePermission(UA_Server *server,
+                            size_t entriesSize, const UA_RolePermissionEntry *entries,
+                            UA_PermissionIndex *outIndex) {
+    if(!server || (entriesSize > 0 && !entries) || !outIndex)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    if(server->config.rolePermissionsSize >= UA_PERMISSION_INDEX_INVALID) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFRANGE;
+    }
+
+    /* Check if an identical configuration already exists */
+    for(UA_PermissionIndex i = 0; i < server->config.rolePermissionsSize; i++) {
+        const UA_RolePermissions *existing = &server->config.rolePermissions[i];
+        if(compareRolePermissionEntries(entriesSize, entries, 
+                                       existing->entriesSize, existing->entries)) {
+            *outIndex = i;
+            unlockServer(server);
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    UA_RolePermissions *newArray = (UA_RolePermissions*)
+        UA_realloc(server->config.rolePermissions,
+                   (server->config.rolePermissionsSize + 1) * sizeof(UA_RolePermissions));
+    if(!newArray) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    server->config.rolePermissions = newArray;
+    UA_PermissionIndex newIndex = (UA_PermissionIndex)server->config.rolePermissionsSize;
+
+    UA_RolePermissions *entry = &server->config.rolePermissions[newIndex];
+    UA_RolePermissions_init(entry);
+
+    if(entriesSize > 0) {
+        entry->entries = (UA_RolePermissionEntry*)
+            UA_malloc(entriesSize * sizeof(UA_RolePermissionEntry));
+        if(!entry->entries) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+
+        for(size_t i = 0; i < entriesSize; i++) {
+            UA_StatusCode res = UA_NodeId_copy(&entries[i].roleId, &entry->entries[i].roleId);
+            if(res != UA_STATUSCODE_GOOD) {
+                for(size_t j = 0; j < i; j++)
+                    UA_NodeId_clear(&entry->entries[j].roleId);
+                UA_free(entry->entries);
+                entry->entries = NULL;
+                unlockServer(server);
+                return res;
+            }
+            entry->entries[i].permissions = entries[i].permissions;
+        }
+    }
+
+    entry->entriesSize = entriesSize;
+    entry->refCount = 0;
+    server->config.rolePermissionsSize++;
+
+    *outIndex = newIndex;
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+const UA_RolePermissions *
+UA_Server_getRolePermissionConfig(UA_Server *server, UA_PermissionIndex index) {
+    if(!server || index >= server->config.rolePermissionsSize)
+        return NULL;
+
+    lockServer(server);
+    const UA_RolePermissions *result = &server->config.rolePermissions[index];
+    unlockServer(server);
+
+    return result;
+}
+
+UA_StatusCode
+UA_Server_updateRolePermissionConfig(UA_Server *server, UA_PermissionIndex index,
+                                     size_t entriesSize, const UA_RolePermissionEntry *entries) {
+    if(!server || (entriesSize > 0 && !entries))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    if(index >= server->config.rolePermissionsSize) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFRANGE;
+    }
+
+    UA_RolePermissions *rp = &server->config.rolePermissions[index];
+
+    /* Clear existing entries */
+    for(size_t i = 0; i < rp->entriesSize; i++)
+        UA_NodeId_clear(&rp->entries[i].roleId);
+    UA_free(rp->entries);
+    rp->entries = NULL;
+    rp->entriesSize = 0;
+
+    /* Set new entries */
+    if(entriesSize > 0) {
+        rp->entries = (UA_RolePermissionEntry*)
+            UA_malloc(entriesSize * sizeof(UA_RolePermissionEntry));
+        if(!rp->entries) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+
+        for(size_t i = 0; i < entriesSize; i++) {
+            UA_StatusCode res = UA_NodeId_copy(&entries[i].roleId, &rp->entries[i].roleId);
+            if(res != UA_STATUSCODE_GOOD) {
+                for(size_t j = 0; j < i; j++)
+                    UA_NodeId_clear(&rp->entries[j].roleId);
+                UA_free(rp->entries);
+                rp->entries = NULL;
+                unlockServer(server);
+                return res;
+            }
+            rp->entries[i].permissions = entries[i].permissions;
+        }
+    }
+
+    rp->entriesSize = entriesSize;
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Node Permission Management */
+
+UA_StatusCode
+UA_Server_setNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_PermissionIndex permissionIndex,
+                                 UA_Boolean recursive) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    if(permissionIndex != UA_PERMISSION_INDEX_INVALID &&
+       permissionIndex >= server->config.rolePermissionsSize) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFRANGE;
+    }
+
+    /* Get the node */
+    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
+    if(!node) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+
+    UA_PermissionIndex currentIndex = node->head.permissionIndex;
+    UA_NODESTORE_RELEASE(server, node);
+
+    /* No change needed */
+    if(currentIndex == permissionIndex) {
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Decrement old refCount */
+    if(currentIndex != UA_PERMISSION_INDEX_INVALID &&
+       currentIndex < server->config.rolePermissionsSize) {
+        UA_RolePermissions *oldRp = &server->config.rolePermissions[currentIndex];
+        if(oldRp->refCount > 0)
+            oldRp->refCount--;
+    }
+
+    /* Increment new refCount */
+    if(permissionIndex != UA_PERMISSION_INDEX_INVALID) {
+        UA_RolePermissions *newRp = &server->config.rolePermissions[permissionIndex];
+        newRp->refCount++;
+    }
+
+    /* Update the node */
+    UA_Node *editNode = (UA_Node*)UA_NODESTORE_GET(server, &nodeId);
+    if(!editNode) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+
+    editNode->head.permissionIndex = permissionIndex;
+    UA_NODESTORE_RELEASE(server, editNode);
+
+    /* Recursive handling would be implemented in a later PR */
+    (void)recursive;
+
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_getNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_PermissionIndex *permissionIndex) {
+    if(!server || !permissionIndex)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    const UA_Node *node = UA_NODESTORE_GET(server, &nodeId);
+    if(!node) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+
+    *permissionIndex = node->head.permissionIndex;
+    UA_NODESTORE_RELEASE(server, node);
+
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+/**********************/
+/* Role Management    */
+/**********************/
+
+UA_StatusCode
+UA_Server_addRole(UA_Server *server, const UA_Role *role) {
+    if(!server || !role)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    
+    /* Validate role has a valid roleId */
+    if(UA_NodeId_isNull(&role->roleId))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    
+    lockServer(server);
+    
+    /* Check if a role with this ID already exists */
+    for(size_t i = 0; i < server->rbacRolesSize; i++) {
+        if(UA_NodeId_equal(&server->rbacRoles[i].roleId, &role->roleId)) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADNODEIDEXISTS;
+        }
+    }
+    
+    /* Expand roles array */
+    UA_Role *newArray = (UA_Role*)
+        UA_realloc(server->rbacRoles,
+                   (server->rbacRolesSize + 1) * sizeof(UA_Role));
+    if(!newArray) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    
+    server->rbacRoles = newArray;
+    UA_Role *newRole = &server->rbacRoles[server->rbacRolesSize];
+    
+    /* Copy the role */
+    UA_StatusCode res = UA_Role_copy(role, newRole);
+    if(res != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return res;
+    }
+    
+    server->rbacRolesSize++;
+    
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+                "Added role with ID ns=%d;i=%d",
+                role->roleId.namespaceIndex, role->roleId.identifier.numeric);
+    
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_removeRole(UA_Server *server, const UA_NodeId roleId) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    
+    lockServer(server);
+    
+    /* Find the role */
+    size_t roleIndex = 0;
+    UA_Boolean found = false;
+    for(size_t i = 0; i < server->rbacRolesSize; i++) {
+        if(UA_NodeId_equal(&server->rbacRoles[i].roleId, &roleId)) {
+            roleIndex = i;
+            found = true;
+            break;
+        }
+    }
+    
+    if(!found) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    
+    /* Clear the role being removed */
+    UA_Role_clear(&server->rbacRoles[roleIndex]);
+    
+    /* Move remaining roles down */
+    if(roleIndex < server->rbacRolesSize - 1) {
+        memmove(&server->rbacRoles[roleIndex],
+                &server->rbacRoles[roleIndex + 1],
+                (server->rbacRolesSize - roleIndex - 1) * sizeof(UA_Role));
+    }
+    
+    server->rbacRolesSize--;
+    
+    /* Shrink the array */
+    if(server->rbacRolesSize == 0) {
+        UA_free(server->rbacRoles);
+        server->rbacRoles = NULL;
+    } else {
+        UA_Role *newArray = (UA_Role*)
+            UA_realloc(server->rbacRoles,
+                       server->rbacRolesSize * sizeof(UA_Role));
+        if(newArray)
+            server->rbacRoles = newArray;
+        /* If realloc fails, keep the old pointer - it's still valid */
+    }
+    
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+                "Removed role with ID ns=%d;i=%d",
+                roleId.namespaceIndex, roleId.identifier.numeric);
+    
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_getRoles(UA_Server *server,
+                   size_t *rolesSize,
+                   UA_Role **roles) {
+    if(!server || !rolesSize || !roles)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    
+    lockServer(server);
+    
+    *rolesSize = 0;
+    *roles = NULL;
+    
+    if(server->rbacRolesSize == 0) {
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+    
+    /* Allocate array for role copies */
+    *roles = (UA_Role*)UA_calloc(server->rbacRolesSize, sizeof(UA_Role));
+    if(!*roles) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    
+    /* Copy all roles */
+    for(size_t i = 0; i < server->rbacRolesSize; i++) {
+        UA_StatusCode res = UA_Role_copy(&server->rbacRoles[i], &(*roles)[i]);
+        if(res != UA_STATUSCODE_GOOD) {
+            /* Clean up on error */
+            for(size_t j = 0; j < i; j++)
+                UA_Role_clear(&(*roles)[j]);
+            UA_free(*roles);
+            *roles = NULL;
+            unlockServer(server);
+            return res;
+        }
+    }
+    
+    *rolesSize = server->rbacRolesSize;
+    
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_getRoleById(UA_Server *server,
+                      const UA_NodeId roleId,
+                      UA_Role *role) {
+    if(!server || !role)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    
+    lockServer(server);
+    
+    /* Find the role */
+    UA_Boolean found = false;
+    for(size_t i = 0; i < server->rbacRolesSize; i++) {
+        if(UA_NodeId_equal(&server->rbacRoles[i].roleId, &roleId)) {
+            UA_StatusCode res = UA_Role_copy(&server->rbacRoles[i], role);
+            unlockServer(server);
+            return res;
+        }
+    }
+    
+    unlockServer(server);
+    return UA_STATUSCODE_BADNODEIDUNKNOWN;
 }
 
 #endif /* UA_ENABLE_RBAC */
