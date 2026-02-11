@@ -15,6 +15,7 @@
  *    Copyright 2017 (c) Mattias Bornhager
  *    Copyright 2018 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
+ *   Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -82,7 +83,12 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
         LIST_REMOVE(sub, serverListEntry);
         UA_assert(server->subscriptionsSize > 0);
         server->subscriptionsSize--;
-        server->serverDiagnosticsSummary.currentSubscriptionCount--;
+        /* Only decrement the counter if this subscription was not transferred.
+         * Transferred subscriptions are replaced by a new subscription object
+         * that continues to exist, so the diagnostic counter should not change. */
+        if(!sub->wasTransferred) {
+            server->serverDiagnosticsSummary.currentSubscriptionCount--;
+        }
     }
 
     /* Delete monitored Items */
