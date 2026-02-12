@@ -240,14 +240,25 @@ callWithResolvedMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* Call the method. If this is an async method, unlock the server lock for
      * the duration of the (long-running) call. */
-    return resolvedMethod->method(server, &session->sessionId, session->context,
-                                  &resolvedMethod->head.nodeId,
-                                  resolvedMethod->head.context,
-                                  &callContext->head.nodeId, callContext->head.context,
-                                  request->inputArgumentsSize, mutableInputArgs,
-                                  result->outputArgumentsSize, result->outputArguments);
+    res = resolvedMethod->method(server, &session->sessionId, session->context,
+                                 &resolvedMethod->head.nodeId,
+                                 resolvedMethod->head.context,
+                                 &callContext->head.nodeId, callContext->head.context,
+                                 request->inputArgumentsSize, mutableInputArgs,
+                                 result->outputArgumentsSize, result->outputArguments);
 
     /* TODO: Verify Output matches the argument definition */
+
+#ifdef UA_ENABLE_AUDITING
+    auditMethodUpdateEvent(server,
+                           UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD,
+                           session->channel, session, (res == UA_STATUSCODE_GOOD),
+                           &callContext->head.nodeId, &resolvedMethod->head.nodeId,
+                           res, request->inputArgumentsSize, mutableInputArgs,
+                           result->outputArgumentsSize, result->outputArguments);
+#endif
+
+    return res;
 }
 
 static UA_StatusCode

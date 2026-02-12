@@ -54,8 +54,6 @@ processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
     if(!securityPolicy)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
-    /* TODO: Check the URI in the certificate */
-
     /* Verify the client certificate (chain).
      * Here we don't have the ApplicationDescription.
      * This check follows in the CreateSession service. */
@@ -79,10 +77,10 @@ processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
     return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy, &appInstCert);
 }
 
-void
-Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                          UA_OpenSecureChannelRequest *request,
-                          UA_OpenSecureChannelResponse *response) {
+static void
+Service_OpenSecureChannel_inner(UA_Server *server, UA_SecureChannel *channel,
+                                UA_OpenSecureChannelRequest *request,
+                                UA_OpenSecureChannelResponse *response) {
     UA_ServerConfig *sc = &server->config;
     UA_EventLoop *el = server->config.eventLoop;
     const UA_SecurityPolicy *sp = channel->securityPolicy;
@@ -207,10 +205,71 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     }
 }
 
+#ifdef UA_ENABLE_AUDITING
+static UA_THREAD_LOCAL UA_KeyValuePair channelAuditPayload[14] = {
+    {{0, UA_STRING_STATIC("/ActionTimeStamp")}, {0}},             /* 0 */
+    {{0, UA_STRING_STATIC("/Status")}, {0}},                      /* 1 */
+    {{0, UA_STRING_STATIC("/ServerId")}, {0}},                    /* 2 */
+    {{0, UA_STRING_STATIC("/ClientAuditEntryId")}, {0}},          /* 3 */
+    {{0, UA_STRING_STATIC("/ClientUserId")}, {0}},                /* 4 */
+    {{0, UA_STRING_STATIC("/StatusCodeId")}, {0}},                /* 5 */
+    {{0, UA_STRING_STATIC("/SecureChannelId")}, {0}},             /* 6 */
+    {{0, UA_STRING_STATIC("/SourceName")}, {0}},                  /* 7 */
+    {{0, UA_STRING_STATIC("/ClientCertificate")}, {0}},           /* 8 */
+    {{0, UA_STRING_STATIC("/ClientCertificateThumbprint")}, {0}}, /* 9 */
+    {{0, UA_STRING_STATIC("/RequestType")}, {0}},                 /* 10 */
+    {{0, UA_STRING_STATIC("/SecurityPolicyUri")}, {0}},           /* 11 */
+    {{0, UA_STRING_STATIC("/SecurityMode")}, {0}},                /* 12 */
+    {{0, UA_STRING_STATIC("/RequestedLifetime")}, {0}},           /* 13 */
+};
+#endif
+
+void
+Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                          UA_OpenSecureChannelRequest *request,
+                          UA_OpenSecureChannelResponse *response) {
+    /* Call the main OpenSecureChannel implementation */
+    Service_OpenSecureChannel_inner(server, channel, request, response);
+
+#ifdef UA_ENABLE_AUDITING
+    /* Create the audit event for CreateSecureChannel - also on failure */
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    UA_KeyValueMap payloadMap = {14, channelAuditPayload};
+    UA_Boolean status = (response->responseHeader.serviceResult != UA_STATUSCODE_GOOD);
+    UA_ByteString certThumbprint = {20, channel->remoteCertificateThumbprint};
+    UA_Variant_setScalar(&channelAuditPayload[8].value, &channel->remoteCertificate,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&channelAuditPayload[9].value, &certThumbprint,
+                         &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Variant_setScalar(&channelAuditPayload[10].value, &request->requestType,
+                         &UA_TYPES[UA_TYPES_SECURITYTOKENREQUESTTYPE]);
+    UA_Variant_setScalar(&channelAuditPayload[11].value, (void*)(uintptr_t) &sp->policyUri,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&channelAuditPayload[12].value, &request->securityMode,
+                         &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
+    UA_Variant_setScalar(&channelAuditPayload[13].value, &request->requestedLifetime,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    auditChannelEvent(server, UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL_OPEN,
+                      channel, NULL, "OpenSecureChannel", status,
+                      response->responseHeader.serviceResult, payloadMap);
+#endif
+}
+
 /* The server does not send a CloseSecureChannel response */
 void
 Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
-    UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
+    if(UA_SecureChannel_isConnected(channel)) {
+        /* Shutdown - takes effect in the next EventLoop iteration */
+        UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
+
+#ifdef UA_ENABLE_AUDITING
+        /* Create the audit event */
+        UA_KeyValueMap payloadMap = {8, channelAuditPayload}; /* Not all fields */
+        auditChannelEvent(server, UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL,
+                          channel, NULL, "CloseSecureChannel", true,
+                          UA_STATUSCODE_GOOD, payloadMap);
+#endif
+    }
 }
 
 void
