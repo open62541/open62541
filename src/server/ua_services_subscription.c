@@ -14,6 +14,7 @@
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
+  *   Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -608,6 +609,10 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     }
 
     /* <-- The point of no return --> */
+
+    /* Mark the old subscription as transferred to prevent incorrect
+     * diagnostic counter updates when it is deleted */
+    sub->wasTransferred = true;
 
     /* Move over the MonitoredItems and adjust the backpointers */
     LIST_INIT(&newSub->monitoredItems);
