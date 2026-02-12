@@ -808,7 +808,14 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
         struct sockaddr_in sin;
         memset(&sin, 0, sizeof(sin));
         socklen_t len = sizeof(sin);
-        getsockname(listenSocket, (struct sockaddr *)&sin, &len);
+        if(getsockname(listenSocket, (struct sockaddr *)&sin, &len) != 0) {
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                            "UDP %u\t| getsockname failed (%s)",
+                            (unsigned)listenSocket, errno_str));
+            UA_close(listenSocket);
+            return UA_STATUSCODE_BADCONNECTIONREJECTED;
+        }
         port = ntohs(sin.sin_port);
     }
 
