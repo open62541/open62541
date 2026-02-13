@@ -18,10 +18,14 @@ makeDirectory(const char *path) {
 }
 
 UA_StatusCode
-makeFile(const char *path) {
-    FILE *file = fopen(path, "w");
-    if (file == NULL) {
+makeFile(const char *path, bool fileHandleBool, UA_Int32* output) {
+    FILE* file = fopen(path, "w");
+    if (output == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    if (fileHandleBool) {
+        output = (UA_Int32*)file;
+        return UA_STATUSCODE_GOOD;
     }
     fclose(file);
     return UA_STATUSCODE_GOOD;
@@ -141,7 +145,7 @@ directoryExists(const char *path, UA_Boolean *exists) {
 
 /* Open a file for reading or writing based on openMode */
 UA_StatusCode
-openFile(const char *path, UA_Byte openMode, FILE **handle) {
+openFile(const char *path, UA_Byte openMode, UA_Int32 **handle) {
     /* OPC UA Open modes:
      * Bit 0: Read
      * Bit 1: Write
@@ -159,7 +163,7 @@ openFile(const char *path, UA_Byte openMode, FILE **handle) {
         mode = "rb";
     }
     
-    *handle = fopen(path, mode);
+    *handle = (UA_Int32*)fopen(path, mode);
     if (!*handle) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -168,16 +172,16 @@ openFile(const char *path, UA_Byte openMode, FILE **handle) {
 
 /* Close an open file */
 UA_StatusCode
-closeFile(FILE *handle) {
+closeFile(UA_Int32 *handle) {
     if (handle) {
-        fclose(handle);
+        fclose((FILE*)handle);
     }
     return UA_STATUSCODE_GOOD;
 }
 
 /* Read from an open file */
 UA_StatusCode
-readFile(FILE *handle, UA_Int32 length, UA_ByteString *data) {
+readFile(UA_Int32 *handle, UA_Int32 length, UA_ByteString *data) {
     if (!handle || length <= 0) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -187,10 +191,10 @@ readFile(FILE *handle, UA_Int32 length, UA_ByteString *data) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     
-    size_t bytesRead = fread(data->data, 1, length, handle);
+    size_t bytesRead = fread(data->data, 1, length, (FILE*)handle);
     data->length = bytesRead;
     
-    if (ferror(handle)) {
+    if (ferror((FILE*)handle)) {
         UA_free(data->data);
         data->data = NULL;
         data->length = 0;
@@ -202,30 +206,30 @@ readFile(FILE *handle, UA_Int32 length, UA_ByteString *data) {
 
 /* Write to an open file */
 UA_StatusCode
-writeFile(FILE *handle, const UA_ByteString *data) {
+writeFile(UA_Int32 *handle, const UA_ByteString *data) {
     if (!handle || !data || !data->data) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     
-    size_t bytesWritten = fwrite(data->data, 1, data->length, handle);
+    size_t bytesWritten = fwrite(data->data, 1, data->length, (FILE*)handle);
     
     if (bytesWritten != data->length) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     
-    fflush(handle);
+    fflush((FILE*)handle);
     return UA_STATUSCODE_GOOD;
 }
 
 /* Seek to position in file */
 UA_StatusCode
-seekFile(FILE *handle, UA_UInt64 position) {
+seekFile(UA_Int32 *handle, UA_UInt64 position) {
     if (!handle) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     
     /* Use fseeko for 64-bit positions on POSIX */
-    if (fseeko(handle, (off_t)position, SEEK_SET) != 0) {
+    if (fseeko((FILE*)handle, (off_t)position, SEEK_SET) != 0) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     
@@ -234,12 +238,12 @@ seekFile(FILE *handle, UA_UInt64 position) {
 
 /* Get current file position */
 UA_StatusCode
-getFilePosition(FILE *handle, UA_UInt64 *position) {
+getFilePosition(UA_Int32 *handle, UA_UInt64 *position) {
     if (!handle || !position) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     
-    off_t pos = ftello(handle);
+    off_t pos = ftello((FILE*)handle);
     if (pos < 0) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -258,17 +262,15 @@ getFileSize(const char *path, UA_UInt64 *size) {
     *size = (UA_UInt64)st.st_size;
     return UA_STATUSCODE_GOOD;
 }
-UA_StatusCode
-scanDirectoryRecursive(UA_Server *server,
-                       const UA_NodeId *parentNode,
-                       const char *path,
-                       void *addDirFunc,
-                       void *addFileFunc)
-{
-    UA_StatusCode (*addDir)(UA_FileServerDriver*, UA_Server*, const UA_NodeId*,
-                            const char*, UA_NodeId*, const char*) = addDirFunc;
-    UA_StatusCode (*addFile)(UA_Server*, const UA_NodeId*, const char*, UA_NodeId*) = addFileFunc;
 
+UA_StatusCode
+scanDirectoryRecursive(
+    UA_Server *server, 
+    const UA_NodeId *parentNode, 
+    const char *path, 
+    AddDirType addDirFunc, 
+    AddFileType addFileFunc
+) {
     DIR *dir = opendir(path);
     if(!dir)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -289,12 +291,12 @@ scanDirectoryRecursive(UA_Server *server,
 
         if(S_ISDIR(st.st_mode)) {
             UA_NodeId newDirNode;
-            if(addDir(NULL, server, parentNode, name, &newDirNode, NULL) == UA_STATUSCODE_GOOD) {
+            if(addDirFunc(NULL, server, parentNode, name, &newDirNode, NULL) == UA_STATUSCODE_GOOD) {
                 scanDirectoryRecursive(server, &newDirNode, fullPath, addDirFunc, addFileFunc);
             }
         } else {
             UA_NodeId newFileNode;
-            addFile(server, parentNode, name, &newFileNode);
+            addFileFunc(server, parentNode, name, &newFileNode);
         }
     }
 

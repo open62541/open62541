@@ -10,6 +10,9 @@
  * It also shows how to attach a FileSystem node to the pump, so that logs or
  * configuration files can be accessed via OPC UA FileType methods.
  */
+
+#if defined(UA_FILESYSTEM)
+
 static void
 manuallyDefinePump(UA_Server *server, UA_FileServerDriver *driver) {
     UA_NodeId pumpId; /* NodeId assigned by the server for the new pump object */
@@ -64,7 +67,7 @@ manuallyDefinePump(UA_Server *server, UA_FileServerDriver *driver) {
      */
     UA_NodeId filesystemId; /* NodeId assigned by the server for the FileSystem */
     UA_FileServerDriver_addFileDirectory(driver, server, &pumpId,
-                                      "./var/log/opcua", &filesystemId, "./var/log/opcua");
+                                      "./", &filesystemId, "./");
 }
 
 int main(void) {
@@ -72,7 +75,7 @@ int main(void) {
     UA_Server *server = UA_Server_new();
 
     /* Create a new FileServerDriver instance */
-    UA_FileServerDriver *fsDriver = UA_FileServerDriver_new("MainFileServer", server);
+    UA_FileServerDriver *fsDriver = UA_FileServerDriver_new("MainFileServer", server, FILE_DRIVER_TYPE_LOCAL);
 
     /* Initialize the driver with a context that provides access to the server */
     UA_DriverContext ctx;
@@ -87,12 +90,7 @@ int main(void) {
     UA_NodeId nodeId1 = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId newFsNodeId1;
     UA_FileServerDriver_addFileDirectory(fsDriver, server, &nodeId1,
-                                      "./etc/opcua/config", &newFsNodeId1, "./etc/opcua/config");
-
-    UA_NodeId nodeId2 = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId newFsNodeId2;
-    UA_FileServerDriver_addFileDirectory(fsDriver, server, &nodeId2,
-                                      "./var/log/opcua", &newFsNodeId2, "./var/log/opcua");
+                                      "D:/UnifiedAutomation", &newFsNodeId1, "D:/UnifiedAutomation");
 
     /* Start the driver (could open resources or spawn threads here) */
     fsDriver->base.lifecycle.start((UA_Driver*)fsDriver);
@@ -110,3 +108,10 @@ int main(void) {
 
     return (int)retval;
 }
+#else
+int main(void) {
+    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                 "Filesystem support is disabled. Please enable UA_ENABLE_FILESYSTEM in CMake configuration to run this example.");
+    return 1;
+}
+#endif // UA_FILESYSTEM

@@ -1,9 +1,38 @@
 #ifndef UA_FILESERVER_DRIVER_H
 #define UA_FILESERVER_DRIVER_H
 
-#include <../../arch/common/fileSystemOperations_common.h>
+#if defined(UA_FILESYSTEM)
+
 #include <open62541/driver/driver.h>
 #include <filesystem/ua_filetypes.h>
+
+typedef struct UA_FileDriverContext UA_FileDriverContext; /* Forward declaration for driver context */
+
+/*
+ * Enumeration for different types of file drivers. 
+ * This allows for future extensibility, enabling support for various file system implementations (e.g., local, network-based, virtual). 
+ * Currently, only a local file driver type is defined, but additional types can be added as needed without modifying the existing driver interface.
+ */
+typedef enum {
+    FILE_DRIVER_TYPE_LOCAL /* Local file system driver, which interacts with the host's native file system APIs. */
+} FileDriverType;
+
+struct UA_FileDriverContext {
+    UA_StatusCode (*openFile)(const char *path, UA_Byte openMode, UA_Int32 **handle);
+    UA_StatusCode (*closeFile)(UA_Int32 *handle);
+    UA_StatusCode (*readFile)(UA_Int32 *handle, UA_Int32 length, UA_ByteString *data);
+    UA_StatusCode (*writeFile)(UA_Int32 *handle, const UA_ByteString *data);
+    UA_StatusCode (*seekFile)(UA_Int32 *handle, UA_UInt64 position);
+    UA_StatusCode (*getFilePosition)(UA_Int32 *handle, UA_UInt64 *position);
+    UA_StatusCode (*getFileSize)(const char *path, UA_UInt64 *size);
+    UA_StatusCode (*deleteDirOrFile)(const char *path);
+    UA_StatusCode (*moveOrCopyItem)(const char *sourcePath, const char *destinationPath, bool copy);
+    UA_StatusCode (*makeDirectory)(const char *path);
+    UA_StatusCode (*makeFile)(const char *path, bool fileHandleBool, UA_Int32* output);
+    UA_Boolean (*isDirectory)(const char *path);
+}; 
+
+#include <../../arch/common/fileSystemOperations_common.h>
 
 /* Structure representing the FileServer driver.
  *
@@ -14,6 +43,7 @@
  */
 typedef struct UA_FileServerDriver {
     UA_Driver base;             /* Generic driver base type (common lifecycle hooks) */
+    FileDriverType driverType; /* Type of file driver (e.g., local, network) */
     size_t fsCount;             /* Number of FileSystemNodes currently managed */
     UA_NodeId *fsNodes; /* FileSystems dynamically allocated array of FileSystemNodeIds */
 } UA_FileServerDriver;
@@ -85,6 +115,7 @@ UA_StatusCode UA_FileServerDriver_addFile(UA_Server *server,
  *  - A pointer to the newly allocated FileServerDriver.
  */
 UA_FileServerDriver *
-UA_FileServerDriver_new(const char *name, UA_Server *server);
+UA_FileServerDriver_new(const char *name, UA_Server *server, FileDriverType driverType);
 
 #endif /* UA_FILESERVER_DRIVER_H */
+#endif /* UA_FILESYSTEM */

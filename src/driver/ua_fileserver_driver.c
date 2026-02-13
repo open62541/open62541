@@ -4,16 +4,11 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/util.h>
 #include <filesystem/ua_filetypes.h>
-#include <process.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-void cleanupFunction(UA_Server *server, void *data) {
-    FileDirectoryContext *ctx = (FileDirectoryContext*)data;
-    free(ctx->path);
-    free(ctx);
-}
+#if defined(UA_FILESYSTEM)
 
 /* Wrapper for start */
 static UA_StatusCode
@@ -210,14 +205,68 @@ FileServerDriver_stop(UA_Driver *driver) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* Recursively delete all child nodes of a given node */
+static UA_StatusCode
+cleanupFileSystemSubtree(UA_Server *server, const UA_NodeId *nodeId) {
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.nodeId = *nodeId;
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+
+    UA_BrowseResult br = UA_Server_browse(server, 0, &bd);
+    if(br.statusCode != UA_STATUSCODE_GOOD)
+        return br.statusCode;
+
+    /* Iterate over all references */
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        UA_ReferenceDescription *ref = &br.references[i];
+
+        /* Only follow Organizes or HasComponent */
+        UA_NodeId org = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+        if(!UA_NodeId_equal(&ref->referenceTypeId, &org))
+            continue;
+
+        /* Only follow nodes in our namespace */
+        if(ref->nodeId.nodeId.namespaceIndex != nodeId->namespaceIndex)
+            continue;
+
+        /* Only follow FileType or DirectoryType */
+        UA_NodeId ft = UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE);
+        UA_NodeId dt = UA_NODEID_NUMERIC(0, UA_NS0ID_FILEDIRECTORYTYPE);
+        if(!UA_NodeId_equal(&ref->typeDefinition.nodeId, &ft) &&
+           !UA_NodeId_equal(&ref->typeDefinition.nodeId, &dt))
+            continue;
+
+        UA_NodeId childId = UA_NODEID_NULL;
+        UA_NodeId_copy(&ref->nodeId.nodeId, &childId);
+
+        /* Recursively delete children first */
+        cleanupFileSystemSubtree(server, &childId);
+
+        /* Delete the child node itself */
+        FileDirectoryContext *nodeContext;
+        UA_Server_getNodeContext(server, childId, (void**)&nodeContext);
+        UA_free(nodeContext->path);
+        UA_free(nodeContext);
+        UA_Server_deleteNode(server, childId, true);
+        UA_NodeId_clear(&childId);
+    }
+
+    UA_BrowseResult_clear(&br);
+    return UA_STATUSCODE_GOOD;
+}
+
 static UA_StatusCode
 FileServerDriver_cleanup(UA_Server *server, UA_Driver *driver) {
     UA_FileServerDriver *fsDriver = (UA_FileServerDriver*) driver;
     for(size_t i = 0; i < fsDriver->fsCount; i++) {
-        UA_Server_deleteNode(server, fsDriver->fsNodes[i], true);
+        cleanupFileSystemSubtree(server, &fsDriver->fsNodes[i]);
         FileDirectoryContext *nodeContext;
         UA_Server_getNodeContext(server, fsDriver->fsNodes[i], (void**)&nodeContext);
-        free(nodeContext->path);
+        UA_free(nodeContext->path);
+        UA_free(nodeContext);
+        UA_Server_deleteNode(server, fsDriver->fsNodes[i], true);
     }
     free(fsDriver->fsNodes);
     fsDriver->fsNodes = NULL;
@@ -314,9 +363,9 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
                                   const char *mountPath,
                                   UA_NodeId *newNodeId, const char *scanDir) {
 
-    char *name;
+    char *name = "";
     if (driver == NULL) {
-        name = mountPath;
+        strcpy(name, mountPath);
         
         if (childExists(server, parentNode, name)) {
             return UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
@@ -348,6 +397,8 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
 
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", name);
+    
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME_ALLOC(1, name);
 
     FileDirectoryContext *fsNode = (FileDirectoryContext*)UA_calloc(1, sizeof(FileDirectoryContext));
     if(!fsNode)
@@ -358,12 +409,15 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
         UA_NODEID_NULL,                /* Let the server assign a new NodeId automatically */
         *parentNode,                   /* Parent node under which this object is organized */
         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), /* Reference type: Organizes */
-        UA_QUALIFIEDNAME_ALLOC(1, name),   /* Qualified name in namespace 1 */
+        browseName,   /* Qualified name in namespace 1 */
         UA_NODEID_NUMERIC(0, UA_NS0ID_FILEDIRECTORYTYPE), /* Type definition: FileDirectoryType */
         oAttr, fsNode, newNodeId);
     
+    UA_LocalizedText_clear(&oAttr.displayName);
+    UA_QualifiedName_clear(&browseName);
+
     if (scanDir != NULL) {
-        scanDirectoryRecursive(server, newNodeId, scanDir, &UA_FileServerDriver_addFileDirectory, &UA_FileServerDriver_addFile);
+        scanDirectoryRecursive(server, newNodeId, scanDir, (AddDirType)&UA_FileServerDriver_addFileDirectory, (AddFileType)&UA_FileServerDriver_addFile);
     }
 
     if (driver == NULL) {
@@ -396,6 +450,8 @@ UA_FileServerDriver_addFile(UA_Server *server,
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", filePath);
 
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME_ALLOC(1, filePath);
+
     /* Create FileContext for this file node */
     FileContext *fileCtx = (FileContext*)UA_calloc(1, sizeof(FileContext));
     if (!fileCtx) {
@@ -414,10 +470,13 @@ UA_FileServerDriver_addFile(UA_Server *server,
         UA_NODEID_NULL,                /* Let the server assign a new NodeId automatically */
         *parentNode,                   /* Parent node under which this object is organized */
         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), /* Reference type: Organizes */
-        UA_QUALIFIEDNAME_ALLOC(1, filePath),   /* Qualified name in namespace 1 */
+        browseName,   /* Qualified name in namespace 1 */
         UA_NODEID_NUMERIC(0, UA_NS0ID_FILETYPE), /* Type definition: FileType */
         oAttr, fileCtx, newNodeId);
     
+    UA_LocalizedText_clear(&oAttr.displayName);
+    UA_QualifiedName_clear(&browseName);
+
     if (retval != UA_STATUSCODE_GOOD) {
         free(fileCtx->path);
         UA_free(fileCtx);
@@ -440,7 +499,7 @@ UA_FileServerDriver_addFile(UA_Server *server,
  *  - A pointer to the newly allocated FileServerDriver.
  */
 UA_FileServerDriver *
-UA_FileServerDriver_new(const char *name, UA_Server *server) {
+UA_FileServerDriver_new(const char *name, UA_Server *server, FileDriverType driverType) {
     UA_FileServerDriver *driver = (UA_FileServerDriver*) malloc(sizeof(UA_FileServerDriver));
     if (!driver)
         return NULL;
@@ -459,15 +518,32 @@ UA_FileServerDriver_new(const char *name, UA_Server *server) {
     UA_NodeId driverNodeId;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "FileServerDriver");
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME_ALLOC(1, name);
+
+    UA_FileDriverContext *ctx = (UA_FileDriverContext*)UA_calloc(1, sizeof(UA_FileDriverContext));
+
+    /* --- Setting the FileDriverType for the corresponding functions --- */
+    switch (driverType) {
+        case FILE_DRIVER_TYPE_LOCAL:
+            driver->driverType = FILE_DRIVER_TYPE_LOCAL;
+            fillLocalFileDriverContext(ctx, driver->driverType);
+            break;
+        default:
+            free(driver);
+            return NULL;
+    }
 
     UA_StatusCode retval = UA_Server_addObjectNode(
         server, /* Server will be set later when the driver is initialized */
         UA_NODEID_NULL,
         UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-        UA_QUALIFIEDNAME_ALLOC(1, name),
+        browseName,
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-        oAttr, NULL, &driverNodeId);
+        oAttr, ctx, &driverNodeId);
+
+    UA_LocalizedText_clear(&oAttr.displayName);
+    UA_QualifiedName_clear(&browseName);
 
     if(retval != UA_STATUSCODE_GOOD) {
         free(driver);
@@ -479,3 +555,5 @@ UA_FileServerDriver_new(const char *name, UA_Server *server) {
 
     return driver;
 }
+
+#endif // UA_FILESYSTEM

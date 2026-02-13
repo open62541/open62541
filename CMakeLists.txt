@@ -134,11 +134,6 @@ endif()
 set(UA_MULTITHREADING ${MULTITHREADING_DEFAULT} CACHE STRING
     "Multithreading support (<100: No multithreading support, >=100: Thread-safety enabled (internal mutexes)")
 
-set(UA_ENABLE_DIRECTORY_SYSTEM OFF)
-if(WIN32 OR UNIX)
-    set(UA_ENABLE_DIRECTORY_SYSTEM ON)
-endif()
-
 option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
 
@@ -183,6 +178,14 @@ else()
         set(UA_ENABLE_DISCOVERY_MULTICAST "AVAHI")
         set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
     endif()
+endif()
+
+option(UA_ENABLE_FILESYSTEM "Enable filesystem support!" ON)
+if(UA_ENABLE_FILESYSTEM AND UA_NAMESPACE_ZERO STREQUAL "FULL")
+    message("Filesystem support is enabled. This will add a lot of nodes to namespace zero and increase the binary size significantly. Consider using a reduced namespace zero configuration if you do not need the full filesystem information model.")
+    set(UA_FILESYSTEM ON)
+    mark_as_advanced(UA_FILESYSTEM)
+    add_compile_definitions(UA_FILESYSTEM)
 endif()
 
 # security provider
@@ -251,7 +254,7 @@ if(UA_ENABLE_TPM2_KEYSTORE)
 endif()
 
 # Namespace Zero
-set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (none/minimal/reduced/full)")
+set(UA_NAMESPACE_ZERO "FULL" CACHE STRING "Completeness of the generated namespace zero (none/minimal/reduced/full)")
 SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "NONE" "MINIMAL" "REDUCED" "FULL")
 if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL" OR UA_NAMESPACE_ZERO STREQUAL "NONE")
     set(UA_GENERATED_NAMESPACE_ZERO OFF)

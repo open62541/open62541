@@ -1,6 +1,8 @@
 #include <open62541/types.h>
 #include <stdio.h>
 
+#if defined(UA_FILESYSTEM)
+
 #ifndef UA_FILESYSTEM_FILETYPES_H_
 #define UA_FILESYSTEM_FILETYPES_H_
 #include <open62541/driver/ua_fileserver_driver.h>
@@ -34,3 +36,4 @@ typedef struct FileContext {
 } FileContext;
 
 #endif // UA_FILESYSTEM_FILETYPES_H_
+#endif // UA_FILESYSTEM

@@ -2,6 +2,7 @@
  * Based on FILETYPE_IMPLEMENTATION_GUIDE.md
  * Refactored to use session-based context per reviewer feedback
  */
+#if defined(UA_FILESYSTEM)
 
 #include <../src/server/ua_server_internal.h>
 #include <open62541/driver/ua_fileserver_driver.h>
@@ -22,6 +23,7 @@ findSessionContext(FileContext *fileCtx, const UA_NodeId *sessionId) {
         }
         current = current->next;
     }
+    
     return NULL;
 }
 
@@ -452,3 +454,5 @@ initFileTypeOperations(UA_FileServerDriver *fileDriver) {
     
     return retval;
 }
+
+#endif /* UA_FILESYSTEM */

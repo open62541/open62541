@@ -3,7 +3,7 @@
 #if defined(UA_ARCHITECTURE_WIN32)
 #include <direct.h>
 #include <open62541/server.h>
-#include <open62541/driver/ua_fileserver_driver.h>
+#include <open62541/driver/driver.h>
 #include <stdio.h>
 #include <sys/stat.h>
 
@@ -18,10 +18,14 @@ makeDirectory(const char *path) {
 
 /*Create a File with the give path*/
 UA_StatusCode
-makeFile(const char *path) {
-    FILE *file = fopen(path, "w");
-    if (file == NULL) {
+makeFile(const char *path, bool fileHandleBool, UA_Int32* output) {
+    FILE* file = fopen(path, "w");
+    if (output == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    if (fileHandleBool) {
+        output = (UA_Int32*)file;
+        return UA_STATUSCODE_GOOD;
     }
     fclose(file);
     return UA_STATUSCODE_GOOD;
@@ -247,10 +251,14 @@ getFileSize(const char *path, UA_UInt64 *size) {
 }
 
 UA_StatusCode
-scanDirectoryRecursive(UA_Server *server, const UA_NodeId *parentNode, const char *path, void* addDirFunc, void* addFileFunc) {
+scanDirectoryRecursive(
+    UA_Server *server, 
+    const UA_NodeId *parentNode, 
+    const char *path, 
+    AddDirType addDirFunc, 
+    AddFileType addFileFunc
+) {
     UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER, "Scanning directory: %s", path);
-    UA_StatusCode (*addDir)(UA_FileServerDriver* , UA_Server*, const UA_NodeId* , const char *, UA_NodeId *, const char *) = addDirFunc;
-    UA_StatusCode (*addFile)(UA_Server*, const UA_NodeId* , const char *, UA_NodeId *) = addFileFunc;
     char searchPath[MAX_PATH];
     snprintf(searchPath, sizeof(searchPath), "%s\\*", path);
 
@@ -271,12 +279,12 @@ scanDirectoryRecursive(UA_Server *server, const UA_NodeId *parentNode, const cha
 
         if(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             UA_NodeId newDirNode;
-            if (addDir(NULL, server, parentNode, name, &newDirNode, NULL) == UA_STATUSCODE_GOOD) {
+            if ((addDirFunc)(NULL, server, parentNode, name, &newDirNode, NULL) == UA_STATUSCODE_GOOD) {
                 scanDirectoryRecursive(server, &newDirNode, fullPath, addDirFunc, addFileFunc);
             }
         } else {
             UA_NodeId newFileNode;
-            addFile(server, parentNode, name, &newFileNode);
+            ((UA_StatusCode (*)(UA_Server *, const UA_NodeId *, const char *, UA_NodeId *))addFileFunc)(server, parentNode, name, &newFileNode);
         }
     } while(FindNextFileA(hfind, &ffd) != 0);
 

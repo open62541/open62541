@@ -6,6 +6,8 @@
 #include <open62541/plugin/log_stdout.h>
 #include <stdio.h>
 
+#if defined(UA_FILESYSTEM)
+
 // #ifdef UA_ENABLE_FILESYSTEM
 static UA_StatusCode
 createDirectory(UA_Server *server,
@@ -73,7 +75,7 @@ createFile(UA_Server *server,
 
     char fullPath[2048];
     getFullPath(server, objectId, fullPath, 2048);
-
+    
     char name[512];
     snprintf(name, sizeof(name), "%.*s",
             (int)fileName.length,
@@ -84,7 +86,12 @@ createFile(UA_Server *server,
                 name);
 
     char temp[2048];
-    snprintf(temp, sizeof(temp), "%s%s", fullPath, name);
+    int written = snprintf(temp, sizeof(temp), "%s%s", fullPath, name);
+    if(written < 0 || written >= (int)sizeof(temp)) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    }
+
     strncpy(fullPath, temp, 2048);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
@@ -92,13 +99,14 @@ createFile(UA_Server *server,
                 fullPath);
 
     // Implementation to create a directory in the filesystem
-    UA_StatusCode res = makeFile(fullPath);
+    UA_StatusCode res = makeFile(fullPath, fileHandleBool, (UA_Int32*)output);
     if (res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
                      "Failed to create file: %s",
                      fullPath);
         return res;
     }
+
 
     output[0].type = &UA_TYPES[UA_TYPES_NODEID];
     output[0].data = UA_NodeId_new();      // SAFE allocation
@@ -166,6 +174,10 @@ deleteSubtree(UA_Server *server, const UA_NodeId *nodeId, bool deleteFiles) {
             deleteDirOrFile(fullPath);
 
         /* Delete the child node itself */
+        FileDirectoryContext *nodeContext;
+        UA_Server_getNodeContext(server, childId, (void**)&nodeContext);
+        UA_free(nodeContext->path);
+        UA_free(nodeContext);
         UA_Server_deleteNode(server, childId, true);
         UA_NodeId_clear(&childId);
     }
@@ -244,11 +256,20 @@ moveOrCopy(UA_Server *server,
     srcPath[strlen(srcPath)-1] = '\0';
 
     getFullPath(server, nodeIdDst, temp, MAX_PATH);
-    char name[512];
-    snprintf(name, sizeof(name), "%.*s",
+    char name[MAX_PATH];
+    int written = snprintf(name, sizeof(name), "%.*s",
             (int)newName->length,
             newName->data);
-    snprintf(temp, sizeof(temp), "%s%s", temp, name);
+    if(written < 0 || written >= (int)sizeof(name)) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    char tmp[MAX_PATH];
+    strncpy(tmp, temp, sizeof(tmp));
+
+    written = snprintf(temp, sizeof(temp), "%s%s", tmp, name);
+    if(written < 0 || written >= (int)sizeof(temp)) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
     strncpy(dstPath, temp, MAX_PATH);
 
     // TODO: Add new Nodes to the tree or move old ones
@@ -358,4 +379,4 @@ initFileSystemManagement(UA_FileServerDriver *fileDriver) {
     return retval;
 }
 
-// #endif // UA_ENABLE_FILESYSTEM
+#endif // UA_FILESYSTEM
