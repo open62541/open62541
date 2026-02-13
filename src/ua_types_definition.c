@@ -213,9 +213,9 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
 #endif
 
         /* Memory size and padding for the scalar case */
-        UA_Byte alignment = type_alignment(dtm->memberType);
+        UA_Byte talignment = type_alignment(dtm->memberType);
         size_t memSize = dtm->memberType->memSize;
-        dtm->padding = PADDING(type->memSize, alignment);
+        dtm->padding = PADDING(type->memSize, talignment);
 
         /* Handle valuerank and array dimensions */
         if(sf->valueRank == 1) {

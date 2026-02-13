@@ -11,7 +11,7 @@
 /* Cancel the operation, but don't _clear it here */
 static void
 UA_AsyncOperation_cancel(UA_Server *server, UA_AsyncOperation *op,
-                         UA_StatusCode status) {
+                         UA_StatusCode opstatus) {
     UA_ServerConfig *sc = &server->config;
     void *cancelPtr = NULL;
 
@@ -20,30 +20,30 @@ UA_AsyncOperation_cancel(UA_Server *server, UA_AsyncOperation *op,
     case UA_ASYNCOPERATIONTYPE_READ_REQUEST:
         cancelPtr = op->output.read;
         op->output.read->hasStatus = true;
-        op->output.read->status = status;
+        op->output.read->status = opstatus;
         break;
     case UA_ASYNCOPERATIONTYPE_READ_DIRECT:
         cancelPtr = &op->output.directRead;
         op->output.directRead.hasStatus = true;
-        op->output.directRead.status = status;
+        op->output.directRead.status = opstatus;
         break;
     case UA_ASYNCOPERATIONTYPE_WRITE_REQUEST:
         cancelPtr = &op->context.writeValue.value;
-        *op->output.write = status;
+        *op->output.write = opstatus;
         break;
     case UA_ASYNCOPERATIONTYPE_WRITE_DIRECT:
         cancelPtr = &op->context.writeValue.value;
-        op->output.directWrite = status;
+        op->output.directWrite = opstatus;
         break;
     case UA_ASYNCOPERATIONTYPE_CALL_REQUEST:
         /* outputArguments is always an allocated pointer, also if the length is zero */
         cancelPtr = op->output.call->outputArguments;
-        op->output.call->statusCode = status;
+        op->output.call->statusCode = opstatus;
         break;
     case UA_ASYNCOPERATIONTYPE_CALL_DIRECT:
         /* outputArguments is always an allocated pointer, also if the length is zero */
         cancelPtr = op->output.directCall.outputArguments;
-        op->output.directCall.statusCode = status;
+        op->output.directCall.statusCode = opstatus;
         break;
     default: UA_assert(false); return;
     }
@@ -469,7 +469,7 @@ persistAsyncDirectOperation(UA_Server *server, UA_AsyncOperation *op,
 }
 
 void
-async_cancel(UA_Server *server, void *context, UA_StatusCode status,
+async_cancel(UA_Server *server, void *context, UA_StatusCode opstatus,
              UA_Boolean cancelSynchronous) {
     UA_AsyncManager *am = &server->asyncManager;
     UA_AsyncOperation *op = NULL, *op_tmp = NULL;
@@ -481,7 +481,7 @@ async_cancel(UA_Server *server, void *context, UA_StatusCode status,
 
         /* Cancel the operation. This sets the StatusCode and calls the
          * asyncOperationCancelCallback. */
-        UA_AsyncOperation_cancel(server, op, status);
+        UA_AsyncOperation_cancel(server, op, opstatus);
 
         /* Call the result-callback of the local async operation.
          * Right away or in the next EventLoop iteration. */
@@ -511,10 +511,10 @@ async_cancel(UA_Server *server, void *context, UA_StatusCode status,
 }
 
 void
-UA_Server_cancelAsync(UA_Server *server, void *context, UA_StatusCode status,
+UA_Server_cancelAsync(UA_Server *server, void *context, UA_StatusCode opstatus,
                       UA_Boolean synchronousResultCallback) {
     lockServer(server);
-    async_cancel(server, context, status, synchronousResultCallback);
+    async_cancel(server, context, opstatus, synchronousResultCallback);
     unlockServer(server);
 }
 

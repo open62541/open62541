@@ -299,6 +299,7 @@ ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
 UA_StatusCode
 validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                     UA_SecureChannel *channel, UA_Session *session,
+                    const char *logPrefix,
                     const UA_ApplicationDescription *ad,
                     const UA_ByteString certificate);
 

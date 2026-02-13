@@ -22,6 +22,7 @@
 
 #include "certificates_ca.h"
 #include "check.h"
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
@@ -84,6 +85,9 @@ setup(void) {
     UA_ServerConfig_setDefaultWithSecurityPolicies(
         config, 4840, &certificate, &privateKey, trustList, trustListSize, issuerList,
         issuerListSize, revocationList, revocationListSize);
+    config->eventLoop->dateTime_now = UA_DateTime_now_fake;
+    config->eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
+    config->tcpReuseAddr = true;
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
@@ -128,8 +132,7 @@ START_TEST(encryption_connect_Basic256Sha256_ca) {
     /* The Get endpoint (discovery service) is done with
      * security mode as none to see the server's capability
      * and certificate */
-    client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    client = UA_Client_newForUnitTest();
     ck_assert(client != NULL);
     UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
                                                   &endpointArraySize, &endpointArray);
@@ -142,7 +145,7 @@ START_TEST(encryption_connect_Basic256Sha256_ca) {
     UA_Client_delete(client);
 
     /* Secure client initialization */
-    client = UA_Client_new();
+    client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     cc->privateKeyPasswordCallback = privateKeyPasswordClientCallback;
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey, trustList,
