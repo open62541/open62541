@@ -603,8 +603,11 @@ UA_SecurityPolicy *
 getDefaultEncryptedSecurityPolicy(UA_Server *server,
                                   UA_SecurityPolicyType type);
 
+/* If the channel is non-NULL, then only compatible endpoints are returned.
+ * Depending on ECC/RSA for the SecurityPolicy of the existing channel. */
 UA_StatusCode
-setCurrentEndPointsArray(UA_Server *server, const UA_String endpointURL,
+setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
+                         const UA_String endpointUrl,
                          UA_String *profileUris, size_t profileUrisSize,
                          UA_EndpointDescription **arr, size_t *arrSize);
 

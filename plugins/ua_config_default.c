@@ -1156,9 +1156,9 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     } else {
-        UA_LOG_ERROR(conf->logging, UA_LOGCATEGORY_APPLICATION,
-                     "Empty trustlist passed. Leaving the previously "
-                     "configured certificate verification in place");
+        UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_APPLICATION,
+                       "Empty trustlist passed. Leaving the previously "
+                       "configured certificate verification in place");
     }
 
     retval = UA_ServerConfig_addAllSecurityPolicies(conf, certificate, privateKey);
@@ -1266,9 +1266,9 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
         }
         UA_TrustListDataType_clear(&list);
     } else {
-        UA_LOG_ERROR(conf->logging, UA_LOGCATEGORY_APPLICATION,
-                     "Empty trustlist passed. Leaving the previously "
-                     "configured certificate verification in place");
+        UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_APPLICATION,
+                       "Empty trustlist passed. Leaving the previously "
+                       "configured certificate verification in place");
     }
 
     retval = UA_ServerConfig_addAllSecureSecurityPolicies(conf, certificate, privateKey);
@@ -1897,9 +1897,9 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     } else {
-        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Empty trustlist passed. Leaving the previously "
-                     "configured certificate verification in place");
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "Empty trustlist passed. Leaving the previously "
+                       "configured certificate verification in place");
     }
 
     /* Load the private key and convert to the DER format. Use an empty password

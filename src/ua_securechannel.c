@@ -44,16 +44,16 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel, UA_SecurityPolicy 
     UA_StatusCode res = sp->newChannelContext(sp, remoteCertificate,
                                               &channel->channelContext);
     res |= UA_ByteString_copy(remoteCertificate, &channel->remoteCertificate);
-    UA_CHECK_STATUS_WARN(res, return res, sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "Could not set up the SecureChannel context");
+    UA_CHECK_STATUS_ERROR(res, return res, sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                          "Could not set up the SecureChannel context");
 
     /* Compute the certificate thumbprint */
     UA_ByteString remoteCertificateThumbprint =
         {20, channel->remoteCertificateThumbprint};
     res = sp->makeCertThumbprint(sp, &channel->remoteCertificate,
                                  &remoteCertificateThumbprint);
-    UA_CHECK_STATUS_WARN(res, return res, sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "Could not create the certificate thumbprint");
+    UA_CHECK_STATUS_ERROR(res, return res, sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                          "Could not create the certificate thumbprint");
 
     /* Set the SecurityPolicy */
     channel->securityPolicy = sp;
