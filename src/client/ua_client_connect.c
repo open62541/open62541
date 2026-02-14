@@ -1963,7 +1963,6 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                 client->channel.unprocessedDelayed.callback = delayedNetworkCallback;
                 client->channel.unprocessedDelayed.application = client;
                 client->channel.unprocessedDelayed.context = &client->channel;
-                UA_EventLoop *el = client->config.eventLoop;
                 el->addDelayedCallback(el, &client->channel.unprocessedDelayed);
             }
             res = UA_STATUSCODE_GOOD;
