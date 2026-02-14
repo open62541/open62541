@@ -97,13 +97,20 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri) {
     return NULL;
 }
 
+/* Match PolicyUri and certificate. The returned SecurityPolicy instance carries
+ * the private key to sign with the given ceertificate. */
 static UA_SecurityPolicy *
-getAuthSecurityPolicy(UA_Client *client, UA_String policyUri) {
+getAuthSecurityPolicy(UA_Client *client, const UA_String policyUri,
+                      const UA_ByteString certificate) {
     for(size_t i = 0; i < client->config.authSecurityPoliciesSize; i++) {
-        if(UA_String_equal(&policyUri, &client->config.authSecurityPolicies[i].policyUri))
-            return &client->config.authSecurityPolicies[i];
+        UA_SecurityPolicy *sp = &client->config.authSecurityPolicies[i];
+        if(!UA_String_equal(&policyUri, &sp->policyUri))
+            continue;
+        if(!UA_ByteString_equal(&certificate, &sp->localCertificate))
+            continue;
+        return sp;
     }
-    return getSecurityPolicy(client, policyUri);
+    return NULL;
 }
 
 /* The endpoint is unconfigured if the description is all zeroed-out */
