@@ -148,6 +148,78 @@ isFullyConnected(UA_Client *client) {
     return true;
 }
 
+static UA_StatusCode
+initUserTokenPolicy(UA_Client *client, const UA_UserTokenPolicy **outUtp,
+                    char *logPrefix) {
+    const UA_UserTokenPolicy *utp =
+        findUserTokenPolicy(client, &client->endpoint, logPrefix);
+    if(!utp) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "%s: Could not find a matching UserTokenPolicy "
+                     "in the endpoint", logPrefix);
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    }
+
+    UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                "%s: Using UserTokenPolicy %S", logPrefix, utp->policyId);
+
+    /* If not specifically defined in the UserTokenPolicy, then the
+     * SecurityPolicy of the underlying endpoint (SecureChannel) is used. */
+    UA_String tokenSecurityPolicyUri = (utp->securityPolicyUri.length > 0) ?
+        utp->securityPolicyUri : client->endpoint.securityPolicyUri;
+
+    /* Get the SecurityPolicy for authentication */
+    UA_SecurityPolicy *utsp;
+    if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+        UA_X509IdentityToken *token = (UA_X509IdentityToken*)
+            client->config.userIdentityToken.content.decoded.data;
+        utsp = getAuthSecurityPolicy(client, tokenSecurityPolicyUri,
+                                     token->certificateData);
+    } else {
+        utsp = getSecurityPolicy(client, tokenSecurityPolicyUri);
+    }
+    if(!utsp) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "%s: SecurityPoliocy %S not available for the "
+                     "UserTokenPolicy", logPrefix, tokenSecurityPolicyUri);
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    }
+
+    /* ExistingSecurityPolicy matches? */
+    if(client->utpSp) {
+        if(!UA_String_equal(&client->utpSp->policyUri,
+                            &tokenSecurityPolicyUri)) {
+            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "%s: SecurityPoliocy %S cannot be instantiated. "
+                         "A different SecurityPolicy %s is in place already",
+                         logPrefix, tokenSecurityPolicyUri,
+                         client->utpSp->policyUri);
+            return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+        }
+
+        /* Set the output and return */
+        *outUtp = utp;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Create an instance of the SecurityPolicy using the server certificate
+     * from the endpoint */
+    UA_StatusCode res =
+        utsp->newChannelContext(utsp, &client->endpoint.serverCertificate,
+                                &client->utpSpContext);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "%s: UserTokenPolicy %S could not be instantiated with the "
+                     "server certificate", logPrefix, tokenSecurityPolicyUri);
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+    }
+    client->utpSp = utsp;
+
+    /* Set the output and return */
+    *outUtp = utp;
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Function to create a signature using remote certificate and nonce.
  * This uses the SecurityPolicy of the SecureChannel. */
 static UA_StatusCode
@@ -189,8 +261,14 @@ signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
 }
 
 static UA_StatusCode
-signUserTokenSignature(UA_Client *client, UA_SecurityPolicy *utsp,
+signUserTokenSignature(UA_Client *client,
                        UA_ActivateSessionRequest *request) {
+    UA_assert(client->config.userIdentityToken.content.decoded.type ==
+              &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]);
+
+    UA_SecurityPolicy *utpSp = client->utpSp;
+    UA_assert(utpSp);
+
     /* Check the size of the content for signing and create a temporary buffer */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     size_t signDataSize =
@@ -1559,18 +1637,20 @@ static UA_StatusCode
 createSessionAsync(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
-    /* Generate the local nonce for the session */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
-       client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        /* Get the nonce length (at leat 32 byte, the SecurityPolicy #None might
-         * not have that */
-        const UA_SecurityPolicy *sp = client->channel.securityPolicy;
-        size_t nonceLength = sp->nonceLength;
-        if(nonceLength < 32)
-            nonceLength = 32;
+    /* Select the UserTokenPolicy based on the client configuration and the
+     * endpoint information. Also instantiates the UserTokenPolicy if not
+     * already there. */
+    const UA_UserTokenPolicy *utp = NULL;
+    UA_StatusCode res = initUserTokenPolicy(client, &utp, "CreateSession");
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
-        /* Allocate the memory */
+    UA_SecurityPolicy *utpSp = client->utpSp;
+    UA_assert(utpSp);
+
+    /* Create the nonce. Trigger the ephemeral key generation for ECC. */
+    size_t nonceLength = utpSp->nonceLength;
+    if(nonceLength > 0) {
         if(client->clientSessionNonce.length != nonceLength) {
             UA_ByteString_clear(&client->clientSessionNonce);
             res = UA_ByteString_allocBuffer(&client->clientSessionNonce, nonceLength);
@@ -1578,12 +1658,17 @@ createSessionAsync(UA_Client *client) {
                 return res;
         }
 
-        /* Create the nonce. Don't trigger the ephemeral key generation. This
-         * would overwrite the ephemeral keys used for the SecureChannel. */
-        void *cc = client->channel.channelContext;
-        res = sp->generateNonce(sp, cc, &client->clientSessionNonce);
-        if(res != UA_STATUSCODE_GOOD)
+        client->clientSessionNonce.data[0] = 'e';
+        client->clientSessionNonce.data[1] = 'p';
+        client->clientSessionNonce.data[2] = 'h';
+        res = utpSp->generateNonce(utpSp, client->utpSpContext,
+                                   &client->clientSessionNonce);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "UserTokenPolicy %S could not create the nonce",
+                         utpSp->policyUri);
             return res;
+        }
     }
 
     /* Prepare the request */
@@ -1598,18 +1683,9 @@ createSessionAsync(UA_Client *client) {
 
     /* Send the certificate that is used for the UserIdentiyToken as the
      * ApplicationCertificate */
-    const UA_UserTokenPolicy *utp = findUserTokenPolicy(client, &client->endpoint, NULL);
-    if(utp) {
-        /* If not specifically defined in the UserTokenPolicy, then the
-         * SecurityPolicy of the underlying endpoint (SecureChannel) is used. */
-        UA_String tokenSecurityPolicyUri = (utp->securityPolicyUri.length > 0) ?
-            utp->securityPolicyUri : client->endpoint.securityPolicyUri;
-        /* Get the SecurityPolicy for authentication */
-        UA_SecurityPolicy *utsp = getAuthSecurityPolicy(client, tokenSecurityPolicyUri);
-        if(utsp)
-            request.clientCertificate = utsp->localCertificate;
-    }
+    request.clientCertificate = utpSp->localCertificate;
 
+    /* Send the request */
     res = __Client_AsyncService(client, &request,
                                 &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
                                 (UA_ClientAsyncServiceCallback)createSessionCallback,
@@ -2646,6 +2722,11 @@ cleanupSession(UA_Client *client) {
 
     /* Clean the latest server's ephemeral public key */
     UA_ByteString_clear(&client->serverEphemeralPubKey);
+    if(client->utpSp && client->utpSpContext) {
+        client->utpSp->deleteChannelContext(client->utpSp, client->utpSpContext);
+        client->utpSp = NULL;
+        client->utpSpContext = NULL;
+    }
 }
 
 static void
