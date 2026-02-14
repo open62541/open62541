@@ -472,9 +472,9 @@ setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
         UA_SecurityPolicy *sp =
             getSecurityPolicyByUri(server, &ep->securityPolicyUri);
         if(!sp) {
-            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                         "GetEndpoints: Endpoint defines SecurityPolicy "
-                         "%S which is not available", ep->securityPolicyUri);
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "GetEndpoints: Endpoint defines SecurityPolicy "
+                           "%S which is not available", ep->securityPolicyUri);
             continue;
         }
 
