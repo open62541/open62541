@@ -422,12 +422,15 @@ sendHELMessage(UA_Client *client) {
     retval = cm->sendWithConnection(cm, client->channel.connectionId,
                                     &UA_KEYVALUEMAP_NULL, &message);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT, "Sending HEL failed");
+        UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                    "Sending HEL failed");
         closeSecureChannel(client);
         return retval;
     }
 
-    UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT, "Sent HEL message");
+    UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                 "Sent HEL message");
+
     client->channel.state = UA_SECURECHANNELSTATE_HEL_SENT;
     return UA_STATUSCODE_GOOD;
 }
@@ -509,10 +512,12 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
      * clock to do the comparison. */
     UA_EventLoop *el = client->config.eventLoop;
     UA_DateTime wallClockNow = el->dateTime_now(el);
-    if(wallClockNow - client->channel.securityToken.createdAt >= UA_DATETIME_SEC * 10 ||
-       wallClockNow - client->channel.securityToken.createdAt <= -UA_DATETIME_SEC * 10)
-        UA_LOG_WARNING_CHANNEL(client->config.logging, &client->channel, "The \"CreatedAt\" "
-                               "timestamp of the received ChannelSecurityToken does not match "
+    UA_ChannelSecurityToken *st = &client->channel.securityToken;
+    if(wallClockNow - st->createdAt >= UA_DATETIME_SEC * 10 ||
+       wallClockNow - st->createdAt <= -UA_DATETIME_SEC * 10)
+        UA_LOG_WARNING_CHANNEL(client->config.logging, &client->channel,
+                               "The \"CreatedAt\" timestamp of the received "
+                               "ChannelSecurityToken does not match "
                                "with the local system clock");
 
     /* The internal "monotonic" clock is used by the SecureChannel to validate
@@ -639,8 +644,8 @@ UA_Client_renewSecureChannel(UA_Client *client) {
 }
 
 static void
-responseReadNamespacesArray(UA_Client *client, void *userdata, UA_UInt32 requestId,
-                            void *response) {
+responseReadNamespacesArray(UA_Client *client, void *userdata,
+                            UA_UInt32 requestId, void *response) {
     client->namespacesHandshake = false;
     client->haveNamespaces = true;
 
@@ -661,13 +666,17 @@ responseReadNamespacesArray(UA_Client *client, void *userdata, UA_UInt32 request
     }
 
     /* Set up the mapping. */
-    UA_NamespaceMapping *nsMapping = (UA_NamespaceMapping*)UA_calloc(1, sizeof(UA_NamespaceMapping));
+    UA_NamespaceMapping *nsMapping = (UA_NamespaceMapping*)
+        UA_calloc(1, sizeof(UA_NamespaceMapping));
     if(!nsMapping) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Namespace mapping creation failed. Out of Memory.");
         return;
     }
-    UA_StatusCode retval = UA_Array_copy(client->namespaces, client->namespacesSize, (void**)&nsMapping->namespaceUris, &UA_TYPES[UA_TYPES_STRING]);
+    UA_StatusCode retval =
+        UA_Array_copy(client->namespaces, client->namespacesSize,
+                      (void**)&nsMapping->namespaceUris,
+                      &UA_TYPES[UA_TYPES_STRING]);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Failed to copy the namespaces with StatusCode %s.",
@@ -849,6 +858,7 @@ static UA_StatusCode
 activateSessionAsync(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
+    /* We should not try to activate in the current state */
     if(client->sessionState != UA_SESSIONSTATE_CREATED &&
        client->sessionState != UA_SESSIONSTATE_ACTIVATED) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
@@ -2097,7 +2107,8 @@ initConnect(UA_Client *client) {
         paramMap.mapSize = 3;
 
         /* Open the client TCP connection */
-        UA_StatusCode res = cm->openConnection(cm, &paramMap, client, NULL, __Client_networkCallback);
+        UA_StatusCode res = cm->openConnection(cm, &paramMap, client,
+                                               NULL, __Client_networkCallback);
         if(res == UA_STATUSCODE_GOOD)
             break;
     }
@@ -2265,7 +2276,8 @@ UA_Client_activateCurrentSessionAsync(UA_Client *client) {
 }
 
 UA_StatusCode
-UA_Client_getSessionAuthenticationToken(UA_Client *client, UA_NodeId *authenticationToken,
+UA_Client_getSessionAuthenticationToken(UA_Client *client,
+                                        UA_NodeId *authenticationToken,
                                         UA_ByteString *serverNonce) {
     lockClient(client);
     if(client->sessionState != UA_SESSIONSTATE_CREATED &&
@@ -2276,7 +2288,8 @@ UA_Client_getSessionAuthenticationToken(UA_Client *client, UA_NodeId *authentica
         return UA_STATUSCODE_BADSESSIONCLOSED;
     }
 
-    UA_StatusCode res = UA_NodeId_copy(&client->authenticationToken, authenticationToken);
+    UA_StatusCode res =
+        UA_NodeId_copy(&client->authenticationToken, authenticationToken);
     res |= UA_ByteString_copy(&client->serverSessionNonce, serverNonce);
     unlockClient(client);
     return res;
@@ -2297,7 +2310,8 @@ switchSession(UA_Client *client,
     /* Replace token and nonce */
     UA_NodeId_clear(&client->authenticationToken);
     UA_ByteString_clear(&client->serverSessionNonce);
-    UA_StatusCode res = UA_NodeId_copy(&authenticationToken, &client->authenticationToken);
+    UA_StatusCode res = UA_NodeId_copy(&authenticationToken,
+                                       &client->authenticationToken);
     res |= UA_ByteString_copy(&serverNonce, &client->serverSessionNonce);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -2345,9 +2359,8 @@ static void
 disconnectListenSockets(UA_Client *client) {
     UA_ConnectionManager *cm = client->reverseConnectionCM;
     for(size_t i = 0; i < 16; i++) {
-        if(client->reverseConnectionIds[i] != 0) {
+        if(client->reverseConnectionIds[i] != 0)
             cm->closeConnection(cm, client->reverseConnectionIds[i]);
-        }
     }
 }
 
@@ -2502,12 +2515,14 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     UA_KeyValuePair params[4];
     bool booleanTrue = true;
     params[0].key = UA_QUALIFIEDNAME(0, "port");
-    UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setScalar(&params[0].value, &port,
+                         &UA_TYPES[UA_TYPES_UINT16]);
     params[1].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setArray(&params[1].value, (void *)(uintptr_t)listenHostnames,
             listenHostnamesLength, &UA_TYPES[UA_TYPES_STRING]);
     params[2].key = UA_QUALIFIEDNAME(0, "listen");
-    UA_Variant_setScalar(&params[2].value, &booleanTrue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_Variant_setScalar(&params[2].value, &booleanTrue,
+                         &UA_TYPES[UA_TYPES_BOOLEAN]);
     params[3].key = UA_QUALIFIEDNAME(0, "reuse");
     UA_Variant_setScalar(&params[3].value, &client->config.tcpReuseAddr,
                          &UA_TYPES[UA_TYPES_BOOLEAN]);
@@ -2516,12 +2531,14 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     paramMap.map = params;
     paramMap.mapSize = 4;
 
-    res = cm->openConnection(cm, &paramMap, client, NULL, __Client_reverseConnectCallback);
+    res = cm->openConnection(cm, &paramMap, client, NULL,
+                             __Client_reverseConnectCallback);
 
     /* Opening the TCP connection failed */
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "Failed to open a listening TCP socket for reverse connect");
+                       "Failed to open a listening TCP socket for "
+                       "reverse connect");
         res = UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 
@@ -2565,8 +2582,7 @@ closeSecureChannel(UA_Client *client) {
         request.requestHeader.timestamp = el->dateTime_now(el);
         request.requestHeader.timeoutHint = client->config.timeout;
         request.requestHeader.authenticationToken = client->authenticationToken;
-        UA_SecureChannel_sendCLO(&client->channel, ++client->requestId,
-                                 &request);
+        UA_SecureChannel_sendCLO(&client->channel, ++client->requestId, &request);
     }
 
     /* The connection is eventually closed in the next callback from the
