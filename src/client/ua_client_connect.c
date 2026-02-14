@@ -1105,7 +1105,7 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
                      &UA_TYPES[UA_TYPES_USERTOKENPOLICY])) {
             if(logPrefix) {
                 UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                            "%s UserTokenPolicy %S rejected -- a different "
+                            "%s: UserTokenPolicy %S rejected -- a different "
                             "UserTokenPolicy %S is specified in the client config",
                             logPrefix, tokenPolicy->policyId,
                             requiredTokenPolicy->policyId);
@@ -1117,7 +1117,7 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
         if(!matchUserToken(client, tokenPolicy)) {
             if(logPrefix) {
                 UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                            "%s UserTokenPolicy %S rejected -- does not match "
+                            "%s: UserTokenPolicy %S rejected -- does not match "
                             "the type of UserIdentityToken configured in the client",
                             logPrefix, tokenPolicy->policyId);
             }
@@ -1135,7 +1135,7 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
                             &tokenPolicyUri)) {
             if(logPrefix) {
                 UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                            "%s UserTokenPolicy %S rejected -- uses SecurityPolicy %S, "
+                            "%s: UserTokenPolicy %S rejected -- uses SecurityPolicy %S, "
                             "but the client configuration requires SecurityPolicy %S",
                             logPrefix, tokenPolicy->policyId,
                             tokenPolicyUri, client->config.authSecurityPolicyUri);
@@ -1149,13 +1149,23 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
            client->config.userIdentityToken.content.decoded.type !=
                &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
             /* Is the SecurityPolicy available */
-            UA_SecurityPolicy *utsp = getAuthSecurityPolicy(client, tokenPolicyUri);
+            UA_SecurityPolicy *utsp;
+            if(client->config.userIdentityToken.content.decoded.type ==
+               &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+                UA_X509IdentityToken *token = (UA_X509IdentityToken*)
+                    client->config.userIdentityToken.content.decoded.data;
+                utsp = getAuthSecurityPolicy(client, tokenPolicyUri,
+                                             token->certificateData);
+            } else {
+                utsp = getSecurityPolicy(client, tokenPolicyUri);
+            }
+
             if(!utsp) {
                 if(logPrefix) {
                     UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                                "%s UserTokenPolicy %S rejected -- the "
+                                "%s: UserTokenPolicy %S rejected -- the "
                                 "SecurityPolicy %S is not available",
-                                logPrefix,  tokenPolicy->policyId, tokenPolicyUri);
+                                logPrefix, tokenPolicy->policyId, tokenPolicyUri);
                 }
                 continue;
             }
@@ -1168,7 +1178,7 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
                    tokenPolicy->tokenType != UA_USERTOKENTYPE_USERNAME) {
                     if(logPrefix) {
                         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                                    "%s UserTokenPolicy %S rejected -- the "
+                                    "%s: UserTokenPolicy %S rejected -- the "
                                     "AuthenticationToken must not be transmitted "
                                     "without encryption (override with"
                                     "allowNonePolicyPassword setting)",
@@ -1244,7 +1254,7 @@ responseGetEndpoints(UA_Client *client, void *userdata,
          * UserTokenPolicy that matches the configuration. */
         if(!client->config.noSession) {
             char logPrefix[32];
-            mp_snprintf(logPrefix, 32, "Endpoint %u:", (unsigned)i);
+            mp_snprintf(logPrefix, 32, "Endpoint %u", (unsigned)i);
             utp = findUserTokenPolicy(client, endpoint, logPrefix);
             if(!utp) {
                 UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
@@ -1562,7 +1572,7 @@ createSessionAsync(UA_Client *client) {
 
         /* Allocate the memory */
         if(client->clientSessionNonce.length != nonceLength) {
-           UA_ByteString_clear(&client->clientSessionNonce);
+            UA_ByteString_clear(&client->clientSessionNonce);
             res = UA_ByteString_allocBuffer(&client->clientSessionNonce, nonceLength);
             if(res != UA_STATUSCODE_GOOD)
                 return res;
@@ -1576,7 +1586,7 @@ createSessionAsync(UA_Client *client) {
             return res;
     }
 
-    /* Prepare and send the request */
+    /* Prepare the request */
     UA_CreateSessionRequest request;
     UA_CreateSessionRequest_init(&request);
     request.clientNonce = client->clientSessionNonce;
