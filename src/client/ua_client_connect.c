@@ -300,8 +300,9 @@ signUserTokenSignature(UA_Client *client,
     return signAlg->sign(utpSp, client->utpSpContext, &signData, &utsd->signature);
 }
 
-/* UserName and IssuedIdentity are transferred encrypted.
- * X509 and Anonymous are not. */
+/* UserName and IssuedIdentity can be encrypted. This uses the SecurityPolicy
+ * instance for the UserTokenPolicy. So it can keep the ECC ephemeral keys
+ * across multiple SecureChannels. */
 static UA_StatusCode
 encryptUserIdentityToken(UA_Client *client, UA_ExtensionObject *userIdentityToken) {
     UA_IssuedIdentityToken *iit = NULL;
@@ -354,8 +355,8 @@ encryptUserIdentityToken(UA_Client *client, UA_ExtensionObject *userIdentityToke
     return res | UA_String_copy(&utpSp->asymEncryptionAlgorithm.uri, encryptionAlg);
 }
 
-/* Function to verify the signature corresponds to ClientNonce
- * using the local certificate */
+/* Verifies the signature corresponds to ClientNonce using the SecurityPolicy of
+ * the SecureChannel */
 static UA_StatusCode
 checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
                             const UA_CreateSessionResponse *response) {
@@ -1134,6 +1135,83 @@ matchUserToken(UA_Client *client,
     return false;
 }
 
+static UA_Boolean
+matchUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
+                     UA_UserTokenPolicy *utp, char *logPrefix) {
+    /* Match with the configured UserToken */
+    if(!matchUserToken(client, utp)) {
+        if(logPrefix) {
+            UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                        "%s: UserTokenPolicy %S rejected -- does not match "
+                        "the type of UserIdentityToken configured in the client",
+                        logPrefix, utp->policyId);
+        }
+        return false;
+    }
+
+    /* If not defined, use the SecurityPolicy of the SecureChannel */
+    UA_String tokenPolicyUri =
+        (UA_String_isEmpty(&utp->securityPolicyUri)) ?
+        endpoint->securityPolicyUri : utp->securityPolicyUri;
+
+    /* SecurityPolicyUri matches the configuration? */
+    if(!UA_String_isEmpty(&client->config.authSecurityPolicyUri) &&
+       !UA_String_equal(&client->config.authSecurityPolicyUri,
+                        &tokenPolicyUri)) {
+        if(logPrefix) {
+            UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                        "%s: UserTokenPolicy %S rejected -- uses SecurityPolicy %S, "
+                        "but the client configuration requires SecurityPolicy %S",
+                        logPrefix, utp->policyId,
+                        tokenPolicyUri, client->config.authSecurityPolicyUri);
+        }
+        return false;
+    }
+
+    /* Anoymous authentication */
+    if(utp->tokenType == UA_USERTOKENTYPE_ANONYMOUS)
+        return true;
+
+    /* Get the SecurityPolicy */
+    UA_SecurityPolicy *utsp;
+    if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+        UA_X509IdentityToken *token = (UA_X509IdentityToken*)
+            client->config.userIdentityToken.content.decoded.data;
+        utsp = getAuthSecurityPolicy(client, tokenPolicyUri,
+                                     token->certificateData);
+    } else {
+        utsp = getSecurityPolicy(client, tokenPolicyUri);
+    }
+    if(!utsp) {
+        if(logPrefix) {
+            UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                        "%s: UserTokenPolicy %S rejected -- the "
+                        "SecurityPolicy %S is not available",
+                        logPrefix, utp->policyId, tokenPolicyUri);
+        }
+        return false;
+    }
+
+    /* Check if a secret is transmitted in cleartext */
+    if(endpoint->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT &&
+       utsp->policyType == UA_SECURITYPOLICYTYPE_NONE) {
+        if(!client->config.allowNonePolicyPassword) {
+            if(logPrefix) {
+                UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                            "%s: UserTokenPolicy %S rejected -- the "
+                            "AuthenticationToken must not be transmitted "
+                            "without encryption (override with"
+                            "allowNonePolicyPassword setting)",
+                            logPrefix, utp->policyId);
+            }
+            return false;
+        }
+    }
+
+    /* Found a match */
+    return true;
+}
+
 /* Returns a matching UserTokenPolicy from the EndpointDescription. If a
  * UserTokenPolicy is configured in the client config, then we need an exact
  * match. */
@@ -1148,9 +1226,11 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
                  &UA_TYPES[UA_TYPES_USERTOKENPOLICY]))
         requiredTokenPolicy = &client->config.userTokenPolicy;
 
+    /* Return the first UserTokenPolicy matching the config */
     for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
-        /* Match the (entire) UserTokenPolicy if defined in the configuration */
         UA_UserTokenPolicy *tokenPolicy = &endpoint->userIdentityTokens[j];
+
+        /* Need the extact configured policy */
         if(requiredTokenPolicy &&
            !UA_equal(requiredTokenPolicy, tokenPolicy,
                      &UA_TYPES[UA_TYPES_USERTOKENPOLICY])) {
@@ -1164,84 +1244,9 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
             continue;
         }
 
-        /* Match with the configured UserToken */
-        if(!matchUserToken(client, tokenPolicy)) {
-            if(logPrefix) {
-                UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                            "%s: UserTokenPolicy %S rejected -- does not match "
-                            "the type of UserIdentityToken configured in the client",
-                            logPrefix, tokenPolicy->policyId);
-            }
-            continue;
-        }
-
-        /* If not defined, use the SecurityPolicy of the SecureChannel */
-        UA_String tokenPolicyUri = tokenPolicy->securityPolicyUri;
-        if(UA_String_isEmpty(&tokenPolicyUri))
-            tokenPolicyUri = endpoint->securityPolicyUri;
-
-        /* Required SecurityPolicyUri in the configuration? */
-        if(!UA_String_isEmpty(&client->config.authSecurityPolicyUri) &&
-           !UA_String_equal(&client->config.authSecurityPolicyUri,
-                            &tokenPolicyUri)) {
-            if(logPrefix) {
-                UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                            "%s: UserTokenPolicy %S rejected -- uses SecurityPolicy %S, "
-                            "but the client configuration requires SecurityPolicy %S",
-                            logPrefix, tokenPolicy->policyId,
-                            tokenPolicyUri, client->config.authSecurityPolicyUri);
-            }
-            continue;
-        }
-
-        /* Check the available SecurityPolicy for encryption.
-         * Ignore auth security policy for anonymous tokens. */
-        if(client->config.userIdentityToken.content.decoded.type &&
-           client->config.userIdentityToken.content.decoded.type !=
-               &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
-            /* Is the SecurityPolicy available */
-            UA_SecurityPolicy *utsp;
-            if(client->config.userIdentityToken.content.decoded.type ==
-               &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
-                UA_X509IdentityToken *token = (UA_X509IdentityToken*)
-                    client->config.userIdentityToken.content.decoded.data;
-                utsp = getAuthSecurityPolicy(client, tokenPolicyUri,
-                                             token->certificateData);
-            } else {
-                utsp = getSecurityPolicy(client, tokenPolicyUri);
-            }
-
-            if(!utsp) {
-                if(logPrefix) {
-                    UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                                "%s: UserTokenPolicy %S rejected -- the "
-                                "SecurityPolicy %S is not available",
-                                logPrefix, tokenPolicy->policyId, tokenPolicyUri);
-                }
-                continue;
-            }
-
-            /* Check if the auth token is transmitted in cleartext */
-            if(UA_String_equal(&UA_SECURITY_POLICY_NONE_URI,
-                               &endpoint->securityPolicyUri) &&
-               utsp->policyType == UA_SECURITYPOLICYTYPE_NONE) {
-                if(!client->config.allowNonePolicyPassword ||
-                   tokenPolicy->tokenType != UA_USERTOKENTYPE_USERNAME) {
-                    if(logPrefix) {
-                        UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                                    "%s: UserTokenPolicy %S rejected -- the "
-                                    "AuthenticationToken must not be transmitted "
-                                    "without encryption (override with"
-                                    "allowNonePolicyPassword setting)",
-                                    logPrefix, tokenPolicy->policyId);
-                    }
-                    continue;
-                }
-            }
-        }
-
-        /* Found a match */
-        return tokenPolicy;
+        /* Match with the client configured */
+        if(matchUserTokenPolicy(client, endpoint, tokenPolicy, logPrefix))
+            return tokenPolicy;
     }
 
     return NULL;
