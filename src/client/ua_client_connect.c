@@ -260,6 +260,7 @@ signClientSignature(UA_Client *client, UA_ActivateSessionRequest *request) {
     return signAlg->sign(sp, cc, &signData, &sd->signature);
 }
 
+/* This uses the SecurityPolicy of the UserTokenPolicy */
 static UA_StatusCode
 signUserTokenSignature(UA_Client *client,
                        UA_ActivateSessionRequest *request) {
@@ -279,85 +280,78 @@ signUserTokenSignature(UA_Client *client,
     UA_ByteString signData = {signDataSize, buf};
 
     /* Copy the algorithm identifier */
-    UA_SecurityPolicySignatureAlgorithm *utpSignAlg = &utsp->asymSignatureAlgorithm;
+    UA_SecurityPolicySignatureAlgorithm *signAlg = &utpSp->asymSignatureAlgorithm;
     UA_SignatureData *utsd = &request->userTokenSignature;
-    retval = UA_String_copy(&utpSignAlg->uri, &utsd->algorithm);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* We need a channel context with the user certificate in order to reuse the
-     * code for signing. */
-    void *tmpCtx;
-    retval = utsp->newChannelContext(utsp, &client->channel.remoteCertificate, &tmpCtx);
+    retval = UA_String_copy(&signAlg->uri, &utsd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Allocate memory for the signature */
-    retval = UA_ByteString_allocBuffer(&utsd->signature,
-                                       utpSignAlg->getLocalSignatureSize(utsp, tmpCtx));
+    size_t sigLen = signAlg->getLocalSignatureSize(utpSp, client->utpSpContext);
+    retval = UA_ByteString_allocBuffer(&utsd->signature, sigLen);
     if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup_utp;
+        return retval;
 
-    /* Create the userTokenSignature */
+    /* Create the UserTokenSignature */
     memcpy(buf, client->channel.remoteCertificate.data,
            client->channel.remoteCertificate.length);
     memcpy(buf + client->channel.remoteCertificate.length,
            client->serverSessionNonce.data, client->serverSessionNonce.length);
-    retval = utpSignAlg->sign(utsp, tmpCtx, &signData, &utsd->signature);
-
-    /* Clean up */
- cleanup_utp:
-    utsp->deleteChannelContext(utsp, tmpCtx);
-    return retval;
+    return signAlg->sign(utpSp, client->utpSpContext, &signData, &utsd->signature);
 }
 
 /* UserName and IssuedIdentity are transferred encrypted.
  * X509 and Anonymous are not. */
 static UA_StatusCode
-encryptUserIdentityToken(UA_Client *client, UA_SecurityPolicy *utsp,
-                         UA_ExtensionObject *userIdentityToken) {
+encryptUserIdentityToken(UA_Client *client, UA_ExtensionObject *userIdentityToken) {
     UA_IssuedIdentityToken *iit = NULL;
     UA_UserNameIdentityToken *unit = NULL;
+    UA_String *encryptionAlg;
     UA_ByteString *tokenData;
+
     const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
     if(tokenType == &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN]) {
         iit = (UA_IssuedIdentityToken*)userIdentityToken->content.decoded.data;
         tokenData = &iit->tokenData;
-    } else if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+        encryptionAlg = &iit->encryptionAlgorithm;
+    } else { /* tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN] */
+        UA_assert(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]);
         unit = (UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
         tokenData = &unit->password;
-    } else {
+        encryptionAlg = &unit->encryptionAlgorithm;
+    }
+
+    /* The sessionSp is instantiated during CreateSession */
+    UA_SecurityPolicy *utpSp = client->utpSp;
+    UA_assert(utpSp);
+
+    /* Nothing to encrypt */
+    if(utpSp->policyType == UA_SECURITYPOLICYTYPE_NONE) {
+        /* Warn if a token is transmitted in cleartext. This needs to be allowed
+         * with the allowNonePolicyPassword setting and is checked in
+         * findUserTokenPolicy. */
+        if(client->channel.securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                           "!!! Warning !!! AuthenticationToken is transmitted "
+                           "without encryption");
         return UA_STATUSCODE_GOOD;
     }
 
-    /* Create a temp channel context */
-    void *channelContext;
-    UA_StatusCode retval = utsp->
-        newChannelContext(utsp, &client->endpoint.serverCertificate, &channelContext);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
-                       "Could not instantiate the SecurityPolicy for the UserToken");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    if(utsp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
-        // XXX use a dedicated sp context for the utsp
-        retval = encryptUserIdentityTokenEcc(client->config.logging, &client->channel,
-                                             utsp, channelContext, tokenData,
-                                             client->serverSessionNonce,
-                                             client->serverEphemeralPubKey);
+    /* Encrypt the TokenData */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(utpSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
+        res = encryptUserIdentityTokenEcc(client->config.logging, &client->channel,
+                                          utpSp, client->utpSpContext, tokenData,
+                                          client->serverSessionNonce,
+                                          client->serverEphemeralPubKey);
         /* Don't reuse the Ephemeral Public Key */
         UA_ByteString_clear(&client->serverEphemeralPubKey);
     } else {
-        retval = encryptSecretLegacy(utsp, channelContext,
-                                     client->serverSessionNonce, tokenData);
+        res = encryptSecretLegacy(utpSp, client->utpSpContext,
+                                  client->serverSessionNonce, tokenData);
     }
 
-    /* Delete the temporary channel context */
-    utsp->deleteChannelContext(utsp, channelContext);
-
-    UA_String *ea = (iit) ? &iit->encryptionAlgorithm : &unit->encryptionAlgorithm;
-    return retval | UA_String_copy(&utsp->asymEncryptionAlgorithm.uri, ea);
+    return res | UA_String_copy(&utpSp->asymEncryptionAlgorithm.uri, encryptionAlg);
 }
 
 /* Function to verify the signature corresponds to ClientNonce
@@ -950,20 +944,20 @@ activateSessionAsync(UA_Client *client) {
         return UA_STATUSCODE_BADSESSIONCLOSED;
     }
 
-    const UA_UserTokenPolicy *utp =
-        findUserTokenPolicy(client, &client->endpoint, NULL);
-    if(!utp) {
-        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_NETWORK,
-                     "Could not find a matching UserTokenPolicy in the endpoint");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    /* Select the UserTokenPolicy based on the client configuration and the
+     * endpoint information. Also instantiates the UserTokenPolicy if not
+     * already there. This can happen when an existing Session is
+     * transferred. */
+    const UA_UserTokenPolicy *utp = NULL;
+    UA_StatusCode retval = initUserTokenPolicy(client, &utp, "ActivateSession");
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Initialize the request */
     UA_ActivateSessionRequest request;
     UA_ActivateSessionRequest_init(&request);
 
     /* Set the requested LocaleIds */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(client->config.sessionLocaleIdsSize && client->config.sessionLocaleIds) {
         retval = UA_Array_copy(client->config.sessionLocaleIds,
                                client->config.sessionLocaleIdsSize,
@@ -983,60 +977,39 @@ activateSessionAsync(UA_Client *client) {
         UA_String *policyId = (UA_String*)request.userIdentityToken.content.decoded.data;
         UA_String_clear(policyId);
         retval = UA_String_copy(&utp->policyId, policyId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_ActivateSessionRequest_clear(&request);
+            return retval;
+        }
     } else {
         UA_AnonymousIdentityToken_init(&anonToken);
         UA_ExtensionObject_setValueNoDelete(&request.userIdentityToken, &anonToken,
                                             &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
         anonToken.policyId = utp->policyId;
     }
-    if(retval != UA_STATUSCODE_GOOD)
+
+    switch(utp->tokenType) {
+    case UA_USERTOKENTYPE_ANONYMOUS:
+        break; /* The anonymous token is not encrypted */
+    case UA_USERTOKENTYPE_USERNAME:
+    case UA_USERTOKENTYPE_ISSUEDTOKEN:
+        /* Encrypt the UserIdentityToken */
+        retval = encryptUserIdentityToken(client, &request.userIdentityToken);
+        break;
+    case UA_USERTOKENTYPE_CERTIFICATE:
+        /* Create the UserTokenSignature */
+        retval = signUserTokenSignature(client, &request);
+        break;
+    default:
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+    }
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ActivateSessionRequest_clear(&request);
         return retval;
+    }
 
-    UA_SecurityPolicy *utsp = NULL;
+    /* Create the client signature with the SecurityPolicy of the SecureChannel */
     UA_SecureChannel *channel = &client->channel;
-
-    /* If not specifically defined in the UserTokenPolicy, then the
-     * SecurityPolicy of the underlying endpoint (SecureChannel) is used. */
-    UA_String tokenSecurityPolicyUri = (utp->securityPolicyUri.length > 0) ?
-        utp->securityPolicyUri : client->endpoint.securityPolicyUri;
-
-    /* The anonymous token is not encrypted */
-    if(!request.userIdentityToken.content.decoded.type ||
-       request.userIdentityToken.content.decoded.type ==
-       &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN])
-        goto utp_done;
-
-    /* Get the SecurityPolicy for authentication */
-    utsp = getAuthSecurityPolicy(client, tokenSecurityPolicyUri);
-    if(!utsp) {
-        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                     "UserTokenPolicy %.*s not available for authentication",
-                     (int)tokenSecurityPolicyUri.length, tokenSecurityPolicyUri.data);
-        retval = UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-        goto utp_done;
-    }
-
-    /* Warn if a token is transmitted in cleartext. This needs to be allowed
-     * with the allowNonePolicyPassword setting and is checked in
-     * findUserTokenPolicy. */
-    if(channel->securityPolicy->policyType == UA_SECURITYPOLICYTYPE_NONE &&
-       utsp->policyType == UA_SECURITYPOLICYTYPE_NONE) {
-        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "!!! Warning !!! AuthenticationToken is transmitted "
-                       "without encryption");
-        goto utp_done;
-    }
-
-    /* Encrypt the UserIdentityToken */
-    retval = encryptUserIdentityToken(client, utsp, &request.userIdentityToken);
-
-    /* Create the UserTokenSignature if this is possible for the token.
-     * The certificate is already loaded into the utsp. */
-    if(utp->tokenType == UA_USERTOKENTYPE_CERTIFICATE)
-        retval |= signUserTokenSignature(client, utsp, &request);
-
- utp_done:
-    /* Create the client signature with the SecurityPolicy of the SecurteChannel */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         retval |= signClientSignature(client, &request);
