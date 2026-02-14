@@ -90,8 +90,6 @@ fallbackEndpointUrl(UA_Client* client) {
 
 static UA_SecurityPolicy *
 getSecurityPolicy(UA_Client *client, UA_String policyUri) {
-    if(policyUri.length == 0)
-        policyUri = UA_SECURITY_POLICY_NONE_URI;
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         if(UA_String_equal(&policyUri, &client->config.securityPolicies[i].policyUri))
             return &client->config.securityPolicies[i];
@@ -1612,15 +1610,17 @@ createSessionAsync(UA_Client *client) {
 
 static UA_StatusCode
 initSecurityPolicy(UA_Client *client) {
-    /* Find the SecurityPolicy */
-    UA_SecurityPolicy *sp =
-        getSecurityPolicy(client, client->endpoint.securityPolicyUri);
+    /* Find the SecurityPolicy. Use #None if the endpoint is not (yet)
+     * configured. */
+    UA_String secPolicyUri = client->endpoint.securityPolicyUri;
+    if(secPolicyUri.length == 0)
+        secPolicyUri = UA_SECURITY_POLICY_NONE_URI;
+    UA_SecurityPolicy *sp = getSecurityPolicy(client, secPolicyUri);
 
     /* Unknown SecurityPolicy */
     if(!sp) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                     "SecurityPolicy %S not configured",
-                     client->endpoint.securityPolicyUri);
+                     "SecurityPolicy %S not available", secPolicyUri);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
