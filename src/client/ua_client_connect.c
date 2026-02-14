@@ -574,6 +574,15 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
         return;
     }
 
+    /* Check the nonce length */
+    if(response.serverNonce.length < client->channel.securityPolicy->nonceLength) {
+        UA_LOG_ERROR_CHANNEL(client->config.logging, &client->channel,
+                             "The server nonce is too short");
+        client->connectStatus = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        closeSecureChannel(client);
+        return;
+    }
+
     /* Move the nonce out of the response */
     UA_ByteString_clear(&client->channel.remoteNonce);
     client->channel.remoteNonce = response.serverNonce;
@@ -905,6 +914,16 @@ responseActivateSession(UA_Client *client, void *userdata,
                      "The client cannot recover from this, closing the connection.",
                      UA_StatusCode_name(ar->responseHeader.serviceResult));
         client->connectStatus = ar->responseHeader.serviceResult;
+        closeSecureChannel(client);
+        return;
+    }
+
+    /* Check the nonce length */
+    if(ar->serverNonce.length < client->utpSp->nonceLength) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Session cannot be activated with a nonce "
+                     "that is too short");
+        client->connectStatus = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         closeSecureChannel(client);
         return;
     }
@@ -1590,6 +1609,15 @@ createSessionCallback(UA_Client *client, void *userdata,
     UA_NodeId_clear(&client->sessionId);
     res |= UA_NodeId_copy(&csr->sessionId, &client->sessionId);
 
+    /* Check the nonce length */
+    if(csr->serverNonce.length < client->utpSp->nonceLength) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Session cannot be created with a nonce "
+                     "that is too short");
+        res = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto cleanup;
+    }
+
     /* Copy nonce and AuthenticationToken */
     UA_ByteString_clear(&client->serverSessionNonce);
     UA_NodeId_clear(&client->authenticationToken);
@@ -1629,6 +1657,11 @@ createSessionAsync(UA_Client *client) {
     /* Create the nonce. Trigger the ephemeral key generation for ECC. */
     size_t nonceLength = utpSp->nonceLength;
     if(nonceLength > 0) {
+        /* Create a nonce of at least 32 byte */
+        if(nonceLength < 32)
+            nonceLength = 32;
+
+        /* Allocate memory */
         if(client->clientSessionNonce.length != nonceLength) {
             UA_ByteString_clear(&client->clientSessionNonce);
             res = UA_ByteString_allocBuffer(&client->clientSessionNonce, nonceLength);
@@ -1636,6 +1669,7 @@ createSessionAsync(UA_Client *client) {
                 return res;
         }
 
+        /* Create the nonce / ephemeral key */
         client->clientSessionNonce.data[0] = 'e';
         client->clientSessionNonce.data[1] = 'p';
         client->clientSessionNonce.data[2] = 'h';
