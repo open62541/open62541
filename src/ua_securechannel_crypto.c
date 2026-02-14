@@ -27,6 +27,10 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     if(nonceLength == 0)
         return UA_STATUSCODE_GOOD;
 
+    /* At least 32 byte */
+    if(nonceLength < 32)
+        nonceLength = 32;
+
     if(channel->localNonce.length != nonceLength) {
         UA_ByteString_clear(&channel->localNonce);
         UA_StatusCode res = UA_ByteString_allocBuffer(&channel->localNonce, nonceLength);
