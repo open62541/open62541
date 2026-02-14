@@ -1755,6 +1755,8 @@ UA_OpenSSL_ECC_GenerateKey(const int curveId,
         goto errout;
     }
 
+    UA_assert(keyPubEncSize-1 == keyPublicEncOut->length);
+
     /* Omit the first byte (encoding) */
     memcpy(keyPublicEncOut->data, &keyPubEnc[1], keyPubEncSize-1);
 
