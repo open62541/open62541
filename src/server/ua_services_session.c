@@ -476,9 +476,12 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         }
     }
 
-    /* The ClientNonce needs a length between 32 and 128 bytes inclusive */
+    /* According to the spec, the ClientNonce needs a length between 32 and 128
+     * bytes inclusive. Some deprecated SecurityPolicies have 16 byte. If both
+     * sides still allow that, proceed to connect to legacy devices. */
     if(channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
-       (request->clientNonce.length < 32 || request->clientNonce.length > 128)) {
+       (request->clientNonce.length < sp->nonceLength ||
+        request->clientNonce.length > 128)) {
         UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
                              "CreateSession: The nonce provided by the client "
                              "has the wrong length");
