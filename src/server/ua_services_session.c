@@ -482,13 +482,22 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     if(channel->securityPolicy->policyType != UA_SECURITYPOLICYTYPE_NONE &&
        (request->clientNonce.length < sp->nonceLength ||
         request->clientNonce.length > 128)) {
-        UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
-                             "CreateSession: The nonce provided by the client "
-                             "has the wrong length");
-        server->serverDiagnosticsSummary.securityRejectedSessionCount++;
-        server->serverDiagnosticsSummary.rejectedSessionCount++;
-        rh->serviceResult = UA_STATUSCODE_BADNONCEINVALID;
-        return;
+        /* Workaround: Give a warning (but allow) if the nonce length is between
+         * 32 and sp->nonceLength */
+        if(request->clientNonce.length >= 32 &&
+           request->clientNonce.length < sp->nonceLength) {
+            UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
+                                   "CreateSession: The nonce provided by the client "
+                                   "has the wrong length (but at least 32 bytes)");
+        } else {
+            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                                 "CreateSession: The nonce provided by the client "
+                                 "has the wrong length");
+            server->serverDiagnosticsSummary.securityRejectedSessionCount++;
+            server->serverDiagnosticsSummary.rejectedSessionCount++;
+            rh->serviceResult = UA_STATUSCODE_BADNONCEINVALID;
+            return;
+        }
     }
 
     /* Create the Session */
