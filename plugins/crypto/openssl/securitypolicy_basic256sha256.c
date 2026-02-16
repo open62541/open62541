@@ -79,7 +79,7 @@ UA_Policy_New_Context(UA_SecurityPolicy *securityPolicy,
 
 static void
 UA_Policy_Clear_Context(UA_SecurityPolicy *policy) {
-    if(policy == NULL)
+    if(!policy || !policy->policyContext)
         return;
 
     UA_ByteString_clear(&policy->localCertificate);

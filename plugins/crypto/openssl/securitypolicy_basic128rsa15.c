@@ -76,9 +76,8 @@ UA_Policy_Basic128Rsa15_New_Context(UA_SecurityPolicy * securityPolicy,
 
 static void
 UA_Policy_Basic128Rsa15_Clear_Context(UA_SecurityPolicy *policy) {
-    if(policy == NULL) {
+    if(!policy || !policy->policyContext)
         return;
-    }
     UA_ByteString_clear(&policy->localCertificate);
 
     Policy_Context_Basic128Rsa15 *ctx = (Policy_Context_Basic128Rsa15 *)

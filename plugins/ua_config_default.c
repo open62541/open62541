@@ -1393,12 +1393,13 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
             nonePolicy->clear(nonePolicy);
             UA_free(nonePolicy);
             nonePolicy = NULL;
-        }
-        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, nonePolicy, storePath);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                           "Could not add SecurityPolicy#None with error code %s",
-                           UA_StatusCode_name(retval));
+        } else {
+            retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, nonePolicy, storePath);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
+                               "Could not add SecurityPolicy#None with error code %s",
+                               UA_StatusCode_name(retval));
+            }
         }
         UA_ByteString_memZero(&decryptedPrivateKey);
         UA_ByteString_clear(&decryptedPrivateKey);
@@ -1422,12 +1423,13 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
         basic256Sha256Policy->clear(basic256Sha256Policy);
         UA_free(basic256Sha256Policy);
         basic256Sha256Policy = NULL;
-    }
-    retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, basic256Sha256Policy, storePath);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#Basic256Sha256 with error code %s",
-                       UA_StatusCode_name(retval));
+    } else {
+        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, basic256Sha256Policy, storePath);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
+                           "Could not add SecurityPolicy#Basic256Sha256 with error code %s",
+                           UA_StatusCode_name(retval));
+        }
     }
 
     /* Aes256Sha256RsaPss */
@@ -1447,12 +1449,13 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
         aes256Sha256RsaPssPolicy->clear(aes256Sha256RsaPssPolicy);
         UA_free(aes256Sha256RsaPssPolicy);
         aes256Sha256RsaPssPolicy = NULL;
-    }
-    retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, aes256Sha256RsaPssPolicy, storePath);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
-                       UA_StatusCode_name(retval));
+    } else {
+        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, aes256Sha256RsaPssPolicy, storePath);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
+                           "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
+                           UA_StatusCode_name(retval));
+        }
     }
 
     /* Aes128Sha256RsaOaep */
@@ -1472,12 +1475,13 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
         aes128Sha256RsaOaepPolicy->clear(aes128Sha256RsaOaepPolicy);
         UA_free(aes128Sha256RsaOaepPolicy);
         aes128Sha256RsaOaepPolicy = NULL;
-    }
-    retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, aes128Sha256RsaOaepPolicy, storePath);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
-                       UA_StatusCode_name(retval));
+    } else {
+        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, aes128Sha256RsaOaepPolicy, storePath);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
+                           "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
+                           UA_StatusCode_name(retval));
+        }
     }
 
     if(onlySecure) {
@@ -1502,12 +1506,13 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
         nonePolicy->clear(nonePolicy);
         UA_free(nonePolicy);
         nonePolicy = NULL;
-    }
-    retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, nonePolicy, storePath);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#None with error code %s",
-                       UA_StatusCode_name(retval));
+    } else {
+        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, nonePolicy, storePath);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
+                           "Could not add SecurityPolicy#None with error code %s",
+                           UA_StatusCode_name(retval));
+        }
     }
 
     /* Basic128Rsa15 */
@@ -1527,12 +1532,13 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
         basic128Rsa15Policy->clear(basic128Rsa15Policy);
         UA_free(basic128Rsa15Policy);
         basic128Rsa15Policy = NULL;
-    }
-    retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, basic128Rsa15Policy, storePath);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#Basic128Rsa15 with error code %s",
-                       UA_StatusCode_name(retval));
+    } else {
+        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, basic128Rsa15Policy, storePath);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
+                           "Could not add SecurityPolicy#Basic128Rsa15 with error code %s",
+                           UA_StatusCode_name(retval));
+        }
     }
 
     /* Basic256 */
@@ -1552,12 +1558,13 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
         basic256Policy->clear(basic256Policy);
         UA_free(basic256Policy);
         basic256Policy = NULL;
-    }
-    retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, basic256Policy, storePath);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#Basic256 with error code %s",
-                       UA_StatusCode_name(retval));
+    } else {
+        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, basic256Policy, storePath);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
+                           "Could not add SecurityPolicy#Basic256 with error code %s",
+                           UA_StatusCode_name(retval));
+        }
     }
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
@@ -1579,12 +1586,13 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
         eccnistp256Policy->clear(eccnistp256Policy);
         UA_free(eccnistp256Policy);
         eccnistp256Policy = NULL;
-    }
-    retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccnistp256Policy, storePath);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
-                       "Could not add SecurityPolicy#ECC_nistP256 with error code %s",
-                       UA_StatusCode_name(retval));
+    } else {
+        retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccnistp256Policy, storePath);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_APPLICATION,
+                           "Could not add SecurityPolicy#ECC_nistP256 with error code %s",
+                           UA_StatusCode_name(retval));
+        }
     }
 #endif
 
