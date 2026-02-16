@@ -1033,13 +1033,13 @@ struct UA_DataType {
     UA_NodeId typeId;           /* The nodeid of the type */
     UA_NodeId binaryEncodingId; /* NodeId of datatype when encoded as binary */
     UA_NodeId xmlEncodingId;    /* NodeId of datatype when encoded as XML */
-    UA_UInt16 memSize;          /* Size of the struct in memory */
+    UA_UInt32 memSize     : 16; /* Size of the struct in memory */
     UA_UInt32 typeKind    : 6;  /* Dispatch index for the handling routines */
     UA_UInt32 pointerFree : 1;  /* The type (and its members) contains no
                                  * pointers that need to be freed */
     UA_UInt32 overlayable : 1;  /* The type has the identical memory layout
                                  * in memory and on the binary stream. */
-    UA_Byte   membersSize;      /* How many members does the type have? */
+    UA_UInt32 membersSize : 8;  /* How many members does the type have? */
     UA_DataTypeMember *members;
 };
 
