@@ -316,6 +316,7 @@ START_TEST(client_connect_ecc_username_eccpnist256) {
     UA_SecurityPolicy_None(sConfig->securityPolicies + 1, certificate,
                            sConfig->logging);
     sConfig->securityPoliciesSize = 2;
+    UA_ServerConfig_addAllEndpoints(sConfig);
 
     UA_String_clear(&sConfig->applicationDescription.applicationUri);
     sConfig->applicationDescription.applicationUri =
