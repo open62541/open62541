@@ -125,8 +125,9 @@ updateCertificateAndPrivateKey_sp_EccNistP256(UA_SecurityPolicy *securityPolicy,
 
     /* Set the certificate */
     UA_ByteString_clear(&securityPolicy->localCertificate);
-    UA_StatusCode retval = UA_OpenSSL_LoadLocalCertificate(&newCertificate,
-                                         &securityPolicy->localCertificate);
+    UA_StatusCode retval = UA_OpenSSL_LoadLocalCertificate(
+        &newCertificate, &securityPolicy->localCertificate,
+        EVP_PKEY_EC);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -176,7 +177,7 @@ EccNistP256_New_Context(const UA_SecurityPolicy *securityPolicy,
 
     /* Decode to X509 */
     newContext->remoteCertificateX509 =
-        UA_OpenSSL_LoadCertificate(&newContext->remoteCertificate);
+        UA_OpenSSL_LoadCertificate(&newContext->remoteCertificate, EVP_PKEY_EC);
     if(newContext->remoteCertificateX509 == NULL) {
         UA_ByteString_clear (&newContext->remoteCertificate);
         UA_free (newContext);
@@ -579,7 +580,8 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
     /* Parse the certificate */
     UA_Openssl_Init();
     UA_StatusCode res =
-        UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate);
+        UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate,
+                                        EVP_PKEY_EC);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 

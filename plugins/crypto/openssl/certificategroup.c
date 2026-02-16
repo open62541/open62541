@@ -151,7 +151,7 @@ openSSLFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
                 UA_ByteString **crls, size_t *crlsSize) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(!cert)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -285,7 +285,7 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     for(size_t i = 0; i < context->trustList.trustedCertificatesSize; i++) {
-        X509 *cert = UA_OpenSSL_LoadCertificate(&context->trustList.trustedCertificates[i]);
+        X509 *cert = UA_OpenSSL_LoadCertificate(&context->trustList.trustedCertificates[i], EVP_PKEY_NONE);
         if(cert == NULL)
             return UA_STATUSCODE_BADINTERNALERROR;
         sk_X509_push(context->trustedCertificates, cert);
@@ -297,7 +297,7 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     for(size_t i = 0; i < context->trustList.issuerCertificatesSize; i++) {
-        X509 *cert = UA_OpenSSL_LoadCertificate(&context->trustList.issuerCertificates[i]);
+        X509 *cert = UA_OpenSSL_LoadCertificate(&context->trustList.issuerCertificates[i], EVP_PKEY_NONE);
         if(cert == NULL)
             return UA_STATUSCODE_BADINTERNALERROR;
         sk_X509_push(context->issuerCertificates, cert);
@@ -761,7 +761,7 @@ UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
     if(!pData)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
-    X509 *certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *certificateX509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(!certificateX509)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
@@ -802,7 +802,7 @@ UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
                                       UA_DateTime *expiryDateTime) {
-    X509 *x509 = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *x509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(!x509)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
@@ -832,7 +832,7 @@ UA_StatusCode
 UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName) {
     X509_NAME *sn = NULL;
-    X509 *x509 = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *x509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     X509_CRL *x509_crl = NULL;
 
     if(x509) {
@@ -863,7 +863,7 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
     unsigned char digest[SHA1_DIGEST_LENGTH];
     unsigned int digestLen;
 
-    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(cert) {
         if(X509_digest(cert, EVP_sha1(), digest, &digestLen) != 1) {
             X509_free(cert);
@@ -903,7 +903,7 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
     if(certificate == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(!cert)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
@@ -1046,7 +1046,7 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
     if(certificate == NULL || privateKey == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(!cert)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
@@ -1074,7 +1074,7 @@ UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     if(certificate == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    X509 *certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *certificateX509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(!certificateX509)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 

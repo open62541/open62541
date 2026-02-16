@@ -213,8 +213,15 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
 EVP_PKEY *
 UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey);
 
+/* Check for the correct RSA/ECC certificate */
+/* keyType == EVP_PKEY_NONE omits the check */
+/* EVP_PKEY_RSA */
+/* EVP_PKEY_EC */
+/* EVP_PKEY_ED25519 */
+/* EVP_PKEY_ED448 */
 X509 *
-UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate);
+UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate,
+                           int keyType);
 
 X509 *
 UA_OpenSSL_LoadDerCertificate(const UA_ByteString *certificate);
@@ -232,7 +239,9 @@ X509_CRL *
 UA_OpenSSL_LoadPemCrl(const UA_ByteString *crl);
 
 UA_StatusCode
-UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString *target);
+UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate,
+                                UA_ByteString *target,
+                                int keyType);
 
 _UA_END_DECLS
 
