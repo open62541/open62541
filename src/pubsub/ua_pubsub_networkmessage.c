@@ -1468,6 +1468,8 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
                             const UA_DataType *type =
                                 UA_findDataTypeWithCustom(&dsm->fields[i].dataType,
                                                           customTypes);
+                            if (!type)
+                                return UA_STATUSCODE_BADTYPEMISMATCH;
                             dst->data.keyFrameData.rawFields.length += type->memSize;
                             UA_STACKARRAY(UA_Byte, value, type->memSize);
                             rv = UA_decodeBinaryInternal(&dst->data.keyFrameData.rawFields,
