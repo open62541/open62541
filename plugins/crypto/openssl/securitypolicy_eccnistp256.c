@@ -77,7 +77,7 @@ UA_Policy_EccNistP256_New_Context(UA_SecurityPolicy *securityPolicy,
 
 static void
 UA_Policy_EccNistP256_Clear_Context(UA_SecurityPolicy *policy) {
-    if(!policy)
+    if(!policy || !policy->policyContext)
         return;
 
     UA_ByteString_clear(&policy->localCertificate);

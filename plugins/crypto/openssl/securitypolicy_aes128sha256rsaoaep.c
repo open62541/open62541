@@ -79,7 +79,7 @@ UA_Policy_Aes128Sha256RsaOaep_New_Context(UA_SecurityPolicy *securityPolicy,
 
 static void
 UA_Policy_Aes128Sha256RsaOaep_Clear_Context(UA_SecurityPolicy *policy) {
-    if(policy == NULL)
+    if(policy == NULL || !policy->policyContext)
         return;
 
     UA_ByteString_clear(&policy->localCertificate);
