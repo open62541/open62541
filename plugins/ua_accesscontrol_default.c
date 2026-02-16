@@ -246,18 +246,14 @@ allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
         UA_String *userId1 = (UA_String*)session1UserId.data;
         UA_String *userId2 = (UA_String*)session2UserId.data;
         
-        /* Check if both sessions have the same userId */
-        if(UA_String_equal(userId1, userId2)) {
-            /* Anonymous users have empty userId */
-            if(userId1->length == 0) {
-                /* Reject transfer for anonymous users (empty userId).
-                 * According to OPC UA CTT, anonymous users
-                 * should not be allowed to transfer subscriptions. */
-                result = false;
-            } else {
-                /* Same authenticated user - allow transfer */
-                result = true;
-            }
+        /* Anonymous users have empty userId - reject immediately.
+         * According to OPC UA CTT, anonymous users should not be
+         * allowed to transfer subscriptions. */
+        if(userId1->length == 0 || userId2->length == 0) {
+            result = false;
+        } else if(UA_String_equal(userId1, userId2)) {
+            /* Same authenticated user - allow transfer */
+            result = true;
         }
     }
     
