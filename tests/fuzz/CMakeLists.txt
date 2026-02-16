@@ -104,6 +104,11 @@ if(UA_ENABLE_XML_ENCODING)
     add_fuzzer(fuzz_xml_decode_encode fuzz_xml_decode_encode.cc)
 endif()
 
+# EventFilter parser fuzzer
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+    add_fuzzer(fuzz_eventfilter_parse fuzz_eventfilter_parse.cc)
+endif()
+
 # Run fuzzer on existing corpus to avoid regression
 file(GLOB CORPUS_FILES ${PROJECT_SOURCE_DIR}/tests/fuzz/fuzz_binary_message_corpus/generated/*)
 SET(CORPUS_CMDS "")
