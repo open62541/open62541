@@ -56,6 +56,20 @@ createSecondSession(void) {
     return session2;
 }
 
+/* Create a session with authenticated user (for testing subscription transfer) */
+static UA_Session *
+createAuthenticatedSession(const char *userId) {
+    UA_Session *newSession = createSecondSession();
+    
+    /* Set clientUserIdOfSession to simulate authenticated user */
+    lockServer(server);
+    UA_String_clear(&newSession->clientUserIdOfSession);
+    newSession->clientUserIdOfSession = UA_STRING_ALLOC(userId);
+    unlockServer(server);
+    
+    return newSession;
+}
+
 static void setup(void) {
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
@@ -880,6 +894,12 @@ START_TEST(Server_transferSubscriptionDiagnostics) {
     /* Test that subscription diagnostics counter is correctly maintained
      * when subscriptions are transferred between sessions */
 
+    /* Set authenticated user for first session to allow transfer */
+    lockServer(server);
+    UA_String_clear(&session->clientUserIdOfSession);
+    session->clientUserIdOfSession = UA_STRING_ALLOC("testuser");
+    unlockServer(server);
+
     /* Read initial subscription count */
     UA_UInt32 initialCount = server->serverDiagnosticsSummary.currentSubscriptionCount;
 
@@ -891,8 +911,8 @@ START_TEST(Server_transferSubscriptionDiagnostics) {
     UA_UInt32 countAfterCreate = server->serverDiagnosticsSummary.currentSubscriptionCount;
     ck_assert_uint_eq(countAfterCreate, initialCount + 1);
 
-    /* Create a second session */
-    UA_Session *session2 = createSecondSession();
+    /* Create a second session with same authenticated user */
+    UA_Session *session2 = createAuthenticatedSession("testuser");
 
     /* Verify count is still the same (creating session doesn't change subscription count) */
     UA_UInt32 countAfterSession2 = server->serverDiagnosticsSummary.currentSubscriptionCount;
@@ -964,6 +984,50 @@ START_TEST(Server_transferSubscriptionDiagnostics) {
 }
 END_TEST
 
+/* Test anonymous user subscription transfer restriction */
+START_TEST(Server_transferSubscription_anonymous) {
+    /* Create subscription in first session (anonymous) */
+    createSubscription();
+    createMonitoredItem();
+    
+    /* Create second anonymous session */
+    UA_Session *session2 = NULL;
+    UA_CreateSessionRequest request;
+    UA_CreateSessionRequest_init(&request);
+    request.requestedSessionTimeout = UA_UINT32_MAX;
+    lockServer(server);
+    UA_StatusCode retval = UA_Session_create(server, NULL, &request, &session2);
+    unlockServer(server);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    
+    /* Attempt to transfer subscription from session to session2 */
+    UA_TransferSubscriptionsRequest transferRequest;
+    UA_TransferSubscriptionsRequest_init(&transferRequest);
+    transferRequest.subscriptionIdsSize = 1;
+    transferRequest.subscriptionIds = &subscriptionId;
+    transferRequest.sendInitialValues = false;
+    
+    UA_TransferSubscriptionsResponse transferResponse;
+    UA_TransferSubscriptionsResponse_init(&transferResponse);
+    
+    lockServer(server);
+    Service_TransferSubscriptions(server, session2, &transferRequest, &transferResponse);
+    unlockServer(server);
+    
+    /* Verify transfer was rejected with Bad_UserAccessDenied */
+    ck_assert_uint_eq(transferResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(transferResponse.resultsSize, 1);
+    ck_assert_uint_eq(transferResponse.results[0].statusCode, UA_STATUSCODE_BADUSERACCESSDENIED);
+    
+    UA_TransferSubscriptionsResponse_clear(&transferResponse);
+    
+    /* Cleanup: close second session */
+    lockServer(server);
+    UA_Server_closeSession(server, &session2->sessionId);
+    unlockServer(server);
+}
+END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 static Suite* testSuite_Client(void) {
@@ -987,6 +1051,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_lifeTimeCount);
     tcase_add_test(tc_server, Server_invalidPublishingInterval);
     tcase_add_test(tc_server, Server_transferSubscriptionDiagnostics);
+    tcase_add_test(tc_server, Server_transferSubscription_anonymous);
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
     suite_add_tcase(s, tc_server);
 
