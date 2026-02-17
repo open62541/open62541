@@ -613,6 +613,8 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
     pMetaData->fieldsSize = dataSetReader->dataSetMetaData.fieldsSize;
     pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
                         &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+    if(pMetaData->fieldsSize > 0 && !pMetaData->fields)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     for(size_t i = 0; i < pMetaData->fieldsSize; i++){
         UA_FieldMetaData_init (&pMetaData->fields[i]);
         UA_NodeId_copy (&dataSetReader->dataSetMetaData.fields[i].dataType,
