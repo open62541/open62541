@@ -210,7 +210,12 @@ def setNodeValueRankRecursive(node, nodeset):
         if typeDefNode.valueRank is not None:
             node.valueRank = typeDefNode.valueRank
         else:
-            raise RuntimeError(f"Node {str(node.id)}: the ValueRank of the parent node is None.")
+            # TypeDefinition has no ValueRank, apply XSD schema default for scalar nodes
+            # UANodeSet.xsd: <xs:attribute name="ValueRank" type="ValueRank" default="-1"/>
+            if len(node.arrayDimensions) == 0:
+                node.valueRank = -1
+            else:
+                raise RuntimeError(f"Node {str(node.id)}: the ValueRank of the parent node is None.")
     else:
         if node.parent is None:
             raise RuntimeError(f"Node {str(node.id)}: does not have a parent. Probably the parent node was blacklisted?")
@@ -222,7 +227,12 @@ def setNodeValueRankRecursive(node, nodeset):
         if node.parent.valueRank is not None:
             node.valueRank = node.parent.valueRank
         else:
-            raise RuntimeError(f"Node {str(node.id)}: the ValueRank of the parent node is None.")
+            # Parent has no ValueRank, apply XSD schema default for scalar nodes
+            # UANodeSet.xsd: <xs:attribute name="ValueRank" type="ValueRank" default="-1"/>
+            if len(node.arrayDimensions) == 0:
+                node.valueRank = -1
+            else:
+                raise RuntimeError(f"Node {str(node.id)}: the ValueRank of the parent node is None.")
 
 
 def generateCommonVariableCode(node, nodeset):
