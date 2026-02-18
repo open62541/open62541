@@ -13,11 +13,11 @@
 #define UA_AES128CTR_KEY_LENGTH 16
 #define UA_AES128CTR_KEYNONCE_LENGTH 4
 
-UA_Byte signingKey[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
-UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
-UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
+static UA_Byte signingKey[UA_AES128CTR_SIGNING_KEY_LENGTH] = {0};
+static UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
+static UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
 
-UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
+static UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
