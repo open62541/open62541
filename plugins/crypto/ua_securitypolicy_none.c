@@ -192,7 +192,8 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *sp, const UA_ByteString localCertifica
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
     UA_mbedTLS_LoadLocalCertificate(&localCertificate, &sp->localCertificate);
 #elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
-    UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate);
+    UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate,
+                                    EVP_PKEY_NONE);
 #else
     UA_ByteString_copy(&localCertificate, &sp->localCertificate);
 #endif

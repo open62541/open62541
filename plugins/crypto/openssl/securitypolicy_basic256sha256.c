@@ -76,7 +76,7 @@ New_Context(const UA_SecurityPolicy * securityPolicy,
 
     /* decode to X509 */
     context->remoteCertificateX509 =
-        UA_OpenSSL_LoadCertificate(&context->remoteCertificate);
+        UA_OpenSSL_LoadCertificate(&context->remoteCertificate, EVP_PKEY_RSA);
     if(context->remoteCertificateX509 == NULL) {
         UA_ByteString_clear(&context->remoteCertificate);
         UA_free(context);
@@ -84,9 +84,6 @@ New_Context(const UA_SecurityPolicy * securityPolicy,
     }
 
     *channelContext = context;
-
-    UA_LOG_INFO(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The basic256sha256 security policy channel with openssl is created.");
 
     return UA_STATUSCODE_GOOD;
 }
@@ -107,9 +104,6 @@ Delete_Context(const UA_SecurityPolicy *policy,
     UA_ByteString_clear(&cc->remoteSymSigningKey);
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     UA_ByteString_clear(&cc->remoteSymIv);
-
-    UA_LOG_INFO(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The basic256sha256 security policy channel with openssl is deleted.");
     UA_free(cc);
 }
 
@@ -346,9 +340,6 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *sp,
                                  const UA_ByteString localCertificate,
                                  const UA_ByteString localPrivateKey,
                                  const UA_Logger *logger) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The basic256sha256 security policy with openssl is added.");
-
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
     sp->policyUri =
@@ -422,12 +413,12 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *sp,
     /* Parse the certificate */
     UA_Openssl_Init();
     UA_StatusCode res =
-        UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate);
+        UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate, EVP_PKEY_RSA);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
     /* Create the policy context */
-    res = UA_OpenSSL_Policy_newContext_generic(sp, localPrivateKey, logger);
+    res = UA_OpenSSL_Policy_newContext_generic(sp, localPrivateKey, EVP_PKEY_RSA, logger);
     if(res != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&sp->localCertificate);
         return res;
