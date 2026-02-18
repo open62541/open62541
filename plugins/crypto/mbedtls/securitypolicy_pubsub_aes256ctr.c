@@ -35,10 +35,6 @@
 #define UA_AES256CTR_KEYNONCE_LENGTH 4
 #define UA_AES256CTR_MESSAGENONCE_LENGTH 8
 #define UA_AES256CTR_ENCRYPTION_BLOCK_SIZE 16
-#define UA_AES256CTR_PLAIN_TEXT_BLOCK_SIZE 16
-// counter block=keynonce(4Byte)+Messagenonce(8Byte)+counter(4Byte) see Part14 7.2.2.2.3.2
-// for details
-#define UA_AES256CTR_COUNTERBLOCK_SIZE 16
 
 typedef struct {
     mbedtls_ctr_drbg_context drbgContext;
