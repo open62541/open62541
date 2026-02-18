@@ -441,11 +441,17 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
      * shall verify the RequestId and the SequenceNumber. If these checks fail a
      * Bad_SecurityChecksFailed error is reported. The RequestId only needs to
      * be verified by the Client since only the Client knows if it is valid or
-     * not. */
+     * not.
+     *
+     * But! If an async request has timed out, the RequestId is no longer found.
+     * In theory the server should send an error back before the timeout. But
+     * not all do. In these cases we don't want to close the entire
+     * SecureChannel and just log a warning. The service callback has already
+     * been notified about the timeout before. */
     if(!ac) {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_CLIENT,
                        "Request with unknown RequestId %u", requestId);
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        return UA_STATUSCODE_GOOD;
     }
 
     UA_Response asyncResponse;
