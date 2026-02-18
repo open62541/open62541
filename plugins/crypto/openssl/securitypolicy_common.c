@@ -198,7 +198,7 @@ UA_Openssl_X509_GetCertificateThumbprint(const UA_ByteString *certficate,
         if(pThumbprint->length != SHA_DIGEST_LENGTH)
             return UA_STATUSCODE_BADINTERNALERROR;
     }
-    X509 * x509Certificate = UA_OpenSSL_LoadCertificate(certficate);
+    X509 * x509Certificate = UA_OpenSSL_LoadCertificate(certficate, EVP_PKEY_NONE);
 
     if(x509Certificate == NULL) {
         if(bThumbPrint)
@@ -770,7 +770,7 @@ UA_OpenSSL_AES_256_CBC_Encrypt(const UA_ByteString * iv,
 UA_StatusCode
 UA_OpenSSL_X509_compare(const UA_ByteString * cert,
                         const X509 *          bcert) {
-    X509 * acert = UA_OpenSSL_LoadCertificate(cert);
+    X509 * acert = UA_OpenSSL_LoadCertificate(cert, EVP_PKEY_NONE);
     if(acert == NULL) {
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
@@ -1039,7 +1039,8 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Get X509 certificate */
-    X509 *x509Certificate = UA_OpenSSL_LoadCertificate(&securityPolicy->localCertificate);
+    X509 *x509Certificate =
+        UA_OpenSSL_LoadCertificate(&securityPolicy->localCertificate, EVP_PKEY_NONE);
     if(!x509Certificate)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
@@ -1261,7 +1262,8 @@ UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
 }
 
 X509 *
-UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate) {
+UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate,
+                           int keyType) {
     X509 * result = NULL;
 
     /* Try to decode DER encoded certificate */
@@ -1270,6 +1272,26 @@ UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate) {
     if(result == NULL) {
         /* Try to decode PEM encoded certificate */
         result = UA_OpenSSL_LoadPemCertificate(certificate);
+    }
+
+    if(!result)
+        return NULL;
+
+    /* Don't compare */
+    if(keyType == EVP_PKEY_NONE)
+        return result;
+
+    EVP_PKEY *pkey = X509_get_pubkey(result);
+    if(!pkey) {
+        X509_free(result);
+        return NULL;
+    }
+
+    UA_Boolean good = (EVP_PKEY_base_id(pkey) == keyType);
+    EVP_PKEY_free(pkey);
+    if(!good) {
+        X509_free(result);
+        return NULL;
     }
 
     return result;
@@ -1326,12 +1348,14 @@ UA_OpenSSL_LoadPemCrl(const UA_ByteString *crl) {
 }
 
 UA_StatusCode
-UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString *target) {
-    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate,
+                                UA_ByteString *target,
+                                int keyType) {
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, keyType);
 
     if(!cert) {
         UA_ByteString_init(target);
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
 
     unsigned char *derData = NULL;
@@ -1448,11 +1472,13 @@ UA_OpenSSL_Policy_clearContext_generic(UA_SecurityPolicy *policy) {
 UA_StatusCode
 UA_OpenSSL_Policy_newContext_generic(UA_SecurityPolicy *securityPolicy,
                                      const UA_ByteString localPrivateKey,
+                                     int keyType,
                                      const UA_Logger *logger) {
     openssl_PolicyContext *context = (openssl_PolicyContext *)
         UA_malloc(sizeof(openssl_PolicyContext));
     if(context == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    context->keyType = keyType;
     context->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&localPrivateKey);
     if(!context->localPrivateKey) {
         UA_free(context);
@@ -1495,9 +1521,10 @@ UA_OpenSSL_SecurityPolicy_updateCertificate_generic(UA_SecurityPolicy *securityP
 
     UA_ByteString_clear(&securityPolicy->localCertificate);
 
-    UA_StatusCode retval = UA_OpenSSL_LoadLocalCertificate(
-        &newCertificate, &securityPolicy->localCertificate);
-
+    UA_StatusCode retval =
+        UA_OpenSSL_LoadLocalCertificate(&newCertificate,
+                                        &securityPolicy->localCertificate,
+                                        pc->keyType);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -1956,6 +1983,8 @@ UA_OpenSSL_ECC_GenerateKey(const int curveId,
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
+
+    UA_assert(keyPubEncSize-1 == keyPublicEncOut->length);
 
     /* Omit the first byte (encoding) */
     memcpy(keyPublicEncOut->data, &keyPubEnc[1], keyPubEncSize-1);

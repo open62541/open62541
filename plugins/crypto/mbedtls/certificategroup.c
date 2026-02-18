@@ -982,7 +982,7 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    retval = UA_mbedTLS_LoadPrivateKey(privateKey, &pk, NULL);
+    retval = (UA_mbedTLS_LoadPrivateKey(privateKey, &pk, NULL)? UA_STATUSCODE_BADSECURITYCHECKSFAILED : UA_STATUSCODE_GOOD);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 

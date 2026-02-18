@@ -365,7 +365,7 @@ static int write_private_key(mbedtls_pk_context *key, UA_CertificateFormat keyFo
             return ret;
         }
 
-        len = ret;
+        len = (size_t)ret;
         c = output_buf + sizeof(output_buf) - len;
         break;
     }
@@ -401,7 +401,7 @@ static int write_certificate(mbedtls_x509write_cert *crt, UA_CertificateFormat c
             return ret;
         }
 
-        len = ret;
+        len = (size_t)ret;
         c = output_buf + sizeof(output_buf) - len;
         break;
     }

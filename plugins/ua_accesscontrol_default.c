@@ -189,7 +189,8 @@ allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *newSessionId, void *newSessionContext) {
     if(!oldSessionId)
         return true;
-    /* Allow the transfer if the same user-id was used to activate both sessions */
+    
+    /* Get clientUserId for both sessions */
     UA_Variant session1UserId;
     UA_Variant_init(&session1UserId);
     UA_Server_getSessionAttribute(server, oldSessionId,
@@ -201,8 +202,28 @@ allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
                                   UA_QUALIFIEDNAME(0, "clientUserId"),
                                   &session2UserId);
 
-    return (UA_order(&session1UserId, &session2UserId,
-                     &UA_TYPES[UA_TYPES_VARIANT]) == UA_ORDER_EQ);
+    /* clientUserId is always a String type */
+    UA_Boolean result = false;
+    if(session1UserId.type == &UA_TYPES[UA_TYPES_STRING] &&
+       session2UserId.type == &UA_TYPES[UA_TYPES_STRING]) {
+        UA_String *userId1 = (UA_String*)session1UserId.data;
+        UA_String *userId2 = (UA_String*)session2UserId.data;
+        
+        /* Anonymous users have empty userId - reject immediately.
+         * According to OPC UA CTT, anonymous users should not be
+         * allowed to transfer subscriptions. */
+        if(userId1->length == 0 || userId2->length == 0) {
+            result = false;
+        } else if(UA_String_equal(userId1, userId2)) {
+            /* Same authenticated user - allow transfer */
+            result = true;
+        }
+    }
+    
+    UA_Variant_clear(&session1UserId);
+    UA_Variant_clear(&session2UserId);
+    
+    return result;
 }
 #endif
 
