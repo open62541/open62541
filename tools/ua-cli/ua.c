@@ -265,15 +265,15 @@ parseVariant(UA_Variant *v, UA_String valstr) {
     UA_String s = UA_STRING_NULL;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(valstr.data[0] == '\"' || valstr.data[0] == '\'') {
-        UA_StatusCode res = UA_decodeJson(&valstr, &s, &UA_TYPES[UA_TYPES_STRING], NULL);
+        res = UA_decodeJson(&valstr, &s, &UA_TYPES[UA_TYPES_STRING], NULL);
         res |= UA_Variant_setScalarCopy(v, &s, &UA_TYPES[UA_TYPES_STRING]);
         return res;
     }
 
     /* Detect integer and float */
-    UA_Int32 i;
-    UA_Float ff;
     if(valstr.data[0] == '.' || isdigit(valstr.data[0])) {
+        UA_Int32 i;
+        UA_Float ff;
         res = UA_decodeJson(&valstr, &i, &UA_TYPES[UA_TYPES_INT32], NULL);
         if(res == UA_STATUSCODE_GOOD)
             return UA_Variant_setScalarCopy(v, &i, &UA_TYPES[UA_TYPES_INT32]);

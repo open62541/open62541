@@ -13,6 +13,7 @@
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #ifndef UA_SUBSCRIPTION_H_
@@ -252,6 +253,9 @@ struct UA_Subscription {
     /* Runtime information */
     UA_SubscriptionState state;
     UA_Boolean late;
+    UA_Boolean wasTransferred; /* Set to true when this subscription was
+                                * transferred to another session. Used to
+                                * prevent incorrect diagnostic counter updates. */
     UA_StatusCode statusChange; /* If set, a notification is generated and the
                                  * Subscription is deleted within
                                  * UA_Subscription_publish. */

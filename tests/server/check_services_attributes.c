@@ -180,8 +180,8 @@ static UA_VariableNode* makeCompareSequence(void) {
     UA_QualifiedName_copy(&myIntegerName, &node->head.browseName);
 
     const UA_LocalizedText myIntegerDisplName = UA_LOCALIZEDTEXT("locale", "the answer");
-    UA_Node_insertOrUpdateDescription(&node->head, &myIntegerDisplName);
-    UA_Node_insertOrUpdateDisplayName(&node->head, &myIntegerDisplName);
+    UA_Node_insertOrUpdateDescription((UA_Node*)node, &myIntegerDisplName);
+    UA_Node_insertOrUpdateDisplayName((UA_Node*)node, &myIntegerDisplName);
 
     const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_NodeId_copy(&myIntegerNodeId, &node->head.nodeId);
