@@ -1,6 +1,6 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server.h>
-#include <open62541/driver/ua_fileserver_driver.h>
+#include <filesystem/ua_fileserver_driver.h>
 #include <open62541/plugin/log_stdout.h>
 
 /* Helper function: Manually define a "Pump" object in the OPC UA information model.

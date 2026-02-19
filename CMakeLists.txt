@@ -799,7 +799,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/common.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/types.h
-                     ${PROJECT_SOURCE_DIR}/include/filesystem/ua_filetypes.h
+                     ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_filetypes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/util.h
@@ -816,8 +816,9 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/driver/driver.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/driver/ua_fileserver_driver.h)
+                     ${PROJECT_SOURCE_DIR}/driver/driver.h
+                     ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.h
+                     ${PROJECT_SOURCE_DIR}/driver/directoryArch/common/fileSystemOperations_common.h)
 
 # Main Library
 
@@ -884,9 +885,11 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 # driver
-                ${PROJECT_SOURCE_DIR}/src/driver/ua_fileserver_driver.c
-                ${PROJECT_SOURCE_DIR}/src/filesystem/ua_server_ns0_fdt.c
-                ${PROJECT_SOURCE_DIR}/src/filesystem/ua_server_ns0_filetype.c
+                ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.c
+                ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_server_ns0_fdt.c
+                ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_server_ns0_filetype.c
+                ${PROJECT_SOURCE_DIR}/driver/directoryArch/win32/fileSystemOperations_win32.c
+                ${PROJECT_SOURCE_DIR}/driver/directoryArch/posix/fileSystemOperations_posix.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
@@ -1023,10 +1026,7 @@ if(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_tcp.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
          ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c
-         ${PROJECT_SOURCE_DIR}/arch/common/fileSystemOperations_common.h
-         ${PROJECT_SOURCE_DIR}/arch/win32/fileSystemOperations_win32.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/fileSystemOperations_posix.c)
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c)
 endif()
 
 if(UA_ARCHITECTURE_ZEPHYR)
@@ -1434,7 +1434,8 @@ endfunction()
 
 include_directories_public("${PROJECT_SOURCE_DIR}/include"
                            "${PROJECT_SOURCE_DIR}/plugins/include"
-                           "${PROJECT_BINARY_DIR}/src_generated")
+                           "${PROJECT_BINARY_DIR}/src_generated"
+                           "${PROJECT_SOURCE_DIR}/driver")
 
 if(UA_ENABLE_NODESETLOADER)
     include_directories_public(${NODESETLOADER_PUBLIC_INCLUDES})

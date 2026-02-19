@@ -1,9 +1,9 @@
-#include "../common/fileSystemOperations_common.h"
+#include <directoryArch/common/fileSystemOperations_common.h>
 
 #if defined(UA_ARCHITECTURE_WIN32)
 #include <direct.h>
 #include <open62541/server.h>
-#include <open62541/driver/driver.h>
+#include <driver.h>
 #include <stdio.h>
 #include <sys/stat.h>
 
@@ -129,7 +129,7 @@ directoryExists(const char *path, UA_Boolean *exists) {
 
 /* Open a file for reading or writing based on openMode */
 UA_StatusCode
-openFile(const char *path, UA_Byte openMode, FILE **handle) {
+openFile(const char *path, UA_Byte openMode, UA_Int32 **handle) {
     /* OPC UA Open modes:
      * Bit 0: Read
      * Bit 1: Write
@@ -149,7 +149,7 @@ openFile(const char *path, UA_Byte openMode, FILE **handle) {
     
     UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER, "path: %s, openmode: %d", path, openMode);
 
-    *handle = fopen(path, mode);
+    *handle = (UA_Int32*)fopen(path, mode);
     if (!*handle) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -158,16 +158,16 @@ openFile(const char *path, UA_Byte openMode, FILE **handle) {
 
 /* Close an open file */
 UA_StatusCode
-closeFile(FILE *handle) {
+closeFile(UA_Int32 *handle) {
     if (handle) {
-        fclose(handle);
+        fclose((FILE*)handle);
     }
     return UA_STATUSCODE_GOOD;
 }
 
 /* Read from an open file */
 UA_StatusCode
-readFile(FILE *handle, UA_Int32 length, UA_ByteString *data) {
+readFile(UA_Int32 *handle, UA_Int32 length, UA_ByteString *data) {
     if (!handle || length <= 0) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -177,10 +177,10 @@ readFile(FILE *handle, UA_Int32 length, UA_ByteString *data) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     
-    size_t bytesRead = fread(data->data, 1, length, handle);
+    size_t bytesRead = fread(data->data, 1, length, (FILE*)handle);
     data->length = bytesRead;
     
-    if (ferror(handle)) {
+    if (ferror((FILE*)handle)) {
         UA_free(data->data);
         data->data = NULL;
         data->length = 0;
@@ -192,30 +192,30 @@ readFile(FILE *handle, UA_Int32 length, UA_ByteString *data) {
 
 /* Write to an open file */
 UA_StatusCode
-writeFile(FILE *handle, const UA_ByteString *data) {
+writeFile(UA_Int32 *handle, const UA_ByteString *data) {
     if (!handle || !data || !data->data) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     
-    size_t bytesWritten = fwrite(data->data, 1, data->length, handle);
+    size_t bytesWritten = fwrite(data->data, 1, data->length, (FILE*)handle);
     
     if (bytesWritten != data->length) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     
-    fflush(handle);  /* Ensure data is written */
+    fflush((FILE*)handle);  /* Ensure data is written */
     return UA_STATUSCODE_GOOD;
 }
 
 /* Seek to position in file */
 UA_StatusCode
-seekFile(FILE *handle, UA_UInt64 position) {
+seekFile(UA_Int32 *handle, UA_UInt64 position) {
     if (!handle) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     
     /* Use _fseeki64 for 64-bit positions on Windows */
-    if (_fseeki64(handle, (long long)position, SEEK_SET) != 0) {
+    if (_fseeki64((FILE*)handle, (long long)position, SEEK_SET) != 0) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     
@@ -224,13 +224,13 @@ seekFile(FILE *handle, UA_UInt64 position) {
 
 /* Get current file position */
 UA_StatusCode
-getFilePosition(FILE *handle, UA_UInt64 *position) {
+getFilePosition(UA_Int32 *handle, UA_UInt64 *position) {
     if (!handle || !position) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
     
     /* Use _ftelli64 for 64-bit positions on Windows */
-    long long pos = _ftelli64(handle);
+    long long pos = _ftelli64((FILE*)handle);
     if (pos < 0) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }

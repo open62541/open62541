@@ -3,7 +3,7 @@
 
 #if defined(UA_FILESYSTEM)
 
-#include <open62541/driver/driver.h>
+#include <driver.h>
 #include <filesystem/ua_filetypes.h>
 
 typedef struct UA_FileDriverContext UA_FileDriverContext; /* Forward declaration for driver context */
@@ -32,7 +32,7 @@ struct UA_FileDriverContext {
     UA_Boolean (*isDirectory)(const char *path);
 }; 
 
-#include <../../arch/common/fileSystemOperations_common.h>
+#include <directoryArch/common/fileSystemOperations_common.h>
 
 /* Structure representing the FileServer driver.
  *
