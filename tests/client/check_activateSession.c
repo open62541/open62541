@@ -343,6 +343,47 @@ START_TEST(Client_switch) {
 }
 END_TEST
 
+/* Issue #14: A NULL or empty UserIdentityToken should be treated as Anonymous
+ * (OPC UA Part 4, Section 5.6.3.2, Table 17) */
+START_TEST(Client_activateSession_nullToken) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(config);
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Send ActivateSession with a NULL (default-initialized) UserIdentityToken.
+     * The encoding is UA_EXTENSIONOBJECT_ENCODED_NOBODY. Per spec, the server
+     * must interpret this as an Anonymous login. */
+    UA_ActivateSessionRequest req;
+    UA_ActivateSessionRequest_init(&req);
+    /* userIdentityToken left as default (ENCODED_NOBODY / NULL) */
+
+    UA_ActivateSessionResponse resp;
+    UA_ActivateSessionResponse_init(&resp);
+
+    __UA_Client_Service(client, &req,
+                        &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST],
+                        &resp,
+                        &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE]);
+
+    ck_assert_uint_eq(resp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_ActivateSessionRequest_clear(&req);
+    UA_ActivateSessionResponse_clear(&resp);
+
+    /* Verify the session is still functional after re-activation */
+    UA_Variant val;
+    UA_Variant_init(&val);
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_activateSessionClose) {
     // restart server
     teardown();
@@ -483,6 +524,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_renewSecureChannelWithActiveSubscription);
 #endif
 
+    tcase_add_test(tc_client, Client_activateSession_nullToken);
     tcase_add_test(tc_client, Client_activateSessionClose);
     tcase_add_test(tc_client, Client_activateSessionTimeout);
     tcase_add_test(tc_client, Client_activateSessionLocaleIds);
