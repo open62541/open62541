@@ -1,7 +1,7 @@
 
 #include <../src/server/ua_server_internal.h>
-#include <open62541/driver/ua_fileserver_driver.h>
-#include <../arch/common/fileSystemOperations_common.h>
+#include <filesystem/ua_fileserver_driver.h>
+#include <directoryArch/common/fileSystemOperations_common.h>
 #include <filesystem/ua_filetypes.h>
 #include <open62541/plugin/log_stdout.h>
 #include <stdio.h>
