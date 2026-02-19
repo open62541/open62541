@@ -27,15 +27,29 @@ createDirectory(UA_Server *server,
     getFullPath(server, objectId, fullPath, 2048);
 
     char temp[2048];
-    snprintf(temp, sizeof(temp), "%s%s", fullPath, (const char*)folderName.data);
+    char name[folderName.length + 1];
+    memcpy(name, folderName.data, folderName.length);
+    name[folderName.length] = '\0';
+    snprintf(temp, sizeof(temp), "%s%s", fullPath, name);
     strncpy(fullPath, temp, 2048);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
                 "FullPath: %s\n",
                 fullPath);
 
+    UA_NodeId fileNodeId = *objectId;
+    UA_FileDriverContext *driverCtx = NULL;
+    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+
+    if (res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                        "Failed to get driver context for deletion");
+        return res;
+    }
+
     // Implementation to create a directory in the filesystem
-    UA_StatusCode res = makeDirectory(fullPath);
+    res |= driverCtx->makeDirectory(fullPath);
+    UA_free(driverCtx);
     if (res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
                      "Failed to create directory: %s",
@@ -49,7 +63,7 @@ createDirectory(UA_Server *server,
 
     UA_FileServerDriver_addFileDirectory(NULL, server, objectId, (const char*)folderName.data, (UA_NodeId*)output[0].data, NULL);
 
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 static UA_StatusCode
@@ -98,8 +112,20 @@ createFile(UA_Server *server,
                 "FullPath: %s\n",
                 fullPath);
 
+
+    UA_NodeId fileNodeId = *objectId;
+    UA_FileDriverContext *driverCtx = NULL;
+    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+
+    if (res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                        "Failed to get driver context for deletion");
+        return res;
+    }
+
     // Implementation to create a directory in the filesystem
-    UA_StatusCode res = makeFile(fullPath, fileHandleBool, (UA_Int32*)output);
+    res = driverCtx->makeFile(fullPath, fileHandleBool, (UA_Int32*)output); // TODO: implement driver dependant file handling
+    UA_free(driverCtx);
     if (res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
                      "Failed to create file: %s",
@@ -169,9 +195,21 @@ deleteSubtree(UA_Server *server, const UA_NodeId *nodeId, bool deleteFiles) {
         UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
                     "FullPath for deletion: %s", fullPath);
 
-        if (deleteFiles)
+        if (deleteFiles) {
+            UA_NodeId fileNodeId = *nodeId;
+            UA_FileDriverContext *driverCtx = NULL;
+            UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+
+            if (res != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                             "Failed to get driver context for deletion");
+                return res;
+            }
+
             /* Perform filesystem delete */
-            deleteDirOrFile(fullPath);
+            driverCtx->deleteDirOrFile(fullPath); // TODO: implement driver dependant file handling
+            UA_free(driverCtx);
+        }
 
         /* Delete the child node itself */
         FileDirectoryContext *nodeContext;
@@ -212,14 +250,24 @@ deleteItem(UA_Server *server,
                  "FullPath for deletion: %s", fullPath);
 
     /* Perform filesystem delete */
-    UA_StatusCode result = deleteDirOrFile(fullPath);
+    UA_NodeId fileNodeId = *objectId;
+    UA_FileDriverContext *driverCtx = NULL;
+    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
 
-    if (result == UA_STATUSCODE_GOOD) {
-        result = UA_Server_deleteNode(server, *nodeId, true);           
+    if (res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                        "Failed to get driver context for deletion");
+        return res;
+    }
+
+    res = driverCtx->deleteDirOrFile(fullPath); // TODO: implement driver dependant file handling
+    UA_free(driverCtx);
+    if (res == UA_STATUSCODE_GOOD) {
+        res = UA_Server_deleteNode(server, *nodeId, true);           
         UA_NodeId_clear(nodeId);
     }
 
-    return result;
+    return res;
 }
 
 static UA_StatusCode
@@ -273,9 +321,20 @@ moveOrCopy(UA_Server *server,
     strncpy(dstPath, temp, MAX_PATH);
 
     // TODO: Add new Nodes to the tree or move old ones
-    bool isDir = isDirectory(srcPath);
-    UA_StatusCode res = moveOrCopyItem(srcPath, dstPath, *createCopy);
 
+    UA_NodeId fileNodeId = *objectId;
+    UA_FileDriverContext *driverCtx = NULL;
+    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+
+    if (res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                        "Failed to get driver context for deletion");
+        return res;
+    }
+
+    bool isDir = driverCtx->isDirectory(srcPath);
+    res = driverCtx->moveOrCopyItem(srcPath, dstPath, *createCopy);
+    UA_free(driverCtx);
     if (res == UA_STATUSCODE_GOOD) {
         if (!*createCopy) {
             res |= deleteSubtree(server, nodeIdSrc, false);

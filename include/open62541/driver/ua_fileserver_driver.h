@@ -48,6 +48,41 @@ typedef struct UA_FileServerDriver {
     UA_NodeId *fsNodes; /* FileSystems dynamically allocated array of FileSystemNodeIds */
 } UA_FileServerDriver;
 
+inline static UA_StatusCode
+getDriverContext(UA_Server *server,
+                 UA_NodeId *nodeId,
+                 UA_FileDriverContext **driverCtx)
+{
+    FileDirectoryContext *ctx = NULL;
+
+    /* Get the FileDirectoryContext stored on the node */
+    UA_Server_getNodeContext(server, *nodeId, (void**)&ctx);
+    if(!ctx) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "No FileDirectoryContext found for node");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_FileServerDriver *driver = (UA_FileServerDriver*)ctx->driver;
+    if(!driver) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "Node has no driver");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Retrieve the driver context */
+    *driverCtx = NULL;
+    UA_Server_getNodeContext(server, driver->base.nodeId, (void**)driverCtx);
+
+    if(!*driverCtx) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "No FileDriverContext found for driver node");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 initFileSystemManagement(UA_FileServerDriver *fileDriver);
 
@@ -116,6 +151,48 @@ UA_StatusCode UA_FileServerDriver_addFile(UA_Server *server,
  */
 UA_FileServerDriver *
 UA_FileServerDriver_new(const char *name, UA_Server *server, FileDriverType driverType);
+
+// ======================================================
+// public API functions for file operations (open, close, read, write, etc.)
+UA_EXPORT UA_StatusCode
+UA_Server_addFileSystem(UA_Server *server,
+                      const UA_NodeId *parentNode,
+                      const char *mountPath,
+                      UA_NodeId *newNodeId, const char *scanDir);
+
+UA_EXPORT UA_StatusCode
+UA_Server_openFile(UA_Server *server, const UA_NodeId *fileNodeId, UA_Byte openMode, UA_Int32 **handle);
+
+UA_EXPORT UA_StatusCode
+UA_Server_closeFile(UA_Server *server, UA_Int32 *handle);
+
+UA_EXPORT UA_StatusCode
+UA_Server_readFile(UA_Server *server, UA_Int32 *handle, UA_Int32 length, UA_ByteString *data);
+
+UA_EXPORT UA_StatusCode
+UA_Server_writeFile(UA_Server *server, UA_Int32 *handle, const UA_ByteString *data);
+
+UA_EXPORT UA_StatusCode
+UA_Server_setFilePosition(UA_Server *server, UA_Int32 *handle, UA_UInt64 position);
+
+UA_EXPORT UA_StatusCode
+UA_Server_getFilePosition(UA_Server *server, UA_Int32 *handle, UA_UInt64 *position);
+
+UA_EXPORT UA_StatusCode
+UA_Server_getFileSize(UA_Server *server, const UA_NodeId *fileNodeId, UA_UInt64 *size);
+
+UA_EXPORT UA_StatusCode
+UA_Server_deleteDirOrFile(UA_Server *server, const UA_NodeId *nodeId);
+
+UA_EXPORT UA_StatusCode
+UA_Server_moveOrCopyItem(UA_Server *server, const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId, bool copy);
+
+UA_EXPORT UA_StatusCode
+UA_Server_makeDirectory(UA_Server *server, const UA_NodeId *parentNode, const char *dirName, UA_NodeId *newNodeId);
+
+UA_EXPORT UA_StatusCode
+UA_Server_makeFile(UA_Server *server, const UA_NodeId *parentNode, const char *fileName, bool fileHandleBool, UA_Int32* output);
+// ======================================================
 
 #endif /* UA_FILESERVER_DRIVER_H */
 #endif /* UA_FILESYSTEM */

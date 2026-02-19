@@ -16,7 +16,7 @@ typedef struct FileDirectoryContext {
 
 /* FileHandle - contains handle, position, openMode for a single open file */
 typedef struct FileHandle {
-    FILE *handle;               /* Open file handle */
+    UA_Int32 *handle;               /* Open file handle */
     UA_UInt64 position;         /* Current read/write position */
     UA_Byte openMode;           /* Open mode (read/write flags) */
 } FileHandle;
