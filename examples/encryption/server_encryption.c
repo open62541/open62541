@@ -19,7 +19,7 @@
 
 #include "common.h"
 
-UA_Boolean running = true;
+static UA_Boolean running = true;
 static void stopHandler(int sig) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "received ctrl-c");
     running = false;

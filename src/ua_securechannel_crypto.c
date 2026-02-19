@@ -24,6 +24,13 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
 
     /* Is the length of the previous nonce correct? */
     size_t nonceLength = sp->nonceLength;
+    if(nonceLength == 0)
+        return UA_STATUSCODE_GOOD;
+
+    /* At least 32 byte */
+    if(nonceLength < 32)
+        nonceLength = 32;
+
     if(channel->localNonce.length != nonceLength) {
         UA_ByteString_clear(&channel->localNonce);
         UA_StatusCode res = UA_ByteString_allocBuffer(&channel->localNonce, nonceLength);
@@ -31,6 +38,9 @@ UA_SecureChannel_generateLocalNonce(UA_SecureChannel *channel) {
     }
 
     /* Generate the nonce */
+    channel->localNonce.data[0] = 'e';
+    channel->localNonce.data[1] = 'p';
+    channel->localNonce.data[2] = 'h';
     return sp->generateNonce(sp, channel->channelContext, &channel->localNonce);
 }
 
@@ -72,9 +82,9 @@ UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
 
  error:
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(sp->logger, channel,
-                               "Could not generate local keys (statuscode: %s)",
-                               UA_StatusCode_name(res));
+        UA_LOG_ERROR_CHANNEL(sp->logger, channel,
+                             "Could not generate local keys (%s)",
+                             UA_StatusCode_name(res));
     }
     UA_ByteString_clear(&buf);
     return res;
@@ -117,8 +127,8 @@ generateRemoteKeys(const UA_SecureChannel *channel) {
 
  error:
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(sp->logger, channel,
-                               "Could not generate remote keys (statuscode: %s)",
+        UA_LOG_ERROR_CHANNEL(sp->logger, channel,
+                               "Could not generate remote keys (%s)",
                                UA_StatusCode_name(res));
     }
     UA_ByteString_clear(&buf);
@@ -478,7 +488,7 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
      * bytes long: 8 byte for the SequenceHeader and one byte for the actual
      * message */
     UA_CHECK(offset + padSize + sigsize + 9 < chunk->length,
-             UA_LOG_WARNING_CHANNEL(sp->logger, channel, "Impossible padding value");
+             UA_LOG_ERROR_CHANNEL(sp->logger, channel, "Impossible padding value");
              return UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     /* Hide the signature and padding */
@@ -521,7 +531,7 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId,
 
         /* Not the new token */
         UA_CHECK(tokenId == channel->altSecurityToken.tokenId,
-                 UA_LOG_WARNING_CHANNEL(sp->logger, channel, "Unknown SecurityToken");
+                 UA_LOG_ERROR_CHANNEL(sp->logger, channel, "Unknown SecurityToken");
                  return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN);
 
         /* Roll over to the new token, generate new local and remote keys */
@@ -542,7 +552,7 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId,
 
         /* Not the new token */
         UA_CHECK(tokenId == channel->securityToken.tokenId,
-                 UA_LOG_WARNING_CHANNEL(sp->logger, channel, "Unknown SecurityToken");
+                 UA_LOG_ERROR_CHANNEL(sp->logger, channel, "Unknown SecurityToken");
                  return UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN);
 
         /* The remote server uses the new token for the first time. Delete the
@@ -556,7 +566,7 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId,
 
     UA_DateTime timeout = token->createdAt + (token->revisedLifetime * UA_DATETIME_MSEC);
     if(channel->state == UA_SECURECHANNELSTATE_OPEN && timeout < nowMonotonic) {
-        UA_LOG_WARNING_CHANNEL(sp->logger, channel, "SecurityToken timed out");
+        UA_LOG_ERROR_CHANNEL(sp->logger, channel, "SecurityToken timed out");
         UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_TIMEOUT);
         return UA_STATUSCODE_BADSECURECHANNELCLOSED;
     }

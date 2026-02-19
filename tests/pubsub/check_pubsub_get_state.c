@@ -26,7 +26,6 @@
 
 static UA_Server *server = NULL;
 
-/***************************************************************************************************/
 static void setup(void) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "setup");
     server = UA_Server_newForUnitTest();
@@ -34,7 +33,6 @@ static void setup(void) {
     UA_Server_run_startup(server);
 }
 
-/***************************************************************************************************/
 static void teardown(void) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "teardown");
     UA_Server_run_shutdown(server);
@@ -42,17 +40,13 @@ static void teardown(void) {
 }
 
 
-/***************************************************************************************************/
 /* utility functions to setup the PubSub configuration */
 
-/***************************************************************************************************/
-static void AddConnection(
-    char *pName,
-    UA_UInt32 PublisherId,
-    UA_NodeId *opConnectionId) {
-
-    assert(pName != 0);
-    assert(opConnectionId != 0);
+static void
+AddConnection(char *pName, UA_UInt32 PublisherId,
+              UA_NodeId *opConnectionId) {
+    ck_assert(pName != 0);
+    ck_assert(opConnectionId != 0);
 
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -68,17 +62,13 @@ static void AddConnection(
     ck_assert(UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId) == UA_STATUSCODE_GOOD);
 }
 
-/***************************************************************************************************/
-static void AddWriterGroup(
-    UA_NodeId *pConnectionId,
-    char *pName,
-    UA_UInt32 WriterGroupId,
-    UA_Duration PublishingInterval,
-    UA_NodeId *opWriterGroupId) {
-
-    assert(pConnectionId != 0);
-    assert(pName != 0);
-    assert(opWriterGroupId != 0);
+static void
+AddWriterGroup(UA_NodeId *pConnectionId, char *pName,
+               UA_UInt32 WriterGroupId, UA_Duration PublishingInterval,
+               UA_NodeId *opWriterGroupId) {
+    ck_assert(pConnectionId != 0);
+    ck_assert(pName != 0);
+    ck_assert(opWriterGroupId != 0);
 
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
@@ -98,22 +88,17 @@ static void AddWriterGroup(
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 }
 
-/***************************************************************************************************/
-static void AddPublishedDataSet(
-    UA_NodeId *pWriterGroupId,
-    char *pPublishedDataSetName,
-    char *pDataSetWriterName,
-    UA_UInt32 DataSetWriterId,
-    UA_NodeId *opPublishedDataSetId,
-    UA_NodeId *opPublishedVarId,
-    UA_NodeId *opDataSetWriterId) {
-
-    assert(pWriterGroupId != 0);
-    assert(pPublishedDataSetName != 0);
-    assert(pDataSetWriterName != 0);
-    assert(opPublishedDataSetId != 0);
-    assert(opPublishedVarId != 0);
-    assert(opDataSetWriterId != 0);
+static void
+AddPublishedDataSet(UA_NodeId *pWriterGroupId, char *pPublishedDataSetName,
+                    char *pDataSetWriterName, UA_UInt32 DataSetWriterId,
+                    UA_NodeId *opPublishedDataSetId, UA_NodeId *opPublishedVarId,
+                    UA_NodeId *opDataSetWriterId) {
+    ck_assert(pWriterGroupId != 0);
+    ck_assert(pPublishedDataSetName != 0);
+    ck_assert(pDataSetWriterName != 0);
+    ck_assert(opPublishedDataSetId != 0);
+    ck_assert(opPublishedVarId != 0);
+    ck_assert(opDataSetWriterId != 0);
 
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
@@ -156,15 +141,12 @@ static void AddPublishedDataSet(
     ck_assert(UA_Server_addDataSetWriter(server, *pWriterGroupId, *opPublishedDataSetId, &dataSetWriterConfig, opDataSetWriterId) == UA_STATUSCODE_GOOD);
 }
 
-/***************************************************************************************************/
-static void AddReaderGroup(
-    UA_NodeId *pConnectionId,
-    char *pName,
-    UA_NodeId *opReaderGroupId) {
-
-    assert(pConnectionId != 0);
-    assert(pName != 0);
-    assert(opReaderGroupId != 0);
+static void
+AddReaderGroup(UA_NodeId *pConnectionId, char *pName,
+               UA_NodeId *opReaderGroupId) {
+    ck_assert(pConnectionId != 0);
+    ck_assert(pName != 0);
+    ck_assert(opReaderGroupId != 0);
 
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
@@ -173,21 +155,15 @@ static void AddReaderGroup(
                                        opReaderGroupId) == UA_STATUSCODE_GOOD);
 }
 
-/***************************************************************************************************/
-static void AddDataSetReader(
-    UA_NodeId *pReaderGroupId,
-    char *pName,
-    UA_UInt32 PublisherId,
-    UA_UInt32 WriterGroupId,
-    UA_UInt32 DataSetWriterId,
-    UA_Duration MessageReceiveTimeout,
-    UA_NodeId *opSubscriberVarId,
-    UA_NodeId *opDataSetReaderId) {
-
-    assert(pReaderGroupId != 0);
-    assert(pName != 0);
-    assert(opSubscriberVarId != 0);
-    assert(opDataSetReaderId != 0);
+static void
+AddDataSetReader(UA_NodeId *pReaderGroupId, char *pName,
+                 UA_UInt32 PublisherId, UA_UInt32 WriterGroupId,
+                 UA_UInt32 DataSetWriterId, UA_Duration MessageReceiveTimeout,
+                 UA_NodeId *opSubscriberVarId, UA_NodeId *opDataSetReaderId) {
+    ck_assert(pReaderGroupId != 0);
+    ck_assert(pName != 0);
+    ck_assert(opSubscriberVarId != 0);
+    ck_assert(opDataSetReaderId != 0);
 
     UA_DataSetReaderConfig readerConfig;
     memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
@@ -240,9 +216,7 @@ static void AddDataSetReader(
     pDataSetMetaData->fields = NULL;
 }
 
-/***************************************************************************************************/
 START_TEST(Test_normal_operation) {
-
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "START: Test_normal_operation");
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "configure pubsub");
@@ -281,7 +255,6 @@ START_TEST(Test_normal_operation) {
     UA_Duration MessageReceiveTimeout_Conn1_RG1_DSR1 = 350.0;
     AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1_DS1,
         MessageReceiveTimeout_Conn1_RG1_DSR1, &VarId_Conn1_RG1_DSR1, &DSRId_Conn1_RG1_DSR1);
-
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "check state");
     UA_PubSubState state = UA_PUBSUBSTATE_ERROR;
@@ -327,10 +300,7 @@ START_TEST(Test_normal_operation) {
 
 } END_TEST
 
-
-/***************************************************************************************************/
 START_TEST(Test_corner_cases) {
-
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "START: Test_corner_cases");
 
     UA_NodeId id = UA_NODEID_NULL;
@@ -377,7 +347,6 @@ START_TEST(Test_corner_cases) {
     UA_Duration MessageReceiveTimeout_Conn1_RG1_DSR1 = 350.0;
     AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1_DS1,
         MessageReceiveTimeout_Conn1_RG1_DSR1, &VarId_Conn1_RG1_DSR1, &DSRId_Conn1_RG1_DSR1);
-
 
     ck_assert(UA_Server_enableDataSetReader(server, DSRId_Conn1_RG1_DSR1) == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
@@ -432,9 +401,7 @@ START_TEST(Test_corner_cases) {
 
 } END_TEST
 
-/***************************************************************************************************/
 START_TEST(Test_error_case) {
-
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "\n\nSTART: Test_error_case");
 
     /* setup Connection 1: 1 writergroup, 1 writer */
@@ -505,9 +472,7 @@ START_TEST(Test_error_case) {
 
 } END_TEST
 
-/***************************************************************************************************/
 int main(void) {
-
     TCase *tc_normal_operation = tcase_create("normal_operation");
     tcase_add_checked_fixture(tc_normal_operation, setup, teardown);
     tcase_add_test(tc_normal_operation, Test_normal_operation);
