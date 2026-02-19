@@ -351,7 +351,6 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 #   define UA_calloc k_calloc
 #   define UA_realloc k_realloc
 #  else
-_Pragma ("GCC warning \"can't use k_malloc. zephyr older than v3.7.0\"")
 #   include <stdlib.h>
 #   define UA_free free
 #   define UA_malloc malloc
