@@ -469,6 +469,7 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                pol->tokenType == UA_USERTOKENTYPE_ANONYMOUS) {
                 *ed = desc;
                 *utp = pol;
+                *tokenSp = channel->securityPolicy;
                 return;
             }
 
