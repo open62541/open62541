@@ -38,7 +38,8 @@ getFullPath(UA_Server *server,
         /* Prepend this path segment */
         char temp[2048];
         snprintf(temp, sizeof(temp), "%s/%s", ctx->path, buffer);
-        strncpy(buffer, temp, bufferSize);
+        strncpy(buffer, temp, bufferSize - 1);
+        buffer[bufferSize - 1] = '\0';
 
         /* Browse inverse to find the parent */
         UA_BrowseResult br = UA_Server_browse(server, 10,

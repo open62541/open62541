@@ -363,9 +363,9 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
                                   const char *mountPath,
                                   UA_NodeId *newNodeId, const char *scanDir) {
 
-    char *name = "";
+    char name[MAX_PATH]; // Buffer for node name, with extra space for hashing if needed
     if (driver == NULL) {
-        strcpy(name, mountPath);
+        strncpy(name, mountPath, sizeof(name));
         
         if (childExists(server, parentNode, name)) {
             return UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
@@ -377,7 +377,7 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
             return UA_STATUSCODE_BADNOTFOUND;
         }
 
-        name = "FileSystem";
+        strncpy(name, "FileSystem", sizeof(name));
         
         if (childExists(server, parentNode, name)) {
             uint32_t hash = 2166136261u; // FNV-1a
@@ -388,7 +388,7 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
 
             char nameBuf[MAX_PATH];
             snprintf(nameBuf, sizeof(nameBuf), "%s_%08X", "FileSystem", hash);
-            name = nameBuf;
+            strncpy(name, nameBuf, sizeof(name));
             if (childExists(server, parentNode, name)) {
                 return UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
             }
@@ -403,6 +403,11 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
     FileDirectoryContext *fsNode = (FileDirectoryContext*)UA_calloc(1, sizeof(FileDirectoryContext));
     if(!fsNode)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+        
+    FileDirectoryContext *dirCtx = NULL;
+    UA_Server_getNodeContext(server, *parentNode, (void**)&dirCtx);
+
+    fsNode->driver = driver == NULL ? dirCtx->driver : driver;  /* Inherit driver reference from parent directory */
     fsNode->path = strdup(mountPath);
 
     UA_StatusCode retval = UA_Server_addObjectNode(server,
@@ -463,7 +468,11 @@ UA_FileServerDriver_addFile(UA_Server *server,
         UA_free(fileCtx);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    fileCtx->driver = NULL;
+
+    FileDirectoryContext *dirCtx = NULL;
+    UA_Server_getNodeContext(server, *parentNode, (void**)&dirCtx);
+
+    fileCtx->driver = dirCtx->driver;  /* Inherit driver reference from parent directory */
     fileCtx->sessions = NULL;  /* No sessions initially */
 
     UA_StatusCode retval = UA_Server_addObjectNode(server,

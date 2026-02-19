@@ -39,7 +39,7 @@ typedef enum {
     UA_LOGLEVEL_FATAL   = 600
 } UA_LogLevel;
 
-#define UA_LOGCATEGORIES 10
+#define UA_LOGCATEGORIES 11
 
 typedef enum {
     UA_LOGCATEGORY_NETWORK = 0,

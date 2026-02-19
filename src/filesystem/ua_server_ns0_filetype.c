@@ -89,8 +89,20 @@ openFileMethod(UA_Server *server,
     char fullPath[MAX_PATH];
     getFullPath(server, objectId, fullPath, MAX_PATH);
     fullPath[strlen(fullPath)-1] = '\0';
-    FILE *handle = NULL;
-    UA_StatusCode res = openFile(fullPath, openMode, &handle);
+    UA_Int32 *handle = NULL;
+    
+
+    UA_NodeId fileNodeId = *objectId;
+    UA_FileDriverContext *driverCtx = NULL;
+    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+
+    if (res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                        "Failed to get driver context for deletion");
+        return res;
+    }
+
+    res = driverCtx->openFile(fullPath, openMode, &handle);
     if (res != UA_STATUSCODE_GOOD) {
         return res;
     }
@@ -98,10 +110,12 @@ openFileMethod(UA_Server *server,
     if (!sessionCtx) {
         sessionCtx = createSessionContext(fileCtx, sessionId);
         if (!sessionCtx) {
-            closeFile(handle);
+            driverCtx->closeFile(handle);
+            UA_free(driverCtx);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
     }
+    UA_free(driverCtx);
     
     /* Store handle in session context */
     sessionCtx->fileHandle.handle = handle;
@@ -139,9 +153,20 @@ closeFileMethod(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDSTATE;  /* Not open for this session */
     }
     
+
+    UA_NodeId fileNodeId = *objectId;
+    UA_FileDriverContext *driverCtx = NULL;
+    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+
+    if (res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                        "Failed to get driver context for deletion");
+        return res;
+    }
+
     /* Close file */
-    closeFile(sessionCtx->fileHandle.handle);
-    
+    driverCtx->closeFile(sessionCtx->fileHandle.handle);
+    UA_free(driverCtx);
     /* Remove session context */
     removeSessionContext(fileCtx, sessionId);
     
@@ -183,7 +208,19 @@ readFileMethod(UA_Server *server,
     UA_ByteString data;
     UA_ByteString_init(&data);
     
-    UA_StatusCode res = readFile(sessionCtx->fileHandle.handle, length, &data);
+
+    UA_NodeId fileNodeId = *objectId;
+    UA_FileDriverContext *driverCtx = NULL;
+    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+
+    if (res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                        "Failed to get driver context for deletion");
+        return res;
+    }
+
+    res = driverCtx->readFile(sessionCtx->fileHandle.handle, length, &data);
+    UA_free(driverCtx);
     if (res != UA_STATUSCODE_GOOD) {
         return res;
     }
@@ -229,8 +266,20 @@ writeFileMethod(UA_Server *server,
     /* Get data from input (UA_ByteString) */
     UA_ByteString *data = (UA_ByteString*)input[0].data;
     
+
+    UA_NodeId fileNodeId = *objectId;
+    UA_FileDriverContext *driverCtx = NULL;
+    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+
+    if (res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                        "Failed to get driver context for deletion");
+        return res;
+    }
+
     /* Write to file */
-    UA_StatusCode res = writeFile(sessionCtx->fileHandle.handle, data);
+    res = driverCtx->writeFile(sessionCtx->fileHandle.handle, data);
+    UA_free(driverCtx);
     if (res != UA_STATUSCODE_GOOD) {
         return res;
     }
@@ -369,8 +418,20 @@ setPositionMethod(UA_Server *server,
     /* Get position from input (UA_UInt64) */
     UA_UInt64 position = *(UA_UInt64*)input[0].data;
     
+
+    UA_NodeId fileNodeId = *objectId;
+    UA_FileDriverContext *driverCtx = NULL;
+    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+
+    if (res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                        "Failed to get driver context for deletion");
+        return res;
+    }
+
     /* Seek to position */
-    UA_StatusCode res = seekFile(sessionCtx->fileHandle.handle, position);
+    res = driverCtx->seekFile(sessionCtx->fileHandle.handle, position);
+    UA_free(driverCtx);
     if (res != UA_STATUSCODE_GOOD) {
         return res;
     }
