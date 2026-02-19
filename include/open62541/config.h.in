@@ -342,13 +342,15 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # ifdef UA_ARCHITECTURE_ZEPHYR /* try to use zephyr's k_malloc and k_alloc */
 #  include <zephyr/version.h> /* check kernel version*/
 /* must be 3.7.0 or higher */
-#  if (SYS_KERNEL_VER_MAJOR(KERNELVERSION) >= 4 || (SYS_KERNEL_VER_MAJOR(KERNELVERSION)== 3 && SYS_KERNEL_VER_MINOR(KERNELVERSION) >=7) )
+#  if (KERNEL_VERSION_MAJOR >= 4 || \
+      (KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR >=7) )
 #   include <zephyr/kernel.h>
 #   define UA_free k_free
 #   define UA_malloc k_malloc
 #   define UA_calloc k_calloc
 #   define UA_realloc k_realloc
 #  else
+_Pragma ("GCC warning \"can't use k_malloc. zephyr older than v3.7.0\"")
 #   include <stdlib.h>
 #   define UA_free free
 #   define UA_malloc malloc
