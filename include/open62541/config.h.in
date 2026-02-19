@@ -339,19 +339,29 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_calloc(num, size) UA_callocSingleton(num, size)
 # define UA_realloc(ptr, size) UA_reallocSingleton(ptr, size)
 #else
-# ifdef UA_ARCHITECTURE_ZEPHYR // use zephyr's malloc and alloc
-#  include <zephyr/kernel.h>
-#  define UA_free k_free
-#  define UA_malloc k_malloc
-#  define UA_calloc k_calloc
-#  define UA_realloc k_realloc
+# ifdef UA_ARCHITECTURE_ZEPHYR /* try to use zephyr's k_malloc and k_alloc */
+#  include <zephyr/version.h> /* check kernel version*/
+/* must be 3.7.0 or higher */
+#  if SYS_KERNEL_VER_MAJOR(KERNELVERSION) >= 4 || (SYS_KERNEL_VER_MAJOR(KERNELVERSION)== 3 && SYS_KERNEL_VER_MINOR(KERNELVERSION) >=7) 
+#   include <zephyr/kernel.h>
+#   define UA_free k_free
+#   define UA_malloc k_malloc
+#   define UA_calloc k_calloc
+#   define UA_realloc k_realloc
+#  else
+#   include <stdlib.h>
+#   define UA_free free
+#   define UA_malloc malloc
+#   define UA_calloc calloc
+#   define UA_realloc realloc
+#  endif
 # else
-# include <stdlib.h>
-# define UA_free free
-# define UA_malloc malloc
-# define UA_calloc calloc
-# define UA_realloc realloc
-# endif
+#  include <stdlib.h>
+#  define UA_free free
+#  define UA_malloc malloc
+#  define UA_calloc calloc
+#  define UA_realloc realloc
+# endif /*UA_ARCHITECTURE_ZEPHYR*/
 #endif
 
 /* Stack-allocation of memory. Use C99 variable-length arrays if possible.
