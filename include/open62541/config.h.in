@@ -341,7 +341,7 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 #else
 # ifdef UA_ARCHITECTURE_ZEPHYR /* try to use zephyr's k_malloc and k_alloc */
 /*cant use <zephyr/version.h> since v2.7.0 and older stores the file in another place*/
-#  include <version.h> /* zephyr version. 
+#  include <version.h> /* zephyr version. */
 /* must be 3.7.0 or higher */
 #  if (KERNEL_VERSION_MAJOR >= 4 || \
       (KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR >=7) )
