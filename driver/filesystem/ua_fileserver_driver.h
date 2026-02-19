@@ -83,6 +83,22 @@ getDriverContext(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
+typedef enum {
+    FILE_OP_OPEN,
+    FILE_OP_CLOSE,
+    FILE_OP_READ,
+    FILE_OP_WRITE,
+    FILE_OP_GETPOSITION,
+    FILE_OP_SETPOSITION
+} FileOperationType;
+
+typedef enum {
+    DIR_OP_DELETE,
+    DIR_OP_MOVEORCOPY,
+    DIR_OP_MKDIR,
+    DIR_OP_MKFILE
+} DirectoryOperationType;
+
 UA_StatusCode
 initFileSystemManagement(UA_FileServerDriver *fileDriver);
 
@@ -90,6 +106,23 @@ initFileSystemManagement(UA_FileServerDriver *fileDriver);
 UA_StatusCode
 initFileTypeOperations(UA_FileServerDriver *fileDriver);
 
+UA_StatusCode
+__fileTypeOperation(UA_Server *server,
+                   const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *methodId, void *methodContext,
+                   const UA_NodeId *objectId, void *objectContext,
+                   size_t inputSize, const UA_Variant *input,
+                   size_t outputSize, UA_Variant *output,
+                   FileOperationType opType);
+
+UA_StatusCode
+__directoryOperation(UA_Server *server,
+                  const UA_NodeId *sessionId, void *sessionHandle,
+                  const UA_NodeId *methodId, void *methodContext,
+                  const UA_NodeId *objectId, void *objectContext,
+                  size_t inputSize, const UA_Variant *input,
+                  size_t outputSize, UA_Variant *output,
+                  DirectoryOperationType opType);
 /* API function: Add a new FileSystem to the driver and the OPC UA server.
  *
  * This function registers a new FileSystemNode under a given parent node in
@@ -155,43 +188,39 @@ UA_FileServerDriver_new(const char *name, UA_Server *server, FileDriverType driv
 // ======================================================
 // public API functions for file operations (open, close, read, write, etc.)
 UA_EXPORT UA_StatusCode
-UA_Server_addFileSystem(UA_Server *server,
-                      const UA_NodeId *parentNode,
-                      const char *mountPath,
-                      UA_NodeId *newNodeId, const char *scanDir);
+UA_Server_addFileSystem(UA_FileServerDriver *driver, UA_Server *server,
+                      const UA_NodeId parentNode,
+                      const char *mountPath);
 
 UA_EXPORT UA_StatusCode
-UA_Server_openFile(UA_Server *server, const UA_NodeId *fileNodeId, UA_Byte openMode, UA_Int32 **handle);
+UA_Server_openFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *fileNodeId, UA_Byte openMode, UA_Int32 **handle);
 
 UA_EXPORT UA_StatusCode
-UA_Server_closeFile(UA_Server *server, UA_Int32 *handle);
+UA_Server_closeFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *fileNodeId, UA_Int32 *handle);
 
 UA_EXPORT UA_StatusCode
-UA_Server_readFile(UA_Server *server, UA_Int32 *handle, UA_Int32 length, UA_ByteString *data);
+UA_Server_readFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *fileNodeId, UA_Int32 *handle, UA_Int32 length, UA_ByteString *data);
 
 UA_EXPORT UA_StatusCode
-UA_Server_writeFile(UA_Server *server, UA_Int32 *handle, const UA_ByteString *data);
+UA_Server_writeFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *fileNodeId, UA_Int32 *handle, const UA_ByteString *data);
 
 UA_EXPORT UA_StatusCode
-UA_Server_setFilePosition(UA_Server *server, UA_Int32 *handle, UA_UInt64 position);
+UA_Server_setFilePosition(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *fileNodeId, UA_Int32 *handle, UA_UInt64 position);
 
 UA_EXPORT UA_StatusCode
-UA_Server_getFilePosition(UA_Server *server, UA_Int32 *handle, UA_UInt64 *position);
+UA_Server_getFilePosition(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *fileNodeId, UA_Int32 *handle, UA_UInt64 *position);
 
 UA_EXPORT UA_StatusCode
-UA_Server_getFileSize(UA_Server *server, const UA_NodeId *fileNodeId, UA_UInt64 *size);
+UA_Server_deleteDirOrFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *nodeId);
 
 UA_EXPORT UA_StatusCode
-UA_Server_deleteDirOrFile(UA_Server *server, const UA_NodeId *nodeId);
+UA_Server_moveOrCopyItem(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId, bool copy);
 
 UA_EXPORT UA_StatusCode
-UA_Server_moveOrCopyItem(UA_Server *server, const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId, bool copy);
+UA_Server_makeDirectory(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *parentNode, const char *dirName, UA_NodeId *newNodeId);
 
 UA_EXPORT UA_StatusCode
-UA_Server_makeDirectory(UA_Server *server, const UA_NodeId *parentNode, const char *dirName, UA_NodeId *newNodeId);
-
-UA_EXPORT UA_StatusCode
-UA_Server_makeFile(UA_Server *server, const UA_NodeId *parentNode, const char *fileName, bool fileHandleBool, UA_Int32* output);
+UA_Server_makeFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *parentNode, const char *fileName, bool fileHandleBool, UA_Int32* output);
 // ======================================================
 
 #endif /* UA_FILESERVER_DRIVER_H */

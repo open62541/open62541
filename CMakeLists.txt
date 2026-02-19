@@ -886,6 +886,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 # driver
                 ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.c
+                ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_api.c
                 ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_server_ns0_fdt.c
                 ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_server_ns0_filetype.c
                 ${PROJECT_SOURCE_DIR}/driver/directoryArch/win32/fileSystemOperations_win32.c

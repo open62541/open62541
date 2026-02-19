@@ -1,4 +1,4 @@
-#include "../common/fileSystemOperations_common.h"
+#include "directoryArch/common/fileSystemOperations_common.h"
 
 //TODO: implement POSIX version
 #if defined(UA_ARCHITECTURE_POSIX)

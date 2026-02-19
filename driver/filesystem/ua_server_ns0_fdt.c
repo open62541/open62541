@@ -423,6 +423,18 @@ moveOrCopyAction(UA_Server *server,
 }
 
 UA_StatusCode
+__directoryOperation(UA_Server *server,
+                  const UA_NodeId *sessionId, void *sessionHandle,
+                  const UA_NodeId *methodId, void *methodContext,
+                  const UA_NodeId *objectId, void *objectContext,
+                  size_t inputSize, const UA_Variant *input,
+                  size_t outputSize, UA_Variant *output,
+                  DirectoryOperationType opType) {
+    // This function can be used to implement thread-safe wrappers for directory operations if needed
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 initFileSystemManagement(UA_FileServerDriver *fileDriver) {
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;

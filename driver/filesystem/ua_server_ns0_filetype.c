@@ -478,6 +478,17 @@ setPositionAction(UA_Server *server,
     return res;
 }
 
+UA_StatusCode
+__fileTypeOperation(UA_Server *server,
+                   const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *methodId, void *methodContext,
+                   const UA_NodeId *objectId, void *objectContext,
+                   size_t inputSize, const UA_Variant *input,
+                   size_t outputSize, UA_Variant *output,
+                   FileOperationType opType) {
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Method registration - as shown in guide */
 UA_StatusCode
 initFileTypeOperations(UA_FileServerDriver *fileDriver) {
