@@ -273,7 +273,7 @@ createCheckSessionAuthSecurityPolicyContext(UA_Server *server, UA_Session *sessi
 
     /* Existing SecurityPolicy context, check for the identical remote
      * certificate */
-    UA_StatusCode res;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(session->sessionSpContext) {
         res = sp->compareCertificate(sp, session->sessionSpContext, &remoteCertificate);
         if(res != UA_STATUSCODE_GOOD) {
@@ -284,14 +284,19 @@ createCheckSessionAuthSecurityPolicyContext(UA_Server *server, UA_Session *sessi
         return res;
     }
 
-    /* Instantiate a new context */
-    res = sp->newChannelContext(sp, &remoteCertificate, &session->sessionSpContext);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_SESSION(server->config.logging, session,
-                             "%s: Could not use the supplied certificate "
-                             "to instantiate the SecurityPolicy %S for the "
-                             "validation of the UserIdentityToken",
-                             logPrefix, sp->policyUri);
+    /* Instantiate a new context if we can. Otherwise operate without a channel
+     * context. That is possible for asymmetric decryption with RSA which
+     * requires only the local certificate. But ECC won't work. */
+    if(remoteCertificate.length > 0) {
+        res = sp->newChannelContext(sp, &remoteCertificate,
+                                    &session->sessionSpContext);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_SESSION(server->config.logging, session,
+                                 "%s: Could not use the supplied certificate "
+                                 "to instantiate the SecurityPolicy %S for the "
+                                 "validation of the UserIdentityToken",
+                                 logPrefix, sp->policyUri);
+        }
     }
     return res;
 }
@@ -881,8 +886,8 @@ decryptUserToken(UA_Server *server, UA_Session *session, UA_SecureChannel *chann
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
     }
 
-    /* Ensure the session has an instance of the authentication SecurityPolicy
-     * to decrypt the UserIdentityToken */
+    /* Try to create an instance of the authentication SecurityPolicy to decrypt
+     * the UserIdentityToken. For RSA-based async encryption we don't need that. */
     UA_ByteString applicationCert = (channel->remoteCertificate.length > 0) ?
         channel->remoteCertificate : session->clientCertificate;
     UA_StatusCode res =
@@ -890,11 +895,6 @@ decryptUserToken(UA_Server *server, UA_Session *session, UA_SecureChannel *chann
                                                     "ActivateSession", applicationCert);
     if(res != UA_STATUSCODE_GOOD)
         return res;
-
-    /* SecurityPolicies for auth encryption is set during CreateSession.
-     * But only when the client provides a certificate. */
-    if(!session->sessionSpContext)
-        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Decrypt the token. Differentiate between secret encryptions (ECC,
      * legacy).
