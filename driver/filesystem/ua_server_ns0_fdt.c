@@ -1,4 +1,3 @@
-
 #include <../src/server/ua_server_internal.h>
 #include <filesystem/ua_fileserver_driver.h>
 #include <directoryArch/common/fileSystemOperations_common.h>
@@ -263,7 +262,7 @@ deleteSubtree(UA_Server *server, const UA_NodeId *nodeId, bool deleteFiles) {
             }
 
             /* Perform filesystem delete */
-            driverCtx->deleteDirOrFile(fullPath); // TODO: implement driver dependant file handling
+            driverCtx->deleteDirOrFile(fullPath);
             UA_free(driverCtx);
         }
 
@@ -525,7 +524,7 @@ __directoryOperation(UA_Server *server,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output,
                   DirectoryOperationType opType) {
-    // This function can be used to implement thread-safe wrappers for directory operations if needed
+    // This function can be used to implement thread-safe wrappers for directory operations if needed !IMPORTANT!
     return UA_STATUSCODE_GOOD;
 }
 

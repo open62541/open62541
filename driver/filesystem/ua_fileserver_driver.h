@@ -187,7 +187,7 @@ UA_FileServerDriver_new(const char *name, UA_Server *server, FileDriverType driv
 
 // ======================================================
 // public API functions for file operations (open, close, read, write, etc.)
-UA_EXPORT UA_StatusCode
+UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_addFileSystem(UA_FileServerDriver *driver, UA_Server *server,
                       const UA_NodeId parentNode,
                       const char *mountPath);
