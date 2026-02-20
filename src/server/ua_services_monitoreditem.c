@@ -142,6 +142,25 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
             UA_MonitoredItem_addLink(sub, mon, request->linksToAdd[i]);
 }
 
+UA_Boolean
+VariableNode_externalDataSource(const UA_VariableNode *vn) {
+    switch(vn->valueBackend.backendType) {
+    case UA_VALUEBACKENDTYPE_INTERNAL:
+        return (vn->valueBackend.backend.internal.callback.onWrite != NULL);
+    case UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK:
+        return true;
+    case UA_VALUEBACKENDTYPE_EXTERNAL:
+        return true;
+    case UA_VALUEBACKENDTYPE_NONE:
+        if(vn->valueSource == UA_VALUESOURCE_DATA)
+            return (vn->value.data.callback.onWrite != NULL);
+        else
+            return true;
+    default:
+        return false;
+    }
+}
+
 /* Verify and adjust the parameters of a MonitoredItem */
 static UA_StatusCode
 checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
@@ -208,40 +227,44 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
         }
     }
 
-    /* Read the minimum sampling interval for the variable. The sampling
-     * interval of the MonitoredItem must not be less than that. */
-    if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_VALUE) {
-        const UA_Node *node = UA_NODESTORE_GET(server, &mon->itemToMonitor.nodeId);
-        if(node) {
-            const UA_VariableNode *vn = &node->variableNode;
-            if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
-                /* Take into account if the publishing interval is used for sampling */
-                UA_Double samplingInterval = params->samplingInterval;
-                if(samplingInterval < 0 && mon->subscription)
-                    samplingInterval = mon->subscription->publishingInterval;
-                /* Adjust if smaller than the allowed minimum for the variable */
-                if(samplingInterval < vn->minimumSamplingInterval)
-                    params->samplingInterval = vn->minimumSamplingInterval;
-            }
-            UA_NODESTORE_RELEASE(server, node);
-        }
-    }
-        
-
-    /* A negative number indicates that the sampling interval is the publishing
-     * interval of the Subscription. Note that the sampling interval selected
-     * here remains also when the Subscription's publish interval is adjusted
+    /* Negative sampling interval: Publishing interval of the Subscription is
+     * the sampling interval. Note that the sampling interval selected here
+     * remains also when the Subscription's publish interval is adjusted
      * afterwards. */
     if(mon->subscription && params->samplingInterval < 0.0)
         params->samplingInterval = mon->subscription->publishingInterval;
 
-    /* Adjust non-null sampling interval to lie within the configured limits */
-    if(params->samplingInterval != 0.0) {
+    /* If the value comes from an "external" data source, sampling is required.
+     * Otherwise, for samplingInterval == 0, we add a hook for every write. */
+    UA_Boolean extValueSource = false;
+
+    /* VariableNodes can lower-bound the permissible sampling interval */
+    UA_Double minimumSamplingInterval = 0.0;
+
+    /* Use hasValueSource and minimumSamplingInterval from a VariableNode */
+    if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_VALUE) {
+        const UA_Node *node = UA_NODESTORE_GET(server, &mon->itemToMonitor.nodeId);
+        if(node) {
+            if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
+                minimumSamplingInterval = node->variableNode.minimumSamplingInterval;
+                extValueSource = VariableNode_externalDataSource(&node->variableNode);
+            }
+            UA_NODESTORE_RELEASE(server, node);
+        }
+    }
+
+    /* Adjust non-null sampling interval to lie within the configured limits.
+     * Nodes with a value source require a >0.0 sampling interval. */
+    if(params->samplingInterval != 0.0 || extValueSource) {
         UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
                                    params->samplingInterval, params->samplingInterval);
         /* Check for NaN */
         if(mon->parameters.samplingInterval != mon->parameters.samplingInterval)
             params->samplingInterval = server->config.samplingIntervalLimits.min;
+
+        /* Minimum interval from the node */
+        if(params->samplingInterval < minimumSamplingInterval)
+            params->samplingInterval = minimumSamplingInterval;
     }
 
     /* Adjust the maximum queue size */
