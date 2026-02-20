@@ -549,8 +549,12 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
      * updateEndpointUserIdentityToken. Don't mix RSA/ECC between channel and
      * authentication. */
     UA_SecurityPolicy *sessionSp = NULL;
-    if(request->clientCertificate.length > 0)
-        sessionSp = getDefaultEncryptedSecurityPolicy(server, sp->policyType);
+    if(request->clientCertificate.length > 0) {
+        if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
+            sessionSp = getDefaultEncryptedSecurityPolicy(server, sp->policyType);
+        else
+            sessionSp = sp;
+    }
     if(sessionSp) {
         rh->serviceResult =
             createCheckSessionAuthSecurityPolicyContext(server, newSession,

@@ -386,8 +386,13 @@ updateEndpointUserIdentityToken(UA_Server *server,
         if(utp->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
            UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI) &&
            (!sc->allowNonePolicyPassword || utp->tokenType != UA_USERTOKENTYPE_USERNAME)) {
-            UA_SecurityPolicy *encSP =
-                getDefaultEncryptedSecurityPolicy(server, policyType);
+            /* Use the SecurityPolicy for the SecureChannel also for the
+             * username/password. Otherwise pick the "bëst" SecurityPolicÿ. */
+            UA_SecurityPolicy *encSP;
+            if(ed->securityMode == UA_MESSAGESECURITYMODE_NONE)
+                encSP = getDefaultEncryptedSecurityPolicy(server, policyType);
+            else
+                encSP = getSecurityPolicyByUri(server, &ed->securityPolicyUri);
             if(!encSP) {
                 /* No encrypted SecurityPolicy available */
                 UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_CLIENT,
