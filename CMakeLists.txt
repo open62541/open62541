@@ -817,7 +817,6 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/common.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/types.h
-                     ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_filetypes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/util.h
@@ -835,8 +834,14 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${PROJECT_SOURCE_DIR}/driver/driver.h
-                     ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.h
-                     ${PROJECT_SOURCE_DIR}/driver/directoryArch/common/fileSystemOperations_common.h)
+                     )
+
+if (UA_FILESYSTEM)
+    list(APPEND exported_headers
+                         ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.h
+                         ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_filetypes.h
+                         ${PROJECT_SOURCE_DIR}/driver/directoryArch/common/fileSystemOperations_common.h)
+endif()
 
 # Main Library
 
@@ -907,14 +912,18 @@ if(UA_ENABLE_RBAC)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.c)
 endif()
 
-set(lib_sources ${lib_sources}
-                # driver
+if(UA_FILESYSTEM)
+    list(APPEND lib_sources 
                 ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.c
                 ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_api.c
                 ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_server_ns0_fdt.c
                 ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_server_ns0_filetype.c
+                # driver
                 ${PROJECT_SOURCE_DIR}/driver/directoryArch/win32/fileSystemOperations_win32.c
-                ${PROJECT_SOURCE_DIR}/driver/directoryArch/posix/fileSystemOperations_posix.c
+                ${PROJECT_SOURCE_DIR}/driver/directoryArch/posix/fileSystemOperations_posix.c)
+endif()
+
+set(lib_sources ${lib_sources}
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
