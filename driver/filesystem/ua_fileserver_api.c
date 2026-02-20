@@ -1,5 +1,7 @@
 #include <filesystem/ua_fileserver_driver.h>
 
+#if defined(UA_FILESYSTEM)
+
 UA_StatusCode
 UA_Server_addFileSystem(UA_FileServerDriver *driver, UA_Server *server,
                       const UA_NodeId parentNode,
@@ -62,3 +64,5 @@ UA_StatusCode
 UA_Server_makeFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *parentNode, const char *fileName, bool fileHandleBool, UA_Int32* output) {
     return __fileTypeOperation(server, sessionId, sessionContext, NULL, NULL, parentNode, NULL, sizeof(UA_String), (const UA_Variant*)&(UA_String){strlen(fileName), (UA_Byte*)fileName}, sizeof(UA_Int32), (UA_Variant*)output, DIR_OP_MKFILE);
 }
+
+#endif /* UA_FILESYSTEM */

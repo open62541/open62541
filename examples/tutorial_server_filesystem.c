@@ -61,6 +61,13 @@ manuallyDefinePump(UA_Server *server, UA_FileServerDriver *driver) {
                               UA_QUALIFIEDNAME(1, "MotorRPMs"),
                               UA_NS0ID(BASEDATAVARIABLETYPE),
                               rpmAttr, NULL, NULL);
+
+    /* Attach a FileSystem node to the Pump object.
+     * This allows clients to access files (e.g., logs) associated with the pump.
+     */
+    UA_NodeId filesystemId; /* NodeId assigned by the server for the FileSystem */
+    UA_FileServerDriver_addFileDirectory(driver, server, &pumpId,
+                                      ".", &filesystemId, ".");
 }
 
 int main(void) {
@@ -78,6 +85,12 @@ int main(void) {
 
     /* Manually define a Pump object with variables and a FileSystem */
     manuallyDefinePump(server, fsDriver);
+
+    /* Mount two additional FileSystems directly under the Objects folder */
+    UA_NodeId nodeId1 = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId newFsNodeId1;
+    UA_FileServerDriver_addFileDirectory(fsDriver, server, &nodeId1,
+                                      "D:/UnifiedAutomation", &newFsNodeId1, "D:/UnifiedAutomation");
 
     /* Start the driver (could open resources or spawn threads here) */
     fsDriver->base.lifecycle.start((UA_Driver*)fsDriver);

@@ -37,14 +37,32 @@ createDirectory(UA_Server *server,
                 "FullPath: %s\n",
                 fullPath);
 
-    UA_NodeId fileNodeId = *objectId;
+    /* Perform filesystem delete */
     UA_FileDriverContext *driverCtx = NULL;
-    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+    FileDirectoryContext *ctx = NULL;
 
-    if (res != UA_STATUSCODE_GOOD) {
+    /* Get the FileDirectoryContext stored on the node */
+    UA_StatusCode res = UA_Server_getNodeContext(server, *objectId, (void**)&ctx);
+    if(!ctx) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                        "Failed to get driver context for deletion");
-        return res;
+                     "No FileDirectoryContext found for node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_FileServerDriver *driver = (UA_FileServerDriver*)ctx->driver;
+    if(!driver) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "Node has no driver");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Retrieve the driver context */
+    res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
+
+    if(!driverCtx) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "No FileDriverContext found for driver node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
     }
 
     // Implementation to create a directory in the filesystem
@@ -113,14 +131,33 @@ createFile(UA_Server *server,
                 fullPath);
 
 
-    UA_NodeId fileNodeId = *objectId;
+    
+    /* Perform filesystem delete */
     UA_FileDriverContext *driverCtx = NULL;
-    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+    FileDirectoryContext *ctx = NULL;
 
-    if (res != UA_STATUSCODE_GOOD) {
+    /* Get the FileDirectoryContext stored on the node */
+    UA_StatusCode res = UA_Server_getNodeContext(server, *objectId, (void**)&ctx);
+    if(!ctx) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                        "Failed to get driver context for deletion");
-        return res;
+                     "No FileDirectoryContext found for node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_FileServerDriver *driver = (UA_FileServerDriver*)ctx->driver;
+    if(!driver) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "Node has no driver");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Retrieve the driver context */
+    res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
+
+    if(!driverCtx) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "No FileDriverContext found for driver node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
     }
 
     // Implementation to create a directory in the filesystem
@@ -163,7 +200,7 @@ deleteSubtree(UA_Server *server, const UA_NodeId *nodeId, bool deleteFiles) {
         UA_LOG_DEBUG(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER, 
                      "Found Node %d, %d", &ref->referenceTypeId.identifier.numeric, UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES).identifier.numeric);
 
-        /* Only follow Organizes or HasComponent */
+        /* Only follow Organizes */
         UA_NodeId org = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
         if(!UA_NodeId_equal(&ref->referenceTypeId, &org))
             continue;
@@ -196,14 +233,33 @@ deleteSubtree(UA_Server *server, const UA_NodeId *nodeId, bool deleteFiles) {
                     "FullPath for deletion: %s", fullPath);
 
         if (deleteFiles) {
-            UA_NodeId fileNodeId = *nodeId;
+            
+            /* Perform filesystem delete */
             UA_FileDriverContext *driverCtx = NULL;
-            UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+            FileDirectoryContext *ctx = NULL;
 
-            if (res != UA_STATUSCODE_GOOD) {
+            /* Get the FileDirectoryContext stored on the node */
+            UA_StatusCode res = UA_Server_getNodeContext(server, *nodeId, (void**)&ctx);
+            if(!ctx) {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                             "Failed to get driver context for deletion");
-                return res;
+                            "No FileDirectoryContext found for node");
+                res |= UA_STATUSCODE_BADINTERNALERROR;
+            }
+
+            UA_FileServerDriver *driver = (UA_FileServerDriver*)ctx->driver;
+            if(!driver) {
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                            "Node has no driver");
+                res |= UA_STATUSCODE_BADINTERNALERROR;
+            }
+
+            /* Retrieve the driver context */
+            res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
+
+            if(!driverCtx) {
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                            "No FileDriverContext found for driver node");
+                res |= UA_STATUSCODE_BADINTERNALERROR;
             }
 
             /* Perform filesystem delete */
@@ -250,9 +306,32 @@ deleteItem(UA_Server *server,
                  "FullPath for deletion: %s", fullPath);
 
     /* Perform filesystem delete */
-    UA_NodeId fileNodeId = *objectId;
     UA_FileDriverContext *driverCtx = NULL;
-    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+    FileDirectoryContext *ctx = NULL;
+
+    /* Get the FileDirectoryContext stored on the node */
+    UA_StatusCode res = UA_Server_getNodeContext(server, *nodeId, (void**)&ctx);
+    if(!ctx) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "No FileDirectoryContext found for node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_FileServerDriver *driver = (UA_FileServerDriver*)ctx->driver;
+    if(!driver) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "Node has no driver");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Retrieve the driver context */
+    res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
+
+    if(!driverCtx) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "No FileDriverContext found for driver node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     if (res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
@@ -260,7 +339,7 @@ deleteItem(UA_Server *server,
         return res;
     }
 
-    res = driverCtx->deleteDirOrFile(fullPath); // TODO: implement driver dependant file handling
+    res = driverCtx->deleteDirOrFile(fullPath);
     UA_free(driverCtx);
     if (res == UA_STATUSCODE_GOOD) {
         res = UA_Server_deleteNode(server, *nodeId, true);           
@@ -320,16 +399,32 @@ moveOrCopy(UA_Server *server,
     }
     strncpy(dstPath, temp, MAX_PATH);
 
-    // TODO: Add new Nodes to the tree or move old ones
-
-    UA_NodeId fileNodeId = *objectId;
+    /* Perform filesystem delete */
     UA_FileDriverContext *driverCtx = NULL;
-    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+    FileDirectoryContext *ctx = NULL;
 
-    if (res != UA_STATUSCODE_GOOD) {
+    /* Get the FileDirectoryContext stored on the node */
+    UA_StatusCode res = UA_Server_getNodeContext(server, *objectId, (void**)&ctx);
+    if(!ctx) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                        "Failed to get driver context for deletion");
-        return res;
+                     "No FileDirectoryContext found for node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_FileServerDriver *driver = (UA_FileServerDriver*)ctx->driver;
+    if(!driver) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "Node has no driver");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Retrieve the driver context */
+    res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
+
+    if(!driverCtx) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "No FileDriverContext found for driver node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
     }
 
     bool isDir = driverCtx->isDirectory(srcPath);
