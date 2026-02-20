@@ -328,6 +328,11 @@ UA_Client_Service_read(UA_Client *client, const UA_ReadRequest req);
 UA_WriteResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_write(UA_Client *client, const UA_WriteRequest req);
 
+/*
+ * Historical Access Service Set
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+#ifdef UA_ENABLE_HISTORIZING
+
 UA_HistoryReadResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_historyRead(UA_Client *client,
                               const UA_HistoryReadRequest req);
@@ -335,6 +340,8 @@ UA_Client_Service_historyRead(UA_Client *client,
 UA_HistoryUpdateResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_historyUpdate(UA_Client *client,
                                 const UA_HistoryUpdateRequest req);
+
+#endif
 
 /**
  * Method Service Set
@@ -655,9 +662,11 @@ struct UA_ClientConfig {
     /* Certificate Verification Plugin */
     UA_CertificateGroup certificateVerification;
 
-    /* Additional SecurityPolicies for authentication (e.g. to encrypt the
-     * password). The SecurityPolicies for SecureChannels (above) are also
-     * usable for authentication. */
+    /* SecurityPolicies for authentication with an x509 certificate. The
+     * UserIdentityToken contains only the certificate. The certificate gets
+     * matched against the SecurityPolicy instance from this array. Only the
+     * SecurityPolicy instance carries the private key. See
+     * UA_ClientConfig_setAuthenticationCert. */
     size_t authSecurityPoliciesSize;
     UA_SecurityPolicy *authSecurityPolicies;
 
@@ -790,6 +799,26 @@ UA_EXPORT UA_StatusCode
 UA_ClientConfig_setAuthenticationUsername(UA_ClientConfig *config,
                                           const char *username,
                                           const char *password);
+
+/* This method operates on the client config in two ways:
+ *
+ * - Sets the certificate as a X509IdentityToken for authentication.
+ * - Replaces the authSecurityPolicies array with new instances of the available
+ *   SecurityPolicies using the certificate and associated private-key.
+ *
+ * During session activation, the certificate from the X509IdentityToken gets
+ * matched to a SecurityPolicy for the UserTokenPolicy supported by the server.
+ * The SecurityPolicy (with the private key) is then used for a signature that
+ * proves ownership of the certificate.
+ *
+ * This method is implemented in the /plugins directory as it depends on the
+ * platform-specific crypto implementations. */
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+UA_StatusCode UA_EXPORT
+UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
+                                      UA_ByteString certificateAuth,
+                                      UA_ByteString privateKeyAuth);
+#endif
 
 _UA_END_DECLS
 

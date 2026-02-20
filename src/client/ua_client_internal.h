@@ -159,6 +159,12 @@ struct UA_Client {
     UA_ByteString serverSessionNonce;
     UA_ByteString clientSessionNonce;
 
+    /* The SecurityPolicy corresponding to the UserTokenPolicy. Either for
+     * encrypting the password (secret) or for signing with the private key of
+     * the certificate in the UserIdentityToken. */
+    UA_SecurityPolicy *utpSp;
+    void *utpSpContext;
+
     /* For authentication with an ECC SecurityPolicy. This is needed to save the
      * server's ephemeral public key between the session creation (when the key
      * is received) and session activation, when the key is used. */

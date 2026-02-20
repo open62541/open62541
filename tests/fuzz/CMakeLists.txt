@@ -91,10 +91,22 @@ add_fuzzer(fuzz_base64_decode fuzz_base64_decode.cc)
 if(UA_ENABLE_JSON_ENCODING)
     add_fuzzer(fuzz_json_decode fuzz_json_decode.cc)
     add_fuzzer(fuzz_json_decode_encode fuzz_json_decode_encode.cc)
+    if(UA_ENABLE_PUBSUB)
+        add_fuzzer(fuzz_pubsub_json fuzz_pubsub_json.cc)
+    endif()
+endif()
+
+if(UA_ENABLE_PUBSUB)
+    add_fuzzer(fuzz_pubsub_binary fuzz_pubsub_binary.cc)
 endif()
 
 if(UA_ENABLE_XML_ENCODING)
     add_fuzzer(fuzz_xml_decode_encode fuzz_xml_decode_encode.cc)
+endif()
+
+# EventFilter parser fuzzer
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+    add_fuzzer(fuzz_eventfilter_parse fuzz_eventfilter_parse.cc)
 endif()
 
 # Run fuzzer on existing corpus to avoid regression

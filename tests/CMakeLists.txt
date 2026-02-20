@@ -6,7 +6,7 @@ if(MSVC)
         $<$<CONFIG:Release>:/MD>
     )
 else()
-    add_compile_options(-Wno-unused-variable -Wno-unused-function)
+    add_compile_options(-Wno-unused-variable -Wno-unused-function -Wno-shadow)
     add_compile_options(-Wno-gnu-zero-variadic-macro-arguments) # silence warning for the check library
 endif()
 
@@ -382,6 +382,7 @@ endif()
 if(UA_ENABLE_ENCRYPTION)
     ua_add_test(client/check_client_encryption.c)
     ua_add_test(encryption/check_crl_validation.c)
+    ua_add_test(encryption/check_ca_chain.c)
 
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_MBEDTLS)
         ua_add_test(client/check_client_authentication.c)

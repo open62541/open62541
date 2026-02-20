@@ -88,6 +88,47 @@ START_TEST(checkServer_run) {
     ck_assert_int_eq(ret, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(checkGetStatistics) {
+    /* Get server statistics without running - should return valid stats */
+    UA_ServerStatistics stats = UA_Server_getStatistics(server);
+
+    /* Initial stats should be zero/empty */
+    ck_assert_uint_eq(stats.ss.currentSessionCount, 0);
+    ck_assert_uint_eq(stats.ss.cumulatedSessionCount, 0);
+    ck_assert_uint_eq(stats.ss.securityRejectedSessionCount, 0);
+    ck_assert_uint_eq(stats.ss.rejectedSessionCount, 0);
+    ck_assert_uint_eq(stats.ss.sessionTimeoutCount, 0);
+    ck_assert_uint_eq(stats.ss.sessionAbortCount, 0);
+
+    /* SecureChannel stats should also be initialized */
+    ck_assert_uint_eq(stats.scs.currentChannelCount, 0);
+    ck_assert_uint_eq(stats.scs.cumulatedChannelCount, 0);
+    ck_assert_uint_eq(stats.scs.rejectedChannelCount, 0);
+    ck_assert_uint_eq(stats.scs.channelTimeoutCount, 0);
+    ck_assert_uint_eq(stats.scs.channelAbortCount, 0);
+    ck_assert_uint_eq(stats.scs.channelPurgeCount, 0);
+} END_TEST
+
+START_TEST(checkGetLifecycleState) {
+    /* Before startup, server should be in stopped state */
+    UA_LifecycleState state = UA_Server_getLifecycleState(server);
+    ck_assert_int_eq(state, UA_LIFECYCLESTATE_STOPPED);
+
+    /* After startup, server should be in started state */
+    UA_StatusCode ret = UA_Server_run_startup(server);
+    ck_assert_int_eq(ret, UA_STATUSCODE_GOOD);
+
+    state = UA_Server_getLifecycleState(server);
+    ck_assert_int_eq(state, UA_LIFECYCLESTATE_STARTED);
+
+    /* After shutdown, server should transition back to stopped */
+    ret = UA_Server_run_shutdown(server);
+    ck_assert_int_eq(ret, UA_STATUSCODE_GOOD);
+
+    state = UA_Server_getLifecycleState(server);
+    ck_assert_int_eq(state, UA_LIFECYCLESTATE_STOPPED);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("server");
 
@@ -97,6 +138,8 @@ int main(void) {
     tcase_add_test(tc_call, checkGetNamespaceByName);
     tcase_add_test(tc_call, checkGetNamespaceById);
     tcase_add_test(tc_call, checkServer_run);
+    tcase_add_test(tc_call, checkGetStatistics);
+    tcase_add_test(tc_call, checkGetLifecycleState);
     suite_add_tcase(s, tc_call);
 
     SRunner *sr = srunner_create(s);

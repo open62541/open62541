@@ -451,6 +451,83 @@ START_TEST(Client_closes_on_server_error) {
 }
 END_TEST
 
+START_TEST(Client_findDataType) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Test finding a known builtin type */
+    UA_NodeId int32TypeId = UA_TYPES[UA_TYPES_INT32].typeId;
+    const UA_DataType *foundType = UA_Client_findDataType(client, &int32TypeId);
+    ck_assert_ptr_ne(foundType, NULL);
+    ck_assert_uint_eq(foundType->typeId.identifier.numeric, UA_NS0ID_INT32);
+
+    /* Test finding another builtin type */
+    UA_NodeId stringTypeId = UA_TYPES[UA_TYPES_STRING].typeId;
+    foundType = UA_Client_findDataType(client, &stringTypeId);
+    ck_assert_ptr_ne(foundType, NULL);
+    ck_assert_uint_eq(foundType->typeId.identifier.numeric, UA_NS0ID_STRING);
+
+    /* Test with unknown type - should return NULL */
+    UA_NodeId unknownTypeId = UA_NODEID_NUMERIC(99, 99999);
+    foundType = UA_Client_findDataType(client, &unknownTypeId);
+    ck_assert_ptr_eq(foundType, NULL);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_getConnectionAttribute) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Get securityMode attribute */
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_QualifiedName securityModeKey = UA_QUALIFIEDNAME(0, "securityMode");
+    retval = UA_Client_getConnectionAttribute(client, securityModeKey, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(value.data, NULL);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]));
+
+    /* Get securityPolicyUri attribute */
+    UA_Variant_init(&value);
+    UA_QualifiedName securityPolicyKey = UA_QUALIFIEDNAME(0, "securityPolicyUri");
+    retval = UA_Client_getConnectionAttribute(client, securityPolicyKey, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(value.data, NULL);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_STRING]));
+
+    /* Get serverDescription attribute (copy version) */
+    UA_Variant_init(&value);
+    UA_QualifiedName serverDescKey = UA_QUALIFIEDNAME(0, "serverDescription");
+    retval = UA_Client_getConnectionAttributeCopy(client, serverDescKey, &value);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_ne(value.data, NULL);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]));
+    UA_Variant_clear(&value);
+
+    /* Get securityMode using scalar version */
+    UA_MessageSecurityMode mode;
+    retval = UA_Client_getConnectionAttribute_scalar(client, securityModeKey,
+                                                     &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE],
+                                                     &mode);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    /* Should be None since we're using the test setup without encryption */
+    ck_assert_int_eq(mode, UA_MESSAGESECURITYMODE_NONE);
+
+    UA_Variant_init(&value);
+    UA_QualifiedName invalidKey = UA_QUALIFIEDNAME(0, "invalidKey");
+    retval = UA_Client_getConnectionAttribute(client, invalidKey, &value);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
@@ -463,6 +540,8 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_endpoints_empty);
     tcase_add_test(tc_client, Client_read);
     tcase_add_test(tc_client, Client_closes_on_server_error);
+    tcase_add_test(tc_client, Client_findDataType);
+    tcase_add_test(tc_client, Client_getConnectionAttribute);
     suite_add_tcase(s,tc_client);
     TCase *tc_client_reconnect = tcase_create("Client Reconnect");
     tcase_add_checked_fixture(tc_client_reconnect, setup, teardown);

@@ -16,7 +16,9 @@
 #include <open62541/pubsub.h>
 
 #include "../ua_types_encoding_binary.h"
-#include "../ua_types_encoding_json.h"
+#ifdef UA_ENABLE_JSON_ENCODING
+# include "../ua_types_encoding_json.h"
+#endif
 
 #ifdef UA_ENABLE_PUBSUB
 
@@ -33,6 +35,7 @@ typedef struct {
     UA_NetworkMessage_EncodingOptions eo;
 } PubSubDecodeCtx;
 
+#ifdef UA_ENABLE_JSON_ENCODING
 typedef struct {
     CtxJson ctx;
     UA_NetworkMessage_EncodingOptions eo;
@@ -42,6 +45,7 @@ typedef struct {
     ParseCtx ctx;
     UA_NetworkMessage_EncodingOptions eo;
 } PubSubDecodeJsonCtx;
+#endif
 
 const UA_FieldMetaData *
 getFieldMetaData(const UA_DataSetMessage_EncodingMetaData *emd,
@@ -126,9 +130,11 @@ UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm,
                               UA_Byte *encryptStart,
                               UA_Byte *sigStart);
 
+#ifdef UA_ENABLE_JSON_ENCODING
 UA_StatusCode
 UA_NetworkMessage_encodeJsonInternal(PubSubEncodeJsonCtx *ctx,
                                      const UA_NetworkMessage *src);
+#endif
 
 _UA_END_DECLS
 
