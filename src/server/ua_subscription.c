@@ -17,6 +17,7 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020-2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -1173,7 +1174,7 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
 
     /* Update the diagnostics statistics */
 #ifdef UA_ENABLE_DIAGNOSTICS
-    sub->eventQueueOverFlowCount++;
+    sub->eventQueueOverflowCount++;
 #endif
 
     return UA_STATUSCODE_GOOD;

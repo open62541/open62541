@@ -13,6 +13,7 @@
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #ifndef UA_SUBSCRIPTION_H_
@@ -305,7 +306,7 @@ struct UA_Subscription {
     UA_UInt32 latePublishRequestCount;
     UA_UInt32 discardedMessageCount;
     UA_UInt32 monitoringQueueOverflowCount;
-    UA_UInt32 eventQueueOverFlowCount;
+    UA_UInt32 eventQueueOverflowCount;
 #endif
 };
 

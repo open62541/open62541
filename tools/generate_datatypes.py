@@ -148,6 +148,30 @@ def getNodeidTypeAndId(nodeId):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
 
+def _types_definition_equal(t1, t2):
+    """Compare two Type objects by structural definition (ignoring nodeId/outname).
+    Used to detect cross-namespace same-name types that are ABI-compatible vs
+    those that would produce a silent memory-layout mismatch."""
+    if type(t1) is not type(t2):
+        return False
+    if isinstance(t1, EnumerationType):
+        return (t1.elements == t2.elements and
+                t1.isOptionSet == t2.isOptionSet and
+                t1.lengthInBits == t2.lengthInBits)
+    if isinstance(t1, OpaqueType):
+        return t1.base_type == t2.base_type
+    if isinstance(t1, StructType):
+        if len(t1.members) != len(t2.members):
+            return False
+        for m1, m2 in zip(t1.members, t2.members):
+            if (m1.name != m2.name or
+                    m1.member_type.name != m2.member_type.name or
+                    m1.is_array != m2.is_array or
+                    m1.is_optional != m2.is_optional):
+                return False
+        return True
+    return False
+
 class CGenerator:
     def __init__(self, parser, inname, outfile, is_internal_types, gen_doc, namespaceMap):
         self.parser = parser
@@ -450,11 +474,43 @@ class CGenerator:
                         if ns in l and t in l[ns]:
                             del l[ns][t]
 
-        # Remove types that from other bsd files
+        # Remove types that are from other (imported) bsd files.
+        # Track type names from imported namespaces so we can detect
+        # cross-namespace name collisions (same C type name, different
+        # OPC UA namespace).  Those types must still appear in the type
+        # array (they have their own NodeId), but we must not re-emit
+        # the C typedef / inline helpers because the C symbol already
+        # exists from the included dependency header.
+        # IMPORTANT: the definitions must be identical; differing definitions
+        # would cause a silent ABI mismatch since the same C struct is used for
+        # both type array entries.
+        self.cross_ns_duplicate_types = set()
+        # Build name→Type map from existing (imported) types for comparison.
+        # When the same name appears in multiple imported namespaces prefer the
+        # non-builtin definition.
+        existing_type_map = {}
         for ns in self.parser.existing_types:
             for t in self.parser.existing_types[ns]:
+                et = self.parser.existing_types[ns][t]
+                if t not in existing_type_map or isinstance(existing_type_map[t], BuiltinType):
+                    existing_type_map[t] = et
                 if ns in l and t in l[ns]:
                     del l[ns][t]
+        for ns in list(l.keys()):
+            for t in list(l.get(ns, {}).keys()):
+                if t in existing_type_map:
+                    clash = existing_type_map[t]
+                    if not isinstance(clash, BuiltinType) and \
+                            not _types_definition_equal(clash, l[ns][t]):
+                        raise RuntimeError(
+                            f"Type '{t}' in namespace '{ns}' has the same name "
+                            f"as an imported type but a different definition. "
+                            f"Cross-namespace duplicate type names are only "
+                            f"allowed when definitions are identical.\n"
+                            f"  Imported from: {clash.namespaceUri}\n"
+                            f"  Current:       {ns}"
+                        )
+                    self.cross_ns_duplicate_types.add(t)
 
         # Remove structs with no members
         for ns in v:
@@ -504,15 +560,22 @@ _UA_BEGIN_DECLS
             for ns in self.filtered_types:
                 for i, t_name in enumerate(self.filtered_types[ns]):
                     t = self.filtered_types[ns][t_name]
+                    is_cross_ns_dup = t_name in self.cross_ns_duplicate_types
                     if t.description == "":
                         self.printh("\n/* " + t.name + " */")
                     else:
                         self.printh("\n/* " + t.name + ": " + t.description + " */")
-                    if not isinstance(t, BuiltinType):
-                        self.printh(self.print_datatype_typedef(t) + "\n")
+                    # For cross-namespace duplicates the C typedef and inline
+                    # helpers already exist from the imported dependency header.
+                    # We only emit the index constant here; the type array
+                    # entry is emitted in the .c file as usual.
+                    if not is_cross_ns_dup:
+                        if not isinstance(t, BuiltinType):
+                            self.printh(self.print_datatype_typedef(t) + "\n")
                     self.printh("#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
                     self.printh("")
-                    self.printh(self.print_functions(t))
+                    if not is_cross_ns_dup:
+                        self.printh(self.print_functions(t))
         else:
             self.printh("#define UA_" + self.parser.outname.upper() + " NULL")
 
