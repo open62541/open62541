@@ -430,7 +430,7 @@ UA_AsymEn_Basic128Rsa15_getLocalKeyLength(const UA_SecurityPolicy *policy,
 static UA_StatusCode
 UA_AsymEn_Basic128Rsa15_Decrypt(const UA_SecurityPolicy *policy,
                                 void *channelContext, UA_ByteString *data) {
-    if(channelContext == NULL || data == NULL)
+    if(data == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     const Policy_Context_Basic128Rsa15 *pc =
         (const Policy_Context_Basic128Rsa15 *)policy->policyContext;
