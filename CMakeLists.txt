@@ -187,6 +187,14 @@ else()
     endif()
 endif()
 
+option(UA_ENABLE_FILESYSTEM "Enable filesystem support!" ON)
+if(UA_ENABLE_FILESYSTEM AND UA_NAMESPACE_ZERO STREQUAL "FULL")
+    message("Filesystem support is enabled. This will add a lot of nodes to namespace zero and increase the binary size significantly. Consider using a reduced namespace zero configuration if you do not need the full filesystem information model.")
+    set(UA_FILESYSTEM ON)
+    mark_as_advanced(UA_FILESYSTEM)
+    add_compile_definitions(UA_FILESYSTEM)
+endif()
+
 # security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
 set(UA_ENABLE_ENCRYPTION OFF CACHE STRING "Encryption support (LibreSSL EXPERIMENTAL)")
@@ -809,6 +817,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/common.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/types.h
+                     ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_filetypes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/util.h
@@ -824,7 +833,10 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h)
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
+                     ${PROJECT_SOURCE_DIR}/driver/driver.h
+                     ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.h
+                     ${PROJECT_SOURCE_DIR}/driver/directoryArch/common/fileSystemOperations_common.h)
 
 # Main Library
 
@@ -896,6 +908,13 @@ if(UA_ENABLE_RBAC)
 endif()
 
 set(lib_sources ${lib_sources}
+                # driver
+                ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.c
+                ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_api.c
+                ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_server_ns0_fdt.c
+                ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_server_ns0_filetype.c
+                ${PROJECT_SOURCE_DIR}/driver/directoryArch/win32/fileSystemOperations_win32.c
+                ${PROJECT_SOURCE_DIR}/driver/directoryArch/posix/fileSystemOperations_posix.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
@@ -1450,7 +1469,8 @@ endfunction()
 
 include_directories_public("${PROJECT_SOURCE_DIR}/include"
                            "${PROJECT_SOURCE_DIR}/plugins/include"
-                           "${PROJECT_BINARY_DIR}/src_generated")
+                           "${PROJECT_BINARY_DIR}/src_generated"
+                           "${PROJECT_SOURCE_DIR}/driver")
 
 if(UA_ENABLE_NODESETLOADER)
     include_directories_public(${NODESETLOADER_PUBLIC_INCLUDES})
