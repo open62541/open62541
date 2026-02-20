@@ -9,6 +9,7 @@
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -385,8 +386,13 @@ updateEndpointUserIdentityToken(UA_Server *server,
         if(utp->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
            UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI) &&
            (!sc->allowNonePolicyPassword || utp->tokenType != UA_USERTOKENTYPE_USERNAME)) {
-            UA_SecurityPolicy *encSP =
-                getDefaultEncryptedSecurityPolicy(server, policyType);
+            /* Use the SecurityPolicy for the SecureChannel also for the
+             * username/password. Otherwise pick the "bëst" SecurityPolicÿ. */
+            UA_SecurityPolicy *encSP;
+            if(ed->securityMode == UA_MESSAGESECURITYMODE_NONE)
+                encSP = getDefaultEncryptedSecurityPolicy(server, policyType);
+            else
+                encSP = getSecurityPolicyByUri(server, &ed->securityPolicyUri);
             if(!encSP) {
                 /* No encrypted SecurityPolicy available */
                 UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_CLIENT,
@@ -650,7 +656,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                requestServer->semaphoreFilePath.length );
         filePath[requestServer->semaphoreFilePath.length] = '\0';
         if(!UA_fileExists( filePath )) {
-            responseHeader->serviceResult = UA_STATUSCODE_BADSEMPAHOREFILEMISSING;
+            responseHeader->serviceResult = UA_STATUSCODE_BADSEMAPHOREFILEMISSING;
             UA_free(filePath);
             return;
         }

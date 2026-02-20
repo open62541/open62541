@@ -146,7 +146,15 @@ macro(add_test_no_valgrind TEST_NAME)
     endif()
 endmacro()
 
-add_custom_target(test-verbose COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
+# On multi-config generators (Visual Studio) CTest requires -C <config> so that
+# generator expressions in test commands (and non-standard executables like
+# Python) are resolved correctly.  On single-config generators (Makefiles,
+# Ninja) no -C argument is needed.
+if(CMAKE_CONFIGURATION_TYPES)
+    add_custom_target(test-verbose COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --verbose)
+else()
+    add_custom_target(test-verbose COMMAND ${CMAKE_CTEST_COMMAND} --verbose)
+endif()
 
 # the unit test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
