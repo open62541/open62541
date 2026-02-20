@@ -185,6 +185,36 @@ START_TEST(add_to_trustlist) {
 }
 END_TEST
 
+START_TEST(add_to_trustlist_with_email) {
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    /* Load certificate and private key */
+    UA_ByteString trustedCertificate;
+    trustedCertificate.length = APPLICATION_CERT_DER_DATA_WITH_EMAIL_LENGTH;
+    trustedCertificate.data = APPLICATION_CERT_DER_DATA_WITH_EMAIL;
+
+    UA_ByteString issuerCertificate;
+    issuerCertificate.length = APPLICATION_CERT_DER_DATA_WITH_EMAIL_LENGTH;
+    issuerCertificate.data = APPLICATION_CERT_DER_DATA_WITH_EMAIL;
+
+    /* Add the specified list to the default application group */
+    UA_TrustListDataType trustListTmp;
+    memset(&trustListTmp, 0, sizeof(UA_TrustListDataType));
+
+    trustListTmp.specifiedLists = (UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES | UA_TRUSTLISTMASKS_ISSUERCERTIFICATES);
+    trustListTmp.trustedCertificates = &trustedCertificate;
+    trustListTmp.trustedCertificatesSize = 1;
+    trustListTmp.issuerCertificates = &issuerCertificate;
+    trustListTmp.issuerCertificatesSize = 1;
+
+    UA_StatusCode retval = config->secureChannelPKI.addToTrustList(&config->secureChannelPKI, &trustListTmp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = config->sessionPKI.addToTrustList(&config->sessionPKI, &trustListTmp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+}
+END_TEST
+
 START_TEST(get_trustlist) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
@@ -340,6 +370,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_memorystore, get_trustlist);
     tcase_add_test(tc_encryption_memorystore, set_trustlist);
     tcase_add_test(tc_encryption_memorystore, add_to_trustlist);
+    tcase_add_test(tc_encryption_memorystore, add_to_trustlist_with_email);
     tcase_add_test(tc_encryption_memorystore, remove_from_trustlist);
     tcase_add_test(tc_encryption_memorystore, get_rejectedlist);
 #endif /* UA_ENABLE_ENCRYPTION */
@@ -352,6 +383,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_filestore, get_trustlist);
     tcase_add_test(tc_encryption_filestore, set_trustlist);
     tcase_add_test(tc_encryption_filestore, add_to_trustlist);
+    tcase_add_test(tc_encryption_filestore, add_to_trustlist_with_email);
     tcase_add_test(tc_encryption_filestore, remove_from_trustlist);
     tcase_add_test(tc_encryption_filestore, get_rejectedlist);
     suite_add_tcase(s,tc_encryption_filestore);
