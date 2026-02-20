@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- Base namespace BSD used by test_cross_ns_types.py.
+     Defines SharedEnum which will be imported as a dependency. -->
+<opc:TypeDictionary
+  xmlns:opc="http://opcfoundation.org/BinarySchema/"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns:tns="http://test.org/CrossNsBase/"
+  DefaultByteOrder="LittleEndian"
+  TargetNamespace="http://test.org/CrossNsBase/">
+
+  <opc:EnumeratedType LengthInBits="32" Name="SharedEnum">
+    <opc:EnumeratedValue Name="Val0" Value="0"/>
+    <opc:EnumeratedValue Name="Val1" Value="1"/>
+  </opc:EnumeratedType>
+
+</opc:TypeDictionary>

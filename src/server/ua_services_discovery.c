@@ -9,6 +9,7 @@
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -650,7 +651,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                requestServer->semaphoreFilePath.length );
         filePath[requestServer->semaphoreFilePath.length] = '\0';
         if(!UA_fileExists( filePath )) {
-            responseHeader->serviceResult = UA_STATUSCODE_BADSEMPAHOREFILEMISSING;
+            responseHeader->serviceResult = UA_STATUSCODE_BADSEMAPHOREFILEMISSING;
             UA_free(filePath);
             return;
         }

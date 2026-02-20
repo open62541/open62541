@@ -148,7 +148,7 @@ add_node_integration_test "DI" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml
 
 add_node_integration_test "DotNet" \
-    $UA_NODESET_PATH/DotNet/Opc.Ua.NodeSet.xml
+    $UA_NODESET_PATH/DotNet/Opc.Ua.PredefinedNodes.xml
 
 add_node_integration_test "FDT" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
