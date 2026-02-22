@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <sys/stat.h>
 
-#include "../arch/common/fileSystemOperations_common.h"  /* Replace with your actual header */
+#include <directoryArch/common/fileSystemOperations_common.h>
 
 struct stat st;
 
