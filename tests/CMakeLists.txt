@@ -280,7 +280,7 @@ if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_local_monitored_item.c)
 endif()
 
-if(UA_ENABLE_FILESYSTEM)
+if(UA_FILESYSTEM)
     ua_add_test(filesystem/check_filesystem_operations.c)
 endif()
 
