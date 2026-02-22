@@ -391,11 +391,13 @@ UA_DataType_fromEnumDescription(UA_DataType *type,
         UA_DataTypeMember *dtm = &type->members[i];
         const UA_EnumField *ef = &descr->enumDefinition.fields[i];
         dtm->memberType = (const UA_DataType*)(uintptr_t)ef->value;
+#ifdef UA_ENABLE_TYPEDESCRIPTION
         dtm->memberName = (char*)UA_malloc(ef->name.length + 1);
         UA_CHECK(dtm->memberName != NULL,
                  UA_DataType_clear(type); return UA_STATUSCODE_BADOUTOFMEMORY);
         memcpy((char*)(uintptr_t)dtm->memberName, ef->name.data, ef->name.length);
         *(char*)(uintptr_t)&dtm->memberName[ef->name.length] = '\0';
+#endif
     }
 
     return UA_STATUSCODE_GOOD;
