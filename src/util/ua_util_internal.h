@@ -265,7 +265,11 @@ isTrue(uint8_t expr) {
 #  define UA_fileExists(X) ( _access(X, 0) == 0)
 # else
 #  include <unistd.h>
-#  define UA_fileExists(X) ( access(X, 0) == 0)
+#  ifdef UA_ARCHITECTURE_ZEPHYR /*zephyr does not provide access()*/
+   extern int UA_fileExists(const char *path);
+#  else
+#   define UA_fileExists(X) ( access(X, 0) == 0)
+#  endif
 # endif
 #endif
 
