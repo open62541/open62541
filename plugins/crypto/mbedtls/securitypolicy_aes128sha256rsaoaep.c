@@ -156,7 +156,7 @@ asym_encrypt_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
 static UA_StatusCode
 asym_decrypt_aes128sha256rsaoaep(const UA_SecurityPolicy *policy,
                                  void *channelContext, UA_ByteString *data) {
-    if(channelContext == NULL || data == NULL)
+    if(data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     mbedtls_PolicyContext *pc =
         (mbedtls_PolicyContext*)policy->policyContext;

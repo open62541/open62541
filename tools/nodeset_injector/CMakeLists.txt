@@ -34,7 +34,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     # di as dependency
     elseif(MODEL STREQUAL "CSPPlusForMachine" OR MODEL STREQUAL "POWERLINK" OR
            MODEL STREQUAL "IA" OR MODEL STREQUAL "FDT" OR MODEL STREQUAL "Robotics" OR
-           MODEL STREQUAL "CommercialKitchenEquipment" OR MODEL STREQUAL "Machinery")
+           MODEL STREQUAL "CommercialKitchenEquipment")
 
         # get csv file
         file(GLOB files "${UA_NODESET_DIR}/${MODEL}/*.csv")
@@ -57,6 +57,31 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(NAME "${NODESET_NAME}" FILE_CSV "${csv_file}"
                                           IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                                           FILE_NS "${xml_file}" INTERNAL AUTOLOAD DEPENDS "di")
+
+    # Machinery needs both di and ia dependencies
+    elseif(MODEL STREQUAL "Machinery")
+
+        # get csv file
+        file(GLOB files "${UA_NODESET_DIR}/${MODEL}/*.csv")
+        foreach(file ${files})
+            string(REGEX MATCH "(.*nodeids.csv)|(.*NodeIds.csv)|(Opc.Ua.${MODEL}.NodeSet[2]?.csv)" csv_file_match ${file})
+            if(csv_file_match)
+                set(csv_file ${file})
+            endif()
+        endforeach()
+
+        # get xml file
+        file(GLOB files "${UA_NODESET_DIR}/${MODEL}/*.xml")
+        foreach(file ${files})
+            string(REGEX MATCH "Opc.Ua.${MODEL}.NodeSet[2]?.xml" xml_file_match ${file})
+            if(xml_file_match)
+                set(xml_file ${file})
+            endif()
+        endforeach()
+
+        ua_generate_nodeset_and_datatypes(NAME "${NODESET_NAME}" FILE_CSV "${csv_file}"
+                                          IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
+                                          FILE_NS "${xml_file}" INTERNAL AUTOLOAD DEPENDS "di" DEPENDS "ia")
 
     # more dependencies
     elseif(MODEL STREQUAL "CAS")
@@ -98,16 +123,32 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 DEPENDS "machinery"
                 DEPENDS "packml"
         )
+    elseif(MODEL STREQUAL "Machinery-Jobs")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/Machinery/Jobs/Opc.Ua.Machinery.Jobs.NodeIds.csv"
+                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
+                IMPORT_BSD "TYPES_ISA95_JOBCONTROL#${UA_NODESET_DIR}/ISA95-JOBCONTROL/opc.ua.isa95-jobcontrol.types.bsd"
+                FILE_NS "${UA_NODESET_DIR}/Machinery/Jobs/Opc.Ua.Machinery.Jobs.Nodeset2.xml"
+                INTERNAL
+                AUTOLOAD
+                DEPENDS "isa95-jobcontrol"
+        )
     elseif(MODEL STREQUAL "MachineTool")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
-                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/NodeIds.csv"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.MachineTool.NodeIds.csv"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
+                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
+                IMPORT_BSD "TYPES_ISA95_JOBCONTROL#${UA_NODESET_DIR}/ISA95-JOBCONTROL/opc.ua.isa95-jobcontrol.types.bsd"
+                IMPORT_BSD "TYPES_MACHINERY_JOBS#${UA_NODESET_DIR}/Machinery/Jobs/Opc.Ua.Machinery.Jobs.Types.bsd"
                 INTERNAL
                 AUTOLOAD
                 DEPENDS "di"
                 DEPENDS "machinery"
                 DEPENDS "ia"
+                DEPENDS "isa95-jobcontrol"
+                DEPENDS "machinery-jobs"
         )
         elseif(MODEL STREQUAL "Scales")
         ua_generate_nodeset_and_datatypes(
@@ -197,7 +238,8 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     elseif(MODEL STREQUAL "ISA95-JOBCONTROL")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
-                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/opc.ua.isa95-jobcontrol.nodeset2.csv"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/opc.ua.isa95-jobcontrol.nodeids.csv"
+                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/opc.ua.isa95-jobcontrol.nodeset2.xml"
                 INTERNAL
                 AUTOLOAD

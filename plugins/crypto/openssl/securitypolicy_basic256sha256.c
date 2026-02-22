@@ -129,7 +129,7 @@ UA_makeCertificateThumbprint(const UA_SecurityPolicy *policy,
 static UA_StatusCode
 UA_Asym_Basic256Sha256_Decrypt(const UA_SecurityPolicy *policy,
                                void *channelContext, UA_ByteString *data) {
-    if(channelContext == NULL || data == NULL)
+    if(data == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     openssl_PolicyContext *pc =
         (openssl_PolicyContext *)policy->policyContext;
