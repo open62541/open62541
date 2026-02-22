@@ -57,12 +57,12 @@ UA_Server_moveOrCopyItem(UA_Server *server, UA_NodeId *sessionId, void *sessionC
 
 UA_StatusCode
 UA_Server_makeDirectory(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *parentNode, const char *dirName, UA_NodeId *newNodeId) {
-    return __directoryOperation(server, sessionId, sessionContext, NULL, NULL, parentNode, NULL, sizeof(UA_String), (const UA_Variant*)&(UA_String){strlen(dirName), (UA_Byte*)dirName}, sizeof(UA_NodeId), (UA_Variant*)newNodeId, DIR_OP_MKDIR);
+    return __directoryOperation(server, sessionId, sessionContext, NULL, NULL, parentNode, NULL, sizeof(UA_String), (const UA_Variant*)&(UA_String){strlen(dirName), (const UA_Byte*)dirName}, sizeof(UA_NodeId), (UA_Variant*)newNodeId, DIR_OP_MKDIR);
 }
 
 UA_StatusCode
 UA_Server_makeFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *parentNode, const char *fileName, bool fileHandleBool, UA_Int32* output) {
-    return __fileTypeOperation(server, sessionId, sessionContext, NULL, NULL, parentNode, NULL, sizeof(UA_String), (const UA_Variant*)&(UA_String){strlen(fileName), (UA_Byte*)fileName}, sizeof(UA_Int32), (UA_Variant*)output, DIR_OP_MKFILE);
+    return __directoryOperation(server, sessionId, sessionContext, NULL, NULL, parentNode, NULL, sizeof(UA_String), (const UA_Variant*)&(UA_String){strlen(fileName), (const UA_Byte*)fileName}, sizeof(UA_Int32), (UA_Variant*)output, DIR_OP_MKFILE);
 }
 
 #endif /* UA_FILESYSTEM */
