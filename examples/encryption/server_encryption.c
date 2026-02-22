@@ -3,7 +3,7 @@
  *
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
- *
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/client_highlevel.h>
@@ -13,6 +13,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/certificategroup_default.h>
+#include <open62541/plugin/accesscontrol_default.h>
 
 #include <signal.h>
 #include <stdlib.h>
@@ -130,6 +131,14 @@ int main(int argc, char* argv[]) {
 
     config->sessionPKI.clear(&config->sessionPKI);
     UA_CertificateGroup_AcceptAll(&config->sessionPKI);
+
+    /* Add username/password auth */
+    UA_UsernamePasswordLogin login;
+    login.password = UA_STRING("admin");
+    login.username = UA_STRING("admin");
+    config->accessControl.clear(&config->accessControl);
+    const UA_String userTokenPolicy = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    UA_AccessControl_default(config, true, &userTokenPolicy, 1, &login);
 
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
