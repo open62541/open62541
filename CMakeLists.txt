@@ -1027,6 +1027,7 @@ endif()
 
 if(UA_ARCHITECTURE_ZEPHYR)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/zephyr/clock_zephyr.c)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/zephyr/fs_zephyr.c)
 endif()
 
 if(UA_ARCHITECTURE_FREERTOS)
