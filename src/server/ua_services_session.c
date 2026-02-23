@@ -11,6 +11,7 @@
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2018-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -32,11 +33,18 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
 
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /* Remove the Subscriptions */
+    /* When the session times out, detach
+     * subscriptions so they can be recovered via TransferSubscriptions. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
     TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
-        UA_Subscription_delete(server, sub);
+        if(shutdownReason == UA_SHUTDOWNREASON_TIMEOUT) {
+            UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
+                                     "Detaching the Subscription from the timed-out Session");
+            UA_Session_detachSubscription(server, session, sub, true);
+        } else {
+            UA_Subscription_delete(server, sub);
+        }
     }
 
     UA_PublishResponseEntry *entry;
