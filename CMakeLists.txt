@@ -1663,3 +1663,9 @@ set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/gen
 if(UA_ENABLE_NODESET_INJECTOR)
     set_target_properties(open62541-generator-nodesetinjector PROPERTIES FOLDER "open62541/generators")
 endif()
+
+# Win32 version resource
+if(WIN32)
+	configure_file(${PROJECT_SOURCE_DIR}/tools/cmake/VersionResource.rc.in ${PROJECT_BINARY_DIR}/VersionResource.rc)
+	target_sources(${OPEN62541-LIB} PRIVATE ${PROJECT_BINARY_DIR}/VersionResource.rc)
+endif()
