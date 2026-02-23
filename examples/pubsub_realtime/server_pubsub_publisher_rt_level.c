@@ -176,9 +176,10 @@ int main(void) {
     pubSubEL->stop(pubSubEL);
     while(pubSubEL->state != UA_EVENTLOOPSTATE_STOPPED)
         pubSubEL->run(pubSubEL, 0);
-    pubSubEL->free(pubSubEL);
 
     UA_Server_delete(server);
+
+    pubSubEL->free(pubSubEL);
 
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
