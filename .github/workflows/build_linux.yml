@@ -70,6 +70,9 @@ jobs:
           - name: "Amalgamation Build with Multithreading"
             cmd_action: build_amalgamation_mt
 
+          - name: "Amalgamation Build with none Architecture"
+            cmd_action: build_amalgamation_none_arch
+
           - name: "Build All Companion Specifications"
             cmd_action: build_all_companion_specs
 
