@@ -16,6 +16,7 @@
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -412,16 +413,17 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
     /* If no value is set, see if the vt provides one and copy it. This needs to
      * be done before copying the datatype from the vt, as setting the datatype
      * triggers a typecheck. */
-    UA_Variant orig;
-    UA_StatusCode retval =
-        readWithReadValue(server, &node->head.nodeId, UA_ATTRIBUTEID_VALUE, &orig);
+    UA_DataValue origDv;
+    UA_DataValue_init(&origDv);
+    UA_StatusCode retval = readValueAttribute(server, session, node, &origDv);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if(orig.type) {
+    if(origDv.hasValue && origDv.value.type) {
         /* A value is present */
-        UA_Variant_clear(&orig);
+        UA_DataValue_clear(&origDv);
     } else {
+        UA_DataValue_clear(&origDv);
         UA_DataValue v;
         UA_DataValue_init(&v);
         retval = readValueAttribute(server, session, (const UA_VariableNode*)vt, &v);

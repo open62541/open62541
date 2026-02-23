@@ -1207,6 +1207,191 @@ START_TEST(CheckDescriptionLocalization) {
     UA_LocalizedText_clear(&lt);
 } END_TEST
 
+static UA_Server *nullValueServer = NULL;
+static UA_NodeId emptyUInt32NodeId;
+static UA_NodeId emptyStringNodeId;
+static UA_NodeId emptyByteStringNodeId;
+static UA_NodeId emptyDateTimeNodeId;
+static UA_NodeId emptyStructureNodeId;
+static UA_NodeId emptyDiagnosticInfoNodeId;
+
+static void setupNullValue(void) {
+    nullValueServer = UA_Server_new();
+    ck_assert(nullValueServer != NULL);
+    UA_ServerConfig *config = UA_Server_getConfig(nullValueServer);
+    UA_ServerConfig_setDefault(config);
+    /* Allow adding variables without a value so we can test the read path */
+    config->allowEmptyVariables = UA_RULEHANDLING_ACCEPT;
+
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    attr.valueRank = UA_VALUERANK_SCALAR;
+    UA_StatusCode retval;
+
+    /* Non-nullable: UInt32 without value */
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "EmptyUInt32");
+    attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UINT32);
+    retval = UA_Server_addVariableNode(
+        nullValueServer, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "EmptyUInt32"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, &emptyUInt32NodeId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Nullable: String without value */
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "EmptyString");
+    attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRING);
+    retval = UA_Server_addVariableNode(
+        nullValueServer, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "EmptyString"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, &emptyStringNodeId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Nullable: ByteString without value */
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "EmptyByteString");
+    attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_BYTESTRING);
+    retval = UA_Server_addVariableNode(
+        nullValueServer, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "EmptyByteString"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, &emptyByteStringNodeId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Nullable: DateTime without value */
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "EmptyDateTime");
+    attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_DATETIME);
+    retval = UA_Server_addVariableNode(
+        nullValueServer, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "EmptyDateTime"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, &emptyDateTimeNodeId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Nullable: Structure (ExtensionObject) without value */
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "EmptyStructure");
+    attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+    retval = UA_Server_addVariableNode(
+        nullValueServer, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "EmptyStructure"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, &emptyStructureNodeId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Nullable: DiagnosticInfo without value */
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "EmptyDiagnosticInfo");
+    attr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_DIAGNOSTICINFO);
+    retval = UA_Server_addVariableNode(
+        nullValueServer, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "EmptyDiagnosticInfo"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, &emptyDiagnosticInfoNodeId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+}
+
+static void teardownNullValue(void) {
+    UA_NodeId_clear(&emptyUInt32NodeId);
+    UA_NodeId_clear(&emptyStringNodeId);
+    UA_NodeId_clear(&emptyByteStringNodeId);
+    UA_NodeId_clear(&emptyDateTimeNodeId);
+    UA_NodeId_clear(&emptyStructureNodeId);
+    UA_NodeId_clear(&emptyDiagnosticInfoNodeId);
+    UA_Server_delete(nullValueServer);
+}
+
+/* Non-nullable variable (UInt32) with no value must return Bad StatusCode. */
+START_TEST(ReadEmptyNonNullableValue) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = emptyUInt32NodeId;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_DataValue dv = UA_Server_read(nullValueServer, &rvi,
+                                     UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(dv.hasStatus);
+    ck_assert_int_eq(dv.status, UA_STATUSCODE_BADWAITINGFORINITIALDATA);
+    ck_assert(!dv.hasValue || UA_Variant_isEmpty(&dv.value));
+    UA_DataValue_clear(&dv);
+} END_TEST
+
+/* String is nullable — empty variant with Good status is acceptable. */
+START_TEST(ReadEmptyNullableStringValue) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = emptyStringNodeId;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_DataValue dv = UA_Server_read(nullValueServer, &rvi,
+                                     UA_TIMESTAMPSTORETURN_NEITHER);
+    /* Good status (no hasStatus or status==Good) is acceptable */
+    ck_assert(!dv.hasStatus || dv.status == UA_STATUSCODE_GOOD);
+    UA_DataValue_clear(&dv);
+} END_TEST
+
+/* ByteString is nullable — empty variant with Good status is acceptable. */
+START_TEST(ReadEmptyNullableByteStringValue) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = emptyByteStringNodeId;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_DataValue dv = UA_Server_read(nullValueServer, &rvi,
+                                     UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(!dv.hasStatus || dv.status == UA_STATUSCODE_GOOD);
+    UA_DataValue_clear(&dv);
+} END_TEST
+
+/* DateTime is nullable per Part 6, Section 5.2.2 (Table 1). */
+START_TEST(ReadEmptyNullableDateTimeValue) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = emptyDateTimeNodeId;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_DataValue dv = UA_Server_read(nullValueServer, &rvi,
+                                     UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(!dv.hasStatus || dv.status == UA_STATUSCODE_GOOD);
+    UA_DataValue_clear(&dv);
+} END_TEST
+
+/* Structure / ExtensionObject is nullable (Part 6, Section 5.2.2). */
+START_TEST(ReadEmptyNullableStructureValue) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = emptyStructureNodeId;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_DataValue dv = UA_Server_read(nullValueServer, &rvi,
+                                     UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(!dv.hasStatus || dv.status == UA_STATUSCODE_GOOD);
+    UA_DataValue_clear(&dv);
+} END_TEST
+
+/* DiagnosticInfo is nullable (Part 6, Section 5.2.2). */
+START_TEST(ReadEmptyNullableDiagnosticInfoValue) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = emptyDiagnosticInfoNodeId;
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_DataValue dv = UA_Server_read(nullValueServer, &rvi,
+                                     UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(!dv.hasStatus || dv.status == UA_STATUSCODE_GOOD);
+    UA_DataValue_clear(&dv);
+} END_TEST
+
 static Suite * testSuite_services_attributes(void) {
     Suite *s = suite_create("services_attributes_read");
 
@@ -1281,6 +1466,16 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_localization, CheckDisplayNameLocalization);
     tcase_add_test(tc_localization, CheckDescriptionLocalization);
     suite_add_tcase(s, tc_localization);
+
+    TCase *tc_nullValue = tcase_create("nullValueStatusCode");
+    tcase_add_checked_fixture(tc_nullValue, setupNullValue, teardownNullValue);
+    tcase_add_test(tc_nullValue, ReadEmptyNonNullableValue);
+    tcase_add_test(tc_nullValue, ReadEmptyNullableStringValue);
+    tcase_add_test(tc_nullValue, ReadEmptyNullableByteStringValue);
+    tcase_add_test(tc_nullValue, ReadEmptyNullableDateTimeValue);
+    tcase_add_test(tc_nullValue, ReadEmptyNullableStructureValue);
+    tcase_add_test(tc_nullValue, ReadEmptyNullableDiagnosticInfoValue);
+    suite_add_tcase(s, tc_nullValue);
 
     return s;
 }

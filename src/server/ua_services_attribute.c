@@ -17,6 +17,7 @@
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -207,6 +208,26 @@ readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
         *v = v2;
     }
     return retval;
+}
+
+/* OPC UA Part 6: Non-nullable built-in types are Boolean and the 
+ * numeric types (SByte..Double), StatusCode and Enumerations.
+ * All remaining built-in types are nullable. */
+static bool
+isNullableDataType(UA_Server *server, const UA_NodeId *dataType) {
+    const UA_DataType *type = UA_Server_findDataType(server, dataType);
+    if(!type)
+        return true; /* Unknown type */
+    if(UA_DataType_isNumeric(type))
+        return false;
+    switch(type->typeKind) {
+        case UA_DATATYPEKIND_BOOLEAN:
+        case UA_DATATYPEKIND_STATUSCODE:
+        case UA_DATATYPEKIND_ENUM:
+            return false;
+        default:
+            return true;
+    }
 }
 
 static UA_StatusCode
@@ -588,6 +609,18 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
     } else {
         v->hasStatus = true;
         v->status = retval;
+    }
+
+    /* OPC UA Part 4:  StatusCode Good is only permitted for nullable
+     * DataTypes. Non-nullable must have a Bad StatusCode
+     * when no value is available. */
+    if(v->hasValue && UA_Variant_isEmpty(&v->value) &&
+       (node->head.nodeClass == UA_NODECLASS_VARIABLE ||
+        node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) &&
+       !isNullableDataType(server, &node->variableNode.dataType)) {
+        v->hasValue = false;
+        v->hasStatus = true;
+        v->status = UA_STATUSCODE_BADWAITINGFORINITIALDATA;
     }
 
     /* Always use the current time as the server-timestamp */
