@@ -201,13 +201,13 @@ START_TEST(client_connect_none_username_basic256Sha256) {
         cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
 
         /* Only use the relevant security policy in authSecurityPolicies */
-        for(size_t i = 0; i < cc->securityPoliciesSize; ++i)
-            cc->securityPolicies[i].clear(&cc->securityPolicies[i]);
-        UA_free(cc->securityPolicies);
-        cc->securityPolicies = (UA_SecurityPolicy*)UA_calloc(2, sizeof(UA_SecurityPolicy));
-        cc->securityPoliciesSize = 2;
-        UA_SecurityPolicy_None(&cc->securityPolicies[0], certificate, cc->logging);
-        UA_SecurityPolicy_Basic256Sha256(&cc->securityPolicies[1], certificate, privateKey, cc->logging);
+        for(size_t i = 0; i < cc->authSecurityPoliciesSize; ++i)
+            cc->authSecurityPolicies[i].clear(&cc->authSecurityPolicies[i]);
+        UA_free(cc->authSecurityPolicies);
+        cc->authSecurityPolicies = (UA_SecurityPolicy*)UA_calloc(2, sizeof(UA_SecurityPolicy));
+        cc->authSecurityPoliciesSize = 2;
+        UA_SecurityPolicy_None(&cc->authSecurityPolicies[0], certificate, cc->logging);
+        UA_SecurityPolicy_Basic256Sha256(&cc->authSecurityPolicies[1], certificate, privateKey, cc->logging);
 
         UA_StatusCode retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "admin", "admin");
 
@@ -272,12 +272,12 @@ START_TEST(client_connect_none_username_eccpnist256) {
 
     /* Only use the relevant security policy in authSecurityPolicies */
     for(size_t i = 0; i < cc->authSecurityPoliciesSize; ++i)
-        cc->securityPolicies[i].clear(&cc->securityPolicies[i]);
-    UA_free(cc->securityPolicies);
-    cc->securityPolicies = (UA_SecurityPolicy*)UA_calloc(2, sizeof(UA_SecurityPolicy));
-    cc->securityPoliciesSize = 2;
-    UA_SecurityPolicy_None(&cc->securityPolicies[0], certificate, cc->logging);
-    UA_SecurityPolicy_EccNistP256(&cc->securityPolicies[1],
+        cc->authSecurityPolicies[i].clear(&cc->authSecurityPolicies[i]);
+    UA_free(cc->authSecurityPolicies);
+    cc->authSecurityPolicies = (UA_SecurityPolicy*)UA_calloc(2, sizeof(UA_SecurityPolicy));
+    cc->authSecurityPoliciesSize = 2;
+    UA_SecurityPolicy_None(&cc->authSecurityPolicies[0], certificate, cc->logging);
+    UA_SecurityPolicy_EccNistP256(&cc->authSecurityPolicies[1],
                                   UA_APPLICATIONTYPE_CLIENT,
                                   certificate, privateKey, cc->logging);
 
@@ -410,12 +410,15 @@ START_TEST(client_connect_basic256Sha256_anonymous) {
     UA_String_clear(&cc->clientDescription.applicationUri);
     cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
 
-    /* Use empty security policies array */
+    /* Only use the relevant security policy in authSecurityPolicies */
     for(size_t i = 0; i < cc->authSecurityPoliciesSize; ++i)
         cc->authSecurityPolicies[i].clear(&cc->authSecurityPolicies[i]);
     UA_free(cc->authSecurityPolicies);
-    cc->authSecurityPolicies = NULL;
-    cc->authSecurityPoliciesSize = 0;
+    cc->authSecurityPolicies = (UA_SecurityPolicy *)
+        UA_calloc(1, sizeof(UA_SecurityPolicy));
+    cc->authSecurityPoliciesSize = 1;
+    UA_SecurityPolicy_Basic256Sha256(&cc->authSecurityPolicies[0],
+                                     certificate, privateKey, cc->logging);
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
 

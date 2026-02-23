@@ -1779,6 +1779,23 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         config->securityPoliciesSize = 1;
     }
 
+    /* TODO: This is only necessary if we don't have special cases for authentication tokens
+     * with the None policy in ua_client_connect.c and don't require a valid sp pointer. */
+
+    if(config->authSecurityPoliciesSize == 0) {
+        config->authSecurityPolicies = (UA_SecurityPolicy*)UA_malloc(sizeof(UA_SecurityPolicy));
+        if(!config->authSecurityPolicies)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        UA_StatusCode retval = UA_SecurityPolicy_None(config->authSecurityPolicies,
+                                                      UA_BYTESTRING_NULL, config->logging);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_free(config->authSecurityPolicies);
+            config->authSecurityPolicies = NULL;
+            return retval;
+        }
+        config->authSecurityPoliciesSize = 1;
+    }
+
     if(config->requestedSessionTimeout == 0)
         config->requestedSessionTimeout = 1200000;
 
