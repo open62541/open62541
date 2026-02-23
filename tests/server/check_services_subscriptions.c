@@ -1021,6 +1021,89 @@ START_TEST(Server_transferSubscription_anonymous) {
 }
 END_TEST
 
+START_TEST(Server_subscriptionSurvivesSessionTimeout) {
+    /* Set authenticated user for the session to allow transfer */
+    lockServer(server);
+    UA_String_clear(&session->clientUserIdOfSession);
+    session->clientUserIdOfSession = UA_STRING_ALLOC("testuser");
+    unlockServer(server);
+
+    /* Create a subscription with a monitored item */
+    createSubscription();
+    createMonitoredItem();
+
+    /* Verify the subscription exists in the server-wide list */
+    lockServer(server);
+    UA_Subscription *sub = getSubscriptionById(server, subscriptionId);
+    unlockServer(server);
+    ck_assert_ptr_ne(sub, NULL);
+
+    /* Force the session to time out by setting validTill to a past value */
+    lockServer(server);
+    session->validTill = UA_DateTime_nowMonotonic() - UA_DATETIME_SEC;
+    UA_Server_cleanupSessions(server, UA_DateTime_nowMonotonic());
+    unlockServer(server);
+    session = NULL; /* Session has been removed */
+
+    /* The subscription must still exist in the server-wide list (detached) */
+    lockServer(server);
+    sub = getSubscriptionById(server, subscriptionId);
+    unlockServer(server);
+    ck_assert_ptr_ne(sub, NULL);
+    ck_assert_ptr_eq(sub->session, NULL); /* Detached from session */
+
+    /* Create a new session and transfer the subscription */
+    UA_Session *session2 = createAuthenticatedSession("testuser");
+
+    UA_TransferSubscriptionsRequest transferRequest;
+    UA_TransferSubscriptionsRequest_init(&transferRequest);
+    transferRequest.subscriptionIdsSize = 1;
+    transferRequest.subscriptionIds = &subscriptionId;
+    transferRequest.sendInitialValues = false;
+
+    UA_TransferSubscriptionsResponse transferResponse;
+    UA_TransferSubscriptionsResponse_init(&transferResponse);
+
+    lockServer(server);
+    Service_TransferSubscriptions(server, session2, &transferRequest, &transferResponse);
+    unlockServer(server);
+
+    ck_assert_uint_eq(transferResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(transferResponse.resultsSize, 1);
+    ck_assert_uint_eq(transferResponse.results[0].statusCode, UA_STATUSCODE_GOOD);
+    UA_TransferSubscriptionsResponse_clear(&transferResponse);
+
+    /* Verify subscription is now attached to the new session */
+    lockServer(server);
+    sub = getSubscriptionById(server, subscriptionId);
+    unlockServer(server);
+    ck_assert_ptr_ne(sub, NULL);
+    ck_assert_ptr_eq(sub->session, session2);
+
+    /* Clean up: delete subscription and close session2 */
+    UA_DeleteSubscriptionsRequest delRequest;
+    UA_DeleteSubscriptionsRequest_init(&delRequest);
+    delRequest.subscriptionIdsSize = 1;
+    delRequest.subscriptionIds = &subscriptionId;
+
+    UA_DeleteSubscriptionsResponse delResponse;
+    UA_DeleteSubscriptionsResponse_init(&delResponse);
+
+    lockServer(server);
+    Service_DeleteSubscriptions(server, session2, &delRequest, &delResponse);
+    unlockServer(server);
+    ck_assert_uint_eq(delResponse.results[0], UA_STATUSCODE_GOOD);
+    UA_DeleteSubscriptionsResponse_clear(&delResponse);
+
+    lockServer(server);
+    UA_Server_closeSession(server, &session2->sessionId);
+    unlockServer(server);
+
+    /* Recreate session for other tests */
+    createSession();
+}
+END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 static Suite* testSuite_Client(void) {
@@ -1045,6 +1128,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_server, Server_invalidPublishingInterval);
     tcase_add_test(tc_server, Server_transferSubscriptionDiagnostics);
     tcase_add_test(tc_server, Server_transferSubscription_anonymous);
+    tcase_add_test(tc_server, Server_subscriptionSurvivesSessionTimeout);
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
     suite_add_tcase(s, tc_server);
 
