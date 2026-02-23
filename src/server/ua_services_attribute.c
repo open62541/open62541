@@ -17,6 +17,7 @@
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -1710,6 +1711,32 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
             if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
                 retval = UA_STATUSCODE_BADUSERACCESSDENIED;
                 break;
+            }
+            /* Writing the StatusCode requires the StatusWrite bit */
+            if(wvalue->value.hasStatus) {
+                accessLevel = getAccessLevel(server, session, &node->variableNode);
+                if(!(accessLevel & UA_ACCESSLEVELMASK_STATUSWRITE)) {
+                    retval = UA_STATUSCODE_BADNOTWRITABLE;
+                    break;
+                }
+                accessLevel = getUserAccessLevel(server, session, &node->variableNode);
+                if(!(accessLevel & UA_ACCESSLEVELMASK_STATUSWRITE)) {
+                    retval = UA_STATUSCODE_BADUSERACCESSDENIED;
+                    break;
+                }
+            }
+            /* Writing the SourceTimestamp requires the TimestampWrite bit */
+            if(wvalue->value.hasSourceTimestamp) {
+                accessLevel = getAccessLevel(server, session, &node->variableNode);
+                if(!(accessLevel & UA_ACCESSLEVELMASK_TIMESTAMPWRITE)) {
+                    retval = UA_STATUSCODE_BADNOTWRITABLE;
+                    break;
+                }
+                accessLevel = getUserAccessLevel(server, session, &node->variableNode);
+                if(!(accessLevel & UA_ACCESSLEVELMASK_TIMESTAMPWRITE)) {
+                    retval = UA_STATUSCODE_BADUSERACCESSDENIED;
+                    break;
+                }
             }
         } else { /* UA_NODECLASS_VARIABLETYPE */
             CHECK_USERWRITEMASK(UA_WRITEMASK_VALUEFORVARIABLETYPE);
