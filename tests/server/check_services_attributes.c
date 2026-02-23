@@ -1113,6 +1113,190 @@ START_TEST(WriteSingleDataSourceAttributeValue) {
     ck_assert_int_eq(retval, UA_STATUSCODE_BADWRITENOTSUPPORTED);
 } END_TEST
 
+/* OPC UA Part 3: Writing the StatusCode of a value requires
+ * the StatusWrite bit in the AccessLevel. Uses a non-admin session so that the
+ * server-side AccessLevel check is actually evaluated. */
+START_TEST(WriteValueStatusCodeWithoutStatusWriteBit) {
+    /* Remove StatusWrite bit, keep Read|Write */
+    UA_Server_writeAccessLevel(server, UA_NODEID_STRING(1, "the.answer"),
+                               UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE);
+
+    /* Create a non-admin session */
+    UA_Session *session = NULL;
+    UA_CreateSessionRequest req;
+    UA_CreateSessionRequest_init(&req);
+    req.requestedSessionTimeout = UA_UINT32_MAX;
+    lockServer(server);
+    ck_assert_int_eq(UA_Server_createSession(server, NULL, &req, &session),
+                     UA_STATUSCODE_GOOD);
+
+    /* Attempt to write with hasStatus = true */
+    UA_WriteRequest wReq;
+    UA_WriteRequest_init(&wReq);
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    UA_Int32 val = 42;
+    UA_Variant_setScalar(&wv.value.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    wv.value.hasValue = true;
+    wv.value.hasStatus = true;
+    wv.value.status = UA_STATUSCODE_GOOD;
+    wv.nodeId = UA_NODEID_STRING(1, "the.answer");
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    wReq.nodesToWrite = &wv;
+    wReq.nodesToWriteSize = 1;
+
+    UA_WriteResponse wResp;
+    UA_WriteResponse_init(&wResp);
+    Service_Write(server, session, &wReq, &wResp);
+    ck_assert_int_eq(wResp.resultsSize, 1);
+    ck_assert_int_eq(wResp.results[0], UA_STATUSCODE_BADNOTWRITABLE);
+    UA_WriteResponse_clear(&wResp);
+    unlockServer(server);
+
+    /* Restore default AccessLevel */
+    UA_Server_writeAccessLevel(server, UA_NODEID_STRING(1, "the.answer"),
+                               UA_ACCESSLEVELMASK_READ |
+                               UA_ACCESSLEVELMASK_STATUSWRITE |
+                               UA_ACCESSLEVELMASK_TIMESTAMPWRITE);
+} END_TEST
+
+/* OPC UA Part 3: Writing the SourceTimestamp of a value
+ * requires the TimestampWrite bit in the AccessLevel. */
+START_TEST(WriteValueTimestampWithoutTimestampWriteBit) {
+    /* Remove TimestampWrite bit, keep Read|Write */
+    UA_Server_writeAccessLevel(server, UA_NODEID_STRING(1, "the.answer"),
+                               UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE);
+
+    /* Create a non-admin session */
+    UA_Session *session = NULL;
+    UA_CreateSessionRequest req;
+    UA_CreateSessionRequest_init(&req);
+    req.requestedSessionTimeout = UA_UINT32_MAX;
+    lockServer(server);
+    ck_assert_int_eq(UA_Server_createSession(server, NULL, &req, &session),
+                     UA_STATUSCODE_GOOD);
+
+    /* Attempt to write with hasSourceTimestamp = true */
+    UA_WriteRequest wReq;
+    UA_WriteRequest_init(&wReq);
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    UA_Int32 val = 42;
+    UA_Variant_setScalar(&wv.value.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    wv.value.hasValue = true;
+    wv.value.hasSourceTimestamp = true;
+    wv.value.sourceTimestamp = 1337;
+    wv.nodeId = UA_NODEID_STRING(1, "the.answer");
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    wReq.nodesToWrite = &wv;
+    wReq.nodesToWriteSize = 1;
+
+    UA_WriteResponse wResp;
+    UA_WriteResponse_init(&wResp);
+    Service_Write(server, session, &wReq, &wResp);
+    ck_assert_int_eq(wResp.resultsSize, 1);
+    ck_assert_int_eq(wResp.results[0], UA_STATUSCODE_BADNOTWRITABLE);
+    UA_WriteResponse_clear(&wResp);
+    unlockServer(server);
+
+    /* Restore default AccessLevel */
+    UA_Server_writeAccessLevel(server, UA_NODEID_STRING(1, "the.answer"),
+                               UA_ACCESSLEVELMASK_READ |
+                               UA_ACCESSLEVELMASK_STATUSWRITE |
+                               UA_ACCESSLEVELMASK_TIMESTAMPWRITE);
+} END_TEST
+
+/* Verify that writing StatusCode succeeds when the StatusWrite bit is set. */
+START_TEST(WriteValueStatusCodeWithStatusWriteBit) {
+    /* Set Read|Write|StatusWrite */
+    UA_Server_writeAccessLevel(server, UA_NODEID_STRING(1, "the.answer"),
+                               UA_ACCESSLEVELMASK_READ |
+                               UA_ACCESSLEVELMASK_WRITE |
+                               UA_ACCESSLEVELMASK_STATUSWRITE);
+
+    UA_Session *session = NULL;
+    UA_CreateSessionRequest req;
+    UA_CreateSessionRequest_init(&req);
+    req.requestedSessionTimeout = UA_UINT32_MAX;
+    lockServer(server);
+    ck_assert_int_eq(UA_Server_createSession(server, NULL, &req, &session),
+                     UA_STATUSCODE_GOOD);
+
+    UA_WriteRequest wReq;
+    UA_WriteRequest_init(&wReq);
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    UA_Int32 val = 42;
+    UA_Variant_setScalar(&wv.value.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    wv.value.hasValue = true;
+    wv.value.hasStatus = true;
+    wv.value.status = UA_STATUSCODE_GOOD;
+    wv.nodeId = UA_NODEID_STRING(1, "the.answer");
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    wReq.nodesToWrite = &wv;
+    wReq.nodesToWriteSize = 1;
+
+    UA_WriteResponse wResp;
+    UA_WriteResponse_init(&wResp);
+    Service_Write(server, session, &wReq, &wResp);
+    ck_assert_int_eq(wResp.resultsSize, 1);
+    ck_assert_int_eq(wResp.results[0], UA_STATUSCODE_GOOD);
+    UA_WriteResponse_clear(&wResp);
+    unlockServer(server);
+
+    /* Restore default AccessLevel */
+    UA_Server_writeAccessLevel(server, UA_NODEID_STRING(1, "the.answer"),
+                               UA_ACCESSLEVELMASK_READ |
+                               UA_ACCESSLEVELMASK_STATUSWRITE |
+                               UA_ACCESSLEVELMASK_TIMESTAMPWRITE);
+} END_TEST
+
+/* Verify that writing SourceTimestamp succeeds when the TimestampWrite bit
+ * is set. */
+START_TEST(WriteValueTimestampWithTimestampWriteBit) {
+    /* Set Read|Write|TimestampWrite */
+    UA_Server_writeAccessLevel(server, UA_NODEID_STRING(1, "the.answer"),
+                               UA_ACCESSLEVELMASK_READ |
+                               UA_ACCESSLEVELMASK_WRITE |
+                               UA_ACCESSLEVELMASK_TIMESTAMPWRITE);
+
+    UA_Session *session = NULL;
+    UA_CreateSessionRequest req;
+    UA_CreateSessionRequest_init(&req);
+    req.requestedSessionTimeout = UA_UINT32_MAX;
+    lockServer(server);
+    ck_assert_int_eq(UA_Server_createSession(server, NULL, &req, &session),
+                     UA_STATUSCODE_GOOD);
+
+    UA_WriteRequest wReq;
+    UA_WriteRequest_init(&wReq);
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    UA_Int32 val = 42;
+    UA_Variant_setScalar(&wv.value.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    wv.value.hasValue = true;
+    wv.value.hasSourceTimestamp = true;
+    wv.value.sourceTimestamp = 1337;
+    wv.nodeId = UA_NODEID_STRING(1, "the.answer");
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    wReq.nodesToWrite = &wv;
+    wReq.nodesToWriteSize = 1;
+
+    UA_WriteResponse wResp;
+    UA_WriteResponse_init(&wResp);
+    Service_Write(server, session, &wReq, &wResp);
+    ck_assert_int_eq(wResp.resultsSize, 1);
+    ck_assert_int_eq(wResp.results[0], UA_STATUSCODE_GOOD);
+    UA_WriteResponse_clear(&wResp);
+    unlockServer(server);
+
+    /* Restore default AccessLevel */
+    UA_Server_writeAccessLevel(server, UA_NODEID_STRING(1, "the.answer"),
+                               UA_ACCESSLEVELMASK_READ |
+                               UA_ACCESSLEVELMASK_STATUSWRITE |
+                               UA_ACCESSLEVELMASK_TIMESTAMPWRITE);
+} END_TEST
+
 START_TEST(CheckDisplayNameLocalization) {
     /* Add a german localization for the DisplayName attribute */
     UA_WriteValue wValue;
@@ -1273,6 +1457,10 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeHistorizing);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeExecutable);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleDataSourceAttributeValue);
+    tcase_add_test(tc_writeSingleAttributes, WriteValueStatusCodeWithoutStatusWriteBit);
+    tcase_add_test(tc_writeSingleAttributes, WriteValueTimestampWithoutTimestampWriteBit);
+    tcase_add_test(tc_writeSingleAttributes, WriteValueStatusCodeWithStatusWriteBit);
+    tcase_add_test(tc_writeSingleAttributes, WriteValueTimestampWithTimestampWriteBit);
 
     suite_add_tcase(s, tc_writeSingleAttributes);
 
