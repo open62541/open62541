@@ -377,7 +377,7 @@ enum UA_NodeIdType {
     UA_NODEIDTYPE_BYTESTRING = 5
 };
 
-typedef struct {
+typedef struct UA_NodeId {
     UA_UInt16 namespaceIndex;
     enum UA_NodeIdType identifierType;
     union {
