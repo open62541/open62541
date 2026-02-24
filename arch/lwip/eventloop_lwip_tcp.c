@@ -697,7 +697,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     } while(nWritten < buf->length);
 
     /* Free the buffer */
-    UA_ByteString_clear(buf);
+    UA_EventLoopLWIP_freeNetworkBuffer(cm, connectionId, buf);
     return UA_STATUSCODE_GOOD;
 
  shutdown:
@@ -706,7 +706,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                     "TCP %u\t| Send failed with error %s",
                     (unsigned)connectionId, errno_str));
     TCP_shutdownConnection(cm, connectionId);
-    UA_ByteString_clear(buf);
+    UA_EventLoopLWIP_freeNetworkBuffer(cm, connectionId, buf);
     return UA_STATUSCODE_BADCONNECTIONCLOSED;
 }
 
@@ -1097,6 +1097,7 @@ TCP_eventSourceDelete(UA_ConnectionManager *cm) {
     }
 
     UA_ByteString_clear(&pcm->rxBuffer);
+    UA_ByteString_clear(&pcm->txBuffer);
     UA_KeyValueMap_clear(&cm->eventSource.params);
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);
