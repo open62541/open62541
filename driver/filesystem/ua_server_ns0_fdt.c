@@ -1,11 +1,11 @@
+#if defined(UA_FILESYSTEM)
+
 #include <../src/server/ua_server_internal.h>
 #include <filesystem/ua_fileserver_driver.h>
 #include <directoryArch/common/fileSystemOperations_common.h>
 #include <filesystem/ua_filetypes.h>
 #include <open62541/plugin/log_stdout.h>
 #include <stdio.h>
-
-#if defined(UA_FILESYSTEM)
 
 // #ifdef UA_ENABLE_FILESYSTEM
 static UA_StatusCode
@@ -192,6 +192,8 @@ deleteSubtree(UA_Server *server, const UA_NodeId *nodeId, bool deleteFiles) {
     if(br.statusCode != UA_STATUSCODE_GOOD)
         return br.statusCode;
 
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
     /* Iterate over all references */
     for(size_t i = 0; i < br.referencesSize; i++) {
         UA_ReferenceDescription *ref = &br.references[i];
@@ -238,7 +240,7 @@ deleteSubtree(UA_Server *server, const UA_NodeId *nodeId, bool deleteFiles) {
             FileDirectoryContext *ctx = NULL;
 
             /* Get the FileDirectoryContext stored on the node */
-            UA_StatusCode res = UA_Server_getNodeContext(server, *nodeId, (void**)&ctx);
+            res |= UA_Server_getNodeContext(server, *nodeId, (void**)&ctx);
             if(!ctx) {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
                             "No FileDirectoryContext found for node");
@@ -276,7 +278,7 @@ deleteSubtree(UA_Server *server, const UA_NodeId *nodeId, bool deleteFiles) {
     }
 
     UA_BrowseResult_clear(&br);
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 static UA_StatusCode

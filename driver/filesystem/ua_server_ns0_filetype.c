@@ -204,7 +204,7 @@ closeFileMethod(UA_Server *server,
     /* Remove session context */
     removeSessionContext(fileCtx, sessionId);
     
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 /* Read method - uses sessionId for per-client context */
