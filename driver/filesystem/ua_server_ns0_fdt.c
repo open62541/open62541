@@ -524,8 +524,49 @@ __directoryOperation(UA_Server *server,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output,
                   DirectoryOperationType opType) {
-    // This function can be used to implement thread-safe wrappers for directory operations if needed !IMPORTANT!
-    return UA_STATUSCODE_GOOD;
+    if (!server) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    lockServer(server);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    switch (opType) {
+        case DIRECTORY_OP_CREATE_DIRECTORY:
+            res = createDirectory(server, sessionId, sessionHandle,
+                                methodId, methodContext,
+                                objectId, objectContext,
+                                inputSize, input,
+                                outputSize, output);
+            break;
+        case DIRECTORY_OP_CREATE_FILE:
+            res = createFile(server, sessionId, sessionHandle,
+                           methodId, methodContext,
+                           objectId, objectContext,
+                           inputSize, input,
+                           outputSize, output);
+            break;
+        case DIRECTORY_OP_DELETE_ITEM:
+            res = deleteItem(server, sessionId, sessionHandle,
+                           methodId, methodContext,
+                           objectId, objectContext,
+                           inputSize, input,
+                           outputSize, output);
+            break;
+        case DIRECTORY_OP_MOVE_OR_COPY:
+            res = moveOrCopy(server, sessionId, sessionHandle,
+                           methodId, methodContext,
+                           objectId, objectContext,
+                           inputSize, input,
+                           outputSize, output);
+            break;
+        default:
+            res = UA_STATUSCODE_BADINVALIDARGUMENT;
+            break;
+    }
+
+    unlockServer(server);
+    return res;
 }
 
 UA_StatusCode
