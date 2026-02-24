@@ -1117,22 +1117,29 @@ UA_Client_MonitoredItems_deleteSingle(UA_Client *client, UA_UInt32 subscriptionI
 }
 
 static void *
-UA_MonitoredItem_change_clientHandle_wrapper(void *data, UA_Client_MonitoredItem *mon) {
-    UA_MonitoredItemModifyRequest *monitoredItemModifyRequest =
-        (UA_MonitoredItemModifyRequest *)data;
-    if(monitoredItemModifyRequest &&
-       mon->monitoredItemId == monitoredItemModifyRequest->monitoredItemId)
-        monitoredItemModifyRequest->requestedParameters.clientHandle = mon->clientHandle;
+MonitoredItem_findByID(void *data, UA_Client_MonitoredItem *mon) {
+    UA_UInt32 monitorId = *(UA_UInt32*)data;
+    if(monitorId && (mon->monitoredItemId == monitorId))
+        return mon;
     return NULL;
 }
 
-static void
-UA_MonitoredItem_change_clientHandle(UA_Client_Subscription *sub,
-                                     UA_ModifyMonitoredItemsRequest *request) {
-    for(size_t i = 0; i < request->itemsToModifySize; ++i) {
+static UA_Client_MonitoredItem *
+findMonitoredItemById(UA_Client_Subscription *sub, UA_UInt32 monitoredItemId) {
+    return (UA_Client_MonitoredItem *)
         ZIP_ITER(MonitorItemsTree, &sub->monitoredItems,
-                 UA_MonitoredItem_change_clientHandle_wrapper,
-                 &request->itemsToModify[i]);
+                 MonitoredItem_findByID, &monitoredItemId);
+}
+
+static void
+setExistingClientHandles(UA_Client_Subscription *sub,
+                         UA_ModifyMonitoredItemsRequest *request) {
+    for(size_t i = 0; i < request->itemsToModifySize; ++i) {
+        UA_MonitoredItemModifyRequest *mimr = &request->itemsToModify[i];
+        UA_Client_MonitoredItem *mon =
+            findMonitoredItemById(sub, mimr->monitoredItemId);
+        if(mon)
+            mimr->requestedParameters.clientHandle = mon->clientHandle;
     }
 }
 
@@ -1142,23 +1149,36 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
     UA_ModifyMonitoredItemsResponse response;
     UA_ModifyMonitoredItemsResponse_init(&response);
 
-    lockClient(client);
-    UA_Client_Subscription *sub = findSubscriptionById(client, request.subscriptionId);
-    if(!sub) {
-        unlockClient(client);
+    /* Make a modifiable copy of the request */
+    UA_ModifyMonitoredItemsRequest modifiedRequest;
+    UA_StatusCode res = UA_ModifyMonitoredItemsRequest_copy(&request, &modifiedRequest);
+    if(res != UA_STATUSCODE_GOOD) {
         response.responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return response;
     }
 
-    UA_ModifyMonitoredItemsRequest modifiedRequest;
-    UA_ModifyMonitoredItemsRequest_copy(&request, &modifiedRequest);
-    UA_MonitoredItem_change_clientHandle(sub, &modifiedRequest);
+    lockClient(client);
 
+    /* Get the subscription */
+    UA_Client_Subscription *sub = findSubscriptionById(client, request.subscriptionId);
+    if(!sub) {
+        unlockClient(client);
+        UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
+        response.responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+        return response;
+    }
+
+    /* Reuse the existing ClientHandles for the MonitoredItems */
+    setExistingClientHandles(sub, &modifiedRequest);
+
+    /* Call the service */
     __Client_Service(client, &modifiedRequest,
                      &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST], &response,
                      &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE]);
 
     unlockClient(client);
+
+    /* Clean up */
     UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
     return response;
 }
@@ -1168,41 +1188,36 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
                                       const UA_ModifyMonitoredItemsRequest request,
                                       UA_ClientAsyncModifyMonitoredItemsCallback callback,
                                       void *userdata, UA_UInt32 *requestId) {
+    /* Make a modifiable copy of the request */
+    UA_ModifyMonitoredItemsRequest modifiedRequest;
+    UA_StatusCode res = UA_ModifyMonitoredItemsRequest_copy(&request, &modifiedRequest);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
     lockClient(client);
 
+    /* Get the subscription */
     UA_Client_Subscription *sub = findSubscriptionById(client, request.subscriptionId);
     if(!sub) {
         unlockClient(client);
+        UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
-    UA_ModifyMonitoredItemsRequest modifiedRequest;
-    UA_ModifyMonitoredItemsRequest_copy(&request, &modifiedRequest);
-    UA_MonitoredItem_change_clientHandle(sub, &modifiedRequest);
+    /* Reuse the existing ClientHandles for the MonitoredItems */
+    setExistingClientHandles(sub, &modifiedRequest);
 
+    /* Call the service */
     UA_StatusCode statusCode = __Client_AsyncService(
         client, &modifiedRequest, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST],
         (UA_ClientAsyncServiceCallback)callback,
         &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE], userdata, requestId);
 
     unlockClient(client);
+
+    /* Clean up */
     UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
     return statusCode;
-}
-
-static void *
-ua_MonitoredItem_findByID(void *data, UA_Client_MonitoredItem *mon) {
-	UA_UInt32 monitorId = *(UA_UInt32*)data;
-	if(monitorId && (mon->monitoredItemId == monitorId))
-		return mon;
-	return NULL;
-}
-
-static UA_Client_MonitoredItem *
-findMonitoredItemById(UA_Client_Subscription *sub, UA_UInt32 monitoredItemId) {
-	return (UA_Client_MonitoredItem *)
-		ZIP_ITER(MonitorItemsTree, &sub->monitoredItems,
-                 ua_MonitoredItem_findByID, &monitoredItemId);
 }
 
 UA_StatusCode
