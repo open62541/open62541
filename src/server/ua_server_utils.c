@@ -437,6 +437,23 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                 res = UA_STATUSCODE_BADINTERNALERROR;
             }
         }
+        else if(res == UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN) {
+            UA_TrustListDataType trustList;
+            UA_StatusCode trustListRes = cg->getTrustList(cg, &trustList);
+
+            if(trustListRes == UA_STATUSCODE_GOOD) {
+                if (UA_TrustListDataType_contains(&trustList, &certificate, UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES)) {
+                    res = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+                }
+            }
+            else {
+                UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                             "%s: Could not get the trust list for the certificate "
+                             "validation. StatusCode %s", logPrefix,
+                             UA_StatusCode_name(trustListRes));
+                res = UA_STATUSCODE_BADINTERNALERROR;
+            }
+        }
     }
     return res;
 }
