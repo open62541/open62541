@@ -320,6 +320,33 @@ opts.unwrapped = true;
 opts.namespaceMapping = nsMapping;
 opts.customTypes = UA_Server_getConfig(server)->customDataTypes;
 retVal |= UA_decodeXml(&xmlValue, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opts);""")
+        # Some companion specs (e.g. IOLink, PNENC, PNRIO) declare ValueRank=1
+        # (one-dimensional array) but provide a scalar default value in the XML
+        # (e.g. <String> instead of <ListOfString>). Wrap the scalar into a
+        # one-element array so that the value passes the server's ValueRank
+        # compatibility check.
+        if node.valueRank is not None and node.valueRank >= 1:
+            # Detect at compile time whether the XML value is scalar by
+            # checking if the first child element's tag starts with "ListOf".
+            valueIsScalar = True
+            for child in node.value.childNodes:
+                if child.nodeType == child.ELEMENT_NODE:
+                    tag = child.localName or child.tagName.split(":")[-1]
+                    if tag.startswith("ListOf"):
+                        valueIsScalar = False
+                    break
+            code.append("if(UA_Variant_isScalar(&attr.value) && attr.value.data != NULL) {")
+            code.append('    UA_LOG_WARNING(UA_Server_getConfig(server)->logging,')
+            code.append('                  UA_LOGCATEGORY_USERLAND,')
+            code.append(f'                  "Node {str(node.id)}: ValueRank={node.valueRank} '
+                        f'but the XML value is scalar. '
+                        f'Auto-wrapping into a one-element array.");')
+            code.append("    attr.value.arrayLength = 1;")
+            code.append("}")
+            if valueIsScalar:
+                logger.warning(f"Node {str(node.id)}: ValueRank={node.valueRank} "
+                               f"but the XML value is scalar. "
+                               f"Auto-wrapping into a one-element array.")
         code.append("#endif /* UA_ENABLE_XML_ENCODING */")
 
         codeCleanup.append("#ifdef UA_ENABLE_XML_ENCODING")
