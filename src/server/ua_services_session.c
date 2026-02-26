@@ -718,8 +718,8 @@ selectTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
         if(!UA_String_equal(&policyPrefix, &pol->policyId))
             continue;
 
-        /* Get the SecurityPolicy for the endpoint from the postfix */
-        UA_String utPolPostfix = securityPolicyUriPostfix(token->policyId);
+        /* Get the SecurityPolicy */
+        UA_String utPolPostfix = securityPolicyUriPostfix(pol->securityPolicyUri);
         UA_SecurityPolicy *candidateSp =
             getSecurityPolicyByPostfix(server, utPolPostfix);
         if(!candidateSp) {
