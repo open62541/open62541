@@ -262,6 +262,37 @@ UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
 UA_EXPORT UA_StatusCode
 UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk);
 
+#ifdef UA_ENABLE_RBAC
+/**
+ * Permission Index
+ * ~~~~~~~~~~~~~~~~
+ * Compact index stored in each node to reference a position in the server's
+ * internal role-permissions array. Users interact with role permissions
+ * through the high-level API (UA_Server_setNodeRolePermissions etc.).
+ *
+ * Configured via UA_ROLEPERMISSIONS_NODE_SIZE_BYTE in config.h
+ * (valid options: 2, 4, or 8 bytes). */
+#if UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 2
+typedef UA_UInt16 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFF
+#elif UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 4
+typedef UA_UInt32 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFF
+#elif UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 8
+typedef UA_UInt64 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFFFFFFFFFF
+#else
+#error "UA_ROLEPERMISSIONS_NODE_SIZE_BYTE must be 2, 4, or 8"
+#endif
+
+/* Sentinel value for the refCount of a role-permission entry:
+ * The entry originates from initial server configuration presets and
+ * must not be deleted during server runtime. A nodestore implementation
+ * may need this when managing role-permission storage. */
+#define UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED SIZE_MAX
+
+#endif /* UA_ENABLE_RBAC */
+
 /* Singly-linked LocalizedText list */
 typedef struct UA_LocalizedTextListEntry {
     struct UA_LocalizedTextListEntry *next;
