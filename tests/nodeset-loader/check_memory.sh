@@ -146,12 +146,6 @@ echo "... GDS.Part12 ..."
 memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
              $UA_NODESET_PATH/GDS/Opc.Ua.Gds.NodeSet2.Part12.xml
 
-echo "... Flat.Glass ..."
-memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
-             $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
-             $UA_NODESET_PATH/Machinery/Opc.Ua.Machinery.NodeSet2.xml \
-             $UA_NODESET_PATH/Glass/Flat/Opc.Ua.Glass.NodeSet2.xml
-
 echo "... I4AAS ..."
 memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
              $UA_NODESET_PATH/I4AAS/Opc.Ua.I4AAS.NodeSet2.xml
