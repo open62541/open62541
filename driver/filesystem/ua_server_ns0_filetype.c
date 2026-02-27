@@ -239,7 +239,7 @@ readFileMethod(UA_Server *server,
     UA_Int32 length = *(UA_Int32*)input[0].data;
     
     /* Read from file */
-    UA_ByteString data;
+    UA_ByteString data; 
     UA_ByteString_init(&data);
     
     /* Perform filesystem delete */
@@ -554,6 +554,8 @@ __fileTypeOperation(UA_Server *server,
                    size_t inputSize, const UA_Variant *input,
                    size_t outputSize, UA_Variant *output,
                    FileOperationType opType) {
+    switch(opType) {}
+    // HIER DEINE IMPLEMENTIERUNG
     return UA_STATUSCODE_GOOD;
 }
 

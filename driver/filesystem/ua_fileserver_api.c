@@ -82,7 +82,7 @@ UA_Server_makeFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext
         DIR_OP_MKFILE
     );
 
-    UA_String_clear(&dirNameVariant);
+    UA_String_clear(&fileNameVariant);
     return ret;
 }
 
