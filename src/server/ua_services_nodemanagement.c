@@ -1023,10 +1023,13 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
 
             /* Abstract variable is allowed if parent is a children of a
              * base data variable. An abstract variable may be part of an
-             * object type which again is below BaseObjectType */
+             * object type which again is below BaseObjectType.
+             * When the parent is not set (e.g. generated namespace code where
+             * the parent reference is non-hierarchical), we skip the check. */
             const UA_NodeId variableTypes = UA_NS0ID(BASEDATAVARIABLETYPE);
             const UA_NodeId objectTypes = UA_NS0ID(BASEOBJECTTYPE);
-            if(!isNodeInTree(server, parentNodeId, &variableTypes, &refTypes) &&
+            if(!UA_NodeId_isNull(parentNodeId) &&
+               !isNodeInTree(server, parentNodeId, &variableTypes, &refTypes) &&
                !isNodeInTree(server, parentNodeId, &objectTypes, &refTypes)) {
                 logAddNode(server->config.logging, session, nodeId,
                            "Type of variable node must be a "
@@ -1048,19 +1051,15 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
 
 
             /* Object node created of an abstract ObjectType. Only allowed if
-             * within BaseObjectType folder or if it's an event (subType of
-             * BaseEventType) */
+             * within BaseObjectType folder, or if it's an event (subType of
+             * BaseEventType), or if the parent is not set (e.g. generated
+             * namespace code where the parent reference is
+             * non-hierarchical). */
             const UA_NodeId objectTypes = UA_NS0ID(BASEOBJECTTYPE);
             UA_Boolean isInBaseObjectType =
                 isNodeInTree(server, parentNodeId, &objectTypes, &refTypes);
 
-            const UA_NodeId eventTypes = UA_NS0ID(BASEEVENTTYPE);
-            UA_Boolean isInBaseEventType =
-                isNodeInTree_singleRef(server, &type->head.nodeId, &eventTypes,
-                                       UA_REFERENCETYPEINDEX_HASSUBTYPE);
-
-            if(!isInBaseObjectType &&
-               !(isInBaseEventType && UA_NodeId_isNull(parentNodeId))) {
+            if(!isInBaseObjectType && !UA_NodeId_isNull(parentNodeId)) {
                 logAddNode(server->config.logging, session, nodeId,
                            "Type of ObjectNode must be ObjectType and not be abstract");
                 retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
