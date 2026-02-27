@@ -9,6 +9,7 @@
 #include <open62541/server_config_default.h>
 #include "server/ua_services.h"
 #include "server/ua_server_internal.h"
+#include "client/ua_client_internal.h"
 
 #include <open62541/client_config_default.h>
 #include <open62541/client_subscriptions.h>
@@ -122,6 +123,52 @@ handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
     notificationReceived = true;
 }
 
+static UA_Boolean severityExpected = false;
+
+static void
+handlerEventsWithModification(UA_Client *lclient, UA_UInt32 subId, void *subContext,
+                                 UA_UInt32 monId, void *monContext,
+                                 const UA_KeyValueMap eventFields) {
+
+    ck_assert_uint_eq(*(UA_UInt32*)monContext, monitoredItemId);
+
+    if (severityExpected)
+        ck_assert_uint_eq(eventFields.mapSize, 2);
+    else
+        ck_assert_uint_eq(eventFields.mapSize, 1);
+
+    const UA_QualifiedName messageName = UA_QUALIFIEDNAME(0, "/Message");
+    const UA_QualifiedName severityName = UA_QUALIFIEDNAME(0, "/Severity");
+    const UA_LocalizedText expectedMessage = UA_LOCALIZEDTEXT("en-US", "Generated Event");
+    const uint16_t expectedSeverity = 100;
+
+    ck_assert(UA_QualifiedName_equal(&eventFields.map[0].key, &messageName));
+    ck_assert(UA_Variant_hasScalarType(&eventFields.map[0].value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    ck_assert(UA_LocalizedText_equal((UA_LocalizedText *)eventFields.map[0].value.data, &expectedMessage));
+
+    if (severityExpected) {
+        ck_assert(UA_QualifiedName_equal(&eventFields.map[1].key, &severityName));
+        ck_assert(UA_Variant_hasScalarType(&eventFields.map[1].value, &UA_TYPES[UA_TYPES_UINT16]));
+        ck_assert_uint_eq(*(UA_UInt16 *)eventFields.map[1].value.data, expectedSeverity);
+    }
+
+    notificationReceived = true;
+}
+
+UA_Boolean monitoredItemModificationCallbackCalled = false;
+UA_Boolean asyncMonitoredItemModificationErrorExpected = false;
+
+static void
+modifyMonitoredItemsCallback(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                             UA_ModifyMonitoredItemsResponse *response) {
+    ck_assert_uint_eq(response->resultsSize, 1);
+    ck_assert_uint_eq(response->results->statusCode,
+                      asyncMonitoredItemModificationErrorExpected ?
+                          UA_STATUSCODE_BADEVENTFILTERINVALID : UA_STATUSCODE_GOOD);
+
+    monitoredItemModificationCallbackCalled = true;
+}
+
 THREAD_CALLBACK(serverloop) {
     while (running) {
         UA_Server_run_iterate(server, true);
@@ -226,6 +273,35 @@ modifyMonitoredItem(UA_EventFilter *filter, bool discardOldest) {
     const UA_ModifyMonitoredItemsResponse response = UA_Client_MonitoredItems_modify(client, modifyRequest);
     UA_ModifyMonitoredItemsRequest_clear(&modifyRequest);
     return response;
+}
+
+static void
+modifyMonitoredItemAsync(UA_EventFilter *filter, bool discardOldest) {
+    UA_ModifyMonitoredItemsRequest modifyRequest;
+    UA_ModifyMonitoredItemsRequest_init(&modifyRequest);
+    modifyRequest.subscriptionId = subscriptionId;
+    modifyRequest.itemsToModifySize = 1;
+    modifyRequest.itemsToModify = UA_MonitoredItemModifyRequest_new();
+    modifyRequest.itemsToModify->monitoredItemId = monitoredItemId;
+    modifyRequest.itemsToModify->requestedParameters.queueSize = 1;
+    modifyRequest.itemsToModify->requestedParameters.discardOldest = true;
+    UA_ExtensionObject_setValueNoDelete(&modifyRequest.itemsToModify->requestedParameters.filter,
+                                        filter, &UA_TYPES[UA_TYPES_EVENTFILTER]);
+
+    const UA_StatusCode ret = UA_Client_MonitoredItems_modify_async(client, modifyRequest,
+                                                                    modifyMonitoredItemsCallback,
+                                                                    NULL, NULL);
+
+    UA_ModifyMonitoredItemsRequest_clear(&modifyRequest);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+
+    monitoredItemModificationCallbackCalled = false;
+    sleepUntilAnswer(publishingInterval + 100);
+    UA_StatusCode retval = UA_Client_run_iterate(client, 0);
+    sleepUntilAnswer(publishingInterval + 100);
+    retval |= UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(monitoredItemModificationCallbackCalled);
 }
 
 static void
@@ -661,6 +737,147 @@ START_TEST(modifySelectFilterValidation) {
     UA_EventFilter_clear(&filter);
 } END_TEST
 
+START_TEST(modifySelectFilterSync) {
+    /* setup event filter */
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+
+    /* Prepare two select clauses, the first check only uses the first one */
+    filter.selectClausesSize = 1;
+    filter.selectClauses = (UA_SimpleAttributeOperand *)UA_Array_new(2, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    filter.selectClauses[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    filter.selectClauses[0].browsePathSize = 1;
+    filter.selectClauses[0].browsePath = UA_QualifiedName_new();
+    filter.selectClauses[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    filter.selectClauses[1].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    filter.selectClauses[1].browsePathSize = 1;
+    filter.selectClauses[1].browsePath = UA_QualifiedName_new();
+    filter.selectClauses[1].attributeId = UA_ATTRIBUTEID_VALUE;
+
+    /* Set up a valid monitored item */
+    filter.selectClauses[0].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handlerEventsWithModification, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(createResult.filterResult.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
+    monitoredItemId = createResult.monitoredItemId;
+
+    UA_Client_Subscription *sub = findSubscriptionById(client, subscriptionId);
+    ck_assert(sub != NULL);
+    UA_Client_MonitoredItem *mon = findMonitoredItemById(sub, monitoredItemId);
+    ck_assert(mon != NULL);
+    UA_UInt32 oldClientHandle = mon->clientHandle;
+
+    severityExpected = false;
+    createTestEvent();
+    checkForEvent(&createResult, true);
+
+    /* Attempt to update the monitored item's event filter with a second select clause */
+    filter.selectClauses[1].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
+    filter.selectClausesSize = 2;
+    UA_ModifyMonitoredItemsResponse modifyResult = modifyMonitoredItem(&filter, true);
+    ck_assert_uint_eq(modifyResult.resultsSize, 1);
+    ck_assert_uint_eq(modifyResult.results->statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(modifyResult.results->filterResult.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResult);
+
+    /* Make sure the client handle was updated */
+    ck_assert_uint_ne(oldClientHandle, mon->clientHandle);
+    oldClientHandle = mon->clientHandle;
+
+    /* Check if the event fields map in the client's local monitored item was updated with the new filter */
+    severityExpected = true;
+    createTestEvent();
+    checkForEvent(&createResult, true);
+
+    /* Attempt to update with an invalid event filter */
+    filter.selectClausesSize = 0;
+    modifyResult = modifyMonitoredItem(&filter, true);
+    ck_assert_uint_eq(modifyResult.resultsSize, 1);
+    ck_assert_uint_eq(modifyResult.results->statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
+    UA_ModifyMonitoredItemsResponse_clear(&modifyResult);
+
+    /* Check if the client handle is unchanged and the notifications are still processed */
+    ck_assert_uint_eq(oldClientHandle, mon->clientHandle);
+    severityExpected = true;
+    createTestEvent();
+    checkForEvent(&createResult, true);
+
+    /* Free event filter members */
+    filter.selectClausesSize = 2;
+    UA_EventFilter_clear(&filter);
+    UA_MonitoredItemCreateResult_clear(&createResult);
+
+    deleteMonitoredItems();
+} END_TEST
+
+START_TEST(modifySelectFilterAsync) {
+    /* setup event filter */
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+
+    /* Prepare two select clauses, the first check only uses the first one */
+    filter.selectClausesSize = 1;
+    filter.selectClauses = (UA_SimpleAttributeOperand *)UA_Array_new(2, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    filter.selectClauses[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    filter.selectClauses[0].browsePathSize = 1;
+    filter.selectClauses[0].browsePath = UA_QualifiedName_new();
+    filter.selectClauses[0].attributeId = UA_ATTRIBUTEID_VALUE;
+    filter.selectClauses[1].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    filter.selectClauses[1].browsePathSize = 1;
+    filter.selectClauses[1].browsePath = UA_QualifiedName_new();
+    filter.selectClauses[1].attributeId = UA_ATTRIBUTEID_VALUE;
+
+    /* Set up a valid monitored item */
+    filter.selectClauses[0].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handlerEventsWithModification, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(createResult.filterResult.encoding, UA_EXTENSIONOBJECT_ENCODED_NOBODY);
+    monitoredItemId = createResult.monitoredItemId;
+
+    UA_Client_Subscription *sub = findSubscriptionById(client, subscriptionId);
+    ck_assert(sub != NULL);
+    UA_Client_MonitoredItem *mon = findMonitoredItemById(sub, monitoredItemId);
+    ck_assert(mon != NULL);
+    UA_UInt32 oldClientHandle = mon->clientHandle;
+
+    severityExpected = false;
+    createTestEvent();
+    checkForEvent(&createResult, true);
+
+    /* Attempt to update the monitored item's event filter with a second select clause */
+    filter.selectClauses[1].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
+    filter.selectClausesSize = 2;
+    asyncMonitoredItemModificationErrorExpected = false;
+    modifyMonitoredItemAsync(&filter, true);
+
+    /* Make sure the client handle was updated */
+    ck_assert_uint_ne(oldClientHandle, mon->clientHandle);
+    oldClientHandle = mon->clientHandle;
+
+    /* Check if the event fields map in the client's local monitored item was updated with the new filter */
+    severityExpected = true;
+    createTestEvent();
+    checkForEvent(&createResult, true);
+
+    /* Attempt to update with an invalid event filter */
+    filter.selectClausesSize = 0;
+    asyncMonitoredItemModificationErrorExpected = true;
+    modifyMonitoredItemAsync(&filter, true);
+
+    /* Check if the client handle is unchanged and the notifications are still processed */
+    ck_assert_uint_eq(oldClientHandle, mon->clientHandle);
+    severityExpected = true;
+    createTestEvent();
+    checkForEvent(&createResult, true);
+
+    /* Free event filter members */
+    filter.selectClausesSize = 2;
+    UA_EventFilter_clear(&filter);
+    UA_MonitoredItemCreateResult_clear(&createResult);
+
+    deleteMonitoredItems();
+} END_TEST
+
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Server Subscription Event Filters");
     TCase *tc_server = tcase_create("Basic Event Filters");
@@ -677,6 +894,8 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, betweenOperatorValidation);
     tcase_add_test(tc_server, inListOperatorValidation);
     tcase_add_test(tc_server, modifySelectFilterValidation);
+    tcase_add_test(tc_server, modifySelectFilterSync);
+    tcase_add_test(tc_server, modifySelectFilterAsync);
     suite_add_tcase(s, tc_server);
     return s;
 }

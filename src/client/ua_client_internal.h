@@ -47,6 +47,11 @@ typedef struct UA_Client_MonitoredItem {
     UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
 
     UA_KeyValueMap eventFields; /* Cached names */
+
+    /* Event monitored items discard notifications while a modify operation
+     * is in flight. We also don't allow a second modify request while a previous
+     * operation for a monitored item is not finished */
+    UA_Boolean isDirty;
 } UA_Client_MonitoredItem;
 
 ZIP_HEAD(MonitorItemsTree, UA_Client_MonitoredItem);
@@ -254,6 +259,12 @@ void
 Client_warnEndpointsResult(UA_Client *client,
                            const UA_GetEndpointsResponse *response,
                            const UA_String *endpointUrl);
+
+UA_Client_MonitoredItem *
+findMonitoredItemById(UA_Client_Subscription *sub, UA_UInt32 monitoredItemId);
+
+UA_Client_Subscription *
+findSubscriptionById(const UA_Client *client, UA_UInt32 subscriptionId);
 
 _UA_END_DECLS
 
