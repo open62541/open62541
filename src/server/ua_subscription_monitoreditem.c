@@ -710,8 +710,27 @@ UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_Subscription *sub = mon->subscription;
+
+    /* For SamplingInterval == 0 and Value attribute, check if the node is a
+     * DataSource. DataSource nodes (e.g. internal diagnostic nodes) compute their
+     * value on-the-fly via a read callback. The backpointer-based sampling
+     * only triggers on OPC UA Write, which never happens for
+     * DataSource nodes. Fall through to PUBLISH/CYCLIC sampling instead. */
+    UA_Boolean useBackpointer = true;
+    if(mon->parameters.samplingInterval == 0.0 &&
+       mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_VALUE) {
+        const UA_Node *node =
+            UA_NODESTORE_GET(server, &mon->itemToMonitor.nodeId);
+        if(node) {
+            if(node->head.nodeClass == UA_NODECLASS_VARIABLE &&
+               node->variableNode.valueSource == UA_VALUESOURCE_DATASOURCE)
+                useBackpointer = false;
+            UA_NODESTORE_RELEASE(server, node);
+        }
+    }
+
     if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER ||
-       mon->parameters.samplingInterval == 0.0) {
+       (mon->parameters.samplingInterval == 0.0 && useBackpointer)) {
         /* Add to the linked list in the node */
         UA_Session *session = &server->adminSession;
         if(sub)
@@ -721,7 +740,8 @@ UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
         if(res == UA_STATUSCODE_GOOD)
             mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_EVENT;
         return res;
-    } else if(sub && mon->parameters.samplingInterval == sub->publishingInterval) {
+    } else if(sub && (mon->parameters.samplingInterval == 0.0 ||
+              mon->parameters.samplingInterval == sub->publishingInterval)) {
         /* Add to the subscription for sampling before every publish */
         LIST_INSERT_HEAD(&sub->samplingMonitoredItems, mon,
                          sampling.subscriptionSampling);
