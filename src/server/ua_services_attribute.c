@@ -1716,7 +1716,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
             if(wvalue->value.hasStatus) {
                 accessLevel = getAccessLevel(server, session, &node->variableNode);
                 if(!(accessLevel & UA_ACCESSLEVELMASK_STATUSWRITE)) {
-                    retval = UA_STATUSCODE_BADNOTWRITABLE;
+                    retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
                     break;
                 }
                 accessLevel = getUserAccessLevel(server, session, &node->variableNode);
@@ -1729,7 +1729,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
             if(wvalue->value.hasSourceTimestamp) {
                 accessLevel = getAccessLevel(server, session, &node->variableNode);
                 if(!(accessLevel & UA_ACCESSLEVELMASK_TIMESTAMPWRITE)) {
-                    retval = UA_STATUSCODE_BADNOTWRITABLE;
+                    retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
                     break;
                 }
                 accessLevel = getUserAccessLevel(server, session, &node->variableNode);
