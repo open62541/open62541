@@ -319,6 +319,10 @@ ua_add_test(server/check_server_node_services.c)
 ua_add_test(server/check_server_client_readwrite.c)
 ua_add_test(server/check_services_attributes_all.c)
 
+if(UA_ENABLE_RBAC)
+    ua_add_test(server/check_server_rbac.c)
+endif()
+
 if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_services_subscriptions_modify.c)
     ua_add_test(server/check_local_monitored_item.c)
