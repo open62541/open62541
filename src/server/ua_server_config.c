@@ -117,5 +117,14 @@ UA_ServerConfig_clear(UA_ServerConfig *config) {
         config->rolePermissionPresets = NULL;
         config->rolePermissionPresetsSize = 0;
     }
+
+    /* RBAC Roles */
+    if(config->roles) {
+        for(size_t i = 0; i < config->rolesSize; i++)
+            UA_Role_clear(&config->roles[i]);
+        UA_free(config->roles);
+        config->roles = NULL;
+        config->rolesSize = 0;
+    }
 #endif
 }
