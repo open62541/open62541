@@ -1149,7 +1149,7 @@ START_TEST(WriteValueStatusCodeWithoutStatusWriteBit) {
     UA_WriteResponse_init(&wResp);
     Service_Write(server, session, &wReq, &wResp);
     ck_assert_int_eq(wResp.resultsSize, 1);
-    ck_assert_int_eq(wResp.results[0], UA_STATUSCODE_BADNOTWRITABLE);
+    ck_assert_int_eq(wResp.results[0], UA_STATUSCODE_BADWRITENOTSUPPORTED);
     UA_WriteResponse_clear(&wResp);
     unlockServer(server);
 
@@ -1195,7 +1195,7 @@ START_TEST(WriteValueTimestampWithoutTimestampWriteBit) {
     UA_WriteResponse_init(&wResp);
     Service_Write(server, session, &wReq, &wResp);
     ck_assert_int_eq(wResp.resultsSize, 1);
-    ck_assert_int_eq(wResp.results[0], UA_STATUSCODE_BADNOTWRITABLE);
+    ck_assert_int_eq(wResp.results[0], UA_STATUSCODE_BADWRITENOTSUPPORTED);
     UA_WriteResponse_clear(&wResp);
     unlockServer(server);
 
