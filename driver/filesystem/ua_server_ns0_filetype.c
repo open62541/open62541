@@ -561,42 +561,42 @@ __fileTypeOperation(UA_Server *server,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     switch (opType) {
-        case FILE_OP_OPEN_FILE:
+        case FILE_OP_OPEN:
             res = openFileAction(server, sessionId, sessionContext,
                                methodId, methodContext,
                                objectId, objectContext,
                                inputSize, input,
                                outputSize, output);
             break;
-        case FILE_OP_CLOSE_FILE:
+        case FILE_OP_CLOSE:
             res = closeFileAction(server, sessionId, sessionContext,
                                 methodId, methodContext,
                                 objectId, objectContext,
                                 inputSize, input,
                                 outputSize, output);
             break;
-        case FILE_OP_READ_FILE:
+        case FILE_OP_READ:
             res = readFileAction(server, sessionId, sessionContext,
                                methodId, methodContext,
                                objectId, objectContext,
                                inputSize, input,
                                outputSize, output);
             break;
-        case FILE_OP_WRITE_FILE:
+        case FILE_OP_WRITE:
             res = writeFileAction(server, sessionId, sessionContext,
                                 methodId, methodContext,
                                 objectId, objectContext,
                                 inputSize, input,
                                 outputSize, output);
             break;
-        case FILE_OP_GET_POSITION:
+        case FILE_OP_GETPOSITION:
             res = getPositionAction(server, sessionId, sessionContext,
                                   methodId, methodContext,
                                   objectId, objectContext,
                                   inputSize, input,
                                   outputSize, output);
             break;
-        case FILE_OP_SET_POSITION:
+        case FILE_OP_SETPOSITION:
             res = setPositionAction(server, sessionId, sessionContext,
                                   methodId, methodContext,
                                   objectId, objectContext,
