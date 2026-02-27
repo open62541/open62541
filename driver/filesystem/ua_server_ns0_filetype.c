@@ -558,47 +558,46 @@ __fileTypeOperation(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    lockServer(server);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     switch (opType) {
         case FILE_OP_OPEN_FILE:
-            res = openFileMethod(server, sessionId, sessionContext,
+            res = openFileAction(server, sessionId, sessionContext,
                                methodId, methodContext,
                                objectId, objectContext,
                                inputSize, input,
                                outputSize, output);
             break;
         case FILE_OP_CLOSE_FILE:
-            res = closeFileMethod(server, sessionId, sessionContext,
+            res = closeFileAction(server, sessionId, sessionContext,
                                 methodId, methodContext,
                                 objectId, objectContext,
                                 inputSize, input,
                                 outputSize, output);
             break;
         case FILE_OP_READ_FILE:
-            res = readFileMethod(server, sessionId, sessionContext,
+            res = readFileAction(server, sessionId, sessionContext,
                                methodId, methodContext,
                                objectId, objectContext,
                                inputSize, input,
                                outputSize, output);
             break;
         case FILE_OP_WRITE_FILE:
-            res = writeFileMethod(server, sessionId, sessionContext,
+            res = writeFileAction(server, sessionId, sessionContext,
                                 methodId, methodContext,
                                 objectId, objectContext,
                                 inputSize, input,
                                 outputSize, output);
             break;
         case FILE_OP_GET_POSITION:
-            res = getPositionMethod(server, sessionId, sessionContext,
+            res = getPositionAction(server, sessionId, sessionContext,
                                   methodId, methodContext,
                                   objectId, objectContext,
                                   inputSize, input,
                                   outputSize, output);
             break;
         case FILE_OP_SET_POSITION:
-            res = setPositionMethod(server, sessionId, sessionContext,
+            res = setPositionAction(server, sessionId, sessionContext,
                                   methodId, methodContext,
                                   objectId, objectContext,
                                   inputSize, input,
@@ -609,7 +608,6 @@ __fileTypeOperation(UA_Server *server,
             break;
     }
 
-    unlockServer(server);
     return res;
 }
 

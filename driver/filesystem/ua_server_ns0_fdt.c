@@ -528,33 +528,32 @@ __directoryOperation(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    lockServer(server);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     switch (opType) {
         case DIRECTORY_OP_CREATE_DIRECTORY:
-            res = createDirectory(server, sessionId, sessionHandle,
+            res = createDirectoryAction(server, sessionId, sessionHandle,
                                 methodId, methodContext,
                                 objectId, objectContext,
                                 inputSize, input,
                                 outputSize, output);
             break;
         case DIRECTORY_OP_CREATE_FILE:
-            res = createFile(server, sessionId, sessionHandle,
+            res = createFileAction(server, sessionId, sessionHandle,
                            methodId, methodContext,
                            objectId, objectContext,
                            inputSize, input,
                            outputSize, output);
             break;
         case DIRECTORY_OP_DELETE_ITEM:
-            res = deleteItem(server, sessionId, sessionHandle,
+            res = deleteAction(server, sessionId, sessionHandle,
                            methodId, methodContext,
                            objectId, objectContext,
                            inputSize, input,
                            outputSize, output);
             break;
         case DIRECTORY_OP_MOVE_OR_COPY:
-            res = moveOrCopy(server, sessionId, sessionHandle,
+            res = moveOrCopyAction(server, sessionId, sessionHandle,
                            methodId, methodContext,
                            objectId, objectContext,
                            inputSize, input,
@@ -565,7 +564,6 @@ __directoryOperation(UA_Server *server,
             break;
     }
 
-    unlockServer(server);
     return res;
 }
 
