@@ -1266,25 +1266,25 @@ UA_TrustListDataType_contains(const UA_TrustListDataType *trustList,
     if(!trustList || !certificate)
         return false;
 
-    if(specifiedList == UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
+    if(specifiedList & UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES) {
         for(size_t i = 0; i < trustList->trustedCertificatesSize; i++) {
             if(UA_ByteString_equal(certificate, &trustList->trustedCertificates[i]))
                 return true;
         }
     }
-    if(specifiedList == UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
+    if(specifiedList & UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
         for(size_t i = 0; i < trustList->trustedCrlsSize; i++) {
             if(UA_ByteString_equal(certificate, &trustList->trustedCrls[i]))
                 return true;
         }
     }
-    if(specifiedList == UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
+    if(specifiedList & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
         for(size_t i = 0; i < trustList->issuerCertificatesSize; i++) {
             if(UA_ByteString_equal(certificate, &trustList->issuerCertificates[i]))
                 return true;
         }
     }
-    if(specifiedList == UA_TRUSTLISTMASKS_ISSUERCRLS) {
+    if(specifiedList & UA_TRUSTLISTMASKS_ISSUERCRLS) {
         for(size_t i = 0; i < trustList->issuerCrlsSize; i++) {
             if(UA_ByteString_equal(certificate, &trustList->issuerCrls[i]))
                 return true;
