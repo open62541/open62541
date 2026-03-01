@@ -117,43 +117,33 @@ getCertFileName(const char *path, const UA_ByteString *certificate,
     thumbprint.length = 40;
     thumbprint.data = (UA_Byte*)UA_calloc(thumbprint.length, sizeof(UA_Byte));
 
-    UA_String subjectName = UA_STRING_NULL;
+    UA_String commonName = UA_STRING_NULL;
 
     UA_CertificateUtils_getThumbprint((UA_ByteString*)(uintptr_t)certificate, &thumbprint);
-    UA_CertificateUtils_getSubjectName((UA_ByteString*)(uintptr_t)certificate, &subjectName);
+    UA_CertificateUtils_getCertCommonName((UA_ByteString*)(uintptr_t)certificate, &commonName);
 
-    if((thumbprint.length + subjectName.length + 2) > fileNameLen) {
+    if((thumbprint.length + commonName.length + 2) > fileNameLen) {
         UA_String_clear(&thumbprint);
-        UA_String_clear(&subjectName);
+        UA_String_clear(&commonName);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     char *thumbprintBuffer = (char*)UA_malloc(thumbprint.length + 1);
-    char *subjectNameBuffer = (char*)UA_malloc(subjectName.length + 1);
+    char *commonNameBuffer = (char*)UA_malloc(commonName.length + 1);
 
     memcpy(thumbprintBuffer, thumbprint.data, thumbprint.length);
     thumbprintBuffer[thumbprint.length] = '\0';
-    memcpy(subjectNameBuffer, subjectName.data, subjectName.length);
-    subjectNameBuffer[subjectName.length] = '\0';
+    memcpy(commonNameBuffer, commonName.data, commonName.length);
+    commonNameBuffer[commonName.length] = '\0';
 
-    char *subName = NULL;
-    char *substring = "CN=";
-    char *ptr = strstr(subjectNameBuffer, substring);
-
-    if(ptr != NULL) {
-        subName = ptr + 3;
-    } else {
-        subName = subjectNameBuffer;
-    }
-
-    if(mp_snprintf(fileNameBuf, fileNameLen, "%s/%s[%s]", path, subName,
+    if(mp_snprintf(fileNameBuf, fileNameLen, "%s/%s[%s]", path, commonNameBuffer,
                    thumbprintBuffer) < 0)
         retval = UA_STATUSCODE_BADINTERNALERROR;
 
     UA_String_clear(&thumbprint);
-    UA_String_clear(&subjectName);
+    UA_String_clear(&commonName);
     UA_free(thumbprintBuffer);
-    UA_free(subjectNameBuffer);
+    UA_free(commonNameBuffer);
 
     return retval;
 }
