@@ -408,7 +408,7 @@ notifyMonitoredItem(UA_Server *server, UA_MonitoredItem *mon,
     }
     UA_Variant_setScalar(&notifyMonData[11].value, &mon->parameters.queueSize,
                          &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalar(&notifyMonData[11].value, &mon->parameters.discardOldest,
+    UA_Variant_setScalar(&notifyMonData[12].value, &mon->parameters.discardOldest,
                          &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* Notify the application */
