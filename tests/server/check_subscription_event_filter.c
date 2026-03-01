@@ -270,10 +270,12 @@ checkForEvent(UA_MonitoredItemCreateResult *createResult, UA_Boolean expect){
     ck_assert_uint_eq(createResult->revisedQueueSize, 1);
 }
 
+/* Reference a event field that does not exist.
+ * But this is not checked for the BaseEventType as the starting point of the SimpleAttributeOperand. */
 START_TEST(selectFilterValidation) {
     UA_EventFilter filter;
     UA_EventFilter_init(&filter);
-    char *query = "SELECT /FOOBAR";
+    char *query = "SELECT i=2052/FOOBAR";
     UA_StatusCode res = UA_EventFilter_parse(&filter, UA_STRING(query), &options);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
@@ -649,6 +651,7 @@ START_TEST(modifySelectFilterValidation) {
     UA_QualifiedName_clear(&filter.selectClauses->browsePath[0]);
 
     /* Attempt to update the monitored item's event filter with an invalid event field */
+    filter.selectClauses->typeDefinitionId = UA_NS0ID(AUDITEVENTTYPE);
     filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "IDONOTEXIST");
     modifyResult = modifyMonitoredItem(&filter, true);
     ck_assert_uint_eq(modifyResult.resultsSize, 1);
