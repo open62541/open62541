@@ -175,6 +175,37 @@ cacheEventId(UA_FilterEvalContext *ctx) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* The SAO string is not always in the "normal form" that is the output of
+ * UA_SimpleAttributeOperand_print. For example, we can have an implicit #Value
+ * postfix or the path-browsenames prefixed with 0: for ns0. Also, for the
+ * map-keys as QualifiedNames, we use the key-nsindex as the default nsindex for
+ * the path.
+ *
+ * In order to compare with a non-normal-form SAO string, we decode and compare
+ * the SAO directly. This is slower, so we try the normal form string-compare
+ * first. */
+static UA_Variant *
+getEventFieldNonNormalForm(UA_Server *server, const UA_KeyValueMap *eventFields,
+                           const UA_SimpleAttributeOperand *sao) {
+    if(!eventFields)
+        return NULL;
+
+    UA_SimpleAttributeOperand keySao;
+    for(size_t i = 0; i < eventFields->mapSize; i++) {
+        UA_KeyValuePair *kvp = &eventFields->map[i];
+        UA_StatusCode res =
+            sao_parseWithDefaultNsIdx(&keySao, kvp->key.name,
+                                      kvp->key.namespaceIndex);
+        if(res != UA_STATUSCODE_GOOD)
+            continue;
+        UA_Boolean found = UA_SimpleAttributeOperand_equal(sao, &keySao);
+        UA_SimpleAttributeOperand_clear(&keySao);
+        if(found)
+            return &kvp->value;
+    }
+    return NULL;
+}
+
 /* Can return an in-situ value. Check for UA_VARIANT_DATA_NODELETE. */
 UA_StatusCode
 resolveSAO(UA_FilterEvalContext *ctx, const UA_SimpleAttributeOperand *sao,
@@ -218,6 +249,8 @@ resolveSAO(UA_FilterEvalContext *ctx, const UA_SimpleAttributeOperand *sao,
     found = UA_KeyValueMap_get(ed->eventFields, pathString);
     if(!found)
         found = UA_KeyValueMap_get(&ctx->fieldCache, pathString);
+    if(!found)
+        found = getEventFieldNonNormalForm(ctx->server, ed->eventFields, &tmp_sao);
     if(found) {
         if(sao->indexRange.length == 0) {
             *out = *found;
@@ -1190,7 +1223,7 @@ UA_SimpleAttributeOperandValidation(UA_Server *server,
             UA_ExpandedNodeId *childTypeNodes = NULL;
             size_t childTypeNodesSize = 0;
             UA_StatusCode res =
-                browseRecursive(server, 1, &sao->typeDefinitionId, UA_BROWSEDIRECTION_FORWARD,
+                browseRecursive(server, 1, &sao->typeDefinitionId, UA_BROWSEDIRECTION_INVERSE,
                                 &reftypes_interface, UA_NODECLASS_OBJECTTYPE, true,
                                 &childTypeNodesSize, &childTypeNodes);
             if(res != UA_STATUSCODE_GOOD)
