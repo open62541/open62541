@@ -191,6 +191,8 @@ resolveSAO(UA_FilterEvalContext *ctx, const UA_SimpleAttributeOperand *sao,
     UA_SimpleAttributeOperand tmp_sao = *sao;
     static UA_NodeId baseEventTypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEEVENTTYPE}};
 
+    /* Initially use the BaseEventTypeId if not defined explicitly.
+     * If this does not resolve, we try again with i=0. */
     if(UA_NodeId_isNull(&tmp_sao.typeDefinitionId))
         tmp_sao.typeDefinitionId = baseEventTypeId;
 
