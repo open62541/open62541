@@ -684,6 +684,53 @@ START_TEST(auditEvent) {
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 } END_TEST
 
+// Create an Event using a key-value map for the event fields
+START_TEST(eventFieldsMap) {
+    // add a monitored item
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, true, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
+
+    UA_EventDescription ed = {0};
+    ed.sourceNode = UA_NS0ID(SERVER);
+    ed.eventType = UA_NS0ID(BASEEVENTTYPE);
+    ed.severity = 500; // This triggers an assert in the handle, but is overridden below
+    ed.message = UA_LOCALIZEDTEXT("something", "happened");
+
+    // Override event fields
+    UA_KeyValuePair vals[3];
+    UA_KeyValueMap fieldMap = {3, vals};
+    ed.eventFields = &fieldMap;
+
+    UA_UInt16 trueSeverity = 100;
+    vals[0].key = UA_QUALIFIEDNAME(0, "/Severity");
+    UA_Variant_setScalar(&vals[0].value, &trueSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+
+    UA_LocalizedText msg = UA_LOCALIZEDTEXT("en-US", "Generated Event");
+    vals[1].key = UA_QUALIFIEDNAME(0, "/Message");
+    UA_Variant_setScalar(&vals[1].value, &msg, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+
+    vals[2].key = UA_QUALIFIEDNAME(0, "/EventType");
+    UA_Variant_setScalar(&vals[2].value, &eventType, &UA_TYPES[UA_TYPES_NODEID]);
+
+    UA_StatusCode res = UA_Server_createEventEx(server, &ed, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    joinServer();
+
+    // fetch the events, ensure both the overflow and the original event are received
+    notificationReceived = false;
+    while(!notificationReceived) {
+        UA_fakeSleep(500);
+        UA_Server_run_iterate(server, false);
+        res = UA_Client_run_iterate(client, 0);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    }
+
+    forkServer();
+
+} END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /* Assumes subscriptions work fine with data change because of other unit test */
@@ -701,6 +748,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, eventStressing);
     tcase_add_test(tc_server, evaluateFilterWhereClause);
     tcase_add_test(tc_server, auditEvent);
+    tcase_add_test(tc_server, eventFieldsMap);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
 
