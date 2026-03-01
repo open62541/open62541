@@ -7,7 +7,9 @@ if(MSVC)
     )
 else()
     add_compile_options(-Wno-unused-variable -Wno-unused-function -Wno-shadow)
-    add_compile_options(-Wno-gnu-zero-variadic-macro-arguments) # silence warning for the check library
+    if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+        add_compile_options(-Wno-gnu-zero-variadic-macro-arguments) # silence warning for the check library
+    endif()
 endif()
 
 # Check dependency
