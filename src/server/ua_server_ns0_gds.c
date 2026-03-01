@@ -468,16 +468,17 @@ addCertificate(UA_Server *server,
     if(fileInfo->openCount > 0)
         return UA_STATUSCODE_BADINVALIDSTATE;
 
-    UA_TrustListDataType trustList;
-    memset(&trustList, 0, sizeof(UA_TrustListDataType));
-    UA_ByteString certificates[1];
-    certificates[0] = certificate;
+    /* use UA_Server_addCertificates() function to do the actual work */
+    UA_ByteString certsToAdd[1];
+    certsToAdd[0] = certificate;
+    UA_Boolean appendToTrustList = true;
 
-    trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
-    trustList.trustedCertificates = certificates;
-    trustList.trustedCertificatesSize = 1;
-
-    UA_StatusCode retval = certGroup->addToTrustList(certGroup, &trustList);
+    UA_StatusCode retval = UA_Server_addCertificates(server,
+                                                     certGroup->certificateGroupId,
+                                                     certsToAdd, 1,
+                                                     NULL, 0,
+                                                     isTrustedCertificate,
+                                                     appendToTrustList);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -509,30 +510,24 @@ removeCertificate(UA_Server *server,
     if(transaction->state != UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
-    /* When a certificate is removed, a transaction is created which is then executed directly.
-     * No apply cahnges is required */
-    UA_StatusCode retval = UA_GDSTransaction_init(transaction, server, *sessionId);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
+    /* use UA_Server_removeCertificates() function to do the actual work */
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    /* This Method cannot be called if the containing TrustList Object is open */
-    UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
-    if(!fileInfo)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    if(fileInfo->openCount > 0)
-        return UA_STATUSCODE_BADINVALIDSTATE;
-
     UA_TrustListDataType trustList;
-    memset(&trustList, 0, sizeof(UA_TrustListDataType));
+    UA_TrustListDataType_init(&trustList);
     trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
 
     UA_ByteString *certificates;
     size_t certificatesSize = 0;
-    certGroup->getTrustList(certGroup, &trustList);
+
+    /* check return value and abort on error */
+    UA_StatusCode retval = certGroup->getTrustList(certGroup, &trustList);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&trustList);
+        return retval;
+    }
 
     if(isTrustedCertificate) {
         certificates = trustList.trustedCertificates;
@@ -542,69 +537,43 @@ removeCertificate(UA_Server *server,
         certificatesSize = trustList.issuerCertificatesSize;
     }
 
-    UA_TrustListDataType list;
-    memset(&list, 0, sizeof(UA_TrustListDataType));
-
-    UA_ByteString *crls = NULL;
-    size_t crlsSize = 0;
-
     UA_String thumbpr = UA_STRING_NULL;
     thumbpr.length = (UA_SHA1_LENGTH * 2);
     thumbpr.data = (UA_Byte*)UA_malloc(sizeof(UA_Byte)*thumbpr.length);
+    if (NULL == thumbpr.data) {
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
 
+    UA_ByteString certificate;
+    UA_ByteString_init(&certificate);
     for(size_t i = 0; i < certificatesSize; i++) {
         UA_CertificateUtils_getThumbprint( &certificates[i], &thumbpr);
         /* Compare thumbprint */
         if(!UA_String_equal_ignorecase(&thumbprint, &thumbpr))
             continue;
 
-        UA_ByteString certificate = certificates[i];
-        retval = certGroup->getCertificateCrls(certGroup, &certificate, isTrustedCertificate,
-                                               &crls, &crlsSize);
-        if(retval != UA_STATUSCODE_GOOD) {
-            goto cleanup;
-        }
-
-        if(isTrustedCertificate) {
-            list.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES | UA_TRUSTLISTMASKS_TRUSTEDCRLS;
-            list.trustedCertificates = &certificate;
-            list.trustedCertificatesSize = 1;
-            list.trustedCrls = crls;
-            list.trustedCrlsSize = crlsSize;
-        } else {
-            list.specifiedLists = UA_TRUSTLISTMASKS_ISSUERCERTIFICATES | UA_TRUSTLISTMASKS_ISSUERCRLS;
-            list.issuerCertificates = &certificate;
-            list.issuerCertificatesSize = 1;
-            list.issuerCrls = crls;
-            list.issuerCrlsSize = crlsSize;
-        }
+        certificate = certificates[i];
         break;
     }
 
-    UA_CertificateGroup *transactionCertGroup =
-        UA_GDSTransaction_getCertificateGroup(transaction, certGroup);
-    if(!transactionCertGroup) {
-        retval = UA_STATUSCODE_BADINTERNALERROR;
-        goto cleanup;
-    }
-
-    if(list.specifiedLists != UA_TRUSTLISTMASKS_NONE) {
-        retval = transactionCertGroup->removeFromTrustList(transactionCertGroup, &list);
-        if(retval != UA_STATUSCODE_GOOD) {
-            goto cleanup;
-        }
-    } else {
-        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER, "The certificate to remove was not found");
+    /* no certificate matching the given fingerprint found */
+    if(certificate.data == NULL) {
         retval = UA_STATUSCODE_BADINVALIDARGUMENT;
         goto cleanup;
     }
 
-    retval = applyChangesToServer(server);
+    UA_ByteString certsToRemove[1];
+    certsToRemove[0] = certificate;
+
+    retval = UA_Server_removeCertificates(server,
+                                          certGroup->certificateGroupId,
+                                          certsToRemove, 1,
+                                          isTrustedCertificate);
 
 cleanup:
     UA_String_clear(&thumbpr);
     UA_TrustListDataType_clear(&trustList);
-    UA_Array_delete(crls, crlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
 
     return retval;
 }
