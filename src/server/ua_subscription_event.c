@@ -1217,19 +1217,22 @@ UA_SimpleAttributeOperandValidation(UA_Server *server,
          * the typeDefinitionId is BaseEventType the Server shall evaluate the
          * browsePath without considering the typeDefinitionId. */
         if(!UA_NodeId_equal(&baseEventTypeId, &sao->typeDefinitionId)) {
-            /* Get the list of subtypes from event type (including the event type itself) */
+            /* Part 4: The TypeDefinitionNode restricts the operand to instances
+             * of the TypeDefinitionNode or one of its subtypes.
+             * First get the list of subtypes from event type (including the
+             * event type itself). */
             UA_ReferenceTypeSet reftypes_interface =
                 UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
             UA_ExpandedNodeId *childTypeNodes = NULL;
             size_t childTypeNodesSize = 0;
             UA_StatusCode res =
-                browseRecursive(server, 1, &sao->typeDefinitionId, UA_BROWSEDIRECTION_INVERSE,
+                browseRecursive(server, 1, &sao->typeDefinitionId, UA_BROWSEDIRECTION_FORWARD,
                                 &reftypes_interface, UA_NODECLASS_OBJECTTYPE, true,
                                 &childTypeNodesSize, &childTypeNodes);
             if(res != UA_STATUSCODE_GOOD)
                 return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
 
-            /* Is the browse path valid for one of them? */
+            /* Is the browse path valid for one of the event types? */
             UA_Boolean subTypeContainField = false;
             for(size_t j = 0; j < childTypeNodesSize && !subTypeContainField; j++) {
                 UA_BrowsePathResult bpr =
