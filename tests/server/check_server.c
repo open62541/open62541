@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright 2019 (c) basysKom GmbH <opensource@basyskom.com> (Author: Frank Meerkötter)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include <open62541/server.h>
@@ -404,6 +405,209 @@ START_TEST(checkServerRepeatedCallback) {
     UA_Server_removeCallback(server, callbackId);
 } END_TEST
 
+static UA_StatusCode
+childIteratorCallback(UA_NodeId childId, UA_Boolean isInverse,
+                      UA_NodeId referenceTypeId, void *handle) {
+    (*(int*)handle)++;
+    return UA_STATUSCODE_GOOD;
+}
+
+START_TEST(checkForEachChildNodeCall) {
+    /* Objects folder should have children */
+    int count = 0;
+    UA_StatusCode retval = UA_Server_forEachChildNodeCall(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        childIteratorCallback, &count);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_gt(count, 0);
+} END_TEST
+
+static UA_StatusCode
+childIteratorCallbackAbort(UA_NodeId childId, UA_Boolean isInverse,
+                           UA_NodeId referenceTypeId, void *handle) {
+    (*(int*)handle)++;
+    /* Abort after first child */
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
+START_TEST(checkForEachChildNodeCall_abort) {
+    /* Test early abort via callback returning error */
+    int count = 0;
+    UA_StatusCode retval = UA_Server_forEachChildNodeCall(
+        server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        childIteratorCallbackAbort, &count);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(count, 1);
+} END_TEST
+
+START_TEST(checkForEachChildNodeCall_invalidNode) {
+    int count = 0;
+    UA_StatusCode retval = UA_Server_forEachChildNodeCall(
+        server, UA_NODEID_NUMERIC(0, 99999),
+        childIteratorCallback, &count);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(count, 0);
+} END_TEST
+
+START_TEST(checkChangeRepeatedCallbackInterval) {
+    UA_Boolean triggered = false;
+    UA_UInt64 callbackId = 0;
+    UA_StatusCode ret = UA_Server_addRepeatedCallback(server,
+        timedCallbackHandler, &triggered, 500.0, &callbackId);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+
+    /* Change interval */
+    ret = UA_Server_changeRepeatedCallbackInterval(server, callbackId, 1000.0);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+
+    /* Remove */
+    UA_Server_removeCallback(server, callbackId);
+} END_TEST
+
+START_TEST(checkMultipleNamespaces) {
+    /* Add multiple namespaces in sequence */
+    UA_UInt16 ns1 = UA_Server_addNamespace(server, "http://ns1.example.com");
+    UA_UInt16 ns2 = UA_Server_addNamespace(server, "http://ns2.example.com");
+    UA_UInt16 ns3 = UA_Server_addNamespace(server, "http://ns3.example.com");
+
+    ck_assert_uint_gt(ns1, 0);
+    ck_assert_uint_gt(ns2, ns1);
+    ck_assert_uint_gt(ns3, ns2);
+
+    /* Verify they can be found */
+    size_t foundIdx;
+    UA_StatusCode ret = UA_Server_getNamespaceByName(server,
+        UA_STRING("http://ns2.example.com"), &foundIdx);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(foundIdx, ns2);
+
+    /* Verify namespace by index */
+    UA_String nsUri;
+    ret = UA_Server_getNamespaceByIndex(server, ns3, &nsUri);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+    UA_String expected = UA_STRING("http://ns3.example.com");
+    ck_assert(UA_String_equal(&nsUri, &expected));
+    UA_String_clear(&nsUri);
+} END_TEST
+
+START_TEST(checkServerLifecycleCallbackNotification) {
+    /* Just verify that the notification callback is registered and
+     * doesn't crash during startup/shutdown */
+    UA_StatusCode ret = UA_Server_run_startup(server);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+
+    UA_LifecycleState state = UA_Server_getLifecycleState(server);
+    ck_assert_int_eq(state, UA_LIFECYCLESTATE_STARTED);
+
+    /* Get stats while running */
+    UA_ServerStatistics stats = UA_Server_getStatistics(server);
+    (void)stats;
+
+    ret = UA_Server_run_shutdown(server);
+    ck_assert_uint_eq(ret, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(checkServerAddVariableTypeNode) {
+    /* Add a custom VariableType node */
+    UA_VariableTypeAttributes vtAttr = UA_VariableTypeAttributes_default;
+    vtAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TestVariableType");
+    vtAttr.dataType = UA_NODEID_NUMERIC(0, UA_NS0ID_INT32);
+    vtAttr.valueRank = UA_VALUERANK_SCALAR;
+
+    UA_NodeId vtId = UA_NODEID_STRING(1, "test.vartype");
+    UA_StatusCode retval = UA_Server_addVariableTypeNode(
+        server, vtId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "TestVariableType"),
+        UA_NODEID_NULL, vtAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Verify node class */
+    UA_NodeClass nc;
+    retval = UA_Server_readNodeClass(server, vtId, &nc);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(nc, UA_NODECLASS_VARIABLETYPE);
+} END_TEST
+
+START_TEST(checkServerAddViewNode) {
+    UA_ViewAttributes vAttr = UA_ViewAttributes_default;
+    vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TestView");
+
+    UA_NodeId viewId = UA_NODEID_STRING(1, "test.view");
+    UA_StatusCode retval = UA_Server_addViewNode(
+        server, viewId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "TestView"),
+        vAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Verify node class */
+    UA_NodeClass nc;
+    retval = UA_Server_readNodeClass(server, viewId, &nc);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(nc, UA_NODECLASS_VIEW);
+} END_TEST
+
+START_TEST(checkServerAddDataTypeNode) {
+    UA_DataTypeAttributes dtAttr = UA_DataTypeAttributes_default;
+    dtAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TestDataType");
+
+    UA_NodeId dtId = UA_NODEID_STRING(1, "test.datatype");
+    UA_StatusCode retval = UA_Server_addDataTypeNode(
+        server, dtId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "TestDataType"),
+        dtAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_NodeClass nc;
+    retval = UA_Server_readNodeClass(server, dtId, &nc);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(nc, UA_NODECLASS_DATATYPE);
+} END_TEST
+
+START_TEST(checkServerAddReferenceTypeNode) {
+    UA_ReferenceTypeAttributes rtAttr = UA_ReferenceTypeAttributes_default;
+    rtAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TestRefType");
+    rtAttr.inverseName = UA_LOCALIZEDTEXT("en-US", "InverseTestRefType");
+
+    UA_NodeId rtId = UA_NODEID_STRING(1, "test.reftype");
+    UA_StatusCode retval = UA_Server_addReferenceTypeNode(
+        server, rtId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "TestRefType"),
+        rtAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_NodeClass nc;
+    retval = UA_Server_readNodeClass(server, rtId, &nc);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(nc, UA_NODECLASS_REFERENCETYPE);
+} END_TEST
+
+START_TEST(checkServerAddObjectTypeNode) {
+    UA_ObjectTypeAttributes otAttr = UA_ObjectTypeAttributes_default;
+    otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TestObjectType");
+
+    UA_NodeId otId = UA_NODEID_STRING(1, "test.objtype");
+    UA_StatusCode retval = UA_Server_addObjectTypeNode(
+        server, otId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+        UA_QUALIFIEDNAME(1, "TestObjectType"),
+        otAttr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_NodeClass nc;
+    retval = UA_Server_readNodeClass(server, otId, &nc);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(nc, UA_NODECLASS_OBJECTTYPE);
+} END_TEST
+
 int main(void) {
     Suite *s = suite_create("server");
 
@@ -434,6 +638,17 @@ int main(void) {
     tcase_add_test(tc_ext, checkServerAddReference);
     tcase_add_test(tc_ext, checkServerReadDataType);
     tcase_add_test(tc_ext, checkServerRepeatedCallback);
+    tcase_add_test(tc_ext, checkForEachChildNodeCall);
+    tcase_add_test(tc_ext, checkForEachChildNodeCall_abort);
+    tcase_add_test(tc_ext, checkForEachChildNodeCall_invalidNode);
+    tcase_add_test(tc_ext, checkChangeRepeatedCallbackInterval);
+    tcase_add_test(tc_ext, checkMultipleNamespaces);
+    tcase_add_test(tc_ext, checkServerLifecycleCallbackNotification);
+    tcase_add_test(tc_ext, checkServerAddVariableTypeNode);
+    tcase_add_test(tc_ext, checkServerAddViewNode);
+    tcase_add_test(tc_ext, checkServerAddDataTypeNode);
+    tcase_add_test(tc_ext, checkServerAddReferenceTypeNode);
+    tcase_add_test(tc_ext, checkServerAddObjectTypeNode);
     suite_add_tcase(s, tc_ext);
 
     SRunner *sr = srunner_create(s);
