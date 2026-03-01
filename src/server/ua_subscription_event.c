@@ -179,20 +179,22 @@ cacheEventId(UA_FilterEvalContext *ctx) {
 UA_StatusCode
 resolveSAO(UA_FilterEvalContext *ctx, const UA_SimpleAttributeOperand *sao,
            UA_Variant *out) {
-    /* Print the SAO as a human-readable string. We are using the
-     * TypeDefinitionId initially to disambiguate properties with the same
-     * BrowseName but from different EventTypes. The we try again wtih the
-     * TypeDefinitionId disabled. */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     const UA_EventDescription *ed = &ctx->ed;
     const UA_Variant *found;
     UA_Byte pathBuf[512];
     UA_QualifiedName pathString = {0, {512, pathBuf}};
-    UA_SimpleAttributeOperand tmp_sao = *sao;
     static UA_NodeId baseEventTypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEEVENTTYPE}};
 
+    /* Copy into a mutable SAO */
+    UA_SimpleAttributeOperand tmp_sao = *sao;
+
+    /* Do the lookup without the index-range.
+     * The index-range from the original sao is used later. */
+    tmp_sao.indexRange = UA_STRING_NULL;
+
     /* Initially use the BaseEventTypeId if not defined explicitly.
-     * If this does not resolve, we try again with i=0. */
+     * If this does not resolve, we try again with i=0 (goto search again). */
     if(UA_NodeId_isNull(&tmp_sao.typeDefinitionId))
         tmp_sao.typeDefinitionId = baseEventTypeId;
 
