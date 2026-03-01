@@ -135,6 +135,10 @@ nodeId_printEscape(const UA_NodeId *id, UA_String *output,
                    const UA_NamespaceMapping *nsMapping, UA_Escaping idEsc);
 
 UA_StatusCode
+sao_parseWithDefaultNsIdx(UA_SimpleAttributeOperand *sao,
+                          const UA_String str, UA_UInt16 defaultNsIndex);
+
+UA_StatusCode
 encodeDateTime(const UA_DateTime dt, UA_String *output);
 
 /***************/
