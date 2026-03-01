@@ -31,10 +31,11 @@ static THREAD_HANDLE server_thread;
 
 UA_Client *client;
 
+static UA_UInt32 compareAnswer = 0;
 static UA_UInt32 subscriptionId;
 static UA_UInt32 monitoredItemId;
 static UA_NodeId eventType;
-static size_t nSelectClauses = 4;
+static size_t nSelectClauses = 5;
 static UA_Boolean notificationReceived;
 static UA_Boolean overflowNotificationReceived = false;
 static UA_SimpleAttributeOperand *selectClauses;
@@ -46,16 +47,29 @@ UA_Double publishingInterval = 500.0;
 static void
 addNewEventType(void) {
     UA_ObjectTypeAttributes attr = UA_ObjectTypeAttributes_default;
-    attr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "SimpleEventType");
-    attr.description = UA_LOCALIZEDTEXT_ALLOC("en-US", "The simple event type we created");
-
-    UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "SimpleEventType");
+    attr.description = UA_LOCALIZEDTEXT("en-US", "The simple event type we created");
+    UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1,0),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
                                 UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
                                 UA_QUALIFIEDNAME(0, "SimpleEventType"),
                                 attr, NULL, &eventType);
-    UA_LocalizedText_clear(&attr.displayName);
-    UA_LocalizedText_clear(&attr.description);
+
+    // Add Variable to the EventType
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    UA_Int32 myInteger = 42;
+    UA_Variant_setScalar(&vattr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    vattr.description = UA_LOCALIZEDTEXT("en-US","the answer");
+    vattr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
+    vattr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+    vattr.accessLevel = UA_ACCESSLEVELMASK_READ;
+
+    /* Add the variable node to the information model */
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the.answer");
+    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1,0), eventType,
+                              UA_NS0ID(HASCOMPONENT), myIntegerName,
+                              UA_NS0ID(BASEDATAVARIABLETYPE), vattr, NULL, NULL);
+
 }
 
 static void
@@ -69,7 +83,7 @@ setupSelectClauses(void) {
 
     for(size_t i = 0; i < nSelectClauses; ++i) {
         UA_SimpleAttributeOperand_init(&selectClauses[i]);
-        selectClauses[i].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        selectClauses[i].typeDefinitionId = UA_NS0ID(BASEEVENTTYPE); // Disables checks
         selectClauses[i].browsePathSize = 1;
         selectClauses[i].attributeId = UA_ATTRIBUTEID_VALUE;
         selectClauses[i].browsePath = (UA_QualifiedName *)
@@ -83,6 +97,9 @@ setupSelectClauses(void) {
     selectClauses[1].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
     selectClauses[2].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "EventType");
     selectClauses[3].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "SourceNode");
+    selectClauses[4].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(1, "the.answer"); // Custom event type member
+
+    selectClauses[4].typeDefinitionId = eventType; //  Checks the presence of the field in the type
 }
 
 static void
@@ -122,8 +139,14 @@ handler_events_simple(UA_Client *lclient, UA_UInt32 subId, void *subContext,
             } else {
                 ck_assert_msg(false, "NodeId doesn't match");
             }
+        } else if(UA_Variant_hasScalarType(value, &UA_TYPES[UA_TYPES_INT32])) {
+            // 1:the.answer
+            ck_assert(i == 4);
+            UA_Int32 *answer = (UA_Int32*)value->data;
+            ck_assert_int_eq(*answer, compareAnswer);
         } else {
-            ck_assert_msg(false, "Field doesn't match");
+            if(compareAnswer != 0)
+                ck_assert_msg(false, "Field not defined");
         }
     }
     ck_assert_uint_eq(foundMessage, true);
@@ -338,8 +361,12 @@ handler_events_propagate(UA_Client *lclient, UA_UInt32 subId, void *subContext,
             } else {
                 ck_assert_msg(false, "NodeId doesn't match");
             }
+        } else if(UA_Variant_hasScalarType(value, &UA_TYPES[UA_TYPES_INT32])) {
+            // 1:the.answer
+            ck_assert(i == 4);
         } else {
-            ck_assert_msg(false, "Field doesn't match");
+            // Value not defined
+            ck_assert(value->type == NULL);
         }
     }
     ck_assert_uint_eq(foundMessage, true);
@@ -397,7 +424,7 @@ handler_events_overflow(UA_Client *lclient, UA_UInt32 subId, void *subContext,
                         UA_UInt32 monId, void *monContext,
                         const UA_KeyValueMap eventFields) {
     ck_assert_uint_eq(*(UA_UInt32 *) monContext, monitoredItemId);
-    if(eventFields.mapSize != 4)
+    if(eventFields.mapSize != nSelectClauses)
         return;
 
     if(eventFields.map[2].value.type != &UA_TYPES[UA_TYPES_NODEID])
@@ -731,6 +758,81 @@ START_TEST(eventFieldsMap) {
 
 } END_TEST
 
+// Event-fields from a key-value map, but with non-standard description
+START_TEST(nonNormalFormEventFieldsMap) {
+    // add a monitored item
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, true, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    monitoredItemId = createResult.monitoredItemId;
+
+    UA_EventDescription ed = {0};
+    ed.sourceNode = UA_NS0ID(SERVER);
+    ed.eventType = UA_NS0ID(BASEEVENTTYPE);
+    ed.severity = 500; // This triggers an assert in the handle, but is overridden below
+    ed.message = UA_LOCALIZEDTEXT("something", "happened");
+
+    // Override event fields
+    UA_KeyValuePair vals[4];
+    UA_KeyValueMap fieldMap = {4, vals};
+    ed.eventFields = &fieldMap;
+
+    // Namespace-prefix and AttributeId postfix
+    UA_UInt16 trueSeverity = 100;
+    vals[0].key = UA_QUALIFIEDNAME(0, "/0:Severity#Value");
+    UA_Variant_setScalar(&vals[0].value, &trueSeverity, &UA_TYPES[UA_TYPES_UINT16]);
+
+    UA_LocalizedText msg = UA_LOCALIZEDTEXT("en-US", "Generated Event");
+    vals[1].key = UA_QUALIFIEDNAME(0, "/Message");
+    UA_Variant_setScalar(&vals[1].value, &msg, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+
+    vals[2].key = UA_QUALIFIEDNAME(0, "/EventType");
+    UA_Variant_setScalar(&vals[2].value, &eventType, &UA_TYPES[UA_TYPES_NODEID]);
+
+    compareAnswer = 43;
+    UA_UInt32 answer = 43;
+    vals[3].key = UA_QUALIFIEDNAME(0, "/1:the.answer");
+    UA_Variant_setScalar(&vals[3].value, &answer, &UA_TYPES[UA_TYPES_INT32]);
+
+    UA_StatusCode res = UA_Server_createEventEx(server, &ed, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    joinServer();
+
+    // fetch the events, ensure both the overflow and the original event are received
+    notificationReceived = false;
+    while(!notificationReceived) {
+        UA_fakeSleep(500);
+        UA_Server_run_iterate(server, false);
+        res = UA_Client_run_iterate(client, 0);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    }
+
+    compareAnswer = 0;
+    forkServer();
+
+    // Again, but now with the default nsid in the qualifiedname
+    answer = 44;
+    compareAnswer = 44;
+    vals[3].key = UA_QUALIFIEDNAME(1, "/the.answer");
+
+    res = UA_Server_createEventEx(server, &ed, NULL);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    joinServer();
+
+    // fetch the events, ensure both the overflow and the original event are received
+    notificationReceived = false;
+    while(!notificationReceived) {
+        UA_fakeSleep(500);
+        UA_Server_run_iterate(server, false);
+        res = UA_Client_run_iterate(client, 0);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    }
+
+    compareAnswer = 0;
+    forkServer();
+} END_TEST
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 /* Assumes subscriptions work fine with data change because of other unit test */
@@ -749,6 +851,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, evaluateFilterWhereClause);
     tcase_add_test(tc_server, auditEvent);
     tcase_add_test(tc_server, eventFieldsMap);
+    tcase_add_test(tc_server, nonNormalFormEventFieldsMap);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
 
