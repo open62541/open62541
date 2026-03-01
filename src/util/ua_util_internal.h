@@ -86,7 +86,7 @@ isReservedAnd(u8 c) {
 }
 
 static UA_INLINE UA_Boolean
-isReservedExtended(u8 c) {
+isReservedAndExtended(u8 c) {
     return (isReservedAnd(c) || c == ',' || c == '(' || c == ')' ||
             c == '[' || c == ']' || c <= ' ' || c == 127);
 }
