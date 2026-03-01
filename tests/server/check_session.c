@@ -318,6 +318,154 @@ START_TEST(Session_write_read_value) {
     UA_Client_delete(client);
 } END_TEST
 
+/* --- Additional extended coverage tests --- */
+
+START_TEST(Session_reconnect_after_disconnect) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Verify the session is functional */
+    UA_Variant val;
+    retval = UA_Client_readValueAttribute(client,
+                 UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    /* Disconnect */
+    retval = UA_Client_disconnect(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Reconnect with same client */
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Verify the new session is functional */
+    retval = UA_Client_readValueAttribute(client,
+                 UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Session_multiple_reads) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Perform multiple reads within the same session */
+    for(int i = 0; i < 10; i++) {
+        UA_Variant val;
+        retval = UA_Client_readValueAttribute(client,
+                     UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &val);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Variant_clear(&val);
+    }
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Session_getSessionAttribute) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* CreateSession */
+    UA_CreateSessionRequest createReq;
+    UA_CreateSessionResponse createRes;
+    UA_CreateSessionRequest_init(&createReq);
+    __UA_Client_Service(client, &createReq, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &createRes, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+    ck_assert_uint_eq(createRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_NodeId_copy(&createRes.authenticationToken, &client->authenticationToken);
+
+    /* Set an attribute */
+    UA_QualifiedName key = UA_QUALIFIEDNAME(1, "testAttr");
+    UA_Variant setVar;
+    UA_Int32 val = 42;
+    UA_Variant_setScalar(&setVar, &val, &UA_TYPES[UA_TYPES_INT32]);
+    retval = UA_Server_setSessionAttribute(server, &createRes.sessionId, key, &setVar);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Get the attribute (copy) */
+    UA_Variant getVar;
+    UA_Variant_init(&getVar);
+    retval = UA_Server_getSessionAttributeCopy(server, &createRes.sessionId, key, &getVar);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(getVar.type == &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_int_eq(*(UA_Int32 *)getVar.data, 42);
+    UA_Variant_clear(&getVar);
+
+    /* Get non-existent attribute */
+    UA_QualifiedName badKey = UA_QUALIFIEDNAME(1, "noSuchAttr");
+    UA_Variant badVar;
+    UA_Variant_init(&badVar);
+    retval = UA_Server_getSessionAttributeCopy(server, &createRes.sessionId, badKey, &badVar);
+    /* Returns GOOD but empty variant if not found */
+    ck_assert(badVar.type == NULL);
+
+    /* CloseSession */
+    UA_CloseSessionRequest closeReq;
+    UA_CloseSessionResponse closeRes;
+    UA_CloseSessionRequest_init(&closeReq);
+    __UA_Client_Service(client, &closeReq, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+                        &closeRes, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
+    ck_assert_uint_eq(closeRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_CloseSessionResponse_clear(&closeRes);
+    UA_CreateSessionResponse_clear(&createRes);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Session_deleteSessionAttribute) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* CreateSession */
+    UA_CreateSessionRequest createReq;
+    UA_CreateSessionResponse createRes;
+    UA_CreateSessionRequest_init(&createReq);
+    __UA_Client_Service(client, &createReq, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &createRes, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+    ck_assert_uint_eq(createRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_NodeId_copy(&createRes.authenticationToken, &client->authenticationToken);
+
+    /* Set an attribute */
+    UA_QualifiedName key = UA_QUALIFIEDNAME(1, "toDelete");
+    UA_Variant setVar;
+    UA_Int32 val = 99;
+    UA_Variant_setScalar(&setVar, &val, &UA_TYPES[UA_TYPES_INT32]);
+    retval = UA_Server_setSessionAttribute(server, &createRes.sessionId, key, &setVar);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Delete the attribute */
+    retval = UA_Server_deleteSessionAttribute(server, &createRes.sessionId, key);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Verify it's gone */
+    UA_Variant getVar;
+    UA_Variant_init(&getVar);
+    retval = UA_Server_getSessionAttributeCopy(server, &createRes.sessionId, key, &getVar);
+    ck_assert(getVar.type == NULL);
+
+    /* Cleanup */
+    UA_CloseSessionRequest closeReq;
+    UA_CloseSessionResponse closeRes;
+    UA_CloseSessionRequest_init(&closeReq);
+    __UA_Client_Service(client, &closeReq, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+                        &closeRes, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
+    UA_CloseSessionResponse_clear(&closeRes);
+    UA_CreateSessionResponse_clear(&createRes);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 static Suite* testSuite_Session(void) {
     Suite *s = suite_create("Session");
     TCase *tc_session = tcase_create("Core");
@@ -335,6 +483,10 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session_ext, Session_readAfterClose);
     tcase_add_test(tc_session_ext, Session_browse);
     tcase_add_test(tc_session_ext, Session_write_read_value);
+    tcase_add_test(tc_session_ext, Session_reconnect_after_disconnect);
+    tcase_add_test(tc_session_ext, Session_multiple_reads);
+    tcase_add_test(tc_session_ext, Session_getSessionAttribute);
+    tcase_add_test(tc_session_ext, Session_deleteSessionAttribute);
 
     suite_add_tcase(s, tc_session);
     suite_add_tcase(s, tc_session_ext);

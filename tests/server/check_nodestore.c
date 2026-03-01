@@ -251,6 +251,142 @@ START_TEST(profileGetDelete) {
 }
 END_TEST
 
+/* --- Extended coverage tests --- */
+
+START_TEST(insertAndDeleteNode) {
+    UA_Node *n = createNode(0, 5000);
+    UA_StatusCode retval = ns->insertNode(ns, n, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Remove the node from the store */
+    UA_NodeId id = UA_NODEID_NUMERIC(0, 5000);
+    retval = ns->removeNode(ns, &id);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Should be gone */
+    const UA_Node *nr = ns->getNode(ns, &id, ~(UA_UInt32)0,
+                                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+    ck_assert_ptr_eq(nr, NULL);
+} END_TEST
+
+START_TEST(insertDuplicateNode) {
+    UA_Node *n1 = createNode(0, 6000);
+    UA_StatusCode retval = ns->insertNode(ns, n1, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Try to insert another node with the same NodeId */
+    UA_Node *n2 = createNode(0, 6000);
+    retval = ns->insertNode(ns, n2, NULL);
+    ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(getNodeCopy_modifyAndReplace) {
+    UA_Node *n = createNode(0, 7000);
+    ns->insertNode(ns, n, NULL);
+
+    UA_NodeId id = UA_NODEID_NUMERIC(0, 7000);
+    UA_Node *copy;
+    UA_StatusCode retval = ns->getNodeCopy(ns, &id, &copy);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Modify the copy */
+    copy->head.browseName = UA_QUALIFIEDNAME_ALLOC(0, "ModifiedName");
+
+    /* Replace with the modified copy */
+    retval = ns->replaceNode(ns, copy);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Verify the change */
+    const UA_Node *nr = ns->getNode(ns, &id, ~(UA_UInt32)0,
+                                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+    ck_assert_ptr_ne(nr, NULL);
+    UA_QualifiedName expected = UA_QUALIFIEDNAME(0, "ModifiedName");
+    ck_assert(UA_QualifiedName_equal(&nr->head.browseName, &expected));
+    ns->releaseNode(ns, nr);
+} END_TEST
+
+START_TEST(getNodeCopy_nonExistent) {
+    UA_NodeId id = UA_NODEID_NUMERIC(0, 99999);
+    UA_Node *copy;
+    UA_StatusCode retval = ns->getNodeCopy(ns, &id, &copy);
+    ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(newNodeAllClasses) {
+    /* Create and insert nodes of different classes */
+    UA_NodeClass classes[] = {
+        UA_NODECLASS_OBJECT,
+        UA_NODECLASS_VARIABLE,
+        UA_NODECLASS_METHOD,
+        UA_NODECLASS_OBJECTTYPE,
+        UA_NODECLASS_VARIABLETYPE,
+        UA_NODECLASS_DATATYPE,
+        UA_NODECLASS_REFERENCETYPE,
+        UA_NODECLASS_VIEW
+    };
+    for(size_t i = 0; i < 8; i++) {
+        UA_Node *n = ns->newNode(ns, classes[i]);
+        ck_assert_ptr_ne(n, NULL);
+        n->head.nodeId = UA_NODEID_NUMERIC(0, (UA_UInt32)(8000 + i));
+        n->head.nodeClass = classes[i];
+        UA_StatusCode retval = ns->insertNode(ns, n, NULL);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    }
+
+    /* Verify all can be retrieved */
+    for(size_t i = 0; i < 8; i++) {
+        UA_NodeId id = UA_NODEID_NUMERIC(0, (UA_UInt32)(8000 + i));
+        const UA_Node *nr = ns->getNode(ns, &id, ~(UA_UInt32)0,
+                                        UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+        ck_assert_ptr_ne(nr, NULL);
+        ck_assert_int_eq(nr->head.nodeClass, classes[i]);
+        ns->releaseNode(ns, nr);
+    }
+} END_TEST
+
+START_TEST(insertNodeWithOutNodeId) {
+    /* Insert with outNodeId to capture the assigned ID */
+    UA_Node *n = createNode(0, 9000);
+    UA_NodeId outId;
+    UA_NodeId_init(&outId);
+    UA_StatusCode retval = ns->insertNode(ns, n, &outId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(outId.identifier.numeric, 9000);
+    UA_NodeId_clear(&outId);
+} END_TEST
+
+START_TEST(iterateEmptyStore) {
+    zeroCnt = 0;
+    visitCnt = 0;
+    ns->iterate(ns, checkZeroVisitor, NULL);
+    ck_assert_int_eq(visitCnt, 0);
+    ck_assert_int_eq(zeroCnt, 0);
+} END_TEST
+
+START_TEST(removeNodeThenFind) {
+    /* Insert two nodes, remove one, verify the other is still there */
+    UA_Node *n1 = createNode(0, 10001);
+    ns->insertNode(ns, n1, NULL);
+    UA_Node *n2 = createNode(0, 10002);
+    ns->insertNode(ns, n2, NULL);
+
+    /* Remove first node */
+    UA_NodeId id1 = UA_NODEID_NUMERIC(0, 10001);
+    UA_StatusCode retval = ns->removeNode(ns, &id1);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* First should be gone, second should remain */
+    const UA_Node *nr1 = ns->getNode(ns, &id1, ~(UA_UInt32)0,
+                                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+    ck_assert_ptr_eq(nr1, NULL);
+
+    UA_NodeId id2 = UA_NODEID_NUMERIC(0, 10002);
+    const UA_Node *nr2 = ns->getNode(ns, &id2, ~(UA_UInt32)0,
+                                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
+    ck_assert_ptr_ne(nr2, NULL);
+    ns->releaseNode(ns, nr2);
+} END_TEST
+
 static Suite * namespace_suite (void) {
     Suite *s = suite_create ("UA_NodeStore");
 
@@ -279,6 +415,18 @@ static Suite * namespace_suite (void) {
     tcase_add_checked_fixture(tc_profile, setupZipTree, teardown);
     tcase_add_test (tc_profile, profileGetDelete);
     suite_add_tcase (s, tc_profile);
+
+    TCase* tc_ext = tcase_create ("Extended-ZipTree");
+    tcase_add_checked_fixture(tc_ext, setupZipTree, teardown);
+    tcase_add_test (tc_ext, insertAndDeleteNode);
+    tcase_add_test (tc_ext, insertDuplicateNode);
+    tcase_add_test (tc_ext, getNodeCopy_modifyAndReplace);
+    tcase_add_test (tc_ext, getNodeCopy_nonExistent);
+    tcase_add_test (tc_ext, newNodeAllClasses);
+    tcase_add_test (tc_ext, insertNodeWithOutNodeId);
+    tcase_add_test (tc_ext, iterateEmptyStore);
+    tcase_add_test (tc_ext, removeNodeThenFind);
+    suite_add_tcase (s, tc_ext);
 
     return s;
 }
