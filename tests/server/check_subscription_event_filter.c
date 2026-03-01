@@ -189,7 +189,8 @@ static void teardown(void) {
 }
 
 static UA_MonitoredItemCreateResult
-addMonitoredItem(UA_Client_EventNotificationCallback handler, UA_EventFilter *filter, bool discardOldest) {
+addMonitoredItem(UA_Client_EventNotificationCallback handler, UA_EventFilter *filter,
+                 bool discardOldest) {
     UA_MonitoredItemCreateRequest item;
     UA_MonitoredItemCreateRequest_init(&item);
     item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, 2253); /*  Root->Objects->Server */
@@ -223,7 +224,8 @@ modifyMonitoredItem(UA_EventFilter *filter, bool discardOldest) {
     UA_ExtensionObject_setValueNoDelete(&modifyRequest.itemsToModify->requestedParameters.filter,
                                         filter, &UA_TYPES[UA_TYPES_EVENTFILTER]);
 
-    const UA_ModifyMonitoredItemsResponse response = UA_Client_MonitoredItems_modify(client, modifyRequest);
+    const UA_ModifyMonitoredItemsResponse response =
+        UA_Client_MonitoredItems_modify(client, modifyRequest);
     UA_ModifyMonitoredItemsRequest_clear(&modifyRequest);
     return response;
 }
@@ -278,7 +280,8 @@ START_TEST(selectFilterValidation) {
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADEVENTFILTERINVALID);
     ck_assert_int_eq(createResult.filterResult.encoding, UA_EXTENSIONOBJECT_DECODED);
     ck_assert(createResult.filterResult.content.decoded.type == &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
-    UA_EventFilterResult *eventFilterResult = (UA_EventFilterResult *)createResult.filterResult.content.decoded.data;
+    UA_EventFilterResult *eventFilterResult = (UA_EventFilterResult *)
+        createResult.filterResult.content.decoded.data;
     ck_assert_uint_eq(eventFilterResult->selectClauseResultsSize, 1);
     ck_assert_uint_eq(eventFilterResult->selectClauseResults[0], UA_STATUSCODE_BADNODEIDUNKNOWN);
     UA_MonitoredItemCreateResult_clear(&createResult);
