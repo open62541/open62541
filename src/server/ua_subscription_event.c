@@ -1162,9 +1162,9 @@ UA_SimpleAttributeOperandValidation(UA_Server *server,
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
 
     /* EventType is a subtype of BaseEventType? */
-    UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    if(!isNodeInTree_singleRef(server, &sao->typeDefinitionId,
-                               &baseEventTypeId, UA_REFERENCETYPEINDEX_HASSUBTYPE))
+    UA_NodeId baseEventTypeId = UA_NS0ID(BASEEVENTTYPE);
+    if(!isNodeInTree_singleRef(server, &sao->typeDefinitionId, &baseEventTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE))
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
 
     /* AttributeId is valid ? */
@@ -1173,43 +1173,47 @@ UA_SimpleAttributeOperandValidation(UA_Server *server,
 
     /* If the BrowsePath is empty, the Node is the instance of the
      * TypeDefinition. (Part 4, 7.4.4.5) */
-    if(sao->browsePathSize == 0)
-        return UA_STATUSCODE_GOOD;
+    if(sao->browsePathSize > 0) {
+        /* BrowsePath contains empty BrowseNames? */
+        for(size_t j = 0; j < sao->browsePathSize; ++j) {
+            if(UA_QualifiedName_isNull(&sao->browsePath[j]))
+                return UA_STATUSCODE_BADBROWSENAMEINVALID;
+        }
 
-    /* BrowsePath contains empty BrowseNames? */
-    for(size_t j = 0; j < sao->browsePathSize; ++j) {
-        if(UA_QualifiedName_isNull(&sao->browsePath[j]))
-            return UA_STATUSCODE_BADBROWSENAMEINVALID;
+        /* Part 4: If the SimpleAttributeOperand is used in an EventFilter and
+         * the typeDefinitionId is BaseEventType the Server shall evaluate the
+         * browsePath without considering the typeDefinitionId. */
+        if(!UA_NodeId_equal(&baseEventTypeId, &sao->typeDefinitionId)) {
+            /* Get the list of subtypes from event type (including the event type itself) */
+            UA_ReferenceTypeSet reftypes_interface =
+                UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
+            UA_ExpandedNodeId *childTypeNodes = NULL;
+            size_t childTypeNodesSize = 0;
+            UA_StatusCode res =
+                browseRecursive(server, 1, &sao->typeDefinitionId, UA_BROWSEDIRECTION_FORWARD,
+                                &reftypes_interface, UA_NODECLASS_OBJECTTYPE, true,
+                                &childTypeNodesSize, &childTypeNodes);
+            if(res != UA_STATUSCODE_GOOD)
+                return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+
+            /* Is the browse path valid for one of them? */
+            UA_Boolean subTypeContainField = false;
+            for(size_t j = 0; j < childTypeNodesSize && !subTypeContainField; j++) {
+                UA_BrowsePathResult bpr =
+                    browseSimplifiedBrowsePath(server, childTypeNodes[j].nodeId,
+                                               sao->browsePathSize, sao->browsePath);
+
+                if(bpr.statusCode == UA_STATUSCODE_GOOD && bpr.targetsSize > 0)
+                    subTypeContainField = true;
+                UA_BrowsePathResult_clear(&bpr);
+            }
+
+            /* Clean up and return an error if not found */
+            UA_Array_delete(childTypeNodes, childTypeNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+            if(!subTypeContainField)
+                return UA_STATUSCODE_BADNODEIDUNKNOWN;
+        }
     }
-
-    /* Get the list of subtypes from event type (including the event type itself) */
-    UA_ReferenceTypeSet reftypes_interface =
-        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
-    UA_ExpandedNodeId *childTypeNodes = NULL;
-    size_t childTypeNodesSize = 0;
-    UA_StatusCode res = browseRecursive(server, 1, &sao->typeDefinitionId,
-                                        UA_BROWSEDIRECTION_FORWARD, &reftypes_interface,
-                                        UA_NODECLASS_OBJECTTYPE, true, &childTypeNodesSize,
-                                        &childTypeNodes);
-    if(res != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
-
-    /* Is the browse path valid for one of them? */
-    UA_Boolean subTypeContainField = false;
-    for(size_t j = 0; j < childTypeNodesSize && !subTypeContainField; j++) {
-        UA_BrowsePathResult bpr =
-            browseSimplifiedBrowsePath(server, childTypeNodes[j].nodeId,
-                                       sao->browsePathSize, sao->browsePath);
-
-        if(bpr.statusCode == UA_STATUSCODE_GOOD && bpr.targetsSize > 0)
-            subTypeContainField = true;
-        UA_BrowsePathResult_clear(&bpr);
-    }
-
-    UA_Array_delete(childTypeNodes, childTypeNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-
-    if(!subTypeContainField)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     /* IndexRange is defined ? */
     if(!UA_String_isEmpty(&sao->indexRange)) {
