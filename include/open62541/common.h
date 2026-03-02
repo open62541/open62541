@@ -198,10 +198,10 @@ typedef enum {
 
 typedef enum {
     /* Lifetime notifications, no payload */
-    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STARTED,
-    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_SHUTDOWN, /* preparing shutdown */
-    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING, /* shutdown begins now */
-    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED,
+    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STARTED  = 0x0,
+    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_SHUTDOWN = 0x01, /* prepare shutdown */
+    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING = 0x02, /* shutdown now */
+    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED  = 0x03,
 
     /* (Server only) Give background information after a SecureChannel is opened
      * or closed.
@@ -286,9 +286,9 @@ typedef enum {
      *    Identifier of the RequestId for the Request/Response pair.
      * 0:service-type [NodeId]
      *    DataType identifier for the Request (server) or Response (client). */
-    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN,
-    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC,
-    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END,
+    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN = 0x10,
+    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC = 0x11,
+    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END   = 0x12,
 
     /* (Server only) Signals the creation or modification of a Subscription.
      *
@@ -353,8 +353,85 @@ typedef enum {
     UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED,
     UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_MODIFIED,
     UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_MONITORINGMODE,
-    UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE
+    UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE,
+
+    /* Audit events are described in a separete section.
+     * The enum values are bitfields to filter in a hierarchy. */
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT                                   = 0x1000,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY                          = 0x1100,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL                  = 0x1110,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL_OPEN             = 0x1111,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION                  = 0x1120,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CREATE           = 0x1121,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_ACTIVATE         = 0x1122,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CANCEL           = 0x1124,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE              = 0x1140,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_DATAMISMATCH = 0x1141,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_EXPIRED      = 0x1142,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_INVALID      = 0x1143,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_UNTRUSTED    = 0x1144,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_REVOKED      = 0x1145,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_MISMATCH     = 0x1146,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE                              = 0x1200,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_ADD                          = 0x1210,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_DELETE                       = 0x1220,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_ADDREFERENCES                = 0x1240,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_DELETEREFERENCES             = 0x1280,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE                            = 0x1400,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_WRITE                      = 0x1410,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_HISTORY                    = 0x1420,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD                     = 0x1440,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT                            = 0x1800,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT_UPDATEMETHOD               = 0x1810
 } UA_ApplicationNotificationType;
+
+/**
+ * Auditing
+ * --------
+ *
+ * The key-value map for audit application notifications follows the properties
+ * defined for the AuditEventType and its subtypes. The key-string is the
+ * human-readable encoding for the SimpleAttributeOperand of the event
+ * properties (value attribute only). The properties should be looked up from
+ * their string-key and not via their order-index in the key-value map.
+ *
+ * Examples properties are (datatype in brackets):
+ *
+ * - /ActionTimeStamp [DateTime]
+ * - /Status          [Boolean]
+ * - /ServerId        [String]
+ *
+ * See the definition of the AuditEventType and its subtypes in part 5 of the
+ * OPC UA specification. Below follows the hierarchy of the event types.
+ * Properties from the super-type are inherited.
+ *
+ * - AuditEventType
+ *   - AuditSecurityEventType
+ *     - AuditChannelEventType
+ *       - AuditOpenSecureChannelEventType
+ *     - AuditSessionEventType
+ *       - AuditCreateSessionEventType
+ *       - AuditActivateSessionEventType
+ *       - AuditCancelEventType
+ *     - AuditCertificateEventType
+ *       - AuditCertificateDataMismatchEventType
+ *       - AuditCertificateExpiredEventType
+ *       - AuditCertificateInvalidEventType
+ *       - AuditCertificateUntrustedEventType
+ *       - AuditCertificateRevokedEventType
+ *       - AuditCertificateMismatchEventType
+ *   - AuditNodeManagementEventType
+ *     - AuditAddNodesEventType
+ *     - AuditDeleteNodesEventType
+ *     - AuditAddReferencesEventType
+ *     - AuditDeleteReferencesEventType
+ *   - AuditUpdateEventType
+ *     - AuditWriteUpdateEventType
+ *     - AuditHistoryUpdateEventType
+ *   - AuditUpdateMethodEventType
+ *   - AuditClientEventType
+ *     - AuditClientUpdateMethodResultEventType
+ */
 
 /**
  * Connection State
