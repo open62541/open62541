@@ -101,12 +101,12 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri) {
  * the private key to sign with the given ceertificate. */
 static UA_SecurityPolicy *
 getAuthSecurityPolicy(UA_Client *client, const UA_String policyUri,
-                      const UA_ByteString certificate) {
+                      const UA_ByteString *certificate) {
     for(size_t i = 0; i < client->config.authSecurityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &client->config.authSecurityPolicies[i];
         if(!UA_String_equal(&policyUri, &sp->policyUri))
             continue;
-        if(!UA_ByteString_equal(&certificate, &sp->localCertificate))
+        if(certificate && !UA_ByteString_equal(certificate, &sp->localCertificate))
             continue;
         return sp;
     }
@@ -174,9 +174,9 @@ initUserTokenPolicy(UA_Client *client, const UA_UserTokenPolicy **outUtp,
         UA_X509IdentityToken *token = (UA_X509IdentityToken*)
             client->config.userIdentityToken.content.decoded.data;
         utsp = getAuthSecurityPolicy(client, tokenSecurityPolicyUri,
-                                     token->certificateData);
+                                     &token->certificateData);
     } else {
-        utsp = getSecurityPolicy(client, tokenSecurityPolicyUri);
+        utsp = getAuthSecurityPolicy(client, tokenSecurityPolicyUri, NULL);
     }
     if(!utsp) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
@@ -1197,9 +1197,9 @@ matchUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint,
         UA_X509IdentityToken *token = (UA_X509IdentityToken*)
             client->config.userIdentityToken.content.decoded.data;
         utsp = getAuthSecurityPolicy(client, tokenPolicyUri,
-                                     token->certificateData);
+                                     &token->certificateData);
     } else {
-        utsp = getSecurityPolicy(client, tokenPolicyUri);
+        utsp = getAuthSecurityPolicy(client, tokenPolicyUri, NULL);
     }
     if(!utsp) {
         if(logPrefix) {
