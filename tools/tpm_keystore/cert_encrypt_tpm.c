@@ -456,10 +456,10 @@ int main(int argc, char** argv)
     unsigned char iv[] = {5, 9, 3, 6, 21, 0, 21, 4, 7, 42, 9, 2, 1, 8, 17, 16};
     CK_RV rv = CKR_OK;
 
-    if((argc == 2) && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h")) == 0)
+    if((argc == 2) && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0))
     {
         usage();
-        return 0;
+        goto cleanup;
     }
     process_command_line(argc, argv, &slot, &pin, &label, &in_file, &out_file);
     printf("\n");
@@ -467,11 +467,11 @@ int main(int argc, char** argv)
         slotNum = atoi((const char*)slot);
     } else {
         usage();
-        return 0;
+        goto cleanup;
     }
     if (pin[0] == '\0' || label[0] == '\0' || in_file[0] == '\0' || out_file[0] == '\0') {
         usage();
-        return 0;
+        goto cleanup;
     }
 
     /* Put iv array in a struct that has data and length */
@@ -503,6 +503,7 @@ int main(int argc, char** argv)
         }
     }
 
+cleanup:
     if (slot) free(slot);
     if (pin) free(pin);
     if (label) free(label);
