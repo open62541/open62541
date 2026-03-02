@@ -147,6 +147,18 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
     }
 
+    /* Store the endpoint's SecurityPolicyUri as a custom session attribute.
+     * This is needed later in allowTransferSubscription_default to determine
+     * whether the session was established over a secure channel. */
+    if(endpointDescription) {
+        UA_Variant spUri;
+        UA_Variant_setScalar(&spUri, (void*)(uintptr_t)&endpointDescription->securityPolicyUri,
+                             &UA_TYPES[UA_TYPES_STRING]);
+        UA_Server_setSessionAttribute(server, sessionId,
+                                      UA_QUALIFIEDNAME(0, "channelSecurityPolicyUri"),
+                                      &spUri);
+    }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -246,11 +258,84 @@ allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
         UA_String *userId1 = (UA_String*)session1UserId.data;
         UA_String *userId2 = (UA_String*)session2UserId.data;
         
-        /* Anonymous users have empty userId - reject immediately.
-         * According to OPC UA CTT, anonymous users should not be
-         * allowed to transfer subscriptions. */
         if(userId1->length == 0 || userId2->length == 0) {
-            result = false;
+            /* Anonymous user(s) detected.
+             * For anonymous users, the OPC UA specification requires
+             * checking the ApplicationUri from the clientDescription
+             * to verify that the same application is transferring the
+             * subscription (e.g. after a network interruption or client
+             * crash with reconnect on a different SecureChannel).
+             *
+             * Additionally, on unsecure connections (SecurityPolicy#None)
+             * the ApplicationUri is not verified against a certificate,
+             * so the transfer must be rejected.
+             *
+             * CTT Err-017: Reject anonymous transfer on unsecure channel
+             * CTT 019: Allow anonymous transfer on secure channels if
+             *          the ApplicationUri matches */
+
+            /* First check: Both sessions must use a secure channel
+             * (not SecurityPolicy#None). The securityPolicyUri was
+             * stored as a session attribute during ActivateSession. */
+            UA_Variant session1SpUri;
+            UA_Variant_init(&session1SpUri);
+            UA_Server_getSessionAttribute(server, oldSessionId,
+                                          UA_QUALIFIEDNAME(0, "channelSecurityPolicyUri"),
+                                          &session1SpUri);
+            UA_Variant session2SpUri;
+            UA_Variant_init(&session2SpUri);
+            UA_Server_getSessionAttribute(server, newSessionId,
+                                          UA_QUALIFIEDNAME(0, "channelSecurityPolicyUri"),
+                                          &session2SpUri);
+
+            UA_Boolean bothSecure = false;
+            if(session1SpUri.type == &UA_TYPES[UA_TYPES_STRING] &&
+               session2SpUri.type == &UA_TYPES[UA_TYPES_STRING]) {
+                UA_String *spUri1 = (UA_String*)session1SpUri.data;
+                UA_String *spUri2 = (UA_String*)session2SpUri.data;
+                /* Reject if either session uses SecurityPolicy#None */
+                if(!UA_String_equal(spUri1, &UA_SECURITY_POLICY_NONE_URI) &&
+                   !UA_String_equal(spUri2, &UA_SECURITY_POLICY_NONE_URI)) {
+                    bothSecure = true;
+                }
+            }
+
+            UA_Variant_clear(&session1SpUri);
+            UA_Variant_clear(&session2SpUri);
+
+            /* Second check: If both channels are secure, compare the
+             * ApplicationUri from the clientDescription. On secure
+             * connections the ApplicationUri is validated against
+             * the client certificate during CreateSession. */
+            if(bothSecure) {
+                UA_Variant session1Desc;
+                UA_Variant_init(&session1Desc);
+                UA_Server_getSessionAttribute(server, oldSessionId,
+                                              UA_QUALIFIEDNAME(0, "clientDescription"),
+                                              &session1Desc);
+                UA_Variant session2Desc;
+                UA_Variant_init(&session2Desc);
+                UA_Server_getSessionAttribute(server, newSessionId,
+                                              UA_QUALIFIEDNAME(0, "clientDescription"),
+                                              &session2Desc);
+
+                if(session1Desc.type == &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION] &&
+                   session2Desc.type == &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]) {
+                    UA_ApplicationDescription *desc1 =
+                        (UA_ApplicationDescription*)session1Desc.data;
+                    UA_ApplicationDescription *desc2 =
+                        (UA_ApplicationDescription*)session2Desc.data;
+                    if(desc1->applicationUri.length > 0 &&
+                       desc2->applicationUri.length > 0 &&
+                       UA_String_equal(&desc1->applicationUri,
+                                       &desc2->applicationUri)) {
+                        result = true;
+                    }
+                }
+
+                UA_Variant_clear(&session1Desc);
+                UA_Variant_clear(&session2Desc);
+            }
         } else if(UA_String_equal(userId1, userId2)) {
             /* Same authenticated user - allow transfer */
             result = true;
