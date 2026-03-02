@@ -268,11 +268,7 @@ allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
              *
              * Additionally, on unsecure connections (SecurityPolicy#None)
              * the ApplicationUri is not verified against a certificate,
-             * so the transfer must be rejected.
-             *
-             * CTT Err-017: Reject anonymous transfer on unsecure channel
-             * CTT 019: Allow anonymous transfer on secure channels if
-             *          the ApplicationUri matches */
+             * so the transfer must be rejected. */
 
             /* First check: Both sessions must use a secure channel
              * (not SecurityPolicy#None). The securityPolicyUri was
