@@ -1368,8 +1368,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     if(!connection) {
         UA_LOG_ERROR_WRITERGROUP(server->config.logging, writerGroup,
                                  "Publish failed. PubSubConnection invalid");
-        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_ERROR,
-                                      UA_STATUSCODE_BADNOTCONNECTED);
+        writerGroup->state = UA_PUBSUBSTATE_ERROR;
         unlockServer(server);
         return;
     }
