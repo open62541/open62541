@@ -289,6 +289,12 @@ struct UA_Server {
      * UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED and are never deleted. */
     size_t rolePermissionsSize;
     UA_RolePermissionEntry *rolePermissions;
+
+    /* Internal role registry. Roles from the config are marked as
+     * protected and cannot be removed at runtime. */
+    size_t rolesSize;
+    UA_Role *roles;
+    UA_Boolean *rolesProtected; /* Parallel array: true for config roles */
 #endif
 };
 
