@@ -62,7 +62,6 @@
 #cmakedefine UA_INFORMATION_MODEL_AUTOLOAD
 #cmakedefine UA_ENABLE_ENCRYPTION_MBEDTLS
 #cmakedefine UA_ENABLE_GDS_PUSHMANAGEMENT
-#cmakedefine UA_ENABLE_RBAC
 #cmakedefine UA_ENABLE_TPM2_SECURITY
 #cmakedefine UA_ENABLE_ENCRYPTION_OPENSSL
 #cmakedefine UA_ENABLE_ENCRYPTION_LIBRESSL
@@ -350,11 +349,31 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_calloc(num, size) UA_callocSingleton(num, size)
 # define UA_realloc(ptr, size) UA_reallocSingleton(ptr, size)
 #else
-# include <stdlib.h>
-# define UA_free free
-# define UA_malloc malloc
-# define UA_calloc calloc
-# define UA_realloc realloc
+# ifdef UA_ARCHITECTURE_ZEPHYR /* try to use zephyr's k_malloc and k_alloc */
+/*cant use <zephyr/version.h> since v2.7.0 and older stores the file in another place*/
+#  include <version.h> /* zephyr version. */
+/* must be 3.7.0 or higher */
+#  if (KERNEL_VERSION_MAJOR >= 4 || \
+      (KERNEL_VERSION_MAJOR == 3 && KERNEL_VERSION_MINOR >=7) )
+#   include <zephyr/kernel.h>
+#   define UA_free k_free
+#   define UA_malloc k_malloc
+#   define UA_calloc k_calloc
+#   define UA_realloc k_realloc
+#  else
+#   include <stdlib.h>
+#   define UA_free free
+#   define UA_malloc malloc
+#   define UA_calloc calloc
+#   define UA_realloc realloc
+#  endif
+# else
+#  include <stdlib.h>
+#  define UA_free free
+#  define UA_malloc malloc
+#  define UA_calloc calloc
+#  define UA_realloc realloc
+# endif /*UA_ARCHITECTURE_ZEPHYR*/
 #endif
 
 /* Stack-allocation of memory. Use C99 variable-length arrays if possible.
