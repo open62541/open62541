@@ -338,7 +338,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
                          "Cannot create the Interrupt Manager (only relevant if used)");
         }
 #endif
-#ifdef UA_ENABLE_MQTT
+#if defined(UA_ENABLE_MQTT) && defined(UA_ARCHITECTURE_POSIX)
         /* Add the MQTT connection manager */
         UA_ConnectionManager *mqttCM =
             UA_ConnectionManager_new_MQTT(UA_STRING("mqtt connection manager"));
