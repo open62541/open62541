@@ -111,6 +111,24 @@ function build_amalgamation_mt {
     gcc -Wall -Werror -c open62541.c
 }
 
+function build_amalgamation_none_arch {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_ENABLE_AMALGAMATION=ON \
+          -DUA_ARCHITECTURE=none \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_XML_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          ..
+    make open62541-amalgamation ${MAKEOPTS}
+
+    # Check if the expected code is included into the amalgamation
+    # and if the ifdef based architecture autodetection works
+    gcc -Wall -Werror -c open62541.c
+}
+
 ############################
 # Build and Run Unit Tests #
 ############################
