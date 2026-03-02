@@ -1532,17 +1532,19 @@ removeGroupAction(UA_Server *server,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output){
     UA_NodeId nodeToRemove = *((UA_NodeId *)input->data);
-    if(UA_WriterGroup_findWGbyId(server, nodeToRemove)) {
-        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, nodeToRemove);
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, nodeToRemove);
+    if(wg) {
         if(wg->configurationFrozen)
             UA_Server_unfreezeWriterGroupConfiguration(server, nodeToRemove);
         return UA_Server_removeWriterGroup(server, nodeToRemove);
-    } else {
-        UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, nodeToRemove);
-        if(rg->configurationFrozen)
-            UA_Server_unfreezeReaderGroupConfiguration(server, nodeToRemove);
-        return UA_Server_removeReaderGroup(server, nodeToRemove);
     }
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, nodeToRemove);
+    if(!rg)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
+    if(rg->configurationFrozen)
+        UA_Server_unfreezeReaderGroupConfiguration(server, nodeToRemove);
+    return UA_Server_removeReaderGroup(server, nodeToRemove);
 }
 
 /**********************************************/
