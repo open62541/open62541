@@ -1,0 +1,71 @@
+name: Coverity Scan
+
+on: [push, pull_request]
+
+jobs:
+  coverity:
+
+    runs-on: ubuntu-latest
+
+    env:
+      COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+      COVERITY_SCAN_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
+      COVERITY_PROJECT: open62541%2Fopen62541
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+          build-essential cmake curl pkg-config libssl-dev \
+          python3-sphinx graphviz check libxml2-dev libpcap-dev
+
+    - name: Download Coverity Build Tool
+      run: |
+        curl -fLsS \
+          -d "token=$COVERITY_SCAN_TOKEN&project=$COVERITY_PROJECT" \
+          -o /tmp/cov-analysis.tar.gz \
+          https://scan.coverity.com/download/linux64
+        mkdir -p /tmp/cov-analysis
+        tar -xzf /tmp/cov-analysis.tar.gz --strip-components=1 -C /tmp/cov-analysis
+        /tmp/cov-analysis/bin/cov-configure --comptype gcc --compiler gcc --template
+        /tmp/cov-analysis/bin/cov-configure --comptype g++ --compiler g++ --template
+
+    - name: CMake Configure
+      run: |
+        mkdir -p build && cd build
+        cmake \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_XML_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          -DUA_ENABLE_NODESETLOADER=ON \
+          -DUA_ENABLE_ENCRYPTION=OPENSSL \
+          -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_MULTITHREADING=100 \
+          ..
+
+    - name: Coverity Build
+      run: |
+        export PATH=$PATH:/tmp/cov-analysis/bin
+        cd build
+        cov-build --dir cov-int make -j$(nproc)
+
+    - name: Submit Build to Coverity Scan
+      run: |
+        cd build
+        tar -czf cov-int.tar.gz cov-int
+        curl -fLsS \
+          --form token="$COVERITY_SCAN_TOKEN" \
+          --form email="$COVERITY_SCAN_EMAIL" \
+          --form file=@cov-int.tar.gz \
+          --form version="$GITHUB_SHA" \
+          --form description="GitHub Actions build from $GITHUB_REF ($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)" \
+          "https://scan.coverity.com/builds?project=$COVERITY_PROJECT"
