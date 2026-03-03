@@ -1180,11 +1180,11 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
           void *monitoredItemContext,
           UA_Server_DataChangeNotificationCallback callback);
 
-/* UA_MonitoredItemCreateResult UA_EXPORT */
-/* UA_Server_createEventMonitoredItem(UA_Server *server, */
-/*           UA_TimestampsToReturn timestampsToReturn, */
-/*           const UA_MonitoredItemCreateRequest item, void *context, */
-/*           UA_Server_EventNotificationCallback callback); */
+UA_MonitoredItemCreateResult UA_EXPORT
+UA_Server_createEventMonitoredItem(UA_Server *server,
+           UA_TimestampsToReturn timestampsToReturn,
+           const UA_MonitoredItemCreateRequest item, void *context,
+           UA_Server_EventNotificationCallback callback);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
