@@ -10,7 +10,7 @@ jobs:
     env:
       COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
       COVERITY_SCAN_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
-      COVERITY_PROJECT: open62541%2Fopen62541
+      COVERITY_PROJECT: open62541/open62541
 
     steps:
     - uses: actions/checkout@v4
