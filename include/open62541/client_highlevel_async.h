@@ -477,6 +477,8 @@ UA_CLIENT_ASYNCWRITE(UA_Client_writeAccessLevelExAttribute_async, UA_UInt32)
  * Method Calling
  * ^^^^^^^^^^^^^^ */
 
+#ifdef UA_ENABLE_METHODCALLS
+
 typedef void
 (*UA_ClientAsyncCallCallback)(
     UA_Client *client, void *userdata,
@@ -488,6 +490,8 @@ UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
                      const UA_Variant *input,
                      UA_ClientAsyncCallCallback callback,
                      void *userdata, UA_UInt32 *reqId);
+
+#endif /* UA_ENABLE_METHODCALLS */
 
 /**
  * Node Management
