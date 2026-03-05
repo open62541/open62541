@@ -474,6 +474,11 @@ UA_Server_delete(UA_Server *server) {
 
     unlockServer(server); /* The timer has its own mutex */
 
+#ifdef UA_ENABLE_RBAC
+    /* Clean up internal RBAC state (before config clear) */
+    UA_Server_cleanupRBAC(server);
+#endif
+
     /* Clean up the config */
     UA_ServerConfig_clear(&server->config);
 
@@ -593,6 +598,12 @@ UA_Server_init(UA_Server *server) {
 
 #ifdef UA_ENABLE_NODESET_INJECTOR
     res = UA_Server_injectNodesets(server);
+    UA_CHECK_STATUS(res, goto cleanup);
+#endif
+
+#ifdef UA_ENABLE_RBAC
+    /* Initialize RBAC: copy config presets into internal array */
+    res = UA_Server_initRBAC(server);
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 

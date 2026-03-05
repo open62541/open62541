@@ -13,10 +13,31 @@ parser.add_argument('namespace', help='NS0')
 args = parser.parse_args()
 
 rows = []
-with open(args.statuscodes) as f:
+with open(args.statuscodes, encoding='utf-8-sig') as f:
     lines = f.readlines()
     for l in lines:
-        rows.append(tuple(l.strip().split(',')))
+        l = l.strip()
+        if not l:
+            continue
+        # Auto-detect separator: tab, semicolon, or comma
+        if '\t' in l:
+            parts = l.split('\t')
+        elif ';' in l:
+            parts = l.split(';')
+        else:
+            parts = l.split(',')
+        if len(parts) < 3:
+            continue
+        name, nodeid, nodeclass = parts[0], parts[1], parts[2]
+        # Handle CSVs where the first column is the numeric NodeId
+        # (new format: NodeId, Name, NodeClass) vs traditional (Name, NodeId, NodeClass)
+        if nodeid.isdigit():
+            rows.append((name, nodeid, nodeclass))
+        elif name.isdigit():
+            rows.append((nodeid, name, nodeclass))
+        else:
+            # Skip header rows or other non-data lines
+            continue
 
 fh = open(args.outfile + ".h", "w", encoding='utf8')
 def printh(string):

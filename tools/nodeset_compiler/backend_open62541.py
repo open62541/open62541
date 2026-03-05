@@ -31,8 +31,7 @@ def makeCIdentifier(value):
     sanitized = re.sub(r'[^\w]', '', value)
     if sanitized in keywords:
         return "_" + sanitized
-    else:
-        return sanitized
+    return sanitized
 
 # Escape C strings:
 def makeCLiteral(value):
@@ -70,25 +69,24 @@ def generateGuidCode(value):
         return f"UA_GUID(\"{value}\")"
     if not value or len(value) != 5:
         return "UA_GUID_NULL"
-    else:
-        return "UA_GUID(\"{}\")".format('-'.join(value))
+    return "UA_GUID(\"{}\")".format('-'.join(value))
 
 def generateNodeIdCode(value):
     if not value:
         return "UA_NODEID_NUMERIC(0, 0)"
-    if value.i != None:
+    if value.i is not None:
         return f"UA_NODEID_NUMERIC(UA_NamespaceMapping_local2Remote(nsMapping, {value.ns}), {value.i}LU)"
-    elif value.s != None:
+    if value.s is not None:
         v = makeCLiteral(value.s)
         return f"UA_NODEID_STRING(UA_NamespaceMapping_local2Remote(nsMapping, {value.ns}), \"{v}\")"
-    elif value.g != None:
+    if value.g is not None:
         return "UA_NODEID_GUID(UA_NamespaceMapping_local2Remote(nsMapping, {}), {})".format(value.ns, generateGuidCode(value.gAsString()))
     raise Exception(str(value) + " NodeID generation for bytestring NodeIDs not supported")
 
 def generateExpandedNodeIdCode(value):
-    if value.i != None:
+    if value.i is not None:
         return "UA_EXPANDEDNODEID_NUMERIC(UA_NamespaceMapping_local2Remote(nsMapping, {}), {}LU)".format(value.ns, str(value.i))
-    elif value.s != None:
+    if value.s is not None:
         vs = makeCLiteral(value.s)
         return "UA_EXPANDEDNODEID_STRING(UA_NamespaceMapping_local2Remote(nsMapping, {}), \"{}\")".format(value.ns, vs)
     raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
@@ -286,9 +284,9 @@ def generateCommonVariableCode(node, nodeset):
             code.append(f"UA_String xmlValue = UA_STRING({outxml});")
         else:
             # For MSVC, split large strings into smaller pieces and reassemble
-            code.append(f"UA_String xmlValue = UA_BYTESTRING_NULL;")
+            code.append("UA_String xmlValue = UA_BYTESTRING_NULL;")
             code.append(f"retVal |= UA_ByteString_allocBuffer(&xmlValue, {xmlLength});")
-            code.append(f"if(retVal == UA_STATUSCODE_GOOD) {{")
+            code.append("if(retVal == UA_STATUSCODE_GOOD) {")
             pieces = []
             piece_lengths = []
             curlen = 0
@@ -309,7 +307,7 @@ def generateCommonVariableCode(node, nodeset):
                 code.append(f"    char *buf_{i} = {outxml};")
                 code.append(f"    memcpy(xmlValue.data + {pos}, buf_{i}, {piece_lengths[i]});")
                 pos += piece_lengths[i]
-            code.append(f"}}")
+            code.append("}")
             codeCleanup.append("#ifdef UA_ENABLE_XML_ENCODING")
             codeCleanup.append("UA_String_clear(&xmlValue);")
             codeCleanup.append("#endif /* UA_ENABLE_XML_ENCODING */")
@@ -320,6 +318,33 @@ opts.unwrapped = true;
 opts.namespaceMapping = nsMapping;
 opts.customTypes = UA_Server_getConfig(server)->customDataTypes;
 retVal |= UA_decodeXml(&xmlValue, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opts);""")
+        # Some companion specs (e.g. IOLink, PNENC, PNRIO) declare ValueRank=1
+        # (one-dimensional array) but provide a scalar default value in the XML
+        # (e.g. <String> instead of <ListOfString>). Wrap the scalar into a
+        # one-element array so that the value passes the server's ValueRank
+        # compatibility check.
+        if node.valueRank is not None and node.valueRank >= 1:
+            # Detect at compile time whether the XML value is scalar by
+            # checking if the first child element's tag starts with "ListOf".
+            valueIsScalar = True
+            for child in node.value.childNodes:
+                if child.nodeType == child.ELEMENT_NODE:
+                    tag = child.localName or child.tagName.split(":")[-1]
+                    if tag.startswith("ListOf"):
+                        valueIsScalar = False
+                    break
+            code.append("if(UA_Variant_isScalar(&attr.value) && attr.value.data != NULL) {")
+            code.append('    UA_LOG_WARNING(UA_Server_getConfig(server)->logging,')
+            code.append('                  UA_LOGCATEGORY_USERLAND,')
+            code.append(f'                  "Node {str(node.id)}: ValueRank={node.valueRank} '
+                        f'but the XML value is scalar. '
+                        f'Auto-wrapping into a one-element array.");')
+            code.append("    attr.value.arrayLength = 1;")
+            code.append("}")
+            if valueIsScalar:
+                logger.warning(f"Node {str(node.id)}: ValueRank={node.valueRank} "
+                               f"but the XML value is scalar. "
+                               f"Auto-wrapping into a one-element array.")
         code.append("#endif /* UA_ENABLE_XML_ENCODING */")
 
         codeCleanup.append("#ifdef UA_ENABLE_XML_ENCODING")
@@ -533,14 +558,13 @@ _UA_END_DECLS
                 writec("/* Ignored. No parent */")
                 nodeset.hide_node(node.id)
                 continue
-            else:
-                if len(code_global) > 0:
-                    writec("\n".join(code_global))
-                    writec("\n")
-                writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_NamespaceMapping *nsMapping) {")
-                if isinstance(node, MethodNode) or isinstance(node.parent, MethodNode):
-                    writec("#ifdef UA_ENABLE_METHODCALLS")
-                writec(code)
+            if len(code_global) > 0:
+                writec("\n".join(code_global))
+                writec("\n")
+            writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_begin(UA_Server *server, UA_NamespaceMapping *nsMapping) {")
+            if isinstance(node, MethodNode) or isinstance(node.parent, MethodNode):
+                writec("#ifdef UA_ENABLE_METHODCALLS")
+            writec(code)
 
         # Print inverse references leading to this node
         for ref in node.references:
@@ -607,8 +631,7 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
 
     # Write the list of ns mappings
     maxns = max(nodeset.namespaceMapping.keys()) + 1
-    if maxns < 2:
-        maxns = 2
+    maxns = max(maxns, 2)
     mapping = [0] * maxns
     mapping[1] = 1 # default
     for k, v in nodeset.namespaceMapping.items():

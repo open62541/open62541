@@ -24,7 +24,7 @@ sudo sysctl -w net.ipv4.tcp_tw_reuse=1
 #####################################
 
 function build_docs_pdf {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Release \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_FORCE_WERROR=ON \
@@ -37,7 +37,7 @@ function build_docs_pdf {
 #######################
 
 function build_tpm_tool {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DUA_BUILD_TOOLS=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_ENCRYPTION_TPM2=ON \
@@ -52,7 +52,7 @@ function build_tpm_tool {
 #########################
 
 function build_release {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DBUILD_SHARED_LIBS=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
@@ -64,7 +64,7 @@ function build_release {
 }
 
 function build_release_amalgamation {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=None \
           -DUA_ENABLE_AMALGAMATION=ON \
           -DUA_NAMESPACE_ZERO=FULL \
@@ -83,7 +83,7 @@ function build_release_amalgamation {
 ######################
 
 function build_amalgamation {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_ENABLE_AMALGAMATION=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
@@ -97,7 +97,7 @@ function build_amalgamation {
 }
 
 function build_amalgamation_mt {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_ENABLE_AMALGAMATION=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
@@ -142,7 +142,7 @@ function unit_tests {
     else
         COVERAGE=OFF
     fi
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
@@ -166,7 +166,7 @@ function unit_tests {
 }
 
 function unit_tests_lwip {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DUA_ARCHITECTURE="posix-lwip" \
           -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
@@ -182,7 +182,7 @@ function unit_tests_lwip {
 }
 
 function unit_tests_32 {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
@@ -201,7 +201,7 @@ function unit_tests_32 {
 }
 
 function unit_tests_nosub {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
@@ -217,7 +217,7 @@ function unit_tests_nosub {
 }
 
 function unit_tests_diag {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
@@ -238,7 +238,7 @@ function unit_tests_diag {
 }
 
 function unit_tests_mt {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_MULTITHREADING=200 \
           -DUA_BUILD_EXAMPLES=ON \
@@ -254,7 +254,7 @@ function unit_tests_mt {
 }
 
 function unit_tests_alarms {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
@@ -274,7 +274,7 @@ function unit_tests_alarms {
 }
 
 function unit_tests_encryption {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_ENABLE_GDS_PUSHMANAGEMENT=ON \
@@ -291,7 +291,7 @@ function unit_tests_encryption {
 }
 
 function unit_tests_encryption_mbedtls_pubsub {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
@@ -308,7 +308,7 @@ function unit_tests_encryption_mbedtls_pubsub {
 }
 
 function unit_tests_pubsub_sks {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_BUILD_EXAMPLES=ON \
@@ -331,7 +331,7 @@ function unit_tests_pubsub_sks {
 ##########################################
 
 function unit_tests_valgrind {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
@@ -355,7 +355,7 @@ function unit_tests_valgrind {
 ##########################
 
 function run_examples {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
 
     # create certificates for the examples
     python3 ../tools/certs/create_self-signed.py -c server
@@ -400,7 +400,7 @@ function run_examples {
 ########################################
 
 function examples_valgrind {
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
 
     # create certificates for the examples
     python3 ../tools/certs/create_self-signed.py -c server
@@ -447,7 +447,7 @@ function examples_valgrind {
 
 function build_clang_analyzer {
     local version=$1
-    mkdir -p build; cd build; rm -rf *
+    rm -rf build; mkdir -p build; cd build
     scan-build-$version cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
@@ -474,16 +474,87 @@ function build_clang_analyzer {
 ########################################
 
 function build_all_companion_specs {
-    mkdir -p build; cd build; rm -rf *
+    # Split into 3 runs to avoid C type-name collisions between companion specs
+    # that define identically-named DataTypes in different OPC UA namespaces:
+    #   - Pumps  <->  PAEFS          (UA_ControlModeEnum)
+    #   - TMC    <->  PlasticsRubber  (UA_ControlModeEnumeration,
+    #                                  UA_ProductionStatusEnumeration)
+    #   - CommercialKitchenEquipment <-> PlasticsRubber-TCD
+    #                                  (UA_OperatingModeEnumeration)
+    #   - PlasticsRubber-LDS <-> PlasticsRubber-Extrusion-GeneralTypes
+    #                                  (UA_ComponentStatusEnumeration)
+    #   - Extrusion v1 <-> Extrusion v2 (multiple shared type names)
+
+    # --- Run 1: Core models + Mining + FDI + new standard specs ---
+    # Contains TMC, Pumps, CommercialKitchenEquipment (excludes PlasticsRubber, PAEFS)
+    rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_FORCE_WERROR=ON \
           -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;ISA95-JOBCONTROL\;OpenSCS\;CNC\;\
-AMB\;AutoID\;POWERLINK\;Machinery\;Machinery-Jobs\;LADS\;PackML\;PNEM\;PLCopen\;MachineTool\;\
-PROFINET\;MachineVision\;FDT\;CommercialKitchenEquipment\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
+AMB\;AutoID\;POWERLINK\;Machinery-Result\;PackML\;PROFINET\;Scheduler\;\
+WoT\;IOLinkIODD\;WireHarness-VEC\;PNGSDGM\;PLCopen\;\
+FDT\;ADI\;Sercos\;CommercialKitchenEquipment\;ECM\;\
+Machinery\;Machinery-Energy\;Machinery-Jobs\;LADS\;Woodworking\;Pumps\;\
+Scales\;Weihenstephan\;MDIS\;TMC\;CAS\;\
+Eumabois\;MachineTool\;SurfaceTechnology\;STGeneralTypes\;\
+IJT\;LaserSystems\;GMS\;TTD\;WireHarness\;CuttingTool\;\
+UAFX-Data\;FDI5\;FDI7\;\
+PADIM\;Machinery-ProcessValues\;AdditiveManufacturing\;MetalForming\;WMTP\;\
+Mining-General\;\
+Mining-Extraction-General\;Mining-Extraction-ShearerLoader\;\
+Mining-Loading-General\;Mining-Loading-HydraulicExcavator\;\
+Mining-DevelopmentSupport-General\;Mining-DevelopmentSupport-RoofSupportSystem\;\
+Mining-DevelopmentSupport-Dozer\;\
+Mining-TransportDumping-General\;Mining-TransportDumping-RearDumpTruck\;\
+Mining-TransportDumping-ArmouredFaceConveyor\;\
+Mining-MineralProcessing-General\;Mining-MineralProcessing-RockCrusher\;\
+Mining-PELOServices-General\;Mining-PELOServices-FaceAlignmentSystem\;\
+Mining-MonitoringSupervisionServices-General\;\
+Shotblasting \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
-    make ${MAKEOPTS} check_nodeset_compiler_testnodeset
-    ./bin/tests/check_nodeset_compiler_testnodeset
+    make ${MAKEOPTS}
+
+    # --- Run 2: PlasticsRubber Extrusion v1 + PAEFS ---
+    # Excludes TMC, CommercialKitchenEquipment, Pumps, LDS (type conflicts)
+    rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_FORCE_WERROR=ON \
+          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;Machinery\;\
+PADIM\;Machinery-ProcessValues\;\
+PlasticsRubber-GeneralTypes\;PlasticsRubber-TCD\;PlasticsRubber-IMM2MES\;\
+PlasticsRubber-HotRunner\;\
+PlasticsRubber-Extrusion-GeneralTypes\;PlasticsRubber-Extrusion-ExtrusionLine\;\
+PlasticsRubber-Extrusion-Extruder\;PlasticsRubber-Extrusion-Die\;\
+PlasticsRubber-Extrusion-Filter\;PlasticsRubber-Extrusion-MeltPump\;\
+PlasticsRubber-Extrusion-HaulOff\;PlasticsRubber-Extrusion-Pelletizer\;\
+PlasticsRubber-Extrusion-Calender\;PlasticsRubber-Extrusion-Calibrator\;\
+PlasticsRubber-Extrusion-Corrugator\;PlasticsRubber-Extrusion-Cutter\;\
+PAEFS \
+          -DUA_NAMESPACE_ZERO=FULL \
+          ..
+    make ${MAKEOPTS}
+
+    # --- Run 3: PlasticsRubber LDS + Extrusion v2 + UAFX-AC/CM + Robotics ---
+    # Excludes Extrusion v1 (type conflicts with v2),
+    # Extrusion-GeneralTypes v1 (ComponentStatusEnumeration conflicts with LDS)
+    rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_FORCE_WERROR=ON \
+          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;Machinery\;\
+PlasticsRubber-GeneralTypes\;PlasticsRubber-LDS\;\
+PlasticsRubber-Extrusion_v2-GeneralTypes\;PlasticsRubber-Extrusion_v2-ExtrusionLine\;\
+PlasticsRubber-Extrusion_v2-Extruder\;PlasticsRubber-Extrusion_v2-Die\;\
+PlasticsRubber-Extrusion_v2-Filter\;PlasticsRubber-Extrusion_v2-MeltPump\;\
+PlasticsRubber-Extrusion_v2-HaulOff\;PlasticsRubber-Extrusion_v2-Pelletizer\;\
+PlasticsRubber-Extrusion_v2-Calender\;PlasticsRubber-Extrusion_v2-Calibrator\;\
+PlasticsRubber-Extrusion_v2-Corrugator\;PlasticsRubber-Extrusion_v2-Cutter\;\
+UAFX-Data\;UAFX-AC\;UAFX-CM\;Robotics \
+          -DUA_NAMESPACE_ZERO=FULL \
+          ..
+    make ${MAKEOPTS}
 }

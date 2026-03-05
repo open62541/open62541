@@ -220,8 +220,6 @@ UA_Openssl_RSA_Private_Decrypt(UA_ByteString *data, EVP_PKEY *privateKey,
                                UA_Int16 padding, UA_Boolean withSha256) {
     if(data == NULL || privateKey == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(privateKey == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     size_t keySize = (size_t) UA_OpenSSL_RSA_Key_Size(privateKey);
     size_t cipherOffset = 0;
@@ -1374,6 +1372,206 @@ UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate,
     }
 
     return UA_STATUSCODE_BADINVALIDARGUMENT;
+}
+
+UA_StatusCode
+UA_OpenSSL_setLocalSymSigningKey_generic(const UA_SecurityPolicy *policy,
+                                         void *channelContext,
+                                         const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    UA_ByteString_clear(&cc->localSymSigningKey);
+    return UA_ByteString_copy(key, &cc->localSymSigningKey);
+}
+
+UA_StatusCode
+UA_OpenSSL_setLocalSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
+                                            void *channelContext,
+                                            const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    UA_ByteString_clear(&cc->localSymEncryptingKey);
+    return UA_ByteString_copy(key, &cc->localSymEncryptingKey);
+}
+
+UA_StatusCode
+UA_OpenSSL_setLocalSymIv_generic(const UA_SecurityPolicy *policy,
+                                 void *channelContext,
+                                 const UA_ByteString *iv) {
+    if(iv == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    UA_ByteString_clear(&cc->localSymIv);
+    return UA_ByteString_copy(iv, &cc->localSymIv);
+}
+
+UA_StatusCode
+UA_OpenSSL_setRemoteSymSigningKey_generic(const UA_SecurityPolicy *policy,
+                                          void *channelContext,
+                                          const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    UA_ByteString_clear(&cc->remoteSymSigningKey);
+    return UA_ByteString_copy(key, &cc->remoteSymSigningKey);
+}
+
+UA_StatusCode
+UA_OpenSSL_setRemoteSymEncryptingKey_generic(const UA_SecurityPolicy *policy,
+                                             void *channelContext,
+                                             const UA_ByteString *key) {
+    if(key == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    UA_ByteString_clear(&cc->remoteSymEncryptingKey);
+    return UA_ByteString_copy(key, &cc->remoteSymEncryptingKey);
+}
+
+UA_StatusCode
+UA_OpenSSL_setRemoteSymIv_generic(const UA_SecurityPolicy *policy,
+                                  void *channelContext,
+                                  const UA_ByteString *iv) {
+    if(iv == NULL || channelContext == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    openssl_ChannelContext * cc = (openssl_ChannelContext *) channelContext;
+    UA_ByteString_clear(&cc->remoteSymIv);
+    return UA_ByteString_copy(iv, &cc->remoteSymIv);
+}
+
+UA_StatusCode
+UA_OpenSSL_compareCertificate_generic(const UA_SecurityPolicy *policy,
+                                      const void *channelContext,
+                                      const UA_ByteString *certificate) {
+    if(channelContext == NULL || certificate == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    const openssl_ChannelContext *cc =
+        (const openssl_ChannelContext *) channelContext;
+    return UA_OpenSSL_X509_compare(certificate, cc->remoteCertificateX509);
+}
+
+void
+UA_OpenSSL_Policy_clearContext_generic(UA_SecurityPolicy *policy) {
+    if(policy == NULL)
+        return;
+
+    UA_ByteString_clear(&policy->localCertificate);
+    openssl_PolicyContext * ctx = (openssl_PolicyContext *) policy->policyContext;
+    if(ctx == NULL)
+        return;
+
+    EVP_PKEY_free(ctx->localPrivateKey);
+    EVP_PKEY_free(ctx->csrLocalPrivateKey);
+    UA_ByteString_clear(&ctx->localCertThumbprint);
+    UA_free (ctx);
+}
+
+UA_StatusCode
+UA_OpenSSL_Policy_newContext_generic(UA_SecurityPolicy *securityPolicy,
+                                     const UA_ByteString localPrivateKey,
+                                     int keyType,
+                                     const UA_Logger *logger) {
+    openssl_PolicyContext *context = (openssl_PolicyContext *)
+        UA_malloc(sizeof(openssl_PolicyContext));
+    if(context == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    context->keyType = keyType;
+    context->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&localPrivateKey);
+    if(!context->localPrivateKey) {
+        UA_free(context);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    context->csrLocalPrivateKey = NULL;
+
+    UA_StatusCode retval =
+        UA_Openssl_X509_GetCertificateThumbprint(&securityPolicy->localCertificate,
+                                                 &context->localCertThumbprint, true);
+    if(retval != UA_STATUSCODE_GOOD) {
+        EVP_PKEY_free(context->localPrivateKey);
+        UA_free(context);
+        return retval;
+    }
+
+    securityPolicy->policyContext = context;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_OpenSSL_SecurityPolicy_updateCertificate_generic(UA_SecurityPolicy *securityPolicy,
+                                                    const UA_ByteString newCertificate,
+                                                    const UA_ByteString newPrivateKey) {
+    if(securityPolicy == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(securityPolicy->policyContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    openssl_PolicyContext *pc =
+        (openssl_PolicyContext *)securityPolicy->policyContext;
+
+    UA_Boolean isLocalKey = false;
+    if(newPrivateKey.length <= 0) {
+        if(UA_CertificateUtils_comparePublicKeys(&newCertificate, &securityPolicy->localCertificate) == 0)
+            isLocalKey = true;
+    }
+
+    UA_ByteString_clear(&securityPolicy->localCertificate);
+
+    UA_StatusCode retval =
+        UA_OpenSSL_LoadLocalCertificate(&newCertificate,
+                                        &securityPolicy->localCertificate,
+                                        pc->keyType);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Set the new private key */
+    if(newPrivateKey.length > 0) {
+        EVP_PKEY_free(pc->localPrivateKey);
+        pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
+    } else {
+        if(!isLocalKey) {
+            EVP_PKEY_free(pc->localPrivateKey);
+            pc->localPrivateKey = pc->csrLocalPrivateKey;
+            pc->csrLocalPrivateKey = NULL;
+        }
+    }
+
+    if(!pc->localPrivateKey) {
+        retval = UA_STATUSCODE_BADNOTSUPPORTED;
+        goto error;
+    }
+
+    UA_ByteString_clear(&pc->localCertThumbprint);
+
+    retval = UA_Openssl_X509_GetCertificateThumbprint(&securityPolicy->localCertificate,
+                                                      &pc->localCertThumbprint, true);
+    if(retval != UA_STATUSCODE_GOOD) {
+        goto error;
+    }
+
+    return retval;
+
+error:
+    UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "Could not update certificate and private key");
+    if(securityPolicy->policyContext != NULL)
+        UA_OpenSSL_Policy_clearContext_generic(securityPolicy);
+    return retval;
+}
+
+UA_StatusCode
+UA_OpenSSL_SecurityPolicy_compareCertThumbprint_generic(const UA_SecurityPolicy *securityPolicy,
+                                                const UA_ByteString *certificateThumbprint) {
+    if(securityPolicy == NULL || certificateThumbprint == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    openssl_PolicyContext *pc = (openssl_PolicyContext *)
+                                       securityPolicy->policyContext;
+    if(!UA_ByteString_equal(certificateThumbprint, &pc->localCertThumbprint)) {
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif
