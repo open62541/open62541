@@ -1451,8 +1451,10 @@ typedef void(*UA_ServerAsyncReadResultCallback)
     (UA_Server *server, void *asyncOpContext, const UA_DataValue *result);
 typedef void(*UA_ServerAsyncWriteResultCallback)
     (UA_Server *server, void *asyncOpContext, UA_StatusCode result);
+#ifdef UA_ENABLE_METHODCALLS
 typedef void(*UA_ServerAsyncMethodResultCallback)
     (UA_Server *server, void *asyncOpContext, const UA_CallMethodResult *result);
+#endif
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_read_async(UA_Server *server, const UA_ReadValueId *operation,
