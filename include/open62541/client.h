@@ -349,8 +349,12 @@ UA_Client_Service_historyUpdate(UA_Client *client,
  * Methods represent the function calls of Objects. The Method Service Set
  * defines the means to invoke Methods. */
 
+#ifdef UA_ENABLE_METHODCALLS
+
 UA_CallResponse UA_EXPORT UA_THREADSAFE
 UA_Client_Service_call(UA_Client *client, const UA_CallRequest req);
+
+#endif /* UA_ENABLE_METHODCALLS */
 
 /**
  * NodeManagement Service Set
