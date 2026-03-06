@@ -14,7 +14,7 @@
 
 #include "common.h"
 
-UA_Boolean running = true;
+static UA_Boolean running = true;
 static void stopHandler(int sig) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "received ctrl-c");
     running = false;
@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
         /* If no path is specified, the current working directory is used */
         char storePathDir[4096];
         if(!getcwd(storePathDir, sizeof(storePathDir)))
-            return UA_STATUSCODE_BADINTERNALERROR;
+            return EXIT_FAILURE;
         storePath = UA_STRING(storePathDir);
     }
 

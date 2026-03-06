@@ -184,6 +184,23 @@ getServerComponentByName(UA_Server *server, UA_String name);
 /* Server Structure */
 /********************/
 
+#ifdef UA_ENABLE_RBAC
+/* Internal role-permission entry with reference counting.
+ * Multiple nodes can share the same entry via the permissionIndex stored
+ * in the node head. Entries originating from the server configuration
+ * presets have refCount set to UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED to
+ * prevent deletion during server runtime. */
+typedef struct {
+    size_t rolePermissionsSize;
+    UA_RolePermission *rolePermissions;
+    size_t refCount;
+} UA_RolePermissionEntry;
+
+/* Internal RBAC lifecycle */
+UA_StatusCode UA_Server_initRBAC(UA_Server *server);
+void UA_Server_cleanupRBAC(UA_Server *server);
+#endif /* UA_ENABLE_RBAC */
+
 typedef struct session_list_entry {
     UA_DelayedCallback cleanupCallback;
     LIST_ENTRY(session_list_entry) pointers;
@@ -264,6 +281,15 @@ struct UA_Server {
 
     /* GDS Manager for certificate management */
     UA_GDSManager gdsManager;
+
+#ifdef UA_ENABLE_RBAC
+    /* Internal role-permission configurations. Nodes reference entries
+     * in this array via their permissionIndex field. Entries from the
+     * initial config presets have refCount set to
+     * UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED and are never deleted. */
+    size_t rolePermissionsSize;
+    UA_RolePermissionEntry *rolePermissions;
+#endif
 };
 
 /* In case the configuration was updated. Make the ->next pointer in the

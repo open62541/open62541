@@ -6,6 +6,8 @@ cd examples/zephyr
 west init -l server
 west update
 # Build the native sim executable
+# "native_sim" may need to be changed based on your system.
+# (see https://docs.zephyrproject.org/latest/boards/native/native_sim/doc/index.html#and-64bit-versions )
 cd server
 west build -p -b native_sim
 # Setup host side ethernet interface (see
