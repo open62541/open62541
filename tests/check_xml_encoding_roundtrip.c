@@ -234,10 +234,11 @@ START_TEST(xml_bytestring) {
 } END_TEST
 
 START_TEST(xml_bytestring_empty) {
-    /* Uses BYTESTRING_NULL here. A non-NULL data pointer with length=0
-     * triggers BUG: UA_base64() returns UA_EMPTY_ARRAY_SENTINEL (0x1)
-     * which crashes on UA_free(). See COVERAGE_BUGS.md #8. */
-    UA_ByteString src = UA_BYTESTRING_NULL;
+    /* With the fix for COVERAGE_BUGS #8, UA_base64() returns NULL for
+     * zero-length input instead of UA_EMPTY_ARRAY_SENTINEL. A non-NULL
+     * data pointer with length=0 no longer crashes. */
+    UA_Byte dummy = 0;
+    UA_ByteString src = {0, &dummy};
     UA_ByteString buf;
     UA_ByteString_init(&buf);
     UA_StatusCode res = UA_encodeXml(&src, &UA_TYPES[UA_TYPES_BYTESTRING], &buf, NULL);
