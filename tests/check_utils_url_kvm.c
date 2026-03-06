@@ -281,12 +281,13 @@ START_TEST(kvm_set_shallow) {
 
     UA_QualifiedName key = UA_QUALIFIEDNAME(0, "shallowKey");
 
-    /* Use heap-allocated data so cleanup is safe */
-    UA_Int32 *val = UA_Int32_new();
-    *val = 77;
+    /* setShallow semantics: the caller owns the data; the map stores a
+     * non-owning reference and will never call UA_free on it. Use
+     * stack-allocated data to make that contract explicit. */
+    UA_Int32 val = 77;
     UA_Variant v;
     UA_Variant_init(&v);
-    UA_Variant_setScalar(&v, val, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&v, &val, &UA_TYPES[UA_TYPES_INT32]);
 
     UA_StatusCode res = UA_KeyValueMap_setShallow(map, key, &v);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
@@ -294,17 +295,20 @@ START_TEST(kvm_set_shallow) {
     /* Read back */
     const UA_Variant *got = UA_KeyValueMap_get(map, key);
     ck_assert_ptr_ne(got, NULL);
+    ck_assert_int_eq(*(UA_Int32 *)got->data, 77);
 
-    /* Overwrite with new heap value - old one will be freed via clear */
-    UA_Int32 *val2 = UA_Int32_new();
-    *val2 = 88;
+    /* Overwrite with another stack value */
+    UA_Int32 val2 = 88;
     UA_Variant v2;
     UA_Variant_init(&v2);
-    UA_Variant_setScalar(&v2, val2, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&v2, &val2, &UA_TYPES[UA_TYPES_INT32]);
     res = UA_KeyValueMap_setShallow(map, key, &v2);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
-    /* Delete map (will clear the remaining entry) */
+    got = UA_KeyValueMap_get(map, key);
+    ck_assert_int_eq(*(UA_Int32 *)got->data, 88);
+
+    /* Delete map - data lives on the stack, nothing to free */
     UA_KeyValueMap_delete(map);
 } END_TEST
 

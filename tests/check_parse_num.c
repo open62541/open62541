@@ -217,6 +217,16 @@ START_TEST(parseDoubleInteger) {
     ck_assert((result) == (42.0));
 } END_TEST
 
+START_TEST(parseDoubleSubstring) {
+    /* Parse "3.14" from a buffer that is NOT null-terminated at position 4.
+     * Before the fix, strtod was called on the original (non-terminated)
+     * pointer instead of the null-terminated local copy. */
+    char buf[8] = {'3', '.', '1', '4', 'X', 'Y', 'Z', '!'};
+    double result = 0.0;
+    size_t len = parseDouble(buf, 4, &result);
+    ck_assert_uint_eq(len, 4);
+    ck_assert(fabs(result - 3.14) <= 1e-9);
+} END_TEST
 
 static Suite *testSuite_parse_num(void) {
     TCase *tc_uint = tcase_create("parseUInt64");
@@ -251,6 +261,7 @@ static Suite *testSuite_parse_num(void) {
     tcase_add_test(tc_double, parseDoubleScientific);
     tcase_add_test(tc_double, parseDoubleTooLong);
     tcase_add_test(tc_double, parseDoubleInteger);
+    tcase_add_test(tc_double, parseDoubleSubstring);
 
     Suite *s = suite_create("Test number parsing functions");
     suite_add_tcase(s, tc_uint);

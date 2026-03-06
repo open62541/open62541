@@ -359,6 +359,9 @@ ENCODE_XML(ByteString) {
     if(!src->data)
         return xmlEncodeWriteChars(ctx, "null", 4);
 
+    if(src->length == 0)
+        return UA_STATUSCODE_GOOD;
+
     size_t flen = 0;
     unsigned char *ba64 = UA_base64(src->data, src->length, &flen);
 
