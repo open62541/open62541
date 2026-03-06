@@ -117,12 +117,8 @@ START_TEST(kvm_setScalarShallow) {
     ck_assert_ptr_ne(scalar, NULL);
     ck_assert_uint_eq(*(const UA_UInt32 *)scalar, 55);
 
-    /* Remove entry before deleting map to avoid freeing stack pointer.
-     * Note: UA_KeyValueMap_setScalarShallow does not set
-     * storageType = UA_VARIANT_DATA_NODELETE, so UA_KeyValueMap_delete
-     * would try to free the stack pointer - this is a library bug. */
-    res = UA_KeyValueMap_remove(map, key);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    /* With the fix, storageType is set to UA_VARIANT_DATA_NODELETE,
+     * so UA_KeyValueMap_delete no longer tries to free the stack pointer. */
     UA_KeyValueMap_delete(map);
 } END_TEST
 
@@ -539,11 +535,9 @@ static Suite *testSuite_util(void) {
     tcase_add_test(tc_kvm, kvm_new_delete);
     tcase_add_test(tc_kvm, kvm_set_get_remove);
     tcase_add_test(tc_kvm, kvm_setShallow);
-    /* kvm_setScalarShallow skipped: UA_KeyValueMap_setScalarShallow
-     * does not set storageType=NODELETE, causing crash on cleanup
-     * (library bug). setShallow is tested above with explicit NODELETE. */
-    //tcase_add_test(tc_kvm, kvm_copy);
-    //tcase_add_test(tc_kvm, kvm_merge);
+    tcase_add_test(tc_kvm, kvm_setScalarShallow);
+    tcase_add_test(tc_kvm, kvm_copy);
+    tcase_add_test(tc_kvm, kvm_merge);
 
     TCase *tc_url = tcase_create("EndpointURL");
     tcase_add_test(tc_url, parseEndpointUrl_opc_tcp);
