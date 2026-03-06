@@ -52,8 +52,10 @@ notifySession(UA_Server *server, UA_Session *session,
     UA_Variant_setArray(&payloadData[5].value, session->localeIds,
                         session->localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
 
-    memcpy(&payloadData[6], session->attributes.map,
-           sizeof(UA_KeyValuePair) * session->attributes.mapSize);
+    if (session->attributes.mapSize) {
+        memcpy(&payloadData[6], session->attributes.map,
+               sizeof(UA_KeyValuePair) * session->attributes.mapSize);
+    }
 
     /* Call the notification callback */
     if(server->config.sessionNotificationCallback)
