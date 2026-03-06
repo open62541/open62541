@@ -180,7 +180,7 @@ UA_SecureChannel_shutdown(UA_SecureChannel *channel,
         return;
 
     /* Set the shutdown event for diagnostics */
-    channel->shutdownReason= shutdownReason;
+    channel->shutdownReason = shutdownReason;
 
     /* Trigger the async closing of the connection */
     UA_ConnectionManager *cm = channel->connectionManager;
