@@ -1145,4 +1145,36 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
     return success;
 }
 
+UA_StatusCode
+UA_CertificateUtils_getCertCommonName(const UA_ByteString *certificate, UA_String *commonName) {
+	const unsigned char *p = NULL;
+	X509 *x509;
+	X509_NAME *subj;
+
+	if(!certificate || !certificate->data)
+		return UA_STATUSCODE_BADINTERNALERROR;
+	p = certificate->data;
+
+	x509 = d2i_X509(NULL, &p, (long)certificate->length);
+	if(!x509)
+		return UA_STATUSCODE_BADINTERNALERROR;
+	subj = X509_get_subject_name(x509);
+	if(!subj) {
+		X509_free(x509);
+		return UA_STATUSCODE_BADINTERNALERROR;
+	}
+
+    char buf[1024];
+	memset(buf, 0, 1024);
+	int len = X509_NAME_get_text_by_NID(subj, NID_commonName, buf, 1024);
+	X509_free(x509);
+
+    *commonName = UA_STRING_ALLOC(buf);
+    if(!commonName) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+	return UA_STATUSCODE_GOOD;
+}
+
 #endif
