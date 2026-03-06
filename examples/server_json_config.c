@@ -1,10 +1,16 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+/**
+ * This example shows how to create a server and load its configuration from a JSON file.
+ *
+ * The server configuration is loaded from a JSON/JSON5 file, which includes settings
+ * for security policies, endpoints, and other server parameters.
+ */
+
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/server_config_file_based.h>
 
 #include <stdlib.h>
 #include "common.h"
