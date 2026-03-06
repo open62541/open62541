@@ -357,8 +357,7 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
     /* Verify the ApplicationUri */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(ad) {
-        res = UA_CertificateUtils_verifyApplicationUri(&certificate,
-                                                       &ad->applicationUri);
+        res = UA_CertificateUtils_verifyApplicationUri(&certificate, &ad->applicationUri);
         if(res != UA_STATUSCODE_GOOD) {
             if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_WARN) {
                 if(session) {
@@ -384,8 +383,18 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                                  ad->applicationUri);
                 }
             }
-            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_ABORT)
+
+            /* Throw an audit event and abort */
+            if(server->config.allowAllCertificateUris < UA_RULEHANDLING_WARN) {
+#ifdef UA_ENABLE_AUDITING
+                auditCertificateDataMismatchEvent(server, channel, session, logPrefix,
+                                                  res, certificate, ad->applicationUri);
+#endif
                 return UA_STATUSCODE_BADCERTIFICATEINVALID;
+            }
+
+            /* Ignore the bad result depending on the server configuration */
+            res = UA_STATUSCODE_GOOD;
         }
     }
 
@@ -393,7 +402,8 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "%s: Could not validate the certificate "
                      "as the CertificateGroup is not configured", logPrefix);
-        return UA_STATUSCODE_BADINTERNALERROR;
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
     }
 
     /* Validate in the CertificateGroup */
@@ -417,6 +427,15 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                          logPrefix, descr);
         }
     }
+
+ errout:
+#ifdef UA_ENABLE_AUDITING
+    /* Create the audit event */
+    auditCertificateEvent(server,
+                          UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE,
+                          channel, session, logPrefix, res, certificate, UA_STRING(""));
+#endif
+
     return res;
 }
 
