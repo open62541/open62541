@@ -56,13 +56,13 @@
 #cmakedefine UA_ENABLE_HISTORIZING
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_EVENTS
 #cmakedefine UA_ENABLE_JSON_ENCODING
-#cmakedefine UA_ENABLE_JSON_ENCODING_LEGACY
 #cmakedefine UA_ENABLE_XML_ENCODING
 #cmakedefine UA_ENABLE_MQTT
 #cmakedefine UA_ENABLE_NODESET_INJECTOR
 #cmakedefine UA_INFORMATION_MODEL_AUTOLOAD
 #cmakedefine UA_ENABLE_ENCRYPTION_MBEDTLS
 #cmakedefine UA_ENABLE_GDS_PUSHMANAGEMENT
+#cmakedefine UA_ENABLE_RBAC
 #cmakedefine UA_ENABLE_TPM2_SECURITY
 #cmakedefine UA_ENABLE_ENCRYPTION_OPENSSL
 #cmakedefine UA_ENABLE_ENCRYPTION_LIBRESSL
@@ -70,6 +70,16 @@
 #define UA_ENABLE_ENCRYPTION
 #endif
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
+/* Role-Based Access Control (RBAC)
+ * Configurable storage size (in bytes) for the node permission index.
+ * Valid options: 2, 4 (default), 8
+ * The index references a position in the server's internal rolePermissions
+ * array. Larger sizes allow more distinct role-permission configurations
+ * at the cost of increased per-node memory usage. */
+#ifndef UA_ROLEPERMISSIONS_NODE_SIZE_BYTE
+#define UA_ROLEPERMISSIONS_NODE_SIZE_BYTE 4
+#endif
 
 /* Multithreading */
 #define UA_MULTITHREADING ${UA_MULTITHREADING}

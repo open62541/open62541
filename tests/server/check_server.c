@@ -617,6 +617,8 @@ int main(void) {
     tcase_add_test(tc_call, checkGetNamespaceByName);
     tcase_add_test(tc_call, checkGetNamespaceById);
     tcase_add_test(tc_call, checkServer_run);
+    tcase_add_test(tc_call, checkGetStatistics);
+    tcase_add_test(tc_call, checkGetLifecycleState);
     suite_add_tcase(s, tc_call);
 
     TCase *tc_ext = tcase_create("server - extended");
