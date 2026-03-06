@@ -330,8 +330,10 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     if(config->globalNotificationCallback || config->serviceNotificationCallback) {
         UA_Variant_setScalar(&notifyPayload[0].value, &channel->securityToken.channelId,
                              &UA_TYPES[UA_TYPES_UINT32]);
-        UA_Variant_setScalar(&notifyPayload[1].value, &session->sessionId,
-                             &UA_TYPES[UA_TYPES_NODEID]);
+	if (session) {
+            UA_Variant_setScalar(&notifyPayload[1].value, &session->sessionId,
+                                 &UA_TYPES[UA_TYPES_NODEID]);
+	}
         UA_Variant_setScalar(&notifyPayload[2].value, &requestId,
                              &UA_TYPES[UA_TYPES_UINT32]);
         UA_Variant_setScalar(&notifyPayload[3].value,
