@@ -86,7 +86,7 @@ isReservedAnd(u8 c) {
 }
 
 static UA_INLINE UA_Boolean
-isReservedExtended(u8 c) {
+isReservedAndExtended(u8 c) {
     return (isReservedAnd(c) || c == ',' || c == '(' || c == ')' ||
             c == '[' || c == ']' || c <= ' ' || c == 127);
 }
@@ -133,6 +133,10 @@ UA_AttributeId_fromName(const UA_String name);
 UA_StatusCode
 nodeId_printEscape(const UA_NodeId *id, UA_String *output,
                    const UA_NamespaceMapping *nsMapping, UA_Escaping idEsc);
+
+UA_StatusCode
+sao_parseWithDefaultNsIdx(UA_SimpleAttributeOperand *sao,
+                          const UA_String str, UA_UInt16 defaultNsIndex);
 
 UA_StatusCode
 encodeDateTime(const UA_DateTime dt, UA_String *output);

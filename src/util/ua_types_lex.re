@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  *
  */
 
@@ -303,7 +304,8 @@ relativepath_addelem(UA_RelativePath *rp, UA_RelativePathElement *el) {
 
 static UA_StatusCode
 parse_qn(UA_QualifiedName *qn, const u8 *pos, const u8 *end,
-         UA_Escaping escName, const UA_NamespaceMapping *nsMapping) {
+         UA_Escaping escName, const UA_NamespaceMapping *nsMapping,
+         UA_UInt16 defaultNamespaceIndex) {
     size_t len;
     UA_UInt32 tmp;
     UA_String str;
@@ -314,6 +316,7 @@ parse_qn(UA_QualifiedName *qn, const u8 *pos, const u8 *end,
 
     const u8 *begin = pos;
     UA_QualifiedName_init(qn);
+    qn->namespaceIndex = defaultNamespaceIndex;
 
     /*!re2c // Match the grammar
     [0-9]+ ":"      { goto match_index; }
@@ -348,7 +351,7 @@ UA_QualifiedName_parseEx(UA_QualifiedName *qn, const UA_String str,
                          const UA_NamespaceMapping *nsMapping) {
     const u8 *pos = str.data;
     const u8 *end = str.data + str.length;
-    UA_StatusCode res = parse_qn(qn, pos, end, UA_ESCAPING_NONE, nsMapping);
+    UA_StatusCode res = parse_qn(qn, pos, end, UA_ESCAPING_NONE, nsMapping, 0);
     if(res != UA_STATUSCODE_GOOD)
         UA_QualifiedName_clear(qn);
     return res;
@@ -362,7 +365,8 @@ UA_QualifiedName_parse(UA_QualifiedName *qn, const UA_String str) {
 /* Add one element to the path in every iteration */
 static UA_StatusCode
 parse_relativepathElement(UA_RelativePath *rp, const u8 **ppos, const u8 *end,
-                          UA_Server *server, UA_Escaping esc, UA_Boolean *done) {
+                          UA_Server *server, UA_Escaping esc,
+                          UA_UInt16 defaultTargetNamespaceIndex, UA_Boolean *done) {
     const u8 *pos = *ppos;
     if(pos == end) {
         *done = true;
@@ -432,7 +436,7 @@ parse_relativepathElement(UA_RelativePath *rp, const u8 **ppos, const u8 *end,
     if(res != UA_STATUSCODE_GOOD) {
         /* Parse the the ReferenceType from its BrowseName (default) */
         UA_QualifiedName refqn;
-        res = parse_qn(&refqn, begin, pos, esc, NULL);
+        res = parse_qn(&refqn, begin, pos, esc, NULL, defaultTargetNamespaceIndex);
         res |= lookupRefType(server, &refqn, &current.referenceTypeId);
         UA_QualifiedName_clear(&refqn);
         if(res != UA_STATUSCODE_GOOD)
@@ -469,7 +473,8 @@ parse_relativepathElement(UA_RelativePath *rp, const u8 **ppos, const u8 *end,
     }
 
     /* Parse the TargetName */
-    res = parse_qn(&current.targetName, begin, pos, esc, NULL);
+    res = parse_qn(&current.targetName, begin, pos, esc,
+                   NULL, defaultTargetNamespaceIndex);
     if(res != UA_STATUSCODE_GOOD) {
         UA_RelativePathElement_clear(&current);
         goto out;
@@ -489,12 +494,14 @@ parse_relativepathElement(UA_RelativePath *rp, const u8 **ppos, const u8 *end,
 
 static UA_StatusCode
 parse_relativepath(UA_RelativePath *rp, const u8 **ppos, const u8 *end,
-                   UA_Server *server, UA_Escaping esc) {
+                   UA_Server *server, UA_Escaping esc,
+                   UA_UInt16 defaultNamespaceIndex) {
     UA_RelativePath_init(rp);
     UA_Boolean done = false;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     do {
-        res = parse_relativepathElement(rp, ppos, end, server, esc, &done);
+        res = parse_relativepathElement(rp, ppos, end, server, esc,
+                                        defaultNamespaceIndex, &done);
     } while(!done);
     return res;
 }
@@ -503,7 +510,7 @@ UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str) {
     const u8 *pos = str.data;
     const u8 *end = pos + str.length;
-    UA_StatusCode res = parse_relativepath(rp, &pos, end, NULL, UA_ESCAPING_AND);
+    UA_StatusCode res = parse_relativepath(rp, &pos, end, NULL, UA_ESCAPING_AND, 0);
     if(pos != end)
         res = UA_STATUSCODE_BADDECODINGERROR;
     if(res != UA_STATUSCODE_GOOD)
@@ -516,7 +523,7 @@ UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
                                 const UA_String str) {
     const u8 *pos = str.data;
     const u8 *end = pos + str.length;
-    UA_StatusCode res = parse_relativepath(rp, &pos, end, server, UA_ESCAPING_AND);
+    UA_StatusCode res = parse_relativepath(rp, &pos, end, server, UA_ESCAPING_AND, 0);
     if(pos != end)
         res = UA_STATUSCODE_BADDECODINGERROR;
     if(res != UA_STATUSCODE_GOOD)
@@ -524,9 +531,13 @@ UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
     return res;
 }
 
-/* Always uses the percent-escaping */
+/* Always uses the percent-escaping. The default namespace-index gets used for
+ * the browse path when the namespace of the elements is not given explicitly.
+ * This is used for parsing an expression from a QualifiedName that then defines
+ * the default namespace-index (cf. the Event-field key-value map). */
 static UA_StatusCode
-parseAttributeOperand(UA_AttributeOperand *ao, const UA_String str, UA_NodeId defaultId) {
+parseAttributeOperand(UA_AttributeOperand *ao, const UA_String str,
+                      UA_NodeId defaultId, UA_UInt16 defaultNamespaceIndex) {
     /* Initialize and set the default values */
     UA_AttributeOperand_init(ao);
     ao->nodeId = defaultId;
@@ -567,7 +578,8 @@ parseAttributeOperand(UA_AttributeOperand *ao, const UA_String str, UA_NodeId de
 
     /* Parse the BrowsePath */
  parse_path:
-    res = parse_relativepath(&ao->browsePath, &pos, end, NULL, UA_ESCAPING_PERCENT_EXTENDED);
+    res = parse_relativepath(&ao->browsePath, &pos, end, NULL,
+                             UA_ESCAPING_PERCENT_EXTENDED, defaultNamespaceIndex);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
@@ -616,16 +628,17 @@ parseAttributeOperand(UA_AttributeOperand *ao, const UA_String str, UA_NodeId de
 UA_StatusCode
 UA_AttributeOperand_parse(UA_AttributeOperand *ao, const UA_String str) {
     /* Objects folder is the default */
-    return parseAttributeOperand(ao, str, UA_NS0ID(OBJECTSFOLDER));
+    return parseAttributeOperand(ao, str, UA_NS0ID(OBJECTSFOLDER), 0);
 }
 
 UA_StatusCode
-UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
-                                const UA_String str) {
+sao_parseWithDefaultNsIdx(UA_SimpleAttributeOperand *sao,
+                          const UA_String str, UA_UInt16 defaultNsIndex) {
     /* Parse an AttributeOperand and convert */
     UA_AttributeOperand ao;
     const UA_NodeId hierarchRefs = UA_NS0ID(HIERARCHICALREFERENCES);
-    UA_StatusCode res = parseAttributeOperand(&ao, str, UA_NS0ID(BASEEVENTTYPE));
+    UA_StatusCode res =
+        parseAttributeOperand(&ao, str, UA_NS0ID(BASEEVENTTYPE), defaultNsIndex);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -674,10 +687,16 @@ UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
 }
 
 UA_StatusCode
+UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
+                                const UA_String str) {
+    return sao_parseWithDefaultNsIdx(sao, str, 0);
+}
+
+UA_StatusCode
 UA_ReadValueId_parse(UA_ReadValueId *rvi, const UA_String str) {
     /* Parse an AttributeOperand and convert */
     UA_AttributeOperand ao;
-    UA_StatusCode res = parseAttributeOperand(&ao, str, UA_NODEID_NULL);
+    UA_StatusCode res = parseAttributeOperand(&ao, str, UA_NODEID_NULL, 0);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
