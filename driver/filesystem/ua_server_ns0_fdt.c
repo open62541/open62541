@@ -26,7 +26,8 @@ createDirectory(UA_Server *server,
     getFullPath(server, objectId, fullPath, 2048);
 
     char temp[2048];
-    char name[folderName.length + 1];
+    char *name = (char*)UA_malloc(folderName.length + 1);
+    if (!name) return UA_STATUSCODE_BADOUTOFMEMORY;
     memcpy(name, folderName.data, folderName.length);
     name[folderName.length] = '\0';
     snprintf(temp, sizeof(temp), "%s%s", fullPath, name);
@@ -80,6 +81,7 @@ createDirectory(UA_Server *server,
 
     UA_FileServerDriver_addFileDirectory(NULL, server, objectId, (const char*)folderName.data, (UA_NodeId*)output[0].data, NULL);
 
+    UA_free(name);
     return res;
 }
 
@@ -526,8 +528,47 @@ __directoryOperation(UA_Server *server,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output,
                   DirectoryOperationType opType) {
-    // This function can be used to implement thread-safe wrappers for directory operations if needed !IMPORTANT!
-    return UA_STATUSCODE_GOOD;
+    if (!server) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    switch (opType) {
+        case DIR_OP_MKDIR:
+            res = createDirectoryAction(server, sessionId, sessionHandle,
+                                methodId, methodContext,
+                                objectId, objectContext,
+                                inputSize, input,
+                                outputSize, output);
+            break;
+        case DIR_OP_MKFILE:
+            res = createFileAction(server, sessionId, sessionHandle,
+                           methodId, methodContext,
+                           objectId, objectContext,
+                           inputSize, input,
+                           outputSize, output);
+            break;
+        case DIR_OP_DELETE:
+            res = deleteAction(server, sessionId, sessionHandle,
+                           methodId, methodContext,
+                           objectId, objectContext,
+                           inputSize, input,
+                           outputSize, output);
+            break;
+        case DIR_OP_MOVEORCOPY:
+            res = moveOrCopyAction(server, sessionId, sessionHandle,
+                           methodId, methodContext,
+                           objectId, objectContext,
+                           inputSize, input,
+                           outputSize, output);
+            break;
+        default:
+            res = UA_STATUSCODE_BADINVALIDARGUMENT;
+            break;
+    }
+
+    return res;
 }
 
 UA_StatusCode

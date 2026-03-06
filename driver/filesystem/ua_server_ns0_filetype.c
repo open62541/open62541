@@ -554,9 +554,61 @@ __fileTypeOperation(UA_Server *server,
                    size_t inputSize, const UA_Variant *input,
                    size_t outputSize, UA_Variant *output,
                    FileOperationType opType) {
-    switch(opType) {}
-    // HIER DEINE IMPLEMENTIERUNG
-    return UA_STATUSCODE_GOOD;
+    if (!server) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    switch (opType) {
+        case FILE_OP_OPEN:
+            res = openFileAction(server, sessionId, sessionContext,
+                               methodId, methodContext,
+                               objectId, objectContext,
+                               inputSize, input,
+                               outputSize, output);
+            break;
+        case FILE_OP_CLOSE:
+            res = closeFileAction(server, sessionId, sessionContext,
+                                methodId, methodContext,
+                                objectId, objectContext,
+                                inputSize, input,
+                                outputSize, output);
+            break;
+        case FILE_OP_READ:
+            res = readFileAction(server, sessionId, sessionContext,
+                               methodId, methodContext,
+                               objectId, objectContext,
+                               inputSize, input,
+                               outputSize, output);
+            break;
+        case FILE_OP_WRITE:
+            res = writeFileAction(server, sessionId, sessionContext,
+                                methodId, methodContext,
+                                objectId, objectContext,
+                                inputSize, input,
+                                outputSize, output);
+            break;
+        case FILE_OP_GETPOSITION:
+            res = getPositionAction(server, sessionId, sessionContext,
+                                  methodId, methodContext,
+                                  objectId, objectContext,
+                                  inputSize, input,
+                                  outputSize, output);
+            break;
+        case FILE_OP_SETPOSITION:
+            res = setPositionAction(server, sessionId, sessionContext,
+                                  methodId, methodContext,
+                                  objectId, objectContext,
+                                  inputSize, input,
+                                  outputSize, output);
+            break;
+        default:
+            res = UA_STATUSCODE_BADINVALIDARGUMENT;
+            break;
+    }
+
+    return res;
 }
 
 /* Method registration - as shown in guide */
