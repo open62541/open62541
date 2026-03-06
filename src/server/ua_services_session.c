@@ -327,16 +327,9 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* Allocate the EphemeralKey structure */
-    UA_EphemeralKeyType *ephKey = UA_EphemeralKeyType_new();
-    if(!ephKey)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* Add the EphemeralKeyto the map */
-    res = UA_KeyValueMap_setScalarShallow(map, UA_QUALIFIEDNAME(0, "ECDHKey"),
-                                          ephKey, &UA_TYPES[UA_TYPES_EPHEMERALKEYTYPE]);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
+    /* Initialize the EphemeralKey on the stack */
+    UA_EphemeralKeyType ephKey;
+    UA_EphemeralKeyType_init(&ephKey);
 
     /* Allocate the ephemeral key buffer to the exact size of the ephemeral key
      * for the used ECC policy so that the nonce generation function knows that
@@ -345,24 +338,32 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
      *
      * TODO: There should be a more stable way to signal the generation of an
      * ephemeral key */
-    res = UA_ByteString_allocBuffer(&ephKey->publicKey, sp->nonceLength);
+    res = UA_ByteString_allocBuffer(&ephKey.publicKey, sp->nonceLength);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
     /* Allocate the signature buffer */
     size_t signatureSize =
         sp->asymSignatureAlgorithm.getLocalSignatureSize(sp, spContext);
-    res = UA_ByteString_allocBuffer(&ephKey->signature, signatureSize);
-    if(res != UA_STATUSCODE_GOOD)
+    res = UA_ByteString_allocBuffer(&ephKey.signature, signatureSize);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_EphemeralKeyType_clear(&ephKey);
         return res;
+    }
 
     /* Generate the ephemeral key and signature */
-    ephKey->publicKey.data[0] = 'e';
-    ephKey->publicKey.data[1] = 'p';
-    ephKey->publicKey.data[2] = 'h';
-    res |= sp->generateNonce(sp, spContext, &ephKey->publicKey);
-    res |= sp->asymSignatureAlgorithm.sign(sp, spContext, &ephKey->publicKey,
-                                           &ephKey->signature);
+    ephKey.publicKey.data[0] = 'e';
+    ephKey.publicKey.data[1] = 'p';
+    ephKey.publicKey.data[2] = 'h';
+    res |= sp->generateNonce(sp, spContext, &ephKey.publicKey);
+    res |= sp->asymSignatureAlgorithm.sign(sp, spContext, &ephKey.publicKey,
+                                           &ephKey.signature);
+
+    /* Add the EphemeralKey to the map (deep copy) */
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_KeyValueMap_setScalar(map, UA_QUALIFIEDNAME(0, "ECDHKey"),
+                                       &ephKey, &UA_TYPES[UA_TYPES_EPHEMERALKEYTYPE]);
+    UA_EphemeralKeyType_clear(&ephKey);
     return res;
 }
 
