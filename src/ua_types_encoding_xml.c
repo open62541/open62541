@@ -77,7 +77,7 @@ xml_tokenize(const char *xml, unsigned int len,
         case YXML_OK:
             continue;
         case YXML_ELEMSTART:
-        case YXML_ATTRSTART:
+        case YXML_ATTRSTART: {
             if(xml_status == YXML_ELEMSTART) {
                 stack[top]->children++;
                 stack[top]->content = UA_STRING_NULL; /* Only the leaf elements have content */
@@ -100,6 +100,7 @@ xml_tokenize(const char *xml, unsigned int len,
             tokenPos++;
             val_begin = 0; /* if the previous non-leaf element started to collect content */
             break;
+        }
         case YXML_CONTENT:
         case YXML_ATTRVAL:
             if(val_begin == 0)
