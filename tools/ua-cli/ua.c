@@ -293,6 +293,8 @@ parseVariant(UA_Variant *v, UA_String valstr) {
             return UA_STATUSCODE_BADDECODINGERROR;
         }
 
+        memcpy(typeString, type, strnlen(type, 511) + 1);
+
         /* Find type under the name */
         size_t i = 0;
         for(; i < UA_TYPES_COUNT; i++) {
