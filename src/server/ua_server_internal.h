@@ -326,8 +326,10 @@ ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
 /* SecureChannel Handling */
 /**************************/
 
-/* Session and channel can be NULL, only used for logging.
- * Ad can be NULL, then the ApplicationUri is not checked. */
+/* Validate the certificate using the CertificateGroup and generate the
+ * appropriate audit events if the validation fails. If the session is non-NULL,
+ * then it gets used for logging. The ApplicationDescription can also be NULL.
+ * Then the ApplicationUri doesn't get checked against the certificate. */
 UA_StatusCode
 validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                     UA_SecureChannel *channel, UA_Session *session,
@@ -431,6 +433,74 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
 /*********************/
 /* Utility Functions */
 /*********************/
+
+#ifdef UA_ENABLE_AUDITING
+void
+auditOpenSecureChannelEvent(UA_Server *server, UA_SecureChannel *channel,
+                            const UA_OpenSecureChannelRequest *req,
+                            const UA_OpenSecureChannelResponse *resp);
+
+void
+auditCloseSecureChannelEvent(UA_Server *server, UA_SecureChannel *channel);
+
+void
+auditCreateSessionEvent(UA_Server *server, UA_SecureChannel *channel,
+                        UA_Session *session, const UA_CreateSessionRequest *req,
+                        const UA_CreateSessionResponse *resp);
+
+void
+auditActivateSessionEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
+                          const UA_ActivateSessionRequest *req,
+                          const UA_ActivateSessionResponse *resp);
+
+void
+auditCloseSessionEvent(UA_Server *server, UA_Session *session);
+
+void
+auditCancelEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
+                 UA_Boolean status, UA_StatusCode statusCodeId, UA_UInt32 requestHandle);
+
+void
+auditCertificateEvent(UA_Server *server, UA_ApplicationNotificationType type,
+                      UA_SecureChannel *channel, UA_Session *session,
+                      const char *serviceName, UA_StatusCode statusCodeId,
+                      UA_ByteString certificate, UA_String message);
+
+void
+auditCertificateDataMismatchEvent(UA_Server *server,
+                                  UA_SecureChannel *channel, UA_Session *session,
+                                  const char *serviceName, UA_StatusCode statusCodeId,
+                                  UA_ByteString certificate, UA_String invalidUri);
+
+void
+auditAddNodesEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
+                   UA_Boolean status, size_t itemsSize, UA_AddNodesItem *items);
+
+void
+auditDeleteNodesEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
+                      UA_Boolean status, size_t itemsSize, UA_DeleteNodesItem *items);
+
+void
+auditAddReferencesEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
+                        UA_Boolean status, size_t itemsSize, UA_AddReferencesItem *items);
+
+void
+auditDeleteReferencesEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
+                           UA_Boolean status, size_t itemsSize, UA_DeleteReferencesItem *items);
+
+void
+auditWriteUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
+                      UA_Boolean status, const UA_NodeId *sourceNode,
+                      UA_UInt32 attributeId, const UA_String indexRange,
+                      const UA_Variant *newValue, const UA_Variant *oldValue);
+
+void
+auditMethodUpdateEvent(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
+                       UA_Boolean status, const UA_NodeId *sourceNode,
+                       const UA_NodeId *methodNode, UA_StatusCode statusCodeId,
+                       size_t inputsSize, UA_Variant *inputs,
+                       size_t outputsSize, UA_Variant *outputs);
+#endif
 
 void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
 
