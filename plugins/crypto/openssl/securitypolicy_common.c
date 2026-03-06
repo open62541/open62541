@@ -220,8 +220,6 @@ UA_Openssl_RSA_Private_Decrypt(UA_ByteString *data, EVP_PKEY *privateKey,
                                UA_Int16 padding, UA_Boolean withSha256) {
     if(data == NULL || privateKey == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(privateKey == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     size_t keySize = (size_t) UA_OpenSSL_RSA_Key_Size(privateKey);
     size_t cipherOffset = 0;
