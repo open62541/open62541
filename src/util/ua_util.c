@@ -902,7 +902,7 @@ UA_String_escapedSize(const UA_String s, UA_Escaping esc) {
     size_t overhead = 0;
     for(size_t j = 0; j < s.length; j++) {
         if(esc == UA_ESCAPING_AND_EXTENDED)
-            overhead += isReservedExtended(s.data[j]);
+            overhead += isReservedAndExtended(s.data[j]);
         else if(esc == UA_ESCAPING_AND)
             overhead += isReservedAnd(s.data[j]);
         else if(esc == UA_ESCAPING_PERCENT)
@@ -936,7 +936,7 @@ UA_String_escapeInsert(u8 *pos, const UA_String s2, UA_Escaping esc) {
     } else {
         for(size_t j = 0; j < s2.length; j++) {
             UA_Boolean reserved = (esc == UA_ESCAPING_AND_EXTENDED) ?
-                isReservedExtended(s2.data[j]) : isReservedAnd(s2.data[j]);
+                isReservedAndExtended(s2.data[j]) : isReservedAnd(s2.data[j]);
             if(reserved)
                 *pos++ = '&';
             *pos++ = s2.data[j];
