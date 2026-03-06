@@ -207,6 +207,12 @@ struct UA_Server {
 
     UA_AsyncManager asyncManager;
 
+    /* Custom datatypes that are internally created and cleaned up at the end of
+     * the server lifecycle. The next->pointer points to the server config. So
+     * we can use customTypes_internal as the universal entry. */
+    UA_DataTypeArray *customTypes_internal;
+    size_t customTypes_internalSize;
+
     /* Session Management */
     LIST_HEAD(session_list, session_list_entry) sessions;
     UA_UInt32 sessionCount;
@@ -260,6 +266,11 @@ struct UA_Server {
     UA_GDSManager gdsManager;
 };
 
+/* In case the configuration was updated. Make the ->next pointer in the
+ * internal customTypes point into the configuration. */
+const UA_DataTypeArray *
+serverCustomTypes(UA_Server *server);
+
 /***********************/
 /* References Handling */
 /***********************/
@@ -288,6 +299,7 @@ ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
 UA_StatusCode
 validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                     UA_SecureChannel *channel, UA_Session *session,
+                    const char *logPrefix,
                     const UA_ApplicationDescription *ad,
                     const UA_ByteString certificate);
 
@@ -450,10 +462,14 @@ isConditionOrBranch(UA_Server *server,
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
-/* Returns the type node from the node on the stack top. The type node is pushed
- * on the stack and returned. */
+/* Returns the first "HasTypeDefinition" or "HasSubtype" reference to the
+ * (parent) type. Some types have very many instances. If the type is created
+ * ad-hoc by the Nodestore, the attributeMask and reference characterization can
+ * be used to return only relevant attributes/references. */
 const UA_Node *
-getNodeType(UA_Server *server, const UA_NodeHead *nodeHead);
+getNodeType(UA_Server *server, const UA_NodeHead *nodeHead,
+            UA_UInt32 attributeMask, UA_ReferenceTypeSet references,
+            UA_BrowseDirection referenceDirections);
 
 /* Returns whether the response is done (async call or not) */
 UA_Boolean
@@ -587,8 +603,11 @@ UA_SecurityPolicy *
 getDefaultEncryptedSecurityPolicy(UA_Server *server,
                                   UA_SecurityPolicyType type);
 
+/* If the channel is non-NULL, then only compatible endpoints are returned.
+ * Depending on ECC/RSA for the SecurityPolicy of the existing channel. */
 UA_StatusCode
-setCurrentEndPointsArray(UA_Server *server, const UA_String endpointURL,
+setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
+                         const UA_String endpointUrl,
                          UA_String *profileUris, size_t profileUrisSize,
                          UA_EndpointDescription **arr, size_t *arrSize);
 
@@ -928,14 +947,6 @@ UA_Session_getNodeDisplayName(const UA_Session *session,
 UA_LocalizedText
 UA_Session_getNodeDescription(const UA_Session *session,
                               const UA_NodeHead *head);
-
-UA_StatusCode
-UA_Node_insertOrUpdateDisplayName(UA_NodeHead *head,
-                                  const UA_LocalizedText *value);
-
-UA_StatusCode
-UA_Node_insertOrUpdateDescription(UA_NodeHead *head,
-                                  const UA_LocalizedText *value);
 
 _UA_END_DECLS
 

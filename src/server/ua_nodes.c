@@ -325,6 +325,7 @@ UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk) {
     newRk.targets.tree.nameRoot = NULL;
     newRk.targetsSize = 0;
     for(size_t i = 0; i < rk->targetsSize; i++) {
+        UA_assert(newRk.hasRefTree == true);
         UA_StatusCode res =
             addReferenceTarget(&newRk, rk->targets.array[i].targetId,
                                rk->targets.array[i].targetNameHash);
@@ -722,22 +723,22 @@ UA_Node_copy_alloc(const UA_Node *src) {
 /******************************/
 
 static UA_StatusCode
-copyStandardAttributes(UA_NodeHead *head, const UA_NodeAttributes *attr) {
+copyStandardAttributes(UA_Node *node, const UA_NodeAttributes *attr) {
     /* UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->nodeId); */
     /* UA_QualifiedName_copy(&item->browseName, &node->browseName); */
 
-    head->writeMask = attr->writeMask;
-    UA_StatusCode retval = UA_Node_insertOrUpdateDescription(head, &attr->description);
+    node->head.writeMask = attr->writeMask;
+    UA_StatusCode retval = UA_Node_insertOrUpdateDescription(node, &attr->description);
     /* The new nodeset format has optional display names:
      * https://github.com/open62541/open62541/issues/2627. If the display name
      * is NULL, take the name part of the browse name */
     if(attr->displayName.text.length == 0) {
         UA_LocalizedText lt;
         UA_LocalizedText_init(&lt);
-        lt.text = head->browseName.name;
-        retval |= UA_Node_insertOrUpdateDisplayName(head, &lt);
+        lt.text = node->head.browseName.name;
+        retval |= UA_Node_insertOrUpdateDisplayName(node, &lt);
     } else
-        retval |= UA_Node_insertOrUpdateDisplayName(head, &attr->displayName);
+        retval |= UA_Node_insertOrUpdateDisplayName(node, &attr->displayName);
     return retval;
 }
 
@@ -832,7 +833,8 @@ copyMethodNodeAttributes(UA_MethodNode *mnode,
 } while(0)
 
 UA_StatusCode
-UA_Node_setAttributes(UA_Node *node, const void *attributes, const UA_DataType *attributeType) {
+UA_Node_setAttributes(UA_Node *node, const void *attributes,
+                      const UA_DataType *attributeType) {
     /* Copy the attributes into the node */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(node->head.nodeClass) {
@@ -882,7 +884,7 @@ UA_Node_setAttributes(UA_Node *node, const void *attributes, const UA_DataType *
     /* No need (and no promise) to call UA_Node_clear in the error case.
      * Gets caught and handled outside. */
     if(UA_LIKELY(retval == UA_STATUSCODE_GOOD))
-        retval = copyStandardAttributes(&node->head, (const UA_NodeAttributes*)attributes);
+        retval = copyStandardAttributes(node, (const UA_NodeAttributes*)attributes);
     return retval;
 }
 
@@ -998,6 +1000,12 @@ UA_Node_addReference(UA_Node *node, UA_Byte refTypeIndex, UA_Boolean isForward,
             UA_NodeReferenceKind_findTarget(refs, targetNodeId);
         if(found)
             return UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED;
+
+        /* If there are many references, attempt to switch to the
+         * tree-representation. This speeds up all reference lookups. Continue
+         * with the array-representation in case of an error. */
+        if(!refs->hasRefTree && refs->targetsSize >= 31)
+            UA_NodeReferenceKind_switch(refs);
 
         /* Add to existing ReferenceKind */
         return addReferenceTarget(refs, UA_NodePointer_fromExpandedNodeId(targetNodeId),
@@ -1194,13 +1202,13 @@ UA_Node_insertOrUpdateLocale(UA_LocalizedTextListEntry **root,
 }
 
 UA_StatusCode
-UA_Node_insertOrUpdateDisplayName(UA_NodeHead *head,
-                                  const UA_LocalizedText *value) {
-    return UA_Node_insertOrUpdateLocale(&head->displayName, value);
+UA_Node_insertOrUpdateDisplayName(UA_Node *node,
+                                  const UA_LocalizedText *displayName) {
+    return UA_Node_insertOrUpdateLocale(&node->head.displayName, displayName);
 }
 
 UA_StatusCode
-UA_Node_insertOrUpdateDescription(UA_NodeHead *head,
-                                  const UA_LocalizedText *value) {
-    return UA_Node_insertOrUpdateLocale(&head->description, value);
+UA_Node_insertOrUpdateDescription(UA_Node *node,
+                                  const UA_LocalizedText *description) {
+    return UA_Node_insertOrUpdateLocale(&node->head.description, description);
 }

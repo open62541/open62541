@@ -14,8 +14,6 @@
 #include "ua_subscription.h"
 #endif
 
-#define UA_SESSION_NONCELENTH 32
-
 void UA_Session_init(UA_Session *session) {
     memset(session, 0, sizeof(UA_Session));
     session->availableContinuationPoints = UA_MAXCONTINUATIONPOINTS;
@@ -69,10 +67,11 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_SessionSecurityDiagnosticsDataType_clear(&session->securityDiagnostics);
 #endif
 
-    if(session->authSp && session->authSpContext) {
-        session->authSp->deleteChannelContext(session->authSp, session->authSpContext);
-        session->authSp = NULL;
-        session->authSpContext = NULL;
+    if(session->sessionSp && session->sessionSpContext) {
+        session->sessionSp->
+            deleteChannelContext(session->sessionSp, session->sessionSpContext);
+        session->sessionSp = NULL;
+        session->sessionSpContext = NULL;
     }
 }
 
@@ -130,17 +129,30 @@ UA_Session_generateNonce(UA_Session *session) {
     if(!channel || !channel->securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    /* The nonce needs to be between 32 and 128 byte.
+     * The #Nonce SecurityPolicy might not do that. */
+    UA_SecurityPolicy *sp = channel->securityPolicy;
+    void *spC = channel->channelContext;
+    if(session->sessionSp && session->sessionSpContext) {
+        sp = session->sessionSp;
+        spC = session->sessionSpContext;
+    }
+
+    /* The nonce is at least 32 byte (force the #None SecurityPolicy) */
+    size_t nonceLength = sp->nonceLength;
+    if(nonceLength < 32)
+        nonceLength = 32;
+
     /* Is the length of the previous nonce correct? */
-    if(session->serverNonce.length != UA_SESSION_NONCELENTH) {
+    if(session->serverNonce.length != nonceLength) {
         UA_ByteString_clear(&session->serverNonce);
         UA_StatusCode res =
-            UA_ByteString_allocBuffer(&session->serverNonce, UA_SESSION_NONCELENTH);
+            UA_ByteString_allocBuffer(&session->serverNonce, nonceLength);
         if(res != UA_STATUSCODE_GOOD)
             return res;
     }
 
-    UA_SecurityPolicy *sp = channel->securityPolicy;
-    return sp->generateNonce(sp, channel->channelContext, &session->serverNonce);
+    return sp->generateNonce(sp, spC, &session->serverNonce);
 }
 
 void

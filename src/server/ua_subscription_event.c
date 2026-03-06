@@ -1374,8 +1374,8 @@ evaluateSelectClause(UA_FilterEvalContext *ctx, UA_EventFieldList *efl) {
         /* Ensure a deep copy */
         if(field->storageType == UA_VARIANT_DATA_NODELETE) {
             UA_Variant tmp_val;
-            UA_StatusCode res = UA_Variant_copy(field, &tmp_val);
-            (void)res; /* Ignore the result - returns an empty variant if copying fails */
+            UA_StatusCode res_ign = UA_Variant_copy(field, &tmp_val);
+            (void)res_ign; /* Ignore the result - returns an empty variant if copying fails */
             *field = tmp_val;
         }
     }

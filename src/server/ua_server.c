@@ -483,6 +483,17 @@ UA_Server_delete(UA_Server *server) {
 
     UA_GDSManager_clear(&server->gdsManager);
 
+    /* Clean up the custom datatypes */
+    if(server->customTypes_internal != NULL) {
+        for(size_t i = 0; i < server->customTypes_internalSize; i++) {
+            UA_DataTypeArray *curr = &server->customTypes_internal[i];
+            for(size_t j = 0; j < curr->typesSize; j++)
+                UA_DataType_clear(&curr->types[j]);
+            UA_free(curr->types);
+        }
+        UA_free(server->customTypes_internal);
+    }
+
     /* Delete the server itself and return */
     UA_free(server);
     return UA_STATUSCODE_GOOD;
@@ -776,7 +787,7 @@ secureChannel_delayedCloseTrustList(void *application, void *context) {
             continue; /* SecureChannels w/o security */
         UA_StatusCode res =
             validateCertificate(server, certGroup, channel, channel->sessions,
-                                NULL, channel->remoteCertificate);
+                                "RenewTrustList", NULL, channel->remoteCertificate);
         if(res != UA_STATUSCODE_GOOD)
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
@@ -1316,6 +1327,15 @@ UA_Server_run_startup(UA_Server *server) {
     /* Check that the binary protocol support component have been started */
     UA_ServerComponent *binaryProtocolManager =
         getServerComponentByName(server, UA_STRING("binary"));
+    if(!binaryProtocolManager) {
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                     "Binary protocol support component not found.");
+        /* Stop all server components that have already been started */
+        ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+                 stopServerComponent, server);
+        unlockServer(server);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     if(binaryProtocolManager->state != UA_LIFECYCLESTATE_STARTED) {
         UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
                        "The binary protocol support component could not been started.");

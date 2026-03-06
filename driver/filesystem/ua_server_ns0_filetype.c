@@ -91,15 +91,32 @@ openFileMethod(UA_Server *server,
     fullPath[strlen(fullPath)-1] = '\0';
     UA_Int32 *handle = NULL;
     
-
-    UA_NodeId fileNodeId = *objectId;
+    /* Perform filesystem delete */
     UA_FileDriverContext *driverCtx = NULL;
-    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+    FileDirectoryContext *ctx = NULL;
 
-    if (res != UA_STATUSCODE_GOOD) {
+    /* Get the FileDirectoryContext stored on the node */
+    UA_StatusCode res = UA_Server_getNodeContext(server, *objectId, (void**)&ctx);
+    if(!ctx) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                        "Failed to get driver context for deletion");
-        return res;
+                     "No FileDirectoryContext found for node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_FileServerDriver *driver = (UA_FileServerDriver*)ctx->driver;
+    if(!driver) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "Node has no driver");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Retrieve the driver context */
+    res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
+
+    if(!driverCtx) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "No FileDriverContext found for driver node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
     }
 
     res = driverCtx->openFile(fullPath, openMode, &handle);
@@ -153,15 +170,32 @@ closeFileMethod(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDSTATE;  /* Not open for this session */
     }
     
-
-    UA_NodeId fileNodeId = *objectId;
+    /* Perform filesystem delete */
     UA_FileDriverContext *driverCtx = NULL;
-    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+    FileDirectoryContext *ctx = NULL;
 
-    if (res != UA_STATUSCODE_GOOD) {
+    /* Get the FileDirectoryContext stored on the node */
+    UA_StatusCode res = UA_Server_getNodeContext(server, *objectId, (void**)&ctx);
+    if(!ctx) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                        "Failed to get driver context for deletion");
-        return res;
+                     "No FileDirectoryContext found for node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_FileServerDriver *driver = (UA_FileServerDriver*)ctx->driver;
+    if(!driver) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "Node has no driver");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Retrieve the driver context */
+    res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
+
+    if(!driverCtx) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "No FileDriverContext found for driver node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Close file */
@@ -208,15 +242,32 @@ readFileMethod(UA_Server *server,
     UA_ByteString data;
     UA_ByteString_init(&data);
     
-
-    UA_NodeId fileNodeId = *objectId;
+    /* Perform filesystem delete */
     UA_FileDriverContext *driverCtx = NULL;
-    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+    FileDirectoryContext *ctx = NULL;
 
-    if (res != UA_STATUSCODE_GOOD) {
+    /* Get the FileDirectoryContext stored on the node */
+    UA_StatusCode res = UA_Server_getNodeContext(server, *objectId, (void**)&ctx);
+    if(!ctx) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                        "Failed to get driver context for deletion");
-        return res;
+                     "No FileDirectoryContext found for node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_FileServerDriver *driver = (UA_FileServerDriver*)ctx->driver;
+    if(!driver) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "Node has no driver");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Retrieve the driver context */
+    res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
+
+    if(!driverCtx) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "No FileDriverContext found for driver node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
     }
 
     res = driverCtx->readFile(sessionCtx->fileHandle.handle, length, &data);
@@ -266,15 +317,32 @@ writeFileMethod(UA_Server *server,
     /* Get data from input (UA_ByteString) */
     UA_ByteString *data = (UA_ByteString*)input[0].data;
     
-
-    UA_NodeId fileNodeId = *objectId;
+    /* Perform filesystem delete */
     UA_FileDriverContext *driverCtx = NULL;
-    UA_StatusCode res = getDriverContext(server, &fileNodeId, &driverCtx);
+    FileDirectoryContext *ctx = NULL;
 
-    if (res != UA_STATUSCODE_GOOD) {
+    /* Get the FileDirectoryContext stored on the node */
+    UA_StatusCode res = UA_Server_getNodeContext(server, *objectId, (void**)&ctx);
+    if(!ctx) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                        "Failed to get driver context for deletion");
-        return res;
+                     "No FileDirectoryContext found for node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_FileServerDriver *driver = (UA_FileServerDriver*)ctx->driver;
+    if(!driver) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "Node has no driver");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Retrieve the driver context */
+    res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
+
+    if(!driverCtx) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "No FileDriverContext found for driver node");
+        res |= UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Write to file */
@@ -475,6 +543,71 @@ setPositionAction(UA_Server *server,
                                     inputSize, input,
                                     outputSize, output);
     unlockServer(server);
+    return res;
+}
+
+UA_StatusCode
+__fileTypeOperation(UA_Server *server,
+                   const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *methodId, void *methodContext,
+                   const UA_NodeId *objectId, void *objectContext,
+                   size_t inputSize, const UA_Variant *input,
+                   size_t outputSize, UA_Variant *output,
+                   FileOperationType opType) {
+    if (!server) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    switch (opType) {
+        case FILE_OP_OPEN:
+            res = openFileAction(server, sessionId, sessionContext,
+                               methodId, methodContext,
+                               objectId, objectContext,
+                               inputSize, input,
+                               outputSize, output);
+            break;
+        case FILE_OP_CLOSE:
+            res = closeFileAction(server, sessionId, sessionContext,
+                                methodId, methodContext,
+                                objectId, objectContext,
+                                inputSize, input,
+                                outputSize, output);
+            break;
+        case FILE_OP_READ:
+            res = readFileAction(server, sessionId, sessionContext,
+                               methodId, methodContext,
+                               objectId, objectContext,
+                               inputSize, input,
+                               outputSize, output);
+            break;
+        case FILE_OP_WRITE:
+            res = writeFileAction(server, sessionId, sessionContext,
+                                methodId, methodContext,
+                                objectId, objectContext,
+                                inputSize, input,
+                                outputSize, output);
+            break;
+        case FILE_OP_GETPOSITION:
+            res = getPositionAction(server, sessionId, sessionContext,
+                                  methodId, methodContext,
+                                  objectId, objectContext,
+                                  inputSize, input,
+                                  outputSize, output);
+            break;
+        case FILE_OP_SETPOSITION:
+            res = setPositionAction(server, sessionId, sessionContext,
+                                  methodId, methodContext,
+                                  objectId, objectContext,
+                                  inputSize, input,
+                                  outputSize, output);
+            break;
+        default:
+            res = UA_STATUSCODE_BADINVALIDARGUMENT;
+            break;
+    }
+
     return res;
 }
 

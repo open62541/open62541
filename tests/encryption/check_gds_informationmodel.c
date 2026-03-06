@@ -330,7 +330,7 @@ START_TEST(rw_trustlist) {
     retval = openTrustListWithMask(client, mask, &fileHandler);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_UInt32 fd = *(UA_Int32*)fileHandler.data;
+    UA_UInt32 fd = *(UA_UInt32*)fileHandler.data;
     UA_Variant bufferVar;
     UA_Variant_init(&bufferVar);
     retval = readTrustList(client, fd, 20000, &bufferVar);
@@ -355,7 +355,7 @@ START_TEST(rw_trustlist) {
     retval = openTrustList(client, mode, &fileHandler);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    fd = *(UA_Int32*)fileHandler.data;
+    fd = *(UA_UInt32*)fileHandler.data;
     UA_ByteString encTrustList = UA_BYTESTRING_NULL;
     retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], &encTrustList, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

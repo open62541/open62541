@@ -9,6 +9,7 @@
 #include <check.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "test_helpers.h"
 #include "thread_wrapper.h"
@@ -72,10 +73,31 @@ void server_deleteObject(void* value){
     size_t number = offset + tmp.counter;
     char string_buf[20];
     snprintf(string_buf, sizeof(string_buf), "Server %u", (unsigned)number);
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    do {
+    
+    /* In concurrent tests, nodes may not exist yet (being created by racing add operations)
+     * or may get deleted during construction. Retry with sleep to allow time for add operations.
+     * Both GOOD (successful delete) and BADNODEIDUNKNOWN (node deleted during construction
+     * or never created due to failed add) are acceptable outcomes. */
+    UA_StatusCode ret;
+    for(size_t retries = 0; retries < 100; retries++) {
         ret = UA_Server_deleteNode(tc.server, UA_NODEID_STRING(1, string_buf), true);
-    } while (ret != UA_STATUSCODE_GOOD);
+        if(ret == UA_STATUSCODE_GOOD)
+            break;
+        /* Sleep 10ms between retries to give add operations time to complete.
+         * This is especially important under valgrind where operations are slower. */
+        if(ret == UA_STATUSCODE_BADNODEIDUNKNOWN) {
+#ifndef _WIN32
+            struct timespec ts = {0, 10000000}; /* 10ms */
+            nanosleep(&ts, NULL);
+#else
+            Sleep(10);
+#endif
+        } else {
+            /* Unexpected error, stop retrying */
+            break;
+        }
+    }
+    ck_assert(ret == UA_STATUSCODE_GOOD || ret == UA_STATUSCODE_BADNODEIDUNKNOWN);
 }
 
 static

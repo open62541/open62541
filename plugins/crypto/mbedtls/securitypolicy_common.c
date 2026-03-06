@@ -387,9 +387,9 @@ mbedtls_writePrivateKeyDer(mbedtls_pk_context *key, UA_ByteString *outPrivateKey
 
     c = output_buf + sizeof(output_buf) - len;
 
-    if(UA_ByteString_allocBuffer(outPrivateKey, len) != UA_STATUSCODE_GOOD)
+    if(UA_ByteString_allocBuffer(outPrivateKey, (size_t)len) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    outPrivateKey->length = len;
+    outPrivateKey->length = (size_t)len;
     memcpy(outPrivateKey->data, c, outPrivateKey->length);
 
     return UA_STATUSCODE_GOOD;
@@ -411,7 +411,7 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    size_t ret = 0;
+    int ret = 0;
     char *subj = NULL;
     const mbedtls_x509_sequence *san_list = NULL;
 
@@ -547,7 +547,7 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
     }
 
     /* number of CSR data bytes located at the end of the request buffer */
-    size_t byteCount = ret;
+    size_t byteCount = (size_t)ret;
     size_t offset = sizeof(requestBuf) - byteCount;
 
     /* copy return parameter into a ByteString */

@@ -1132,14 +1132,14 @@ UA_Client_MonitoredItem_getContext(UA_Client *client, UA_UInt32 subscriptionId,
 		return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 	}
 
-	UA_StatusCode status = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+	UA_StatusCode itemstatus = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 	UA_Client_MonitoredItem *monItem = findMonitoredItemById(sub, monitoredItemId);
 	if(monItem) {
 		*monContext = monItem->context;
-		status = UA_STATUSCODE_GOOD;
+		itemstatus = UA_STATUSCODE_GOOD;
 	}
 	unlockClient(client);
-	return status;
+	return itemstatus;
 }
 
 UA_StatusCode
@@ -1155,14 +1155,14 @@ UA_Client_MonitoredItem_setContext(UA_Client *client, UA_UInt32 subscriptionId,
 		return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 	}
 
-	UA_StatusCode status = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+	UA_StatusCode itemstatus = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
 	UA_Client_MonitoredItem *monItem = findMonitoredItemById(sub, monitoredItemId);
 	if(monItem) {
 		monItem->context = monContext;
-		status = UA_STATUSCODE_GOOD;
+		itemstatus = UA_STATUSCODE_GOOD;
 	}
 	unlockClient(client);
-	return status;
+	return itemstatus;
 }
 
 /*************************************/

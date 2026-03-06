@@ -77,7 +77,7 @@ UA_Policy_EccNistP256_New_Context(UA_SecurityPolicy *securityPolicy,
 
 static void
 UA_Policy_EccNistP256_Clear_Context(UA_SecurityPolicy *policy) {
-    if(!policy)
+    if(!policy || !policy->policyContext)
         return;
 
     UA_ByteString_clear(&policy->localCertificate);
@@ -125,8 +125,9 @@ updateCertificateAndPrivateKey_sp_EccNistP256(UA_SecurityPolicy *securityPolicy,
 
     /* Set the certificate */
     UA_ByteString_clear(&securityPolicy->localCertificate);
-    UA_StatusCode retval = UA_OpenSSL_LoadLocalCertificate(&newCertificate,
-                                         &securityPolicy->localCertificate);
+    UA_StatusCode retval = UA_OpenSSL_LoadLocalCertificate(
+        &newCertificate, &securityPolicy->localCertificate,
+        EVP_PKEY_EC);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -176,7 +177,7 @@ EccNistP256_New_Context(const UA_SecurityPolicy *securityPolicy,
 
     /* Decode to X509 */
     newContext->remoteCertificateX509 =
-        UA_OpenSSL_LoadCertificate(&newContext->remoteCertificate);
+        UA_OpenSSL_LoadCertificate(&newContext->remoteCertificate, EVP_PKEY_EC);
     if(newContext->remoteCertificateX509 == NULL) {
         UA_ByteString_clear (&newContext->remoteCertificate);
         UA_free (newContext);
@@ -185,9 +186,6 @@ EccNistP256_New_Context(const UA_SecurityPolicy *securityPolicy,
 
     /* Return the new channel context */
     *channelContext = newContext;
-
-    UA_LOG_INFO(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The EccNistP256 security policy channel with openssl is created.");
 
     return UA_STATUSCODE_GOOD;
 }
@@ -208,8 +206,6 @@ EccNistP256_Delete_Context(const UA_SecurityPolicy *policy,
     UA_ByteString_clear(&cc->remoteSymEncryptingKey);
     UA_ByteString_clear(&cc->remoteSymIv);
     EVP_PKEY_free(cc->localEphemeralKeyPair);
-    UA_LOG_INFO(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The EccNistP256 security policy channel with openssl is deleted.");
     UA_free(cc);
 }
 
@@ -280,19 +276,15 @@ UA_Sym_EccNistP256_generateNonce(const UA_SecurityPolicy *policy,
     if(!pctx)
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
 
-    if(out->length == UA_SECURITYPOLICY_ECCNISTP256_NONCE_LENGTH_BYTES) {
+    /* Detect if we want to create an ephemeral key or just cryptographic random
+     * data */
+    if(out->data[0] == 'e' && out->data[1] == 'p' && out->data[2] == 'h') {
         Channel_Context_EccNistP256 *cctx = (Channel_Context_EccNistP256*)channelContext;
-        UA_StatusCode res =
-            UA_OpenSSL_ECC_NISTP256_GenerateKey(&cctx->localEphemeralKeyPair, out);
-        if(res != UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_BADUNEXPECTEDERROR;
-    } else {
-        UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
-        if(rc != 1)
-            return UA_STATUSCODE_BADUNEXPECTEDERROR;
+        return UA_OpenSSL_ECC_NISTP256_GenerateKey(&cctx->localEphemeralKeyPair, out);
     }
 
-    return UA_STATUSCODE_GOOD;
+    UA_Int32 rc = RAND_bytes(out->data, (int)out->length);
+    return (rc == 1) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUNEXPECTEDERROR;
 }
 
 static size_t
@@ -511,9 +503,6 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
                               const UA_ByteString localCertificate,
                               const UA_ByteString localPrivateKey,
                               const UA_Logger *logger) {
-    UA_LOG_INFO(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                "The EccNistP256 security policy with openssl is added.");
-
     memset(sp, 0, sizeof(UA_SecurityPolicy));
     sp->logger = logger;
     sp->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256\0");
@@ -591,7 +580,8 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *sp,
     /* Parse the certificate */
     UA_Openssl_Init();
     UA_StatusCode res =
-        UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate);
+        UA_OpenSSL_LoadLocalCertificate(&localCertificate, &sp->localCertificate,
+                                        EVP_PKEY_EC);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 

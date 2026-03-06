@@ -43,8 +43,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 5)
-set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "-rc2") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
+set(OPEN62541_VER_PATCH 1)
+set(OPEN62541_VER_LABEL "") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
 # Overwrite the version information based on git if available and we are the main cmake project.
@@ -121,6 +121,13 @@ option(UA_ENABLE_XML_ENCODING "Enable XML encoding" ON)
 option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
 option(UA_ENABLE_GDS_PUSHMANAGEMENT "Enable GDS pushManagement support" OFF)
 option(UA_ENABLE_DATATYPES_ALL "Generate all datatypes for namespace zero (uses more binary space)" ON)
+option(UA_ENABLE_RBAC "Enable Role-Based Access Control (EXPERIMENTAL - NOT FOR PRODUCTION)" OFF)
+
+if(UA_ENABLE_RBAC)
+    message(WARNING "UA_ENABLE_RBAC is EXPERIMENTAL and NOT RECOMMENDED FOR PRODUCTION USE. "
+                    "The RBAC implementation is under active development and the API may change. "
+                    "Use only for testing and development purposes.")
+endif()
 
 if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_BUILD_FUZZING)
     set(UA_ENABLE_NODESET_INJECTOR ON)
@@ -254,7 +261,7 @@ if(UA_ENABLE_TPM2_KEYSTORE)
 endif()
 
 # Namespace Zero
-set(UA_NAMESPACE_ZERO "FULL" CACHE STRING "Completeness of the generated namespace zero (none/minimal/reduced/full)")
+set(UA_NAMESPACE_ZERO "REDUCED" CACHE STRING "Completeness of the generated namespace zero (none/minimal/reduced/full)")
 SET_PROPERTY(CACHE UA_NAMESPACE_ZERO PROPERTY STRINGS "NONE" "MINIMAL" "REDUCED" "FULL")
 if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL" OR UA_NAMESPACE_ZERO STREQUAL "NONE")
     set(UA_GENERATED_NAMESPACE_ZERO OFF)
@@ -433,7 +440,7 @@ if(CMAKE_BUILD_TYPE MATCHES DEBUG)
 endif()
 
 # Build Targets
-option(UA_BUILD_EXAMPLES "Build example servers and clients" ON)
+option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
@@ -491,13 +498,18 @@ endif()
 
 set(open62541_LIBRARIES "")
 set(open62541_PUBLIC_LIBRARIES "")
+set(pkgcfg_libsprivate "")
+set(pkgcfg_requiresprivate "")
 if("${UA_ARCHITECTURE}" STREQUAL "posix")
     list(APPEND open62541_LIBRARIES "m")
+    list(APPEND pkgcfg_libsprivate "-lm")
     if(UA_MULTITHREADING GREATER_EQUAL 100 OR UA_BUILD_UNIT_TESTS AND NOT ANDROID_NDK_TOOLCHAIN_INCLUDED)
         list(APPEND open62541_PUBLIC_LIBRARIES "pthread")
+        list(APPEND pkgcfg_libsprivate "-lpthread")
     endif()
     if(NOT APPLE AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD") AND NOT ANDROID_NDK_TOOLCHAIN_INCLUDED)
         list(APPEND open62541_LIBRARIES "rt")
+        list(APPEND pkgcfg_libsprivate "-lrt")
     endif()
 elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
     list(APPEND open62541_LIBRARIES "ws2_32")
@@ -509,6 +521,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL)
     # https://cmake.org/cmake/help/v3.13/module/FindOpenSSL.html
     find_package(OpenSSL REQUIRED)
     list(APPEND open62541_LIBRARIES "${OPENSSL_LIBRARIES}")
+    list(APPEND pkgcfg_requiresprivate "openssl")
     if(WIN32)
         # Add bestcrypt for windows systems
         list(APPEND open62541_LIBRARIES bcrypt)
@@ -519,6 +532,7 @@ if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     # See https://github.com/libressl-portable/portable/blob/master/FindLibreSSL.cmake
     find_package(LibreSSL REQUIRED)
     list(APPEND open62541_LIBRARIES ${LIBRESSL_LIBRARIES})
+    list(APPEND pkgcfg_requiresprivate "openssl")
     if(WIN32)
         # Add bestcrypt for random generator and ws2_32 for crypto
         list(APPEND open62541_LIBRARIES ws2_32 bcrypt)
@@ -531,6 +545,7 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     # defined in /tools/cmake/FindMbedTLS.cmake.
     find_package(MbedTLS REQUIRED)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
+    list(APPEND pkgcfg_requiresprivate "mbedtls")
     if(WIN32)
         # Add bestcrypt for windows systems
         list(APPEND open62541_LIBRARIES bcrypt)
@@ -539,6 +554,7 @@ endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
     list(APPEND open62541_LIBRARIES ${TPM2_LIB})
+    list(APPEND pkgcfg_requiresprivate "tpm2-pkcs11")
 endif()
 
 if(MINGW)
@@ -600,6 +616,7 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
     check_add_cc_flag("-Wall")      # Warnings
     check_add_cc_flag("-Wextra")    # More warnings
     check_add_cc_flag("-Wpedantic") # Standard compliance
+    #check_add_cc_flag("-Wshadow")  # still disabled per default
     if(UA_FORCE_WERROR)
         check_add_cc_flag("-Werror") # All warnings are errors
         check_add_cc_flag("-Wunused-command-line-argument") # Warning for command line args instead of error
@@ -661,6 +678,7 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
     # Threading support
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
         check_add_cc_flag("-pthread")
+        check_add_cc_flag("-ftls-model=initial-exec") # Enable thread-local variables in the .so shared object
     endif()
 
     # Force 32bit build
@@ -689,7 +707,7 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
         include(CheckIPOSupported)
         check_ipo_supported(RESULT CC_HAS_IPO)
         if(CC_HAS_IPO)
-            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
         endif()
     endif()
 
@@ -799,7 +817,6 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/common.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/types.h
-                     ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_filetypes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/util.h
@@ -817,8 +834,14 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${PROJECT_SOURCE_DIR}/driver/driver.h
-                     ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.h
-                     ${PROJECT_SOURCE_DIR}/driver/directoryArch/common/fileSystemOperations_common.h)
+                     )
+
+if (UA_FILESYSTEM)
+    list(APPEND exported_headers
+                         ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.h
+                         ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_filetypes.h
+                         ${PROJECT_SOURCE_DIR}/driver/directoryArch/common/fileSystemOperations_common.h)
+endif()
 
 # Main Library
 
@@ -883,13 +906,24 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_monitoreditem.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
-                # driver
+                ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c)
+
+if(UA_ENABLE_RBAC)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.c)
+endif()
+
+if(UA_FILESYSTEM)
+    list(APPEND lib_sources 
                 ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.c
+                ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_api.c
                 ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_server_ns0_fdt.c
                 ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_server_ns0_filetype.c
+                # driver
                 ${PROJECT_SOURCE_DIR}/driver/directoryArch/win32/fileSystemOperations_win32.c
-                ${PROJECT_SOURCE_DIR}/driver/directoryArch/posix/fileSystemOperations_posix.c
+                ${PROJECT_SOURCE_DIR}/driver/directoryArch/posix/fileSystemOperations_posix.c)
+endif()
+
+set(lib_sources ${lib_sources}
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
@@ -1014,34 +1048,22 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_none.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
-if(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
-    list(APPEND plugin_sources
-         ${PROJECT_SOURCE_DIR}/arch/common/timer.h
-         ${PROJECT_SOURCE_DIR}/arch/common/timer.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c
-         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
-         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.h
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_tcp.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c)
+# Add clock implementation based on the base architecture
+if(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c)
 endif()
 
 if(UA_ARCHITECTURE_ZEPHYR)
-    list(APPEND plugin_sources
-         ${PROJECT_SOURCE_DIR}/arch/common/timer.h
-         ${PROJECT_SOURCE_DIR}/arch/common/timer.c
-         ${PROJECT_SOURCE_DIR}/arch/zephyr/clock_zephyr.c
-         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
-         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
-         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
-         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
-         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/zephyr/clock_zephyr.c)
 endif()
 
+if(UA_ARCHITECTURE_FREERTOS)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/freertos/clock_freertos.c)
+endif()
+
+# Add eventloop and common files (mutually exclusive based on eventloop type)
 if(UA_ARCHITECTURE_LWIP)
+    # LWIP eventloop (for freertos-lwip or posix-lwip)
     list(APPEND plugin_sources
             ${PROJECT_SOURCE_DIR}/arch/common/timer.h
             ${PROJECT_SOURCE_DIR}/arch/common/timer.c
@@ -1051,6 +1073,29 @@ if(UA_ARCHITECTURE_LWIP)
             ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip.c
             ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip_tcp.c
             ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip_udp.c)
+elseif(UA_ARCHITECTURE_ZEPHYR)
+    # Zephyr eventloop
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/arch/common/timer.h
+         ${PROJECT_SOURCE_DIR}/arch/common/timer.c
+         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
+         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
+elseif(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
+    # POSIX eventloop (default for amalgamation)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/arch/common/timer.h
+         ${PROJECT_SOURCE_DIR}/arch/common/timer.c
+         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
+         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.h
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_tcp.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c)
 endif()
 
 if(UA_ARCHITECTURE_FREERTOS)
@@ -1064,7 +1109,6 @@ if(UA_ARCHITECTURE_FREERTOS)
     add_compile_definitions(projCOVERAGE_TEST=0)
     add_compile_definitions(projENABLE_TRACING=0)
     list(APPEND open62541_LIBRARIES freertos_config freertos_kernel)
-    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/freertos/clock_freertos.c)
 endif()
 
 if(UA_ENABLE_MQTT)
@@ -1568,6 +1612,12 @@ if(BUILD_SHARED_LIBS)
     endforeach()
 endif()
 
+if(UA_ENABLE_AMALGAMATION)
+    set(PC_EXTRA_CFLAGS "-DUA_ENABLE_AMALGAMATION")
+endif()
+
+string(REPLACE ";" " " pkgcfg_requiresprivate "${pkgcfg_requiresprivate}")
+string(REPLACE ";" " " pkgcfg_libsprivate "${pkgcfg_libsprivate}")
 configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
