@@ -943,7 +943,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     UDP_FD *conn = (UDP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!conn) {
         UA_UNLOCK(&el->elMutex);
-        UA_ByteString_clear(buf);
+        UA_EventLoopLWIP_freeNetworkBuffer(cm, connectionId, buf);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -973,7 +973,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                                     (unsigned)connectionId, errno_str));
                     UA_UNLOCK(&el->elMutex);
                     UDP_shutdownConnection(cm, connectionId);
-                    UA_ByteString_clear(buf);
+                    UA_EventLoopLWIP_freeNetworkBuffer(cm, connectionId, buf);
                     return UA_STATUSCODE_BADCONNECTIONCLOSED;
                 }
 
@@ -993,7 +993,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                                         (unsigned)connectionId, errno_str));
                         UA_UNLOCK(&el->elMutex);
                         UDP_shutdownConnection(cm, connectionId);
-                        UA_ByteString_clear(buf);
+                        UA_EventLoopLWIP_freeNetworkBuffer(cm, connectionId, buf);
                         return UA_STATUSCODE_BADCONNECTIONCLOSED;
                     }
                 } while(poll_ret <= 0);
@@ -1004,7 +1004,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* Free the buffer */
     UA_UNLOCK(&el->elMutex);
-    UA_ByteString_clear(buf);
+    UA_EventLoopLWIP_freeNetworkBuffer(cm, connectionId, buf);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1359,6 +1359,7 @@ UDP_eventSourceDelete(UA_ConnectionManager *cm) {
     }
 
     UA_ByteString_clear(&pcm->rxBuffer);
+    UA_ByteString_clear(&pcm->txBuffer);
     UA_KeyValueMap_clear(&cm->eventSource.params);
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);
