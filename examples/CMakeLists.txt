@@ -135,8 +135,6 @@ if(UA_ENABLE_ENCRYPTION OR
     add_example(server_encryption encryption/server_encryption.c)
     add_example(server_encryption_filestore encryption/server_encryption_filestore.c)
     add_example(client_encryption encryption/client_encryption.c)
-    target_include_directories(server_encryption PRIVATE "${PROJECT_SOURCE_DIR}/examples")
-    target_include_directories(client_encryption PRIVATE "${PROJECT_SOURCE_DIR}/examples")
     if(UA_ENABLE_TPM2_KEYSTORE)
         add_example(server_encryption_tpm_keystore encryption/server_encryption_tpm_keystore.c)
         add_example(client_encryption_tpm_keystore encryption/client_encryption_tpm_keystore.c)

@@ -3,6 +3,13 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### PubSub DataSetOrdering Support (OPC UA Part 14)
+
+Support for DataSetOrdering mechanism as defined in OPC UA Part 14, section
+6.3.1.1.3 has been implemented for UADP encoding. The ordering of DataSetMessages
+within NetworkMessages can be controlled via the `dataSetOrdering` field in the
+`UA_UadpWriterGroupMessageDataType` configuration.
+
 ### Event API uses string-encoded of BrowsePaths
 
 The select-clause of EventFilters defines the fields to be returned in
