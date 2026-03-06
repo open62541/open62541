@@ -465,11 +465,18 @@ class CSVBSDTypeParser(TypeParser):
         """
         for ns in self.types:
             if typeName in self.types[ns] and self.types[ns][typeName].outname == self.outname:
-                return ns
+                return ns, typeName
         for ns in self.types:
             if typeName in self.types[ns]:
-                return ns
-        return None
+                return ns, typeName
+        # Case-insensitive fallback: some companion specs (e.g. IREDES) have
+        # a case mismatch between the BSD type name and the CSV/XML name.
+        typeNameLower = typeName.lower()
+        for ns in self.types:
+            for t in self.types[ns]:
+                if t.lower() == typeNameLower:
+                    return ns, t
+        return None, typeName
 
     def parseTypeDescriptions(self, f, table):
         csvreader = csv.reader(f, delimiter=',')
@@ -482,18 +489,18 @@ class CSVBSDTypeParser(TypeParser):
                 m = re.match('(.*?)_Encoding_DefaultBinary$', row[0])
                 if m:
                     baseType = m.group(1)
-                    ns = self._find_type_ns(baseType)
+                    ns, key = self._find_type_ns(baseType)
                     if ns is not None:
-                        self.types[ns][baseType].binaryEncodingId = row[1]
+                        self.types[ns][key].binaryEncodingId = row[1]
 
                 # Check if node name ends with _Encoding_DefaultXml and store
                 # the node id in the corresponding DataType
                 m = re.match('(.*?)_Encoding_DefaultXml$', row[0])
                 if m:
                     baseType = m.group(1)
-                    ns = self._find_type_ns(baseType)
+                    ns, key = self._find_type_ns(baseType)
                     if ns is not None:
-                        self.types[ns][baseType].xmlEncodingId = row[1]
+                        self.types[ns][key].xmlEncodingId = row[1]
                 continue
 
             if row[2] != "DataType":
@@ -509,6 +516,6 @@ class CSVBSDTypeParser(TypeParser):
             # check if typeName is a symbolicName and replace it with the browseName
             if typeName in table:
                 typeName = table[typeName]
-            ns = self._find_type_ns(typeName)
+            ns, key = self._find_type_ns(typeName)
             if ns is not None:
-                self.types[ns][typeName].nodeId = row[1]
+                self.types[ns][key].nodeId = row[1]
