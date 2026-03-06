@@ -258,8 +258,8 @@ allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
         UA_String *userId1 = (UA_String*)session1UserId.data;
         UA_String *userId2 = (UA_String*)session2UserId.data;
         
-        if(userId1->length == 0 || userId2->length == 0) {
-            /* Anonymous user(s) detected.
+        if(userId1->length == 0 && userId2->length == 0) {
+            /* Both users are anonymous.
              * For anonymous users, the OPC UA specification requires
              * checking the ApplicationUri from the clientDescription
              * to verify that the same application is transferring the
