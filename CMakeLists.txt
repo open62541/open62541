@@ -904,6 +904,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 
 if(UA_ENABLE_RBAC)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_rbac.c)
 endif()
 
 set(lib_sources ${lib_sources}

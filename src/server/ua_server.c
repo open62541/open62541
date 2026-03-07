@@ -602,6 +602,9 @@ UA_Server_init(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_RBAC
+    res = initNS0RBAC(server);
+    UA_CHECK_STATUS(res, goto cleanup);
+
     /* Initialize RBAC: copy config presets into internal array */
     res = UA_Server_initRBAC(server);
     UA_CHECK_STATUS(res, goto cleanup);

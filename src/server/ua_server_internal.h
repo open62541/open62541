@@ -199,6 +199,9 @@ typedef struct {
 /* Internal RBAC lifecycle */
 UA_StatusCode UA_Server_initRBAC(UA_Server *server);
 void UA_Server_cleanupRBAC(UA_Server *server);
+
+/* Initialize RBAC information model (NS0 role representations and methods) */
+UA_StatusCode initNS0RBAC(UA_Server *server);
 #endif /* UA_ENABLE_RBAC */
 
 typedef struct session_list_entry {
