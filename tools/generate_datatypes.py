@@ -148,6 +148,14 @@ def getNodeidTypeAndId(nodeId):
         strId = nodeId[2:]
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
 
+def splitNodeidNs(nodeId):
+    """Split an optional 'ns=X;' prefix from a nodeId string.
+    Returns (namespaceindex_str, bare_nodeId)."""
+    if nodeId and nodeId.startswith("ns="):
+        parts = nodeId.split(";", 1)
+        return parts[0][3:], parts[1] if len(parts) > 1 else ""
+    return "0", nodeId
+
 def _types_definition_equal(t1, t2):
     """Compare two Type objects by structural definition (ignoring nodeId/outname).
     Used to detect cross-namespace same-name types that are ABI-compatible vs
@@ -241,9 +249,12 @@ class CGenerator:
         raise RuntimeError("Unknown datatype")
 
     def print_datatype(self, datatype, namespaceMap):
-        typeid = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.nodeId))
-        binaryEncodingId = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.binaryEncodingId))
-        xmlEncodingId = "{{{}, {}}}".format("0", getNodeidTypeAndId(datatype.xmlEncodingId))
+        nsIdx, bareNodeId = splitNodeidNs(datatype.nodeId)
+        typeid = "{{{}, {}}}".format(nsIdx, getNodeidTypeAndId(bareNodeId))
+        binNs, bareBinId = splitNodeidNs(datatype.binaryEncodingId)
+        binaryEncodingId = "{{{}, {}}}".format(binNs, getNodeidTypeAndId(bareBinId))
+        xmlNs, bareXmlId = splitNodeidNs(datatype.xmlEncodingId)
+        xmlEncodingId = "{{{}, {}}}".format(xmlNs, getNodeidTypeAndId(bareXmlId))
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
         # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
