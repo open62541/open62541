@@ -678,7 +678,9 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     char ifname[128];
-    memcpy(ifname, interface->data, interface->length);
+    if (interface->length) {
+        memcpy(ifname, interface->data, interface->length);
+    }
     ifname[interface->length] = 0;
     int ifindex = (int)if_nametoindex(ifname);
     if(ifindex == 0) {

@@ -189,7 +189,7 @@ static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    if(!ctx->calcOnly)
+    if(!ctx->calcOnly && len)
         memcpy(ctx->pos, c, len);
     ctx->pos += len;
     return UA_STATUSCODE_GOOD;
