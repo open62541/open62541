@@ -22,6 +22,9 @@
 #include <open62541/common.h>
 #include <open62541/statuscodes.h>
 
+#include <stdbool.h>
+#include <stdint.h>
+
 struct UA_NamespaceMapping;
 typedef struct UA_NamespaceMapping UA_NamespaceMapping;
 

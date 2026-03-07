@@ -15,6 +15,8 @@
 #include <open62541/config.h>
 #include <open62541/nodeids.h>
 
+#include <stddef.h>
+
 _UA_BEGIN_DECLS
 
 /**
