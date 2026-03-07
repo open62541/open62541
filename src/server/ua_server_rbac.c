@@ -857,4 +857,124 @@ UA_Server_removeNodeRolePermissions(UA_Server *server,
     return res;
 }
 
+/*****************************************/
+/* Internal Helpers: Role Lookups        */
+/*****************************************/
+
+/* Check if a role is one of the mandatory well-known roles that cannot be modified.
+ * According to OPC UA Part 18 v1.05 Section 4.3:
+ * "A Server shall not allow changes to the Roles Anonymous,
+ *  AuthenticatedUser and TrustedApplication" */
+static UA_Boolean
+isMandatoryWellKnownRole(const UA_NodeId *roleId) {
+    if(roleId->namespaceIndex != 0 ||
+       roleId->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return false;
+    return (roleId->identifier.numeric == UA_NS0ID_WELLKNOWNROLE_ANONYMOUS ||
+            roleId->identifier.numeric == UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+}
+
+/************************************/
+/* Public API: Role Queries         */
+/************************************/
+
+UA_StatusCode
+UA_Server_getRoleById(UA_Server *server, UA_NodeId roleId,
+                      UA_Role *outRole) {
+    if(!server || !outRole)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    UA_Role *role = findRoleById(server, &roleId);
+    if(!role) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_StatusCode res = UA_Role_copy(role, outRole);
+    unlockServer(server);
+    return res;
+}
+
+/************************************/
+/* Public API: Role Update          */
+/************************************/
+
+UA_StatusCode UA_EXPORT
+UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
+    if(!server || !role)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_Boolean hasId = !UA_NodeId_isNull(&role->roleId);
+    UA_Boolean hasName = (role->roleName.name.length > 0);
+    if(!hasId && !hasName)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    UA_Role *existing = NULL;
+    if(hasId && hasName) {
+        existing = findRoleById(server, &role->roleId);
+        if(!existing ||
+           !UA_QualifiedName_equal(&existing->roleName, &role->roleName)) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADNOTFOUND;
+        }
+    } else if(hasId) {
+        existing = findRoleById(server, &role->roleId);
+    } else {
+        existing = findRoleByName(server, &role->roleName);
+    }
+    if(!existing) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(isMandatoryWellKnownRole(&existing->roleId)) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    }
+
+    /* Deep copy the incoming role */
+    UA_Role copy;
+    UA_StatusCode res = UA_Role_copy(role, &copy);
+    if(res != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return res;
+    }
+
+    /* Clear old mutable fields */
+    for(size_t i = 0; i < existing->identityMappingRulesSize; i++)
+        UA_IdentityMappingRuleType_clear(&existing->identityMappingRules[i]);
+    UA_free(existing->identityMappingRules);
+
+    for(size_t i = 0; i < existing->applicationsSize; i++)
+        UA_String_clear(&existing->applications[i]);
+    UA_free(existing->applications);
+
+    for(size_t i = 0; i < existing->endpointsSize; i++)
+        UA_EndpointType_clear(&existing->endpoints[i]);
+    UA_free(existing->endpoints);
+
+    /* Move mutable fields from copy to existing (ownership transfer) */
+    existing->identityMappingRulesSize = copy.identityMappingRulesSize;
+    existing->identityMappingRules = copy.identityMappingRules;
+    existing->applicationsExclude = copy.applicationsExclude;
+    existing->applicationsSize = copy.applicationsSize;
+    existing->applications = copy.applications;
+    existing->endpointsExclude = copy.endpointsExclude;
+    existing->endpointsSize = copy.endpointsSize;
+    existing->endpoints = copy.endpoints;
+
+    /* Null out moved fields before clearing the rest */
+    copy.identityMappingRulesSize = 0;
+    copy.identityMappingRules = NULL;
+    copy.applicationsSize = 0;
+    copy.applications = NULL;
+    copy.endpointsSize = 0;
+    copy.endpoints = NULL;
+    UA_Role_clear(&copy);
+
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
 #endif /* UA_ENABLE_RBAC */

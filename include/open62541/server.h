@@ -2715,6 +2715,17 @@ UA_Server_getRole(UA_Server *server,
                   const UA_QualifiedName roleName,
                   UA_Role *outRole);
 
+/* Get a copy of a role by its NodeId.
+ *
+ * @param server The server instance
+ * @param roleId The NodeId of the role
+ * @param outRole Output: deep copy of the role (caller must clear)
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADNOTFOUND if the role does not exist */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getRoleById(UA_Server *server, UA_NodeId roleId,
+                      UA_Role *outRole);
+
 /* Get the BrowseNames of all registered roles.
  *
  * @param server The server instance
@@ -2725,6 +2736,29 @@ UA_Server_getRole(UA_Server *server,
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getRoles(UA_Server *server, size_t *rolesSize,
                    UA_QualifiedName **roleNames);
+
+/* Update a role in the server's role registry.
+ *
+ * The existing role is matched by roleId, roleName (QualifiedName) or
+ * both. At least one must be set. If both are provided they must
+ * identify the same role. Replaces all mutable fields (identityMappingRules,
+ * applications, endpoints and their exclude flags) with deep copies
+ * from the provided role. The roleId and roleName of the stored role
+ * are not changed.
+ *
+ * Anonymous and AuthenticatedUser are well-known roles defined by the
+ * OPC UA specification and cannot be modified.
+ *
+ * @param server The server instance
+ * @param role The role with updated fields
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADINVALIDARGUMENT if neither roleId nor
+ *         roleName is set,
+ *         UA_STATUSCODE_BADNOTFOUND if no matching role exists,
+ *         UA_STATUSCODE_BADUSERACCESSDENIED if the matched role is
+ *         Anonymous or AuthenticatedUser */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_updateRole(UA_Server *server, const UA_Role *role);
 
 #endif /* UA_ENABLE_RBAC */
 
