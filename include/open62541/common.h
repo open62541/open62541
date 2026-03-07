@@ -97,7 +97,8 @@ UA_AttributeId_name(UA_AttributeId attrId);
  * are ANDed for the overall write mask. Part 3: 5.2.7 Table 2 */
 
 #define UA_WRITEMASK_ACCESSLEVEL             (0x01u << 0u)
-#define UA_WRITEMASK_ARRRAYDIMENSIONS        (0x01u << 1u)
+#define UA_WRITEMASK_ARRAYDIMENSIONS         (0x01u << 1u)
+#define UA_WRITEMASK_ARRRAYDIMENSIONS        UA_WRITEMASK_ARRAYDIMENSIONS /* legacy typo alias */
 #define UA_WRITEMASK_BROWSENAME              (0x01u << 2u)
 #define UA_WRITEMASK_CONTAINSNOLOOPS         (0x01u << 3u)
 #define UA_WRITEMASK_DATATYPE                (0x01u << 4u)
