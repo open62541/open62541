@@ -14,6 +14,7 @@
 #include <open62541/types.h>
 
 #include <limits.h>
+#include <stdbool.h>
 
 typedef struct {
     UA_DateTime start;
