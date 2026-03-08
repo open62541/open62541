@@ -15,6 +15,8 @@
 
 #if defined(UA_ARCHITECTURE_LWIP)
 
+_UA_BEGIN_DECLS
+
 #include <lwip/tcpip.h>
 #include <lwip/sockets.h>
 #include <lwip/inet.h>

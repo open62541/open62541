@@ -1523,7 +1523,7 @@ UA_Server_cancelAsync(UA_Server *server, void *asyncOpContext,
  *    "path-string", a :ref:``human-readable encoding of a
  *    SimpleAttributeOperand<parse-sao>`. For example ``/SourceNode`` or
  *    ``/EventType``.
- * 2. An NodeId pointing to an ObjectNode that instantiates an EventType. The
+ * 2. A NodeId pointing to an ObjectNode that instantiates an EventType. The
  *    ``SimpleAttributeOperands`` from the EventFilter are resolved in its
  *    context.
  * 3. The event fields defined as mandatory for the *BaseEventType* have a
@@ -1558,6 +1558,15 @@ UA_Server_cancelAsync(UA_Server *server, void *asyncOpContext,
  *    /Severity
  *       UInt16 for the urgency of the event defined to be between 1 (lowest) and
  *       1000 (catastrophic) (default: argument of ``_createEvent``)
+ *
+ * The "path-string" (SimpleAttributeOperand expression) can use
+ * namespace-indices and point into nested objects and variables. For example
+ * ``/1:Truck/2:Wheel``.
+ *
+ * The key-value map source for the event-fields uses a QualifiedName for the
+ * key. The NamespaceIndex from the key is used as the default NamespaceIndex
+ * for the path elements that do not define it explicitly. So the key
+ * ``2:"/1:Truck/Wheel"`` becomes ``/1:Truck/2:Wheel``.
  *
  * An event field that is missing from all sources resolves to an empty variant.
  *
@@ -2477,6 +2486,18 @@ struct UA_ServerConfig {
      * may be garbage-collected when no longer referenced by any node. */
     size_t rolePermissionPresetsSize;
     UA_RolePermissionSet *rolePermissionPresets;
+
+    /* Initial Role Definitions
+     * ~~~~~~~~~~~~~~~~~~~~~~~~
+     * Array of initial role definitions. During server startup, these roles
+     * are copied into the server's internal role registry. Config roles are
+     * treated as **protected**: they cannot be removed at runtime via
+     * UA_Server_removeRole.
+     *
+     * Additional roles can be added at runtime through UA_Server_addRole.
+     * Runtime-added roles can be removed via UA_Server_removeRole. */
+    size_t rolesSize;
+    UA_Role *roles;
 #endif
 };
 
@@ -2631,6 +2652,66 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeNodeRolePermissions(UA_Server *server,
                                     const UA_NodeId nodeId,
                                     UA_Boolean recursive);
+
+/**
+ * Role Management
+ * ~~~~~~~~~~~~~~~
+ * Functions for managing the server's role registry. Roles define which
+ * sessions get which access rights. Config-provided roles are protected
+ * and cannot be removed at runtime. */
+
+/* Add a role to the server's role registry.
+ *
+ * The role's BrowseName (roleName) is the primary unique identifier,
+ * per OPC UA Part 18 Section 4.2. A role with the same roleName must
+ * not already exist.
+ *
+ * @param server The server instance
+ * @param role The role definition to add (deep-copied)
+ * @param outRoleNodeId Output: the NodeId of the new role (caller
+ *        must clear). May be NULL.
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADALREADYEXISTS if a role with the same
+ *         roleName already exists */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_addRole(UA_Server *server, const UA_Role *role,
+                  UA_NodeId *outRoleNodeId);
+
+/* Remove a role from the server's role registry.
+ *
+ * Config-provided (protected) roles cannot be removed.
+ *
+ * @param server The server instance
+ * @param roleName The BrowseName (QualifiedName) of the role to remove
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADUSERACCESSDENIED if the role is protected,
+ *         UA_STATUSCODE_BADNOTFOUND if the role does not exist */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_removeRole(UA_Server *server,
+                     const UA_QualifiedName roleName);
+
+/* Get a copy of a role by its BrowseName.
+ *
+ * @param server The server instance
+ * @param roleName The BrowseName (QualifiedName) of the role
+ * @param outRole Output: deep copy of the role (caller must clear)
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADNOTFOUND if the role does not exist */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getRole(UA_Server *server,
+                  const UA_QualifiedName roleName,
+                  UA_Role *outRole);
+
+/* Get the BrowseNames of all registered roles.
+ *
+ * @param server The server instance
+ * @param rolesSize Output: number of roles
+ * @param roleNames Output: array of role BrowseNames (caller must
+ *        clear each entry and free the array)
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getRoles(UA_Server *server, size_t *rolesSize,
+                   UA_QualifiedName **roleNames);
 
 #endif /* UA_ENABLE_RBAC */
 
