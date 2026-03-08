@@ -467,8 +467,17 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Check the client certificate and ApplicationDescription. It was already
      * checked for the SecureChannel. But here we use the Session
      * CertificateGroup and we now also have the ApplicationDescription to check
-     * the ApplicationUri. */
-    if(request->clientCertificate.length > 0) {
+     * the ApplicationUri.
+     *
+     * Per OPC UA Part 4, Section 5.6.2.2: "If the securityPolicyUri is None,
+     * the Server shall ignore the ApplicationInstanceCertificate." */
+    if(channel->securityPolicy->policyType == UA_SECURITYPOLICYTYPE_NONE) {
+        if(request->clientCertificate.length > 0) {
+            UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
+                                   "CreateSession: Ignoring client certificate "
+                                   "on SecurityPolicy None (Part 4, 5.6.2.2)");
+        }
+    } else if(request->clientCertificate.length > 0) {
         rh->serviceResult =
             validateCertificate(server, &server->config.secureChannelPKI,
                                 channel, NULL, "CreateSession",
