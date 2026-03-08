@@ -25,8 +25,8 @@
 #include "itoa.h"
 
 #if defined(UA_ARCHITECTURE_WIN32)
-#include <WTypes.h>
-#include <WinBase.h>
+#include <wtypes.h>
+#include <winbase.h>
 #endif
 
 #include "../../deps/parse_num.h"
