@@ -76,6 +76,7 @@ handlePOSIXInterruptEvent(UA_EventSource *es, UA_RegisteredFD *rfd, short event)
 static void
 activateSignal(UA_RegisteredSignal *rs) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)rs->rfd.es->eventLoop;
+    (void)el;
     UA_LOCK_ASSERT(&el->elMutex);
 
     if(rs->active)
@@ -130,6 +131,7 @@ activateSignal(UA_RegisteredSignal *rs) {
 static void
 deactivateSignal(UA_RegisteredSignal *rs) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)rs->rfd.es->eventLoop;
+    (void)el;
     UA_LOCK_ASSERT(&el->elMutex);
 
     /* Only dectivate if active */
