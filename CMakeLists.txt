@@ -1630,7 +1630,8 @@ install(DIRECTORY ${UA_SCHEMA_DIR}/
         PERMISSIONS OWNER_READ GROUP_READ)
 
 # Install python tools
-set(UA_install_tools_files "tools/generate_datatypes.py"
+set(UA_install_tools_files "tools/generate_bsd.py"
+                           "tools/generate_datatypes.py"
                            "tools/generate_nodeid_header.py"
                            "tools/generate_statuscode_descriptions.py")
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir}
