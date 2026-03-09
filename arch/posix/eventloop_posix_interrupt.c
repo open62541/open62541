@@ -213,6 +213,7 @@ static void
 activateSignal(UA_RegisteredSignal *rs) {
     UA_assert(singletonIM != NULL);
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)singletonIM->im.eventSource.eventLoop;
+    (void)el;
     UA_LOCK_ASSERT(&el->elMutex);
 
     /* Register the signal on the OS level */
@@ -237,6 +238,7 @@ static void
 deactivateSignal(UA_RegisteredSignal *rs) {
     UA_assert(singletonIM != NULL);
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)singletonIM->im.eventSource.eventLoop;
+    (void)el;
     UA_LOCK_ASSERT(&el->elMutex);
 
     /* Only dectivate if active */
