@@ -437,7 +437,6 @@ receiveResponse(UA_Client *client, void *response, const UA_DataType *responseTy
                                    "Receiving the response failed with StatusCode %s",
                                    UA_StatusCode_name(retval));
             closeSecureChannel(client);
-            retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
             break;
         }
         now = UA_DateTime_nowMonotonic();
