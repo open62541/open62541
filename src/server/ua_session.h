@@ -98,6 +98,13 @@ struct UA_Session {
     UA_SessionSecurityDiagnosticsDataType securityDiagnostics;
     UA_SessionDiagnosticsDataType diagnostics;
 #endif
+
+#ifdef UA_ENABLE_RBAC
+    /* Roles assigned to this session during activation.
+     * Populated by the activateSession callback. */
+    size_t rolesSize;
+    UA_NodeId *roles;
+#endif
 };
 
 /**
