@@ -286,14 +286,12 @@ parseVariant(UA_Variant *v, UA_String valstr) {
     const UA_DataType *datatype = &UA_TYPES[UA_TYPES_VARIANT];
     if(valstr.data[0] == '(') {
         char typeString[512];
-        UA_STACKARRAY(char, type, valstr.length);
-        int elem = sscanf((char*)valstr.data, "(%511[^)])", type);
+        int advance = 0;
+        int elem = sscanf((char*)valstr.data, "(%511[^)])%n", typeString, &advance);
         if(elem <= 0) {
             abortWithMessage("Wrong datatype definition\n");
             return UA_STATUSCODE_BADDECODINGERROR;
         }
-
-        memcpy(typeString, type, strnlen(type, 511) + 1);
 
         /* Find type under the name */
         size_t i = 0;
@@ -304,12 +302,11 @@ parseVariant(UA_Variant *v, UA_String valstr) {
             }
         }
         if(i == UA_TYPES_COUNT) {
-            abortWithMessage("Data type %s unknown\n", type);
+            abortWithMessage("Data type %s unknown\n", typeString);
             return UA_STATUSCODE_BADDECODINGERROR;
         }
 
-        /* Advance beyond the datatype definition and more space */
-        size_t advance = strlen(typeString) + 2;
+        /* Advance beyond the datatype definition "(TypeName)" and skip space */
         valstr.data += advance;
         valstr.length -= advance;
         while(valstr.length > 0 && isspace(valstr.data[0])) {
