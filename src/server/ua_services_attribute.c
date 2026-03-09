@@ -114,6 +114,81 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
 /* Read Service */
 /****************/
 
+#ifdef UA_ENABLE_RBAC
+static UA_StatusCode
+readRolePermissions(UA_Server *server, UA_Session *session,
+                    const UA_Node *node, UA_DataValue *v) {
+    /* Check if the user has ReadRolePermissions permission on this node */
+    UA_UInt32 effectivePerms = 0;
+    UA_StatusCode retval = UA_Server_getEffectivePermissions(
+        server, &session->sessionId, &node->head.nodeId, &effectivePerms);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    if(!(effectivePerms & UA_PERMISSIONTYPE_READROLEPERMISSIONS))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+    /* Check if node has a valid permission index */
+    if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID) {
+        UA_Variant_setArray(&v->value, NULL, 0,
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    const UA_RolePermissionEntry *rp =
+        &server->rolePermissions[node->head.permissionIndex];
+
+    /* If no entries -> return empty array */
+    if(rp->rolePermissionsSize == 0 || !rp->rolePermissions) {
+        UA_Variant_setArray(&v->value, NULL, 0,
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_RolePermissionType *permissions = (UA_RolePermissionType*)
+        UA_Array_new(rp->rolePermissionsSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    if(!permissions)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    retval = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < rp->rolePermissionsSize; i++) {
+        retval = UA_NodeId_copy(&rp->rolePermissions[i].roleId, &permissions[i].roleId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(permissions, i, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+            return retval;
+        }
+        permissions[i].permissions = rp->rolePermissions[i].permissions;
+    }
+
+    UA_Variant_setArray(&v->value, permissions, rp->rolePermissionsSize,
+                       &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readUserRolePermissions(UA_Server *server, UA_Session *session,
+                        const UA_Node *node, UA_DataValue *v) {
+    /* Return only the roles that the current session has been granted */
+    size_t entriesSize = 0;
+    UA_RolePermissionType *entries = NULL;
+
+    UA_StatusCode retval = UA_Server_getUserRolePermissions(
+        server, &session->sessionId, &node->head.nodeId,
+        &entriesSize, &entries);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        /* On error, return empty array (fail open for compatibility) */
+        UA_Variant_setArray(&v->value, NULL, 0,
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_Variant_setArray(&v->value, entries, entriesSize,
+                       &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+#endif /* UA_ENABLE_RBAC */
+
 static UA_StatusCode
 readIsAbstractAttribute(const UA_Node *node, UA_Variant *v) {
     const UA_Boolean *isAbstract;
@@ -500,9 +575,24 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
         break;
     }
     case UA_ATTRIBUTEID_ROLEPERMISSIONS:
+#ifdef UA_ENABLE_RBAC
+        retval = readRolePermissions(server, session, node, v);
+#else
+        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+#endif
+        break;
     case UA_ATTRIBUTEID_USERROLEPERMISSIONS:
+#ifdef UA_ENABLE_RBAC
+        retval = readUserRolePermissions(server, session, node, v);
+#else
+        /* Without RBAC, return empty array */
+        UA_Variant_setArray(&v->value, NULL, 0,
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        retval = UA_STATUSCODE_GOOD;
+#endif
+        break;
     case UA_ATTRIBUTEID_ACCESSRESTRICTIONS:
-        /* TODO: Add support for the attributes from the 1.04 spec */
+        /* TODO: Add support for AccessRestrictions from the 1.04 spec */
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break;
 
@@ -1769,6 +1859,17 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_USERWRITEMASK(UA_WRITEMASK_EXECUTABLE);
         CHECK_DATATYPE_SCALAR(BOOLEAN);
         node->methodNode.executable = *(const UA_Boolean*)value;
+        break;
+    case UA_ATTRIBUTEID_ROLEPERMISSIONS:
+        /* Minimal implementation: Accept write but don't store yet.
+         * TODO: Implement actual role permission storage */
+        CHECK_USERWRITEMASK(UA_WRITEMASK_ROLEPERMISSIONS);
+        CHECK_DATATYPE_ARRAY(ROLEPERMISSIONTYPE);
+        retval = UA_STATUSCODE_GOOD;
+        break;
+    case UA_ATTRIBUTEID_USERROLEPERMISSIONS:
+        /* UserRolePermissions is read-only, cannot be written */
+        retval = UA_STATUSCODE_BADNOTWRITABLE;
         break;
     default:
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
