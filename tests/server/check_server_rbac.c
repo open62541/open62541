@@ -1544,89 +1544,6 @@ START_TEST(userRolePermissions_array) {
 }
 END_TEST
 
-START_TEST(namespaceDefault_setAndGet) {
-    UA_NodeId roleId;
-    UA_StatusCode res = addTestRole("NsDefaultRole", 1, 51040, &roleId);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-
-    UA_RolePermission entry;
-    res = UA_NodeId_copy(&roleId, &entry.roleId);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    entry.permissions = UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ;
-
-    res = UA_Server_setNamespaceDefaultRolePermissions(server, 1, 1, &entry);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_NodeId_clear(&entry.roleId);
-
-    size_t retrievedSize = 0;
-    const UA_RolePermission *retrievedEntries = NULL;
-    res = UA_Server_getNamespaceDefaultRolePermissions(server, 1,
-                                                       &retrievedSize,
-                                                       &retrievedEntries);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(retrievedSize, 1);
-    ck_assert_ptr_nonnull(retrievedEntries);
-    ck_assert(UA_NodeId_equal(&retrievedEntries[0].roleId, &roleId));
-    ck_assert_uint_eq(retrievedEntries[0].permissions,
-                      UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ);
-
-    res = UA_Server_setNamespaceDefaultRolePermissions(server, 1, 0, NULL);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-
-    res = UA_Server_getNamespaceDefaultRolePermissions(server, 1,
-                                                       &retrievedSize,
-                                                       &retrievedEntries);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(retrievedSize, 0);
-    ck_assert_ptr_null(retrievedEntries);
-
-    removeTestRole("NsDefaultRole", 1);
-    UA_NodeId_clear(&roleId);
-}
-END_TEST
-
-START_TEST(namespaceDefault_explicitOverrides) {
-    UA_NodeId roleId;
-    UA_StatusCode res = addTestRole("OverrideRole", 1, 51060, &roleId);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-
-    UA_RolePermission defaultEntry;
-    res = UA_NodeId_copy(&roleId, &defaultEntry.roleId);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    defaultEntry.permissions = UA_PERMISSIONTYPE_BROWSE;
-    res = UA_Server_setNamespaceDefaultRolePermissions(server, 1, 1, &defaultEntry);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_NodeId_clear(&defaultEntry.roleId);
-
-    UA_NodeId newNodeId = UA_NODEID_STRING(1, "NodeWithExplicitPerms");
-    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Node With Explicit Permissions");
-    res = UA_Server_addObjectNode(server, newNodeId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-        UA_QUALIFIEDNAME(1, "NodeWithExplicitPerms"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-        oAttr, NULL, NULL);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-
-    res = UA_Server_addRolePermissions(server, newNodeId, roleId,
-        UA_PERMISSIONTYPE_BROWSE | UA_PERMISSIONTYPE_READ | UA_PERMISSIONTYPE_WRITE,
-        true, false);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-
-    UA_PermissionIndex explicitPermIdx;
-    res = UA_Server_getNodePermissionIndex(server, newNodeId, &explicitPermIdx);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert(explicitPermIdx != UA_PERMISSION_INDEX_INVALID);
-
-    UA_Server_deleteNode(server, newNodeId, true);
-    res = UA_Server_setNamespaceDefaultRolePermissions(server, 1, 0, NULL);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    removeTestRole("OverrideRole", 1);
-    UA_NodeId_clear(&roleId);
-}
-END_TEST
-
 START_TEST(allPermissionsForAnonymousRole_config) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(config->allPermissionsForAnonymousRole == true);
@@ -1727,16 +1644,6 @@ static Suite *testSuite_PermissionMapping(void) {
     tcase_add_test(tc, effectivePermissions_logicalOR);
     tcase_add_test(tc, userRolePermissions_array);
     tcase_add_test(tc, permissionConfig_addAndGet);
-    suite_add_tcase(s, tc);
-    return s;
-}
-
-static Suite *testSuite_NamespaceDefaults(void) {
-    Suite *s = suite_create("RBAC Namespace Defaults");
-    TCase *tc = tcase_create("NsDefaults");
-    tcase_add_checked_fixture(tc, setup, teardown);
-    tcase_add_test(tc, namespaceDefault_setAndGet);
-    tcase_add_test(tc, namespaceDefault_explicitOverrides);
     tcase_add_test(tc, allPermissionsForAnonymousRole_config);
     suite_add_tcase(s, tc);
     return s;
@@ -1792,7 +1699,6 @@ int main(void) {
     srunner_add_suite(sr, testSuite_ConfigRoles());
     srunner_add_suite(sr, testSuite_IdentityAppMgmt());
     srunner_add_suite(sr, testSuite_PermissionMapping());
-    srunner_add_suite(sr, testSuite_NamespaceDefaults());
     srunner_add_suite(sr, testSuite_InformationModel());
     srunner_set_fork_status(sr, CK_NOFORK);
     srunner_run_all(sr, CK_NORMAL);

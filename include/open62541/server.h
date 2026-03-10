@@ -2973,38 +2973,6 @@ UA_Server_getUserRolePermissions(UA_Server *server,
                                  size_t *entriesSize,
                                  UA_RolePermissionType **entries);
 
-/**
- * Namespace Default Role Permissions
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * Per OPC UA Part 5: if a node has no explicit RolePermissions,
- * the DefaultRolePermissions from the NamespaceMetadata apply. */
-
-/* Set default role permissions for a namespace.
- *
- * @param server The server instance
- * @param namespaceIndex The namespace index
- * @param entriesSize Number of role-permission entries
- * @param entries Array of role-permission entries
- * @return UA_STATUSCODE_GOOD on success */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setNamespaceDefaultRolePermissions(UA_Server *server,
-                                             UA_UInt16 namespaceIndex,
-                                             size_t entriesSize,
-                                             const UA_RolePermission *entries);
-
-/* Get default role permissions for a namespace (shallow copy).
- *
- * @param server The server instance
- * @param namespaceIndex The namespace index
- * @param entriesSize Output: number of entries
- * @param entries Output: pointer to internal array (do not free)
- * @return UA_STATUSCODE_GOOD on success */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_getNamespaceDefaultRolePermissions(UA_Server *server,
-                                             UA_UInt16 namespaceIndex,
-                                             size_t *entriesSize,
-                                             const UA_RolePermission **entries);
-
 #endif /* UA_ENABLE_RBAC */
 
 _UA_END_DECLS
