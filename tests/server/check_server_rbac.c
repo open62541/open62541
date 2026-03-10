@@ -736,65 +736,78 @@ START_TEST(sessionRoleManagement) {
     UA_NodeId adminSessionId = UA_NODEID_GUID(0,
         (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
 
-    /* Initially no roles */
-    size_t rolesSize = 0;
-    UA_NodeId *roles = NULL;
-    UA_StatusCode res = UA_Server_getSessionRoles(server, &adminSessionId,
-                                                   &rolesSize, &roles);
+    /* Initially no roles: returns empty array */
+    UA_Variant out;
+    UA_StatusCode res = UA_Server_getSessionAttributeCopy(server, &adminSessionId,
+                                                          UA_RBAC_SESSION_ATTR_ROLES,
+                                                          &out);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(rolesSize, 0);
-    ck_assert_ptr_null(roles);
+    ck_assert_uint_eq(out.arrayLength, 0);
+    UA_Variant_clear(&out);
 
     /* Set two roles */
     UA_NodeId rolesToSet[2];
     rolesToSet[0] = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
     rolesToSet[1] = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
-
-    res = UA_Server_setSessionRoles(server, &adminSessionId, 2, rolesToSet);
+    UA_Variant v;
+    UA_Variant_setArray(&v, rolesToSet, 2, &UA_TYPES[UA_TYPES_NODEID]);
+    res = UA_Server_setSessionAttribute(server, &adminSessionId,
+                                        UA_RBAC_SESSION_ATTR_ROLES, &v);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
-    res = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    res = UA_Server_getSessionAttributeCopy(server, &adminSessionId,
+                                            UA_RBAC_SESSION_ATTR_ROLES, &out);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(rolesSize, 2);
-    ck_assert_ptr_nonnull(roles);
+    ck_assert_uint_eq(out.arrayLength, 2);
+    ck_assert_ptr_nonnull(out.data);
 
+    UA_NodeId *gotRoles = (UA_NodeId*)out.data;
     UA_Boolean foundObserver = false, foundOperator = false;
-    for(size_t i = 0; i < rolesSize; i++) {
-        if(UA_NodeId_equal(&roles[i], &rolesToSet[0])) foundObserver = true;
-        if(UA_NodeId_equal(&roles[i], &rolesToSet[1])) foundOperator = true;
+    for(size_t i = 0; i < out.arrayLength; i++) {
+        if(UA_NodeId_equal(&gotRoles[i], &rolesToSet[0])) foundObserver = true;
+        if(UA_NodeId_equal(&gotRoles[i], &rolesToSet[1])) foundOperator = true;
     }
     ck_assert(foundObserver);
     ck_assert(foundOperator);
-    UA_Array_delete(roles, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_clear(&out);
 
     /* Update to a different set */
     UA_NodeId newRoles[1];
     newRoles[0] = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER);
-    res = UA_Server_setSessionRoles(server, &adminSessionId, 1, newRoles);
+    UA_Variant_setArray(&v, newRoles, 1, &UA_TYPES[UA_TYPES_NODEID]);
+    res = UA_Server_setSessionAttribute(server, &adminSessionId,
+                                        UA_RBAC_SESSION_ATTR_ROLES, &v);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
-    res = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    res = UA_Server_getSessionAttributeCopy(server, &adminSessionId,
+                                            UA_RBAC_SESSION_ATTR_ROLES, &out);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(rolesSize, 1);
-    ck_assert(UA_NodeId_equal(&roles[0], &newRoles[0]));
-    UA_Array_delete(roles, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(out.arrayLength, 1);
+    ck_assert(UA_NodeId_equal((UA_NodeId*)out.data, &newRoles[0]));
+    UA_Variant_clear(&out);
 
     /* Clear all roles */
-    res = UA_Server_setSessionRoles(server, &adminSessionId, 0, NULL);
+    res = UA_Server_deleteSessionAttribute(server, &adminSessionId,
+                                           UA_RBAC_SESSION_ATTR_ROLES);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
-    res = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    res = UA_Server_getSessionAttributeCopy(server, &adminSessionId,
+                                            UA_RBAC_SESSION_ATTR_ROLES, &out);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(rolesSize, 0);
+    ck_assert_uint_eq(out.arrayLength, 0);
+    UA_Variant_clear(&out);
 
     /* Invalid session ID */
     UA_NodeId invalidSessionId = UA_NODEID_NUMERIC(0, 999999);
-    res = UA_Server_getSessionRoles(server, &invalidSessionId, &rolesSize, &roles);
+    res = UA_Server_getSessionAttributeCopy(server, &invalidSessionId,
+                                            UA_RBAC_SESSION_ATTR_ROLES, &out);
     ck_assert_uint_eq(res, UA_STATUSCODE_BADSESSIONIDINVALID);
 
     /* Invalid role ID */
     UA_NodeId invalidRole = UA_NODEID_NUMERIC(0, 999999);
-    res = UA_Server_setSessionRoles(server, &adminSessionId, 1, &invalidRole);
+    UA_Variant_setArray(&v, &invalidRole, 1, &UA_TYPES[UA_TYPES_NODEID]);
+    res = UA_Server_setSessionAttribute(server, &adminSessionId,
+                                        UA_RBAC_SESSION_ATTR_ROLES, &v);
     ck_assert_uint_eq(res, UA_STATUSCODE_BADNODEIDUNKNOWN);
 }
 END_TEST
@@ -803,41 +816,58 @@ START_TEST(addSessionRole) {
     UA_NodeId adminSessionId = UA_NODEID_GUID(0,
         (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
 
+    /* Add one role */
     UA_NodeId observerRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
-    UA_StatusCode res = UA_Server_addSessionRole(server, &adminSessionId, observerRole);
+    UA_Variant v;
+    UA_Variant_setArray(&v, &observerRole, 1, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_StatusCode res = UA_Server_setSessionAttribute(server, &adminSessionId,
+                                                      UA_RBAC_SESSION_ATTR_ROLES,
+                                                      &v);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
-    size_t rolesSize = 0;
-    UA_NodeId *roles = NULL;
-    res = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    UA_Variant out;
+    res = UA_Server_getSessionAttributeCopy(server, &adminSessionId,
+                                            UA_RBAC_SESSION_ATTR_ROLES, &out);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(rolesSize, 1);
-    ck_assert(UA_NodeId_equal(&roles[0], &observerRole));
-    UA_Array_delete(roles, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(out.arrayLength, 1);
+    ck_assert(UA_NodeId_equal((UA_NodeId*)out.data, &observerRole));
+    UA_Variant_clear(&out);
 
+    /* Append a second role by setting a two-element array */
     UA_NodeId operatorRole = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
-    res = UA_Server_addSessionRole(server, &adminSessionId, operatorRole);
+    UA_NodeId twoRoles[2] = { observerRole, operatorRole };
+    UA_Variant_setArray(&v, twoRoles, 2, &UA_TYPES[UA_TYPES_NODEID]);
+    res = UA_Server_setSessionAttribute(server, &adminSessionId,
+                                        UA_RBAC_SESSION_ATTR_ROLES, &v);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
-    res = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    res = UA_Server_getSessionAttributeCopy(server, &adminSessionId,
+                                            UA_RBAC_SESSION_ATTR_ROLES, &out);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(rolesSize, 2);
-    UA_Array_delete(roles, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(out.arrayLength, 2);
+    UA_Variant_clear(&out);
 
-    /* Idempotent */
-    res = UA_Server_addSessionRole(server, &adminSessionId, observerRole);
+    /* Setting the same set again replaces (idempotent result) */
+    UA_Variant_setArray(&v, twoRoles, 2, &UA_TYPES[UA_TYPES_NODEID]);
+    res = UA_Server_setSessionAttribute(server, &adminSessionId,
+                                        UA_RBAC_SESSION_ATTR_ROLES, &v);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    res = UA_Server_getSessionRoles(server, &adminSessionId, &rolesSize, &roles);
+    res = UA_Server_getSessionAttributeCopy(server, &adminSessionId,
+                                            UA_RBAC_SESSION_ATTR_ROLES, &out);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(rolesSize, 2);
-    UA_Array_delete(roles, rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+    ck_assert_uint_eq(out.arrayLength, 2);
+    UA_Variant_clear(&out);
 
-    /* Invalid role */
+    /* Invalid role ID */
     UA_NodeId invalidRole = UA_NODEID_NUMERIC(0, 999999);
-    res = UA_Server_addSessionRole(server, &adminSessionId, invalidRole);
+    UA_Variant_setArray(&v, &invalidRole, 1, &UA_TYPES[UA_TYPES_NODEID]);
+    res = UA_Server_setSessionAttribute(server, &adminSessionId,
+                                        UA_RBAC_SESSION_ATTR_ROLES, &v);
     ck_assert_uint_eq(res, UA_STATUSCODE_BADNODEIDUNKNOWN);
 
-    res = UA_Server_setSessionRoles(server, &adminSessionId, 0, NULL);
+    /* Clear */
+    res = UA_Server_deleteSessionAttribute(server, &adminSessionId,
+                                           UA_RBAC_SESSION_ATTR_ROLES);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 }
 END_TEST
@@ -1366,8 +1396,13 @@ START_TEST(recursivePermissions_onBuildInfo) {
 
     /* Read RolePermissions attribute via read service */
     UA_NodeId adminSessionId = UA_NODEID_GUID(0, (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
-    res = UA_Server_setSessionRoles(server, &adminSessionId, 1, &operatorRole);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    {
+        UA_Variant rv;
+        UA_Variant_setArray(&rv, &operatorRole, 1, &UA_TYPES[UA_TYPES_NODEID]);
+        res = UA_Server_setSessionAttribute(server, &adminSessionId,
+                                            UA_RBAC_SESSION_ATTR_ROLES, &rv);
+        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    }
 
     UA_NodeId productUriId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_BUILDINFO_PRODUCTURI);
     UA_ReadValueId rvid;

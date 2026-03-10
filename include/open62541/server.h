@@ -35,19 +35,24 @@
 #endif
 
 #ifdef UA_ENABLE_RBAC
-/* Forward-declare UA_PermissionIndex (defined in nodestore.h) for the
- * public RBAC API. Using the same conditional typedef. */
+/* UA_PermissionIndex: compact index stored in each node to reference a
+ * position in the server's internal role-permissions array. Defined here
+ * (rather than in plugin/nodestore.h) because nodestore.h includes server.h,
+ * so the circular dependency prevents including nodestore.h here.
+ * Configured via UA_ROLEPERMISSIONS_NODE_SIZE_BYTE in config.h. */
 #ifndef UA_PERMISSIONINDEX_DECLARED
 #define UA_PERMISSIONINDEX_DECLARED
 #if UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 2
 typedef UA_UInt16 UA_PermissionIndex;
 #define UA_PERMISSION_INDEX_INVALID 0xFFFF
+#elif UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 4
+typedef UA_UInt32 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFF
 #elif UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 8
 typedef UA_UInt64 UA_PermissionIndex;
 #define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFFFFFFFFFF
 #else
-typedef UA_UInt32 UA_PermissionIndex;
-#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFF
+#error "UA_ROLEPERMISSIONS_NODE_SIZE_BYTE must be 2, 4, or 8"
 #endif
 #endif /* UA_PERMISSIONINDEX_DECLARED */
 #endif /* UA_ENABLE_RBAC */
@@ -2785,40 +2790,41 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role);
 /**
  * Session Role Management
  * ~~~~~~~~~~~~~~~~~~~~~~~
- * Functions for managing the roles assigned to a session.
- * Roles are typically assigned during session activation. */
-
-/* Get the roles assigned to a session.
+ * Session roles are managed via the generic session attribute API using the
+ * well-known key ``UA_RBAC_SESSION_ATTR_ROLES``. The value is a ``UA_NodeId[]``
+ * array of the roles assigned to the session.
  *
- * @param server The server instance
- * @param sessionId The session's NodeId
- * @param rolesSize Output: number of roles
- * @param roleIds Output: array of role NodeIds (caller must free)
- * @return UA_STATUSCODE_GOOD on success */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_getSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
-                          size_t *rolesSize, UA_NodeId **roleIds);
-
-/* Set the roles for a session (replaces existing roles).
+ * All role NodeIds are validated against the server's role registry on write.
  *
- * @param server The server instance
- * @param sessionId The session's NodeId
- * @param rolesSize Number of roles
- * @param roleIds Array of role NodeIds to assign
- * @return UA_STATUSCODE_GOOD on success */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
-                          size_t rolesSize, const UA_NodeId *roleIds);
-
-/* Add a single role to a session's role set (no-op if already assigned).
+ * **Set roles:**
  *
- * @param server The server instance
- * @param sessionId The session's NodeId
- * @param roleId Role NodeId to add
- * @return UA_STATUSCODE_GOOD on success */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_addSessionRole(UA_Server *server, const UA_NodeId *sessionId,
-                         const UA_NodeId roleId);
+ * .. code-block:: c
+ *
+ *    UA_NodeId roles[2] = { role1Id, role2Id };
+ *    UA_Variant v;
+ *    UA_Variant_setArray(&v, roles, 2, &UA_TYPES[UA_TYPES_NODEID]);
+ *    UA_Server_setSessionAttribute(server, &sessionId,
+ *                                  UA_RBAC_SESSION_ATTR_ROLES, &v);
+ *
+ * **Get roles (deep copy):**
+ *
+ * .. code-block:: c
+ *
+ *    UA_Variant out;
+ *    UA_Server_getSessionAttributeCopy(server, &sessionId,
+ *                                      UA_RBAC_SESSION_ATTR_ROLES, &out);
+ *    UA_NodeId *roles = (UA_NodeId *)out.data;
+ *    size_t count = out.arrayLength;
+ *    // ... use roles ...
+ *    UA_Variant_clear(&out);
+ *
+ * **Clear roles:**
+ *
+ * .. code-block:: c
+ *
+ *    UA_Server_deleteSessionAttribute(server, &sessionId,
+ *                                     UA_RBAC_SESSION_ATTR_ROLES); */
+#define UA_RBAC_SESSION_ATTR_ROLES UA_QUALIFIEDNAME(0, "roles")
 
 /**
  * Per-Role Node Permission Management
@@ -2912,7 +2918,7 @@ UA_Server_addRolePermissionConfig(UA_Server *server,
  * @param server The server instance
  * @param index The configuration index
  * @return Pointer to the internal entry (do not modify), or NULL */
-const UA_RolePermissionSet * UA_EXPORT
+UA_EXPORT const UA_RolePermissionSet *
 UA_Server_getRolePermissionConfig(UA_Server *server,
                                   UA_PermissionIndex index);
 
