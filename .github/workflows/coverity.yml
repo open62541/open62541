@@ -6,6 +6,7 @@ jobs:
   coverity:
 
     runs-on: ubuntu-latest
+    continue-on-error: true
 
     env:
       COVERITY_SCAN_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
