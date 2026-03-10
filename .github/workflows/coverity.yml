@@ -1,6 +1,6 @@
 name: Coverity Scan
 
-on: [push]
+on: [push, pull_request]
 
 jobs:
   coverity:
@@ -58,7 +58,28 @@ jobs:
         cd build
         cov-build --dir cov-int make -j$(nproc)
 
+    - name: Coverity Analyze
+      run: |
+        export PATH=$PATH:/tmp/cov-analysis/bin
+        cd build
+        cov-analyze --dir cov-int --strip-path $GITHUB_WORKSPACE \
+          --all --enable-constraint-fpp --enable-fnptr --enable-virtual
+
+    - name: Coverity Format Errors
+      run: |
+        export PATH=$PATH:/tmp/cov-analysis/bin
+        cd build
+        cov-format-errors --dir cov-int --json-output-v7 coverity-errors.json
+        defect_count=$(jq '.issues | length' coverity-errors.json)
+        echo "Found ${defect_count} defect(s)"
+        if [ "${defect_count}" -gt 0 ]; then
+          cov-format-errors --dir cov-int --text-output coverity-errors.txt
+          cat coverity-errors.txt
+          exit 1
+        fi
+
     - name: Submit Build to Coverity Scan
+      if: github.event_name == 'push'
       run: |
         cd build
         tar -czf cov-int.tar.gz cov-int
