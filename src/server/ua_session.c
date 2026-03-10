@@ -10,6 +10,9 @@
 #include "ua_session.h"
 #include "open62541/types.h"
 #include "ua_server_internal.h"
+#ifdef UA_ENABLE_RBAC
+#include "ua_server_rbac.h"
+#endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 #endif
@@ -298,6 +301,10 @@ static const UA_QualifiedName protectedAttributes[UA_PROTECTEDATTRIBUTESSIZE] = 
     {0, UA_STRING_STATIC("clientUserId")}
 };
 
+#ifdef UA_ENABLE_RBAC
+static const UA_QualifiedName rbacRolesKey = {0, UA_STRING_STATIC("roles")};
+#endif
+
 static UA_Boolean
 protectedAttribute(const UA_QualifiedName key) {
     for(size_t i = 0; i < UA_PROTECTEDATTRIBUTESSIZE; i++) {
@@ -312,6 +319,28 @@ UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                               const UA_QualifiedName key, const UA_Variant *value) {
     if(protectedAttribute(key))
         return UA_STATUSCODE_BADNOTWRITABLE;
+#ifdef UA_ENABLE_RBAC
+    if(UA_QualifiedName_equal(&key, &rbacRolesKey)) {
+        lockServer(server);
+        UA_Session *session = getSessionById(server, sessionId);
+        if(!session) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADSESSIONIDINVALID;
+        }
+        UA_StatusCode res;
+        if(!value || UA_Variant_isEmpty(value)) {
+            res = UA_Session_setRoles(server, session, NULL, 0);
+        } else if(UA_Variant_hasArrayType(value, &UA_TYPES[UA_TYPES_NODEID])) {
+            res = UA_Session_setRoles(server, session,
+                                      (const UA_NodeId*)value->data,
+                                      value->arrayLength);
+        } else {
+            res = UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+        unlockServer(server);
+        return res;
+    }
+#endif
     lockServer(server);
     UA_Session *session = getSessionById(server, sessionId);
     UA_StatusCode res = UA_STATUSCODE_BADSESSIONIDINVALID;
@@ -326,6 +355,19 @@ UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                                  const UA_QualifiedName key) {
     if(protectedAttribute(key))
         return UA_STATUSCODE_BADNOTWRITABLE;
+#ifdef UA_ENABLE_RBAC
+    if(UA_QualifiedName_equal(&key, &rbacRolesKey)) {
+        lockServer(server);
+        UA_Session *session = getSessionById(server, sessionId);
+        if(!session) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADSESSIONIDINVALID;
+        }
+        UA_Session_setRoles(server, session, NULL, 0);
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+#endif
     lockServer(server);
     UA_Session *session = getSessionById(server, sessionId);
     if(!session) {
@@ -371,6 +413,13 @@ getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
         UA_Variant_setScalar(&localAttr, &session->clientUserIdOfSession,
                              &UA_TYPES[UA_TYPES_STRING]);
         attr = &localAttr;
+#ifdef UA_ENABLE_RBAC
+    } else if(UA_QualifiedName_equal(&key, &rbacRolesKey)) {
+        /* Return session roles as a NodeId[] */
+        UA_Variant_setArray(&localAttr, session->roles,
+                            session->rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
+        attr = &localAttr;
+#endif
     } else {
         /* Get from the actual key-value list */
         attr = UA_KeyValueMap_get(&session->attributes, key);

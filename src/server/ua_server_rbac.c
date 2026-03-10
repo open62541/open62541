@@ -6,6 +6,7 @@
  */
 
 #include "ua_server_internal.h"
+#include "ua_server_rbac.h"
 
 #ifdef UA_ENABLE_RBAC
 
@@ -1054,64 +1055,18 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
     return UA_STATUSCODE_GOOD;
 }
 
-/*****************************************/
-/* Session Role Management               */
-/*****************************************/
+/************************************/
+/* Internal Session Role Helper     */
+/************************************/
 
+/* Set roles on a session. Validates all role IDs against the server registry.
+ * Must be called with the server lock held. */
 UA_StatusCode
-UA_Server_getSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
-                          size_t *rolesSize, UA_NodeId **roleIds) {
-    if(!server || !sessionId || !rolesSize || !roleIds)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    lockServer(server);
-
-    UA_Session *session = getSessionById(server, sessionId);
-    if(!session) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADSESSIONIDINVALID;
-    }
-
-    if(session->rolesSize > 0 && session->roles) {
-        UA_StatusCode res = UA_Array_copy(session->roles, session->rolesSize,
-                                          (void**)roleIds, &UA_TYPES[UA_TYPES_NODEID]);
-        if(res != UA_STATUSCODE_GOOD) {
-            unlockServer(server);
-            return res;
-        }
-        *rolesSize = session->rolesSize;
-    } else {
-        *rolesSize = 0;
-        *roleIds = NULL;
-    }
-
-    unlockServer(server);
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_setSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
-                          size_t rolesSize, const UA_NodeId *roleIds) {
-    if(!server || !sessionId)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(rolesSize > 0 && !roleIds)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    lockServer(server);
-
-    UA_Session *session = getSessionById(server, sessionId);
-    if(!session) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADSESSIONIDINVALID;
-    }
-
-    /* Validate that all role IDs exist */
+UA_Session_setRoles(UA_Server *server, UA_Session *session,
+                    const UA_NodeId *roleIds, size_t rolesSize) {
     for(size_t i = 0; i < rolesSize; i++) {
-        const UA_Role *role = findRoleById(server, &roleIds[i]);
-        if(!role) {
-            unlockServer(server);
+        if(!findRoleById(server, &roleIds[i]))
             return UA_STATUSCODE_BADNODEIDUNKNOWN;
-        }
     }
 
     UA_Array_delete(session->roles, session->rolesSize, &UA_TYPES[UA_TYPES_NODEID]);
@@ -1120,65 +1075,12 @@ UA_Server_setSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
 
     if(rolesSize > 0) {
         UA_StatusCode res = UA_Array_copy(roleIds, rolesSize,
-                                          (void**)&session->roles, &UA_TYPES[UA_TYPES_NODEID]);
-        if(res != UA_STATUSCODE_GOOD) {
-            unlockServer(server);
+                                          (void**)&session->roles,
+                                          &UA_TYPES[UA_TYPES_NODEID]);
+        if(res != UA_STATUSCODE_GOOD)
             return res;
-        }
         session->rolesSize = rolesSize;
     }
-
-    unlockServer(server);
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_addSessionRole(UA_Server *server, const UA_NodeId *sessionId,
-                         const UA_NodeId roleId) {
-    if(!server || !sessionId)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    lockServer(server);
-
-    UA_Session *session = getSessionById(server, sessionId);
-    if(!session) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADSESSIONIDINVALID;
-    }
-
-    /* Validate that the role exists */
-    const UA_Role *role = findRoleById(server, &roleId);
-    if(!role) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    }
-
-    /* Check if role is already assigned */
-    for(size_t i = 0; i < session->rolesSize; i++) {
-        if(UA_NodeId_equal(&session->roles[i], &roleId)) {
-            unlockServer(server);
-            return UA_STATUSCODE_GOOD; /* Already assigned, no-op */
-        }
-    }
-
-    UA_NodeId *newRoles = (UA_NodeId*)
-        UA_realloc(session->roles, (session->rolesSize + 1) * sizeof(UA_NodeId));
-    if(!newRoles) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    session->roles = newRoles;
-
-    UA_StatusCode res = UA_NodeId_copy(&roleId, &session->roles[session->rolesSize]);
-    if(res != UA_STATUSCODE_GOOD) {
-        unlockServer(server);
-        return res;
-    }
-
-    session->rolesSize++;
-
-    unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
 

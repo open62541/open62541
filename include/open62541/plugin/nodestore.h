@@ -272,6 +272,8 @@ UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk);
  *
  * Configured via UA_ROLEPERMISSIONS_NODE_SIZE_BYTE in config.h
  * (valid options: 2, 4, or 8 bytes). */
+#ifndef UA_PERMISSIONINDEX_DECLARED
+#define UA_PERMISSIONINDEX_DECLARED
 #if UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 2
 typedef UA_UInt16 UA_PermissionIndex;
 #define UA_PERMISSION_INDEX_INVALID 0xFFFF
@@ -284,6 +286,7 @@ typedef UA_UInt64 UA_PermissionIndex;
 #else
 #error "UA_ROLEPERMISSIONS_NODE_SIZE_BYTE must be 2, 4, or 8"
 #endif
+#endif /* UA_PERMISSIONINDEX_DECLARED */
 
 /* Sentinel value for the refCount of a role-permission entry:
  * The entry originates from initial server configuration presets and

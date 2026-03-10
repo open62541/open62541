@@ -86,7 +86,9 @@ START_TEST(Server_getEffectivePermissions_SingleRole) {
     UA_NodeId adminSessionId = UA_NODEID_GUID(0, (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
 
     /* Assign the role to the session */
-    retval = UA_Server_setSessionRoles(server, &adminSessionId, 1, &roleId);
+    UA_Variant v;
+    UA_Variant_setArray(&v, &roleId, 1, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = UA_Server_setSessionAttribute(server, &adminSessionId, UA_RBAC_SESSION_ATTR_ROLES, &v);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Get effective permissions */
@@ -97,7 +99,7 @@ START_TEST(Server_getEffectivePermissions_SingleRole) {
     ck_assert_uint_eq(effectivePerms, permissions);
 
     /* Clean up */
-    UA_Server_setSessionRoles(server, &adminSessionId, 0, NULL);
+    UA_Server_deleteSessionAttribute(server, &adminSessionId, UA_RBAC_SESSION_ATTR_ROLES);
     UA_Server_deleteNode(server, testNodeId, true);
     UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "TestEffPermRole"));
     UA_NodeId_clear(&roleId);
@@ -146,7 +148,9 @@ START_TEST(Server_getEffectivePermissions_MultipleRoles_OR) {
     UA_NodeId roles[2];
     roles[0] = role1Id;
     roles[1] = role2Id;
-    retval = UA_Server_setSessionRoles(server, &adminSessionId, 2, roles);
+    UA_Variant v;
+    UA_Variant_setArray(&v, roles, 2, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = UA_Server_setSessionAttribute(server, &adminSessionId, UA_RBAC_SESSION_ATTR_ROLES, &v);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Get effective permissions - should be OR of both roles */
@@ -160,7 +164,7 @@ START_TEST(Server_getEffectivePermissions_MultipleRoles_OR) {
     ck_assert_uint_eq(effectivePerms, expected);
 
     /* Clean up */
-    UA_Server_setSessionRoles(server, &adminSessionId, 0, NULL);
+    UA_Server_deleteSessionAttribute(server, &adminSessionId, UA_RBAC_SESSION_ATTR_ROLES);
     UA_Server_deleteNode(server, testNodeId, true);
     UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "Role1"));
     UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "Role2"));
@@ -199,7 +203,7 @@ START_TEST(Server_getEffectivePermissions_NoRoles) {
     UA_NodeId adminSessionId = UA_NODEID_GUID(0, (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
 
     /* Clear any existing roles */
-    retval = UA_Server_setSessionRoles(server, &adminSessionId, 0, NULL);
+    retval = UA_Server_deleteSessionAttribute(server, &adminSessionId, UA_RBAC_SESSION_ATTR_ROLES);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Get effective permissions - should be 0 (no roles) */
@@ -304,7 +308,9 @@ START_TEST(Server_getUserRolePermissions_SingleRole) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_NodeId adminSessionId = UA_NODEID_GUID(0, (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
-    retval = UA_Server_setSessionRoles(server, &adminSessionId, 1, &roleId);
+    UA_Variant v;
+    UA_Variant_setArray(&v, &roleId, 1, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = UA_Server_setSessionAttribute(server, &adminSessionId, UA_RBAC_SESSION_ATTR_ROLES, &v);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t entriesSize = 0;
@@ -318,7 +324,7 @@ START_TEST(Server_getUserRolePermissions_SingleRole) {
     ck_assert_uint_eq(entries[0].permissions, permissions);
 
     UA_Array_delete(entries, entriesSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-    UA_Server_setSessionRoles(server, &adminSessionId, 0, NULL);
+    UA_Server_deleteSessionAttribute(server, &adminSessionId, UA_RBAC_SESSION_ATTR_ROLES);
     UA_Server_deleteNode(server, testNodeId, true);
     UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "TestUserRolePermRole"));
     UA_NodeId_clear(&roleId);
@@ -361,7 +367,9 @@ START_TEST(Server_getUserRolePermissions_MultipleRoles) {
     UA_NodeId roles[2];
     roles[0] = role1Id;
     roles[1] = role2Id;
-    retval = UA_Server_setSessionRoles(server, &adminSessionId, 2, roles);
+    UA_Variant v;
+    UA_Variant_setArray(&v, roles, 2, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = UA_Server_setSessionAttribute(server, &adminSessionId, UA_RBAC_SESSION_ATTR_ROLES, &v);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t entriesSize = 0;
@@ -389,7 +397,7 @@ START_TEST(Server_getUserRolePermissions_MultipleRoles) {
     ck_assert(foundRole2);
 
     UA_Array_delete(entries, entriesSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-    UA_Server_setSessionRoles(server, &adminSessionId, 0, NULL);
+    UA_Server_deleteSessionAttribute(server, &adminSessionId, UA_RBAC_SESSION_ATTR_ROLES);
     UA_Server_deleteNode(server, testNodeId, true);
     UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "URP_Role1"));
     UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "URP_Role2"));
@@ -428,7 +436,9 @@ START_TEST(Server_getUserRolePermissions_RoleNotOnNode) {
     UA_NodeId roles[2];
     roles[0] = role1Id;
     roles[1] = role2Id;
-    retval = UA_Server_setSessionRoles(server, &adminSessionId, 2, roles);
+    UA_Variant v;
+    UA_Variant_setArray(&v, roles, 2, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = UA_Server_setSessionAttribute(server, &adminSessionId, UA_RBAC_SESSION_ATTR_ROLES, &v);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t entriesSize = 0;
@@ -441,7 +451,7 @@ START_TEST(Server_getUserRolePermissions_RoleNotOnNode) {
     ck_assert(UA_NodeId_equal(&entries[0].roleId, &role1Id));
 
     UA_Array_delete(entries, entriesSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-    UA_Server_setSessionRoles(server, &adminSessionId, 0, NULL);
+    UA_Server_deleteSessionAttribute(server, &adminSessionId, UA_RBAC_SESSION_ATTR_ROLES);
     UA_Server_deleteNode(server, testNodeId, true);
     UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "URPRoleOnNode"));
     UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "URPRoleNotOnNode"));
@@ -471,7 +481,9 @@ START_TEST(Server_getUserRolePermissions_NoPermissionsOnNode) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_NodeId adminSessionId = UA_NODEID_GUID(0, (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
-    retval = UA_Server_setSessionRoles(server, &adminSessionId, 1, &roleId);
+    UA_Variant v;
+    UA_Variant_setArray(&v, &roleId, 1, &UA_TYPES[UA_TYPES_NODEID]);
+    retval = UA_Server_setSessionAttribute(server, &adminSessionId, UA_RBAC_SESSION_ATTR_ROLES, &v);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     size_t entriesSize = 0;
@@ -482,7 +494,7 @@ START_TEST(Server_getUserRolePermissions_NoPermissionsOnNode) {
     ck_assert_uint_eq(entriesSize, 0);
     ck_assert_ptr_null(entries);
 
-    UA_Server_setSessionRoles(server, &adminSessionId, 0, NULL);
+    UA_Server_deleteSessionAttribute(server, &adminSessionId, UA_RBAC_SESSION_ATTR_ROLES);
     UA_Server_deleteNode(server, testNodeId, true);
     UA_Server_removeRole(server, UA_QUALIFIEDNAME(0, "URPRole"));
     UA_NodeId_clear(&roleId);

@@ -14,6 +14,14 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_RBAC
 
+#include "ua_session.h"
+
+/* Set roles on a session. Validates all role IDs against the server registry.
+ * Must be called with the server lock held. */
+UA_StatusCode
+UA_Session_setRoles(UA_Server *server, UA_Session *session,
+                    const UA_NodeId *roleIds, size_t rolesSize);
+
 /* Decrement the refCount of a role permission entry at the given index.
  * Used during node deletion to keep refcounts consistent. */
 void
