@@ -196,14 +196,6 @@ typedef struct {
     size_t refCount;
 } UA_RolePermissionEntry;
 
-/* Namespace metadata for default role permissions.
- * Per OPC UA Part 5: If a node has no explicit RolePermissions,
- * the DefaultRolePermissions from the namespace's NamespaceMetadata apply. */
-typedef struct {
-    size_t entriesSize;
-    UA_RolePermission *entries;
-} UA_NamespaceMetadata;
-
 /* Internal RBAC lifecycle */
 UA_StatusCode UA_Server_initRBAC(UA_Server *server);
 void UA_Server_cleanupRBAC(UA_Server *server);
@@ -309,12 +301,6 @@ struct UA_Server {
 
     /* Counter for generating unique NodeIds for custom roles */
     UA_UInt32 nextCustomRoleId;
-
-    /* Namespace metadata: default role permissions per namespace.
-     * Per OPC UA Part 5, if a node has no explicit RolePermissions,
-     * the DefaultRolePermissions from the NamespaceMetadata apply. */
-    size_t namespaceMetadataSize;
-    UA_NamespaceMetadata *namespaceMetadata;
 #endif
 };
 

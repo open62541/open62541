@@ -537,20 +537,6 @@ UA_Server_cleanupRBAC(UA_Server *server) {
     UA_free(server->rolesProtected);
     server->rolesProtected = NULL;
     server->rolesSize = 0;
-
-    /* Clean up namespace metadata */
-    if(server->namespaceMetadata) {
-        for(size_t i = 0; i < server->namespaceMetadataSize; i++) {
-            if(server->namespaceMetadata[i].entries) {
-                for(size_t j = 0; j < server->namespaceMetadata[i].entriesSize; j++)
-                    UA_NodeId_clear(&server->namespaceMetadata[i].entries[j].roleId);
-                UA_free(server->namespaceMetadata[i].entries);
-            }
-        }
-        UA_free(server->namespaceMetadata);
-        server->namespaceMetadata = NULL;
-        server->namespaceMetadataSize = 0;
-    }
 }
 
 /************************************/
@@ -1753,13 +1739,6 @@ computeEffectivePermissions(UA_Server *server, const UA_Node *node,
         const UA_RolePermissionEntry *rp = &server->rolePermissions[permIdx];
         entries = rp->rolePermissions;
         entriesSize = rp->rolePermissionsSize;
-    } else {
-        /* No explicit permissions, check namespace defaults */
-        UA_UInt16 nsIdx = node->head.nodeId.namespaceIndex;
-        if(nsIdx < server->namespaceMetadataSize && server->namespaceMetadata) {
-            entries = server->namespaceMetadata[nsIdx].entries;
-            entriesSize = server->namespaceMetadata[nsIdx].entriesSize;
-        }
     }
 
     /* If no permissions configured, check allPermissionsForAnonymousRole.
@@ -1916,98 +1895,6 @@ UA_Server_getUserRolePermissions(UA_Server *server, const UA_NodeId *sessionId,
     *entries = result;
 
     UA_NODESTORE_RELEASE(server, node);
-
-    unlockServer(server);
-    return UA_STATUSCODE_GOOD;
-}
-
-/********************************************/
-/* Namespace Default Role Permissions       */
-/********************************************/
-
-UA_StatusCode
-UA_Server_setNamespaceDefaultRolePermissions(UA_Server *server,
-                                             UA_UInt16 namespaceIndex,
-                                             size_t entriesSize,
-                                             const UA_RolePermission *entries) {
-    if(!server)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    if(entriesSize > 0 && !entries)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    lockServer(server);
-
-    if(namespaceIndex >= server->namespacesSize) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADINDEXRANGEINVALID;
-    }
-
-    if(!server->namespaceMetadata) {
-        server->namespaceMetadata = (UA_NamespaceMetadata*)
-            UA_calloc(server->namespacesSize, sizeof(UA_NamespaceMetadata));
-        if(!server->namespaceMetadata) {
-            unlockServer(server);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-        server->namespaceMetadataSize = server->namespacesSize;
-    } else if(server->namespaceMetadataSize < server->namespacesSize) {
-        UA_NamespaceMetadata *newMetadata = (UA_NamespaceMetadata*)
-            UA_realloc(server->namespaceMetadata,
-                       server->namespacesSize * sizeof(UA_NamespaceMetadata));
-        if(!newMetadata) {
-            unlockServer(server);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-        server->namespaceMetadata = newMetadata;
-        memset(&server->namespaceMetadata[server->namespaceMetadataSize], 0,
-               (server->namespacesSize - server->namespaceMetadataSize) *
-               sizeof(UA_NamespaceMetadata));
-        server->namespaceMetadataSize = server->namespacesSize;
-    }
-
-    /* Clear old entries */
-    if(server->namespaceMetadata[namespaceIndex].entries) {
-        for(size_t i = 0; i < server->namespaceMetadata[namespaceIndex].entriesSize; i++)
-            UA_NodeId_clear(&server->namespaceMetadata[namespaceIndex].entries[i].roleId);
-        UA_free(server->namespaceMetadata[namespaceIndex].entries);
-        server->namespaceMetadata[namespaceIndex].entries = NULL;
-        server->namespaceMetadata[namespaceIndex].entriesSize = 0;
-    }
-
-    /* Set new entries if provided */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(entriesSize > 0) {
-        res = copyRolePermissionArray(entriesSize, entries,
-                                      &server->namespaceMetadata[namespaceIndex].entriesSize,
-                                      &server->namespaceMetadata[namespaceIndex].entries);
-    }
-
-    unlockServer(server);
-    return res;
-}
-
-UA_StatusCode
-UA_Server_getNamespaceDefaultRolePermissions(UA_Server *server,
-                                             UA_UInt16 namespaceIndex,
-                                             size_t *entriesSize,
-                                             const UA_RolePermission **entries) {
-    if(!server || !entriesSize || !entries)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    lockServer(server);
-
-    if(namespaceIndex >= server->namespacesSize) {
-        unlockServer(server);
-        return UA_STATUSCODE_BADINDEXRANGEINVALID;
-    }
-
-    if(server->namespaceMetadata && namespaceIndex < server->namespaceMetadataSize) {
-        *entriesSize = server->namespaceMetadata[namespaceIndex].entriesSize;
-        *entries = server->namespaceMetadata[namespaceIndex].entries;
-    } else {
-        *entriesSize = 0;
-        *entries = NULL;
-    }
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
