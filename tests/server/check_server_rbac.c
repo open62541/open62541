@@ -562,6 +562,7 @@ START_TEST(allowModifyingOptionalRoles) {
 }
 END_TEST
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
 START_TEST(roleSetExists) {
     UA_NodeId roleSetNodeId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_ROLESET);
@@ -574,7 +575,9 @@ START_TEST(roleSetExists) {
     UA_QualifiedName_clear(&browseName);
 }
 END_TEST
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
 START_TEST(standardRolesWithCorrectIds) {
     struct {
         UA_UInt32 id;
@@ -602,6 +605,7 @@ START_TEST(standardRolesWithCorrectIds) {
     }
 }
 END_TEST
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
 
 START_TEST(getAllRoles_includesWellKnown) {
     size_t rolesSize = 0;
@@ -659,6 +663,7 @@ START_TEST(identityMapping_wellKnownRoles) {
 }
 END_TEST
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
 START_TEST(wellKnownRoles_nodeFields) {
     /* Verify DisplayName and NodeClass for well-known role nodes */
     struct {
@@ -691,6 +696,7 @@ START_TEST(wellKnownRoles_nodeFields) {
     }
 }
 END_TEST
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
 
 START_TEST(addedRole_ns0NodeFields) {
     /* Add a custom role via the API and verify it is registered */
@@ -1705,13 +1711,17 @@ static Suite *testSuite_InformationModel(void) {
     Suite *s = suite_create("RBAC Information Model");
     TCase *tc = tcase_create("NS0");
     tcase_add_unchecked_fixture(tc, setup, teardown);
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
     tcase_add_test(tc, roleSetExists);
     tcase_add_test(tc, standardRolesWithCorrectIds);
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
     tcase_add_test(tc, getAllRoles_includesWellKnown);
     tcase_add_test(tc, protectMandatoryRoles);
     tcase_add_test(tc, allowModifyingOptionalRoles);
     tcase_add_test(tc, identityMapping_wellKnownRoles);
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
     tcase_add_test(tc, wellKnownRoles_nodeFields);
+#endif /* UA_GENERATED_NAMESPACE_ZERO_FULL */
     tcase_add_test(tc, addedRole_ns0NodeFields);
     suite_add_tcase(s, tc);
 
