@@ -195,7 +195,7 @@ START_TEST(Client_connectSecureChannelAsync) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Drive both sides until the channel is open */
-    for(int i = 0; i < 30; i++) {
+    while(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
         UA_Server_run_iterate(server, false);
         UA_Client_run_iterate(client, 0);
     }
@@ -267,7 +267,7 @@ START_TEST(Client_connectUsername_async) {
 
     /* Disconnect asynchronously */
     UA_Client_disconnectAsync(client);
-    for(int i = 0; i < 30; i++) {
+    while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
         UA_Server_run_iterate(server, false);
         UA_Client_run_iterate(client, 0);
     }
