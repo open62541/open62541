@@ -19,6 +19,7 @@ The library is available in standard source and binary form. In addition, the si
 [![Code Scanning](https://github.com/open62541/open62541/actions/workflows/codeql.yml/badge.svg)](https://github.com/open62541/open62541/actions/workflows/codeql.yml)
 [![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/open62541.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:open62541)
 [![codecov](https://codecov.io/gh/open62541/open62541/branch/master/graph/badge.svg)](https://codecov.io/gh/open62541/open62541)
+[![Coverity Scan](https://scan.coverity.com/projects/12248/badge.svg)](https://scan.coverity.com/projects/open62541-open62541)
 
 ## Documentation and Support
 
