@@ -73,7 +73,7 @@ The file [CONTRIBUTING.md](CONTRIBUTING.md) aggregates good practices that we ex
 The following are good starting points for new contributors:
 
 - [Report bugs](https://github.com/open62541/open62541/issues)
-- Improve the [documentation](http://open62541.org/doc/current)
+- Improve the [documentation](http://open62541.org/doc/master)
 - Work on issues marked as "[good first issue](https://github.com/open62541/open62541/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)"
 
 For custom development that shall eventually become part of the open62541 library, please keep one of the core maintainers in the loop.
