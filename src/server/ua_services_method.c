@@ -250,10 +250,12 @@ callWithResolvedMethodAndObject(UA_Server *server, UA_Session *session,
     /* TODO: Verify Output matches the argument definition */
 
 #ifdef UA_ENABLE_AUDITING
-    auditMethodUpdateEvent(server, session->channel, session, (res == UA_STATUSCODE_GOOD),
-                           &callContext->head.nodeId, &resolvedMethod->head.nodeId,
-                           res, request->inputArgumentsSize, mutableInputArgs,
-                           result->outputArgumentsSize, result->outputArguments);
+    if(server->config.auditingEnabled && server->config.auditMethodUpdateEnabled) {
+        auditMethodUpdateEvent(server, session->channel, session, (res == UA_STATUSCODE_GOOD),
+                               &callContext->head.nodeId, &resolvedMethod->head.nodeId,
+                               res, request->inputArgumentsSize, mutableInputArgs,
+                               result->outputArgumentsSize, result->outputArguments);
+    }
 #endif
 
     return res;

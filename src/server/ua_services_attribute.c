@@ -1801,7 +1801,8 @@ Operation_Write(UA_Server *server, UA_Session *session,
     /* Get the old value for the audit event */
 #ifdef UA_ENABLE_AUDITING
     UA_DataValue oldValue;
-    if(!preventAuditEventRecursion) {
+    if(!preventAuditEventRecursion && server->config.auditingEnabled &&
+       server->config.auditWriteUpdateEnabled) {
         preventAuditEventRecursion = true;
         UA_ReadValueId rvi;
         UA_ReadValueId_init(&rvi);
@@ -1824,7 +1825,7 @@ Operation_Write(UA_Server *server, UA_Session *session,
     /* Generate audit event for writing variables.
      * TODO: Audit events for async writes. */
 #ifdef UA_ENABLE_AUDITING
-    if(done) {
+    if(done && server->config.auditingEnabled && server->config.auditWriteUpdateEnabled) {
         auditWriteUpdateEvent(server, session->channel, session,
                               (*result == UA_STATUSCODE_GOOD),
                               &wv->nodeId, wv->attributeId, wv->indexRange,
