@@ -2427,6 +2427,16 @@ struct UA_ServerConfig {
     UA_PubSubConfiguration pubSubConfig;
 #endif
 
+    /* Auditing
+     * ~~~~~~~~
+     * Drops audit events into the auditNotificationCallback and generates
+     * the corresponding Audit Events (if Events are enabled). */
+    UA_Boolean auditingEnabled;
+#ifdef UA_ENABLE_AUDITING
+    UA_Boolean auditWriteUpdateEnabled;  /* Mind the runtime overhead */
+    UA_Boolean auditMethodUpdateEnabled; /* Mind the runtime overhead */
+#endif
+
     /* Historical Access
      * ~~~~~~~~~~~~~~~~~ */
     UA_Boolean historizingEnabled;

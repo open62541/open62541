@@ -22,6 +22,10 @@ auditEvent(UA_Server *server, UA_ApplicationNotificationType type,
            UA_Boolean status, const UA_KeyValueMap payload) {
     UA_ServerConfig *config = &server->config;
 
+    /* Check if auditing is disabled */
+    if(!config->auditingEnabled)
+        return;
+
     /* Set the values for AuditEventType fields:
      * /ActionTimeStamp    -> 0
      * /Status             -> 1
