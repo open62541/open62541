@@ -1711,6 +1711,11 @@ Service_AddNodes(UA_Server *server, UA_Session *session,
                                       &UA_TYPES[UA_TYPES_ADDNODESITEM],
                                       &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_ADDNODESRESULT]);
+#ifdef UA_ENABLE_AUDITING
+    UA_Boolean done = (response->responseHeader.serviceResult == UA_STATUSCODE_GOOD);
+    auditAddNodesEvent(server, session->channel, session, done,
+                       request->nodesToAddSize, request->nodesToAdd);
+#endif
     return true;
 }
 
@@ -2219,6 +2224,12 @@ Service_DeleteNodes(UA_Server *server, UA_Session *session,
                                       &UA_TYPES[UA_TYPES_DELETENODESITEM],
                                       &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_STATUSCODE]);
+
+#ifdef UA_ENABLE_AUDITING
+    UA_Boolean done = (response->responseHeader.serviceResult == UA_STATUSCODE_GOOD);
+    auditDeleteNodesEvent(server, session->channel, session, done,
+                          request->nodesToDeleteSize, request->nodesToDelete);
+#endif
     return true;
 }
 
@@ -2393,6 +2404,11 @@ Service_AddReferences(UA_Server *server, UA_Session *session,
                                       &UA_TYPES[UA_TYPES_ADDREFERENCESITEM],
                                       &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_STATUSCODE]);
+#ifdef UA_ENABLE_AUDITING
+    UA_Boolean done = (response->responseHeader.serviceResult == UA_STATUSCODE_GOOD);
+    auditAddReferencesEvent(server, session->channel, session, done,
+                            request->referencesToAddSize, request->referencesToAdd);
+#endif
     return true;
 }
 
@@ -2511,6 +2527,11 @@ Service_DeleteReferences(UA_Server *server, UA_Session *session,
                                       &UA_TYPES[UA_TYPES_DELETEREFERENCESITEM],
                                       &response->resultsSize,
                                       &UA_TYPES[UA_TYPES_STATUSCODE]);
+#ifdef UA_ENABLE_AUDITING
+    UA_Boolean done = (response->responseHeader.serviceResult == UA_STATUSCODE_GOOD);
+    auditDeleteReferencesEvent(server, session->channel, session, done,
+                               request->referencesToDeleteSize, request->referencesToDelete);
+#endif
     return true;
 }
 

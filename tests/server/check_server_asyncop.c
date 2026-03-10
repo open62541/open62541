@@ -29,8 +29,32 @@ static UA_UInt64 lastTimedCallback;
 static const void *canceledCallRequest = NULL;
 static const void *expectedCanceledCallRequest = NULL;
 
+// Store active async reads and remove when cancelled
+static void *activeReads[16];
+
+static void
+asyncOperationCancelCallback(UA_Server *server, const void *out) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Request %p was canceled", out);
+    canceledCallRequest = out;
+    for(size_t i = 0; i < 16; i++) {
+        if(activeReads[i] == out)
+            activeReads[i] = NULL;
+    }
+}
+
 static void
 asyncRead(UA_Server *server, void *data) {
+    /* Already cancelled? */
+    size_t i = 0;
+    for(;i < 16; i++) {
+        if(activeReads[i] == data)
+            break;
+    }
+    if(i >= 16)
+        return;
+
+    activeReads[i] = NULL; /* Free the slot*/
+
     UA_DataValue *out = (UA_DataValue*)data;
     UA_UInt32 val = 42;
     UA_Variant_setScalarCopy(&out->value, &val, &UA_TYPES[UA_TYPES_UINT32]);
@@ -43,8 +67,17 @@ readCallback_async(UA_Server *server, const UA_NodeId *sessionId,
                    void *sessionContext, const UA_NodeId *nodeId,
                    void *nodeContext, UA_Boolean includeSourceTimeStamp,
                    const UA_NumericRange *range, UA_DataValue *value) {
+    size_t i = 0;
+    for(;i < 16; i++) {
+        if(activeReads[i] == NULL)
+            break;
+    }
+    if(i >= 16)
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+
     UA_DateTime callTime = UA_DateTime_now_fake(NULL) + UA_DATETIME_SEC;
     UA_Server_addTimedCallback(server, asyncRead, value, callTime, &lastTimedCallback);
+    activeReads[i] = value; /* store to see if canceled */
     return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
@@ -114,12 +147,6 @@ clientReceiveCallback(UA_Client *client, void *userdata,
     clientCounter++;
 }
 
-static void
-asyncOperationCancelCallback(UA_Server *server, const void *out) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Request %p was canceled", out);
-    canceledCallRequest = out;
-}
-
 THREAD_CALLBACK(serverloop) {
     while(running)
         UA_Server_run_iterate(server, true);
@@ -133,6 +160,7 @@ static void setup(void) {
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->asyncOperationTimeout = 2000.0; /* 2 seconds */
+    config->asyncOperationCancelCallback = asyncOperationCancelCallback;
 
     UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
     methodAttr.executable = true;
@@ -411,8 +439,6 @@ START_TEST(Async_cancel) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    UA_Server_getConfig(server)->asyncOperationCancelCallback = asyncOperationCancelCallback;
 
     /* Call async method, then the sync method.
      * The sync method returns first. */
