@@ -73,6 +73,21 @@ START_TEST(Misc_NamespaceGetIndex) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
 } END_TEST
 
+START_TEST(Misc_NamespaceGetUri) {
+    UA_String nsUri = UA_STRING_NULL;
+
+    /* Valid index 0 should return the OPC UA namespace URI */
+    UA_StatusCode retval = UA_Client_getNamespaceUri(client, 0, &nsUri);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_String expected = UA_STRING("http://opcfoundation.org/UA/");
+    ck_assert(UA_String_equal(&nsUri, &expected));
+    UA_String_clear(&nsUri);
+
+    /* Out-of-bounds index should return BADNOTFOUND */
+    retval = UA_Client_getNamespaceUri(client, 9999, &nsUri);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
+} END_TEST
+
 UA_NodeId newReferenceTypeId;
 UA_NodeId newObjectTypeId;
 UA_NodeId newDataTypeId;
@@ -1040,6 +1055,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_checked_fixture(tc_misc, setup, teardown);
     tcase_add_test(tc_misc, Misc_State);
     tcase_add_test(tc_misc, Misc_NamespaceGetIndex);
+    tcase_add_test(tc_misc, Misc_NamespaceGetUri);
     suite_add_tcase(s, tc_misc);
 
     TCase *tc_nodes = tcase_create("Client Highlevel Node Management");
