@@ -364,6 +364,67 @@ incrementRefCount(UA_Server *server, UA_PermissionIndex index) {
 /* RBAC Init/Cleanup  */
 /**********************/
 
+/* Initialize OPC UA well-known roles per Part 18 v1.05 Section 4.3.
+ * These are registered in the internal role registry so that
+ * addRolePermissions and similar functions can look them up by NodeId. */
+static UA_StatusCode
+initializeStandardRoles(UA_Server *server) {
+    struct {
+        UA_UInt32 id;
+        const char *name;
+        UA_IdentityCriteriaType identities[2];
+        size_t identitiesSize;
+    } stdRoles[] = {
+        {UA_NS0ID_WELLKNOWNROLE_ANONYMOUS, "Anonymous",
+         {UA_IDENTITYCRITERIATYPE_ANONYMOUS,
+          UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER}, 2},
+        {UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER, "AuthenticatedUser",
+         {UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER, 0}, 1},
+        {UA_NS0ID_WELLKNOWNROLE_OBSERVER, "Observer", {0, 0}, 0},
+        {UA_NS0ID_WELLKNOWNROLE_OPERATOR, "Operator", {0, 0}, 0},
+        {UA_NS0ID_WELLKNOWNROLE_ENGINEER, "Engineer", {0, 0}, 0},
+        {UA_NS0ID_WELLKNOWNROLE_SUPERVISOR, "Supervisor", {0, 0}, 0},
+        {UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN, "ConfigureAdmin", {0, 0}, 0},
+        {UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN, "SecurityAdmin", {0, 0}, 0}
+    };
+    size_t count = sizeof(stdRoles) / sizeof(stdRoles[0]);
+
+    for(size_t idx = 0; idx < count; idx++) {
+        UA_Role role;
+        UA_Role_init(&role);
+        role.roleId = UA_NODEID_NUMERIC(0, stdRoles[idx].id);
+        role.roleName =
+            UA_QUALIFIEDNAME(0, (char*)(uintptr_t)stdRoles[idx].name);
+
+        if(stdRoles[idx].identitiesSize > 0) {
+            role.identityMappingRules = (UA_IdentityMappingRuleType*)
+                UA_calloc(stdRoles[idx].identitiesSize,
+                           sizeof(UA_IdentityMappingRuleType));
+            if(!role.identityMappingRules)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            role.identityMappingRulesSize = stdRoles[idx].identitiesSize;
+            for(size_t j = 0; j < stdRoles[idx].identitiesSize; j++) {
+                role.identityMappingRules[j].criteriaType =
+                    stdRoles[idx].identities[j];
+                role.identityMappingRules[j].criteria = UA_STRING_NULL;
+            }
+        }
+
+        UA_NodeId outId;
+        UA_StatusCode res = UA_Server_addRole(server, &role, &outId);
+        /* Clean up allocated identity array since addRole copies */
+        UA_free(role.identityMappingRules);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+
+        /* Mark the well-known role as protected (cannot be removed) */
+        if(server->rolesSize > 0)
+            server->rolesProtected[server->rolesSize - 1] = true;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Apply config roles into server's internal role registry via UA_Server_addRole.
  * Config roles are marked as protected (cannot be removed at runtime).
  * Duplicate names or NodeIds are skipped with a warning. */
@@ -441,6 +502,11 @@ UA_Server_initRBAC(UA_Server *server) {
                 "RBAC support enabled (EXPERIMENTAL - not for production use). "
                 "%zu preset(s) loaded.",
                 server->rolePermissionsSize);
+
+    /* Register the OPC UA well-known roles in the internal registry */
+    UA_StatusCode stdRes = initializeStandardRoles(server);
+    if(stdRes != UA_STATUSCODE_GOOD)
+        return stdRes;
 
     /* Copy config roles into the internal role registry */
     UA_StatusCode initRes = initializeRolesFromConfig(server);
@@ -855,6 +921,126 @@ UA_Server_removeNodeRolePermissions(UA_Server *server,
 
     unlockServer(server);
     return res;
+}
+
+/*****************************************/
+/* Internal Helpers: Role Lookups        */
+/*****************************************/
+
+/* Check if a role is one of the mandatory well-known roles that cannot be modified.
+ * According to OPC UA Part 18 v1.05 Section 4.3:
+ * "A Server shall not allow changes to the Roles Anonymous,
+ *  AuthenticatedUser and TrustedApplication" */
+static UA_Boolean
+isMandatoryWellKnownRole(const UA_NodeId *roleId) {
+    if(roleId->namespaceIndex != 0 ||
+       roleId->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return false;
+    return (roleId->identifier.numeric == UA_NS0ID_WELLKNOWNROLE_ANONYMOUS ||
+            roleId->identifier.numeric == UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+}
+
+/************************************/
+/* Public API: Role Queries         */
+/************************************/
+
+UA_StatusCode
+UA_Server_getRoleById(UA_Server *server, UA_NodeId roleId,
+                      UA_Role *outRole) {
+    if(!server || !outRole)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    UA_Role *role = findRoleById(server, &roleId);
+    if(!role) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_StatusCode res = UA_Role_copy(role, outRole);
+    unlockServer(server);
+    return res;
+}
+
+/************************************/
+/* Public API: Role Update          */
+/************************************/
+
+UA_StatusCode UA_EXPORT
+UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
+    if(!server || !role)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_Boolean hasId = !UA_NodeId_isNull(&role->roleId);
+    UA_Boolean hasName = (role->roleName.name.length > 0);
+    if(!hasId && !hasName)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    lockServer(server);
+
+    UA_Role *existing = NULL;
+    if(hasId && hasName) {
+        existing = findRoleById(server, &role->roleId);
+        if(!existing ||
+           !UA_QualifiedName_equal(&existing->roleName, &role->roleName)) {
+            unlockServer(server);
+            return UA_STATUSCODE_BADNOTFOUND;
+        }
+    } else if(hasId) {
+        existing = findRoleById(server, &role->roleId);
+    } else {
+        existing = findRoleByName(server, &role->roleName);
+    }
+    if(!existing) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    if(isMandatoryWellKnownRole(&existing->roleId)) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    }
+
+    /* Deep copy the incoming role */
+    UA_Role copy;
+    UA_StatusCode res = UA_Role_copy(role, &copy);
+    if(res != UA_STATUSCODE_GOOD) {
+        unlockServer(server);
+        return res;
+    }
+
+    /* Clear old mutable fields */
+    for(size_t i = 0; i < existing->identityMappingRulesSize; i++)
+        UA_IdentityMappingRuleType_clear(&existing->identityMappingRules[i]);
+    UA_free(existing->identityMappingRules);
+
+    for(size_t i = 0; i < existing->applicationsSize; i++)
+        UA_String_clear(&existing->applications[i]);
+    UA_free(existing->applications);
+
+    for(size_t i = 0; i < existing->endpointsSize; i++)
+        UA_EndpointType_clear(&existing->endpoints[i]);
+    UA_free(existing->endpoints);
+
+    /* Move mutable fields from copy to existing (ownership transfer) */
+    existing->identityMappingRulesSize = copy.identityMappingRulesSize;
+    existing->identityMappingRules = copy.identityMappingRules;
+    existing->applicationsExclude = copy.applicationsExclude;
+    existing->applicationsSize = copy.applicationsSize;
+    existing->applications = copy.applications;
+    existing->endpointsExclude = copy.endpointsExclude;
+    existing->endpointsSize = copy.endpointsSize;
+    existing->endpoints = copy.endpoints;
+
+    /* Null out moved fields before clearing the rest */
+    copy.identityMappingRulesSize = 0;
+    copy.identityMappingRules = NULL;
+    copy.applicationsSize = 0;
+    copy.applications = NULL;
+    copy.endpointsSize = 0;
+    copy.endpoints = NULL;
+    UA_Role_clear(&copy);
+
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif /* UA_ENABLE_RBAC */
