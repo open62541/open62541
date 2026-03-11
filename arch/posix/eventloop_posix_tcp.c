@@ -8,11 +8,15 @@
  */
 
 #include "open62541/types.h"
+<<<<<<<< HEAD:arch/posix/eventloop_arch_tcp.c
 <<<<<<<< HEAD:arch/zephyr/eventloop_zephyr_tcp.c
 #include "eventloop_zephyr.h"
 ========
 #include "eventloop_arch.h"
 >>>>>>>> 534556501 (All architecture-specific files isolated in single folder, which can be located outside of the open62541 source code tree. Folder location can be set using new build option UA_ARCH_FOLDER. Architecture-specific files renamed, they start by "eventloop_arch_ ".):arch/posix/eventloop_arch_tcp.c
+========
+#include "eventloop_posix.h"
+>>>>>>>> c779cd6b1 (refactor(build): revert rename of architecture-specific files This partly reverts commit 5345565019654918acdbd306d9b47788377a9aa5.):arch/posix/eventloop_posix_tcp.c
 
 #if defined(UA_ARCHITECTURE_ZEPHYR)
 /* Configuration parameters */
