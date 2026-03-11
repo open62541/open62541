@@ -4,21 +4,13 @@
  *
  *    Copyright 2021-2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
- *    Copyright 2024 (c) Julian Weiß, PRIMES GmbH
  */
 
 #include "open62541/types.h"
-<<<<<<<< HEAD:arch/posix/eventloop_arch_tcp.c
-<<<<<<<< HEAD:arch/zephyr/eventloop_zephyr_tcp.c
-#include "eventloop_zephyr.h"
-========
-#include "eventloop_arch.h"
->>>>>>>> 534556501 (All architecture-specific files isolated in single folder, which can be located outside of the open62541 source code tree. Folder location can be set using new build option UA_ARCH_FOLDER. Architecture-specific files renamed, they start by "eventloop_arch_ ".):arch/posix/eventloop_arch_tcp.c
-========
 #include "eventloop_posix.h"
->>>>>>>> c779cd6b1 (refactor(build): revert rename of architecture-specific files This partly reverts commit 5345565019654918acdbd306d9b47788377a9aa5.):arch/posix/eventloop_posix_tcp.c
 
-#if defined(UA_ARCHITECTURE_ZEPHYR)
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
+
 /* Configuration parameters */
 #define TCP_MANAGERPARAMS 2
 
@@ -53,11 +45,17 @@ typedef struct {
 static void
 TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn);
 
+static UA_StatusCode
+TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
+                          UA_UInt16 port, void *application, void *context,
+                          UA_ConnectionManager_connectionCallback connectionCallback,
+                          UA_Boolean validate, UA_Boolean reuseaddr);
+
 /* Do not merge packets on the socket (disable Nagle's algorithm) */
 static UA_StatusCode
-TCP_setNoNagle(UA_fd sockfd) {
+TCP_setNoNagle(UA_FD sockfd) {
     int val = 1;
-    int res = UA_setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (const char *)&val, sizeof(val));
+    int res = UA_setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
     if(res < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
@@ -65,8 +63,8 @@ TCP_setNoNagle(UA_fd sockfd) {
 
 /* Test if the ConnectionManager can be stopped */
 static void
-TCP_checkStopped(UA_ZephyrConnectionManager *pcm) {
-    UA_LOCK_ASSERT(&((UA_EventLoopZephyr*)pcm->cm.eventSource.eventLoop)->elMutex);
+TCP_checkStopped(UA_POSIXConnectionManager *pcm) {
+    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex);
 
     if(pcm->fdsSize == 0 &&
        pcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING) {
@@ -77,10 +75,76 @@ TCP_checkStopped(UA_ZephyrConnectionManager *pcm) {
 }
 
 static void
-TCP_delayedClose(void *application, void *context) {
-    UA_ZephyrConnectionManager *pcm = (UA_ZephyrConnectionManager*)application;
+TCP_delayedReopen(void *application, void *context) {
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
     UA_ConnectionManager *cm = &pcm->cm;
-    UA_EventLoopZephyr *el = (UA_EventLoopZephyr*)cm->eventSource.eventLoop;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_DeregisteredListenFD *listenRfd = (UA_DeregisteredListenFD*)context;
+    UA_RegisteredFD *rfd = listenRfd->listenFd;
+    TCP_FD *conn = (TCP_FD*)rfd;
+
+    UA_LOCK(&el->elMutex);
+
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "TCP %u\t| Delayed reopen of the listen socket",
+                 (unsigned)conn->rfd.fd);
+
+    char hostname[UA_MAXHOSTNAME_LENGTH] = {0};
+    mp_snprintf(hostname, UA_MAXHOSTNAME_LENGTH, "%.*s",
+                (int)rfd->hostname.length, (char*)rfd->hostname.data);
+
+    TCP_registerListenSockets(pcm, hostname, rfd->port, conn->application,
+                              conn->context, conn->applicationCB, false, rfd->reuseaddr);
+
+    LIST_REMOVE(listenRfd, pointers);
+    UA_String_clear(&listenRfd->listenFd->hostname);
+    UA_free(listenRfd->listenFd);
+    UA_free(listenRfd);
+
+    if(!pcm->listenFDs.lh_first) {
+        el->maxSocketsLimitReached = false;
+    }
+
+    UA_UNLOCK(&el->elMutex);
+}
+
+static UA_StatusCode
+addListenSockets(void *application) {
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
+    UA_LOCK_ASSERT(&el->elMutex);
+
+    UA_DeregisteredListenFD *listenFd;
+    LIST_FOREACH(listenFd, &pcm->listenFDs, pointers) {
+        if(listenFd->listenFd->dc.callback) {
+            UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                         "TCP %u\t| Cannot close - already closing",
+                         (unsigned)listenFd->listenFd->fd);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+             "TCP %u\t| Reopen listen socket triggered",
+             (unsigned)listenFd->listenFd->fd);
+
+        /* Add to the delayed callback list. Will be cleaned up in the next
+         * iteration. */
+        UA_DelayedCallback *dc = &listenFd->listenFd->dc;
+        dc->callback = TCP_delayedReopen;
+        dc->application = application;
+        dc->context = listenFd;
+
+        /* Adding a delayed callback does not take a lock */
+        UA_EventLoopPOSIX_addDelayedCallback(pcm->cm.eventSource.eventLoop, dc);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+TCP_delayedClose(void *application, void *context) {
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
+    UA_ConnectionManager *cm = &pcm->cm;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     TCP_FD *conn = (TCP_FD*)context;
 
     UA_LOCK(&el->elMutex);
@@ -92,10 +156,10 @@ TCP_delayedClose(void *application, void *context) {
     /* Ensure reuse is possible right away. Port-stealing is no longer an issue
      * as the socket gets closed anyway. And we do not want to wait for the
      * timeout to open a new socket for the same address and port. */
-    UA_EventLoopZephyr_setReusable(conn->rfd.fd);
+    UA_EventLoopPOSIX_setReusable(conn->rfd.fd);
 
     /* Deregister from the EventLoop */
-    UA_EventLoopZephyr_deregisterFD(el, &conn->rfd);
+    UA_EventLoopPOSIX_deregisterFD(el, &conn->rfd);
 
     /* Deregister internally */
     ZIP_REMOVE(UA_FDTree, &pcm->fds, &conn->rfd);
@@ -103,14 +167,13 @@ TCP_delayedClose(void *application, void *context) {
     pcm->fdsSize--;
 
     /* Signal closing to the application */
-    UA_UNLOCK(&el->elMutex);
     conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
                         conn->application, &conn->context,
                         UA_CONNECTIONSTATE_CLOSING,
                         &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
 
     /* Close the socket */
+    UA_RESET_ERRNO;
     int ret = UA_close(conn->rfd.fd);
     if(ret == 0) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -122,6 +185,12 @@ TCP_delayedClose(void *application, void *context) {
                           (unsigned)conn->rfd.fd, errno_str));
     }
 
+    /* Resuming listen sockets in the socket list when socket space becomes available */
+    if(el->maxSocketsLimitReached) {
+        addListenSockets(application);
+    }
+
+    UA_String_clear(&conn->rfd.hostname);
     UA_free(conn);
 
     /* Check if this was the last connection for a closing ConnectionManager */
@@ -133,8 +202,14 @@ TCP_delayedClose(void *application, void *context) {
 static int
 getSockError(TCP_FD *conn) {
     int error = 0;
+#ifndef UA_ARCHITECTURE_WIN32
     socklen_t errlen = sizeof(int);
     int err = UA_getsockopt(conn->rfd.fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
+#else
+    int errlen = (int)sizeof(int);
+    int err = UA_getsockopt((SOCKET)conn->rfd.fd, SOL_SOCKET, SO_ERROR,
+                         (char*)&error, &errlen);
+#endif
     return (err == 0) ? error : err;
 }
 
@@ -142,7 +217,7 @@ getSockError(TCP_FD *conn) {
 static void
 TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
                              short event) {
-    UA_EventLoopZephyr *el = (UA_EventLoopZephyr*)cm->eventSource.eventLoop;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -178,15 +253,13 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
 
         /* Now we are interested in read-events. */
         conn->rfd.listenEvents = UA_FDEVENT_IN;
-        UA_EventLoopZephyr_modifyFD(el, &conn->rfd);
+        UA_EventLoopPOSIX_modifyFD(el, &conn->rfd);
 
         /* A new socket has opened. Signal it to the application. */
-        UA_UNLOCK(&el->elMutex);
         conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
                             conn->application, &conn->context,
                             UA_CONNECTIONSTATE_ESTABLISHED,
                             &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-        UA_LOCK(&el->elMutex);
         return;
     }
 
@@ -195,12 +268,18 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
                  (unsigned)conn->rfd.fd);
 
     /* Use the already allocated receive-buffer */
-    UA_ZephyrConnectionManager *pcm = (UA_ZephyrConnectionManager*)cm;
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_ByteString response = pcm->rxBuffer;
 
     /* Receive */
+    UA_RESET_ERRNO;
+#ifndef UA_ARCHITECTURE_WIN32
+    ssize_t ret = UA_recv(conn->rfd.fd, (char*)response.data,
+                          response.length, MSG_DONTWAIT);
+#else
     int ret = UA_recv(conn->rfd.fd, (char*)response.data,
                       response.length, MSG_DONTWAIT);
+#endif
 
     /* Receive has failed */
     if(ret <= 0) {
@@ -224,19 +303,81 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
 
     /* Callback to the application layer */
     response.length = (size_t)ret; /* Set the length of the received buffer */
-    UA_UNLOCK(&el->elMutex);
     conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
                         conn->application, &conn->context,
                         UA_CONNECTIONSTATE_ESTABLISHED,
                         &UA_KEYVALUEMAP_NULL, response);
-    UA_LOCK(&el->elMutex);
+}
+
+static void *
+removeListenSockets(void *application, UA_RegisteredFD *rfd) {
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
+    int optval;
+    socklen_t optlen = sizeof(optval);
+
+    if(UA_getsockopt(rfd->fd, SOL_SOCKET, SO_ACCEPTCONN, &optval, &optlen) == 0 && optval) {
+        TCP_FD *fd = (TCP_FD*)rfd;
+        /* Check if it's already listed for reopening */
+        UA_Boolean alreadyAdded = UA_FALSE;
+        UA_DeregisteredListenFD *listenFd;
+        LIST_FOREACH(listenFd, &pcm->listenFDs, pointers) {
+            if(UA_String_equal(&listenFd->listenFd->hostname, &rfd->hostname)){
+                alreadyAdded = UA_TRUE;
+                break;
+            }
+        }
+
+        if(!alreadyAdded) {
+            listenFd = (UA_DeregisteredListenFD*)UA_calloc(1, sizeof(UA_DeregisteredListenFD));
+            listenFd->listenFd = rfd;
+            LIST_INSERT_HEAD(&pcm->listenFDs, listenFd, pointers);
+        }
+
+        /* Ensure reuse is possible right away. Port-stealing is no longer an issue
+         * as the socket gets closed anyway. And we do not want to wait for the
+         * timeout to open a new socket for the same address and port. */
+        UA_EventLoopPOSIX_setReusable(rfd->fd);
+        UA_EventLoopPOSIX_deregisterFD(el, rfd);
+
+        /* Deregister internally */
+        ZIP_REMOVE(UA_FDTree, &pcm->fds, rfd);
+        UA_assert(pcm->fdsSize > 0);
+        pcm->fdsSize--;
+
+        /* Signal closing to the application */
+        fd->applicationCB(&pcm->cm, (uintptr_t)rfd->fd,
+                          fd->application, &fd->context,
+                          UA_CONNECTIONSTATE_BLOCKING,
+                          &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+
+        /* Close the socket */
+        UA_RESET_ERRNO;
+        int ret = UA_close(rfd->fd);
+        if(ret == 0) {
+            UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                        "TCP %u\t| Socket closed", (unsigned)rfd->fd);
+        } else {
+            UA_LOG_SOCKET_ERRNO_WRAP(
+               UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                              "TCP %u\t| Could not close the socket (%s)",
+                              (unsigned)rfd->fd, errno_str));
+        }
+
+        if(alreadyAdded) {
+            UA_String_clear(&rfd->hostname);
+            UA_free(rfd);
+        }
+    }
+
+    return NULL;
 }
 
 /* Gets called when a new connection opens or if the listenSocket is closed */
 static void
 TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
-    UA_ZephyrConnectionManager *pcm = (UA_ZephyrConnectionManager*)cm;
-    UA_EventLoopZephyr *el = (UA_EventLoopZephyr*)cm->eventSource.eventLoop;
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -244,12 +385,13 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
                  (unsigned)conn->rfd.fd);
 
     /* Try to accept a new connection */
+    UA_RESET_ERRNO;
     struct sockaddr_storage remote;
     socklen_t remote_size = sizeof(remote);
-    UA_fd newsockfd = UA_accept(conn->rfd.fd, (struct sockaddr*)&remote, &remote_size);
+    UA_FD newsockfd = UA_accept(conn->rfd.fd, (struct sockaddr*)&remote, &remote_size);
     if(newsockfd == UA_INVALID_FD) {
         /* Temporary error -- retry */
-        if(UA_ERRNO == UA_INTERRUPTED)
+        if(UA_IS_TEMPORARY_ACCEPT_ERROR(UA_ERRNO))
             return;
 
         /* Close the listen socket */
@@ -265,6 +407,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     }
 
     /* Log the name of the remote host */
+    UA_RESET_ERRNO;
     char hoststr[UA_MAXHOSTNAME_LENGTH];
     int get_res = UA_getnameinfo((struct sockaddr *)&remote, sizeof(remote),
                                  hoststr, sizeof(hoststr),
@@ -280,9 +423,10 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
                 (unsigned)newsockfd, hoststr, (unsigned)conn->rfd.fd);
 
     /* Configure the new socket */
+    UA_RESET_ERRNO;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    /* res |= UA_EventLoopZephyr_setNonBlocking(newsockfd); Inherited from the listen-socket */
-    res |= UA_EventLoopZephyr_setNoSigPipe(newsockfd); /* Supress interrupts from the socket */
+    /* res |= UA_EventLoopPOSIX_setNonBlocking(newsockfd); Inherited from the listen-socket */
+    res |= UA_EventLoopPOSIX_setNoSigPipe(newsockfd); /* Supress interrupts from the socket */
     res |= TCP_setNoNagle(newsockfd);     /* Disable Nagle's algorithm */
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -313,7 +457,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     newConn->context = conn->context;
 
     /* Register in the EventLoop. Signal to the user if registering failed. */
-    res = UA_EventLoopZephyr_registerFD(el, &newConn->rfd);
+    res = UA_EventLoopPOSIX_registerFD(el, &newConn->rfd);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Error registering the socket",
@@ -327,6 +471,17 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     ZIP_INSERT(UA_FDTree, &pcm->fds, &newConn->rfd);
     pcm->fdsSize++;
 
+    /* Verify whether the maximum socket limit has been exceeded.
+     * If true, remove listen sockets from the socket list to stop
+     * accepting additional connection requests */
+    const UA_UInt32 *maxSockets = (const UA_UInt32 *)UA_KeyValueMap_getScalar(
+        &cm->eventSource.params, UA_QUALIFIEDNAME(0, "max-connections"),
+        &UA_TYPES[UA_TYPES_UINT32]);
+    if(maxSockets && *maxSockets != 0 && pcm->fdsSize >= (size_t)*maxSockets) {
+        ZIP_ITER(UA_FDTree, &pcm->fds, removeListenSockets, cm);
+        el->maxSocketsLimitReached = true;
+    }
+
     /* Forward the remote hostname to the application */
     UA_KeyValuePair kvp;
     kvp.key = UA_QUALIFIEDNAME(0, "remote-address");
@@ -338,29 +493,38 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     kvm.map = &kvp;
 
     /* The socket has opened. Signal it to the application. */
-    UA_UNLOCK(&el->elMutex);
     newConn->applicationCB(cm, (uintptr_t)newsockfd,
                            newConn->application, &newConn->context,
                            UA_CONNECTIONSTATE_ESTABLISHED,
                            &kvm, UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
 }
 
 static UA_StatusCode
-TCP_registerListenSocket(UA_ZephyrConnectionManager *pcm, UA_addrinfo *ai,
+TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
                          const char *hostname, UA_UInt16 port,
                          void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback,
                          UA_Boolean validate, UA_Boolean reuseaddr) {
-    UA_EventLoopZephyr *el = (UA_EventLoopZephyr*)pcm->cm.eventSource.eventLoop;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
 
+    /* Check that the maximum number of sockets has not been exceeded */
+    const UA_UInt32 *maxSockets = (const UA_UInt32 *)UA_KeyValueMap_getScalar(
+        &pcm->cm.eventSource.params, UA_QUALIFIEDNAME(0, "max-connections"),
+        &UA_TYPES[UA_TYPES_UINT32]);
+    if(el->maxSocketsLimitReached || (maxSockets && *maxSockets != 0 && pcm->fdsSize >= (size_t)*maxSockets)) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "TCP\t| Unable to establish connection: no available sockets");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* Translate INADDR_ANY to IPv4/IPv6 address */
+    UA_RESET_ERRNO;
     char addrstr[UA_MAXHOSTNAME_LENGTH];
-    int get_res = UA_getnameinfo(ai->ai_addr, (socklen_t)ai->ai_addrlen,
+    int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
                                  addrstr, sizeof(addrstr), NULL, 0, 0);
     if(get_res != 0) {
-        get_res = UA_getnameinfo(ai->ai_addr, (socklen_t)ai->ai_addrlen,
+        get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
                                  addrstr, sizeof(addrstr),
                                  NULL, 0, NI_NUMERICHOST);
         if(get_res != 0) {
@@ -373,7 +537,8 @@ TCP_registerListenSocket(UA_ZephyrConnectionManager *pcm, UA_addrinfo *ai,
     }
 
     /* Create the server socket */
-    UA_fd listenSocket = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+    UA_RESET_ERRNO;
+    UA_FD listenSocket = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
     if(listenSocket == UA_INVALID_FD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -401,7 +566,7 @@ TCP_registerListenSocket(UA_ZephyrConnectionManager *pcm, UA_addrinfo *ai,
 
     /* Allow rebinding to the IP/port combination. Eg. to restart the server. */
     if(reuseaddr &&
-       UA_EventLoopZephyr_setReusable(listenSocket) != UA_STATUSCODE_GOOD) {
+       UA_EventLoopPOSIX_setReusable(listenSocket) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Could not make the socket addr reusable",
                        (unsigned)listenSocket);
@@ -410,7 +575,7 @@ TCP_registerListenSocket(UA_ZephyrConnectionManager *pcm, UA_addrinfo *ai,
     }
 
     /* Set the socket non-blocking */
-    if(UA_EventLoopZephyr_setNonBlocking(listenSocket) != UA_STATUSCODE_GOOD) {
+    if(UA_EventLoopPOSIX_setNonBlocking(listenSocket) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Could not set the socket non-blocking",
                        (unsigned)listenSocket);
@@ -419,7 +584,7 @@ TCP_registerListenSocket(UA_ZephyrConnectionManager *pcm, UA_addrinfo *ai,
     }
 
     /* Supress interrupts from the socket */
-    if(UA_EventLoopZephyr_setNoSigPipe(listenSocket) != UA_STATUSCODE_GOOD) {
+    if(UA_EventLoopPOSIX_setNoSigPipe(listenSocket) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Could not disable SIGPIPE",
                        (unsigned)listenSocket);
@@ -428,6 +593,7 @@ TCP_registerListenSocket(UA_ZephyrConnectionManager *pcm, UA_addrinfo *ai,
     }
 
     /* Bind socket to address */
+    UA_RESET_ERRNO;
     int ret = UA_bind(listenSocket, ai->ai_addr, (socklen_t)ai->ai_addrlen);
 
     /* Get the port being used if dynamic porting was used */
@@ -465,18 +631,19 @@ TCP_registerListenSocket(UA_ZephyrConnectionManager *pcm, UA_addrinfo *ai,
 
     /* Only validate, don't actually start listening */
     if(validate) {
-        UA_EventLoopZephyr_setReusable(listenSocket); /* Ensure reuse is possible */
+        UA_EventLoopPOSIX_setReusable(listenSocket); /* Ensure reuse is possible */
         UA_close(listenSocket);
         return UA_STATUSCODE_GOOD;
     }
 
     /* Start listening */
+    UA_RESET_ERRNO;
     if(UA_listen(listenSocket, UA_MAXBACKLOG) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                           "TCP %u\t| Error listening on the socket (%s)",
                           (unsigned)listenSocket, errno_str));
-        UA_EventLoopZephyr_setReusable(listenSocket); /* Ensure reuse is possible */
+        UA_EventLoopPOSIX_setReusable(listenSocket); /* Ensure reuse is possible */
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -487,7 +654,7 @@ TCP_registerListenSocket(UA_ZephyrConnectionManager *pcm, UA_addrinfo *ai,
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Error allocating memory for the socket",
                        (unsigned)listenSocket);
-        UA_EventLoopZephyr_setReusable(listenSocket); /* Ensure reuse is possible */
+        UA_EventLoopPOSIX_setReusable(listenSocket); /* Ensure reuse is possible */
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -500,14 +667,19 @@ TCP_registerListenSocket(UA_ZephyrConnectionManager *pcm, UA_addrinfo *ai,
     newConn->application = application;
     newConn->context = context;
 
+    /* Information to reopen listen socket */
+    newConn->rfd.hostname = UA_String_fromChars(hostname);
+    newConn->rfd.port = port;
+    newConn->rfd.reuseaddr = reuseaddr;
+
     /* Register in the EventLoop */
-    UA_StatusCode res = UA_EventLoopZephyr_registerFD(el, &newConn->rfd);
+    UA_StatusCode res = UA_EventLoopPOSIX_registerFD(el, &newConn->rfd);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Error registering the socket",
                        (unsigned)listenSocket);
         UA_free(newConn);
-        UA_EventLoopZephyr_setReusable(listenSocket); /* Ensure reuse is possible */
+        UA_EventLoopPOSIX_setReusable(listenSocket); /* Ensure reuse is possible */
         UA_close(listenSocket);
         return res;
     }
@@ -525,58 +697,61 @@ TCP_registerListenSocket(UA_ZephyrConnectionManager *pcm, UA_addrinfo *ai,
     UA_Variant_setScalar(&params[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
     UA_KeyValueMap paramMap = {2, params};
 
+    if(el->maxSocketsLimitReached) {
+        /* Announce the reopening of the listen-socket in the application */
+        connectionCallback(&pcm->cm, (uintptr_t)listenSocket,
+                           application, &newConn->context,
+                           UA_CONNECTIONSTATE_REOPENING,
+                           &paramMap, UA_BYTESTRING_NULL);
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* Announce the listen-socket in the application */
-    UA_UNLOCK(&el->elMutex);
     connectionCallback(&pcm->cm, (uintptr_t)listenSocket,
                        application, &newConn->context,
                        UA_CONNECTIONSTATE_ESTABLISHED,
                        &paramMap, UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
 
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-TCP_registerListenSockets(UA_ZephyrConnectionManager *pcm, const char *hostname,
+TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
                           UA_UInt16 port, void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate, UA_Boolean reuseaddr) {
-    UA_LOCK_ASSERT(&((UA_EventLoopZephyr*)pcm->cm.eventSource.eventLoop)->elMutex);
+    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex);
 
     /* Create a string for the port */
     char portstr[6];
     mp_snprintf(portstr, sizeof(portstr), "%d", port);
 
     /* Get all the interface and IPv4/6 combinations for the configured hostname */
-    UA_addrinfo hints, *res;
+    struct addrinfo hints, *res;
     memset(&hints, 0, sizeof hints);
 #if UA_IPV6
     hints.ai_family = AF_UNSPEC; /* Allow IPv4 and IPv6 */
 #else
     hints.ai_family = AF_INET;   /* IPv4 only */
 #endif
-    // For any reason, the behaviour of getaddrinfo on zephyr is different for
-    // hostname == NULL. The call works when hostname is set to "0.0.0.0"
-    // instead.
-    if (hostname == NULL) {
-        hostname = "0.0.0.0";
-    }
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_flags = AI_PASSIVE;
 
+    UA_RESET_ERRNO;
     int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
-        UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
-                       hostname, port, UA_gai_strerror(retcode));
+       UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+       UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                      "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
+                      hostname, port, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Add listen sockets. Aggregate the results to see if at least one
      * listen-socket was established. */
     UA_StatusCode total_result = UA_INT32_MAX;
-    UA_addrinfo *ai = res;
+    struct addrinfo *ai = res;
     while(ai) {
         total_result &= TCP_registerListenSocket(pcm, ai, hostname, port, application, context,
                                                  connectionCallback, validate, reuseaddr);
@@ -591,7 +766,7 @@ TCP_registerListenSockets(UA_ZephyrConnectionManager *pcm, const char *hostname,
 static void
 TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
     /* Already closing - nothing to do */
-    UA_EventLoopZephyr *el = (UA_EventLoopZephyr*)cm->eventSource.eventLoop;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
 
     if(conn->rfd.dc.callback) {
@@ -615,18 +790,17 @@ TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
     dc->application = cm;
     dc->context = conn;
 
-    /* Don't use the "public" el->addDelayedCallback. It takes a lock. */
-    dc->next = el->delayedCallbacks;
-    el->delayedCallbacks = dc;
+    /* Adding a delayed callback does not take a lock */
+    UA_EventLoopPOSIX_addDelayedCallback((UA_EventLoop*)el, dc);
 }
 
 static UA_StatusCode
 TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
-    UA_ZephyrConnectionManager *pcm = (UA_ZephyrConnectionManager*)cm;
-    UA_EventLoopZephyr *el = (UA_EventLoopZephyr *)cm->eventSource.eventLoop;
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)cm->eventSource.eventLoop;
     UA_LOCK(&el->elMutex);
 
-    UA_fd fd = (UA_fd)connectionId;
+    UA_FD fd = (UA_FD)connectionId;
     TCP_FD *conn = (TCP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!conn) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -646,13 +820,13 @@ static UA_StatusCode
 TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        const UA_KeyValueMap *params, UA_ByteString *buf) {
     /* We may not have a lock. But we need not take it. As the connectionId is
-     * the fd, no need to do a lookup and access internal data structures. */
+     * the fd, no need to do a lookup and access internal data strucures. */
 
     /* Prevent OS signals when sending to a closed socket */
     int flags = MSG_NOSIGNAL;
 
-    UA_pollfd tmp_poll_fd;
-    tmp_poll_fd.fd = (UA_fd)connectionId;
+    struct pollfd tmp_poll_fd;
+    tmp_poll_fd.fd = (UA_FD)connectionId;
     tmp_poll_fd.events = UA_POLLOUT;
 
     /* Send the full buffer. This may require several calls to send */
@@ -660,12 +834,13 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     do {
         ssize_t n = 0;
         do {
+            UA_RESET_ERRNO;
             UA_LOG_DEBUG(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                          "TCP %u\t| Attempting to send", (unsigned)connectionId);
             size_t bytes_to_send = buf->length - nWritten;
-            n = UA_send((UA_fd)connectionId,
+            n = UA_send((UA_FD)connectionId,
                         (const char*)buf->data + nWritten,
-                        (int)bytes_to_send, flags);
+                        bytes_to_send, flags);
             if(n < 0) {
                 /* An error we cannot recover from? */
                 if(UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_WOULDBLOCK &&
@@ -676,6 +851,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                  * (blocking) */
                 int poll_ret;
                 do {
+                    UA_RESET_ERRNO;
                     poll_ret = UA_poll(&tmp_poll_fd, 1, 100);
                     if(poll_ret < 0 && UA_ERRNO != UA_INTERRUPTED)
                         goto shutdown;
@@ -686,7 +862,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     } while(nWritten < buf->length);
 
     /* Clean up and return */
-    UA_EventLoopZephyr_freeNetworkBuffer(cm, connectionId, buf);
+    UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
     return UA_STATUSCODE_GOOD;
 
  shutdown:
@@ -696,17 +872,17 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                     "TCP %u\t| Send failed with error %s",
                     (unsigned)connectionId, errno_str));
     TCP_shutdownConnection(cm, connectionId);
-    UA_EventLoopZephyr_freeNetworkBuffer(cm, connectionId, buf);
+    UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
     return UA_STATUSCODE_BADCONNECTIONCLOSED;
 }
 
 /* Create a listen-socket that waits for incoming connections */
 static UA_StatusCode
-TCP_openPassiveConnection(UA_ZephyrConnectionManager *pcm, const UA_KeyValueMap *params,
+TCP_openPassiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *params,
                           void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate) {
-    UA_EventLoopZephyr *el = (UA_EventLoopZephyr*)pcm->cm.eventSource.eventLoop;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
 
     /* Get the port parameter */
@@ -736,16 +912,18 @@ TCP_openPassiveConnection(UA_ZephyrConnectionManager *pcm, const UA_KeyValueMap 
         reuseaddr = *reuseaddrTmp;
 
     /* Undefined or empty addresses array -> listen on all interfaces */
+    UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
     if(addrsSize == 0) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP\t| Listening on all interfaces");
-        return TCP_registerListenSockets(pcm, NULL, *port, application,
-                                         context, connectionCallback, validate, reuseaddr);
+        if(TCP_registerListenSockets(pcm, NULL, *port, application,
+                                     context, connectionCallback, validate, reuseaddr) == UA_STATUSCODE_GOOD)
+            retval = UA_STATUSCODE_GOOD;
+        return retval;
     }
 
     /* Iterate over the configured hostnames */
     UA_String *hostStrings = (UA_String*)addrs->data;
-    UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
     for(size_t i = 0; i < addrsSize; i++) {
         char hostname[512];
         if(hostStrings[i].length >= sizeof(hostname))
@@ -761,12 +939,22 @@ TCP_openPassiveConnection(UA_ZephyrConnectionManager *pcm, const UA_KeyValueMap 
 
 /* Open a TCP connection to a remote host */
 static UA_StatusCode
-TCP_openActiveConnection(UA_ZephyrConnectionManager *pcm, const UA_KeyValueMap *params,
+TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *params,
                          void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback,
                          UA_Boolean validate) {
-    UA_EventLoopZephyr *el = (UA_EventLoopZephyr*)pcm->cm.eventSource.eventLoop;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
+
+    /* Check that the maximum number of sockets has not been exceeded */
+    const UA_UInt32 *maxSockets = (const UA_UInt32 *)UA_KeyValueMap_getScalar(
+        &pcm->cm.eventSource.params, UA_QUALIFIEDNAME(0, "max-connections"),
+        &UA_TYPES[UA_TYPES_UINT32]);
+    if(el->maxSocketsLimitReached || (maxSockets && *maxSockets != 0 && pcm->fdsSize >= (size_t)*maxSockets)) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "TCP\t| Unable to establish connection: no available sockets");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* Get the connection parameters */
     char hostname[UA_MAXHOSTNAME_LENGTH];
@@ -801,20 +989,23 @@ TCP_openActiveConnection(UA_ZephyrConnectionManager *pcm, const UA_KeyValueMap *
 
     /* Create the socket description from the connectString
      * TODO: Make this non-blocking */
-    UA_addrinfo hints, *info;
-    memset(&hints, 0, sizeof(UA_addrinfo));
+    UA_RESET_ERRNO;
+    struct addrinfo hints, *info;
+    memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     int error = UA_getaddrinfo(hostname, portStr, &hints, &info);
     if(error != 0) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Lookup of %s failed (%s)",
-                       hostname, UA_gai_strerror(error));
+       UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+       UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                      "TCP\t| Lookup of %s failed (%s)",
+                      hostname, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Create a socket */
-    UA_fd newSock = UA_socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+    UA_RESET_ERRNO;
+    UA_FD newSock = UA_socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     if(newSock == UA_INVALID_FD) {
         UA_freeaddrinfo(info);
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -825,9 +1016,10 @@ TCP_openActiveConnection(UA_ZephyrConnectionManager *pcm, const UA_KeyValueMap *
     }
 
     /* Set the socket options */
+    UA_RESET_ERRNO;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    res |= UA_EventLoopZephyr_setNonBlocking(newSock);
-    res |= UA_EventLoopZephyr_setNoSigPipe(newSock);
+    res |= UA_EventLoopPOSIX_setNonBlocking(newSock);
+    res |= UA_EventLoopPOSIX_setNoSigPipe(newSock);
     res |= TCP_setNoNagle(newSock);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -846,7 +1038,8 @@ TCP_openActiveConnection(UA_ZephyrConnectionManager *pcm, const UA_KeyValueMap *
     }
 
     /* Non-blocking connect */
-    error = UA_connect(newSock, info->ai_addr, (int)info->ai_addrlen);
+    UA_RESET_ERRNO;
+    error = UA_connect(newSock, info->ai_addr, info->ai_addrlen);
     UA_freeaddrinfo(info);
     if(error != 0 &&
        UA_ERRNO != UA_INPROGRESS &&
@@ -879,7 +1072,7 @@ TCP_openActiveConnection(UA_ZephyrConnectionManager *pcm, const UA_KeyValueMap *
     newConn->context = context;
 
     /* Register the fd to trigger when output is possible (the connection is open) */
-    res = UA_EventLoopZephyr_registerFD(el, &newConn->rfd);
+    res = UA_EventLoopPOSIX_registerFD(el, &newConn->rfd);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP\t| Registering the socket to connect to %s failed", hostname);
@@ -896,13 +1089,11 @@ TCP_openActiveConnection(UA_ZephyrConnectionManager *pcm, const UA_KeyValueMap *
                 "TCP %u\t| Opening a connection to \"%s\" on port %s",
                 (unsigned)newSock, hostname, portStr);
 
-    /* Signal the new connection to the application as asynchronously opening */
-    UA_UNLOCK(&el->elMutex);
+    /* Signal the new connection to the application as asynchonously opening */
     connectionCallback(&pcm->cm, (uintptr_t)newSock,
                        application, &newConn->context,
                        UA_CONNECTIONSTATE_OPENING, &UA_KEYVALUEMAP_NULL,
                        UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -911,8 +1102,8 @@ static UA_StatusCode
 TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
-    UA_ZephyrConnectionManager *pcm = (UA_ZephyrConnectionManager*)cm;
-    UA_EventLoopZephyr *el = (UA_EventLoopZephyr*)cm->eventSource.eventLoop;
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     UA_LOCK(&el->elMutex);
 
     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STARTED) {
@@ -965,8 +1156,8 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
 static UA_StatusCode
 TCP_eventSourceStart(UA_ConnectionManager *cm) {
-    UA_ZephyrConnectionManager *pcm = (UA_ZephyrConnectionManager*)cm;
-    UA_EventLoopZephyr *el = (UA_EventLoopZephyr*)cm->eventSource.eventLoop;
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     if(!el)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -990,7 +1181,7 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
         goto finish;
 
     /* Allocate the rx buffer */
-    res = UA_EventLoopZephyr_allocateStaticBuffers(pcm);
+    res = UA_EventLoopPOSIX_allocateStaticBuffers(pcm);
     if(res != UA_STATUSCODE_GOOD)
         goto finish;
 
@@ -1011,8 +1202,8 @@ TCP_shutdownCB(void *application, UA_RegisteredFD *rfd) {
 
 static void
 TCP_eventSourceStop(UA_ConnectionManager *cm) {
-    UA_ZephyrConnectionManager *pcm = (UA_ZephyrConnectionManager*)cm;
-    UA_EventLoopZephyr *el = (UA_EventLoopZephyr*)cm->eventSource.eventLoop;
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     (void)el;
 
     UA_LOCK(&el->elMutex);
@@ -1034,7 +1225,7 @@ TCP_eventSourceStop(UA_ConnectionManager *cm) {
 
 static UA_StatusCode
 TCP_eventSourceDelete(UA_ConnectionManager *cm) {
-    UA_ZephyrConnectionManager *pcm = (UA_ZephyrConnectionManager*)cm;
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     if(cm->eventSource.state >= UA_EVENTSOURCESTATE_STARTING) {
         UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| The EventSource must be stopped before it can be deleted");
@@ -1053,9 +1244,9 @@ TCP_eventSourceDelete(UA_ConnectionManager *cm) {
 static const char *tcpName = "tcp";
 
 UA_ConnectionManager *
-UA_ConnectionManager_new_Zephyr_TCP(const UA_String eventSourceName) {
-    UA_ZephyrConnectionManager *cm = (UA_ZephyrConnectionManager*)
-        UA_calloc(1, sizeof(UA_ZephyrConnectionManager));
+UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
+    UA_POSIXConnectionManager *cm = (UA_POSIXConnectionManager*)
+        UA_calloc(1, sizeof(UA_POSIXConnectionManager));
     if(!cm)
         return NULL;
 
@@ -1066,8 +1257,8 @@ UA_ConnectionManager_new_Zephyr_TCP(const UA_String eventSourceName) {
     cm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))TCP_eventSourceDelete;
     cm->cm.protocol = UA_STRING((char*)(uintptr_t)tcpName);
     cm->cm.openConnection = TCP_openConnection;
-    cm->cm.allocNetworkBuffer = UA_EventLoopZephyr_allocNetworkBuffer;
-    cm->cm.freeNetworkBuffer = UA_EventLoopZephyr_freeNetworkBuffer;
+    cm->cm.allocNetworkBuffer = UA_EventLoopPOSIX_allocNetworkBuffer;
+    cm->cm.freeNetworkBuffer = UA_EventLoopPOSIX_freeNetworkBuffer;
     cm->cm.sendWithConnection = TCP_sendWithConnection;
     cm->cm.closeConnection = TCP_shutdownConnection;
     return &cm->cm;

@@ -1033,10 +1033,7 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
 # Add clock implementation based on the base architecture
-if(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32)
-    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c)
-endif()
-
+# Note: For POSIX/Win32, the clock is included via ${UA_ARCH_FOLDER}/CMakeLists.txt
 if(UA_ARCHITECTURE_ZEPHYR)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/zephyr/clock_zephyr.c)
 endif()
@@ -1068,31 +1065,25 @@ elseif(UA_ARCHITECTURE_ZEPHYR)
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
 elseif(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
-    # POSIX/Win32 eventloop. The folder containing the architecture-specific files
-    # can be overridden via UA_ARCH_FOLDER (e.g. for custom/private architectures).
-    #
-    # Example (custom code in /mnt/d/opcua-test/linux, building in WSL2):
-    #   mkdir build-wsl2
-    #   cd build-wsl2
-    #   cmake -DUA_ARCH_FOLDER=/mnt/d/opcua-test/linux ../
-    if(NOT DEFINED UA_ARCH_FOLDER)
-        set(UA_ARCH_FOLDER ${PROJECT_SOURCE_DIR}/arch/posix)
-    endif()
-    # Add the architecture-specific folder to the include path so that the
-    # mandatory header "eventloop_arch.h" can be found without a path prefix.
-    include_directories("${UA_ARCH_FOLDER}")
+    # Common eventloop files shared across all POSIX/Win32 builds
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/arch/common/timer.h
          ${PROJECT_SOURCE_DIR}/arch/common/timer.c
          ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
-         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
-         ${UA_ARCH_FOLDER}/eventloop_arch.h
-         ${UA_ARCH_FOLDER}/eventloop_arch_clock.c
-         ${UA_ARCH_FOLDER}/eventloop_arch.c
-         ${UA_ARCH_FOLDER}/eventloop_arch_tcp.c
-         ${UA_ARCH_FOLDER}/eventloop_arch_udp.c
-         ${UA_ARCH_FOLDER}/eventloop_arch_eth.c
-         ${UA_ARCH_FOLDER}/eventloop_arch_interrupt.c)
+         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c)
+    # Architecture-specific files (clock, TCP, UDP, eth, interrupt).
+    # The folder can be overridden via -DUA_ARCH_FOLDER=... to point to a
+    # custom implementation outside the source tree.
+    #
+    # Example (custom code in /mnt/d/opcua-test/linux, building in WSL2):
+    #   mkdir build-wsl2 && cd build-wsl2
+    #   cmake -DUA_ARCH_FOLDER=/mnt/d/opcua-test/linux ../
+    if(NOT DEFINED UA_ARCH_FOLDER)
+        set(UA_ARCH_FOLDER ${PROJECT_SOURCE_DIR}/arch/posix)
+    endif()
+    # Delegate arch-specific source registration to the architecture folder.
+    # Each arch folder must provide its own CMakeLists.txt.
+    include(${UA_ARCH_FOLDER}/CMakeLists.txt)
 endif()
 
 if(UA_ARCHITECTURE_FREERTOS)
