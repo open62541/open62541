@@ -14,13 +14,8 @@
 #include <open62541/config.h>
 #include <open62541/plugin/eventloop.h>
 
-<<<<<<<< HEAD:arch/posix/eventloop_posix.h
 #include "../common/timer.h"
 #include "../common/eventloop_common.h"
-========
-#include "open62541/../../arch/eventloop_common/timer.h"
-#include "open62541/../../arch/eventloop_common/eventloop_common.h"
->>>>>>>> 534556501 (All architecture-specific files isolated in single folder, which can be located outside of the open62541 source code tree. Folder location can be set using new build option UA_ARCH_FOLDER. Architecture-specific files renamed, they start by "eventloop_arch_ ".):arch/posix/eventloop_arch.h
 #include "../../deps/mp_printf.h"
 
 #if !defined(__QNX__)
