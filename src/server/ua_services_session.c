@@ -831,26 +831,26 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
 
 static UA_StatusCode
 checkActivateSessionX509(UA_Server *server, UA_Session *session,
-                         const UA_SecurityPolicy *sp, UA_X509IdentityToken* token,
+                         const UA_SecurityPolicy *tokenSp, UA_X509IdentityToken* token,
                          const UA_SignatureData *tokenSignature) {
     /* The SecurityPolicy must not be None for the signature */
-    if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
+    if(tokenSp->policyType == UA_SECURITYPOLICYTYPE_NONE)
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
     /* We need a channel context with the user certificate in order to reuse
      * the signature checking code. */
     void *tempChannelContext;
-    UA_StatusCode res = sp->newChannelContext(sp, &token->certificateData,
-                                              &tempChannelContext);
+    UA_StatusCode res = tokenSp->newChannelContext(tokenSp, &token->certificateData,
+                                                   &tempChannelContext);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_SESSION(server->config.logging, session,
                              "ActivateSession: Failed to create a context "
-                             "for the SecurityPolicy %S", sp->policyUri);
+                             "for the SecurityPolicy %S", tokenSp->policyUri);
         return res;
     }
 
     /* Check the user token signature */
-    res = checkCertificateSignature(server, sp, tempChannelContext,
+    res = checkCertificateSignature(server, tokenSp, tempChannelContext,
                                     &session->serverNonce, tokenSignature, true);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_SESSION(server->config.logging, session,
@@ -866,7 +866,7 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
 
  out:
     /* Delete the temporary channel context */
-    sp->deleteChannelContext(sp, tempChannelContext);
+    tokenSp->deleteChannelContext(tokenSp, tempChannelContext);
     return res;
 }
 
