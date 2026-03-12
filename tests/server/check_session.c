@@ -466,6 +466,42 @@ START_TEST(Session_deleteSessionAttribute) {
     UA_Client_delete(client);
 } END_TEST
 
+/* Per OPC UA Part 4, Section 5.6.2.2: "If the securityPolicyUri is None,
+ * the Server shall ignore the ApplicationInstanceCertificate."
+ * Verify that CreateSession succeeds on SecurityPolicy None even when a
+ * (dummy) client certificate with a mismatched ApplicationUri is supplied. */
+START_TEST(Session_createSession_certIgnored_on_none_policy) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionRequest createReq;
+    UA_CreateSessionResponse createRes;
+    UA_CreateSessionRequest_init(&createReq);
+
+    /* Set a non-empty dummy certificate and a mismatched ApplicationUri */
+    UA_Byte dummyCert[] = {0x30, 0x82, 0x01, 0x00};
+    createReq.clientCertificate.data = dummyCert;
+    createReq.clientCertificate.length = sizeof(dummyCert);
+    createReq.clientDescription.applicationUri =
+        UA_STRING("urn:wrong:applicationUri");
+
+    __UA_Client_Service(client, &createReq, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &createRes, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+
+    /* Must succeed — certificate is ignored on SecurityPolicy None */
+    ck_assert_uint_eq(createRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    /* Zero out stack-allocated data before clear */
+    createReq.clientCertificate = UA_BYTESTRING_NULL;
+    createReq.clientDescription.applicationUri = UA_STRING_NULL;
+    UA_CreateSessionResponse_clear(&createRes);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 static Suite* testSuite_Session(void) {
     Suite *s = suite_create("Session");
     TCase *tc_session = tcase_create("Core");
@@ -487,6 +523,7 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session_ext, Session_multiple_reads);
     tcase_add_test(tc_session_ext, Session_getSessionAttribute);
     tcase_add_test(tc_session_ext, Session_deleteSessionAttribute);
+    tcase_add_test(tc_session_ext, Session_createSession_certIgnored_on_none_policy);
 
     suite_add_tcase(s, tc_session);
     suite_add_tcase(s, tc_session_ext);

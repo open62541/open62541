@@ -72,7 +72,7 @@ typedef enum {
 } MultiCastType;
 
 typedef union {
-#if !defined(ip_mreqn)
+#if !defined(__linux__)
     struct ip_mreq ipv4;
 #else
     struct ip_mreqn ipv4;
@@ -198,7 +198,7 @@ setMulticastInterface(const char *netif, struct addrinfo *info,
         if(ifa->ifa_addr->sa_family != info->ai_family)
             continue;
 
-#if defined(UA_ARCHITECTURE_WIN32) || defined(ip_mreqn)
+#if defined(UA_ARCHITECTURE_WIN32) || defined(__linux__)
         idx = UA_if_nametoindex(ifa->ifa_name);
         if(idx == 0)
             continue;
@@ -233,7 +233,7 @@ setMulticastInterface(const char *netif, struct addrinfo *info,
 
     /* Write the interface index */
     if(info->ai_family == AF_INET) {
-#if defined(ip_mreqn)
+#if defined(__linux__)
         req->ipv4.imr_ifindex = idx;
 #endif
 #if UA_IPV6
@@ -253,7 +253,7 @@ setupMulticastRequest(UA_FD socket, MulticastRequest *req, const UA_KeyValueMap 
     if(info->ai_family == AF_INET) {
         struct sockaddr_in *sin = (struct sockaddr_in *)info->ai_addr;
         req->ipv4.imr_multiaddr = sin->sin_addr;
-#if !defined(ip_mreqn)
+#if !defined(__linux__)
         req->ipv4.imr_interface.s_addr = htonl(INADDR_ANY); /* default ANY */
 #else
         req->ipv4.imr_address.s_addr = htonl(INADDR_ANY); /* default ANY */

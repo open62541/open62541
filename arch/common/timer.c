@@ -60,6 +60,11 @@ findTimer2Batch(void *context, UA_TimerEntry *compare) {
     if(compare->nextTime < earliest || compare->nextTime > latest)
         return NULL;
 
+    /* One-shot timers have interval == 0.
+     * They cannot participate in the modulo-based batching check. */
+    if(te->interval == 0 || compare->interval == 0)
+        return NULL;
+
     /* Check if one interval is a multiple of the other */
     if(te->interval < compare->interval && compare->interval % te->interval != 0)
         return NULL;

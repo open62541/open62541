@@ -14,7 +14,7 @@ START_TEST(encodeEmpty) {
     size_t out_len = 42;
     unsigned char *out = UA_base64((const unsigned char *)"", 0, &out_len);
     ck_assert_uint_eq(out_len, 0);
-    ck_assert_ptr_eq(out, UA_EMPTY_ARRAY_SENTINEL);
+    ck_assert_ptr_eq(out, NULL);
 } END_TEST
 
 START_TEST(encodeF) {

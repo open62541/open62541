@@ -17,7 +17,7 @@ unsigned char *
 UA_base64(const unsigned char *src, size_t len, size_t *out_len) {
     if(len == 0) {
         *out_len = 0;
-        return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
+        return NULL;
     }
 
     size_t olen = 4*((len + 2) / 3); /* 3-byte blocks to 4-byte */

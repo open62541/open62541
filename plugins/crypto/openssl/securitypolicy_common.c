@@ -1251,7 +1251,7 @@ UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
 
     if(result == NULL) {
         /* Try to read PEM encoded private key */
-        BIO_reset(bio);
+        (void)BIO_reset(bio);
         result = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
     }
     BIO_free(bio);

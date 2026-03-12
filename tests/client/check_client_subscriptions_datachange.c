@@ -269,9 +269,6 @@ START_TEST(sub_data_change_notification) {
             break;
     }
 
-    /* The subscription create and monitored item create are the main coverage 
-     * hits. Whether the notification arrives depends on timing. */
-    
     /* Write a new value */
     UA_Int32 newVal = 777;
     UA_Variant wv;
@@ -561,6 +558,64 @@ START_TEST(client_register_nodes) {
     disconnectClient(client);
 } END_TEST
 
+/* === Client getRemoteDataTypes (covers ua_client_util.c) === */
+
+START_TEST(client_getRemoteDataTypes_browse) {
+    /* Test with dataTypesNodesSize == 0, which triggers the browse-based
+     * discovery of unknown DataTypes in the server's type hierarchy */
+    UA_Client *client = connectClient();
+
+    UA_DataTypeArray *customTypes = NULL;
+    UA_StatusCode retval =
+        UA_Client_getRemoteDataTypes(client, 0, NULL, &customTypes);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Add to client config so it gets cleaned up on client delete */
+    if(customTypes) {
+        UA_ClientConfig *cc = UA_Client_getConfig(client);
+        customTypes->next = cc->customDataTypes;
+        cc->customDataTypes = customTypes;
+    }
+
+    disconnectClient(client);
+}
+END_TEST
+
+START_TEST(client_getRemoteDataTypes_explicit) {
+    /* Test with explicit NodeIds — use a known DataType node e.g. Range */
+    UA_Client *client = connectClient();
+
+    UA_NodeId nodes[1];
+    nodes[0] = UA_NODEID_NUMERIC(0, UA_NS0ID_RANGE);
+
+    UA_DataTypeArray *customTypes = NULL;
+    UA_StatusCode retval =
+        UA_Client_getRemoteDataTypes(client, 1, nodes, &customTypes);
+    /* Range is already known, so the result array may be empty but call succeeds */
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    if(customTypes) {
+        UA_ClientConfig *cc = UA_Client_getConfig(client);
+        customTypes->next = cc->customDataTypes;
+        cc->customDataTypes = customTypes;
+    }
+
+    disconnectClient(client);
+}
+END_TEST
+
+START_TEST(client_getRemoteDataTypes_nullArg) {
+    /* NULL customTypes argument => BADINVALIDARGUMENT */
+    UA_Client *client = connectClient();
+
+    UA_StatusCode retval =
+        UA_Client_getRemoteDataTypes(client, 0, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    disconnectClient(client);
+}
+END_TEST
+
 /* === Suite definition === */
 static Suite *testSuite_clientSubExt2(void) {
     TCase *tc_sub = tcase_create("SubLifecycle");
@@ -589,6 +644,15 @@ static Suite *testSuite_clientSubExt2(void) {
     suite_add_tcase(s, tc_sub);
     suite_add_tcase(s, tc_disc);
     suite_add_tcase(s, tc_ops);
+
+    TCase *tc_util = tcase_create("ClientUtil");
+    tcase_add_checked_fixture(tc_util, setup, teardown);
+    tcase_set_timeout(tc_util, 30);
+    tcase_add_test(tc_util, client_getRemoteDataTypes_browse);
+    tcase_add_test(tc_util, client_getRemoteDataTypes_explicit);
+    tcase_add_test(tc_util, client_getRemoteDataTypes_nullArg);
+    suite_add_tcase(s, tc_util);
+
     return s;
 }
 

@@ -182,7 +182,7 @@ UA_StatusCode_name(UA_StatusCode code);
 UA_EXPORT UA_Boolean
 UA_StatusCode_isBad(UA_StatusCode code);
 
-/* ((code >> 30) == 0x01) && ((code >> 30) < 0x02) */
+/* (code >> 30) == 0x01 */
 UA_EXPORT UA_Boolean
 UA_StatusCode_isUncertain(UA_StatusCode code);
 
