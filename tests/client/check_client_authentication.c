@@ -425,6 +425,50 @@ START_TEST(client_connect_basic256Sha256_anonymous) {
     UA_Client_delete(client);
 } END_TEST
 
+START_TEST(client_authenticate_with_certificate) {
+    /* Load client certificate and private key for the SecureChannel */
+    UA_ByteString certificate;
+    certificate.length = CLIENT_CERT_DER_LENGTH;
+    certificate.data = CLIENT_CERT_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = CLIENT_KEY_DER_LENGTH;
+    privateKey.data = CLIENT_KEY_DER_DATA;
+
+    /* Load client certificate and private key for authentication */
+    UA_ByteString certificateAuth;
+    certificateAuth.length = CLIENT_CERT_AUTH_DER_LENGTH;
+    certificateAuth.data = CLIENT_CERT_AUTH_DER_DATA;
+
+    UA_ByteString privateKeyAuth;
+    privateKeyAuth.length = CLIENT_KEY_AUTH_DER_LENGTH;
+    privateKeyAuth.data = CLIENT_KEY_AUTH_DER_DATA;
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+
+    /* Set securityMode and securityPolicyUri */
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    cc->securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
+
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
+
+    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey, NULL, 0, NULL, 0);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
+
+    /* Set the authentication certificate */
+    UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client with Authentication");
@@ -437,6 +481,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, client_connect_ecc_username_eccpnist256);
 #endif
     tcase_add_test(tc_client, client_connect_basic256Sha256_anonymous);
+    tcase_add_test(tc_client, client_authenticate_with_certificate);
     suite_add_tcase(s,tc_client);
     return s;
 }
