@@ -661,18 +661,20 @@ UA_NetworkMessage_decodeHeaders(PubSubDecodeCtx *ctx,
     if(nm->payloadHeaderEnabled) {
         rv = UA_PayloadHeader_decodeBinary(ctx, nm);
         UA_CHECK_STATUS(rv, return rv);
-    } else {
+    } else if(ctx->eo.metaDataSize > 0) {
         /* If no PayloadHeader is defined, then assume the EncodingOptions
-         * reflect the DataSetMessages */
+         * reflect the DataSetMessages. This can be used to inject an a-priori
+         * known number of NetworkMessages and their DataSetWriterIds if the
+         * payload header is disabled. */
         nm->messageCount = (UA_Byte)ctx->eo.metaDataSize;
         for(size_t i = 0; i < nm->messageCount; i++)
             nm->dataSetWriterIds[i] = ctx->eo.metaData[i].dataSetWriterId;
-
-        /* No Metadata configured. Assume one DataSetMessage. The NetworkMessage
-         * shall contain at least one DataSetMessage if the NetworkMessage type
-         * is DataSetMessage payload. */
-        if(nm->messageCount == 0)
-            nm->messageCount = 1;
+    } else {
+        /* No Metadata configured and no payload header -> assume one
+         * DataSetMessage. The NetworkMessage shall contain at least one
+         * DataSetMessage if the NetworkMessage type is DataSetMessage
+         * payload. */
+        nm->messageCount = 1;
     }
 
     rv = UA_ExtendedNetworkMessageHeader_decodeBinary(ctx, nm);
