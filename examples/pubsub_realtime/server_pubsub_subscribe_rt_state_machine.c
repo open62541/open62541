@@ -104,7 +104,7 @@ listenUDP(void *_) {
     }
 
     /* Bind the socket */
-    result = bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
+    result = bind(listenSocket, info->ai_addr, info->ai_addrlen);
     if(result < 0) {
         printf("XXX Cannot bind the socket\n");
         return NULL;
