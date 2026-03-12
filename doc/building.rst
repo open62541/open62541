@@ -178,6 +178,10 @@ The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version
 Building Debian Packages inside Docker Container with CMake on Ubuntu or Debian
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+The python tool with the debian packaging definitions and the debian build
+files can be found in the external repository:
+https://salsa.debian.org/jpfr/open62541/-/tree/main/tools?ref_type=heads
+
 This is how to build the Debian packages.
 
 .. code-block:: bash
