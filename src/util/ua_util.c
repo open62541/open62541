@@ -315,7 +315,7 @@ UA_StatusCode
 UA_ByteString_toBase64(const UA_ByteString *byteString,
                        UA_String *str) {
     UA_String_init(str);
-    if(!byteString || !byteString->data)
+    if(!byteString || !byteString->data || byteString->length == 0)
         return UA_STATUSCODE_GOOD;
 
     str->data = (UA_Byte*)
@@ -479,6 +479,7 @@ UA_KeyValueMap_setShallow(UA_KeyValueMap *map,
     }
 
     *target = *value;
+    target->storageType = UA_VARIANT_DATA_NODELETE;
     return UA_STATUSCODE_GOOD;
 }
 

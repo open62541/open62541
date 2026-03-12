@@ -105,8 +105,6 @@ UA_FilterEvalContext_init(UA_FilterEvalContext *ctx) {
 
 void
 UA_FilterEvalContext_reset(UA_FilterEvalContext *ctx) {
-    if(ctx->eventId.data && ctx->eventId.data != ctx->eventIdBuf)
-        UA_ByteString_clear(&ctx->eventId);
     UA_KeyValueMap_clear(&ctx->fieldCache);
 
     /* The data of the EventId is either in the eventIdBuf or in the fieldCache
@@ -151,13 +149,15 @@ cacheEventId(UA_FilterEvalContext *ctx) {
         UA_Boolean isIdString = UA_Variant_hasScalarType(&val, &UA_TYPES[UA_TYPES_BYTESTRING]);
         UA_assert(!isIdString || val.data != NULL); /* pacify a clang-analyzer warning */
         if(isIdString && ((UA_ByteString*)val.data)->length > 0) {
-            res = UA_KeyValueMap_setShallow(&ctx->fieldCache,
-                                            UA_QUALIFIEDNAME(0, "/EventId"), &val);
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_Variant_clear(&val);
+            res = UA_KeyValueMap_set(&ctx->fieldCache,
+                                     UA_QUALIFIEDNAME(0, "/EventId"), &val);
+            UA_Variant_clear(&val);
+            if(res != UA_STATUSCODE_GOOD)
                 return res;
-            }
-            ctx->eventId = *(UA_ByteString*)val.data; /* shallow copy */
+            const UA_Variant *cached =
+                UA_KeyValueMap_get(&ctx->fieldCache,
+                                   UA_QUALIFIEDNAME(0, "/EventId"));
+            ctx->eventId = *(UA_ByteString*)cached->data; /* shallow copy */
             return UA_STATUSCODE_GOOD;
         }
 

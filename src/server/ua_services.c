@@ -317,6 +317,7 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
 
     /* The session can be NULL if not required */
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+    UA_NodeId sessionId = (session) ? session->sessionId : UA_NODEID_NULL;
 
     /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN */
     UA_ServerConfig *config = &server->config;
@@ -330,7 +331,7 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     if(config->globalNotificationCallback || config->serviceNotificationCallback) {
         UA_Variant_setScalar(&notifyPayload[0].value, &channel->securityToken.channelId,
                              &UA_TYPES[UA_TYPES_UINT32]);
-        UA_Variant_setScalar(&notifyPayload[1].value, &session->sessionId,
+        UA_Variant_setScalar(&notifyPayload[1].value, &sessionId,
                              &UA_TYPES[UA_TYPES_NODEID]);
         UA_Variant_setScalar(&notifyPayload[2].value, &requestId,
                              &UA_TYPES[UA_TYPES_UINT32]);

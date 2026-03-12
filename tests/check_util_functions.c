@@ -76,7 +76,7 @@ START_TEST(kvm_setShallow) {
     UA_UInt32 val = 77;
     UA_Variant v;
     UA_Variant_setScalar(&v, &val, &UA_TYPES[UA_TYPES_UINT32]);
-    v.storageType = UA_VARIANT_DATA_NODELETE;
+    /* storageType is now enforced to NODELETE inside setShallow itself */
 
     UA_StatusCode res = UA_KeyValueMap_setShallow(map, key, &v);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
@@ -89,7 +89,6 @@ START_TEST(kvm_setShallow) {
     UA_UInt32 val2 = 99;
     UA_Variant v2;
     UA_Variant_setScalar(&v2, &val2, &UA_TYPES[UA_TYPES_UINT32]);
-    v2.storageType = UA_VARIANT_DATA_NODELETE;
     res = UA_KeyValueMap_setShallow(map, key, &v2);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
@@ -117,12 +116,8 @@ START_TEST(kvm_setScalarShallow) {
     ck_assert_ptr_ne(scalar, NULL);
     ck_assert_uint_eq(*(const UA_UInt32 *)scalar, 55);
 
-    /* Remove entry before deleting map to avoid freeing stack pointer.
-     * Note: UA_KeyValueMap_setScalarShallow does not set
-     * storageType = UA_VARIANT_DATA_NODELETE, so UA_KeyValueMap_delete
-     * would try to free the stack pointer - this is a library bug. */
-    res = UA_KeyValueMap_remove(map, key);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    /* UA_KeyValueMap_setShallow always sets storageType = UA_VARIANT_DATA_NODELETE,
+     * so UA_KeyValueMap_delete will not try to free the caller-owned stack pointer. */
     UA_KeyValueMap_delete(map);
 } END_TEST
 
@@ -539,11 +534,9 @@ static Suite *testSuite_util(void) {
     tcase_add_test(tc_kvm, kvm_new_delete);
     tcase_add_test(tc_kvm, kvm_set_get_remove);
     tcase_add_test(tc_kvm, kvm_setShallow);
-    /* kvm_setScalarShallow skipped: UA_KeyValueMap_setScalarShallow
-     * does not set storageType=NODELETE, causing crash on cleanup
-     * (library bug). setShallow is tested above with explicit NODELETE. */
-    //tcase_add_test(tc_kvm, kvm_copy);
-    //tcase_add_test(tc_kvm, kvm_merge);
+    tcase_add_test(tc_kvm, kvm_setScalarShallow);
+    tcase_add_test(tc_kvm, kvm_copy);
+    tcase_add_test(tc_kvm, kvm_merge);
 
     TCase *tc_url = tcase_create("EndpointURL");
     tcase_add_test(tc_url, parseEndpointUrl_opc_tcp);
