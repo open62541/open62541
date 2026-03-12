@@ -111,6 +111,36 @@ function build_amalgamation_mt {
     gcc -Wall -Werror -c open62541.c
 }
 
+function build_amalgamation_none_arch {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_ENABLE_AMALGAMATION=ON \
+          -DUA_ARCHITECTURE=none \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_XML_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          ..
+    make open62541-amalgamation ${MAKEOPTS}
+
+    cat > amalgamation_none_smoke.c <<EOF
+#include "open62541.h"
+
+int main(void) {
+    UA_Server *server = UA_Server_new();
+    if(!server)
+        return 1;
+
+    UA_Server_delete(server);
+    return 0;
+}
+EOF
+
+    gcc -Wall -Werror -I. amalgamation_none_smoke.c open62541.c \
+        -o amalgamation_none_smoke -lpthread
+}
+
 ############################
 # Build and Run Unit Tests #
 ############################
