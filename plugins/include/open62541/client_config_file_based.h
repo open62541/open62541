@@ -18,7 +18,7 @@ UA_EXPORT UA_Client *
 UA_Client_newFromFile(const UA_ByteString jsonConfig);
 
 /* Loads a client configuration from a file.  The passed client configuration is
- * cleared.
+ * cleared.  Memory will be allocated for fields in config.
  *
  * @param config The client configuration.
  * @param jsonConfig The configuration in json5 format.
