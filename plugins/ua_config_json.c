@@ -1179,20 +1179,20 @@ parseJSONServerConfig(UA_ServerConfig *config, UA_ByteString json_config) {
 }
 
 UA_Server *
-UA_Server_newFromFile(const UA_ByteString json_config) {
+UA_Server_newFromFile(const UA_ByteString jsonConfig) {
     UA_ServerConfig config;
-    UA_StatusCode res = UA_ServerConfig_loadFromFile(&config, json_config);
+    UA_StatusCode res = UA_ServerConfig_loadFromFile(&config, jsonConfig);
     if(res != UA_STATUSCODE_GOOD)
         return NULL;
     return UA_Server_newWithConfig(&config);
 }
 
 UA_StatusCode
-UA_ServerConfig_loadFromFile(UA_ServerConfig *config, const UA_ByteString json_config) {
+UA_ServerConfig_loadFromFile(UA_ServerConfig *config, const UA_ByteString jsonConfig) {
     memset(config, 0, sizeof(UA_ServerConfig));
     UA_StatusCode res = UA_ServerConfig_setDefault(config);
     if (res == UA_STATUSCODE_GOOD) {
-        res = parseJSONServerConfig(config, json_config);
+        res = parseJSONServerConfig(config, jsonConfig);
         if (UA_StatusCode_isBad(res)) {
             UA_ServerConfig_clear(config);
         }
@@ -1688,22 +1688,22 @@ parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
 }
 
 UA_Client *
-UA_Client_newFromFile(const UA_ByteString json_config)
+UA_Client_newFromFile(const UA_ByteString jsonConfig)
 {
     UA_ClientConfig config;
-    UA_StatusCode res = UA_ClientConfig_loadFromFile(&config, json_config);
+    UA_StatusCode res = UA_ClientConfig_loadFromFile(&config, jsonConfig);
     if(res != UA_STATUSCODE_GOOD)
         return NULL;
     return UA_Client_newWithConfig(&config);
 }
 
 UA_StatusCode
-UA_ClientConfig_loadFromFile(UA_ClientConfig *config, const UA_ByteString json_config)
+UA_ClientConfig_loadFromFile(UA_ClientConfig *config, const UA_ByteString jsonConfig)
 {
     memset(config, 0, sizeof(UA_ClientConfig));
     UA_StatusCode res = UA_ClientConfig_setDefault(config);
     if (res == UA_STATUSCODE_GOOD) {
-        res = parseJSONClientConfig(config, json_config);
+        res = parseJSONClientConfig(config, jsonConfig);
         if (UA_StatusCode_isBad(res)) {
             UA_ClientConfig_clear(config);
         }
