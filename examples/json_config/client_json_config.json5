@@ -1,0 +1,31 @@
+// JSON 5 client configuration
+{
+  timeout: 1000,
+
+  applicationDescription: {
+    applicationUri: "urn:open62541.client.application",
+    productUri: "urn:product.test.org",
+    applicationName: {
+      locale: "en-EN",
+      text: "Test Application"
+    },
+  },
+
+  endpointUrl: "opc.tcp://localhost:4840",
+  sessionLocaleIds: ["en_US", "de_DE"],
+  noSession: false,
+  noReconnect: false,
+  noNewSession: false,
+  secureChannelLifeTime: 0,
+  requestedSessionTimeout: 1000,
+  connectivityCheckInterval: 0,
+  tcpReuseAddr: true,
+  applicationUri: "urn:open62541.server.application",
+  allowNonePolicyPassword: false,
+
+  // only if encryption enabled
+  maxTrustListSize: 20,
+  maxRejectedListSize: 20,
+
+  outStandingPublishRequests: 0
+}
