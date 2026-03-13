@@ -820,6 +820,34 @@ UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
                                       UA_ByteString privateKeyAuth);
 #endif
 
+/**
+ * Configuration from File
+ * -----------------------
+ *
+ * The client can be configured from JSON5-formatted files. The following
+ * functions require the JSON encoding support (UA_ENABLE_JSON_ENCODING). */
+
+#ifdef UA_ENABLE_JSON_ENCODING
+
+/* Create a new client from a file.  The client configuration is loaded from a
+ * Json5 file.
+ *
+ * @param jsonConfig The configuration in json5 format.
+ */
+UA_EXPORT UA_Client *
+UA_Client_newFromFile(const UA_ByteString jsonConfig);
+
+/* Loads a client configuration from a file.  The passed client configuration is
+ * cleared.  Memory will be allocated for fields in config.
+ *
+ * @param config The client configuration.
+ * @param jsonConfig The configuration in json5 format.
+ */
+UA_EXPORT UA_StatusCode
+UA_ClientConfig_loadFromFile(UA_ClientConfig *config, const UA_ByteString jsonConfig);
+
+#endif /* UA_ENABLE_JSON_ENCODING */
+
 _UA_END_DECLS
 
 #endif /* UA_CLIENT_H_ */
