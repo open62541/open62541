@@ -2762,6 +2762,33 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role);
 
 #endif /* UA_ENABLE_RBAC */
 
+/**
+ * Configuration from File
+ * -----------------------
+ *
+ * The server can be configured from JSON5-formatted files. The following
+ * functions require the JSON encoding support (UA_ENABLE_JSON_ENCODING). */
+
+#ifdef UA_ENABLE_JSON_ENCODING
+
+/* Loads the server configuration from a Json5 file into the server.
+ *
+ * @param jsonConfig The configuration in json5 format.
+ */
+UA_EXPORT UA_Server *
+UA_Server_newFromFile(const UA_ByteString jsonConfig);
+
+/* Loads a server configuration from a file.  The passed server configuration
+ * is cleared.  Memory will be allocated for fields in config.
+ *
+ * @param config The server configuration.
+ * @param jsonConfig The configuration in json5 format.
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_loadFromFile(UA_ServerConfig *config, const UA_ByteString jsonConfig);
+
+#endif /* UA_ENABLE_JSON_ENCODING */
+
 _UA_END_DECLS
 
 #ifdef UA_ENABLE_PUBSUB

@@ -7,8 +7,8 @@
  */
 
 #include <open62541/plugin/log.h>
-#include <open62541/server_config_file_based.h>
-#include <open62541/client_config_file_based.h>
+#include <open62541/server.h>
+#include <open62541/client.h>
 #include "cj5.h"
 #include "open62541/server_config_default.h"
 #include "open62541/client_config_default.h"
