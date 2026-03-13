@@ -67,6 +67,10 @@ jobs:
           - name: "Amalgamation Build"
             cmd_action: build_amalgamation
 
+          - name: "Amalgamation Build (MinGW cross)"
+            cmd_deps: sudo apt-get install -y -qq gcc-mingw-w64-x86-64
+            cmd_action: build_amalgamation_mingw_cross
+
           - name: "Amalgamation Build with Multithreading"
             cmd_action: build_amalgamation_mt
 
