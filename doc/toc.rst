@@ -15,4 +15,5 @@ open62541 Documentation
    util
    nodeset_compiler
    statuscodes
+   json_config
    plugin
