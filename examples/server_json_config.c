@@ -23,13 +23,15 @@ int main(int argc, char** argv) {
     }
 
     /* Alternative API function */
-//    UA_Server *server = UA_Server_new();
-//    UA_ServerConfig *config = UA_Server_getConfig(server);
-//    retval = UA_ServerConfig_setFromFile(config, json_config);
-//    if(retval != UA_STATUSCODE_GOOD) {
-//        UA_Server_delete(server);
-//        return EXIT_FAILURE;
-//    }
+    /*
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    retval = UA_ServerConfig_setFromFile(config, json_config);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Server_delete(server);
+        return EXIT_FAILURE;
+    }
+    */
 
     UA_Server *server = UA_Server_newFromFile(json_config);
 

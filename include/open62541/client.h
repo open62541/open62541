@@ -821,11 +821,20 @@ UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
 #endif
 
 /**
+ * .. _client-json-config:
+ *
  * Configuration from File
  * -----------------------
  *
- * The client can be configured from JSON5-formatted files. The following
- * functions require the JSON encoding support (UA_ENABLE_JSON_ENCODING). */
+ * The client can be configured from JSON5-formatted content stored in a
+ * ``UA_ByteString``.
+ *
+ * The example files ``examples/json_config/client_json_config.json5`` and
+ * ``examples/client_json_config.c`` document the intended workflow and the
+ * currently supported keys.
+ *
+ * The following functions require JSON encoding support
+ * (``UA_ENABLE_JSON_ENCODING``). */
 
 #ifdef UA_ENABLE_JSON_ENCODING
 

@@ -22,13 +22,14 @@ int main(int argc, char** argv) {
         return EXIT_FAILURE;
     }
 
-    /**
+    /*
      * Create the client directly from the JSON file.  Alternatively, the configuration
      * can be loaded into a UA_ClientConfig and then used to create the client.  The
      * following is identical to the line below:
-     *     UA_ClientConfig clientConfig;
-     *     UA_StatusCode res = UA_ClientConfig_loadFromFile(&clientConfig, json_config);
-     *     UA_Client *client = UA_Client_new(&clientConfig);
+     *
+     *    UA_ClientConfig clientConfig;
+     *    UA_StatusCode res = UA_ClientConfig_loadFromFile(&clientConfig, json_config);
+     *    UA_Client *client = UA_Client_new(&clientConfig);
      *
      */
     UA_Client *client = UA_Client_newFromFile(json_config);

@@ -2763,11 +2763,22 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role);
 #endif /* UA_ENABLE_RBAC */
 
 /**
+ * .. _server-json-config:
+ *
  * Configuration from File
  * -----------------------
  *
- * The server can be configured from JSON5-formatted files. The following
- * functions require the JSON encoding support (UA_ENABLE_JSON_ENCODING). */
+ * The server can be configured from JSON5-formatted content stored in a
+ * ``UA_ByteString``.
+ *
+ * The example files ``examples/json_config/server_json_config.json5`` and
+ * ``examples/server_json_config.c`` document the intended workflow and the
+ * currently supported keys. They cover the common runtime limits as well as
+ * optional blocks for discovery, subscriptions, historizing, PubSub and
+ * security policy configuration.
+ *
+ * The following functions require JSON encoding support
+ * (``UA_ENABLE_JSON_ENCODING``). */
 
 #ifdef UA_ENABLE_JSON_ENCODING
 

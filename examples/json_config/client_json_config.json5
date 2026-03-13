@@ -1,31 +1,161 @@
-// JSON 5 client configuration
+// Example JSON5 client configuration for UA_Client_newFromFile() and
+// UA_ClientConfig_loadFromFile().
+//
+// This file intentionally documents every currently supported key. Keep the
+// active values runnable against the default open62541 example server and use
+// comments for alternatives that require certificates, other endpoints or
+// optional build features.
 {
+  // General service timeout in milliseconds.
   timeout: 1000,
 
+  // The OPC UA application description advertised by the client.
   applicationDescription: {
     applicationUri: "urn:open62541.client.application",
-    productUri: "urn:product.test.org",
+    productUri: "urn:open62541.example.client",
     applicationName: {
-      locale: "en-EN",
-      text: "Test Application"
-    },
+      locale: "en-US",
+      text: "open62541 JSON5 Client"
+    }
   },
 
+  // Endpoint to connect to. This is the most important field for the simple
+  // examples and can be overridden at runtime before connect if needed.
   endpointUrl: "opc.tcp://localhost:4840",
-  sessionLocaleIds: ["en_US", "de_DE"],
+
+  // Optional session name sent to the server.
+  sessionName: "open62541 JSON5 session",
+
+  // Preferred locales, in priority order.
+  sessionLocaleIds: ["en-US", "de-DE"],
+
+  // Session / reconnect behaviour.
   noSession: false,
   noReconnect: false,
   noNewSession: false,
-  secureChannelLifeTime: 0,
-  requestedSessionTimeout: 1000,
-  connectivityCheckInterval: 0,
+  secureChannelLifeTime: 600000,
+  requestedSessionTimeout: 1200000,
+  connectivityCheckInterval: 3000,
+
+  // Socket option used by the TCP connection layer.
   tcpReuseAddr: true,
-  applicationUri: "urn:open62541.server.application",
+
+  // Override the application URI used during certificate checks. Usually this
+  // matches applicationDescription.applicationUri.
+  applicationUri: "urn:open62541.client.application",
+
+  // Explicitly pin the endpoint security settings instead of selecting them
+  // only from discovery results.
+  securityMode: "None",
+  securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None",
+
+  // Security policy used to encrypt UserName tokens. Use the server policy by
+  // default or override it explicitly here.
+  authSecurityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None",
+
+  // If false, UserName tokens are rejected when the selected user-token policy
+  // uses SecurityPolicy#None.
   allowNonePolicyPassword: false,
 
-  // only if encryption enabled
+  // The client can also predefine a local connection profile.
+  localConnectionConfig: {
+    protocolVersion: 0,
+    recvBufferSize: 65535,
+    sendBufferSize: 65535,
+    localMaxMessageSize: 0,
+    remoteMaxMessageSize: 0,
+    localMaxChunkCount: 0,
+    remoteMaxChunkCount: 0,
+  },
+
+  // Optional explicit endpoint description. This is useful if discovery is
+  // performed elsewhere and the exact endpoint settings are already known.
+  endpoint: {
+    endpointUrl: "opc.tcp://localhost:4840",
+    server: {
+      applicationUri: "urn:open62541.server.application",
+      productUri: "urn:open62541.example.server",
+      applicationName: {
+        locale: "en-US",
+        text: "open62541 JSON5 Server"
+      },
+      applicationType: "Server",
+      discoveryUrls: ["opc.tcp://localhost:4840"]
+    },
+    securityMode: "None",
+    securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None",
+    userIdentityTokens: [
+      {
+        policyId: "anonymous",
+        tokenType: "Anonymous",
+        securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None"
+      },
+    //   {
+    //     policyId: "username",
+    //     tokenType: "UserName",
+    //     securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#None"
+    //   },
+    //   {
+    //     policyId: "certificate",
+    //     tokenType: "Certificate",
+    //     securityPolicyUri: "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256"
+    //   }
+    ],
+    transportProfileUri: "http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary",
+    securityLevel: 0,
+  },
+
+  // Select the user-token policy explicitly if the endpoint exposes several.
+  userTokenPolicy: {
+    policyId: "anonymous",
+    tokenType: "Anonymous",
+  },
+
+  // The identity token can be inferred from the fields used below. If the
+  // object is omitted or empty, Anonymous authentication is selected.
+  // userIdentityToken: {
+  //   type: "UserName",
+  //   userName: "user",
+  //   password: "password",
+
+  //   // Optional algorithm hint for encrypted usernames.
+  //   // encryptionAlgorithm: "http://www.w3.org/2001/04/xmlenc#rsa-oaep",
+
+  //   // Alternative certificate-based authentication:
+  //   // type: "Certificate",
+  //   // certificateData: "./certs/user_cert.der",
+  // },
+
+  // Optional namespace table used to resolve expanded node ids.
+  namespaces: [
+    "http://opcfoundation.org/UA/",
+    "urn:open62541.example.namespace"
+  ],
+
+  // Number of PublishRequests kept in flight when subscriptions are enabled.
+  outStandingPublishRequests: 4,
+
+  // Optional client-side secure channel policies. Requires encryption support
+  // and matching certificate/key files.
+  // securityPolicies: [
+  //   {
+  //     policy: "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256",
+  //     certificate: "./certs/client_cert.der",
+  //     privateKey: "./certs/client_key.pem"
+  //   }
+  // ],
+
+  // Separate policy array used for authenticating UserName or certificate
+  // tokens if it should differ from securityPolicies.
+  // authSecurityPolicies: [
+  //   {
+  //     policy: "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256",
+  //     certificate: "./certs/client_auth_cert.der",
+  //     privateKey: "./certs/client_auth_key.pem"
+  //   }
+  // ],
+
+  // Certificate store limits. Only available when encryption support is built.
   maxTrustListSize: 20,
   maxRejectedListSize: 20,
-
-  outStandingPublishRequests: 0
 }
