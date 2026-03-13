@@ -576,6 +576,9 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     dsthead->writeMask = srchead->writeMask;
     dsthead->context = srchead->context;
     dsthead->constructed = srchead->constructed;
+#ifdef UA_ENABLE_RBAC
+    dsthead->permissionIndex = srchead->permissionIndex;
+#endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     dsthead->monitoredItems = srchead->monitoredItems;
 #endif

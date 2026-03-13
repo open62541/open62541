@@ -559,6 +559,26 @@ removeEndpointMethodCallback(UA_Server *server,
 
 UA_StatusCode
 initNS0RBAC(UA_Server *server) {
+    /* Check whether the RBAC ObjectType nodes are available.
+     * They are only present when UA_NAMESPACE_ZERO=FULL. With reduced
+     * or minimal namespace profiles neither the RoleSetType nor the RoleType
+     * instance methods exist, so we skip the NS0 information-model wiring and
+     * return success – the RBAC API is still usable via the internal C API. */
+    UA_NodeId roleSetTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ROLESETTYPE);
+    UA_QualifiedName typebn;
+    UA_Boolean hasFullRbacNS0 =
+        (UA_Server_readBrowseName(server, roleSetTypeId, &typebn) == UA_STATUSCODE_GOOD);
+    if(hasFullRbacNS0)
+        UA_QualifiedName_clear(&typebn);
+
+    if(!hasFullRbacNS0) {
+        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+                    "RBAC: RoleSetType (NS0 i=%u) not present - NS0 RBAC "
+                    "information model skipped (requires UA_NAMESPACE_ZERO=FULL)",
+                    UA_NS0ID_ROLESETTYPE);
+        return UA_STATUSCODE_GOOD;
+    }
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* Ensure the RoleSet instance node exists */
