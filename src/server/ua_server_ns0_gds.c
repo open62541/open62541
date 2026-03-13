@@ -858,6 +858,14 @@ writeTrustList(UA_Server *server,
     if(fileContext->openFileMode != (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
         return UA_STATUSCODE_BADINVALIDSTATE;
 
+    /* abort when TrustList size would exceed the maximum allowed value */
+    if (((fileContext->dataToWrite.length + data.length) * sizeof(UA_Byte)) > server->config.maxTrustListSize)
+    {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+            "Write on trust list exceeds limit");
+        return UA_STATUSCODE_BADREQUESTTOOLARGE;
+    }
+
     UA_ByteString dataToWrite = UA_BYTESTRING_NULL;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToWrite, fileContext->dataToWrite.length + data.length);
     if(retval != UA_STATUSCODE_GOOD)
