@@ -5,7 +5,6 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/client_config_file_based.h>
 
 #include <stdlib.h>
 #include "common.h"
