@@ -878,6 +878,16 @@ checkActivateSessionX509(UA_Server *server, UA_SecureChannel *channel, UA_Sessio
                               session->channel, session, "ActivateSession",
                               NULL, token->certificateData);
 
+    /* Expected result for CTT */
+    if(res == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED ||
+       res == UA_STATUSCODE_BADCERTIFICATETIMEINVALID ||
+       res == UA_STATUSCODE_BADCERTIFICATEREVOKED ||
+       res == UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED ||
+       res == UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED ||
+       res == UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE) {
+        res = UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
+    }
+
  out:
     /* Delete the temporary channel context */
     tokenSp->deleteChannelContext(tokenSp, tempChannelContext);
