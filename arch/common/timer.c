@@ -49,27 +49,63 @@ UA_Timer_init(UA_Timer *t) {
     UA_LOCK_INIT(&t->timerMutex);
 }
 
-/* Global variables, only used behind the mutex */
-static UA_DateTime earliest, latest, adjustedNextTime;
+/* Check whether two timer entries can be batched together.
+ *
+ * Batching aligns the next execution time of timers to reduce the number
+ * of wakeups of the event loop. However, batching must not break the
+ * periodicity of cyclic timers.
+ *
+ * Two timers are compatible if their intervals are multiples of each
+ * other (e.g. 250ms and 500ms). This guarantees that aligning their
+ * first execution will keep them aligned for all future executions.
+ *
+ * One-shot timers (interval == 0) cannot participate in batching because
+ * their execution schedule does not repeat.
+ */
+static UA_Boolean
+timerEntriesBatchCompatible(const UA_TimerEntry *a,
+                            const UA_TimerEntry *b) {
+    if(a->interval == 0 || b->interval == 0)
+        return false;
 
-static void *
-findTimer2Batch(void *context, UA_TimerEntry *compare) {
-    UA_TimerEntry *te = (UA_TimerEntry*)context;
+    if(a->interval < b->interval && b->interval % a->interval != 0)
+        return false;
+    if(a->interval > b->interval && a->interval % b->interval != 0)
+        return false;
 
-    /* NextTime deviation within interval? */
-    if(compare->nextTime < earliest || compare->nextTime > latest)
-        return NULL;
+    return true;
+}
 
-    /* Check if one interval is a multiple of the other */
-    if(te->interval < compare->interval && compare->interval % te->interval != 0)
-        return NULL;
-    if(te->interval > compare->interval && te->interval % compare->interval != 0)
-        return NULL;
+/* Find the nearest timer entries around the provided nextTime.
+ *
+ * Instead of scanning all timers (O(n)), we walk the timer ZIP tree
+ * ordered by nextTime to find the closest neighbors in O(log n).
+ *
+ * prev -> timer with the largest nextTime smaller than the target
+ * next -> timer with the smallest nextTime larger than the target
+ *
+ * These candidates can then be tested for batching compatibility.
+ */
+static void
+findBatchNeighbors(struct UA_TimerTree *head, UA_DateTime nextTime,
+                   UA_TimerEntry **prev, UA_TimerEntry **next) {
+    *prev = NULL;
+    *next = NULL;
 
-    adjustedNextTime = compare->nextTime; /* Candidate found */
-
-    /* Abort when a perfect match is found */
-    return (te->interval == compare->interval) ? te : NULL;
+    UA_TimerEntry *cur = ZIP_ROOT(head);
+    while(cur) {
+        if(nextTime < cur->nextTime) {
+            *next = cur;
+            cur = ZIP_LEFT(cur, treeEntry);   /* replace treeEntry if needed */
+        } else if(nextTime > cur->nextTime) {
+            *prev = cur;
+            cur = ZIP_RIGHT(cur, treeEntry);  /* replace treeEntry if needed */
+        } else {
+            *prev = cur;
+            *next = cur;
+            return;
+        }
+    }
 }
 
 /* Adjust the nextTime to batch cyclic callbacks. Look in an interval around the
@@ -79,14 +115,50 @@ static void
 batchTimerEntry(UA_Timer *t, UA_TimerEntry *te) {
     if(te->timerPolicy != UA_TIMERPOLICY_CURRENTTIME)
         return;
+
     UA_DateTime deviate = te->interval / 4;
     if(deviate > UA_DATETIME_SEC)
         deviate = UA_DATETIME_SEC;
-    earliest = te->nextTime - deviate;
-    latest = te->nextTime + deviate;
-    adjustedNextTime = te->nextTime;
-    ZIP_ITER(UA_TimerIdTree, &t->idTree, findTimer2Batch, te);
-    te->nextTime = adjustedNextTime;
+    if(deviate <= 0)
+        return;
+
+    UA_DateTime earliest = te->nextTime - deviate;
+    UA_DateTime latest = te->nextTime + deviate;
+
+    UA_TimerEntry *prev = NULL;
+    UA_TimerEntry *next = NULL;
+    findBatchNeighbors(&t->tree, te->nextTime, &prev, &next);
+
+    UA_TimerEntry *best = NULL;
+
+    if(prev &&
+       prev->nextTime >= earliest &&
+       prev->nextTime <= latest &&
+       timerEntriesBatchCompatible(te, prev)) {
+        best = prev;
+    }
+
+    if(next &&
+       next->nextTime >= earliest &&
+       next->nextTime <= latest &&
+       timerEntriesBatchCompatible(te, next)) {
+        if(!best) {
+            best = next;
+        } else {
+            UA_DateTime dprev = (prev->nextTime > te->nextTime) ?
+                (prev->nextTime - te->nextTime) : (te->nextTime - prev->nextTime);
+            UA_DateTime dnext = (next->nextTime > te->nextTime) ?
+                (next->nextTime - te->nextTime) : (te->nextTime - next->nextTime);
+
+            if(prev->interval != te->interval && next->interval == te->interval)
+                best = next;
+            else if(dnext < dprev)
+                best = next;
+        }
+    }
+
+    if(best)
+        te->nextTime = best->nextTime;
 }
 
 /* Adding repeated callbacks: Add an entry with the "nextTime" timestamp in the
