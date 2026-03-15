@@ -21,7 +21,7 @@ def nodePrintDot(node):
     return dot
 
 def printDotGraphWalk(nodeset, depth=1, filename="out.dot", rootNode=None,
-                      followInverse=False, excludeNodeIds=[]):
+                      followInverse=False, excludeNodeIds=None):
     """ Outputs a graphiz/dot description the nodes centered around rootNode.
 
         References beginning from rootNode will be followed for depth steps. If
@@ -33,6 +33,8 @@ def printDotGraphWalk(nodeset, depth=1, filename="out.dot", rootNode=None,
 
         Output is written into filename to be parsed by dot/neato/srfp...
     """
+    if excludeNodeIds is None:
+        excludeNodeIds = []
     iterate = depth
     processed = []
     if rootNode is None or not isinstance(rootNode, Node) or rootNode not in nodeset.nodes:
@@ -121,7 +123,13 @@ def addReferenceToGraph(nodeset, nodeFrom, nodeTo, reference, graph):
     add_edges(graph, [((getNodeString(nodeFrom), getNodeString(nodeTo)), {'label': getReferenceString(nodeset, reference)})])
 
 
-def addNodeToGraph(nodeset, node, graph, alreadyAdded=set(), relevantReferences=set(), ignoreNodes=set(), depth=0):
+def addNodeToGraph(nodeset, node, graph, alreadyAdded=None, relevantReferences=None, ignoreNodes=None, depth=0):
+    if alreadyAdded is None:
+        alreadyAdded = set()
+    if relevantReferences is None:
+        relevantReferences = set()
+    if ignoreNodes is None:
+        ignoreNodes = set()
     if node.id in alreadyAdded or node.id in ignoreNodes:
         return
     alreadyAdded.add(node.id)
