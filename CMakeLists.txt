@@ -155,6 +155,9 @@ mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 mark_as_advanced(UA_ENABLE_NODEMANAGEMENT)
 
+option(UA_ENABLE_AUDITING "Enable generation of audit events in servers" ON)
+mark_as_advanced(UA_ENABLE_AUDITING)
+
 option(UA_ENABLE_INLINABLE_EXPORT "Export 'static inline' methods as regular API" OFF)
 mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
 
@@ -686,7 +689,6 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
     # Threading support
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
         check_add_cc_flag("-pthread")
-        check_add_cc_flag("-ftls-model=initial-exec") # Enable thread-local variables in the .so shared object
     endif()
 
     # Force 32bit build
@@ -900,6 +902,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_config.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_auditing.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c
@@ -918,6 +921,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 
 if(UA_ENABLE_RBAC)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_rbac.c)
 endif()
 
 if(UA_FILESYSTEM)
@@ -1660,7 +1664,8 @@ install(DIRECTORY ${UA_SCHEMA_DIR}/
         PERMISSIONS OWNER_READ GROUP_READ)
 
 # Install python tools
-set(UA_install_tools_files "tools/generate_datatypes.py"
+set(UA_install_tools_files "tools/generate_bsd.py"
+                           "tools/generate_datatypes.py"
                            "tools/generate_nodeid_header.py"
                            "tools/generate_statuscode_descriptions.py")
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir}

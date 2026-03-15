@@ -1235,6 +1235,337 @@ START_TEST(CheckDescriptionLocalization) {
     UA_LocalizedText_clear(&lt);
 } END_TEST
 
+/* --- Extended coverage tests --- */
+
+START_TEST(ReadObjectProperty) {
+    /* Read the "ServerArray" property from the Server object */
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode retval =
+        UA_Server_readObjectProperty(server,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                                     UA_QUALIFIEDNAME(0, "ServerArray"),
+                                     &value);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(value.type == &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_clear(&value);
+} END_TEST
+
+START_TEST(ReadObjectProperty_NotFound) {
+    /* Try to read a non-existent property */
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode retval =
+        UA_Server_readObjectProperty(server,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                                     UA_QUALIFIEDNAME(0, "NonExistentProperty"),
+                                     &value);
+    ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(WriteObjectProperty) {
+    /* First add an object with a property we can write */
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TestObj");
+    UA_NodeId objId = UA_NODEID_STRING(1, "testobj.prop");
+    UA_StatusCode retval =
+        UA_Server_addObjectNode(server, objId,
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                UA_QUALIFIEDNAME(1, "TestObj"),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                oAttr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Add a variable property */
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    UA_Int32 val = 100;
+    UA_Variant_setScalar(&vAttr.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    vAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_NodeId propId;
+    retval = UA_Server_addVariableNode(server, UA_NODEID_NULL, objId,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                       UA_QUALIFIEDNAME(1, "MyProp"),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                                       vAttr, NULL, &propId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Write via writeObjectProperty */
+    UA_Int32 newVal = 200;
+    UA_Variant wVar;
+    UA_Variant_setScalar(&wVar, &newVal, &UA_TYPES[UA_TYPES_INT32]);
+    retval = UA_Server_writeObjectProperty(server, objId,
+                                           UA_QUALIFIEDNAME(1, "MyProp"), wVar);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Read back and verify */
+    UA_Variant rVar;
+    UA_Variant_init(&rVar);
+    retval = UA_Server_readObjectProperty(server, objId,
+                                          UA_QUALIFIEDNAME(1, "MyProp"), &rVar);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(*(UA_Int32 *)rVar.data, 200);
+    UA_Variant_clear(&rVar);
+} END_TEST
+
+START_TEST(WriteObjectProperty_NotFound) {
+    UA_Int32 val = 42;
+    UA_Variant wVar;
+    UA_Variant_setScalar(&wVar, &val, &UA_TYPES[UA_TYPES_INT32]);
+    UA_StatusCode retval =
+        UA_Server_writeObjectProperty(server,
+                                      UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                                      UA_QUALIFIEDNAME(0, "NonExistentProp"),
+                                      wVar);
+    ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(WriteObjectProperty_Scalar) {
+    /* Add object + property */
+    UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+    oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "TestObjScalar");
+    UA_NodeId objId = UA_NODEID_STRING(1, "testobj.scalar");
+    UA_StatusCode retval =
+        UA_Server_addObjectNode(server, objId,
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                UA_QUALIFIEDNAME(1, "TestObjScalar"),
+                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                oAttr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+    UA_Double dval = 3.14;
+    UA_Variant_setScalar(&vAttr.value, &dval, &UA_TYPES[UA_TYPES_DOUBLE]);
+    vAttr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    retval = UA_Server_addVariableNode(server, UA_NODEID_NULL, objId,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                                       UA_QUALIFIEDNAME(1, "DoubleProp"),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+                                       vAttr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Write scalar via writeObjectProperty_scalar */
+    UA_Double newDval = 2.718;
+    retval = UA_Server_writeObjectProperty_scalar(
+        server, objId, UA_QUALIFIEDNAME(1, "DoubleProp"),
+        &newDval, &UA_TYPES[UA_TYPES_DOUBLE]);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Read back */
+    UA_Variant rVar;
+    UA_Variant_init(&rVar);
+    retval = UA_Server_readObjectProperty(server, objId,
+                                          UA_QUALIFIEDNAME(1, "DoubleProp"), &rVar);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert((*(UA_Double *)rVar.data) - 2.718 < 1e-10 &&
+              (*(UA_Double *)rVar.data) - 2.718 > -1e-10);
+    UA_Variant_clear(&rVar);
+} END_TEST
+
+START_TEST(WriteDataValue) {
+    /* Write a full DataValue with status and timestamps */
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "the.answer");
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    UA_Int32 val = 99;
+    UA_Variant_setScalar(&dv.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    dv.hasValue = true;
+    dv.status = UA_STATUSCODE_GOOD;
+    dv.hasStatus = true;
+    dv.sourceTimestamp = UA_DateTime_now();
+    dv.hasSourceTimestamp = true;
+    UA_StatusCode retval = UA_Server_writeDataValue(server, nodeId, dv);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Read back the value */
+    UA_Variant rVar;
+    UA_Variant_init(&rVar);
+    retval = UA_Server_readValue(server, nodeId, &rVar);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(*(UA_Int32 *)rVar.data, 99);
+    UA_Variant_clear(&rVar);
+} END_TEST
+
+START_TEST(WriteDisplayName_Success) {
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "the.answer");
+    /* Use same locale as the original node ("locale") so it updates
+     * the existing entry rather than adding a new locale */
+    UA_LocalizedText dn = UA_LOCALIZEDTEXT("locale", "NewDisplayName");
+    UA_StatusCode retval = UA_Server_writeDisplayName(server, nodeId, dn);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText readDn;
+    retval = UA_Server_readDisplayName(server, nodeId, &readDn);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_LocalizedText expected = UA_LOCALIZEDTEXT("locale", "NewDisplayName");
+    ck_assert(UA_String_equal(&readDn.text, &expected.text));
+    UA_LocalizedText_clear(&readDn);
+} END_TEST
+
+START_TEST(WriteDescription_Success) {
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "the.answer");
+    /* Use same locale as the original node ("locale") so it updates
+     * the existing entry rather than adding a new locale */
+    UA_LocalizedText desc = UA_LOCALIZEDTEXT("locale", "NewDescription");
+    UA_StatusCode retval = UA_Server_writeDescription(server, nodeId, desc);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText readDesc;
+    retval = UA_Server_readDescription(server, nodeId, &readDesc);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_LocalizedText expected = UA_LOCALIZEDTEXT("locale", "NewDescription");
+    ck_assert(UA_String_equal(&readDesc.text, &expected.text));
+    UA_LocalizedText_clear(&readDesc);
+} END_TEST
+
+START_TEST(WriteWriteMask_Success) {
+    /* Write the WriteMask on the test object node */
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 50);
+    UA_StatusCode retval = UA_Server_writeWriteMask(server, nodeId,
+                                                    UA_WRITEMASK_DISPLAYNAME);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 wm;
+    retval = UA_Server_readWriteMask(server, nodeId, &wm);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(wm & UA_WRITEMASK_DISPLAYNAME, UA_WRITEMASK_DISPLAYNAME);
+} END_TEST
+
+START_TEST(WriteEventNotifier_Success) {
+    /* Write EventNotifier on the Server object */
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_Byte en = UA_EVENTNOTIFIER_SUBSCRIBE_TO_EVENT;
+    UA_StatusCode retval = UA_Server_writeEventNotifier(server, nodeId, en);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Byte readEn;
+    retval = UA_Server_readEventNotifier(server, nodeId, &readEn);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readEn, UA_EVENTNOTIFIER_SUBSCRIBE_TO_EVENT);
+} END_TEST
+
+START_TEST(WriteMinimumSamplingInterval_Success) {
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "the.answer");
+    UA_Double msi = 500.0;
+    UA_StatusCode retval =
+        UA_Server_writeMinimumSamplingInterval(server, nodeId, msi);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Double readMsi;
+    retval = UA_Server_readMinimumSamplingInterval(server, nodeId, &readMsi);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(readMsi == 500.0);
+} END_TEST
+
+START_TEST(WriteHistorizing_Success) {
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "the.answer");
+    UA_StatusCode retval = UA_Server_writeHistorizing(server, nodeId, true);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Boolean hist;
+    retval = UA_Server_readHistorizing(server, nodeId, &hist);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(hist == true);
+} END_TEST
+
+START_TEST(WriteAccessLevel_Success) {
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "the.answer");
+    UA_Byte al = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_StatusCode retval = UA_Server_writeAccessLevel(server, nodeId, al);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Byte readAl;
+    retval = UA_Server_readAccessLevel(server, nodeId, &readAl);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readAl, al);
+} END_TEST
+
+START_TEST(WriteAccessLevelEx_Success) {
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "the.answer");
+    UA_UInt32 alEx = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+    UA_StatusCode retval = UA_Server_writeAccessLevelEx(server, nodeId, alEx);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 readAlEx;
+    retval = UA_Server_readAccessLevelEx(server, nodeId, &readAlEx);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(readAlEx, alEx);
+} END_TEST
+
+#ifdef UA_ENABLE_METHODCALLS
+START_TEST(WriteExecutable_Success) {
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(1, UA_NS0ID_METHODNODE);
+    UA_StatusCode retval = UA_Server_writeExecutable(server, nodeId, false);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Boolean exec;
+    retval = UA_Server_readExecutable(server, nodeId, &exec);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(exec == false);
+
+    /* Restore */
+    retval = UA_Server_writeExecutable(server, nodeId, true);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+#endif
+
+START_TEST(WriteIsAbstract_Success) {
+    /* Write IsAbstract on the BaseObjectType (which is abstract) */
+    UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
+    UA_Boolean isAbstract;
+    UA_StatusCode retval = UA_Server_readIsAbstract(server, nodeId, &isAbstract);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Write the opposite value */
+    UA_Boolean newVal = !isAbstract;
+    retval = UA_Server_writeIsAbstract(server, nodeId, newVal);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Boolean readBack;
+    retval = UA_Server_readIsAbstract(server, nodeId, &readBack);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(readBack == newVal);
+
+    /* Restore */
+    retval = UA_Server_writeIsAbstract(server, nodeId, isAbstract);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(WriteInverseName_Success) {
+    /* Write InverseName on a ReferenceType node */
+    UA_NodeId refTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_LocalizedText inv = UA_LOCALIZEDTEXT("en-US", "OrganizedBy");
+    UA_StatusCode retval = UA_Server_writeInverseName(server, refTypeId, inv);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LocalizedText readInv;
+    retval = UA_Server_readInverseName(server, refTypeId, &readInv);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    UA_LocalizedText expected = UA_LOCALIZEDTEXT("en-US", "OrganizedBy");
+    ck_assert(UA_String_equal(&readInv.text, &expected.text));
+    UA_LocalizedText_clear(&readInv);
+} END_TEST
+
+START_TEST(ReadSingleAttributeValue_InvalidNode) {
+    /* Read value of a non-existent node */
+    UA_Variant value;
+    UA_Variant_init(&value);
+    UA_StatusCode retval =
+        UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 99999), &value);
+    ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+START_TEST(WriteSingleAttributeValue_InvalidNode) {
+    /* Write value to a non-existent node */
+    UA_Int32 val = 42;
+    UA_Variant wVar;
+    UA_Variant_setScalar(&wVar, &val, &UA_TYPES[UA_TYPES_INT32]);
+    UA_StatusCode retval =
+        UA_Server_writeValue(server, UA_NODEID_NUMERIC(1, 99999), wVar);
+    ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
 static Suite * testSuite_services_attributes(void) {
     Suite *s = suite_create("services_attributes_read");
 
@@ -1310,6 +1641,31 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_localization, CheckDisplayNameLocalization);
     tcase_add_test(tc_localization, CheckDescriptionLocalization);
     suite_add_tcase(s, tc_localization);
+
+    TCase *tc_ext = tcase_create("extendedCoverage");
+    tcase_add_checked_fixture(tc_ext, setup, teardown);
+    tcase_add_test(tc_ext, ReadObjectProperty);
+    tcase_add_test(tc_ext, ReadObjectProperty_NotFound);
+    tcase_add_test(tc_ext, WriteObjectProperty);
+    tcase_add_test(tc_ext, WriteObjectProperty_NotFound);
+    tcase_add_test(tc_ext, WriteObjectProperty_Scalar);
+    tcase_add_test(tc_ext, WriteDataValue);
+    tcase_add_test(tc_ext, WriteDisplayName_Success);
+    tcase_add_test(tc_ext, WriteDescription_Success);
+    tcase_add_test(tc_ext, WriteWriteMask_Success);
+    tcase_add_test(tc_ext, WriteEventNotifier_Success);
+    tcase_add_test(tc_ext, WriteMinimumSamplingInterval_Success);
+    tcase_add_test(tc_ext, WriteHistorizing_Success);
+    tcase_add_test(tc_ext, WriteAccessLevel_Success);
+    tcase_add_test(tc_ext, WriteAccessLevelEx_Success);
+#ifdef UA_ENABLE_METHODCALLS
+    tcase_add_test(tc_ext, WriteExecutable_Success);
+#endif
+    tcase_add_test(tc_ext, WriteIsAbstract_Success);
+    tcase_add_test(tc_ext, WriteInverseName_Success);
+    tcase_add_test(tc_ext, ReadSingleAttributeValue_InvalidNode);
+    tcase_add_test(tc_ext, WriteSingleAttributeValue_InvalidNode);
+    suite_add_tcase(s, tc_ext);
 
     return s;
 }

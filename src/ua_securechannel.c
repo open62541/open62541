@@ -180,7 +180,7 @@ UA_SecureChannel_shutdown(UA_SecureChannel *channel,
         return;
 
     /* Set the shutdown event for diagnostics */
-    channel->shutdownReason= shutdownReason;
+    channel->shutdownReason = shutdownReason;
 
     /* Trigger the async closing of the connection */
     UA_ConnectionManager *cm = channel->connectionManager;
@@ -655,6 +655,9 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk) {
              &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER], NULL);
     UA_CHECK_STATUS(res, return res);
 
+    /* Declare before the first goto to avoid crosses-initialization in C++ */
+    UA_SecurityPolicy *sp = NULL;
+
     /* Client/Server-specific processing. Creates a SecurityPolicy context and
      * attaches it to the channel. For the client, the remote certificate has
      * been verified before connecting. For the server the remote certificate is
@@ -690,7 +693,7 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk) {
     UA_AsymmetricAlgorithmSecurityHeader_clear(&asymHeader);
 
     /* Decrypt the chunk payload */
-    UA_SecurityPolicy *sp = channel->securityPolicy;
+    sp = channel->securityPolicy;
     res = decryptAndVerifyChunk(channel, &sp->asymSignatureAlgorithm,
                                 &sp->asymEncryptionAlgorithm,
                                 chunk->messageType, &chunk->bytes, offset);

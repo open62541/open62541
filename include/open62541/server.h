@@ -1523,7 +1523,7 @@ UA_Server_cancelAsync(UA_Server *server, void *asyncOpContext,
  *    "path-string", a :ref:``human-readable encoding of a
  *    SimpleAttributeOperand<parse-sao>`. For example ``/SourceNode`` or
  *    ``/EventType``.
- * 2. An NodeId pointing to an ObjectNode that instantiates an EventType. The
+ * 2. A NodeId pointing to an ObjectNode that instantiates an EventType. The
  *    ``SimpleAttributeOperands`` from the EventFilter are resolved in its
  *    context.
  * 3. The event fields defined as mandatory for the *BaseEventType* have a
@@ -1558,6 +1558,15 @@ UA_Server_cancelAsync(UA_Server *server, void *asyncOpContext,
  *    /Severity
  *       UInt16 for the urgency of the event defined to be between 1 (lowest) and
  *       1000 (catastrophic) (default: argument of ``_createEvent``)
+ *
+ * The "path-string" (SimpleAttributeOperand expression) can use
+ * namespace-indices and point into nested objects and variables. For example
+ * ``/1:Truck/2:Wheel``.
+ *
+ * The key-value map source for the event-fields uses a QualifiedName for the
+ * key. The NamespaceIndex from the key is used as the default NamespaceIndex
+ * for the path elements that do not define it explicitly. So the key
+ * ``2:"/1:Truck/Wheel"`` becomes ``/1:Truck/2:Wheel``.
  *
  * An event field that is missing from all sources resolves to an empty variant.
  *
@@ -2213,6 +2222,9 @@ struct UA_ServerConfig {
     UA_ServerNotificationCallback sessionNotificationCallback;
     UA_ServerNotificationCallback serviceNotificationCallback;
     UA_ServerNotificationCallback subscriptionNotificationCallback;
+#ifdef UA_ENABLE_AUDITING
+    UA_ServerNotificationCallback auditNotificationCallback;
+#endif
 
     /* Networking
      * ~~~~~~~~~~
@@ -2315,11 +2327,9 @@ struct UA_ServerConfig {
     /* Limits for Requests */
     UA_UInt32 maxReferencesPerNode;
 
-#ifdef UA_ENABLE_ENCRYPTION
-    /* Limits for TrustList */
-    UA_UInt32 maxTrustListSize; /* in bytes, 0 => unlimited */
-    UA_UInt32 maxRejectedListSize; /* 0 => unlimited */
-#endif
+    /* Reverse Connect
+     * ~~~~~~~~~~~~~~~ */
+    UA_UInt32 reverseReconnectInterval; /* Default is 15000 ms */
 
     /* Async Operations
      * ~~~~~~~~~~~~~~~~
@@ -2331,6 +2341,12 @@ struct UA_ServerConfig {
      * memory for setting the output value is then freed internally and should
      * not be touched afterwards. */
     void (*asyncOperationCancelCallback)(UA_Server *server, const void *out);
+
+#ifdef UA_ENABLE_ENCRYPTION
+    /* Limits for TrustList */
+    UA_UInt32 maxTrustListSize; /* in bytes, 0 => unlimited */
+    UA_UInt32 maxRejectedListSize; /* 0 => unlimited */
+#endif
 
     /* Discovery
      * ~~~~~~~~~ */
@@ -2411,6 +2427,16 @@ struct UA_ServerConfig {
     UA_PubSubConfiguration pubSubConfig;
 #endif
 
+    /* Auditing
+     * ~~~~~~~~
+     * Drops audit events into the auditNotificationCallback and generates
+     * the corresponding Audit Events (if Events are enabled). */
+    UA_Boolean auditingEnabled;
+#ifdef UA_ENABLE_AUDITING
+    UA_Boolean auditWriteUpdateEnabled;  /* Mind the runtime overhead */
+    UA_Boolean auditMethodUpdateEnabled; /* Mind the runtime overhead */
+#endif
+
     /* Historical Access
      * ~~~~~~~~~~~~~~~~~ */
     UA_Boolean historizingEnabled;
@@ -2437,10 +2463,6 @@ struct UA_ServerConfig {
     UA_Boolean deleteEventCapability;
     UA_Boolean deleteAtTimeDataCapability;
 #endif
-
-    /* Reverse Connect
-     * ~~~~~~~~~~~~~~~ */
-    UA_UInt32 reverseReconnectInterval; /* Default is 15000 ms */
 
     /* Certificate Password Callback
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
@@ -2477,6 +2499,18 @@ struct UA_ServerConfig {
      * may be garbage-collected when no longer referenced by any node. */
     size_t rolePermissionPresetsSize;
     UA_RolePermissionSet *rolePermissionPresets;
+
+    /* Initial Role Definitions
+     * ~~~~~~~~~~~~~~~~~~~~~~~~
+     * Array of initial role definitions. During server startup, these roles
+     * are copied into the server's internal role registry. Config roles are
+     * treated as **protected**: they cannot be removed at runtime via
+     * UA_Server_removeRole.
+     *
+     * Additional roles can be added at runtime through UA_Server_addRole.
+     * Runtime-added roles can be removed via UA_Server_removeRole. */
+    size_t rolesSize;
+    UA_Role *roles;
 #endif
 };
 
@@ -2631,6 +2665,100 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeNodeRolePermissions(UA_Server *server,
                                     const UA_NodeId nodeId,
                                     UA_Boolean recursive);
+
+/**
+ * Role Management
+ * ~~~~~~~~~~~~~~~
+ * Functions for managing the server's role registry. Roles define which
+ * sessions get which access rights. Config-provided roles are protected
+ * and cannot be removed at runtime. */
+
+/* Add a role to the server's role registry.
+ *
+ * The role's BrowseName (roleName) is the primary unique identifier,
+ * per OPC UA Part 18 Section 4.2. A role with the same roleName must
+ * not already exist.
+ *
+ * @param server The server instance
+ * @param role The role definition to add (deep-copied)
+ * @param outRoleNodeId Output: the NodeId of the new role (caller
+ *        must clear). May be NULL.
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADALREADYEXISTS if a role with the same
+ *         roleName already exists */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_addRole(UA_Server *server, const UA_Role *role,
+                  UA_NodeId *outRoleNodeId);
+
+/* Remove a role from the server's role registry.
+ *
+ * Config-provided (protected) roles cannot be removed.
+ *
+ * @param server The server instance
+ * @param roleName The BrowseName (QualifiedName) of the role to remove
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADUSERACCESSDENIED if the role is protected,
+ *         UA_STATUSCODE_BADNOTFOUND if the role does not exist */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_removeRole(UA_Server *server,
+                     const UA_QualifiedName roleName);
+
+/* Get a copy of a role by its BrowseName.
+ *
+ * @param server The server instance
+ * @param roleName The BrowseName (QualifiedName) of the role
+ * @param outRole Output: deep copy of the role (caller must clear)
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADNOTFOUND if the role does not exist */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getRole(UA_Server *server,
+                  const UA_QualifiedName roleName,
+                  UA_Role *outRole);
+
+/* Get a copy of a role by its NodeId.
+ *
+ * @param server The server instance
+ * @param roleId The NodeId of the role
+ * @param outRole Output: deep copy of the role (caller must clear)
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADNOTFOUND if the role does not exist */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getRoleById(UA_Server *server, UA_NodeId roleId,
+                      UA_Role *outRole);
+
+/* Get the BrowseNames of all registered roles.
+ *
+ * @param server The server instance
+ * @param rolesSize Output: number of roles
+ * @param roleNames Output: array of role BrowseNames (caller must
+ *        clear each entry and free the array)
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getRoles(UA_Server *server, size_t *rolesSize,
+                   UA_QualifiedName **roleNames);
+
+/* Update a role in the server's role registry.
+ *
+ * The existing role is matched by roleId, roleName (QualifiedName) or
+ * both. At least one must be set. If both are provided they must
+ * identify the same role. Replaces all mutable fields (identityMappingRules,
+ * applications, endpoints and their exclude flags) with deep copies
+ * from the provided role. The roleId and roleName of the stored role
+ * are not changed.
+ *
+ * Anonymous and AuthenticatedUser are well-known roles defined by the
+ * OPC UA specification and cannot be modified.
+ *
+ * @param server The server instance
+ * @param role The role with updated fields
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADINVALIDARGUMENT if neither roleId nor
+ *         roleName is set,
+ *         UA_STATUSCODE_BADNOTFOUND if no matching role exists,
+ *         UA_STATUSCODE_BADUSERACCESSDENIED if the matched role is
+ *         Anonymous or AuthenticatedUser */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_updateRole(UA_Server *server, const UA_Role *role);
 
 #endif /* UA_ENABLE_RBAC */
 

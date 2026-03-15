@@ -202,7 +202,7 @@ UA_StatusCode_isBad(UA_StatusCode code) {
 
 UA_Boolean
 UA_StatusCode_isUncertain(UA_StatusCode code) {
-    return (((code >> 30) == 0x01) && ((code >> 30) < 0x02));
+    return ((code >> 30) == 0x01);
 }
 
 UA_Boolean

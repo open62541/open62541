@@ -105,8 +105,6 @@ UA_FilterEvalContext_init(UA_FilterEvalContext *ctx) {
 
 void
 UA_FilterEvalContext_reset(UA_FilterEvalContext *ctx) {
-    if(ctx->eventId.data && ctx->eventId.data != ctx->eventIdBuf)
-        UA_ByteString_clear(&ctx->eventId);
     UA_KeyValueMap_clear(&ctx->fieldCache);
 
     /* The data of the EventId is either in the eventIdBuf or in the fieldCache
@@ -151,13 +149,15 @@ cacheEventId(UA_FilterEvalContext *ctx) {
         UA_Boolean isIdString = UA_Variant_hasScalarType(&val, &UA_TYPES[UA_TYPES_BYTESTRING]);
         UA_assert(!isIdString || val.data != NULL); /* pacify a clang-analyzer warning */
         if(isIdString && ((UA_ByteString*)val.data)->length > 0) {
-            res = UA_KeyValueMap_setShallow(&ctx->fieldCache,
-                                            UA_QUALIFIEDNAME(0, "/EventId"), &val);
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_Variant_clear(&val);
+            res = UA_KeyValueMap_set(&ctx->fieldCache,
+                                     UA_QUALIFIEDNAME(0, "/EventId"), &val);
+            UA_Variant_clear(&val);
+            if(res != UA_STATUSCODE_GOOD)
                 return res;
-            }
-            ctx->eventId = *(UA_ByteString*)val.data; /* shallow copy */
+            const UA_Variant *cached =
+                UA_KeyValueMap_get(&ctx->fieldCache,
+                                   UA_QUALIFIEDNAME(0, "/EventId"));
+            ctx->eventId = *(UA_ByteString*)cached->data; /* shallow copy */
             return UA_STATUSCODE_GOOD;
         }
 
@@ -175,22 +175,57 @@ cacheEventId(UA_FilterEvalContext *ctx) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* The SAO string is not always in the "normal form" that is the output of
+ * UA_SimpleAttributeOperand_print. For example, we can have an implicit #Value
+ * postfix or the path-browsenames prefixed with 0: for ns0. Also, for the
+ * map-keys as QualifiedNames, we use the key-nsindex as the default nsindex for
+ * the path.
+ *
+ * In order to compare with a non-normal-form SAO string, we decode and compare
+ * the SAO directly. This is slower, so we try the normal form string-compare
+ * first. */
+static UA_Variant *
+getEventFieldNonNormalForm(UA_Server *server, const UA_KeyValueMap *eventFields,
+                           const UA_SimpleAttributeOperand *sao) {
+    if(!eventFields)
+        return NULL;
+
+    UA_SimpleAttributeOperand keySao;
+    for(size_t i = 0; i < eventFields->mapSize; i++) {
+        UA_KeyValuePair *kvp = &eventFields->map[i];
+        UA_StatusCode res =
+            sao_parseWithDefaultNsIdx(&keySao, kvp->key.name,
+                                      kvp->key.namespaceIndex);
+        if(res != UA_STATUSCODE_GOOD)
+            continue;
+        UA_Boolean found = UA_SimpleAttributeOperand_equal(sao, &keySao);
+        UA_SimpleAttributeOperand_clear(&keySao);
+        if(found)
+            return &kvp->value;
+    }
+    return NULL;
+}
+
 /* Can return an in-situ value. Check for UA_VARIANT_DATA_NODELETE. */
 UA_StatusCode
 resolveSAO(UA_FilterEvalContext *ctx, const UA_SimpleAttributeOperand *sao,
            UA_Variant *out) {
-    /* Print the SAO as a human-readable string. We are using the
-     * TypeDefinitionId initially to disambiguate properties with the same
-     * BrowseName but from different EventTypes. The we try again wtih the
-     * TypeDefinitionId disabled. */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     const UA_EventDescription *ed = &ctx->ed;
     const UA_Variant *found;
     UA_Byte pathBuf[512];
     UA_QualifiedName pathString = {0, {512, pathBuf}};
-    UA_SimpleAttributeOperand tmp_sao = *sao;
     static UA_NodeId baseEventTypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEEVENTTYPE}};
 
+    /* Copy into a mutable SAO */
+    UA_SimpleAttributeOperand tmp_sao = *sao;
+
+    /* Do the lookup without the index-range.
+     * The index-range from the original sao is used later. */
+    tmp_sao.indexRange = UA_STRING_NULL;
+
+    /* Initially use the BaseEventTypeId if not defined explicitly.
+     * If this does not resolve, we try again with i=0 (goto search again). */
     if(UA_NodeId_isNull(&tmp_sao.typeDefinitionId))
         tmp_sao.typeDefinitionId = baseEventTypeId;
 
@@ -214,6 +249,8 @@ resolveSAO(UA_FilterEvalContext *ctx, const UA_SimpleAttributeOperand *sao,
     found = UA_KeyValueMap_get(ed->eventFields, pathString);
     if(!found)
         found = UA_KeyValueMap_get(&ctx->fieldCache, pathString);
+    if(!found)
+        found = getEventFieldNonNormalForm(ctx->server, ed->eventFields, &tmp_sao);
     if(found) {
         if(sao->indexRange.length == 0) {
             *out = *found;
@@ -1158,9 +1195,9 @@ UA_SimpleAttributeOperandValidation(UA_Server *server,
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
 
     /* EventType is a subtype of BaseEventType? */
-    UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-    if(!isNodeInTree_singleRef(server, &sao->typeDefinitionId,
-                               &baseEventTypeId, UA_REFERENCETYPEINDEX_HASSUBTYPE))
+    UA_NodeId baseEventTypeId = UA_NS0ID(BASEEVENTTYPE);
+    if(!isNodeInTree_singleRef(server, &sao->typeDefinitionId, &baseEventTypeId,
+                               UA_REFERENCETYPEINDEX_HASSUBTYPE))
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
 
     /* AttributeId is valid ? */
@@ -1169,43 +1206,50 @@ UA_SimpleAttributeOperandValidation(UA_Server *server,
 
     /* If the BrowsePath is empty, the Node is the instance of the
      * TypeDefinition. (Part 4, 7.4.4.5) */
-    if(sao->browsePathSize == 0)
-        return UA_STATUSCODE_GOOD;
+    if(sao->browsePathSize > 0) {
+        /* BrowsePath contains empty BrowseNames? */
+        for(size_t j = 0; j < sao->browsePathSize; ++j) {
+            if(UA_QualifiedName_isNull(&sao->browsePath[j]))
+                return UA_STATUSCODE_BADBROWSENAMEINVALID;
+        }
 
-    /* BrowsePath contains empty BrowseNames? */
-    for(size_t j = 0; j < sao->browsePathSize; ++j) {
-        if(UA_QualifiedName_isNull(&sao->browsePath[j]))
-            return UA_STATUSCODE_BADBROWSENAMEINVALID;
+        /* Part 4: If the SimpleAttributeOperand is used in an EventFilter and
+         * the typeDefinitionId is BaseEventType the Server shall evaluate the
+         * browsePath without considering the typeDefinitionId. */
+        if(!UA_NodeId_equal(&baseEventTypeId, &sao->typeDefinitionId)) {
+            /* Part 4: The TypeDefinitionNode restricts the operand to instances
+             * of the TypeDefinitionNode or one of its subtypes.
+             * First get the list of subtypes from event type (including the
+             * event type itself). */
+            UA_ReferenceTypeSet reftypes_interface =
+                UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
+            UA_ExpandedNodeId *childTypeNodes = NULL;
+            size_t childTypeNodesSize = 0;
+            UA_StatusCode res =
+                browseRecursive(server, 1, &sao->typeDefinitionId, UA_BROWSEDIRECTION_FORWARD,
+                                &reftypes_interface, UA_NODECLASS_OBJECTTYPE, true,
+                                &childTypeNodesSize, &childTypeNodes);
+            if(res != UA_STATUSCODE_GOOD)
+                return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+
+            /* Is the browse path valid for one of the event types? */
+            UA_Boolean subTypeContainField = false;
+            for(size_t j = 0; j < childTypeNodesSize && !subTypeContainField; j++) {
+                UA_BrowsePathResult bpr =
+                    browseSimplifiedBrowsePath(server, childTypeNodes[j].nodeId,
+                                               sao->browsePathSize, sao->browsePath);
+
+                if(bpr.statusCode == UA_STATUSCODE_GOOD && bpr.targetsSize > 0)
+                    subTypeContainField = true;
+                UA_BrowsePathResult_clear(&bpr);
+            }
+
+            /* Clean up and return an error if not found */
+            UA_Array_delete(childTypeNodes, childTypeNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+            if(!subTypeContainField)
+                return UA_STATUSCODE_BADNODEIDUNKNOWN;
+        }
     }
-
-    /* Get the list of subtypes from event type (including the event type itself) */
-    UA_ReferenceTypeSet reftypes_interface =
-        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
-    UA_ExpandedNodeId *childTypeNodes = NULL;
-    size_t childTypeNodesSize = 0;
-    UA_StatusCode res = browseRecursive(server, 1, &sao->typeDefinitionId,
-                                        UA_BROWSEDIRECTION_FORWARD, &reftypes_interface,
-                                        UA_NODECLASS_OBJECTTYPE, true, &childTypeNodesSize,
-                                        &childTypeNodes);
-    if(res != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
-
-    /* Is the browse path valid for one of them? */
-    UA_Boolean subTypeContainField = false;
-    for(size_t j = 0; j < childTypeNodesSize && !subTypeContainField; j++) {
-        UA_BrowsePathResult bpr =
-            browseSimplifiedBrowsePath(server, childTypeNodes[j].nodeId,
-                                       sao->browsePathSize, sao->browsePath);
-
-        if(bpr.statusCode == UA_STATUSCODE_GOOD && bpr.targetsSize > 0)
-            subTypeContainField = true;
-        UA_BrowsePathResult_clear(&bpr);
-    }
-
-    UA_Array_delete(childTypeNodes, childTypeNodesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-
-    if(!subTypeContainField)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
     /* IndexRange is defined ? */
     if(!UA_String_isEmpty(&sao->indexRange)) {

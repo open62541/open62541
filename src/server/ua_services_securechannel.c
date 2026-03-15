@@ -54,8 +54,6 @@ processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
     if(!securityPolicy)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
-    /* TODO: Check the URI in the certificate */
-
     /* Verify the client certificate (chain).
      * Here we don't have the ApplicationDescription.
      * This check follows in the CreateSession service. */
@@ -79,10 +77,10 @@ processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
     return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy, &appInstCert);
 }
 
-void
-Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                          UA_OpenSecureChannelRequest *request,
-                          UA_OpenSecureChannelResponse *response) {
+static void
+Service_OpenSecureChannel_inner(UA_Server *server, UA_SecureChannel *channel,
+                                UA_OpenSecureChannelRequest *request,
+                                UA_OpenSecureChannelResponse *response) {
     UA_ServerConfig *sc = &server->config;
     UA_EventLoop *el = server->config.eventLoop;
     const UA_SecurityPolicy *sp = channel->securityPolicy;
@@ -208,10 +206,29 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     }
 }
 
+void
+Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                          UA_OpenSecureChannelRequest *request,
+                          UA_OpenSecureChannelResponse *response) {
+    /* Call the main OpenSecureChannel implementation */
+    Service_OpenSecureChannel_inner(server, channel, request, response);
+
+#ifdef UA_ENABLE_AUDITING
+    auditOpenSecureChannelEvent(server, channel, request, response);
+#endif
+}
+
 /* The server does not send a CloseSecureChannel response */
 void
 Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
-    UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
+    if(UA_SecureChannel_isConnected(channel)) {
+        /* Shutdown - takes effect in the next EventLoop iteration */
+        UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
+
+#ifdef UA_ENABLE_AUDITING
+        auditCloseSecureChannelEvent(server, channel);
+#endif
+    }
 }
 
 void
