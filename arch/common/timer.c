@@ -49,49 +49,37 @@ UA_Timer_init(UA_Timer *t) {
     UA_LOCK_INIT(&t->timerMutex);
 }
 
-/* Global variables, only used behind the mutex */
-static UA_DateTime earliest, latest, adjustedNextTime;
-
-static void *
-findTimer2Batch(void *context, UA_TimerEntry *compare) {
-    UA_TimerEntry *te = (UA_TimerEntry*)context;
-
-    /* NextTime deviation within interval? */
-    if(compare->nextTime < earliest || compare->nextTime > latest)
-        return NULL;
-
-    /* One-shot timers have interval == 0.
-     * They cannot participate in the modulo-based batching check. */
-    if(te->interval == 0 || compare->interval == 0)
-        return NULL;
-
-    /* Check if one interval is a multiple of the other */
-    if(te->interval < compare->interval && compare->interval % te->interval != 0)
-        return NULL;
-    if(te->interval > compare->interval && te->interval % compare->interval != 0)
-        return NULL;
-
-    adjustedNextTime = compare->nextTime; /* Candidate found */
-
-    /* Abort when a perfect match is found */
-    return (te->interval == compare->interval) ? te : NULL;
-}
-
 /* Adjust the nextTime to batch cyclic callbacks. Look in an interval around the
  * original nextTime. Deviate from the original nextTime by at most 1/4 of the
  * interval and at most by 1s. */
 static void
 batchTimerEntry(UA_Timer *t, UA_TimerEntry *te) {
+    (void)t;
+    
     if(te->timerPolicy != UA_TIMERPOLICY_CURRENTTIME)
         return;
     UA_DateTime deviate = te->interval / 4;
+
+    if(deviate <= 0)
+        return;
     if(deviate > UA_DATETIME_SEC)
         deviate = UA_DATETIME_SEC;
-    earliest = te->nextTime - deviate;
-    latest = te->nextTime + deviate;
-    adjustedNextTime = te->nextTime;
-    ZIP_ITER(UA_TimerIdTree, &t->idTree, findTimer2Batch, te);
-    te->nextTime = adjustedNextTime;
+    /* Deterministic O(1) batching:
+     * round nextTime to the nearest bucket boundary, with a maximum
+     * adjustment of +/- deviate. This preserves the idea of batching
+     * nearby timers without scanning all existing timers. */
+    UA_DateTime quantum = deviate * 2;
+    if(quantum <= 0)
+        return;
+
+    UA_DateTime remainder = te->nextTime % quantum;
+    if(remainder < 0)
+        remainder += quantum;
+
+    if(remainder <= deviate)
+        te->nextTime -= remainder;
+    else
+        te->nextTime += (quantum - remainder);
 }
 
 /* Adding repeated callbacks: Add an entry with the "nextTime" timestamp in the
