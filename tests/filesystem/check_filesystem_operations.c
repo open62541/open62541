@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <sys/stat.h>
 
+#if defined(UA_FILESYSTEM)
+
 #include <directoryArch/common/fileSystemOperations_common.h>
 
 struct stat st;
@@ -22,7 +24,7 @@ START_TEST(make_directory)
 
 START_TEST(make_file)
 {
-    UA_StatusCode status = makeFile("./TestDir/TestFile.txt");
+    UA_StatusCode status = makeFile("./TestDir/TestFile.txt", false, NULL);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
     
     ck_assert(stat("./TestDir/TestFile.txt", &st) == 0);
@@ -104,7 +106,7 @@ START_TEST(delete_item)
 /* ------------------------------------------------------------------------- */
 START_TEST(open_file_test)
 {
-    FILE *handle = NULL;
+    UA_Int32 *handle = NULL;
     UA_StatusCode status = openFile("./TestDir/TestFile.txt", 'r', &handle);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
     ck_assert_ptr_nonnull(handle);
@@ -116,7 +118,7 @@ END_TEST
 
 START_TEST(close_file_test)
 {
-    FILE *handle = NULL;
+    UA_Int32 *handle = NULL;
     UA_StatusCode status = openFile("./TestDir/TestFile.txt", 'r', &handle);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
     ck_assert_ptr_nonnull(handle);
@@ -131,7 +133,7 @@ END_TEST
 
 START_TEST(write_file_test)
 {
-    FILE *handle = NULL;
+    UA_Int32 *handle = NULL;
     UA_StatusCode status = openFile("./TestDir/TestFile.txt", 'w', &handle);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
 
@@ -150,7 +152,7 @@ END_TEST
 
 START_TEST(read_file_test)
 {
-    FILE *handle = NULL;
+    UA_Int32 *handle = NULL;
     UA_StatusCode status = openFile("./TestDir/TestFile.txt", 'r', &handle);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
 
@@ -170,7 +172,7 @@ END_TEST
 
 START_TEST(seek_and_position_test)
 {
-    FILE *handle = NULL;
+    UA_Int32 *handle = NULL;
     UA_StatusCode status = openFile("./TestDir/TestFile.txt", 'r', &handle);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
 
@@ -247,3 +249,5 @@ int main(void) {
 
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
+
+#endif /* UA_FILESYSTEM */
