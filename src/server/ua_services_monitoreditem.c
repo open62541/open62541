@@ -1011,11 +1011,9 @@ UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
     lockServer(server);
 
     UA_Subscription *sub = server->adminSubscription;
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        if(mon->monitoredItemId == monitoredItemId)
-            break;
-    }
+    UA_MonitoredItem *mon =
+        ZIP_FIND(UA_MonitoredItemIdTree, &sub->monitoredItemsById,
+             &monitoredItemId);
 
     UA_StatusCode res = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
     if(mon) {

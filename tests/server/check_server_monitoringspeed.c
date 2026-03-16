@@ -62,7 +62,8 @@ START_TEST(monitorIntegerNoChanges) {
 
     callbackCount = 0;
 
-    UA_MonitoredItem *mon = LIST_FIRST(&server->adminSubscription->monitoredItems);
+    UA_MonitoredItem *mon =
+        ZIP_MIN(UA_MonitoredItemIdTree, &server->adminSubscription->monitoredItemsById);
 
     clock_t begin, finish;
     begin = clock();

@@ -1790,6 +1790,27 @@ refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+struct RefreshMethodContext {
+    UA_Server *server;
+    UA_Session *session;
+    UA_Subscription *subscription;
+    UA_StatusCode retval;
+};
+
+static void *
+refreshMethodVisitor(void *context, UA_MonitoredItem *item) {
+    struct RefreshMethodContext *ctx = (struct RefreshMethodContext*)context;
+
+    if(item->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
+        return NULL;
+
+    ctx->retval = refreshLogic(ctx->server, ctx->session, ctx->subscription, item);
+    if(ctx->retval != UA_STATUSCODE_GOOD)
+        return item;
+
+    return NULL;
+}
+
 static UA_StatusCode
 refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *sessionContext, const UA_NodeId *methodId,
@@ -1812,14 +1833,17 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* Trigger RefreshStartEvent and RefreshEndEvent for the each monitoredItem
      * in the subscription */
 
-    UA_MonitoredItem *item;
-    LIST_FOREACH(item, &subscription->monitoredItems, listEntry) {
-        if (item->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
-            continue;
-        UA_StatusCode retval = refreshLogic(server, session, subscription, item);
-        CONDITION_ASSERT_RETURN_RETVAL(retval, "Could not refresh Condition",
-                                       unlockServer(server););
-    }
+    struct RefreshMethodContext ctx;
+    ctx.server = server;
+    ctx.session = session;
+    ctx.subscription = subscription;
+    ctx.retval = UA_STATUSCODE_GOOD;
+
+    ZIP_ITER(UA_MonitoredItemIdTree, &subscription->monitoredItemsById,
+             refreshMethodVisitor, &ctx);
+
+    CONDITION_ASSERT_RETURN_RETVAL(ctx.retval, "Could not refresh Condition",
+                                   unlockServer(server););
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;

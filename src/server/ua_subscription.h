@@ -25,6 +25,7 @@
 
 #include "ua_session.h"
 #include "../util/ua_util_internal.h"
+#include "../../deps/ziptree.h"
 
 _UA_BEGIN_DECLS
 
@@ -122,8 +123,8 @@ typedef enum {
 
 struct UA_MonitoredItem {
     UA_DelayedCallback delayedFreePointers;
-    LIST_ENTRY(UA_MonitoredItem) listEntry; /* Linked list in the Subscription */
-    UA_Subscription *subscription;          /* Always non-NULL */
+    ZIP_ENTRY(UA_MonitoredItem) idTreeEntry; /* Index by Id */
+    UA_Subscription *subscription;           /* Always non-NULL */
     UA_UInt32 monitoredItemId;
 
     /* Status and Settings */
@@ -180,6 +181,22 @@ void UA_MonitoredItem_init(UA_MonitoredItem *mon);
 void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
 void UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon);
+
+typedef ZIP_HEAD(UA_MonitoredItemIdTree, UA_MonitoredItem) UA_MonitoredItemIdTree;
+
+static enum ZIP_CMP
+UA_MonitoredItemIdTree_cmp(const UA_UInt32 *a,
+                           const UA_UInt32 *b) {
+    if(*a < *b)
+        return ZIP_CMP_LESS;
+    if(*a > *b)
+        return ZIP_CMP_MORE;
+    return ZIP_CMP_EQ;
+}
+
+ZIP_FUNCTIONS(UA_MonitoredItemIdTree, UA_MonitoredItem, idTreeEntry,
+              UA_UInt32, monitoredItemId, UA_MonitoredItemIdTree_cmp)
+
 
 /* Register sampling. Either by adding a repeated callback or by adding the
  * MonitoredItem to a linked list in the node. */
@@ -272,7 +289,7 @@ struct UA_Subscription {
 
     /* MonitoredItems */
     UA_UInt32 lastMonitoredItemId; /* increase the identifiers */
-    LIST_HEAD(, UA_MonitoredItem) monitoredItems;
+    UA_MonitoredItemIdTree monitoredItemsById;
     UA_UInt32 monitoredItemsSize;
 
     /* MonitoredItems that are sampled in every publish callback (with the
