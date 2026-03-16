@@ -210,7 +210,14 @@ typedef enum  {
 UA_EXPORT UA_StatusCode
 UA_Server_enableAllPubSubComponents(UA_Server *server);
 
-/* Disable all PubSubComponents (same order as for _enableAll) */
+/* Disable all PubSubComponents.
+ * They are triggered in the following order:
+ * DataSetReader, ReaderGroups, DataSetWriter, WriterGroups, PubSubConnections.
+ *
+ * A timeout might occur if the writers are disabled before the readers
+ * in case of a loopback configuration on the same server.
+ * So disable the reader side before the writer side.
+ */
 UA_EXPORT void
 UA_Server_disableAllPubSubComponents(UA_Server *server);
 
