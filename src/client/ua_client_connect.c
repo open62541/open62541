@@ -1739,7 +1739,7 @@ initSecurityPolicy(UA_Client *client) {
     if(client->endpoint.serverCertificate.length > 0) {
         res = client->config.certificateVerification.
             verifyCertificate(&client->config.certificateVerification,
-                              &client->endpoint.serverCertificate);
+                              &client->endpoint.serverCertificate).status;
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "Cannot validate the server certificate "

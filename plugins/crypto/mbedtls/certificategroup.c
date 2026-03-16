@@ -23,6 +23,7 @@
 #endif
 
 #include "securitypolicy_common.h"
+#include "../certificategroup_common.h"
 
 /* Configuration parameters */
 
@@ -472,24 +473,26 @@ mbedtlsCheckSignature(const mbedtls_x509_crt *cert, mbedtls_x509_crt *issuer) {
                                   hash, hash_len, sig->p, sig->len) == 0);
 }
 
-static UA_StatusCode
+static UA_SplitStatusCode
 mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_crt *stack,
                    mbedtls_x509_crt **old_issuers, mbedtls_x509_crt *cert, int depth) {
     /* Maxiumum chain length */
     if(depth == UA_MBEDTLS_MAX_CHAIN_LENGTH)
-        return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+    return UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
 
     /* Verification Step: Validity Period */
     if(mbedtls_x509_time_is_future(&cert->valid_from) ||
        mbedtls_x509_time_is_past(&cert->valid_to))
-        return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
-            UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
+        return (depth == 0) ?
+            UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADCERTIFICATETIMEINVALID) :
+            UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID);
 
     /* Return the most specific error code. BADCERTIFICATECHAININCOMPLETE is
      * returned only if all possible chains are incomplete. */
     mbedtls_x509_crt *issuer = NULL;
-    UA_StatusCode ret = UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
-    while(ret != UA_STATUSCODE_GOOD) {
+    UA_SplitStatusCode ret =
+        UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+    while(ret.status != UA_STATUSCODE_GOOD) {
         /* Find the issuer. This can return the same certificate if it is
          * self-signed (subject == issuer). We come back here to try a different
          * "path" if a subsequent verification fails. */
@@ -500,13 +503,13 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
         /* Verification Step: Certificate Usage
          * Can the issuer act as CA? Omit for self-signed leaf certificates. */
         if((depth > 0 || issuer != cert) && !mbedtlsCheckCA(issuer)) {
-            ret = UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED;
+            ret = UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED);
             continue;
         }
 
         /* Verification Step: Signature */
         if(!mbedtlsCheckSignature(cert, issuer)) {
-            ret = UA_STATUSCODE_BADCERTIFICATEINVALID;  /* Wrong issuer, try again */
+            ret = UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATEINVALID); /* Wrong issuer, try again */
             continue;
         }
 
@@ -519,25 +522,29 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
          * Break here as we have reached the end of the chain. Omit the
          * Revocation Check for self-signed certificates. */
         if(issuer == cert || mbedtlsSameBuf(&cert->tbs, &issuer->tbs)) {
-            ret = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
+            ret = UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATEUNTRUSTED);
             break;
         }
 
         /* Verification Step: Revocation Check */
-        ret = mbedtlsCheckRevoked(cg, ctx, cert);
+        UA_StatusCode revokeCheckStatus = mbedtlsCheckRevoked(cg, ctx, cert);
+        ret = UA_SPLITSTATUSCODE_BOTH(revokeCheckStatus);
         if(depth > 0) {
-            if(ret == UA_STATUSCODE_BADCERTIFICATEREVOKED)
-                ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
-            if(ret == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN)
-                ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN;
+            if(revokeCheckStatus == UA_STATUSCODE_BADCERTIFICATEREVOKED)
+                ret = UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED);
+            else if(revokeCheckStatus == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN)
+                ret = UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN);
+        } else if(ret.status == UA_STATUSCODE_BADCERTIFICATEREVOKED ||
+                  ret.status == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN) {
+            ret = UA_SPLITSTATUSCODE_HIDDEN(revokeCheckStatus);
         }
-        if(ret != UA_STATUSCODE_GOOD)
+        if(ret.status != UA_STATUSCODE_GOOD)
             continue;
 
         /* Detect (endless) loops of issuers */
         for(int i = 0; i < depth; i++) {
             if(old_issuers[i] == issuer)
-                return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+                return UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
         }
         old_issuers[depth] = issuer;
 
@@ -548,10 +555,10 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
 
     /* The chain is complete, but we haven't yet identified a trusted
      * certificate "on the way down". Can we trust this certificate? */
-    if(ret == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
+    if(ret.status == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
         for(mbedtls_x509_crt *t = &ctx->trustedCertificates; t; t = t->next) {
             if(mbedtlsSameBuf(&cert->tbs, &t->tbs))
-                return UA_STATUSCODE_GOOD;
+                return UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_GOOD);
         }
     }
 
@@ -560,18 +567,18 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
 
 /* This follows Part 6, 6.1.3 Determining if a Certificate is trusted.
  * It defines a sequence of steps for certificate verification. */
-static UA_StatusCode
+static UA_SplitStatusCode
 verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
     /* Check parameter */
     if (certGroup == NULL || certGroup->context == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADINTERNALERROR);
     }
 
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
     if(context->reloadRequired) {
         UA_StatusCode retval = reloadCertificates(certGroup);
         if(retval != UA_STATUSCODE_GOOD) {
-            return retval;
+            return UA_SPLITSTATUSCODE_BOTH(retval);
         }
         context->reloadRequired = false;
     }
@@ -583,7 +590,7 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
     int mbedErr = mbedtls_x509_crt_parse(&cert, certificate->data,
                                          certificate->length);
     if(mbedErr)
-        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+        return UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATEINVALID);
 
     /* Verification Step: Certificate Usage
      * Check whether the certificate is a User certificate or a CA certificate.
@@ -591,7 +598,7 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
      * for more details. */
     if(mbedtlsCheckCA(&cert)) {
         mbedtls_x509_crt_free(&cert);
-        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+        return UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
     }
 
     /* These steps are performed outside of this method.
@@ -603,21 +610,22 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
     /* Verification Step: Build Certificate Chain
      * We perform the checks for each certificate inside. */
     mbedtls_x509_crt *old_issuers[UA_MBEDTLS_MAX_CHAIN_LENGTH];
-    UA_StatusCode ret = mbedtlsVerifyChain(certGroup, context, &cert, old_issuers, &cert, 0);
+    UA_SplitStatusCode ret =
+        mbedtlsVerifyChain(certGroup, context, &cert, old_issuers, &cert, 0);
     mbedtls_x509_crt_free(&cert);
     return ret;
 }
 
-static UA_StatusCode
+static UA_SplitStatusCode
 MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
                                   const UA_ByteString *certificate) {
     /* Check parameter */
     if(certGroup == NULL || certificate == NULL) {
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
+        return UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADINVALIDARGUMENT);
     }
 
-    UA_StatusCode retval = verifyCertificate(certGroup, certificate);
-    if(retval != UA_STATUSCODE_GOOD) {
+    UA_SplitStatusCode retval = verifyCertificate(certGroup, certificate);
+    if(retval.status != UA_STATUSCODE_GOOD) {
         if(MemoryCertStore_addToRejectedList(certGroup, certificate) != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
                            "Could not append certificate to rejected list");

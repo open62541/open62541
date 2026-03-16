@@ -7,12 +7,12 @@
 
 #include <open62541/plugin/certificategroup_default.h>
 
-static UA_StatusCode
+static UA_SplitStatusCode
 verifyCertificateAllowAll(UA_CertificateGroup *certGroup,
                           const UA_ByteString *certificate) {
     UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_APPLICATION,
                    "No certificate store configured. Accepting the certificate.");
-    return UA_STATUSCODE_GOOD;
+    return UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_GOOD);
 }
 
 static void

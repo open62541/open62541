@@ -1085,7 +1085,7 @@ secureChannel_delayedClose(void *application, void *context) {
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
         if(channel->state == UA_SECURECHANNELSTATE_CLOSED || channel->state == UA_SECURECHANNELSTATE_CLOSING)
             continue;
-        if(certGroup.verifyCertificate(&certGroup, &channel->remoteCertificate) != UA_STATUSCODE_GOOD)
+        if(certGroup.verifyCertificate(&certGroup, &channel->remoteCertificate).status != UA_STATUSCODE_GOOD)
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
 

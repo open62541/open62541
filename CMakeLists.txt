@@ -1125,7 +1125,8 @@ endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_AMALGAMATION)
     list(INSERT plugin_sources 0
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.h)
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.h
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/certificategroup_common.h)
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_basic128rsa15.c
@@ -1141,7 +1142,8 @@ endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
     list(INSERT plugin_sources 0
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_common.h)
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_common.h
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/certificategroup_common.h)
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_common.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_basic128rsa15.c

@@ -66,8 +66,9 @@ struct UA_CertificateGroup {
                                         UA_ByteString **crls,
                                         size_t *crlsSize);
 
-    UA_StatusCode (*verifyCertificate)(UA_CertificateGroup *certGroup,
-                                       const UA_ByteString *certificate);
+    UA_SplitStatusCode
+    (*verifyCertificate)(UA_CertificateGroup *certGroup,
+                         const UA_ByteString *certificate);
 
     void (*clear)(UA_CertificateGroup *certGroup);
 };

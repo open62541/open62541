@@ -62,7 +62,7 @@ processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
     if(asymHeader->senderCertificate.length > 0) {
         UA_StatusCode res =
             validateCertificate(server, &sc->secureChannelPKI, channel, NULL,
-                                "OpenSecureChannel", NULL, asymHeader->senderCertificate);
+                                "OpenSecureChannel", NULL, asymHeader->senderCertificate).status;
         UA_CHECK_STATUS(res, return res);
     }
 
