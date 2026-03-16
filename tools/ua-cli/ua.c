@@ -11,7 +11,6 @@
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/certificategroup_default.h>
 
-#include <stdio.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 

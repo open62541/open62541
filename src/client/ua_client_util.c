@@ -161,6 +161,7 @@ getRemoteDataTypes(UA_Client *client, UA_ReadRequest *req,
 
     *outCustomTypes = dta;
 
+    UA_ReadResponse_clear(&rr);
     UA_ReadRequest_clear(req);
     if(dta->typesSize == 0) {
         UA_free(dta->types);

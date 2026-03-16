@@ -318,7 +318,7 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
         crl = d2i_X509_CRL_bio(bio, NULL);
         if(crl == NULL) {
             /* Try to load PEM encoded CRL */
-            BIO_reset(bio);
+            (void)BIO_reset(bio);
             crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
         }
         BIO_free(bio);
@@ -337,7 +337,7 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
         crl = d2i_X509_CRL_bio(bio, NULL);
         if(crl == NULL) {
             /* Try to load PEM encoded Issuer CRL */
-            BIO_reset(bio);
+            (void)BIO_reset(bio);
             crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
         }
         BIO_free(bio);
@@ -961,15 +961,15 @@ UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
     cert1 = PEM_read_bio_X509(dataBio1, NULL, 0, NULL);
     if(!cert1) {
         /* If PEM read fails, reset BIO and try reading as DER */
-        BIO_reset(dataBio1);
+        (void)BIO_reset(dataBio1);
         cert1 = d2i_X509_bio(dataBio1, NULL);
     }
     /* Try to read as a csr */
     if(!cert1) {
-        BIO_reset(dataBio1);
+        (void)BIO_reset(dataBio1);
         csr1 = PEM_read_bio_X509_REQ(dataBio1, NULL, 0, NULL);
         if(!csr1) {
-            BIO_reset(dataBio1);
+            (void)BIO_reset(dataBio1);
             csr1 = d2i_X509_REQ_bio(dataBio1, NULL);
         }
     }
@@ -982,15 +982,15 @@ UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
     cert2 = PEM_read_bio_X509(dataBio2, NULL, 0, NULL);
     if(!cert2) {
         /* If PEM read fails, reset BIO and try reading as DER */
-        BIO_reset(dataBio2);
+        (void)BIO_reset(dataBio2);
         cert2 = d2i_X509_bio(dataBio2, NULL);
     }
     /* Try to load as a csr */
     if(!cert2) {
-        BIO_reset(dataBio2);
+        (void)BIO_reset(dataBio2);
         csr2 = PEM_read_bio_X509_REQ(dataBio2, NULL, 0, NULL);
         if(!csr2) {
-            BIO_reset(dataBio2);
+            (void)BIO_reset(dataBio2);
             csr2 = d2i_X509_REQ_bio(dataBio2, NULL);
         }
     }

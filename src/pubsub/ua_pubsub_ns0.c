@@ -538,7 +538,7 @@ WriteCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContex
         if(!writerGroup)
             return UA_STATUSCODE_BADNOTFOUND;
         switch(npc->elementClassiefier) {
-        case UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL:
+        case UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL: {
             if(!UA_Variant_hasScalarType(&data->value, &UA_TYPES[UA_TYPES_DURATION]) &&
                !UA_Variant_hasScalarType(&data->value, &UA_TYPES[UA_TYPES_DOUBLE]))
                 return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -551,6 +551,7 @@ WriteCallback(UA_Server *server, const UA_NodeId *sessionId, void *sessionContex
                 UA_WriterGroup_addPublishCallback(psm, writerGroup);
             }
             return UA_STATUSCODE_GOOD;
+        }
         default: break;
         }
         break;
