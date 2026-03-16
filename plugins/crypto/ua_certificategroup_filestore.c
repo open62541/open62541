@@ -42,13 +42,17 @@ typedef struct {
 
 static int
 mkpath(char *dir, UA_MODE mode) {
-    struct UA_STAT sb;
-
     if(dir == NULL)
         return 1;
 
-    if(!UA_stat(dir, &sb))
-        return 0;  /* Directory already exist */
+    if(UA_mkdir(dir, mode) == 0)
+        return 0;
+
+    if(errno == EEXIST)
+        return 0; /* Directory already exists */
+
+    if(errno != ENOENT)
+        return 1;
 
     size_t len = strlen(dir) + 1;
     char *tmp_dir = (char*)UA_malloc(len);
@@ -58,10 +62,16 @@ mkpath(char *dir, UA_MODE mode) {
 
     /* Before the actual target directory is created, the recursive call ensures
      * that all parent directories are created or already exist. */
-    mkpath(UA_dirname(tmp_dir), mode);
+    int retval = mkpath(UA_dirname(tmp_dir), mode);
     UA_free(tmp_dir);
 
-    return UA_mkdir(dir, mode);
+    if(retval != 0)
+        return retval;
+
+    if(UA_mkdir(dir, mode) == 0 || errno == EEXIST)
+        return 0;
+
+    return 1;
 }
 
 static UA_StatusCode
