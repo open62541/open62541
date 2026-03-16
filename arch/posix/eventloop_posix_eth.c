@@ -673,6 +673,10 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_KeyValueMap_getScalar(params,
                                  ethConnectionParams[ETH_PARAMINDEX_IFACE].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
+    if (interface == NULL) {
+        UA_UNLOCK(&el->elMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     if(interface->length >= 128) {
         UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
