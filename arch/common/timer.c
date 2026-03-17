@@ -49,15 +49,20 @@ UA_Timer_init(UA_Timer *t) {
     UA_LOCK_INIT(&t->timerMutex);
 }
 
-/* Global variables, only used behind the mutex */
-static UA_DateTime earliest, latest, adjustedNextTime;
+struct BatchContext {
+    UA_TimerEntry *te;
+    UA_DateTime earliest;
+    UA_DateTime latest;
+    UA_DateTime adjustedNextTime;
+};
 
 static void *
 findTimer2Batch(void *context, UA_TimerEntry *compare) {
-    UA_TimerEntry *te = (UA_TimerEntry*)context;
+    struct BatchContext *bc = (struct BatchContext*)context;
+    UA_TimerEntry *te = bc->te;
 
     /* NextTime deviation within interval? */
-    if(compare->nextTime < earliest || compare->nextTime > latest)
+    if(compare->nextTime < bc->earliest || compare->nextTime > bc->latest)
         return NULL;
 
     /* One-shot timers have interval == 0.
@@ -71,7 +76,7 @@ findTimer2Batch(void *context, UA_TimerEntry *compare) {
     if(te->interval > compare->interval && te->interval % compare->interval != 0)
         return NULL;
 
-    adjustedNextTime = compare->nextTime; /* Candidate found */
+    bc->adjustedNextTime = compare->nextTime; /* Candidate found */
 
     /* Abort when a perfect match is found */
     return (te->interval == compare->interval) ? te : NULL;
@@ -87,11 +92,13 @@ batchTimerEntry(UA_Timer *t, UA_TimerEntry *te) {
     UA_DateTime deviate = te->interval / 4;
     if(deviate > UA_DATETIME_SEC)
         deviate = UA_DATETIME_SEC;
-    earliest = te->nextTime - deviate;
-    latest = te->nextTime + deviate;
-    adjustedNextTime = te->nextTime;
-    ZIP_ITER(UA_TimerIdTree, &t->idTree, findTimer2Batch, te);
-    te->nextTime = adjustedNextTime;
+    struct BatchContext bc;
+    bc.te = te;
+    bc.earliest = te->nextTime - deviate;
+    bc.latest = te->nextTime + deviate;
+    bc.adjustedNextTime = te->nextTime;
+    ZIP_ITER(UA_TimerIdTree, &t->idTree, findTimer2Batch, &bc);
+    te->nextTime = bc.adjustedNextTime;
 }
 
 /* Adding repeated callbacks: Add an entry with the "nextTime" timestamp in the
@@ -137,11 +144,12 @@ UA_Timer_add(UA_Timer *t, UA_Callback callback,
     te->nextTime = nextTime;
     te->timerPolicy = timerPolicy;
 
+    /* Insert into the timer */
+    UA_LOCK(&t->timerMutex);
+
     /* Adjust the nextTime to batch cyclic callbacks */
     batchTimerEntry(t, te);
 
-    /* Insert into the timer */
-    UA_LOCK(&t->timerMutex);
     te->id = ++t->idCounter;
     if(callbackId)
         *callbackId = te->id;
@@ -235,12 +243,16 @@ processEntryCallback(void *context, UA_TimerEntry *te) {
     struct TimerProcessContext *tpc = (struct TimerProcessContext*)context;
     UA_Timer *t = tpc->t;
 
-    /* Execute the callback */
-    if(te->cb) {
+    /* Release the lock before calling the user callback.
+     * The timer can be modified from within the callback (see timer.h). */
+    UA_UNLOCK(&t->timerMutex);
+    if(te->cb)
         te->cb(te->application, te->data);
-    }
+    UA_LOCK(&t->timerMutex);
 
-    /* Remove the entry if marked for deletion or a "once" policy */
+    /* Remove the entry if marked for deletion or a "once" policy.
+     * te->cb may have been set to NULL as a sentinel by UA_Timer_remove
+     * while the lock was released. */
     if(!te->cb || te->timerPolicy == UA_TIMERPOLICY_ONCE) {
         ZIP_REMOVE(UA_TimerIdTree, &t->idTree, te);
         UA_free(te);
