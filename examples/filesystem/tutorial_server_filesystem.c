@@ -5,6 +5,8 @@
 
 #if defined(UA_FILESYSTEM)
 
+UA_StatusCode manuallyDefineFileSystem(UA_Server *server, UA_FileServerDriver *driver, const UA_NodeId parentNode);
+
 /*
  * Helper function: Manually define a FileSystem node in the OPC UA information model.
  * This function demonstrates how to create a custom FileSystem node and attach it to
@@ -51,7 +53,6 @@ int main(void) {
                             UA_NS0ID(BASEOBJECTTYPE),
                             oAttr, NULL, &exampleNodeId);
 
-    UA_NodeId nodeId1 = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId newFsNodeId1;
     UA_FileServerDriver_addFileDirectory(fsDriver, server, &exampleNodeId,
                                       ".", &newFsNodeId1, true);
