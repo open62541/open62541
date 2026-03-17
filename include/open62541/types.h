@@ -279,6 +279,7 @@ UA_String_vformat(UA_String *str, const char *format, va_list args);
 typedef int64_t UA_DateTime;
 
 /* Multiples to convert durations to DateTime */
+#define UA_DATETIME_NSEC (1LL / 1000LL)
 #define UA_DATETIME_USEC 10LL
 #define UA_DATETIME_MSEC (UA_DATETIME_USEC * 1000LL)
 #define UA_DATETIME_SEC (UA_DATETIME_MSEC * 1000LL)

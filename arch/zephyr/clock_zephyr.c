@@ -19,22 +19,20 @@
 
 UA_DateTime
 UA_DateTime_now(void) {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (tv.tv_sec * UA_DATETIME_SEC) + (tv.tv_usec * UA_DATETIME_USEC) +
+    struct timespec ts;
+    sys_clock_gettime(CLOCK_REALTIME,&ts);
+    UA_DateTime time= (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec*UA_DATETIME_NSEC) +
            UA_DATETIME_UNIX_EPOCH;
+    return time;
 }
 
 /* Credit to
  * https://stackoverflow.com/questions/13804095/get-the-time-zone-gmt-offset-in-c */
 UA_Int64
 UA_DateTime_localTimeUtcOffset(void) {
-    time_t rawtime = time(NULL);
-    struct tm *ptm = gmtime(&rawtime);
-    /* Request mktime() to look up dst in timezone database */
-    ptm->tm_isdst = -1;
-    time_t gmt = mktime(ptm);
-    return (UA_Int64)(difftime(rawtime, gmt) * UA_DATETIME_SEC);
+    /*Zephyr does not provide any mechanism to 
+    calculate local time(may change for zephyr 4.4 or newer).*/
+    return 0;
 }
 
 UA_DateTime
