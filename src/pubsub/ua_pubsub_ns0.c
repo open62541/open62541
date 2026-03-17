@@ -2266,22 +2266,25 @@ publishedDataItemsTypeDestructor(UA_Server *server,
     void *childContext;
     UA_NodeId node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
                                          UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
-    getNodeContext(server, node, (void**)&childContext);
-    if(!UA_NodeId_isNull(&node))
+    if(!UA_NodeId_isNull(&node)) {
+        getNodeContext(server, node, (void**)&childContext);
         UA_free(childContext);
+    }
 
     node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                *nodeId);
-    getNodeContext(server, node, (void**)&childContext);
-    if(!UA_NodeId_isNull(&node))
+    if(!UA_NodeId_isNull(&node)) {
+        getNodeContext(server, node, (void**)&childContext);
         UA_free(childContext);
+    }
 
     node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
-    getNodeContext(server, node, (void**)&childContext);
-    if(!UA_NodeId_isNull(&node))
+    if(!UA_NodeId_isNull(&node)) {
+        getNodeContext(server, node, (void**)&childContext);
         UA_free(childContext);
+    }
 }
 
 static void
@@ -2296,15 +2299,17 @@ standaloneSubscribedDataSetTypeDestructor(UA_Server *server,
     UA_NodeId node =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), *nodeId);
-    getNodeContext(server, node, (void**)&childContext);
-    if(!UA_NodeId_equal(&UA_NODEID_NULL , &node))
+    if(!UA_NodeId_isNull(&node)) {
+        getNodeContext(server, node, (void**)&childContext);
         UA_free(childContext);
+    }
     node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "IsConnected"),
                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
                                *nodeId);
-    getNodeContext(server, node, (void**)&childContext);
-    if(!UA_NodeId_equal(&UA_NODEID_NULL , &node))
+    if(!UA_NodeId_isNull(&node)) {
+        getNodeContext(server, node, (void**)&childContext);
         UA_free(childContext);
+    }
 }
 
 /*************************************/
