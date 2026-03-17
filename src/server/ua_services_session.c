@@ -133,6 +133,12 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
         break;
     }
 
+    /* Create an audit event
+     * TODO: Include the shutdown reason in the audit event */
+#ifdef UA_ENABLE_AUDITING
+    auditCloseSessionEvent(server, session);
+#endif
+
     /* Notify the application */
     notifySession(server, session, UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED);
 
@@ -327,16 +333,9 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* Allocate the EphemeralKey structure */
-    UA_EphemeralKeyType *ephKey = UA_EphemeralKeyType_new();
-    if(!ephKey)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* Add the EphemeralKeyto the map */
-    res = UA_KeyValueMap_setScalarShallow(map, UA_QUALIFIEDNAME(0, "ECDHKey"),
-                                          ephKey, &UA_TYPES[UA_TYPES_EPHEMERALKEYTYPE]);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
+    /* Initialize the EphemeralKey on the stack */
+    UA_EphemeralKeyType ephKey;
+    UA_EphemeralKeyType_init(&ephKey);
 
     /* Allocate the ephemeral key buffer to the exact size of the ephemeral key
      * for the used ECC policy so that the nonce generation function knows that
@@ -345,24 +344,32 @@ addEphemeralKeyAdditionalHeader(UA_Server *server, UA_Session *session,
      *
      * TODO: There should be a more stable way to signal the generation of an
      * ephemeral key */
-    res = UA_ByteString_allocBuffer(&ephKey->publicKey, sp->nonceLength);
+    res = UA_ByteString_allocBuffer(&ephKey.publicKey, sp->nonceLength);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
     /* Allocate the signature buffer */
     size_t signatureSize =
         sp->asymSignatureAlgorithm.getLocalSignatureSize(sp, spContext);
-    res = UA_ByteString_allocBuffer(&ephKey->signature, signatureSize);
-    if(res != UA_STATUSCODE_GOOD)
+    res = UA_ByteString_allocBuffer(&ephKey.signature, signatureSize);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_EphemeralKeyType_clear(&ephKey);
         return res;
+    }
 
     /* Generate the ephemeral key and signature */
-    ephKey->publicKey.data[0] = 'e';
-    ephKey->publicKey.data[1] = 'p';
-    ephKey->publicKey.data[2] = 'h';
-    res |= sp->generateNonce(sp, spContext, &ephKey->publicKey);
-    res |= sp->asymSignatureAlgorithm.sign(sp, spContext, &ephKey->publicKey,
-                                           &ephKey->signature);
+    ephKey.publicKey.data[0] = 'e';
+    ephKey.publicKey.data[1] = 'p';
+    ephKey.publicKey.data[2] = 'h';
+    res |= sp->generateNonce(sp, spContext, &ephKey.publicKey);
+    res |= sp->asymSignatureAlgorithm.sign(sp, spContext, &ephKey.publicKey,
+                                           &ephKey.signature);
+
+    /* Add the EphemeralKey to the map (deep copy) */
+    if(res == UA_STATUSCODE_GOOD)
+        res = UA_KeyValueMap_setScalar(map, UA_QUALIFIEDNAME(0, "ECDHKey"),
+                                       &ephKey, &UA_TYPES[UA_TYPES_EPHEMERALKEYTYPE]);
+    UA_EphemeralKeyType_clear(&ephKey);
     return res;
 }
 
@@ -416,10 +423,11 @@ UA_Session_create(UA_Server *server, UA_SecureChannel *channel,
     return UA_STATUSCODE_GOOD;
 }
 
-void
-Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
-                      const UA_CreateSessionRequest *request,
-                      UA_CreateSessionResponse *response) {
+static void
+Service_CreateSession_inner(UA_Server *server, UA_SecureChannel *channel,
+                            const UA_CreateSessionRequest *request,
+                            UA_CreateSessionResponse *response,
+                            UA_Session **outSession) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_LOG_DEBUG_CHANNEL(server->config.logging, channel, "CreateSession");
 
@@ -467,8 +475,17 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Check the client certificate and ApplicationDescription. It was already
      * checked for the SecureChannel. But here we use the Session
      * CertificateGroup and we now also have the ApplicationDescription to check
-     * the ApplicationUri. */
-    if(request->clientCertificate.length > 0) {
+     * the ApplicationUri.
+     *
+     * Per OPC UA Part 4, Section 5.6.2.2: "If the securityPolicyUri is None,
+     * the Server shall ignore the ApplicationInstanceCertificate." */
+    if(channel->securityPolicy->policyType == UA_SECURITYPOLICYTYPE_NONE) {
+        if(request->clientCertificate.length > 0) {
+            UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
+                                   "CreateSession: Ignoring client certificate "
+                                   "on SecurityPolicy None (Part 4, 5.6.2.2)");
+        }
+    } else if(request->clientCertificate.length > 0) {
         rh->serviceResult =
             validateCertificate(server, &server->config.secureChannelPKI,
                                 channel, NULL, "CreateSession",
@@ -645,6 +662,23 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 #endif
 
     UA_LOG_INFO_SESSION(server->config.logging, newSession, "Session created");
+
+    /* Return the created Session */
+    *outSession = newSession;
+}
+
+void
+Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
+                      const UA_CreateSessionRequest *request,
+                      UA_CreateSessionResponse *response) {
+    /* Call the inner implementation */
+    UA_Session *session = NULL;
+    Service_CreateSession_inner(server, channel, request, response, &session);
+
+    /* Create the Audit Event */
+#ifdef UA_ENABLE_AUDITING
+    auditCreateSessionEvent(server, channel, session, request, response);
+#endif
 }
 
 static UA_StatusCode
@@ -937,10 +971,11 @@ decryptUserToken(UA_Server *server, UA_Session *session, UA_SecureChannel *chann
         return;                                                         \
     } while(0)
 
-void
-Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
-                        const UA_ActivateSessionRequest *req,
-                        UA_ActivateSessionResponse *resp) {
+static void
+Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
+                              const UA_ActivateSessionRequest *req,
+                              UA_ActivateSessionResponse *resp,
+                              UA_Session **outSession) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_ResponseHeader *rh = &resp->responseHeader;
 
@@ -1179,6 +1214,23 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     UA_LOG_INFO_SESSION(server->config.logging, session,
                         "ActivateSession: Session activated with ClientUserId \"%S\"",
                         session->clientUserIdOfSession);
+
+    /* Return the activated session */
+    *outSession = session;
+}
+
+void
+Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
+                        const UA_ActivateSessionRequest *request,
+                        UA_ActivateSessionResponse *response) {
+    /* Call the inner implementation */
+    UA_Session *session = NULL;
+    Service_ActivateSession_inner(server, channel, request, response, &session);
+
+    /* Create the Audit Event */
+#ifdef UA_ENABLE_AUDITING
+    auditActivateSessionEvent(server, channel, session, request, response);
+#endif
 }
 
 void
@@ -1262,6 +1314,12 @@ Service_Cancel(UA_Server *server, UA_Session *session,
         /* Increase the CancelCount */
         response->cancelCount++;
     }
+#endif
+
+    /* Create the Audit Event */
+#ifdef UA_ENABLE_AUDITING
+    auditCancelEvent(server, session->channel, session, response->cancelCount > 0,
+                     UA_STATUSCODE_GOOD, request->requestHandle);
 #endif
 
     return true;

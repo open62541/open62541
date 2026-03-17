@@ -186,6 +186,322 @@ START_TEST(Session_setSessionAttribute_ShallWork) {
 }
 END_TEST
 
+/* ---- Additional session tests ---- */
+
+START_TEST(Session_activate_then_close) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    /* Full connect (creates and activates session) */
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Verify session is usable by reading a value */
+    UA_Variant val;
+    retval = UA_Client_readValueAttribute(client, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    /* Disconnect (closes session) */
+    retval = UA_Client_disconnect(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Session_create_multiple) {
+    /* Create two separate clients/sessions */
+    UA_Client *client1 = UA_Client_newForUnitTest();
+    UA_Client *client2 = UA_Client_newForUnitTest();
+
+    UA_StatusCode ret1 = UA_Client_connect(client1, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(ret1, UA_STATUSCODE_GOOD);
+
+    UA_StatusCode ret2 = UA_Client_connect(client2, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(ret2, UA_STATUSCODE_GOOD);
+
+    /* Both should be able to read */
+    UA_Variant val;
+    ret1 = UA_Client_readValueAttribute(client1, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &val);
+    ck_assert_uint_eq(ret1, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    ret2 = UA_Client_readValueAttribute(client2, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &val);
+    ck_assert_uint_eq(ret2, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_Client_disconnect(client1);
+    UA_Client_disconnect(client2);
+    UA_Client_delete(client1);
+    UA_Client_delete(client2);
+} END_TEST
+
+START_TEST(Session_readAfterClose) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Close but keep the SecureChannel */
+    UA_Client_disconnectSecureChannel(client);
+
+    /* Trying to read should fail or reconnect */
+    UA_Variant val;
+    retval = UA_Client_readValueAttribute(client, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &val);
+    /* Either fails gracefully or auto-reconnects - both are acceptable */
+    if(retval == UA_STATUSCODE_GOOD)
+        UA_Variant_clear(&val);
+
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Session_browse) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Browse the Objects folder */
+    UA_BrowseRequest bReq;
+    UA_BrowseRequest_init(&bReq);
+    bReq.requestedMaxReferencesPerNode = 0;
+    bReq.nodesToBrowseSize = 1;
+    bReq.nodesToBrowse = UA_BrowseDescription_new();
+    bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL;
+    bReq.nodesToBrowse[0].browseDirection = UA_BROWSEDIRECTION_FORWARD;
+
+    UA_BrowseResponse bRes = UA_Client_Service_browse(client, bReq);
+    ck_assert_uint_eq(bRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(bRes.resultsSize, 0);
+    ck_assert_uint_eq(bRes.results[0].statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_gt(bRes.results[0].referencesSize, 0);
+
+    UA_BrowseRequest_clear(&bReq);
+    UA_BrowseResponse_clear(&bRes);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Session_write_read_value) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Add a writable variable node on the server */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32 myInt = 42;
+    UA_Variant_setScalar(&attr.value, &myInt, &UA_TYPES[UA_TYPES_INT32]);
+    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
+
+    UA_NodeId myVar = UA_NODEID_STRING(1, "session.test.var");
+    retval = UA_Server_addVariableNode(server, myVar,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "SessionTestVar"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Write via client */
+    UA_Int32 writeVal = 123;
+    UA_Variant wVal;
+    UA_Variant_setScalar(&wVal, &writeVal, &UA_TYPES[UA_TYPES_INT32]);
+    retval = UA_Client_writeValueAttribute(client, myVar, &wVal);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Read back via client */
+    UA_Variant rVal;
+    retval = UA_Client_readValueAttribute(client, myVar, &rVal);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(*(UA_Int32*)rVal.data, 123);
+    UA_Variant_clear(&rVal);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+/* --- Additional extended coverage tests --- */
+
+START_TEST(Session_reconnect_after_disconnect) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Verify the session is functional */
+    UA_Variant val;
+    retval = UA_Client_readValueAttribute(client,
+                 UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    /* Disconnect */
+    retval = UA_Client_disconnect(client);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Reconnect with same client */
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Verify the new session is functional */
+    retval = UA_Client_readValueAttribute(client,
+                 UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Session_multiple_reads) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Perform multiple reads within the same session */
+    for(int i = 0; i < 10; i++) {
+        UA_Variant val;
+        retval = UA_Client_readValueAttribute(client,
+                     UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &val);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Variant_clear(&val);
+    }
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Session_getSessionAttribute) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* CreateSession */
+    UA_CreateSessionRequest createReq;
+    UA_CreateSessionResponse createRes;
+    UA_CreateSessionRequest_init(&createReq);
+    __UA_Client_Service(client, &createReq, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &createRes, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+    ck_assert_uint_eq(createRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_NodeId_copy(&createRes.authenticationToken, &client->authenticationToken);
+
+    /* Set an attribute */
+    UA_QualifiedName key = UA_QUALIFIEDNAME(1, "testAttr");
+    UA_Variant setVar;
+    UA_Int32 val = 42;
+    UA_Variant_setScalar(&setVar, &val, &UA_TYPES[UA_TYPES_INT32]);
+    retval = UA_Server_setSessionAttribute(server, &createRes.sessionId, key, &setVar);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Get the attribute (copy) */
+    UA_Variant getVar;
+    UA_Variant_init(&getVar);
+    retval = UA_Server_getSessionAttributeCopy(server, &createRes.sessionId, key, &getVar);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(getVar.type == &UA_TYPES[UA_TYPES_INT32]);
+    ck_assert_int_eq(*(UA_Int32 *)getVar.data, 42);
+    UA_Variant_clear(&getVar);
+
+    /* Get non-existent attribute */
+    UA_QualifiedName badKey = UA_QUALIFIEDNAME(1, "noSuchAttr");
+    UA_Variant badVar;
+    UA_Variant_init(&badVar);
+    retval = UA_Server_getSessionAttributeCopy(server, &createRes.sessionId, badKey, &badVar);
+    /* Returns GOOD but empty variant if not found */
+    ck_assert(badVar.type == NULL);
+
+    /* CloseSession */
+    UA_CloseSessionRequest closeReq;
+    UA_CloseSessionResponse closeRes;
+    UA_CloseSessionRequest_init(&closeReq);
+    __UA_Client_Service(client, &closeReq, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+                        &closeRes, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
+    ck_assert_uint_eq(closeRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    UA_CloseSessionResponse_clear(&closeRes);
+    UA_CreateSessionResponse_clear(&createRes);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Session_deleteSessionAttribute) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* CreateSession */
+    UA_CreateSessionRequest createReq;
+    UA_CreateSessionResponse createRes;
+    UA_CreateSessionRequest_init(&createReq);
+    __UA_Client_Service(client, &createReq, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &createRes, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+    ck_assert_uint_eq(createRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_NodeId_copy(&createRes.authenticationToken, &client->authenticationToken);
+
+    /* Set an attribute */
+    UA_QualifiedName key = UA_QUALIFIEDNAME(1, "toDelete");
+    UA_Variant setVar;
+    UA_Int32 val = 99;
+    UA_Variant_setScalar(&setVar, &val, &UA_TYPES[UA_TYPES_INT32]);
+    retval = UA_Server_setSessionAttribute(server, &createRes.sessionId, key, &setVar);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Delete the attribute */
+    retval = UA_Server_deleteSessionAttribute(server, &createRes.sessionId, key);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Verify it's gone */
+    UA_Variant getVar;
+    UA_Variant_init(&getVar);
+    retval = UA_Server_getSessionAttributeCopy(server, &createRes.sessionId, key, &getVar);
+    ck_assert(getVar.type == NULL);
+
+    /* Cleanup */
+    UA_CloseSessionRequest closeReq;
+    UA_CloseSessionResponse closeRes;
+    UA_CloseSessionRequest_init(&closeReq);
+    __UA_Client_Service(client, &closeReq, &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST],
+                        &closeRes, &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE]);
+    UA_CloseSessionResponse_clear(&closeRes);
+    UA_CreateSessionResponse_clear(&createRes);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+/* Per OPC UA Part 4, Section 5.6.2.2: "If the securityPolicyUri is None,
+ * the Server shall ignore the ApplicationInstanceCertificate."
+ * Verify that CreateSession succeeds on SecurityPolicy None even when a
+ * (dummy) client certificate with a mismatched ApplicationUri is supplied. */
+START_TEST(Session_createSession_certIgnored_on_none_policy) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval =
+        UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CreateSessionRequest createReq;
+    UA_CreateSessionResponse createRes;
+    UA_CreateSessionRequest_init(&createReq);
+
+    /* Set a non-empty dummy certificate and a mismatched ApplicationUri */
+    UA_Byte dummyCert[] = {0x30, 0x82, 0x01, 0x00};
+    createReq.clientCertificate.data = dummyCert;
+    createReq.clientCertificate.length = sizeof(dummyCert);
+    createReq.clientDescription.applicationUri =
+        UA_STRING("urn:wrong:applicationUri");
+
+    __UA_Client_Service(client, &createReq, &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
+                        &createRes, &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE]);
+
+    /* Must succeed — certificate is ignored on SecurityPolicy None */
+    ck_assert_uint_eq(createRes.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+
+    /* Zero out stack-allocated data before clear */
+    createReq.clientCertificate = UA_BYTESTRING_NULL;
+    createReq.clientDescription.applicationUri = UA_STRING_NULL;
+    UA_CreateSessionResponse_clear(&createRes);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 static Suite* testSuite_Session(void) {
     Suite *s = suite_create("Session");
     TCase *tc_session = tcase_create("Core");
@@ -195,7 +511,22 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session, Session_updateLifetime_ShallWork);
     tcase_add_test(tc_session, Session_notificationCallback);
     tcase_add_test(tc_session, Session_setSessionAttribute_ShallWork);
-    suite_add_tcase(s,tc_session);
+
+    TCase *tc_session_ext = tcase_create("Extended");
+    tcase_add_checked_fixture(tc_session_ext, setup, teardown);
+    tcase_add_test(tc_session_ext, Session_activate_then_close);
+    tcase_add_test(tc_session_ext, Session_create_multiple);
+    tcase_add_test(tc_session_ext, Session_readAfterClose);
+    tcase_add_test(tc_session_ext, Session_browse);
+    tcase_add_test(tc_session_ext, Session_write_read_value);
+    tcase_add_test(tc_session_ext, Session_reconnect_after_disconnect);
+    tcase_add_test(tc_session_ext, Session_multiple_reads);
+    tcase_add_test(tc_session_ext, Session_getSessionAttribute);
+    tcase_add_test(tc_session_ext, Session_deleteSessionAttribute);
+    tcase_add_test(tc_session_ext, Session_createSession_certIgnored_on_none_policy);
+
+    suite_add_tcase(s, tc_session);
+    suite_add_tcase(s, tc_session_ext);
     return s;
 }
 
