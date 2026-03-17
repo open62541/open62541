@@ -768,6 +768,7 @@ responseReadNamespacesArray(UA_Client *client, void *userdata,
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Failed to copy the namespaces with StatusCode %s.",
                      UA_StatusCode_name(retval));
+        UA_NamespaceMapping_delete(nsMapping);
         return;
     }
     nsMapping->namespaceUrisSize = client->namespacesSize;
@@ -776,6 +777,7 @@ responseReadNamespacesArray(UA_Client *client, void *userdata,
     if(!nsMapping->remote2local) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Namespace mapping creation failed. Out of Memory.");
+        UA_NamespaceMapping_delete(nsMapping);
         return;
     }
     nsMapping->remote2localSize = nsSize;
@@ -792,6 +794,7 @@ responseReadNamespacesArray(UA_Client *client, void *userdata,
     if(!nsMapping->local2remote) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Namespace mapping creation failed. Out of Memory.");
+        UA_NamespaceMapping_delete(nsMapping);
         return;
     }
     nsMapping->local2remoteSize = nsSize;
