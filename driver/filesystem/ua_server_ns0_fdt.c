@@ -79,7 +79,7 @@ createDirectory(UA_Server *server,
     output[0].data = UA_NodeId_new();      // SAFE allocation
     UA_NodeId_init((UA_NodeId*)output[0].data);
 
-    UA_FileServerDriver_addFileDirectory(NULL, server, objectId, (const char*)folderName.data, (UA_NodeId*)output[0].data, NULL);
+    UA_FileServerDriver_addFileDirectory(NULL, server, objectId, (const char*)folderName.data, (UA_NodeId*)output[0].data, false);
 
     UA_free(name);
     return res;
@@ -176,7 +176,7 @@ createFile(UA_Server *server,
     output[0].data = UA_NodeId_new();      // SAFE allocation
     UA_NodeId_init((UA_NodeId*)output[0].data);
 
-    UA_FileServerDriver_addFile(server, objectId, name, (UA_NodeId*)output[0].data);
+    UA_FileServerDriver_addFile(NULL, server, objectId, name, (UA_NodeId*)output[0].data);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -443,9 +443,9 @@ moveOrCopy(UA_Server *server,
             UA_NodeId_clear(nodeIdSrc);
         }
         if (isDir) {
-            res |= UA_FileServerDriver_addFileDirectory(NULL, server, nodeIdDst, name, (UA_NodeId*)output, dstPath);
+            res |= UA_FileServerDriver_addFileDirectory(NULL, server, nodeIdDst, name, (UA_NodeId*)output, true);
         } else {
-            res |= UA_FileServerDriver_addFile(server, nodeIdDst, name, (UA_NodeId*)output);
+            res |= UA_FileServerDriver_addFile(NULL, server, nodeIdDst, name, (UA_NodeId*)output);
         }
     }
 

@@ -279,12 +279,12 @@ scanDirectoryRecursive(
 
         if(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             UA_NodeId newDirNode;
-            if ((addDirFunc)(NULL, server, parentNode, name, &newDirNode, NULL) == UA_STATUSCODE_GOOD) {
+            if ((addDirFunc)(NULL, server, parentNode, name, &newDirNode, false) == UA_STATUSCODE_GOOD) {
                 scanDirectoryRecursive(server, &newDirNode, fullPath, addDirFunc, addFileFunc);
             }
         } else {
             UA_NodeId newFileNode;
-            ((UA_StatusCode (*)(UA_Server *, const UA_NodeId *, const char *, UA_NodeId *))addFileFunc)(server, parentNode, name, &newFileNode);
+            ((UA_StatusCode (*)(UA_Driver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *))addFileFunc)(NULL, server, parentNode, name, &newFileNode);
         }
     } while(FindNextFileA(hfind, &ffd) != 0);
 

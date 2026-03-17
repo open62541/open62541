@@ -146,7 +146,8 @@ UA_StatusCode UA_FileServerDriver_addFileDirectory(
     UA_Server *server,
     const UA_NodeId *parentNode,
     const char *mountPath,
-    UA_NodeId *newNodeId, const char *scanDir);
+    UA_NodeId *newNodeId, const bool dirExists
+);
     
 /* API function: Add a new File node to the OPC UA server.
  *
@@ -164,10 +165,13 @@ UA_StatusCode UA_FileServerDriver_addFileDirectory(
  * - UA_STATUSCODE_GOOD if the file node was successfully added.
  * - An error code otherwise.
  */
-UA_StatusCode UA_FileServerDriver_addFile(UA_Server *server,
-                            const UA_NodeId *parentNode,
-                            const char *filePath,
-                            UA_NodeId *newNodeId);
+UA_StatusCode UA_FileServerDriver_addFile(
+    UA_FileServerDriver *driver,
+    UA_Server *server,
+    const UA_NodeId *parentNode,
+    const char *filePath,
+    UA_NodeId *newNodeId
+);
 
 /* Factory function: Create a new FileServerDriver instance.
  *

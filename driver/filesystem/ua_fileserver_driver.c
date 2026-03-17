@@ -361,7 +361,7 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
                                   UA_Server *server,
                                   const UA_NodeId *parentNode,
                                   const char *mountPath,
-                                  UA_NodeId *newNodeId, const char *scanDir) {
+                                  UA_NodeId *newNodeId, const bool dirExists) {
 
     char name[MAX_PATH]; // Buffer for node name, with extra space for hashing if needed
     if (driver == NULL) {
@@ -421,8 +421,8 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
     UA_LocalizedText_clear(&oAttr.displayName);
     UA_QualifiedName_clear(&browseName);
 
-    if (scanDir != NULL) {
-        scanDirectoryRecursive(server, newNodeId, scanDir, (AddDirType)&UA_FileServerDriver_addFileDirectory, (AddFileType)&UA_FileServerDriver_addFile);
+    if (dirExists) {
+        scanDirectoryRecursive(server, newNodeId, mountPath, (AddDirType)&UA_FileServerDriver_addFileDirectory, (AddFileType)&UA_FileServerDriver_addFile);
     }
 
     if (driver == NULL) {
@@ -443,7 +443,8 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
 }
 
 UA_StatusCode
-UA_FileServerDriver_addFile(UA_Server *server,
+UA_FileServerDriver_addFile(UA_FileServerDriver *driver,
+                            UA_Server *server,
                             const UA_NodeId *parentNode,
                             const char *filePath,
                             UA_NodeId *newNodeId) {
@@ -472,7 +473,7 @@ UA_FileServerDriver_addFile(UA_Server *server,
     FileDirectoryContext *dirCtx = NULL;
     UA_Server_getNodeContext(server, *parentNode, (void**)&dirCtx);
 
-    fileCtx->driver = dirCtx->driver;  /* Inherit driver reference from parent directory */
+    fileCtx->driver = driver == NULL ? dirCtx->driver : driver;  /* Inherit driver reference from parent directory */
     fileCtx->sessions = NULL;  /* No sessions initially */
 
     UA_StatusCode retval = UA_Server_addObjectNode(server,
