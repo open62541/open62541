@@ -33,7 +33,9 @@ logger = logging.getLogger(__name__)
 
 hassubtype = NodeId("ns=0;i=45")
 
-def getSubTypesOf(nodeset, node, skipNodes=[]):
+def getSubTypesOf(nodeset, node, skipNodes=None):
+    if skipNodes is None:
+        skipNodes = []
     if node in skipNodes:
         return []
     re = set()

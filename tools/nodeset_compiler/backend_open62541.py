@@ -490,7 +490,9 @@ def generateNodeCode_finish(node):
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArray=[]):
+def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArray=None):
+    if typesArray is None:
+        typesArray = []
     outfilebase = basename(outfilename)
     # Printing functions
     outfileh = codecs.open(outfilename + ".h", r"w+", encoding='utf-8')
