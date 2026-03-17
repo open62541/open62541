@@ -67,7 +67,7 @@ cmake @cmake_args `
       -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON `
       -DUA_FORCE_WERROR=ON `
       -DUA_NAMESPACE_ZERO:STRING=FULL `
-      -DUA_ENABLE_FILESYSTEM=ON `
+      -DUA_ENABLE_FILESYSTEM:BOOL=ON `
       ..
 cmake --build .
 if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
