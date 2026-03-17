@@ -284,7 +284,7 @@ if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
 
-option(UA_ENABLE_FILESYSTEM "Enable filesystem support!" ON)
+option(UA_ENABLE_FILESYSTEM "Enable filesystem support!" OFF)
 if(UA_ENABLE_FILESYSTEM AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     message("Filesystem support is enabled. This will add a lot of nodes to namespace zero and increase the binary size significantly. Consider using a reduced namespace zero configuration if you do not need the full filesystem information model.")
     set(UA_FILESYSTEM ON)
@@ -844,13 +844,13 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${PROJECT_SOURCE_DIR}/driver/driver.h
+                     ${PROJECT_SOURCE_DIR}/driver/directoryArch/common/fileSystemOperations_common.h
                      )
 
 if (UA_FILESYSTEM)
     list(APPEND exported_headers
                          ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.h
-                         ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_filetypes.h
-                         ${PROJECT_SOURCE_DIR}/driver/directoryArch/common/fileSystemOperations_common.h)
+                         ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_filetypes.h)
 endif()
 
 # Main Library
