@@ -1137,6 +1137,71 @@ UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_evaluateSessionRoles(UA_Server *server,
+                               const UA_ExtensionObject *userIdentityToken,
+                               size_t *outRolesSize, UA_NodeId **outRoleIds) {
+    *outRolesSize = 0;
+    *outRoleIds = NULL;
+
+    if(server->rolesSize == 0)
+        return UA_STATUSCODE_GOOD;
+
+    /* Determine session identity characteristics from the token */
+    const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
+    UA_Boolean isAnonymous =
+        (tokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
+    UA_String userName = UA_STRING_NULL;
+    if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+        const UA_UserNameIdentityToken *ut =
+            (const UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
+        userName = ut->userName;
+    }
+
+    /* Pre-allocate for maximum possible matches */
+    UA_NodeId *matched = (UA_NodeId*)
+        UA_calloc(server->rolesSize, sizeof(UA_NodeId));
+    if(!matched)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    size_t matchCount = 0;
+    for(size_t i = 0; i < server->rolesSize; i++) {
+        UA_Role *role = &server->roles[i];
+        UA_Boolean roleMatched = false;
+        for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
+            UA_Boolean match = false;
+            switch(role->identityMappingRules[j].criteriaType) {
+            case UA_IDENTITYCRITERIATYPE_ANONYMOUS:
+                match = isAnonymous;
+                break;
+            case UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER:
+                match = !isAnonymous;
+                break;
+            case UA_IDENTITYCRITERIATYPE_USERNAME:
+                if(userName.length > 0)
+                    match = UA_String_equal(&userName,
+                                            &role->identityMappingRules[j].criteria);
+                break;
+            default:
+                break;
+            }
+            if(match) { roleMatched = true; break; }
+        }
+        if(roleMatched) {
+            UA_NodeId_copy(&role->roleId, &matched[matchCount]);
+            matchCount++;
+        }
+    }
+
+    if(matchCount > 0) {
+        *outRoleIds = matched;
+        *outRolesSize = matchCount;
+    } else {
+        UA_free(matched);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 /*****************************************/
 /* Internal Helpers: Hierarchy Traversal */
 /*****************************************/
