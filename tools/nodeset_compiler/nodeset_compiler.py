@@ -149,7 +149,7 @@ for xmlfile in args.existing:
         logger.info(f"Skipping Nodeset since it is already loaded: {xmlfile.name} ")
         continue
     loadedFiles.append(xmlfile.name)
-    logger.info("Preprocessing (existing) " + str(xmlfile.name))
+    logger.info("Preprocessing (existing) %s", xmlfile.name)
     if hasCustomDataType(xmlfile):
         ns.addNodeSet(xmlfile, True, typesArray=getTypesArray(nsCount))
         nsCount += 1
@@ -161,7 +161,7 @@ for xmlfile in args.infiles:
         logger.info(f"Skipping Nodeset since it is already loaded: {xmlfile.name} ")
         continue
     loadedFiles.append(xmlfile.name)
-    logger.info("Preprocessing " + str(xmlfile.name))
+    logger.info("Preprocessing %s", xmlfile.name)
     if hasCustomDataType(xmlfile):
         ns.addNodeSet(xmlfile, typesArray=getTypesArray(nsCount))
         nsCount += 1
@@ -210,7 +210,7 @@ if args.blacklistFiles:
                 continue
             n = ns.getNodeByIDString(id)
             if n is None:
-                logger.debug("Cannot blacklist node, namespace does currently not contain a node with id " + str(id))
+                logger.debug("Cannot blacklist node, namespace does currently not contain a node with id %s", id)
             else:
                 ns.remove_node(n)
         blacklist.close()
