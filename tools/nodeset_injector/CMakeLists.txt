@@ -285,6 +285,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.WotCon.NodeIds.csv"
+                FILE_BSD "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.WotCon.Types.bsd"
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.WotCon.NodeSet2.xml"
                 INTERNAL AUTOLOAD)
 
