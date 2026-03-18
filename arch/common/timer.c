@@ -137,11 +137,12 @@ UA_Timer_add(UA_Timer *t, UA_Callback callback,
     te->nextTime = nextTime;
     te->timerPolicy = timerPolicy;
 
+    /* Insert into the timer */
+    UA_LOCK(&t->timerMutex);
+
     /* Adjust the nextTime to batch cyclic callbacks */
     batchTimerEntry(t, te);
 
-    /* Insert into the timer */
-    UA_LOCK(&t->timerMutex);
     te->id = ++t->idCounter;
     if(callbackId)
         *callbackId = te->id;
