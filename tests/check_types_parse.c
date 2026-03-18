@@ -385,7 +385,7 @@ START_TEST(parseQualifiedNameWithSemicolon) {
     UA_ByteString_clear(&encoded);
     UA_QualifiedName_clear(&value);
     UA_QualifiedName_clear(&decoded);
-}
+} END_TEST
 
 START_TEST(parseQualifiedNameWithNamespaceUri) {
     UA_NamespaceMapping nsMapping;
