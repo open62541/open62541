@@ -449,6 +449,7 @@ function build_clang_analyzer {
     local version=$1
     rm -rf build; mkdir -p build; cd build
     scan-build-$version cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_DEBUG=ON \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
@@ -461,6 +462,7 @@ function build_clang_analyzer {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_FORCE_WERROR=ON \
           -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_DEBUG_FILE_LINE_INFO=ON \
           ..
     scan-build-$version \
           --status-bugs \
