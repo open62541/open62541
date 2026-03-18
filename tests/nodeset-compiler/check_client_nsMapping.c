@@ -10,6 +10,7 @@
 
 #include <check.h>
 #include <limits.h>
+#include <stdlib.h>
 
 #include "tests/namespace_tests_di_generated.h"
 #include "tests/namespace_tests_plc_generated.h"
@@ -86,11 +87,82 @@ START_TEST(Client_nsMapping){
 }
 END_TEST
 
+/* Helper state for the allocation-failure test. When nsmapping_test_calloc
+ * detects the nsMapping allocation (calloc(1, sizeof(UA_NamespaceMapping))), it
+ * records the pointer and arms a one-shot failure for the very next calloc call
+ * (which is the UA_Array_copy call that copies the namespace URIs). This
+ * exercises the error-path that the bug fix adds
+ * UA_NamespaceMapping_delete(nsMapping) to. */
+static void *g_nsMapping_ptr = NULL;
+static UA_Boolean g_fail_next_calloc = UA_FALSE;
+
+static void *
+nsmapping_test_calloc(size_t num, size_t size) {
+    if(g_fail_next_calloc) {
+        g_fail_next_calloc = UA_FALSE;
+        return NULL;
+    }
+    void *p = calloc(num, size);
+    if(p && num == 1 && size == sizeof(UA_NamespaceMapping)) {
+        /* Detected the nsMapping allocation. Arm the one-shot failure so that
+         * the next calloc (the UA_Array_copy call inside
+         * responseReadNamespacesArray) fails, triggering the error path. */
+        g_nsMapping_ptr = p;
+        g_fail_next_calloc = UA_TRUE;
+    }
+    return p;
+}
+
+static void
+nsmapping_test_free(void *p) {
+    if(p && p == g_nsMapping_ptr)
+        g_nsMapping_ptr = NULL;
+    free(p);
+}
+
+/* This test verifies that nsMapping is not leaked when an allocation failure
+ * occurs inside responseReadNamespacesArray after nsMapping itself was
+ * allocated.  Without the fix the nsMapping struct is silently leaked; with the
+ * fix UA_NamespaceMapping_delete() is called on the error path and
+ * g_nsMapping_ptr is set back to NULL. */
+START_TEST(Client_nsMapping_alloc_failure) {
+    g_nsMapping_ptr = NULL;
+    g_fail_next_calloc = UA_FALSE;
+
+    UA_Client *client = UA_Client_newForUnitTest();
+    ck_assert_ptr_nonnull(client);
+
+    /* Install custom allocators *before* connecting so that the namespace read
+     * response (which is processed synchronously inside UA_Client_connect) is
+     * handled by our intercepting calloc. */
+    UA_callocSingleton = nsmapping_test_calloc;
+    UA_freeSingleton = nsmapping_test_free;
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Restore the default allocators before teardown so that the client and
+     * server destruction use the normal allocator. */
+    UA_callocSingleton = calloc;
+    UA_freeSingleton = free;
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+
+    /* Without the fix: nsMapping was not deleted on the error path and
+     * g_nsMapping_ptr remains non-NULL (memory leaked).
+     * With the fix: UA_NamespaceMapping_delete() is called, which eventually
+     * triggers nsmapping_test_free() and resets g_nsMapping_ptr to NULL. */
+    ck_assert_ptr_null(g_nsMapping_ptr);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Namespace Mapping");
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_nsMapping);
+    tcase_add_test(tc_client, Client_nsMapping_alloc_failure);
     suite_add_tcase(s,tc_client);
     return s;
 }
