@@ -87,6 +87,7 @@ START_TEST(Client_nsMapping){
 }
 END_TEST
 
+#ifdef UA_ENABLE_MALLOC_SINGLETON
 /* Helper state for the allocation-failure test. When nsmapping_test_calloc
  * detects the nsMapping allocation (calloc(1, sizeof(UA_NamespaceMapping))), it
  * records the pointer and arms a one-shot failure for the very next calloc call
@@ -130,7 +131,7 @@ START_TEST(Client_nsMapping_alloc_failure) {
     g_fail_next_calloc = UA_FALSE;
 
     UA_Client *client = UA_Client_newForUnitTest();
-    ck_assert_ptr_nonnull(client);
+    ck_assert_ptr_ne(client, NULL);
 
     /* Install custom allocators *before* connecting so that the namespace read
      * response (which is processed synchronously inside UA_Client_connect) is
@@ -153,16 +154,19 @@ START_TEST(Client_nsMapping_alloc_failure) {
      * g_nsMapping_ptr remains non-NULL (memory leaked).
      * With the fix: UA_NamespaceMapping_delete() is called, which eventually
      * triggers nsmapping_test_free() and resets g_nsMapping_ptr to NULL. */
-    ck_assert_ptr_null(g_nsMapping_ptr);
+    ck_assert_ptr_eq(g_nsMapping_ptr, NULL);
 }
 END_TEST
+#endif /* UA_ENABLE_MALLOC_SINGLETON */
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Namespace Mapping");
     tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_nsMapping);
+#ifdef UA_ENABLE_MALLOC_SINGLETON
     tcase_add_test(tc_client, Client_nsMapping_alloc_failure);
+#endif
     suite_add_tcase(s,tc_client);
     return s;
 }
