@@ -15,7 +15,7 @@ def nodePrintDot(node):
                       str(r.referenceType.browseName) + "\"]\n"
             else:
                 if len(r.referenceType.inverseName) == 0:
-                    logger.warn("Inverse name of reference is null " + str(r.referenceType.id))
+                    logger.warning("Inverse name of reference is null %s", r.referenceType.id)
                 dot = dot + cleanname + " -> " + tgtname + \
                       " [label=\"" + str(r.referenceType.inverseName) + "\"]\n"
     return dot

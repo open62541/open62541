@@ -315,7 +315,7 @@ class NodeSet:
     def getDataTypeNode(self, dataType):
         if isinstance(dataType, str):
             if not valueIsInternalType(dataType):
-                logger.error("Not a valid dataType string: " + dataType)
+                logger.error("Not a valid dataType string: %s", dataType)
                 return None
             return self.nodes[NodeId(self.aliases[dataType])]
         if isinstance(dataType, NodeId):
@@ -323,7 +323,7 @@ class NodeSet:
                 return None
             dataTypeNode = self.nodes[dataType]
             if not isinstance(dataTypeNode, DataTypeNode):
-                logger.error("Node id " + str(dataType) + " is not reference a valid dataType.")
+                logger.error("Node id %s is not reference a valid dataType.", dataType)
                 return None
             return dataTypeNode
         return None
