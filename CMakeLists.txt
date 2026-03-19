@@ -125,6 +125,20 @@ function(check_add_cc_flag CC_FLAG BUILD_TYPE)
     unset(flag_supported CACHE)
 endfunction()
 
+# Apply the per-config compile options collected by check_add_cc_flag() to a target.
+# Generator expressions used here:
+#   $<CONFIG:cfg>          - evaluates to 1 when the active build config matches 'cfg'
+#   $<COMPILE_LANGUAGE:C>  - evaluates to 1 when the source file language is C
+#   $<AND:a,b>             - evaluates to 1 when all operands are 1
+#   $<condition:value>     - expands to 'value' when 'condition' is 1, empty otherwise
+# Reference: https://cmake.org/cmake/help/latest/manual/cmake-generator-expressions.7.html
+function(ua_target_compile_options TARGET_NAME)
+    target_compile_options(${TARGET_NAME} PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:DEBUG>>:${DEBUG_TARGET_COMPILE_OPTIONS}>")
+    target_compile_options(${TARGET_NAME} PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RELEASE>>:${RELEASE_TARGET_COMPILE_OPTIONS}>")
+    target_compile_options(${TARGET_NAME} PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RELWITHDEBINFO>>:${RELWITHDEBINFO_TARGET_COMPILE_OPTIONS}>")
+    target_compile_options(${TARGET_NAME} PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:MINSIZEREL>>:${MINSIZEREL_TARGET_COMPILE_OPTIONS}>")
+endfunction()
+
 #################
 # Build Options #
 #################
@@ -468,7 +482,12 @@ option(UA_ENABLE_UNIT_TESTS_MEMCHECK "Use Valgrind (Linux) or DrMemory (Windows)
 mark_as_advanced(UA_ENABLE_UNIT_TESTS_MEMCHECK)
 
 # Build options for debugging
-option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
+# Auto-enable UA_DEBUG for Debug builds
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" ON)
+else()
+    option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
+endif()
 mark_as_advanced(UA_DEBUG)
 
 option(UA_DEBUG_DUMP_PKGS "Dump every package received by the server as hexdump format" OFF)
@@ -1467,15 +1486,8 @@ else()
 endif()
 add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
-target_compile_options(open62541 PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:DEBUG>>:${DEBUG_TARGET_COMPILE_OPTIONS}>")
-target_compile_options(open62541 PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RELEASE>>:${RELEASE_TARGET_COMPILE_OPTIONS}>")
-target_compile_options(open62541 PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RELWITHDEBINFO>>:${RELWITHDEBINFO_TARGET_COMPILE_OPTIONS}>")
-target_compile_options(open62541 PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:MINSIZEREL>>:${MINSIZEREL_TARGET_COMPILE_OPTIONS}>")
-
-target_compile_options(open62541-object PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:DEBUG>>:${DEBUG_TARGET_COMPILE_OPTIONS}>")
-target_compile_options(open62541-object PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RELEASE>>:${RELEASE_TARGET_COMPILE_OPTIONS}>")
-target_compile_options(open62541-object PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RELWITHDEBINFO>>:${RELWITHDEBINFO_TARGET_COMPILE_OPTIONS}>")
-target_compile_options(open62541-object PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:MINSIZEREL>>:${MINSIZEREL_TARGET_COMPILE_OPTIONS}>")
+ua_target_compile_options(open62541)
+ua_target_compile_options(open62541-object)
 
 add_dependencies(open62541-object open62541-code-generation)
 add_dependencies(open62541-plugins open62541-code-generation)
