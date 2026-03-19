@@ -1488,6 +1488,7 @@ add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62
 
 ua_target_compile_options(open62541)
 ua_target_compile_options(open62541-object)
+ua_target_compile_options(open62541-plugins)
 
 add_dependencies(open62541-object open62541-code-generation)
 add_dependencies(open62541-plugins open62541-code-generation)
