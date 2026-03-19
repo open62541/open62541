@@ -54,14 +54,12 @@ static UA_DateTime earliest, latest, adjustedNextTime;
 
 static void *
 findTimer2Batch(void *context, UA_TimerEntry *compare) {
-    UA_TimerEntry *te = (UA_TimerEntry*)context;
-
-    /* NextTime deviation within interval? */
-    if(compare->nextTime < earliest || compare->nextTime > latest)
-        return NULL;
+    /* Invariance of ZIP_ITER_KEY  */
+    UA_assert(compare->nextTime >= earliest && compare->nextTime <= latest);
 
     /* One-shot timers have interval == 0.
      * They cannot participate in the modulo-based batching check. */
+    UA_TimerEntry *te = (UA_TimerEntry*)context;
     if(te->interval == 0 || compare->interval == 0)
         return NULL;
 
