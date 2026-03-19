@@ -860,6 +860,11 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    if(!mbedtls_pk_can_do(&publicKey.pk, MBEDTLS_PK_RSA)) {
+        mbedtls_x509_crt_free(&publicKey);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     mbedtls_rsa_context *rsa = mbedtls_pk_rsa(publicKey.pk);
 
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
