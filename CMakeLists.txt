@@ -1033,13 +1033,19 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
 # Add clock implementation based on the base architecture
-# Note: For POSIX/Win32, the clock is included via ${UA_ARCH_FOLDER}/CMakeLists.txt
+# Note: For plain POSIX/Win32, the clock is included via ${UA_ARCH_FOLDER}/CMakeLists.txt.
+# For posix-lwip, the POSIX clock must be added explicitly because the LWIP branch in the
+# eventloop selection below takes precedence and the arch CMakeLists.txt is never included.
 if(UA_ARCHITECTURE_ZEPHYR)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/zephyr/clock_zephyr.c)
 endif()
 
 if(UA_ARCHITECTURE_FREERTOS)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/freertos/clock_freertos.c)
+endif()
+
+if(UA_ARCHITECTURE_POSIX AND UA_ARCHITECTURE_LWIP)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_clock.c)
 endif()
 
 # Add eventloop and common files (mutually exclusive based on eventloop type)
