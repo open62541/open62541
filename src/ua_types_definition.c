@@ -172,7 +172,7 @@ UA_DataType_fromStructureDescription(UA_DataType *type,
     /* Allocate the members array */
     type->members = (UA_DataTypeMember *)
         UA_calloc(sd->fieldsSize, sizeof(UA_DataTypeMember));
-    if(!type->members) {
+    if((sd->fieldsSize > 0) && !type->members) {
         UA_DataType_clear(type);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -320,7 +320,7 @@ UA_DataType_toStructureDescription(const UA_DataType *type,
     /* Allocate the fields */
     sd->fields = (UA_StructureField*)
         UA_calloc(type->membersSize, sizeof(UA_StructureField));
-    if(!sd->fields) {
+    if((type->membersSize > 0) && !sd->fields) {
         UA_StructureDescription_clear(descr);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -380,7 +380,7 @@ UA_DataType_fromEnumDescription(UA_DataType *type,
     /* Allocate the members array */
     type->members = (UA_DataTypeMember *)
         UA_calloc(descr->enumDefinition.fieldsSize, sizeof(UA_DataTypeMember));
-    if(!type->members) {
+    if((descr->enumDefinition.fieldsSize > 0) && !type->members) {
         UA_DataType_clear(type);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -414,7 +414,7 @@ UA_DataType_toEnumDescription(const UA_DataType *type,
     /* Allocate the enum fields */
     descr->enumDefinition.fields = (UA_EnumField*)
         UA_calloc(type->membersSize, sizeof(UA_EnumField));
-    if(!descr->enumDefinition.fields) {
+    if((type->membersSize > 0) && !descr->enumDefinition.fields) {
         UA_EnumDescription_clear(descr);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
