@@ -386,7 +386,8 @@ FileCertStore_setupStorePath(char *directory, char *rootDirectory,
     char path[UA_PATH_MAX] = {0};
     size_t pathSize = 0;
 
-    strncpy(path, rootDirectory, UA_PATH_MAX);
+    strncpy(path, rootDirectory, UA_PATH_MAX - 1);
+    path[UA_PATH_MAX - 1] = '\0';
     pathSize = strnlen(path, UA_PATH_MAX);
 
     strncpy(&path[pathSize], directory, UA_PATH_MAX - pathSize);
