@@ -656,7 +656,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
     # But modern compilers do a detailed analysis of values
     # are actually used uninitialized after a jump:
     # TODO: The following flag should not be required
-    check_add_cc_flag("-Wno-jump-misses-init")
+    check_add_cc_flag("-Wno-jump-misses-init" "Debug;Release;RelWithDebInfo;MinSizeRel")
 
     # Check that format strings (printf/scanf) are sane
     check_add_cc_flag("-Wformat" "Debug;Release;RelWithDebInfo;MinSizeRel")
@@ -680,8 +680,8 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
 
     # Tree-shaking so that only used functions and data get linked into static binaries
     # To be used in combination with --gc-sections below
-    check_add_cc_flag("-ffunction-sections")
-    check_add_cc_flag("-fdata-sections")
+    check_add_cc_flag("-ffunction-sections" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-fdata-sections" "Debug;Release;RelWithDebInfo;MinSizeRel")
 
     # Generate position-independent code for shared libraries (adds a performance penalty)
     if(BUILD_SHARED_LIBS)
