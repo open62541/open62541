@@ -146,7 +146,7 @@ def hasCustomDataType(xmlfile):
 
 for xmlfile in args.existing:
     if xmlfile.name in loadedFiles:
-        logger.info(f"Skipping Nodeset since it is already loaded: {xmlfile.name} ")
+        logger.info("Skipping Nodeset since it is already loaded: %s", xmlfile.name)
         continue
     loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing (existing) %s", xmlfile.name)
@@ -158,7 +158,7 @@ for xmlfile in args.existing:
 
 for xmlfile in args.infiles:
     if xmlfile.name in loadedFiles:
-        logger.info(f"Skipping Nodeset since it is already loaded: {xmlfile.name} ")
+        logger.info("Skipping Nodeset since it is already loaded: %s", xmlfile.name)
         continue
     loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing %s", xmlfile.name)
@@ -219,7 +219,7 @@ if args.blacklistFiles:
 # Figure out from the references which is the parent for each node
 ns.setNodeParent()
 
-logger.info(f"Generating Code for Backend: {args.backend}")
+logger.info("Generating Code for Backend: %s", args.backend)
 
 if args.backend == "open62541":
     # Create the C code with the open62541 backend of the compiler
@@ -229,7 +229,7 @@ elif args.backend == "graphviz":
     from .backend_graphviz import generateGraphvizCode
     generateGraphvizCode(ns, filename=args.outputFile)
 else:
-    logger.error(f"Unsupported backend: {args.backend}")
+    logger.error("Unsupported backend: %s", args.backend)
     exit(1)
 
 logger.info("NodeSet generation code successfully printed")
