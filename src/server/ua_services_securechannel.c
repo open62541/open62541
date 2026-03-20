@@ -58,9 +58,12 @@ processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
      * Here we don't have the ApplicationDescription.
      * This check follows in the CreateSession service. */
     if(asymHeader->senderCertificate.length > 0) {
+        UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
+        verSettings.allowUsageInstanceCert = true;
+        verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_TRUST;
         UA_StatusCode res =
             validateCertificate(server, &sc->secureChannelPKI, channel, NULL,
-                                "OpenSecureChannel", NULL, asymHeader->senderCertificate);
+                                "OpenSecureChannel", NULL, asymHeader->senderCertificate, verSettings);
         UA_CHECK_STATUS(res, return res);
     }
 

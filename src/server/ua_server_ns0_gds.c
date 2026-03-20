@@ -306,7 +306,19 @@ updateCertificate(UA_Server *server,
             return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* Ensure certificate integrity before accepting it */
+    UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
+    verSettings.allowUsageInstanceCert= true;
+    verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_INTEGRITY;
+    UA_StatusCode retval = validateCertificate(server, &server->config.secureChannelPKI,
+                                               NULL, NULL, "UpdateCertificate", // TODO: session pointer from somewhere?
+                                               NULL, *certificate, verSettings);
+    if(retval != UA_STATUSCODE_GOOD) {
+        // mask error with UA_STATUSCODE_BADCERTIFICATEINVALID
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    }
+
+    retval = UA_STATUSCODE_GOOD;
     UA_GDSManager *gdsManager = &server->gdsManager;
     UA_GDSTransaction *transaction = &gdsManager->transaction;
     if(transaction->state == UA_GDSTRANSACTIONSTATE_FRESH) {
@@ -449,14 +461,6 @@ addCertificate(UA_Server *server,
     if(gdsManager->transaction.state != UA_GDSTRANSACTIONSTATE_FRESH)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
-    /* CA certificates cannot be added using this method because it does not support adding CRLs */
-    if(UA_CertificateUtils_checkCA(&certificate) == UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-            "The certificate could not be added because it is a CA certificate. "
-            "CA certificates must be added using the FileType methods.");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -468,6 +472,19 @@ addCertificate(UA_Server *server,
     if(fileInfo->openCount > 0)
         return UA_STATUSCODE_BADINVALIDSTATE;
 
+    /* Ensure certificate validity before adding it */
+    UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
+    verSettings.allowUsageInstanceCert = (certGroup == &(server->config.secureChannelPKI));
+    verSettings.allowUsageUserCert = (certGroup == &(server->config.sessionPKI));
+    verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_VALIDITY;
+    UA_StatusCode retval = validateCertificate(server, certGroup,
+                                               NULL, NULL, "AddCertificate", // TODO: session pointer from somewhere?
+                                               NULL, certificate, verSettings);
+    if(retval != UA_STATUSCODE_GOOD) {
+        // mask error with UA_STATUSCODE_BADCERTIFICATEINVALID
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    }
+
     UA_TrustListDataType trustList;
     memset(&trustList, 0, sizeof(UA_TrustListDataType));
     UA_ByteString certificates[1];
@@ -477,7 +494,7 @@ addCertificate(UA_Server *server,
     trustList.trustedCertificates = certificates;
     trustList.trustedCertificatesSize = 1;
 
-    UA_StatusCode retval = certGroup->addToTrustList(certGroup, &trustList);
+    retval = certGroup->addToTrustList(certGroup, &trustList);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -1082,10 +1099,13 @@ secureChannel_delayedClose(void *application, void *context) {
 
     UA_CertificateGroup certGroup = server->config.secureChannelPKI;
     UA_SecureChannel *channel;
+    UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
+    verSettings.allowUsageInstanceCert = true;
+    verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_TRUST;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
         if(channel->state == UA_SECURECHANNELSTATE_CLOSED || channel->state == UA_SECURECHANNELSTATE_CLOSING)
             continue;
-        if(certGroup.verifyCertificate(&certGroup, &channel->remoteCertificate) != UA_STATUSCODE_GOOD)
+        if(certGroup.verifyCertificate(&certGroup, &channel->remoteCertificate, verSettings) != UA_STATUSCODE_GOOD)
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
 

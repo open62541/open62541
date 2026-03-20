@@ -4,6 +4,7 @@
  *
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
+ *    Copyright (c) 2025 Pilz GmbH & Co. KG, Author: Marcel Patzlaff
  */
 
 #ifndef UA_PLUGIN_CERTIFICATEGROUP_H
@@ -13,6 +14,73 @@
 #include <open62541/plugin/log.h>
 
 _UA_BEGIN_DECLS
+
+#define UA_CERTIFICATEVERIFICATION_STEP(name, number) UA_CERTIFICATEVERIFICATION_STEP_ ## name = (1u << (number))
+
+typedef enum
+{
+    UA_CERTIFICATEVERIFICATION_STEP(CERTIFICATE_STRUCTURE,    1),
+    UA_CERTIFICATEVERIFICATION_STEP(BUILD_CERTIFICATE_CHAIN,  2),
+    UA_CERTIFICATEVERIFICATION_STEP(SIGNATURE,                3),
+    UA_CERTIFICATEVERIFICATION_STEP(SECURITY_POLICY_CHECK,    4),
+    UA_CERTIFICATEVERIFICATION_STEP(TRUST_LIST_CHECK,         5),
+    UA_CERTIFICATEVERIFICATION_STEP(VALIDITY_PERIOD,          6),
+    UA_CERTIFICATEVERIFICATION_STEP(HOST_NAME,                7),
+    UA_CERTIFICATEVERIFICATION_STEP(URI,                      8),
+    UA_CERTIFICATEVERIFICATION_STEP(CERTIFICATE_USAGE,        9),
+    UA_CERTIFICATEVERIFICATION_STEP(FIND_REVOCATION_LIST,    10),
+    UA_CERTIFICATEVERIFICATION_STEP(REVOCATION_CHECK,        11),
+
+    /* Apply integrity checks to ensure the integrity of the certificate and its chain:
+     * * Certificate Structure (1)
+     * * Certificate Usage (9)
+     * * Build Certificate Chain (2)
+     * * Signature (3)
+     * * Security Policy Check (4)*/
+    UA_CERTIFICATEVERIFICATION_FOR_INTEGRITY = (
+          UA_CERTIFICATEVERIFICATION_STEP_CERTIFICATE_STRUCTURE
+        | UA_CERTIFICATEVERIFICATION_STEP_CERTIFICATE_USAGE
+        | UA_CERTIFICATEVERIFICATION_STEP_BUILD_CERTIFICATE_CHAIN
+        | UA_CERTIFICATEVERIFICATION_STEP_SIGNATURE
+        | UA_CERTIFICATEVERIFICATION_STEP_SECURITY_POLICY_CHECK
+    ),
+
+    /* Additionally apply checks to ensure the validity of the certificate:
+     * * Validity Period (6)
+     * * Find Revocation List (10)
+     * * Revocation Check (11)*/
+    UA_CERTIFICATEVERIFICATION_FOR_VALIDITY = (
+          UA_CERTIFICATEVERIFICATION_FOR_INTEGRITY
+        | UA_CERTIFICATEVERIFICATION_STEP_VALIDITY_PERIOD
+        | UA_CERTIFICATEVERIFICATION_STEP_FIND_REVOCATION_LIST
+        | UA_CERTIFICATEVERIFICATION_STEP_REVOCATION_CHECK
+    ),
+
+    /* Additionally apply checks to ensure that the certificate can be trusted:
+     * * Host Name (7)
+     * * URI (Application or Product URI check) (8)
+     * * Trust List Check (5)*/
+    UA_CERTIFICATEVERIFICATION_FOR_TRUST = (
+        UA_CERTIFICATEVERIFICATION_FOR_VALIDITY
+      | UA_CERTIFICATEVERIFICATION_STEP_HOST_NAME
+      | UA_CERTIFICATEVERIFICATION_STEP_URI
+      | UA_CERTIFICATEVERIFICATION_STEP_TRUST_LIST_CHECK
+    )
+} UA_CertificateVerification;
+
+#define UA_CERTIFICATEVERIFICATION_SELECTED(steps, name) (((steps) & UA_CERTIFICATEVERIFICATION_STEP_ ## name) != 0u)
+
+typedef struct
+{
+    UA_Boolean allowUsageInstanceCert: 1;
+    UA_Boolean allowUsageIssuerCert: 1;
+    UA_Boolean allowUsageUserCert: 1;
+
+    UA_UInt32 verificationSteps;
+} UA_CertificateVerificationSettings;
+
+#define UA_CERTIFICATEVERIFICATIONSETTINGS_NONE() \
+    {false, false, false, UA_CERTIFICATEVERIFICATION_FOR_INTEGRITY}
 
 struct UA_CertificateGroup;
 typedef struct UA_CertificateGroup UA_CertificateGroup;
@@ -67,7 +135,8 @@ struct UA_CertificateGroup {
                                         size_t *crlsSize);
 
     UA_StatusCode (*verifyCertificate)(UA_CertificateGroup *certGroup,
-                                       const UA_ByteString *certificate);
+                                       const UA_ByteString *certificate,
+                                       UA_CertificateVerificationSettings settings);
 
     void (*clear)(UA_CertificateGroup *certGroup);
 };
