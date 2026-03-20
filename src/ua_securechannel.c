@@ -864,7 +864,8 @@ UA_SecureChannel_loadBuffer(UA_SecureChannel *channel, const UA_ByteString buffe
         if(!t)
             return UA_STATUSCODE_BADOUTOFMEMORY;
 
-        memcpy(t + channel->unprocessed.length, buffer.data, buffer.length);
+        if(buffer.length)
+            memcpy(t + channel->unprocessed.length, buffer.data, buffer.length);
         channel->unprocessed.data = t;
         channel->unprocessed.length += buffer.length;
         return UA_STATUSCODE_GOOD;
