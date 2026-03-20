@@ -189,7 +189,7 @@ static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    if(!ctx->calcOnly)
+    if(!ctx->calcOnly && len)
         memcpy(ctx->pos, c, len);
     ctx->pos += len;
     return UA_STATUSCODE_GOOD;
@@ -707,6 +707,8 @@ DECODE_XML(Boolean) {
 
 static UA_StatusCode
 decodeSigned(const UA_Byte *data, size_t dataSize, UA_Int64 *dst) {
+    if(!data || dataSize == 0)
+        return UA_STATUSCODE_BADDECODINGERROR;
     size_t len = parseInt64((const char*)data, dataSize, dst);
     if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -723,6 +725,8 @@ decodeSigned(const UA_Byte *data, size_t dataSize, UA_Int64 *dst) {
 
 static UA_StatusCode
 decodeUnsigned(const UA_Byte *data, size_t dataSize, UA_UInt64 *dst) {
+    if(!data || dataSize == 0)
+        return UA_STATUSCODE_BADDECODINGERROR;
     size_t len = parseUInt64((const char*)data, dataSize, dst);
     if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -853,6 +857,9 @@ DECODE_XML(Double) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
+
+    if(!data || length == 0)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
     /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
      * Maximum digit counts for select IEEE floating-point formats: 1074
