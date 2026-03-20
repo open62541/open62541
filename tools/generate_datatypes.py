@@ -222,22 +222,30 @@ class CGenerator:
             return "UA_DATATYPEKIND_STRUCTURE"
         raise RuntimeError("Unknown type")
 
-    @staticmethod
-    def get_struct_overlayable(struct):
-        if not struct.pointerfree == "false":
+    def get_struct_overlayable(self, struct):
+        if not struct.pointerfree:
             return "false"
         before = None
-        overlayable = ""
+        parts = []
         for m in struct.members:
             if m.is_array or not m.member_type.pointerfree:
                 return "false"
-            overlayable += "\n\t\t && " + m.member_type.overlayable
+            # base overlayable for the member type
+            parts.append(self.get_type_overlayable(m.member_type))
             if before:
-                overlayable += "\n\t\t && offsetof(UA_%s, %s) == (offsetof(UA_%s, %s) + sizeof(UA_%s))" % \
-                               (makeCIdentifier(struct.name), makeCIdentifier(m.name), makeCIdentifier(struct.name),
-                                makeCIdentifier(before.name), makeCIdentifier(before.member_type.name))
+                parts.append("offsetof(UA_%s, %s) == (offsetof(UA_%s, %s) + sizeof(UA_%s))" % (
+                    makeCIdentifier(struct.name), makeCIdentifier(m.name), makeCIdentifier(struct.name),
+                    makeCIdentifier(before.name), makeCIdentifier(before.member_type.name)))
             before = m
-        return overlayable
+        if not parts:
+            return "false"
+        # Check no trailing end-padding: struct size must equal offset-of-last + sizeof-last.
+        # This matches the loader's end_padding == 0 check in UA_DataType_fromStructureDescription.
+        if before:
+            parts.append("sizeof(UA_%s) == (offsetof(UA_%s, %s) + sizeof(UA_%s))" % (
+                makeCIdentifier(struct.name), makeCIdentifier(struct.name),
+                makeCIdentifier(before.name), makeCIdentifier(before.member_type.name)))
+        return "\n\t\t && ".join(parts)
 
     def get_type_overlayable(self, datatype):
         if isinstance(datatype, BuiltinType) or isinstance(datatype, OpaqueType):
@@ -257,8 +265,11 @@ class CGenerator:
         xmlEncodingId = "{{{}, {}}}".format(xmlNs, getNodeidTypeAndId(bareXmlId))
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
-        # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
-        isEnum = isinstance(datatype, EnumerationType)  and not datatype.isOptionSet
+        overlay_expr = self.get_type_overlayable(datatype)
+        # Remove any leading whitespace/newlines that could produce a leading '&&'
+        overlay_expr = re.sub(r'^[\s\n\t]*&&\s*', 'true && ', overlay_expr)
+        # OptionSets are also described via their elements (bit flags), like regular enums
+        isEnum = isinstance(datatype, EnumerationType)
         return "{\n" + \
                "    UA_TYPENAME(\"%s\") /* .typeName */\n" % idName + \
                "    " + typeid + ", /* .typeId */\n" + \
@@ -267,7 +278,7 @@ class CGenerator:
                "    sizeof(UA_" + idName + "), /* .memSize */\n" + \
                "    " + self.get_type_kind(datatype) + ", /* .typeKind */\n" + \
                "    " + pointerfree + ", /* .pointerFree */\n" + \
-               "    " + self.get_type_overlayable(datatype) + ", /* .overlayable */\n" + \
+               "    " + overlay_expr + ", /* .overlayable */\n" + \
                "    " + str(len(datatype.elements) if isEnum else len(datatype.members)) + ", /* .membersSize */\n" + \
                "    %s_members" % idName + "  /* .members */\n" + \
                "}"
@@ -275,8 +286,8 @@ class CGenerator:
     @staticmethod
     def print_members(datatype, namespaceMap):
         idName = makeCIdentifier(datatype.name)
-        # TODO: OptionSet is omitted because the type description is not generated as UA_DATATYPEKIND_ENUM
-        isEnum = isinstance(datatype, EnumerationType) and not datatype.isOptionSet
+        # OptionSets are also described via their elements (bit flags), like regular enums
+        isEnum = isinstance(datatype, EnumerationType)
         if (not isEnum and len(datatype.members) == 0) or (isEnum and len(datatype.elements) == 0):
             return "#define %s_members NULL" % (idName)
         isUnion = isinstance(datatype, StructType) and datatype.is_union
@@ -358,7 +369,7 @@ class CGenerator:
         idName = makeCIdentifier(datatype.name)
         funcs = "UA_INLINABLE( void\nUA_{}_init(UA_{} *p), {{\n    memset(p, 0, sizeof(UA_{}));\n}})\n\n".format(idName, idName, idName)
         funcs += "UA_INLINABLE( UA_{} *\nUA_{}_new(void), {{\n    return (UA_{}*)UA_new({});\n}})\n\n".format(idName, idName, idName, CGenerator.print_datatype_ptr(datatype))
-        if datatype.pointerfree == "true":
+        if datatype.pointerfree:
             funcs += "UA_INLINABLE( UA_StatusCode\nUA_{}_copy(const UA_{} *src, UA_{} *dst), {{\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n}})\n\n".format(idName, idName, idName)
             funcs += "UA_INLINABLE( void\nUA_{}_clear(UA_{} *p), {{\n    memset(p, 0, sizeof(UA_{}));\n}})\n".format(idName, idName, idName)
         else:

@@ -4,6 +4,7 @@
  *
  *    Copyright 2025 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) SICK AG (Author: Joerg Fischer)
  */
 
 #include <open62541/types.h>
@@ -356,20 +357,62 @@ UA_DataType_toStructureDescription(const UA_DataType *type,
 /*************/
 /* Enum Type */
 /*************/
+static UA_StatusCode
+UA_DataType_fromEnumDescriptionOptionSet(UA_DataType *type,
+    const UA_EnumDescription *descr) {
+    const UA_UInt16 kind = (UA_UInt16)(descr->builtInType - 1);
+    if(kind != UA_DATATYPEKIND_BYTE && kind != UA_DATATYPEKIND_UINT16 &&
+       kind != UA_DATATYPEKIND_UINT32 && kind != UA_DATATYPEKIND_UINT64 &&
+       kind != UA_DATATYPEKIND_EXTENSIONOBJECT) {
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    }
+
+    const UA_StatusCode res = fromDescription(type, (const UA_DataTypeDescription*)descr);
+    if(res != UA_STATUSCODE_GOOD) {
+        return res;
+    }
+
+    // Represent the OptionSet using the underlying builtin kind when possible
+    type->typeKind = (UA_DataTypeKind)kind;
+    if(kind < UA_DATATYPEKINDS) {
+        type->memSize = UA_TYPES[kind].memSize;
+        type->pointerFree = UA_TYPES[kind].pointerFree;
+        type->overlayable = UA_TYPES[kind].overlayable;
+    } else {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    /* Allocate the members array (option values) below */
+    type->members = (UA_DataTypeMember *)
+        UA_calloc(descr->enumDefinition.fieldsSize, sizeof(UA_DataTypeMember));
+    if(!type->members) {
+        UA_DataType_clear(type);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    type->membersSize = (UA_Byte)descr->enumDefinition.fieldsSize;
+
+    /* Copy the enum/option fields into the members array */
+    for(size_t i = 0; i < type->membersSize; i++) {
+        UA_DataTypeMember *dtm = &type->members[i];
+        const UA_EnumField *ef = &descr->enumDefinition.fields[i];
+        dtm->memberType = (const UA_DataType*)(uintptr_t)ef->value;
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+        dtm->memberName = (char*)UA_malloc(ef->name.length + 1);
+        UA_CHECK(dtm->memberName != NULL,
+                 UA_DataType_clear(type); return UA_STATUSCODE_BADOUTOFMEMORY);
+        memcpy((char*)(uintptr_t)dtm->memberName, ef->name.data, ef->name.length);
+        *(char*)(uintptr_t)&dtm->memberName[ef->name.length] = '\0';
+#endif
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
 
 static UA_StatusCode
-UA_DataType_fromEnumDescription(UA_DataType *type,
-                                const UA_EnumDescription *descr) {
-    /* If the builtInType is Int32, the DataType is an Enumeration. If the
-     * builtInType is one of the UInteger DataTypes or ExtensionObject, the
-     * DataType is an OptionSet. */
-    if(descr->builtInType != UA_DATATYPEKIND_INT32 + 1)
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
-
-    /* Set the basic description */
-    UA_StatusCode res = fromDescription(type, (const UA_DataTypeDescription*)descr);
-    if(res != UA_STATUSCODE_GOOD)
+UA_DataType_fromEnumDescriptionEnum(UA_DataType *type, const UA_EnumDescription *descr) {
+    const UA_StatusCode res = fromDescription(type, (const UA_DataTypeDescription*)descr);
+    if(res != UA_STATUSCODE_GOOD) {
         return res;
+    }
 
     /* Set the enum description */
     type->typeKind = UA_DATATYPEKIND_ENUM;
@@ -386,7 +429,7 @@ UA_DataType_fromEnumDescription(UA_DataType *type,
     }
     type->membersSize = (UA_Byte)descr->enumDefinition.fieldsSize;
 
-    /* Copy the enum fields into the members array */
+     /* Copy the enum fields into the members array */
     for(size_t i = 0; i < type->membersSize; i++) {
         UA_DataTypeMember *dtm = &type->members[i];
         const UA_EnumField *ef = &descr->enumDefinition.fields[i];
@@ -402,14 +445,36 @@ UA_DataType_fromEnumDescription(UA_DataType *type,
 }
 
 static UA_StatusCode
+UA_DataType_fromEnumDescription(UA_DataType *type,
+                                const UA_EnumDescription *descr) {
+    /*
+     * If the builtInType is Int32, the DataType is an Enumeration. If the
+     * builtInType is one of the UInteger DataTypes or ExtensionObject, the
+     * DataType is an OptionSet.
+     */
+    if(descr->builtInType == UA_DATATYPEKIND_INT32 + 1) {
+        return UA_DataType_fromEnumDescriptionEnum(type, descr);
+    }
+    return UA_DataType_fromEnumDescriptionOptionSet(type, descr);
+
+}
+
+static UA_StatusCode
 UA_DataType_toEnumDescription(const UA_DataType *type,
                               UA_EnumDescription *descr) {
     UA_StatusCode res = toDescription(type, (UA_DataTypeDescription *)descr);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* Set the builtin type */
-    descr->builtInType = UA_DATATYPEKIND_INT32 + 1;
+    /* Set the builtInType: typeKind+1 matches the OPC UA BuiltInType identifier.
+     * Regular enumerations use Int32; OptionSets use the underlying unsigned type. */
+    if(type->typeKind == UA_DATATYPEKIND_BYTE   ||
+       type->typeKind == UA_DATATYPEKIND_UINT16 ||
+       type->typeKind == UA_DATATYPEKIND_UINT32 ||
+       type->typeKind == UA_DATATYPEKIND_UINT64)
+        descr->builtInType = (UA_Byte)(type->typeKind + 1);
+    else
+        descr->builtInType = (UA_Byte)(UA_DATATYPEKIND_INT32 + 1);
 
     /* Allocate the enum fields */
     descr->enumDefinition.fields = (UA_EnumField*)
@@ -503,6 +568,14 @@ UA_DataType_toDescription(const UA_DataType *type, UA_ExtensionObject *descr) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     switch(type->typeKind) {
     case UA_DATATYPEKIND_ENUM:
+    /* OptionSet: stored as a numeric kind with members describing the bit flags */
+    case UA_DATATYPEKIND_BYTE:
+    case UA_DATATYPEKIND_UINT16:
+    case UA_DATATYPEKIND_UINT32:
+    case UA_DATATYPEKIND_UINT64:
+        /* A plain numeric subtype without members has no structured definition */
+        if(type->typeKind != UA_DATATYPEKIND_ENUM && type->membersSize == 0)
+            goto simple_type;
         descr_data = UA_EnumDescription_new();
         if(!descr_data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -521,6 +594,7 @@ UA_DataType_toDescription(const UA_DataType *type, UA_ExtensionObject *descr) {
                           (UA_StructureDescription*)descr_data);
         break;
     default:
+    simple_type:
         descr_data = UA_SimpleTypeDescription_new();
         if(!descr_data)
             return UA_STATUSCODE_BADOUTOFMEMORY;

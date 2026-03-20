@@ -19,10 +19,20 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         FILE_NS "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeSet2.xml"
         INTERNAL)
 
+    ua_generate_nodeset_and_datatypes(
+            NAME "nodesetloader-autoid"
+            FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.NodeIds.csv"
+            FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.Types.bsd"
+            OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
+            FILE_NS "${UA_NODESET_DIR}/AutoID/Opc.Ua.AutoID.NodeSet2.xml"
+            DEPENDS "nodesetloader-di"
+            INTERNAL
+    )
     add_executable(check_nodeset_loader_compare_di check_nodeset_loader_compare_di.c
                    ${UA_NODESET_NODESETLOADER_DI_SOURCES} ${UA_TYPES_NODESETLOADER_DI_SOURCES}
+                   ${UA_NODESET_NODESETLOADER_AUTOID_SOURCES} ${UA_TYPES_NODESETLOADER_AUTOID_SOURCES}
                    $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins> $<TARGET_OBJECTS:open62541-testplugins>)
-    add_dependencies(check_nodeset_loader_compare_di open62541-generator-ns-nodesetloader-di)
+    add_dependencies(check_nodeset_loader_compare_di open62541-generator-ns-nodesetloader-autoid)
     target_link_libraries(check_nodeset_loader_compare_di ${LIBS})
     add_test_valgrind(check_nodeset_loader_compare_di ${TESTS_BINARY_DIR}/check_nodeset_loader_compare_di)
 
