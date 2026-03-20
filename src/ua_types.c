@@ -535,21 +535,20 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
     struct musl_tm dts;
     memset(&dts, 0, sizeof(dts));
 
-    size_t pos = 0;
-    size_t len;
-
     /* Parse the year. The ISO standard asks for four digits. But we accept up
      * to five with an optional plus or minus in front due to the range of the
      * DateTime 64bit integer. But in that case we require the year and the
      * month to be separated by a '-'. Otherwise we cannot know where the month
      * starts. */
+    size_t pos = 0;
     if(str.data[0] == '-' || str.data[0] == '+')
         pos++;
     UA_Int64 year = 0;
-    len = parseInt64((char*)&str.data[pos], 5, &year);
+    UA_CHECK(str.length - pos > 5, return UA_STATUSCODE_BADDECODINGERROR);
+    size_t len = parseInt64((char*)&str.data[pos], 5, &year);
     pos += len;
-    if(len != 4 && str.data[pos] != '-')
-        return UA_STATUSCODE_BADDECODINGERROR;
+    UA_CHECK(len > 0 && pos < str.length, return UA_STATUSCODE_BADDECODINGERROR);
+    UA_CHECK(len == 4 || str.data[pos] == '-', return UA_STATUSCODE_BADDECODINGERROR);
     if(str.data[0] == '-')
         year = -year;
     dts.tm_year = (UA_Int16)year - 1900;
@@ -558,6 +557,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
     /* Parse the month */
     UA_UInt64 month = 0;
+    UA_CHECK(str.length - pos > 2, return UA_STATUSCODE_BADDECODINGERROR);
     len = parseUInt64((char*)&str.data[pos], 2, &month);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
@@ -567,6 +567,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
     /* Parse the day and check the T between date and time */
     UA_UInt64 day = 0;
+    UA_CHECK(str.length - pos > 2, return UA_STATUSCODE_BADDECODINGERROR);
     len = parseUInt64((char*)&str.data[pos], 2, &day);
     pos += len;
     UA_CHECK(len == 2 || str.data[pos] != 'T',
@@ -576,6 +577,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
     /* Parse the hour */
     UA_UInt64 hour = 0;
+    UA_CHECK(str.length - pos > 2, return UA_STATUSCODE_BADDECODINGERROR);
     len = parseUInt64((char*)&str.data[pos], 2, &hour);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
@@ -585,6 +587,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
     /* Parse the minute */
     UA_UInt64 min = 0;
+    UA_CHECK(str.length - pos > 2, return UA_STATUSCODE_BADDECODINGERROR);
     len = parseUInt64((char*)&str.data[pos], 2, &min);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
@@ -594,6 +597,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
     /* Parse the second */
     UA_UInt64 sec = 0;
+    UA_CHECK(str.length - pos >= 2, return UA_STATUSCODE_BADDECODINGERROR);
     len = parseUInt64((char*)&str.data[pos], 2, &sec);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
@@ -620,12 +624,12 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
         (sinceunix + (UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC)) * UA_DATETIME_SEC;
 
     /* Parse the fraction of the second if defined */
+    UA_CHECK(pos < str.length, goto finish);
     if(str.data[pos] == ',' || str.data[pos] == '.') {
         pos++;
         double frac = 0.0;
         double denom = 0.1;
-        while(pos < str.length &&
-              str.data[pos] >= '0' && str.data[pos] <= '9') {
+        while(pos < str.length && str.data[pos] >= '0' && str.data[pos] <= '9') {
             frac += denom * (str.data[pos] - '0');
             denom *= 0.1;
             pos++;
@@ -635,25 +639,37 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
     }
 
     /* Time zone handling */
-    int tzSign = 0;
-    UA_UInt64 tzHour = 0, tzMin = 0;
+    UA_CHECK(pos < str.length, goto finish);
     if(str.data[pos] == 'Z') {
         pos++;
     } else if(str.data[pos] == '+' || str.data[pos] == '-') {
-        tzSign = (str.data[pos] == '-') ? -1 : 1;
-        pos++;
+        UA_UInt64 tzHour = 0, tzMin = 0;
+        UA_Int64 offsetSeconds = 0;
+        UA_Byte tzSign = str.data[pos++];
+
+        UA_CHECK(str.length - pos >= 2, return UA_STATUSCODE_BADDECODINGERROR);
         len = parseUInt64((char*)&str.data[pos], 2, &tzHour);
         pos += len;
+        UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
+
+        UA_CHECK(str.length > pos, goto finish); /* Allow missing tz minutes */
         if(str.data[pos] == ':')
             pos++;
+
+        UA_CHECK(str.length - pos >= 2, return UA_STATUSCODE_BADDECODINGERROR);
         len = parseUInt64((char*)&str.data[pos], 2, &tzMin);
         pos += len;
-        UA_Int64 offsetSeconds = (UA_Int64)(tzHour * 3600 + tzMin * 60) * tzSign;
+        UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
+
+        offsetSeconds = (tzHour * 3600) + (tzMin * 60);
+        if(tzSign == '-')
+            offsetSeconds = -offsetSeconds;
         dt -= (UA_DateTime)(offsetSeconds * UA_DATETIME_SEC);
     } else {
         return UA_STATUSCODE_BADDECODINGERROR;
     }
 
+ finish:
     /* Remove the underflow/overflow protection (see above) */
     if(sinceunix > 0) {
         if(dt > UA_INT64_MAX - UA_DATETIME_SEC)
