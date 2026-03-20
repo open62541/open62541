@@ -127,16 +127,29 @@ policy_clear_none(UA_SecurityPolicy *policy) {
 UA_StatusCode
 UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCertificate,
                        const UA_Logger *logger) {
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    
     policy->policyContext = (void *)(uintptr_t)logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     policy->logger = logger;
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-    UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+    retval = UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+    if (retval != UA_STATUSCODE_GOOD) {
+        policy_clear_none(policy);
+        return retval;
+    }
 #elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
-    UA_OpenSSL_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+    retval = UA_OpenSSL_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
+    if (retval != UA_STATUSCODE_GOOD) {
+        policy_clear_none(policy);
+        return retval;
+    }
 #else
-    UA_ByteString_copy(&localCertificate, &policy->localCertificate);
+    retval = UA_ByteString_copy(&localCertificate, &policy->localCertificate);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 #endif
 
     policy->symmetricModule.generateKey = generateKey_none;
