@@ -68,6 +68,11 @@ depending on the contained information model.
   - Encrypted communication
   - Asynchronous service requests in the client
 
+- Configuration
+
+  - JSON5-based configuration files for both client and server (:ref:`client-json-config`, :ref:`server-json-config`)
+  - Flexible configuration API for runtime setup
+
 - Information model
 
   - Support for all OPC UA node types (including method nodes)
