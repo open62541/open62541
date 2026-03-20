@@ -1737,9 +1737,12 @@ initSecurityPolicy(UA_Client *client) {
     /* Verify the remote server certificate */
     UA_StatusCode res;
     if(client->endpoint.serverCertificate.length > 0) {
+        UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
+        verSettings.allowUsageInstanceCert = true;
+        verSettings.verificationLevel = UA_CERTIFICATEVERIFICATION_TRUST;
         res = client->config.certificateVerification.
             verifyCertificate(&client->config.certificateVerification,
-                              &client->endpoint.serverCertificate);
+                              &client->endpoint.serverCertificate, verSettings);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "Cannot validate the server certificate "

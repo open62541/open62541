@@ -4,6 +4,7 @@
  *
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
+ *    Copyright (c) 2025 Pilz GmbH & Co. KG, Author: Marcel Patzlaff
  */
 
 #ifndef UA_PLUGIN_CERTIFICATEGROUP_H
@@ -13,6 +14,41 @@
 #include <open62541/plugin/log.h>
 
 _UA_BEGIN_DECLS
+
+typedef enum
+{
+    /* Apply integrity checks to ensure the integrity of the certificate and its chain:
+     * * Certificate Structure (1)
+     * * Certificate Usage (9)
+     * * Build Certificate Chain (2)
+     * * Signature (3)
+     * * Security Policy Check (4)*/
+    UA_CERTIFICATEVERIFICATION_INTEGRITY = 0,
+
+    /* Additionally apply checks to ensure the validity of the certificate:
+     * * Validity Period (6)
+     * * Find Revocation List (10)
+     * * Revocation Check (11)*/
+    UA_CERTIFICATEVERIFICATION_VALIDITY,
+
+    /* Additionally apply checks to ensure that the certificate can be trusted:
+     * * Host Name (7)
+     * * URI (Application or Product URI check) (8)
+     * * Trust List Check (5)*/
+    UA_CERTIFICATEVERIFICATION_TRUST,
+} UA_CertificateVerification;
+
+typedef struct
+{
+    UA_Boolean allowUsageInstanceCert: 1;
+    UA_Boolean allowUsageIssuerCert: 1;
+    UA_Boolean allowUsageUserCert: 1;
+    UA_Boolean skipTrustListChecks: 1;
+    UA_CertificateVerification verificationLevel: 2;
+} UA_CertificateVerificationSettings;
+
+#define UA_CERTIFICATEVERIFICATIONSETTINGS_NONE() \
+    {false, false, false, false, UA_CERTIFICATEVERIFICATION_INTEGRITY}
 
 struct UA_CertificateGroup;
 typedef struct UA_CertificateGroup UA_CertificateGroup;
@@ -67,7 +103,8 @@ struct UA_CertificateGroup {
                                         size_t *crlsSize);
 
     UA_StatusCode (*verifyCertificate)(UA_CertificateGroup *certGroup,
-                                       const UA_ByteString *certificate);
+                                       const UA_ByteString *certificate,
+                                       UA_CertificateVerificationSettings settings);
 
     void (*clear)(UA_CertificateGroup *certGroup);
 };

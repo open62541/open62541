@@ -586,7 +586,8 @@ FileCertStore_getCertificateCrls(UA_CertificateGroup *certGroup, const UA_ByteSt
 }
 
 static UA_StatusCode
-FileCertStore_verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
+FileCertStore_verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                                UA_CertificateVerificationSettings settings) {
     /* Check parameter */
     if(certGroup == NULL || certificate == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -598,7 +599,7 @@ FileCertStore_verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteStr
         return retval;
     }
 
-    retval = context->store->verifyCertificate(context->store, certificate);
+    retval = context->store->verifyCertificate(context->store, certificate, settings);
     if(retval == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED ||
        retval == UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED ||
        retval == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN ||
