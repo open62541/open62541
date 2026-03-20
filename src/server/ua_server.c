@@ -795,7 +795,7 @@ secureChannel_delayedCloseTrustList(void *application, void *context) {
     UA_SecureChannel *channel;
     UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
     verSettings.allowUsageInstanceCert = true;
-    verSettings.verificationLevel = UA_CERTIFICATEVERIFICATION_TRUST;
+    verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_TRUST;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
         if(channel->state != UA_SECURECHANNELSTATE_CLOSED &&
            channel->state != UA_SECURECHANNELSTATE_CLOSING)

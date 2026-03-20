@@ -357,7 +357,7 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                     UA_CertificateVerificationSettings settings) {
     /* Verify the ApplicationUri */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(ad && (settings.verificationLevel == UA_CERTIFICATEVERIFICATION_TRUST)) {
+    if(ad && UA_CERTIFICATEVERIFICATION_SELECTED(settings.verificationSteps, URI)) {
         res = UA_CertificateUtils_verifyApplicationUri(&certificate, &ad->applicationUri);
         if(res != UA_STATUSCODE_GOOD) {
             if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_WARN) {

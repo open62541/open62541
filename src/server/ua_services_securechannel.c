@@ -60,7 +60,7 @@ processOPN_AsymHeader(void *application, UA_SecureChannel *channel,
     if(asymHeader->senderCertificate.length > 0) {
         UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
         verSettings.allowUsageInstanceCert = true;
-        verSettings.verificationLevel = UA_CERTIFICATEVERIFICATION_TRUST;
+        verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_TRUST;
         UA_StatusCode res =
             validateCertificate(server, &sc->secureChannelPKI, channel, NULL,
                                 "OpenSecureChannel", NULL, asymHeader->senderCertificate, verSettings);

@@ -661,7 +661,7 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
      * - Host Name
      * - URI */
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    if(settings.verificationLevel >= UA_CERTIFICATEVERIFICATION_INTEGRITY) {
+    if(UA_CERTIFICATEVERIFICATION_SELECTED(settings.verificationSteps, BUILD_CERTIFICATE_CHAIN)) {
         /* Verification Step: Build Certificate Chain
          * We perform the checks for each certificate inside. */
         mbedtls_x509_crt *old_issuers[UA_MBEDTLS_MAX_CHAIN_LENGTH];

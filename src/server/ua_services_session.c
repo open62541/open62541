@@ -488,7 +488,7 @@ Service_CreateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     } else if(request->clientCertificate.length > 0) {
         UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
         verSettings.allowUsageInstanceCert = true;
-        verSettings.verificationLevel = UA_CERTIFICATEVERIFICATION_INTEGRITY;
+        verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_TRUST;
         rh->serviceResult =
             validateCertificate(server, &server->config.secureChannelPKI,
                                 channel, NULL, "CreateSession",
@@ -890,7 +890,7 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
     /* Validate the certificate against the SessionPKI */
     UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
     verSettings.allowUsageUserCert = true;
-    verSettings.verificationLevel = UA_CERTIFICATEVERIFICATION_TRUST;
+    verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_TRUST;
     res = validateCertificate(server, &server->config.sessionPKI,
                               session->channel, session, "ActivateSession",
                               NULL, token->certificateData, verSettings);

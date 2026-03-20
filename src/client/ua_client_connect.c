@@ -1739,7 +1739,7 @@ initSecurityPolicy(UA_Client *client) {
     if(client->endpoint.serverCertificate.length > 0) {
         UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
         verSettings.allowUsageInstanceCert = true;
-        verSettings.verificationLevel = UA_CERTIFICATEVERIFICATION_TRUST;
+        verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_TRUST;
         res = client->config.certificateVerification.
             verifyCertificate(&client->config.certificateVerification,
                               &client->endpoint.serverCertificate, verSettings);

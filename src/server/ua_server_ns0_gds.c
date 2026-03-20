@@ -309,13 +309,11 @@ updateCertificate(UA_Server *server,
     /* Ensure certificate integrity before accepting it */
     UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
     verSettings.allowUsageInstanceCert= true;
-    verSettings.verificationLevel = UA_CERTIFICATEVERIFICATION_INTEGRITY;
+    verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_INTEGRITY;
     UA_StatusCode retval = validateCertificate(server, &server->config.secureChannelPKI,
                                                NULL, NULL, "UpdateCertificate", // TODO: session pointer from somewhere?
                                                NULL, *certificate, verSettings);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-            "Certificate verification failed with %s", UA_StatusCode_name(retval));
         // mask error with UA_STATUSCODE_BADCERTIFICATEINVALID
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
@@ -478,13 +476,11 @@ addCertificate(UA_Server *server,
     UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
     verSettings.allowUsageInstanceCert = (certGroup == &(server->config.secureChannelPKI));
     verSettings.allowUsageUserCert = (certGroup == &(server->config.sessionPKI));
-    verSettings.verificationLevel = UA_CERTIFICATEVERIFICATION_VALIDITY;
+    verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_VALIDITY;
     UA_StatusCode retval = validateCertificate(server, certGroup,
                                                NULL, NULL, "AddCertificate", // TODO: session pointer from somewhere?
                                                NULL, certificate, verSettings);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-            "Certificate verification failed with %s", UA_StatusCode_name(retval));
         // mask error with UA_STATUSCODE_BADCERTIFICATEINVALID
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
@@ -1105,7 +1101,7 @@ secureChannel_delayedClose(void *application, void *context) {
     UA_SecureChannel *channel;
     UA_CertificateVerificationSettings verSettings = UA_CERTIFICATEVERIFICATIONSETTINGS_NONE();
     verSettings.allowUsageInstanceCert = true;
-    verSettings.verificationLevel = UA_CERTIFICATEVERIFICATION_TRUST;
+    verSettings.verificationSteps = UA_CERTIFICATEVERIFICATION_FOR_TRUST;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
         if(channel->state == UA_SECURECHANNELSTATE_CLOSED || channel->state == UA_SECURECHANNELSTATE_CLOSING)
             continue;
