@@ -204,7 +204,7 @@ closeFileMethod(UA_Server *server,
     /* Remove session context */
     removeSessionContext(fileCtx, sessionId);
     
-    return UA_STATUSCODE_GOOD;
+    return res;
 }
 
 /* Read method - uses sessionId for per-client context */
@@ -239,7 +239,7 @@ readFileMethod(UA_Server *server,
     UA_Int32 length = *(UA_Int32*)input[0].data;
     
     /* Read from file */
-    UA_ByteString data;
+    UA_ByteString data; 
     UA_ByteString_init(&data);
     
     /* Perform filesystem delete */

@@ -266,6 +266,7 @@ function unit_tests_alarms {
           -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
           -DUA_FORCE_WERROR=ON \
           -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_FILESYSTEM=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -376,6 +377,7 @@ function run_examples {
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_FILESYSTEM=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
@@ -421,6 +423,7 @@ function examples_valgrind {
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_FILESYSTEM=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
@@ -480,9 +483,10 @@ function build_all_companion_specs {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_FORCE_WERROR=ON \
           -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;ISA95-JOBCONTROL\;OpenSCS\;CNC\;\
-AMB\;AutoID\;POWERLINK\;Machinery\;LADS\;PackML\;PNEM\;PLCopen\;MachineTool\;\
+AMB\;AutoID\;POWERLINK\;Machinery\;Machinery-Jobs\;LADS\;PackML\;PNEM\;PLCopen\;MachineTool\;\
 PROFINET\;MachineVision\;FDT\;CommercialKitchenEquipment\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
           -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_FILESYSTEM=ON \
           ..
     make ${MAKEOPTS} check_nodeset_compiler_testnodeset
     ./bin/tests/check_nodeset_compiler_testnodeset

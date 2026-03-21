@@ -444,6 +444,33 @@ class CSVBSDTypeParser(TypeParser):
                 table[nd.attributes["SymbolicName"].nodeValue] = result_string
         return table
 
+    def _find_type_ns(self, typeName):
+        """Find the namespace URI of a type by name, preferring the namespace
+        that matches the current output file (self.outname).  This ensures CSV
+        nodeIds are assigned to the correct spec's own type when the same type
+        name also appears in an imported (dependency) namespace.
+
+        Example
+        -------
+        Suppose Machinery/Jobs imports ISA95-JOBCONTROL which defines
+        ``ProcessIrregularity`` (outname="types_isa95_jobcontrol"), and the
+        MachineTool BSD also defines ``ProcessIrregularity`` for its own namespace
+        (outname="types_machinetool").  When generating types_machinetool:
+
+            self.outname == "types_machinetool"
+            self._find_type_ns("ProcessIrregularity")
+            # → returns the MachineTool namespace URI so that nodeId 62 from
+            #   Opc.Ua.MachineTool.NodeIds.csv is stored on the MachineTool copy,
+            #   not on the already-imported ISA95-JOBCONTROL copy.
+        """
+        for ns in self.types:
+            if typeName in self.types[ns] and self.types[ns][typeName].outname == self.outname:
+                return ns
+        for ns in self.types:
+            if typeName in self.types[ns]:
+                return ns
+        return None
+
     def parseTypeDescriptions(self, f, table):
         csvreader = csv.reader(f, delimiter=',')
         for row in csvreader:
@@ -455,20 +482,18 @@ class CSVBSDTypeParser(TypeParser):
                 m = re.match('(.*?)_Encoding_DefaultBinary$', row[0])
                 if m:
                     baseType = m.group(1)
-                    for ns in self.types:
-                        if baseType in self.types[ns]:
-                            self.types[ns][baseType].binaryEncodingId = row[1]
-                            break
+                    ns = self._find_type_ns(baseType)
+                    if ns is not None:
+                        self.types[ns][baseType].binaryEncodingId = row[1]
 
                 # Check if node name ends with _Encoding_DefaultXml and store
                 # the node id in the corresponding DataType
                 m = re.match('(.*?)_Encoding_DefaultXml$', row[0])
                 if m:
                     baseType = m.group(1)
-                    for ns in self.types:
-                        if baseType in self.types[ns]:
-                            self.types[ns][baseType].xmlEncodingId = row[1]
-                            break
+                    ns = self._find_type_ns(baseType)
+                    if ns is not None:
+                        self.types[ns][baseType].xmlEncodingId = row[1]
                 continue
 
             if row[2] != "DataType":
@@ -484,7 +509,6 @@ class CSVBSDTypeParser(TypeParser):
             # check if typeName is a symbolicName and replace it with the browseName
             if typeName in table:
                 typeName = table[typeName]
-            for ns in self.types:
-                if typeName in self.types[ns]:
-                    self.types[ns][typeName].nodeId = row[1]
-                    break
+            ns = self._find_type_ns(typeName)
+            if ns is not None:
+                self.types[ns][typeName].nodeId = row[1]

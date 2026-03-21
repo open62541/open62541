@@ -1,3 +1,5 @@
+#if defined(UA_FILESYSTEM)
+
 #include <filesystem/ua_fileserver_driver.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/nodestore.h>
@@ -7,8 +9,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#if defined(UA_FILESYSTEM)
 
 /* Wrapper for start */
 static UA_StatusCode

@@ -1,7 +1,7 @@
+#if defined(UA_FILESYSTEM)
+
 #include <open62541/types.h>
 #include <stdio.h>
-
-#if defined(UA_FILESYSTEM)
 
 #ifndef UA_FILESYSTEM_FILETYPES_H_
 #define UA_FILESYSTEM_FILETYPES_H_

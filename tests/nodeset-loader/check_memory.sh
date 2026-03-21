@@ -121,7 +121,7 @@ memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
 
 echo "... DotNet ..."
 memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
-             $UA_NODESET_PATH/DotNet/Opc.Ua.NodeSet.xml
+             $UA_NODESET_PATH/DotNet/Opc.Ua.PredefinedNodes.xml
 
 echo "... FDI5 ..."
 memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \

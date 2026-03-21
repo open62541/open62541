@@ -209,7 +209,7 @@ UA_AsymEn_Basic256_getLocalKeyLength(const UA_SecurityPolicy *policy,
 static UA_StatusCode
 UA_AsymEn_Basic256_Decrypt(const UA_SecurityPolicy *policy,
                            void *channelContext, UA_ByteString *data) {
-    if(channelContext == NULL || data == NULL)
+    if(data == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     const openssl_PolicyContext *pc =
         (const openssl_PolicyContext*)policy->policyContext;

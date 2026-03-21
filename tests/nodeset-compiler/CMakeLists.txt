@@ -114,3 +114,12 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_TYPES_TESTS_TESTNODESET_SOURCES})
     add_dependencies(check_nodeset_compiler_testnodeset open62541-generator-ns-tests-testnodeset)
 endif()
+# Test cross-namespace same-name type handling in generate_datatypes.py.
+# Does not require a full NS0 build - runs standalone against the tool.
+# find_package is called explicitly so that Python3_EXECUTABLE is available
+# in this directory's CMake scope (the top-level already calls it, but the
+# explicit call here makes the dependency clear).
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME test_generate_datatypes_cross_ns
+         COMMAND "${Python3_EXECUTABLE}"
+                 "${CMAKE_CURRENT_SOURCE_DIR}/test_cross_ns_types.py")

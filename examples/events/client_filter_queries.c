@@ -42,7 +42,7 @@ create_event_filter_with_monitored_item(UA_Client *client,
                                         UA_MonitoredItemCreateResult *result){
     /* read the eventfilter query string and create the corresponding eventfilter */
 
-    char *input = "SELECT /Message, /0:Severity, /EventType "
+    char *input = "SELECT /Message, /0:Severity, /EventType, /SourceName "
         "WHERE /Severity >= 100";
     UA_StatusCode retval = UA_EventFilter_parse(filter, UA_STRING(input), NULL);
     if(retval != UA_STATUSCODE_GOOD) {
