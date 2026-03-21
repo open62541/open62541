@@ -298,6 +298,9 @@ struct UA_Server {
     size_t rolesSize;
     UA_Role *roles;
     UA_Boolean *rolesProtected; /* Parallel array: true for config roles */
+
+    /* Counter for generating unique NodeIds for custom roles */
+    UA_UInt32 nextCustomRoleId;
 #endif
 };
 
