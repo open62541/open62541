@@ -59,6 +59,8 @@ add_example(tutorial_server_reverseconnect tutorial_server_reverseconnect.c)
 
 if (UA_FILESYSTEM)
     add_example(tutorial_server_filesystem tutorial_server_filesystem.c)
+    add_example(tutorial_server_filesystem_directory tutorial_server_filesystem_directory.c)
+    add_example(tutorial_server_filesystem_file tutorial_server_filesystem_file.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)

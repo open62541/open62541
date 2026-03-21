@@ -129,7 +129,6 @@ typedef SSIZE_T ssize_t;
 /*---------------------------*/
 
 #include <direct.h>
-#include <minwindef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/stat.h>

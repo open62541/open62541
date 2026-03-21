@@ -186,35 +186,13 @@ UA_FileServerDriver *
 UA_FileServerDriver_new(const char *name, UA_Server *server, FileDriverType driverType);
 
 // ======================================================
-// public API functions for file operations (open, close, read, write, etc.)
+// Public API: Only makeFile, makeDirectory, and addFileSystem
+// All other operations (open, close, read, write, etc.) are accessed
+// by OPC UA clients via method calls on FileType/FileDirectoryType nodes.
 UA_EXPORT UA_THREADSAFE UA_StatusCode
 UA_Server_addFileSystem(UA_FileServerDriver *driver, UA_Server *server,
                       const UA_NodeId parentNode,
                       const char *mountPath);
-
-UA_EXPORT UA_StatusCode
-UA_Server_openFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *fileNodeId, UA_Byte openMode, UA_Int32 **handle);
-
-UA_EXPORT UA_StatusCode
-UA_Server_closeFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *fileNodeId, UA_Int32 *handle);
-
-UA_EXPORT UA_StatusCode
-UA_Server_readFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *fileNodeId, UA_Int32 *handle, UA_Int32 length, UA_ByteString *data);
-
-UA_EXPORT UA_StatusCode
-UA_Server_writeFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *fileNodeId, UA_Int32 *handle, const UA_ByteString *data);
-
-UA_EXPORT UA_StatusCode
-UA_Server_setFilePosition(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *fileNodeId, UA_Int32 *handle, UA_UInt64 position);
-
-UA_EXPORT UA_StatusCode
-UA_Server_getFilePosition(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *fileNodeId, UA_Int32 *handle, UA_UInt64 *position);
-
-UA_EXPORT UA_StatusCode
-UA_Server_deleteDirOrFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *nodeId);
-
-UA_EXPORT UA_StatusCode
-UA_Server_moveOrCopyItem(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *sourceNodeId, const UA_NodeId *destinationNodeId, bool copy);
 
 UA_EXPORT UA_StatusCode
 UA_Server_makeDirectory(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *parentNode, const char *dirName, UA_NodeId *newNodeId);

@@ -242,8 +242,8 @@ getFilePosition(UA_Int32 *handle, UA_UInt64 *position) {
 /* Get file size */
 UA_StatusCode
 getFileSize(const char *path, UA_UInt64 *size) {
-    struct _stat64 st;
-    if (_stat64(path, &st) != 0) {
+    struct stat st;
+    if (stat(path, &st) != 0) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     *size = (UA_UInt64)st.st_size;

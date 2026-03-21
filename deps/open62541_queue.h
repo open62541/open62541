@@ -99,10 +99,12 @@ struct name {								\
 #define	SLIST_HEAD_INITIALIZER(head)					\
     { NULL }
 
+#ifndef SLIST_ENTRY
 #define SLIST_ENTRY(type)						\
 struct {								\
     struct type *sle_next;	/* next element */			\
 }
+#endif
  
 /*
  * Singly-linked List access methods.
