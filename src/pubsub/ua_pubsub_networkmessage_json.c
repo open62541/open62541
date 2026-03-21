@@ -29,7 +29,8 @@ static const char * UA_DECODEKEY_PAYLOAD = "Payload";
 /* -- json encoding/decoding -- */
 static UA_StatusCode writeJsonKey_UA_String(CtxJson *ctx, const UA_String *in) {
     UA_STACKARRAY(char, out, in->length + 1);
-    memcpy(out, in->data, in->length);
+    if(in->length)
+        memcpy(out, in->data, in->length);
     out[in->length] = 0;
     return writeJsonKey(ctx, out);
 }
