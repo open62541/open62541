@@ -178,6 +178,25 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     return true;
 }
 
+struct UpdateSamplingContext {
+    UA_Server *server;
+    UA_Double oldPublishingInterval;
+};
+
+static void *
+updateSamplingIntervalVisitor(void *context, UA_MonitoredItem *mon) {
+    struct UpdateSamplingContext *ctx =
+        (struct UpdateSamplingContext*)context;
+
+    if(mon->parameters.samplingInterval == mon->subscription->publishingInterval ||
+       mon->parameters.samplingInterval == ctx->oldPublishingInterval) {
+        UA_MonitoredItem_unregisterSampling(ctx->server, mon);
+        UA_MonitoredItem_registerSampling(ctx->server, mon);
+    }
+
+    return NULL;
+}
+
 UA_Boolean
 Service_ModifySubscription(UA_Server *server, UA_Session *session,
                            const UA_ModifySubscriptionRequest *request,
@@ -216,14 +235,12 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
         /* For each MonitoredItem check if it was/shall be attached to the
          * publish interval. This ensures that we have less cyclic callbacks
          * registered and that the notifications are fresh. */
-        UA_MonitoredItem *mon;
-        LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-            if(mon->parameters.samplingInterval == sub->publishingInterval ||
-               mon->parameters.samplingInterval == oldPublishingInterval) {
-                UA_MonitoredItem_unregisterSampling(server, mon);
-                UA_MonitoredItem_registerSampling(server, mon);
-            }
-        }
+        struct UpdateSamplingContext ctx;
+        ctx.server = server;
+        ctx.oldPublishingInterval = oldPublishingInterval;
+
+        ZIP_ITER(UA_MonitoredItemIdTree, &sub->monitoredItemsById,
+                 updateSamplingIntervalVisitor, &ctx);
     }
 
     /* If the priority has changed, re-enter the subscription to the
@@ -615,14 +632,17 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     sub->wasTransferred = true;
 
     /* Move over the MonitoredItems and adjust the backpointers */
-    LIST_INIT(&newSub->monitoredItems);
-    UA_MonitoredItem *mon, *mon_tmp;
-    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, mon_tmp) {
-        LIST_REMOVE(mon, listEntry);
+    ZIP_INIT(&newSub->monitoredItemsById);
+    while(sub->monitoredItemsSize > 0) {
+        UA_MonitoredItem *mon =
+            ZIP_MIN(UA_MonitoredItemIdTree, &sub->monitoredItemsById);
+        if(!mon)
+            break;
+        ZIP_REMOVE(UA_MonitoredItemIdTree, &sub->monitoredItemsById, mon);
         mon->subscription = newSub;
-        LIST_INSERT_HEAD(&newSub->monitoredItems, mon, listEntry);
+        ZIP_INSERT(UA_MonitoredItemIdTree, &newSub->monitoredItemsById, mon);
+        sub->monitoredItemsSize--;
     }
-    sub->monitoredItemsSize = 0;
 
     /* Move over the notification queue */
     TAILQ_INIT(&newSub->notificationQueue);

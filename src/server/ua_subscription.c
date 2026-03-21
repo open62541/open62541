@@ -269,6 +269,7 @@ UA_Subscription_new(void) {
 
     TAILQ_INIT(&newSub->retransmissionQueue);
     TAILQ_INIT(&newSub->notificationQueue);
+    ZIP_INIT(&newSub->monitoredItemsById);
     return newSub;
 }
 
@@ -320,8 +321,11 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
 
     /* Delete monitored Items */
     UA_assert(server->monitoredItemsSize >= sub->monitoredItemsSize);
-    UA_MonitoredItem *mon, *tmp_mon;
-    LIST_FOREACH_SAFE(mon, &sub->monitoredItems, listEntry, tmp_mon) {
+    while(sub->monitoredItemsSize > 0) {
+        UA_MonitoredItem *mon =
+            ZIP_MIN(UA_MonitoredItemIdTree, &sub->monitoredItemsById);
+        if(!mon)
+            break;
         UA_MonitoredItem_delete(server, mon);
     }
     UA_assert(sub->monitoredItemsSize == 0);
@@ -354,12 +358,8 @@ Subscription_resetLifetime(UA_Subscription *sub) {
 
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId) {
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        if(mon->monitoredItemId == monitoredItemId)
-            break;
-    }
-    return mon;
+    return ZIP_FIND(UA_MonitoredItemIdTree, &sub->monitoredItemsById,
+                    &monitoredItemId);
 }
 
 static void
@@ -944,6 +944,28 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     }
 }
 
+static void *
+resendDataMonitoredItemVisitor(void *context, UA_MonitoredItem *mon) {
+    UA_Server *server = (UA_Server*)context;
+
+    /* Create only DataChange notifications */
+    if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+        return NULL;
+
+    /* Only if the mode is monitoring */
+    if(mon->monitoringMode != UA_MONITORINGMODE_REPORTING)
+        return NULL;
+
+    /* If a value is queued for a data MonitoredItem, the next value in
+     * the queue is sent in the Publish response. */
+    if(mon->queueSize > 0)
+        return NULL;
+
+    /* Create a notification with the last sampled value */
+    UA_MonitoredItem_createDataChangeNotification(server, mon, &mon->lastValue);
+    return NULL;
+}
+
 void
 UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -956,24 +978,8 @@ UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
      * queued for a data MonitoredItem, the next value in the queue is sent in
      * the Publish response. If no value is queued for a data MonitoredItem, the
      * last value sent is repeated in the Publish response. */
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
-        /* Create only DataChange notifications */
-        if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
-            continue;
-
-        /* Only if the mode is monitoring */
-        if(mon->monitoringMode != UA_MONITORINGMODE_REPORTING)
-            continue;
-
-        /* If a value is queued for a data MonitoredItem, the next value in
-         * the queue is sent in the Publish response. */
-        if(mon->queueSize > 0)
-            continue;
-
-        /* Create a notification with the last sampled value */
-        UA_MonitoredItem_createDataChangeNotification(server, mon, &mon->lastValue);
-    }
+    ZIP_ITER(UA_MonitoredItemIdTree, &sub->monitoredItemsById,
+             resendDataMonitoredItemVisitor, server);
 }
 
 void
@@ -1286,7 +1292,7 @@ UA_MonitoredItem_register(UA_Server *server, UA_MonitoredItem *mon) {
     UA_Subscription *sub = mon->subscription;
     mon->monitoredItemId = ++sub->lastMonitoredItemId;
     mon->subscription = sub;
-    LIST_INSERT_HEAD(&sub->monitoredItems, mon, listEntry);
+    ZIP_INSERT(UA_MonitoredItemIdTree, &sub->monitoredItemsById, mon);
     sub->monitoredItemsSize++;
     server->monitoredItemsSize++;
 
@@ -1332,7 +1338,7 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
 
     /* Deregister in Subscription and server */
     sub->monitoredItemsSize--;
-    LIST_REMOVE(mon, listEntry);
+    ZIP_REMOVE(UA_MonitoredItemIdTree, &sub->monitoredItemsById, mon);
     server->monitoredItemsSize--;
 }
 
