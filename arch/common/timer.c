@@ -54,14 +54,12 @@ static UA_DateTime earliest, latest, adjustedNextTime;
 
 static void *
 findTimer2Batch(void *context, UA_TimerEntry *compare) {
-    UA_TimerEntry *te = (UA_TimerEntry*)context;
-
-    /* NextTime deviation within interval? */
-    if(compare->nextTime < earliest || compare->nextTime > latest)
-        return NULL;
+    /* Invariance of ZIP_ITER_KEY  */
+    UA_assert(compare->nextTime >= earliest && compare->nextTime <= latest);
 
     /* One-shot timers have interval == 0.
      * They cannot participate in the modulo-based batching check. */
+    UA_TimerEntry *te = (UA_TimerEntry*)context;
     if(te->interval == 0 || compare->interval == 0)
         return NULL;
 
@@ -77,6 +75,21 @@ findTimer2Batch(void *context, UA_TimerEntry *compare) {
     return (te->interval == compare->interval) ? te : NULL;
 }
 
+/* Window-based comparison for batching */
+static enum ZIP_CMP
+cmpBatchWindow(const UA_DateTime *start, const UA_DateTime *nextTime) {
+    if(*nextTime < *start)
+        return ZIP_CMP_LESS;
+    if(*nextTime > latest)
+        return ZIP_CMP_MORE;
+    return ZIP_CMP_EQ;
+}
+
+typedef ZIP_HEAD(UA_TimerTreeWindow, UA_TimerEntry) UA_TimerTreeWindow;
+
+ZIP_FUNCTIONS(UA_TimerTreeWindow, UA_TimerEntry, treeEntry,
+              UA_DateTime, nextTime, cmpBatchWindow)
+
 /* Adjust the nextTime to batch cyclic callbacks. Look in an interval around the
  * original nextTime. Deviate from the original nextTime by at most 1/4 of the
  * interval and at most by 1s. */
@@ -90,7 +103,8 @@ batchTimerEntry(UA_Timer *t, UA_TimerEntry *te) {
     earliest = te->nextTime - deviate;
     latest = te->nextTime + deviate;
     adjustedNextTime = te->nextTime;
-    ZIP_ITER(UA_TimerIdTree, &t->idTree, findTimer2Batch, te);
+    ZIP_ITER_KEY(UA_TimerTreeWindow, (UA_TimerTreeWindow*)&t->tree,
+                 &earliest, findTimer2Batch, te);
     te->nextTime = adjustedNextTime;
 }
 
@@ -137,11 +151,12 @@ UA_Timer_add(UA_Timer *t, UA_Callback callback,
     te->nextTime = nextTime;
     te->timerPolicy = timerPolicy;
 
+    /* Insert into the timer */
+    UA_LOCK(&t->timerMutex);
+
     /* Adjust the nextTime to batch cyclic callbacks */
     batchTimerEntry(t, te);
 
-    /* Insert into the timer */
-    UA_LOCK(&t->timerMutex);
     te->id = ++t->idCounter;
     if(callbackId)
         *callbackId = te->id;

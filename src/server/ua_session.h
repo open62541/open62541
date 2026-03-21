@@ -16,7 +16,7 @@
 
 _UA_BEGIN_DECLS
 
-#define UA_MAXCONTINUATIONPOINTS 5
+#define UA_MAXCONTINUATIONPOINTS 32
 
 struct ContinuationPoint;
 typedef struct ContinuationPoint ContinuationPoint;

@@ -232,6 +232,11 @@ UA_Client_clear(UA_Client *client) {
     client->sessionState = oldState;
 
     UA_Client_disconnect(client);
+
+    /* Prevent reconnection attempts during the EventLoop teardown
+     * in UA_ClientConfig_clear */
+    client->connectStatus = UA_STATUSCODE_BADSHUTDOWN;
+
     UA_String_clear(&client->discoveryUrl);
     UA_EndpointDescription_clear(&client->endpoint);
 

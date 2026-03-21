@@ -1387,6 +1387,29 @@ START_TEST(WriteDataValue) {
     UA_Variant_clear(&rVar);
 } END_TEST
 
+START_TEST(WriteDataValueUncertainStatus) {
+    /* Write a value with uncertain status and verify it can be read back.
+     * Previously, readWithReadValue treated any non-good status as error. */
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "the.answer");
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    UA_Int32 val = 42;
+    UA_Variant_setScalar(&dv.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    dv.hasValue = true;
+    dv.status = UA_STATUSCODE_UNCERTAININITIALVALUE;
+    dv.hasStatus = true;
+    UA_StatusCode retval = UA_Server_writeDataValue(server, nodeId, dv);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Read back - should succeed despite uncertain status */
+    UA_Variant rVar;
+    UA_Variant_init(&rVar);
+    retval = UA_Server_readValue(server, nodeId, &rVar);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(*(UA_Int32 *)rVar.data, 42);
+    UA_Variant_clear(&rVar);
+} END_TEST
+
 START_TEST(WriteDisplayName_Success) {
     UA_NodeId nodeId = UA_NODEID_STRING(1, "the.answer");
     /* Use same locale as the original node ("locale") so it updates
@@ -1650,6 +1673,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_ext, WriteObjectProperty_NotFound);
     tcase_add_test(tc_ext, WriteObjectProperty_Scalar);
     tcase_add_test(tc_ext, WriteDataValue);
+    tcase_add_test(tc_ext, WriteDataValueUncertainStatus);
     tcase_add_test(tc_ext, WriteDisplayName_Success);
     tcase_add_test(tc_ext, WriteDescription_Success);
     tcase_add_test(tc_ext, WriteWriteMask_Success);

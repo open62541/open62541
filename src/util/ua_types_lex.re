@@ -319,9 +319,9 @@ parse_qn(UA_QualifiedName *qn, const u8 *pos, const u8 *end,
     qn->namespaceIndex = defaultNamespaceIndex;
 
     /*!re2c // Match the grammar
-    [0-9]+ ":"      { goto match_index; }
-    escaped_uri ";" { goto match_uri; }
-    *               { pos = begin; goto match_name; } */
+    [0-9]+ ":"                  { goto match_index; }
+    [^;\0000-9] [^;\000]* ";"   { goto match_uri; }
+    *                           { pos = begin; goto match_name; } */
 
  match_index:
     len = (size_t)(pos - 1 - begin);

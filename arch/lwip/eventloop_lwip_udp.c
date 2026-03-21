@@ -720,7 +720,7 @@ UDP_registerListenSocket(UA_LWIPConnectionManager *pcm, UA_UInt16 port,
     MultiCastType mc = multiCastType(info);
 
     /* Bind socket to the address */
-    int ret = UA_bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
+    int ret = UA_bind(listenSocket, info->ai_addr, info->ai_addrlen);
 
     /* Get the port being used if dynamic porting was used */
     if(port == 0) {

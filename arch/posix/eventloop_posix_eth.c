@@ -673,12 +673,17 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_KeyValueMap_getScalar(params,
                                  ethConnectionParams[ETH_PARAMINDEX_IFACE].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
+    if (interface == NULL) {
+        UA_UNLOCK(&el->elMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     if(interface->length >= 128) {
         UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     char ifname[128];
-    memcpy(ifname, interface->data, interface->length);
+    if(interface->length)
+        memcpy(ifname, interface->data, interface->length);
     ifname[interface->length] = 0;
     int ifindex = (int)if_nametoindex(ifname);
     if(ifindex == 0) {

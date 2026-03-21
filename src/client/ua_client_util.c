@@ -144,8 +144,11 @@ getRemoteDataTypes(UA_Client *client, UA_ReadRequest *req,
         UA_ExtensionObject eo;
         UA_ExtensionObject_setValue(&eo, &descr, &UA_TYPES[UA_TYPES_STRUCTUREDESCRIPTION]);
 
+        UA_DataTypeArray lookupTypes = *dta;
+        lookupTypes.next = client->config.customDataTypes;
+
         res = UA_DataType_fromDescription(&dta->types[dta->typesSize], &eo,
-                                                   client->config.customDataTypes);
+                                          &lookupTypes);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "Could not add the DataType %Q (%N) with status code %s",

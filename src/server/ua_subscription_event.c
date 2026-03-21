@@ -487,7 +487,7 @@ implicitCastTargetType(const UA_DataType *t1, const UA_DataType *t2) {
  *   conversion error. */
 
 #define UA_CAST_SIGNED(t, T)                                         \
-    if(i < T##_MIN || (i > 0 && (t)i > T##_MAX))                     \
+    if(i < (UA_Int64)T##_MIN || i > (UA_Int64)T##_MAX)               \
         return;                                                      \
     *(t*)data = (t)i;                                                \
     do { } while(0)
