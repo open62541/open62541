@@ -42,12 +42,12 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
                                  UA_DataSetWriterConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    lockServer(server);
+    lockPubSubServer(server);
     UA_DataSetWriter *currentDataSetWriter = UA_DataSetWriter_findDSWbyId(server, dsw);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(currentDataSetWriter)
         res = UA_DataSetWriterConfig_copy(&currentDataSetWriter->config, config);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -56,7 +56,7 @@ UA_Server_DataSetWriter_getState(UA_Server *server, UA_NodeId dataSetWriterIdent
                                UA_PubSubState *state) {
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    lockServer(server);
+    lockPubSubServer(server);
     UA_DataSetWriter *currentDataSetWriter =
         UA_DataSetWriter_findDSWbyId(server, dataSetWriterIdentifier);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -65,7 +65,7 @@ UA_Server_DataSetWriter_getState(UA_Server *server, UA_NodeId dataSetWriterIdent
     } else {
         res = UA_STATUSCODE_BADNOTFOUND;
     }
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -322,12 +322,12 @@ UA_Server_addDataSetWriter(UA_Server *server,
                            const UA_NodeId writerGroup, const UA_NodeId dataSet,
                            const UA_DataSetWriterConfig *dataSetWriterConfig,
                            UA_NodeId *writerIdentifier) {
-    lockServer(server);
+    lockPubSubServer(server);
     /* Delete the reserved IDs if the related session no longer exists. */
     UA_PubSubManager_freeIds(server);
     UA_StatusCode res = UA_DataSetWriter_create(server, writerGroup, dataSet,
                                                 dataSetWriterConfig, writerIdentifier);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 
@@ -508,14 +508,14 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
 
 UA_StatusCode
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw) {
-    lockServer(server);
+    lockPubSubServer(server);
     UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dsw);
     if(!dataSetWriter) {
-        unlockServer(server);
+        unlockPubSubServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_StatusCode res = UA_DataSetWriter_remove(server, dataSetWriter);
-    unlockServer(server);
+    unlockPubSubServer(server);
     return res;
 }
 

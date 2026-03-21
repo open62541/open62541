@@ -184,7 +184,7 @@ UA_PubSubConnection_create(UA_Server *server,
 void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 
-void
+UA_StatusCode
 UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c);
 
 UA_StatusCode
@@ -851,6 +851,16 @@ UA_StatusCode
 UA_PubSubManager_setDefaultMonitoringCallbacks(UA_PubSubMonitoringInterface *monitoringInterface);
 
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
+
+/*********************/
+/* Locking/Unlocking */
+/*********************/
+
+/* In order to prevent deadlocks between the EventLoop mutex and the
+ * server-mutex, we always take the EventLoop mutex first. */
+
+void lockPubSubServer(UA_Server *server);
+void unlockPubSubServer(UA_Server *server);
 
 #endif /* UA_ENABLE_PUBSUB */
 
