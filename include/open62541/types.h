@@ -202,7 +202,7 @@ UA_EXPORT UA_Boolean UA_StatusCode_equalTop(UA_StatusCode s1, UA_StatusCode s2);
  * ^^^^^^
  * A sequence of Unicode characters. Strings are just an array of UA_Byte. */
 
-typedef struct {
+typedef struct UA_String {
     size_t length; /* The length of the string */
     UA_Byte *data; /* The content (not null-terminated) */
 } UA_String;
@@ -338,7 +338,7 @@ UA_DateTime_fromUnixTime(UA_Int64 unixDate);
  * Guid
  * ^^^^
  * A 16 byte value that can be used as a globally unique identifier. */
-typedef struct {
+typedef struct UA_Guid {
     UA_UInt32 data1;
     UA_UInt16 data2;
     UA_UInt16 data3;
@@ -420,7 +420,7 @@ enum UA_NodeIdType {
     UA_NODEIDTYPE_BYTESTRING = 5
 };
 
-typedef struct {
+typedef struct UA_NodeId {
     UA_UInt16 namespaceIndex;
     enum UA_NodeIdType identifierType;
     union {
@@ -523,7 +523,7 @@ UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
  * ^^^^^^^^^^^^^^
  * A NodeId that allows the namespace URI to be specified instead of an index. */
 
-typedef struct {
+typedef struct UA_ExpandedNodeId {
     UA_NodeId nodeId;
     UA_String namespaceUri;
     UA_UInt32 serverIndex;
@@ -619,7 +619,7 @@ UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n);
  * ^^^^^^^^^^^^^
  * A name qualified by a namespace. */
 
-typedef struct {
+typedef struct UA_QualifiedName {
     UA_UInt16 namespaceIndex;
     UA_String name;
 } UA_QualifiedName;
@@ -676,7 +676,7 @@ UA_QualifiedName_parseEx(UA_QualifiedName *qn, const UA_String str,
  * ^^^^^^^^^^^^^
  * Human readable text with an optional locale identifier. */
 
-typedef struct {
+typedef struct UA_LocalizedText {
     UA_String locale;
     UA_String text;
 } UA_LocalizedText;
@@ -698,12 +698,12 @@ UA_LOCALIZEDTEXT_ALLOC(const char *locale, const char *text);
  * index and the comma separates dimensions. A single value indicates a range
  * with a single element (min==max). */
 
-typedef struct {
+typedef struct UA_NumericRangeDimension {
     UA_UInt32 min;
     UA_UInt32 max;
 } UA_NumericRangeDimension;
 
-typedef struct  {
+typedef struct UA_NumericRange {
     size_t dimensionsSize;
     UA_NumericRangeDimension *dimensions;
 } UA_NumericRange;
@@ -761,7 +761,7 @@ typedef enum {
                               * The array dimensions also borrowed. */
 } UA_VariantStorageType;
 
-typedef struct {
+typedef struct UA_Variant {
     const UA_DataType *type;      /* The data type description */
     UA_VariantStorageType storageType;
     size_t arrayLength;           /* The number of elements in the data array */
@@ -850,7 +850,7 @@ typedef enum {
                                                  ExtensionObject */
 } UA_ExtensionObjectEncoding;
 
-typedef struct {
+typedef struct UA_ExtensionObject {
     UA_ExtensionObjectEncoding encoding;
     union {
         struct {
@@ -896,7 +896,7 @@ UA_ExtensionObject_hasDecodedType(const UA_ExtensionObject *eo,
  * ^^^^^^^^^
  * A data value with an associated status code and timestamps. */
 
-typedef struct {
+typedef struct UA_DataValue {
     UA_Variant    value;
     UA_DateTime   sourceTimestamp;
     UA_DateTime   serverTimestamp;
@@ -973,7 +973,7 @@ typedef struct UA_DiagnosticInfo {
 /* UA_DataTypeMember describes the fields of structures/unions/etc. In addition
  * it is used to describe the possible values of enums. For enums, the
  * memberType value is cast to an integer to represent the enum value. */
-typedef struct {
+typedef struct UA_DataTypeMember {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     const char *memberName;       /* Human-readable member name */
 #endif
@@ -1227,7 +1227,7 @@ UA_NamespaceMapping_delete(UA_NamespaceMapping *nm);
  * Encoding and decoding routines for the binary format. For the binary decoding
  * additional data types can be forwarded. */
 
-typedef struct {
+typedef struct UA_EncodeBinaryOptions {
     /* Mapping of namespace indices in NodeIds and of NamespaceUris in
      * ExpandedNodeIds. */
     UA_NamespaceMapping *namespaceMapping;
@@ -1250,7 +1250,7 @@ UA_encodeBinary(const void *p, const UA_DataType *type,
 /* The structure with the decoding options may be extended in the future.
  * Zero-out the entire structure initially to ensure code-compatibility when
  * more fields are added in a later release. */
-typedef struct {
+typedef struct UA_DecodeBinaryOptions {
     /* Begin of a linked list with custom datatype definitions */
     const UA_DataTypeArray *customTypes;
 
@@ -1297,7 +1297,7 @@ UA_decodeBinary(const UA_ByteString *inBuf,
 
 #ifdef UA_ENABLE_JSON_ENCODING
 
-typedef struct {
+typedef struct UA_EncodeJsonOptions {
     /* Mapping of namespace indices in NodeIds and of NamespaceUris in
      * ExpandedNodeIds. */
     UA_NamespaceMapping *namespaceMapping;
@@ -1333,7 +1333,7 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
 /* The structure with the decoding options may be extended in the future.
  * Zero-out the entire structure initially to ensure code-compatibility when
  * more fields are added in a later release. */
-typedef struct {
+typedef struct UA_DecodeJsonOptions {
     /* Mapping of namespace indices in NodeIds and of NamespaceUris in
      * ExpandedNodeIds. */
     UA_NamespaceMapping *namespaceMapping;
@@ -1375,7 +1375,7 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
 /* The structure with the encoding options may be extended in the future.
  * Zero-out the entire structure initially to ensure code-compatibility when
  * more fields are added in a later release. */
-typedef struct {
+typedef struct UA_EncodeXmlOptions {
     UA_NamespaceMapping *namespaceMapping;
     const UA_String *serverUris;
     size_t serverUrisSize;
@@ -1398,7 +1398,7 @@ UA_encodeXml(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
 /* The structure with the decoding options may be extended in the future.
  * Zero-out the entire structure initially to ensure code-compatibility when
  * more fields are added in a later release. */
-typedef struct {
+typedef struct UA_DecodeXmlOptions {
     UA_Boolean unwrapped; /* The value xxx is not wrapped in an XML element - as
                            * in <Type>xxx</Type> */
 
