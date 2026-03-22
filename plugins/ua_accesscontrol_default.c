@@ -64,6 +64,15 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         /* Anonymous login */
         if(!context->allowAnonymous)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        if(context->loginCallback) {
+            UA_StatusCode res =
+                context->loginCallback(&UA_STRING_NULL, &UA_BYTESTRING_NULL,
+                                       context->usernamePasswordLoginSize,
+                                       context->usernamePasswordLogin,
+                                       sessionContext, context->loginContext);
+            if(res != UA_STATUSCODE_GOOD)
+                return UA_STATUSCODE_BADUSERACCESSDENIED;
+        }
     } else if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
         /* Username and password */
         const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
