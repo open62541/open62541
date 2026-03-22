@@ -89,6 +89,13 @@ parser.add_argument('-i', '--import',
                     default=[],
                     help='combination of TYPE_ARRAY#filepath.bsd with type definitions which should be loaded but not exported/generated')
 
+parser.add_argument('--export-macro',
+                    metavar="<exportMacro>",
+                    type=str,
+                    dest="export_macro",
+                    default="",
+                    help='macro to use in front of extern declarations (default: UA_EXPORT)')
+
 parser.add_argument('outfile',
                     metavar='<outputFile>',
                     help='output file w/o extension')
@@ -181,7 +188,7 @@ def _types_definition_equal(t1, t2):
     return False
 
 class CGenerator:
-    def __init__(self, parser, inname, outfile, is_internal_types, gen_doc, namespaceMap):
+    def __init__(self, parser, inname, outfile, is_internal_types, gen_doc, namespaceMap, export_macro=""):
         self.parser = parser
         self.inname = inname
         self.outfile = outfile
@@ -189,6 +196,7 @@ class CGenerator:
         self.gen_doc = gen_doc
         self.filtered_types = None
         self.namespaceMap = namespaceMap
+        self.export_macro = export_macro if export_macro else "UA_EXPORT"
         self.fh = None
         self.fc = None
         self.fd = None
@@ -589,7 +597,7 @@ _UA_BEGIN_DECLS
         if totalCount > 0:
 
             self.printh(
-                "extern UA_EXPORT UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
+                "extern " + self.export_macro + " UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
 
             for ns in self.filtered_types:
                 for i, t_name in enumerate(self.filtered_types[ns]):
@@ -680,5 +688,5 @@ parser = CSVBSDTypeParser(args.opaque_map, args.selected_types,
                           namespaceMap)
 parser.create_types()
 
-generator = CGenerator(parser, inname, args.outfile, args.internal, args.gen_doc, namespaceMap)
+generator = CGenerator(parser, inname, args.outfile, args.internal, args.gen_doc, namespaceMap, args.export_macro)
 generator.write_definitions()
