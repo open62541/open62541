@@ -36,7 +36,9 @@ def makeCIdentifier(value):
 
 # Escape C strings:
 def makeCLiteral(value):
-    return re.sub(r'(?<!\\)"', r'\\"', value.replace('\\', r'\\').replace('"', r'\"').replace('\n', r'\n').replace('\r', r'\r'))
+    if value is None:
+        return ""
+    return value.replace('\\', r'\\').replace('"', r'\"').replace('\n', r'\n').replace('\r', r'\r')
 
 def splitStringLiterals(value, splitLength=500):
     """
@@ -62,6 +64,8 @@ def generateLocalizedTextCode(value, alloc=False):
     return "UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", '' if value.locale is None else value.locale, splitStringLiterals(vt))
 
 def generateQualifiedNameCode(value, alloc=False,):
+    if value.name is None:
+        value.name = ""
     vn = makeCLiteral(value.name)
     return "UA_QUALIFIEDNAME{}(UA_NamespaceMapping_local2Remote(nsMapping, {}), {})".format("_ALLOC" if alloc else "", str(value.ns), splitStringLiterals(vn))
 
