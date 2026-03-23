@@ -513,17 +513,9 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
         if(rv == UA_STATUSCODE_GOOD)
             break;
     }
-
     if(!dsr) {
         UA_NetworkMessage_clear(nm);
         return UA_STATUSCODE_BADNOTFOUND;
-    }
-
-    /* Decrypt */
-    rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx.ctx, nm, rg);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_NetworkMessage_clear(nm);
-        return rv;
     }
 
     /* Prepare the metadata with information from the readers to decode the
@@ -538,6 +530,17 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
         emd[i].fields = dsr->config.dataSetMetaData.fields;
         emd[i].fieldsSize = dsr->config.dataSetMetaData.fieldsSize;
         i++;
+    }
+
+    /* Handle missing payload header and "inject" metadata */
+    if(!nm->payloadHeaderEnabled)
+        UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
+
+    /* Decrypt */
+    rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx.ctx, nm, rg);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_NetworkMessage_clear(nm);
+        return rv;
     }
 
     /* Decode the payload */

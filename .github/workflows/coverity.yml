@@ -14,7 +14,7 @@ jobs:
       COVERITY_PROJECT: open62541/open62541
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
       with:
         submodules: true
 

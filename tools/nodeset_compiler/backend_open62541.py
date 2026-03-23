@@ -342,9 +342,10 @@ retVal |= UA_decodeXml(&xmlValue, &attr.value, &UA_TYPES[UA_TYPES_VARIANT], &opt
             code.append("    attr.value.arrayLength = 1;")
             code.append("}")
             if valueIsScalar:
-                logger.warning(f"Node {str(node.id)}: ValueRank={node.valueRank} "
-                               f"but the XML value is scalar. "
-                               f"Auto-wrapping into a one-element array.")
+                logger.warning("Node %s: ValueRank=%s "
+                               "but the XML value is scalar. "
+                               "Auto-wrapping into a one-element array.",
+                               str(node.id), node.valueRank)
         code.append("#endif /* UA_ENABLE_XML_ENCODING */")
 
         codeCleanup.append("#ifdef UA_ENABLE_XML_ENCODING")
@@ -490,7 +491,9 @@ def generateNodeCode_finish(node):
 # Generate C Code #
 ###################
 
-def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArray=[]):
+def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArray=None):
+    if typesArray is None:
+        typesArray = []
     outfilebase = basename(outfilename)
     # Printing functions
     outfileh = codecs.open(outfilename + ".h", r"w+", encoding='utf-8')

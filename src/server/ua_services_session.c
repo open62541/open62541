@@ -52,8 +52,9 @@ notifySession(UA_Server *server, UA_Session *session,
     UA_Variant_setArray(&payloadData[5].value, session->localeIds,
                         session->localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
 
-    memcpy(&payloadData[6], session->attributes.map,
-           sizeof(UA_KeyValuePair) * session->attributes.mapSize);
+    if(session->attributes.mapSize)
+        memcpy(&payloadData[6], session->attributes.map,
+               sizeof(UA_KeyValuePair) * session->attributes.mapSize);
 
     /* Call the notification callback */
     if(server->config.sessionNotificationCallback)
@@ -682,10 +683,12 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 }
 
 static UA_StatusCode
-checkCertificateSignature(const UA_Server *server, const UA_SecurityPolicy *sp,
+checkCertificateSignature(const UA_Server *server, const UA_SecurityPolicy *tokenSp,
                           void *channelContext, const UA_ByteString *serverNonce,
                           const UA_SignatureData *signature,
-                          const bool isUserTokenSignature) {
+                          const bool isUserTokenSignature, bool allowEmptyLocalCert) {
+    UA_assert(tokenSp != NULL);
+
     /* Check for zero signature length */
     if(signature->signature.length == 0) {
         if(isUserTokenSignature)
@@ -693,31 +696,42 @@ checkCertificateSignature(const UA_Server *server, const UA_SecurityPolicy *sp,
         return UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID;
     }
 
-    if(!sp)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
     /* Data to verify is calculated by appending the serverNonce to the local
      * certificate */
-    const UA_ByteString *localCertificate = &sp->localCertificate;
+    const UA_ByteString *localCertificate = &tokenSp->localCertificate;
     UA_ByteString dataToVerify;
     size_t dataToVerifySize = localCertificate->length + serverNonce->length;
-    UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify, dataToVerifySize);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    UA_StatusCode res = UA_ByteString_allocBuffer(&dataToVerify, dataToVerifySize);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     memcpy(dataToVerify.data, localCertificate->data, localCertificate->length);
-    memcpy(dataToVerify.data + localCertificate->length,
-           serverNonce->data, serverNonce->length);
-    retval = sp->asymSignatureAlgorithm.
-        verify(sp, channelContext, &dataToVerify, &signature->signature);
-    UA_ByteString_clear(&dataToVerify);
-    if(retval != UA_STATUSCODE_GOOD) {
+    memcpy(dataToVerify.data + localCertificate->length, serverNonce->data, serverNonce->length);
+
+ check_certificate:
+    res = tokenSp->asymSignatureAlgorithm.
+        verify(tokenSp, channelContext, &dataToVerify, &signature->signature);
+    if(res != UA_STATUSCODE_GOOD) {
         if(isUserTokenSignature)
-            retval = UA_STATUSCODE_BADUSERSIGNATUREINVALID;
+            res = UA_STATUSCODE_BADUSERSIGNATUREINVALID;
         else
-            retval = UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID;
+            res = UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID;
     }
-    return retval;
+
+    if(dataToVerify.data != serverNonce->data)
+        UA_ByteString_clear(&dataToVerify);
+
+    /* Workaround: If the SecureChannel is #None, the client might have used the
+     * ApplicationInstanceCertificate of the server (maybe it was in the
+     * EndpointDescription) or not. If the MessageSecurityMode is #None, then
+     * retry with an empty server certificate. */
+    if(res != UA_STATUSCODE_GOOD && localCertificate->length > 0 && allowEmptyLocalCert) {
+        localCertificate = &UA_BYTESTRING_NULL;
+        dataToVerify = *serverNonce;
+        goto check_certificate;
+    }
+
+    return res;
 }
 
 /* Always sets tokenSp (default: SecurityPolicy of the channel) */
@@ -854,28 +868,29 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
 }
 
 static UA_StatusCode
-checkActivateSessionX509(UA_Server *server, UA_Session *session,
-                         const UA_SecurityPolicy *sp, UA_X509IdentityToken* token,
+checkActivateSessionX509(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
+                         const UA_SecurityPolicy *tokenSp, UA_X509IdentityToken* token,
                          const UA_SignatureData *tokenSignature) {
     /* The SecurityPolicy must not be None for the signature */
-    if(sp->policyType == UA_SECURITYPOLICYTYPE_NONE)
+    if(tokenSp->policyType == UA_SECURITYPOLICYTYPE_NONE)
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
     /* We need a channel context with the user certificate in order to reuse
      * the signature checking code. */
     void *tempChannelContext;
-    UA_StatusCode res = sp->newChannelContext(sp, &token->certificateData,
-                                              &tempChannelContext);
+    UA_StatusCode res = tokenSp->newChannelContext(tokenSp, &token->certificateData,
+                                                   &tempChannelContext);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_SESSION(server->config.logging, session,
                              "ActivateSession: Failed to create a context "
-                             "for the SecurityPolicy %S", sp->policyUri);
+                             "for the SecurityPolicy %S", tokenSp->policyUri);
         return res;
     }
 
     /* Check the user token signature */
-    res = checkCertificateSignature(server, sp, tempChannelContext,
-                                    &session->serverNonce, tokenSignature, true);
+    res = checkCertificateSignature(server, tokenSp, tempChannelContext, &session->serverNonce,
+                                    tokenSignature, true,
+                                    (channel->securityMode == UA_MESSAGESECURITYMODE_NONE));
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_SESSION(server->config.logging, session,
                              "ActivateSession: User token signature check "
@@ -890,7 +905,7 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
 
  out:
     /* Delete the temporary channel context */
-    sp->deleteChannelContext(sp, tempChannelContext);
+    tokenSp->deleteChannelContext(tokenSp, tempChannelContext);
     return res;
 }
 
@@ -1017,9 +1032,8 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         rh->serviceResult =
             checkCertificateSignature(server, channel->securityPolicy,
-                                      channel->channelContext,
-                                      &session->serverNonce,
-                                      &req->clientSignature, false);
+                                      channel->channelContext, &session->serverNonce,
+                                      &req->clientSignature, false, false);
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_SESSION(server->config.logging, session,
                                  "ActivateSession: Client signature check failed "
@@ -1063,7 +1077,7 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
         UA_X509IdentityToken* x509token = (UA_X509IdentityToken*)
             req->userIdentityToken.content.decoded.data;
         rh->serviceResult =
-            checkActivateSessionX509(server, session, tokenSp, x509token,
+            checkActivateSessionX509(server, channel, session, tokenSp, x509token,
                                      &req->userTokenSignature);
         break; }
     case UA_USERTOKENTYPE_ISSUEDTOKEN: {

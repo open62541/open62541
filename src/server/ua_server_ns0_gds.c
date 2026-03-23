@@ -50,6 +50,40 @@ getFileInfo(UA_GDSManager *gdsManager, UA_NodeId certificateGroupId) {
     return NULL;
 }
 
+
+/********************/
+/*   GDS Manager    */
+/********************/
+
+void
+UA_GDSManager_clear(UA_GDSManager *gdsManager) {
+    if(!gdsManager)
+        return;
+    gdsManager->checkSessionCallbackId = 0;
+    UA_GDSTransaction_clear(&gdsManager->transaction);
+    UA_FileInfoContext *fileInfoContext = (UA_FileInfoContext*)(gdsManager->fileInfoContext);
+
+    /* free all fileInfoContexts */
+    while(fileInfoContext) {
+        UA_FileInfoContext *next = fileInfoContext->next;
+        UA_FileInfo *fileInfo = &(fileInfoContext->fileInfo);
+        UA_FileContext *fileContext = NULL;
+        UA_FileContext *fileContextTmp = NULL;
+
+        /* free all fileContexts in this fileInfoContext */
+        LIST_FOREACH_SAFE(fileContext, &(fileInfo->fileContext), listEntry, fileContextTmp) {
+            UA_ByteString_clear(&(fileContext->file));
+            UA_ByteString_clear(&(fileContext->dataToWrite));
+            LIST_REMOVE(fileContext, listEntry);
+            UA_free(fileContext);
+        }
+
+        UA_free(fileInfoContext);
+        fileInfoContext = next;
+    }
+}
+
+
 static UA_StatusCode
 createFileHandleId(UA_FileInfo *fileInfo, UA_UInt32 *fileHandle) {
     if(!fileInfo || !fileHandle)
@@ -242,6 +276,7 @@ checkSessionActive(UA_Server *server, void *data) {
             fileInfoContext->fileInfo.openCount -= 1;
 
             UA_ByteString_clear(&fileContext->file);
+            UA_ByteString_clear(&fileContext->dataToWrite);
             UA_free(fileContext);
 
             /* Updating OpenCount Variable in the information model */
@@ -561,7 +596,9 @@ removeCertificate(UA_Server *server,
         UA_ByteString certificate = certificates[i];
         retval = certGroup->getCertificateCrls(certGroup, &certificate, isTrustedCertificate,
                                                &crls, &crlsSize);
-        if(retval != UA_STATUSCODE_GOOD) {
+        /* Tolerate "Bad_NoMatch" to support removing CA certificates that do
+         * not have an associated CRL. */
+        if((retval != UA_STATUSCODE_GOOD) && (retval != UA_STATUSCODE_BADNOMATCH)) {
             goto cleanup;
         }
 
@@ -857,6 +894,14 @@ writeTrustList(UA_Server *server,
 
     if(fileContext->openFileMode != (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
         return UA_STATUSCODE_BADINVALIDSTATE;
+
+    /* abort when TrustList size would exceed the maximum allowed value (0 = unlimited) */
+    if(server->config.maxTrustListSize != 0 &&
+       (fileContext->dataToWrite.length + data.length) > server->config.maxTrustListSize) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Write on trust list exceeds limit");
+        return UA_STATUSCODE_BADREQUESTTOOLARGE;
+    }
 
     UA_ByteString dataToWrite = UA_BYTESTRING_NULL;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToWrite, fileContext->dataToWrite.length + data.length);

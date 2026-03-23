@@ -96,6 +96,37 @@ function build_amalgamation {
     gcc -Wall -Werror -c open62541.c
 }
 
+function build_amalgamation_mingw_cross {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_ENABLE_AMALGAMATION=ON \
+          -DUA_ARCHITECTURE=win32 \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_XML_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          ..
+    make open62541-amalgamation ${MAKEOPTS}
+
+    cat > amalgamation_none_smoke.c <<EOF
+#include "open62541.h"
+
+int main(void) {
+    UA_Server *server = UA_Server_new();
+    if(!server)
+        return 1;
+
+    UA_Server_delete(server);
+    return 0;
+}
+EOF
+
+    x86_64-w64-mingw32-gcc -D_WIN32_WINNT=0x0600 \
+        -Wall -Werror amalgamation_none_smoke.c open62541.c \
+        -o amalgamation_none_smoke.exe -lws2_32 -liphlpapi
+}
+
 function build_amalgamation_mt {
     rm -rf build; mkdir -p build; cd build
     cmake -DCMAKE_BUILD_TYPE=Debug \

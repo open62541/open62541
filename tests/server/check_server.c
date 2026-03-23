@@ -183,7 +183,6 @@ START_TEST(checkServerReadDescription) {
 } END_TEST
 
 START_TEST(checkServerReadWriteRank) {
-    UA_LocalizedText desc;
     UA_StatusCode retval;
 
     /* Read browse name */
