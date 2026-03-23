@@ -191,6 +191,16 @@ UA_MonitoredItem_addEvent(UA_Server *server, UA_MonitoredItem *mon,
      * not taken for local MonitoredItems (once they are enabled for Events). */
     UA_assert(mon->subscription);
     UA_Subscription *sub = mon->subscription;
+
+    /* Do not evaluate event fields for detached subscriptions. A NULL
+     * sub->session means the subscription outlived its session (e.g. after
+     * CloseSession with deleteSubscriptions=false, or before a
+     * TransferSubscriptions call). Filter resolution later in this function
+     * dereferences the session; using &server->adminSession here would bypass
+     * per-session access control and could leak event fields to a less
+     * privileged client that subsequently transfers the subscription. */
+    if(!sub->session)
+        return UA_STATUSCODE_GOOD;
     UA_Session *session = sub->session;
 
     UA_EventFilterResult res; /* FilterResult contains only statuscodes. Ignored
