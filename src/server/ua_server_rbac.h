@@ -9,6 +9,7 @@
 #define UA_SERVER_RBAC_H_
 
 #include <open62541/server.h>
+#include <open62541/plugin/nodestore.h>
 
 _UA_BEGIN_DECLS
 

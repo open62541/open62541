@@ -34,23 +34,6 @@
 #include <open62541/plugin/historydatabase.h>
 #endif
 
-#ifdef UA_ENABLE_RBAC
-/* Compact index stored in each node to reference a position in the server's
- * role-permissions array. Size configured via UA_ROLEPERMISSIONS_NODE_SIZE_BYTE. */
-#if UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 2
-typedef UA_UInt16 UA_PermissionIndex;
-#define UA_PERMISSION_INDEX_INVALID 0xFFFF
-#elif UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 4
-typedef UA_UInt32 UA_PermissionIndex;
-#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFF
-#elif UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 8
-typedef UA_UInt64 UA_PermissionIndex;
-#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFFFFFFFFFF
-#else
-#error "UA_ROLEPERMISSIONS_NODE_SIZE_BYTE must be 2, 4, or 8"
-#endif
-#endif /* UA_ENABLE_RBAC */
-
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/server_pubsub.h>
 #endif

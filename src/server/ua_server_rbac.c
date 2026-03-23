@@ -306,11 +306,29 @@ findOrCreateRolePermissions(UA_Server *server,
         }
     }
 
+    /* Try to reuse a slot whose refCount has dropped to zero
+     * (skip protected entries from the server config). */
+    for(size_t i = 0; i < server->rolePermissionsSize; i++) {
+        UA_RolePermissionEntry *candidate = &server->rolePermissions[i];
+        if(candidate->refCount == 0 &&
+           candidate->refCount != UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED) {
+            rolePermissionEntry_clear(candidate);
+            rolePermissionEntry_init(candidate);
+            UA_StatusCode res = copyRolePermissionArray(rpSize, rp,
+                                                        &candidate->rolePermissionsSize,
+                                                        &candidate->rolePermissions);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+            *outIndex = (UA_PermissionIndex)i;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
     /* Bounds check */
     if(server->rolePermissionsSize >= UA_PERMISSION_INDEX_INVALID)
         return UA_STATUSCODE_BADOUTOFRANGE;
 
-    /* Create a new entry */
+    /* Append a new entry */
     UA_RolePermissionEntry *newArray = (UA_RolePermissionEntry*)
         UA_realloc(server->rolePermissions,
                    (server->rolePermissionsSize + 1) * sizeof(UA_RolePermissionEntry));
@@ -612,9 +630,11 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
         return res;
     }
 
-    /* Auto-assign a roleId if the caller passed a null NodeId */
+    /* Auto-assign a numeric roleId if the caller passed a null NodeId.
+     * Use namespace 1 to avoid collisions with well-known NS0 role IDs. */
     if(UA_NodeId_isNull(&newRole->roleId)) {
-        newRole->roleId = UA_NODEID_GUID(1, UA_Guid_random());
+        UA_Guid g = UA_Guid_random();
+        newRole->roleId = UA_NODEID_NUMERIC(1, g.data1);
     }
 
     server->rolesProtected[server->rolesSize] = false;
