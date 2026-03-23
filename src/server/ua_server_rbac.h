@@ -54,6 +54,20 @@ UA_Server_updateRolePermissionConfig(UA_Server *server,
                                      size_t entriesSize,
                                      const UA_RolePermission *entries);
 
+/* Effective permission queries (internal, used by attribute service and tests) */
+UA_StatusCode
+UA_Server_getEffectivePermissions(UA_Server *server,
+                                  const UA_NodeId *sessionId,
+                                  const UA_NodeId *nodeId,
+                                  UA_PermissionType *effectivePermissions);
+
+UA_StatusCode
+UA_Server_getUserRolePermissions(UA_Server *server,
+                                 const UA_NodeId *sessionId,
+                                 const UA_NodeId *nodeId,
+                                 size_t *entriesSize,
+                                 UA_RolePermissionType **entries);
+
 #endif /* UA_ENABLE_RBAC */
 
 _UA_END_DECLS

@@ -1862,11 +1862,9 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         node->methodNode.executable = *(const UA_Boolean*)value;
         break;
     case UA_ATTRIBUTEID_ROLEPERMISSIONS:
-        /* Minimal implementation: Accept write but don't store yet.
-         * TODO: Implement actual role permission storage */
-        CHECK_USERWRITEMASK(UA_WRITEMASK_ROLEPERMISSIONS);
-        CHECK_DATATYPE_ARRAY(ROLEPERMISSIONTYPE);
-        retval = UA_STATUSCODE_GOOD;
+        /* Writing RolePermissions via the attribute service is not yet
+         * supported. Use the RBAC C API to configure role permissions. */
+        retval = UA_STATUSCODE_BADNOTWRITABLE;
         break;
     case UA_ATTRIBUTEID_USERROLEPERMISSIONS:
         /* UserRolePermissions is read-only, cannot be written */

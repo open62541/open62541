@@ -11,6 +11,7 @@
 #include <open62541/nodeids.h>
 
 #include "test_helpers.h"
+#include "ua_server_rbac.h"
 
 #include <check.h>
 #include <stdio.h>

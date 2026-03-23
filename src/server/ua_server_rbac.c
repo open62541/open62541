@@ -459,7 +459,6 @@ UA_Server_initRBAC(UA_Server *server) {
 
     server->rolePermissionsSize = 0;
     server->rolePermissions = NULL;
-    server->nextCustomRoleId = 100000; /* Start above well-known NS0 IDs */
 
     /* Copy presets from config into the internal array.
      * Mark them with UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED so they
@@ -615,7 +614,7 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
 
     /* Auto-assign a roleId if the caller passed a null NodeId */
     if(UA_NodeId_isNull(&newRole->roleId)) {
-        newRole->roleId = UA_NODEID_NUMERIC(0, server->nextCustomRoleId++);
+        newRole->roleId = UA_NODEID_GUID(1, UA_Guid_random());
     }
 
     server->rolesProtected[server->rolesSize] = false;

@@ -2865,43 +2865,6 @@ UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
                                 UA_PermissionType permissionType,
                                 UA_Boolean recursive);
 
-/**
- * Effective Permission Queries
- * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
- * Functions for querying computed permissions based on session roles.
- * Per OPC UA Part 5: effective permissions are the logical OR of
- * permissions for all roles assigned to the session. */
-
-/* Compute effective permissions for a session on a node.
- *
- * @param server The server instance
- * @param sessionId The session (NULL = no roles)
- * @param nodeId The node to check
- * @param effectivePermissions Output: OR of all matching role permissions
- * @return UA_STATUSCODE_GOOD on success */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_getEffectivePermissions(UA_Server *server,
-                                  const UA_NodeId *sessionId,
-                                  const UA_NodeId *nodeId,
-                                  UA_PermissionType *effectivePermissions);
-
-/* Get per-role permissions for a session on a node.
- * Returns only entries for roles that the session holds AND that
- * have permissions configured on the node.
- *
- * @param server The server instance
- * @param sessionId The session (NULL = no roles)
- * @param nodeId The node to check
- * @param entriesSize Output: number of entries
- * @param entries Output: array of RolePermissionType (caller must free)
- * @return UA_STATUSCODE_GOOD on success */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_getUserRolePermissions(UA_Server *server,
-                                 const UA_NodeId *sessionId,
-                                 const UA_NodeId *nodeId,
-                                 size_t *entriesSize,
-                                 UA_RolePermissionType **entries);
-
 #endif /* UA_ENABLE_RBAC */
 
 _UA_END_DECLS
