@@ -284,8 +284,12 @@ if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
 
+
+# Enable filesystem support, which adds the full filesystem information model to namespace zero. 
+# This is disabled by default, as it adds a lot of nodes to namespace zero and increases the binary size significantly. 
+# Consider using a reduced namespace zero configuration if you do not need the full filesystem information model.
 option(UA_ENABLE_FILESYSTEM "Enable filesystem support!" OFF)
-if(UA_ENABLE_FILESYSTEM AND UA_NAMESPACE_ZERO STREQUAL "FULL")
+if(UA_ENABLE_FILESYSTEM AND UA_NAMESPACE_ZERO STREQUAL "FULL" AND (UA_ARCHITECTURE STREQUAL "win32" OR UA_ARCHITECTURE STREQUAL "posix"))
     message("Filesystem support is enabled. This will add a lot of nodes to namespace zero and increase the binary size significantly. Consider using a reduced namespace zero configuration if you do not need the full filesystem information model.")
     set(UA_FILESYSTEM ON)
     mark_as_advanced(UA_FILESYSTEM)
