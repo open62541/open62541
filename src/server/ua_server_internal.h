@@ -296,7 +296,7 @@ ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
 
 /* Session and channel can be NULL, only used for logging.
  * Ad can be NULL, then the ApplicationUri is not checked. */
-UA_StatusCode
+UA_SplitStatusCode
 validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                     UA_SecureChannel *channel, UA_Session *session,
                     const char *logPrefix,

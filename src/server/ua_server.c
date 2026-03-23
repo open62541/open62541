@@ -779,10 +779,10 @@ secureChannel_delayedCloseTrustList(void *application, void *context) {
             continue;
         if(channel->remoteCertificate.length == 0)
             continue; /* SecureChannels w/o security */
-        UA_StatusCode res =
+        UA_SplitStatusCode res =
             validateCertificate(server, certGroup, channel, channel->sessions,
                                 "RenewTrustList", NULL, channel->remoteCertificate);
-        if(res != UA_STATUSCODE_GOOD)
+        if(res.status != UA_STATUSCODE_GOOD)
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
     UA_free(dc);

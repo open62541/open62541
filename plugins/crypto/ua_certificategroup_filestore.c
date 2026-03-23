@@ -596,24 +596,25 @@ FileCertStore_getCertificateCrls(UA_CertificateGroup *certGroup, const UA_ByteSt
     return context->store->getCertificateCrls(context->store, certificate, isTrusted, crls, crlsSize);
 }
 
-static UA_StatusCode
+static UA_SplitStatusCode
 FileCertStore_verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
     /* Check parameter */
-    if(certGroup == NULL || certificate == NULL)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    if(certGroup == NULL || certificate == NULL) {
+        return UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADINVALIDARGUMENT);
+    }
 
     FileCertStore *context = (FileCertStore *)certGroup->context;
     /* It will only re-read the Cert store on the file system if there have been changes to files. */
     UA_StatusCode retval = reloadTrustStore(certGroup);
     if(retval != UA_STATUSCODE_GOOD) {
-        return retval;
+        return UA_SPLITSTATUSCODE_BOTH(retval);
     }
 
-    retval = context->store->verifyCertificate(context->store, certificate);
-    if(retval == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED ||
-       retval == UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED ||
-       retval == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN ||
-       retval == UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN) {
+    UA_SplitStatusCode result = context->store->verifyCertificate(context->store, certificate);
+    if(result.status == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED ||
+       result.status == UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED ||
+       result.status == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN ||
+       result.status == UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN) {
         /* write rejectedList to filestore */
         UA_ByteString *rejectedList = NULL;
         size_t rejectedListSize = 0;
@@ -622,7 +623,7 @@ FileCertStore_verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteStr
         UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
     }
 
-    return retval;
+    return result;
 }
 
 static void

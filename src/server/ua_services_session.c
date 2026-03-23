@@ -480,11 +480,12 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                    "on SecurityPolicy None (Part 4, 5.6.2.2)");
         }
     } else if(request->clientCertificate.length > 0) {
-        rh->serviceResult =
+        UA_SplitStatusCode validateRes =
             validateCertificate(server, &server->config.secureChannelPKI,
                                 channel, NULL, "CreateSession",
                                 &request->clientDescription,
                                 request->clientCertificate);
+        rh->serviceResult = validateRes.clientResponseStatus;
         if(rh->serviceResult != UA_STATUSCODE_GOOD) {
             server->serverDiagnosticsSummary.securityRejectedSessionCount++;
             server->serverDiagnosticsSummary.rejectedSessionCount++;
@@ -875,10 +876,11 @@ checkActivateSessionX509(UA_Server *server, UA_SecureChannel *channel, UA_Sessio
     }
 
     /* Validate the certificate against the SessionPKI */
-    res = validateCertificate(server, &server->config.sessionPKI,
-                              session->channel, session, "ActivateSession",
-                              NULL, token->certificateData);
-
+    UA_SplitStatusCode validateRes =
+        validateCertificate(server, &server->config.sessionPKI,
+                            session->channel, session, "ActivateSession",
+                            NULL, token->certificateData);
+    res = validateRes.clientResponseStatus;
  out:
     /* Delete the temporary channel context */
     tokenSp->deleteChannelContext(tokenSp, tempChannelContext);

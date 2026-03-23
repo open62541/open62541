@@ -18,6 +18,7 @@
 
 #include "libc_time.h"
 #include "securitypolicy_common.h"
+#include "../certificategroup_common.h"
 
 #define SHA1_DIGEST_LENGTH 20
 
@@ -531,25 +532,27 @@ openSSLCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, X509 *cert) {
 
 #define UA_OPENSSL_MAX_CHAIN_LENGTH 10
 
-static UA_StatusCode
+static UA_SplitStatusCode
 openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509) *stack,
                     X509 **old_issuers, X509 *cert, int depth) {
     /* Maxiumum chain length */
     if(depth == UA_OPENSSL_MAX_CHAIN_LENGTH)
-        return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+        return UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
 
     /* Verification Step: Validity Period */
     ASN1_TIME *notBefore = X509_get_notBefore(cert);
     ASN1_TIME *notAfter = X509_get_notAfter(cert);
     if(X509_cmp_current_time(notBefore) != -1 || X509_cmp_current_time(notAfter) != 1)
-        return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
-            UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
+        return (depth == 0) ?
+            UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADCERTIFICATETIMEINVALID) :
+            UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID);
 
     /* Return the most specific error code. BADCERTIFICATECHAININCOMPLETE is
      * returned only if all possible chains are incomplete. */
     X509 *issuer = NULL;
-    UA_StatusCode ret = UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
-    while(ret != UA_STATUSCODE_GOOD) {
+    UA_SplitStatusCode ret =
+        UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+    while(ret.status != UA_STATUSCODE_GOOD) {
         /* Find the issuer. We jump back here to find a different path if a
          * subsequent check fails. */
         issuer = openSSLFindNextIssuer(ctx, stack, cert, issuer);
@@ -559,16 +562,16 @@ openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509
         /* Verification Step: Certificate Usage
          * Can the issuer act as CA? Omit for self-signed leaf certificates. */
         if((depth > 0 || issuer != cert) && !openSSLCheckCA(issuer)) {
-            ret = UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED;
+            ret = UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED);
             continue;
         }
 
         /* Verification Step: Signature */
         int opensslRet = X509_verify(cert, X509_get0_pubkey(issuer));
         if(opensslRet == -1) {
-            return UA_STATUSCODE_BADCERTIFICATEINVALID; /* Ill-formed signature */
+            return UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATEINVALID); /* Ill-formed signature */
         } else if(opensslRet == 0) {
-            ret = UA_STATUSCODE_BADCERTIFICATEINVALID;  /* Wrong issuer, try again */
+            ret = UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATEINVALID); /* Wrong issuer, try again */
             continue;
         }
 
@@ -581,26 +584,30 @@ openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509
          * Break here as we have reached the end of the chain. Omit the
          * Revocation Check for self-signed certificates. */
         if(cert == issuer || X509_cmp(cert, issuer) == 0) {
-            ret = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
+            ret = UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATEUNTRUSTED);
             break;
         }
 
         /* Verification Step: Revocation Check */
-        ret = openSSLCheckRevoked(cg, ctx, cert);
+        UA_StatusCode revokeCheckStatus = openSSLCheckRevoked(cg, ctx, cert);
+        ret = UA_SPLITSTATUSCODE_BOTH(revokeCheckStatus);
         if(depth > 0) {
-            if(ret == UA_STATUSCODE_BADCERTIFICATEREVOKED)
-                ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
-            if(ret == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN)
-                ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN;
+            if(revokeCheckStatus == UA_STATUSCODE_BADCERTIFICATEREVOKED)
+                ret = UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED);
+            else if(revokeCheckStatus == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN)
+                ret = UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN);
+        } else if(revokeCheckStatus == UA_STATUSCODE_BADCERTIFICATEREVOKED ||
+                  revokeCheckStatus == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN) {
+            ret = UA_SPLITSTATUSCODE_HIDDEN(revokeCheckStatus);
         }
-        if(ret != UA_STATUSCODE_GOOD)
+        if(ret.status != UA_STATUSCODE_GOOD)
             continue;
 
         /* Detect (endless) loops of issuers. The last one can be skipped by the
          * check for self-signed just before. */
         for(int i = 0; i < depth; i++) {
             if(old_issuers[i] == issuer)
-                return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+                return UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
         }
         old_issuers[depth] = issuer;
 
@@ -610,10 +617,10 @@ openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509
     }
 
     /* Is the certificate in the trust list? If yes, then we are done. */
-    if(ret == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
+    if(ret.status == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
         for(int i = 0; i < sk_X509_num(ctx->trustedCertificates); i++) {
             if(X509_cmp(cert, sk_X509_value(ctx->trustedCertificates, i)) == 0)
-                return UA_STATUSCODE_GOOD;
+                return UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_GOOD);
         }
     }
 
@@ -622,18 +629,18 @@ openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509
 
 /* This follows Part 6, 6.1.3 Determining if a Certificate is trusted.
  * It defines a sequence of steps for certificate verification. */
-static UA_StatusCode
+static UA_SplitStatusCode
 verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
     /* Check parameter */
     if(certGroup == NULL || certGroup->context == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADINTERNALERROR);
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
     if(context->reloadRequired) {
         ret = reloadCertificates(certGroup);
         if(ret != UA_STATUSCODE_GOOD)
-            return ret;
+            return UA_SPLITSTATUSCODE_BOTH(ret);
         context->reloadRequired = false;
     }
 
@@ -641,7 +648,7 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
     STACK_OF(X509) *stack = openSSLLoadCertificateStack(*certificate);
     if(!stack || sk_X509_num(stack) < 1) {
         sk_X509_pop_free(stack, X509_free);
-        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+        return UA_SPLITSTATUSCODE_HIDDEN(UA_STATUSCODE_BADCERTIFICATEINVALID);
     }
 
     /* Verification Step: Certificate Usage
@@ -651,7 +658,7 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
     X509 *leaf = sk_X509_value(stack, 0);
     if(openSSLCheckCA(leaf)) {
         sk_X509_pop_free(stack, X509_free);
-        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+        return UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
     }
 
     /* These steps are performed outside of this method.
@@ -663,21 +670,22 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
     /* Verification Step: Build Certificate Chain
      * We perform the checks for each certificate inside. */
     X509 *old_issuers[UA_OPENSSL_MAX_CHAIN_LENGTH];
-    ret = openSSL_verifyChain(certGroup, context, stack, old_issuers, leaf, 0);
+    UA_SplitStatusCode result =
+        openSSL_verifyChain(certGroup, context, stack, old_issuers, leaf, 0);
     sk_X509_pop_free(stack, X509_free);
-    return ret;
+    return result;
 }
 
-static UA_StatusCode
+static UA_SplitStatusCode
 MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
                                   const UA_ByteString *certificate) {
     /* Check parameter */
     if(certGroup == NULL || certificate == NULL) {
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
+        return UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADINVALIDARGUMENT);
     }
 
-    UA_StatusCode retval = verifyCertificate(certGroup, certificate);
-    if(retval != UA_STATUSCODE_GOOD) {
+    UA_SplitStatusCode retval = verifyCertificate(certGroup, certificate);
+    if(retval.status != UA_STATUSCODE_GOOD) {
         if(MemoryCertStore_addToRejectedList(certGroup, certificate) != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
                            "Could not append certificate to rejected list");

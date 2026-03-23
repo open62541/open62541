@@ -348,7 +348,7 @@ editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
 /* Certificate Validation */
 /**************************/
 
-UA_StatusCode
+UA_SplitStatusCode
 validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                     UA_SecureChannel *channel, UA_Session *session,
                     const char *logPrefix,
@@ -384,8 +384,9 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                                  ad->applicationUri);
                 }
             }
-            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_ABORT)
-                return UA_STATUSCODE_BADCERTIFICATEINVALID;
+            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_ABORT) {
+                return UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADCERTIFICATEINVALID);
+            }
         }
     }
 
@@ -393,13 +394,13 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "%s: Could not validate the certificate "
                      "as the CertificateGroup is not configured", logPrefix);
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_SPLITSTATUSCODE_BOTH(UA_STATUSCODE_BADINTERNALERROR);
     }
 
     /* Validate in the CertificateGroup */
-    res = cg->verifyCertificate(cg, &certificate);
-    if(res != UA_STATUSCODE_GOOD) {
-        const char *descr = UA_StatusCode_name(res);
+    UA_SplitStatusCode result = cg->verifyCertificate(cg, &certificate);
+    if(result.status != UA_STATUSCODE_GOOD) {
+        const char *descr = UA_StatusCode_name(result.status);
         if(session) {
             UA_LOG_ERROR_SESSION(server->config.logging, session,
                                  "%s: The client certificate failed the verification "
@@ -417,7 +418,7 @@ validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
                          logPrefix, descr);
         }
     }
-    return res;
+    return result;
 }
 
 /*********************************/

@@ -198,6 +198,18 @@ UA_EXPORT UA_Boolean UA_StatusCode_equalTop(UA_StatusCode s1, UA_StatusCode s2);
 #define UA_StatusCode_isEqualTop(s1, s2) UA_StatusCode_equalTop(s1, s2)
 
 /**
+ * Provide a hidden status for client responses.
+ */
+typedef struct {
+    UA_StatusCode status;
+    UA_StatusCode clientResponseStatus;
+} UA_SplitStatusCode;
+
+/* Helper constructors for split status return values */
+#define UA_SPLITSTATUSCODE_BOTH(result) \
+    ((UA_SplitStatusCode){(result), (result)})
+
+/**
  * String
  * ^^^^^^
  * A sequence of Unicode characters. Strings are just an array of UA_Byte. */
