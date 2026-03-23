@@ -87,7 +87,7 @@ readTemperature(UA_Server *tmpServer,
                 const UA_NodeId *nodeId, void *nodeContext,
                 UA_Boolean sourceTimeStamp, const UA_NumericRange *range,
                 UA_DataValue *dataValue) {
-    if (counter < 2)
+    if (counter < 3)
         counter++;
     else
         UA_Server_deleteNode(server, temperatureNodeId, true);
@@ -219,7 +219,7 @@ START_TEST(client_readMultipleAttributes) {
 
     UA_ReadRequest request;
     UA_ReadRequest_init(&request);
-    UA_ReadValueId ids[3];
+    UA_ReadValueId ids[4];
     UA_ReadValueId_init(&ids[0]);
     ids[0].attributeId = UA_ATTRIBUTEID_DESCRIPTION;
     ids[0].nodeId = temperatureNodeId;
@@ -229,20 +229,25 @@ START_TEST(client_readMultipleAttributes) {
     ids[1].nodeId = temperatureNodeId;
 
     UA_ReadValueId_init(&ids[2]);
-    ids[2].attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    ids[2].attributeId = UA_ATTRIBUTEID_VALUE;
     ids[2].nodeId = temperatureNodeId;
 
+    UA_ReadValueId_init(&ids[3]);
+    ids[3].attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    ids[3].nodeId = temperatureNodeId;
+
     request.nodesToRead = ids;
-    request.nodesToReadSize = 3;
+    request.nodesToReadSize = 4;
 
     UA_ReadResponse response = UA_Client_Service_read(client, request);
     retval = response.responseHeader.serviceResult;
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    ck_assert_uint_eq(response.resultsSize, 3);
+    ck_assert_uint_eq(response.resultsSize, 4);
     ck_assert_uint_eq(response.results[0].status, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.results[1].status, UA_STATUSCODE_GOOD);
-    ck_assert_uint_eq(response.results[2].status, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_uint_eq(response.results[2].status, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(response.results[3].status, UA_STATUSCODE_BADNODEIDUNKNOWN);
 
     UA_ReadResponse_clear(&response);
 

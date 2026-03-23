@@ -169,14 +169,6 @@ START_TEST(Server_loadGDSNodeset) {
 }
 END_TEST
 
-
-/* START_TEST(Server_loadServer_loadGlassNodeset) { */
-/*     UA_StatusCode retVal = UA_Server_loadNodeset(server, */
-/*         OPEN62541_NODESET_DIR "Glass/Flat/Opc.Ua.Glass.NodeSet2.xml", NULL); */
-/*     ck_assert(UA_StatusCode_isGood(retVal)); */
-/* } */
-/* END_TEST */
-
 START_TEST(Server_loadI4AASNodeset) {
     UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "I4AAS/Opc.Ua.I4AAS.NodeSet2.xml", NULL);
@@ -562,6 +554,20 @@ START_TEST(Server_loadPnEmNodeset) {
 }
 END_TEST
 
+START_TEST(Server_loadPnEncNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "PNENC/Opc.Ua.PnEnc.Nodeset2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadPnDrvNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "PNDRV/Opc.Ua.PNDRV.Nodeset2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
 START_TEST(Server_loadPnRioNodeset) {
     UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "PNRIO/Opc.Ua.PnRio.Nodeset2.xml", NULL);
@@ -586,6 +592,48 @@ END_TEST
 START_TEST(Server_loadSafetyNodeset) {
     UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "Safety/Opc.Ua.Safety.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadIredesNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "IREDES/Opc.Ua.IREDES.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadUafxDataNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "UAFX/opc.ua.fx.data.nodeset2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadUafxAcNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "UAFX/opc.ua.fx.ac.nodeset2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadIrdiNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "PADIM/Opc.Ua.IRDI.NodeSet2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadPowertrainDictionaryNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "Powertrain/powertraindictionary.nodeset2.xml", NULL);
+    ck_assert(UA_StatusCode_isGood(retVal));
+}
+END_TEST
+
+START_TEST(Server_loadPowertrainNodeset) {
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
+        OPEN62541_NODESET_DIR "Powertrain/Opc.Ua.Powertrain.NodeSet2.xml", NULL);
     ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
@@ -720,14 +768,6 @@ static Suite* testSuite_Client(void) {
         tcase_add_test(tc_server, Server_loadGDSNodeset);
         suite_add_tcase(s, tc_server);
     }
-    /* { */
-    /*     TCase *tc_server = tcase_create("Server load Glass nodeset"); */
-    /*     tcase_add_unchecked_fixture(tc_server, setup, teardown); */
-    /*     tcase_add_test(tc_server, Server_loadDINodeset); */
-    /*     tcase_add_test(tc_server, Server_loadMachineryNodeset); */
-    /*     tcase_add_test(tc_server, Server_loadServer_loadGlassNodeset); */
-    /*     suite_add_tcase(s, tc_server); */
-    /* } */
     {
         TCase *tc_server = tcase_create("Server load I4AAS nodeset");
         tcase_add_unchecked_fixture(tc_server, setup, teardown);
@@ -1136,6 +1176,21 @@ static Suite* testSuite_Client(void) {
         suite_add_tcase(s, tc_server);
     }
     {
+        TCase *tc_server = tcase_create("Server load PNENC nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadPnEncNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load PNDRV nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadPnEncNodeset);
+        tcase_add_test(tc_server, Server_loadPnDrvNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
         TCase *tc_server = tcase_create("Server load PNEM nodeset");
         tcase_add_unchecked_fixture(tc_server, setup, teardown);
         tcase_add_test(tc_server, Server_loadDINodeset);
@@ -1159,6 +1214,25 @@ static Suite* testSuite_Client(void) {
         TCase *tc_server = tcase_create("Server load Safety nodeset");
         tcase_add_unchecked_fixture(tc_server, setup, teardown);
         tcase_add_test(tc_server, Server_loadSafetyNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load IREDES nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadIredesNodeset);
+        suite_add_tcase(s, tc_server);
+    }
+    {
+        TCase *tc_server = tcase_create("Server load Powertrain nodeset");
+        tcase_add_unchecked_fixture(tc_server, setup, teardown);
+        tcase_add_test(tc_server, Server_loadDINodeset);
+        tcase_add_test(tc_server, Server_loadIANodeset);
+        tcase_add_test(tc_server, Server_loadMachineryNodeset);
+        tcase_add_test(tc_server, Server_loadUafxDataNodeset);
+        tcase_add_test(tc_server, Server_loadUafxAcNodeset);
+        tcase_add_test(tc_server, Server_loadIrdiNodeset);
+        tcase_add_test(tc_server, Server_loadPowertrainDictionaryNodeset);
+        tcase_add_test(tc_server, Server_loadPowertrainNodeset);
         suite_add_tcase(s, tc_server);
     }
     {

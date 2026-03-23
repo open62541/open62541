@@ -182,7 +182,7 @@ UA_StatusCode_name(UA_StatusCode code);
 UA_EXPORT UA_Boolean
 UA_StatusCode_isBad(UA_StatusCode code);
 
-/* ((code >> 30) == 0x01) && ((code >> 30) < 0x02) */
+/* (code >> 30) == 0x01 */
 UA_EXPORT UA_Boolean
 UA_StatusCode_isUncertain(UA_StatusCode code);
 
@@ -234,6 +234,7 @@ UA_String_append(UA_String *s, const UA_String s2);
  *
  * - %S - UA_String (not wrapped in quotation marks in the output)
  * - %N - UA_NodeId (using UA_NodeId_print)
+ * - %Q - UA_QualifiedName (using UA_QualifiedName_print)
  *
  * Example usage:
  *   UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 4711);

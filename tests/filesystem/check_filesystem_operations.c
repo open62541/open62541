@@ -2,9 +2,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdio.h>
-#include <sys/stat.h>
-
+#include <sys/stat.h> 
 #include <directoryArch/common/fileSystemOperations_common.h>
+
+#if defined(UA_FILESYSTEM)
 
 struct stat st;
 
@@ -22,7 +23,7 @@ START_TEST(make_directory)
 
 START_TEST(make_file)
 {
-    UA_StatusCode status = makeFile("./TestDir/TestFile.txt");
+    UA_StatusCode status = makeFile("./TestDir/TestFile.txt", false, NULL);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
     
     ck_assert(stat("./TestDir/TestFile.txt", &st) == 0);
@@ -104,10 +105,10 @@ START_TEST(delete_item)
 /* ------------------------------------------------------------------------- */
 START_TEST(open_file_test)
 {
-    FILE *handle = NULL;
+    UA_Int32 *handle = NULL;
     UA_StatusCode status = openFile("./TestDir/TestFile.txt", 'r', &handle);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_nonnull(handle);
+    ck_assert_ptr_ne(handle, NULL);
 
     status = closeFile(handle);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
@@ -116,10 +117,10 @@ END_TEST
 
 START_TEST(close_file_test)
 {
-    FILE *handle = NULL;
+    UA_Int32 *handle = NULL;
     UA_StatusCode status = openFile("./TestDir/TestFile.txt", 'r', &handle);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_nonnull(handle);
+    ck_assert_ptr_ne(handle, NULL);
 
     status = closeFile(handle);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
@@ -131,11 +132,11 @@ END_TEST
 
 START_TEST(write_file_test)
 {
-    FILE *handle = NULL;
+    UA_Int32 *handle = NULL;
     UA_StatusCode status = openFile("./TestDir/TestFile.txt", 'w', &handle);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
 
-    const char *msg = "HelloWorld";
+    char *msg = "HelloWorld";
     UA_ByteString data;
     data.length = strlen(msg);
     data.data = (UA_Byte*)msg;
@@ -150,13 +151,13 @@ END_TEST
 
 START_TEST(read_file_test)
 {
-    FILE *handle = NULL;
+    UA_Int32 *handle = NULL;
     UA_StatusCode status = openFile("./TestDir/TestFile.txt", 'r', &handle);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
 
     UA_ByteString data;
     data.length = 10; // read "HelloWorld"
-    data.data = malloc(10);
+    data.data = (UA_Byte *)UA_calloc(10, sizeof(UA_Byte));
 
     status = readFile(handle, 10, &data);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
@@ -170,7 +171,7 @@ END_TEST
 
 START_TEST(seek_and_position_test)
 {
-    FILE *handle = NULL;
+    UA_Int32 *handle = NULL;
     UA_StatusCode status = openFile("./TestDir/TestFile.txt", 'r', &handle);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
 
@@ -247,3 +248,5 @@ int main(void) {
 
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
+
+#endif /* UA_FILESYSTEM */

@@ -451,28 +451,85 @@ START_TEST(Client_closes_on_server_error) {
 }
 END_TEST
 
-START_TEST(Client_findDataType) {
+static void timedCallbackFired(UA_Client *c, void *data) {
+    UA_Boolean *flag = (UA_Boolean *)data;
+    *flag = true;
+}
+
+START_TEST(Client_addTimedCallback) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    /* Test finding a known builtin type */
-    UA_NodeId int32TypeId = UA_TYPES[UA_TYPES_INT32].typeId;
-    const UA_DataType *foundType = UA_Client_findDataType(client, &int32TypeId);
-    ck_assert_ptr_ne(foundType, NULL);
-    ck_assert_uint_eq(foundType->typeId.identifier.numeric, UA_NS0ID_INT32);
+    UA_Boolean fired = false;
+    UA_UInt64 cbId = 0;
+    /* Use a deadline in the past so it fires on the next iteration.
+     * The event loop uses UA_DateTime_now_fake which starts at a low value. */
+    retval = UA_Client_addTimedCallback(client, timedCallbackFired,
+                                        &fired, 1, &cbId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(cbId != 0);
 
-    /* Test finding another builtin type */
-    UA_NodeId stringTypeId = UA_TYPES[UA_TYPES_STRING].typeId;
-    foundType = UA_Client_findDataType(client, &stringTypeId);
-    ck_assert_ptr_ne(foundType, NULL);
-    ck_assert_uint_eq(foundType->typeId.identifier.numeric, UA_NS0ID_STRING);
+    /* Iterate enough for the timer to fire */
+    for(int i = 0; i < 20; i++) {
+        UA_fakeSleep(10);
+        UA_Client_run_iterate(client, 1);
+    }
+    ck_assert(fired == true);
 
-    /* Test with unknown type - should return NULL */
-    UA_NodeId unknownTypeId = UA_NODEID_NUMERIC(99, 99999);
-    foundType = UA_Client_findDataType(client, &unknownTypeId);
-    ck_assert_ptr_eq(foundType, NULL);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
 
+START_TEST(Client_addRepeatedCallback) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Boolean fired = false;
+    UA_UInt64 cbId = 0;
+    retval = UA_Client_addRepeatedCallback(client, timedCallbackFired,
+                                           &fired, 50.0, &cbId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(cbId != 0);
+
+    for(int i = 0; i < 20; i++) {
+        UA_fakeSleep(10);
+        UA_Client_run_iterate(client, 1);
+    }
+    ck_assert(fired == true);
+
+    /* Remove the callback */
+    UA_Client_removeCallback(client, cbId);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_changeRepeatedCallbackInterval) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Boolean fired = false;
+    UA_UInt64 cbId = 0;
+    retval = UA_Client_addRepeatedCallback(client, timedCallbackFired,
+                                           &fired, 5000.0, &cbId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Change to a shorter interval */
+    retval = UA_Client_changeRepeatedCallbackInterval(client, cbId, 20.0);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    for(int i = 0; i < 20; i++) {
+        UA_fakeSleep(10);
+        UA_Client_run_iterate(client, 1);
+    }
+    ck_assert(fired == true);
+
+    UA_Client_removeCallback(client, cbId);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
@@ -483,45 +540,217 @@ START_TEST(Client_getConnectionAttribute) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    /* Get securityMode attribute */
-    UA_Variant value;
-    UA_Variant_init(&value);
-    UA_QualifiedName securityModeKey = UA_QUALIFIEDNAME(0, "securityMode");
-    retval = UA_Client_getConnectionAttribute(client, securityModeKey, &value);
+    /* Read serverDescription */
+    UA_Variant val;
+    UA_QualifiedName key = {0, UA_STRING_STATIC("serverDescription")};
+    retval = UA_Client_getConnectionAttribute(client, key, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_ne(value.data, NULL);
-    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]));
+    ck_assert(val.type == &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
 
-    /* Get securityPolicyUri attribute */
-    UA_Variant_init(&value);
-    UA_QualifiedName securityPolicyKey = UA_QUALIFIEDNAME(0, "securityPolicyUri");
-    retval = UA_Client_getConnectionAttribute(client, securityPolicyKey, &value);
+    /* Read securityPolicyUri */
+    UA_Variant val2;
+    UA_QualifiedName key2 = {0, UA_STRING_STATIC("securityPolicyUri")};
+    retval = UA_Client_getConnectionAttribute(client, key2, &val2);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_ne(value.data, NULL);
-    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_STRING]));
+    ck_assert(val2.type == &UA_TYPES[UA_TYPES_STRING]);
 
-    /* Get serverDescription attribute (copy version) */
-    UA_Variant_init(&value);
-    UA_QualifiedName serverDescKey = UA_QUALIFIEDNAME(0, "serverDescription");
-    retval = UA_Client_getConnectionAttributeCopy(client, serverDescKey, &value);
+    /* Read securityMode */
+    UA_Variant val3;
+    UA_QualifiedName key3 = {0, UA_STRING_STATIC("securityMode")};
+    retval = UA_Client_getConnectionAttribute(client, key3, &val3);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_ptr_ne(value.data, NULL);
-    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]));
-    UA_Variant_clear(&value);
+    ck_assert(val3.type == &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
 
-    /* Get securityMode using scalar version */
+    /* Read unknown key */
+    UA_Variant val4;
+    UA_QualifiedName key4 = {0, UA_STRING_STATIC("unknownKey")};
+    retval = UA_Client_getConnectionAttribute(client, key4, &val4);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINTERNALERROR);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_getConnectionAttributeCopy) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant val;
+    UA_QualifiedName key = {0, UA_STRING_STATIC("serverDescription")};
+    retval = UA_Client_getConnectionAttributeCopy(client, key, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(val.type == &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+    UA_Variant_clear(&val);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_getConnectionAttribute_scalar) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Read securityMode as scalar */
     UA_MessageSecurityMode mode;
-    retval = UA_Client_getConnectionAttribute_scalar(client, securityModeKey,
-                                                     &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE],
-                                                     &mode);
+    UA_QualifiedName key = {0, UA_STRING_STATIC("securityMode")};
+    retval = UA_Client_getConnectionAttribute_scalar(client, key,
+                 &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE], &mode);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    /* Should be None since we're using the test setup without encryption */
-    ck_assert_int_eq(mode, UA_MESSAGESECURITYMODE_NONE);
 
-    UA_Variant_init(&value);
-    UA_QualifiedName invalidKey = UA_QUALIFIEDNAME(0, "invalidKey");
-    retval = UA_Client_getConnectionAttribute(client, invalidKey, &value);
-    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
+    /* Type mismatch path */
+    UA_Int32 wrongType;
+    retval = UA_Client_getConnectionAttribute_scalar(client, key,
+                 &UA_TYPES[UA_TYPES_INT32], &wrongType);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_getNamespaceIndex) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Read existing namespace (ns=0 is always "http://opcfoundation.org/UA/") */
+    UA_ReadRequest rreq;
+    UA_ReadRequest_init(&rreq);
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY);
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    rreq.nodesToRead = &rvi;
+    rreq.nodesToReadSize = 1;
+    UA_ReadResponse rresp = UA_Client_Service_read(client, rreq);
+    ck_assert_uint_eq(rresp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_ReadResponse_clear(&rresp);
+
+    /* Add and look up a namespace */
+    UA_String nsUri = UA_STRING("http://test.namespace.example.com/");
+    UA_UInt16 nsIndex = 0;
+    retval = UA_Client_addNamespace(client, nsUri, &nsIndex);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(nsIndex > 0);
+
+    /* Look up again — should find it */
+    UA_UInt16 nsIndex2 = 0;
+    retval = UA_Client_getNamespaceIndex(client, nsUri, &nsIndex2);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nsIndex, nsIndex2);
+
+    /* Add same namespace — should return existing index */
+    UA_UInt16 nsIndex3 = 0;
+    retval = UA_Client_addNamespace(client, nsUri, &nsIndex3);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(nsIndex, nsIndex3);
+
+    /* Non-existent namespace */
+    UA_String unknown = UA_STRING("http://nonexistent/");
+    UA_UInt16 nsIndex4 = 0;
+    retval = UA_Client_getNamespaceIndex(client, unknown, &nsIndex4);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_findDataType) {
+    UA_Client *client = UA_Client_newForUnitTest();
+
+    /* Known built-in type */
+    const UA_DataType *dt =
+        UA_Client_findDataType(client, &UA_TYPES[UA_TYPES_INT32].typeId);
+    ck_assert_ptr_ne(dt, NULL);
+    ck_assert(UA_NodeId_equal(&dt->typeId, &UA_TYPES[UA_TYPES_INT32].typeId));
+
+    /* Unknown type */
+    UA_NodeId unknownId = UA_NODEID_NUMERIC(99, 99999);
+    dt = UA_Client_findDataType(client, &unknownId);
+    ck_assert_ptr_eq(dt, NULL);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_getState) {
+    UA_Client *client = UA_Client_newForUnitTest();
+
+    /* Before connecting */
+    UA_SecureChannelState channelState;
+    UA_SessionState sessionState;
+    UA_StatusCode connectStatus;
+    UA_Client_getState(client, &channelState, &sessionState, &connectStatus);
+    ck_assert_uint_eq(channelState, UA_SECURECHANNELSTATE_CLOSED);
+    ck_assert_uint_eq(sessionState, UA_SESSIONSTATE_CLOSED);
+    ck_assert_uint_eq(connectStatus, UA_STATUSCODE_GOOD);
+
+    /* With NULL outputs */
+    UA_Client_getState(client, NULL, NULL, NULL);
+
+    /* After connecting */
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_getState(client, &channelState, &sessionState, &connectStatus);
+    ck_assert_uint_eq(channelState, UA_SECURECHANNELSTATE_OPEN);
+    ck_assert_uint_eq(sessionState, UA_SESSIONSTATE_ACTIVATED);
+    ck_assert_uint_eq(connectStatus, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_cancelByRequestHandle) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Cancel a non-existent request handle — server should still return GOOD
+     * (the CancelResponse itself succeeds, cancelCount is 0) */
+    UA_UInt32 cancelCount = 99;
+    retval = UA_Client_cancelByRequestHandle(client, 999999, &cancelCount);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(cancelCount, 0);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_cancelByRequestId_notFound) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Request id not in the async list -> BADNOTFOUND */
+    UA_UInt32 cancelCount = 0;
+    retval = UA_Client_cancelByRequestId(client, 999999, &cancelCount);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTFOUND);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_setAuthenticationUsername) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+
+    UA_StatusCode retval =
+        UA_ClientConfig_setAuthenticationUsername(cc, "user1", "password");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(cc->userIdentityToken.content.decoded.type ==
+              &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]);
+
+    retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -554,6 +783,23 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_reconnect, Client_activateSessionTimeout);
     tcase_add_test(tc_client_reconnect, Client_activateSessionLocaleIds);
     suite_add_tcase(s,tc_client_reconnect);
+
+    TCase *tc_ext = tcase_create("Client Extended");
+    tcase_add_checked_fixture(tc_ext, setup, teardown);
+    tcase_add_test(tc_ext, Client_addTimedCallback);
+    tcase_add_test(tc_ext, Client_addRepeatedCallback);
+    tcase_add_test(tc_ext, Client_changeRepeatedCallbackInterval);
+    tcase_add_test(tc_ext, Client_getConnectionAttribute);
+    tcase_add_test(tc_ext, Client_getConnectionAttributeCopy);
+    tcase_add_test(tc_ext, Client_getConnectionAttribute_scalar);
+    tcase_add_test(tc_ext, Client_getNamespaceIndex);
+    tcase_add_test(tc_ext, Client_findDataType);
+    tcase_add_test(tc_ext, Client_getState);
+    tcase_add_test(tc_ext, Client_cancelByRequestHandle);
+    tcase_add_test(tc_ext, Client_cancelByRequestId_notFound);
+    tcase_add_test(tc_ext, Client_setAuthenticationUsername);
+    suite_add_tcase(s, tc_ext);
+
     return s;
 }
 

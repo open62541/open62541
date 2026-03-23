@@ -694,7 +694,7 @@ cleanup:
     return retval;
 }
 
-#if !defined(mbedtls_x509_subject_alternative_name)
+#if MBEDTLS_VERSION_NUMBER < 0x03040000
 
 static const unsigned char *
 UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
@@ -725,8 +725,8 @@ UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-#if defined(mbedtls_x509_subject_alternative_name)
-    /* Get the Subject Alternative Name and compate */
+#if MBEDTLS_VERSION_NUMBER >= 0x03040000
+    /* Get the Subject Alternative Name and compare */
     mbedtls_x509_subject_alternative_name san;
     mbedtls_x509_sequence *cur = &remoteCertificate.subject_alt_names;
     retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
@@ -859,6 +859,11 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
     UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &publicKey);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    if(!mbedtls_pk_can_do(&publicKey.pk, MBEDTLS_PK_RSA)) {
+        mbedtls_x509_crt_free(&publicKey);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     mbedtls_rsa_context *rsa = mbedtls_pk_rsa(publicKey.pk);
 

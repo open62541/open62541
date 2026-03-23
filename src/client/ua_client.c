@@ -232,6 +232,11 @@ UA_Client_clear(UA_Client *client) {
     client->sessionState = oldState;
 
     UA_Client_disconnect(client);
+
+    /* Prevent reconnection attempts during the EventLoop teardown
+     * in UA_ClientConfig_clear */
+    client->connectStatus = UA_STATUSCODE_BADSHUTDOWN;
+
     UA_String_clear(&client->discoveryUrl);
     UA_EndpointDescription_clear(&client->endpoint);
 
@@ -1219,7 +1224,7 @@ UA_Client_getNamespaceUri(UA_Client *client, UA_UInt16 index,
                           UA_String *nsUri) {
     lockClient(client);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(index > client->namespacesSize)
+    if(index < client->namespacesSize)
         res = UA_String_copy(&client->namespaces[index], nsUri);
     else
         res = UA_STATUSCODE_BADNOTFOUND;

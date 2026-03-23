@@ -8,7 +8,7 @@ UA_Server_addFileSystem(UA_FileServerDriver *driver, UA_Server *server,
     // Adding filesystem to existing driver
     if (driver) {
         UA_NodeId newNodeId;
-        UA_StatusCode res = UA_FileServerDriver_addFileDirectory(driver, server, &parentNode, mountPath, &newNodeId, mountPath);
+        UA_StatusCode res = UA_FileServerDriver_addFileDirectory(driver, server, &parentNode, mountPath, &newNodeId, true);
         return res;
     }
     return UA_STATUSCODE_BADINVALIDARGUMENT;

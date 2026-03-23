@@ -389,15 +389,6 @@ static void
 disableAllPubSubComponents(UA_PubSubManager *psm) {
     UA_PubSubConnection *c;
     TAILQ_FOREACH(c, &psm->connections, listEntry) {
-        UA_WriterGroup *wg;
-        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
-            UA_DataSetWriter *dsw;
-            LIST_FOREACH(dsw, &wg->writers, listEntry) {
-                UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
-            }
-            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
-        }
-
         UA_ReaderGroup *rg;
         LIST_FOREACH(rg, &c->readerGroups, listEntry) {
             UA_DataSetReader *dsr;
@@ -406,6 +397,15 @@ disableAllPubSubComponents(UA_PubSubManager *psm) {
                                                 UA_STATUSCODE_BADSHUTDOWN);
             }
             UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
+        }
+
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            UA_DataSetWriter *dsw;
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
+            }
+            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
         }
 
         UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
