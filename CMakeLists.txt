@@ -710,7 +710,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
     # Hardened build (stack protection, etc.)
     # See the GCC docs on which precise flags this enables.
     if(UA_ENABLE_HARDENING)
-        check_add_cc_flag("-fhardened")
+        check_add_cc_flag("-fhardened" "Debug;Release;RelWithDebInfo;MinSizeRel")
     endif()
 
     # Threading support
@@ -725,6 +725,17 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
         message(FATAL_ERROR "Select the 32bit (cross-) compiler instead of forcing compiler options")
       endif()
       set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32") # GCC and Clang, possibly more
+    endif()
+
+    # Coverage
+    if(UA_ENABLE_COVERAGE)
+        check_add_cc_flag("--coverage" "Debug;Release;RelWithDebInfo;MinSizeRel")
+        if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+            check_add_cc_flag("-fprofile-instr-generate" "Debug;Release;RelWithDebInfo;MinSizeRel")
+            check_add_cc_flag("-fcoverage-mapping" "Debug;Release;RelWithDebInfo;MinSizeRel")
+            check_add_cc_flag("-fprofile-arcs" "Debug;Release;RelWithDebInfo;MinSizeRel")
+            check_add_cc_flag("-ftest-coverage" "Debug;Release;RelWithDebInfo;MinSizeRel")
+        endif()
     endif()
 
     if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
