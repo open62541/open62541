@@ -28,6 +28,32 @@ void
 UA_Server_decrementRolePermissionsRefCount(UA_Server *server,
                                            UA_PermissionIndex index);
 
+/* Low-level permission index functions (internal, used by tests) */
+UA_StatusCode
+UA_Server_setNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_PermissionIndex permissionIndex,
+                                 UA_Boolean recursive);
+
+UA_StatusCode
+UA_Server_getNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_PermissionIndex *permissionIndex);
+
+UA_StatusCode
+UA_Server_addRolePermissionConfig(UA_Server *server,
+                                  size_t entriesSize,
+                                  const UA_RolePermission *entries,
+                                  UA_PermissionIndex *outIndex);
+
+const UA_RolePermissionSet *
+UA_Server_getRolePermissionConfig(UA_Server *server,
+                                  UA_PermissionIndex index);
+
+UA_StatusCode
+UA_Server_updateRolePermissionConfig(UA_Server *server,
+                                     UA_PermissionIndex index,
+                                     size_t entriesSize,
+                                     const UA_RolePermission *entries);
+
 #endif /* UA_ENABLE_RBAC */
 
 _UA_END_DECLS

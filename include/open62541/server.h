@@ -35,13 +35,8 @@
 #endif
 
 #ifdef UA_ENABLE_RBAC
-/* UA_PermissionIndex: compact index stored in each node to reference a
- * position in the server's internal role-permissions array. Defined here
- * (rather than in plugin/nodestore.h) because nodestore.h includes server.h,
- * so the circular dependency prevents including nodestore.h here.
- * Configured via UA_ROLEPERMISSIONS_NODE_SIZE_BYTE in config.h. */
-#ifndef UA_PERMISSIONINDEX_DECLARED
-#define UA_PERMISSIONINDEX_DECLARED
+/* Compact index stored in each node to reference a position in the server's
+ * role-permissions array. Size configured via UA_ROLEPERMISSIONS_NODE_SIZE_BYTE. */
 #if UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 2
 typedef UA_UInt16 UA_PermissionIndex;
 #define UA_PERMISSION_INDEX_INVALID 0xFFFF
@@ -54,7 +49,6 @@ typedef UA_UInt64 UA_PermissionIndex;
 #else
 #error "UA_ROLEPERMISSIONS_NODE_SIZE_BYTE must be 2, 4, or 8"
 #endif
-#endif /* UA_PERMISSIONINDEX_DECLARED */
 #endif /* UA_ENABLE_RBAC */
 
 #ifdef UA_ENABLE_PUBSUB
@@ -2053,8 +2047,8 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              UA_Variant *value);
 
 /**
- * Role-Based Access Control (RBAC) - Type Definitions
- * ====================================================
+ * Role-Based Access Control (RBAC)
+ * --------------------------------
  *
  * Role-Based Access Control implementation per OPC UA Part 18.
  *
@@ -2064,13 +2058,14 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
  *
  * RBAC allows fine-grained access control by assigning roles to sessions and
  * defining permissions per role on individual nodes or entire namespaces.
+ *
+ * Type Definitions
+ * ~~~~~~~~~~~~~~~~
  */
 
 #ifdef UA_ENABLE_RBAC
 
-/**
- * UA_RolePermission
- * -----------------
+/* UA_RolePermission
  * Maps a single role to its permissions bitmask. Used in the server
  * configuration to define presets and in the public API to set or query
  * role permissions on nodes. */
@@ -2079,9 +2074,7 @@ typedef struct {
     UA_PermissionType permissions;
 } UA_RolePermission;
 
-/**
- * UA_RolePermissionSet
- * --------------------
+/* UA_RolePermissionSet
  * A set of role-permission mappings. Used in the server configuration
  * to define initial role-permission presets. */
 typedef struct {
@@ -2100,9 +2093,7 @@ UA_StatusCode UA_EXPORT
 UA_RolePermissionSet_copy(const UA_RolePermissionSet *src,
                           UA_RolePermissionSet *dst);
 
-/**
- * UA_Role
- * -------
+/* UA_Role
  * Represents an OPC UA role with identity mapping rules and optional
  * application/endpoint restrictions per OPC UA Part 18. */
 typedef struct {
@@ -2535,8 +2526,8 @@ struct UA_ServerConfig {
     size_t rolesSize;
     UA_Role *roles;
 
-    /* If true, the Anonymous role gets all permissions (0xFFFFFFFF) by default.
-     * Useful for testing/development without full RBAC configuration. */
+    /* If true, all permissions are granted regardless of roles.
+     * WARNING: Effectively disables authorization. Use for testing only. */
     UA_Boolean allPermissionsForAnonymousRole;
 #endif
 };
@@ -2620,19 +2611,15 @@ UA_Server_removeCertificates(UA_Server *server,
                              const UA_Boolean isTrusted);
 
 /**
- * Role-Based Access Control (RBAC) - API
- * =======================================
- *
- * **WARNING**: This feature is EXPERIMENTAL and NOT FOR PRODUCTION USE.
- * The RBAC implementation is under active development and the API may change.
- * Use only for testing and development purposes.
+ * RBAC API
+ * ~~~~~~~~
  */
 
 #ifdef UA_ENABLE_RBAC
 
 /**
  * Node Role-Permission Management
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
  * Functions for managing role permissions on individual nodes. */
 
 /* Set role permissions for a node.
@@ -2695,7 +2682,7 @@ UA_Server_removeNodeRolePermissions(UA_Server *server,
 
 /**
  * Role Management
- * ~~~~~~~~~~~~~~~
+ * ^^^^^^^^^^^^^^^
  * Functions for managing the server's role registry. Roles define which
  * sessions get which access rights. Config-provided roles are protected
  * and cannot be removed at runtime. */
@@ -2789,7 +2776,7 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role);
 
 /**
  * Session Role Management
- * ~~~~~~~~~~~~~~~~~~~~~~~
+ * ^^^^^^^^^^^^^^^^^^^^^^^
  * Session roles are managed via the generic session attribute API using the
  * well-known key ``UA_RBAC_SESSION_ATTR_ROLES``. The value is a ``UA_NodeId[]``
  * array of the roles assigned to the session.
@@ -2826,9 +2813,22 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role);
  *                                     UA_RBAC_SESSION_ATTR_ROLES); */
 #define UA_RBAC_SESSION_ATTR_ROLES UA_QUALIFIEDNAME(0, "roles")
 
+/* Convenience: Get role QualifiedNames assigned to a session.
+ * Returns a deep-copy array of role names. Caller frees via
+ * UA_Array_delete(roleNames, count, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]).
+ *
+ * @param server The server instance
+ * @param sessionId The session to query
+ * @param outSize Output: number of roles
+ * @param outRoleNames Output: array of QualifiedNames (caller must free)
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId *sessionId,
+                              size_t *outSize, UA_QualifiedName **outRoleNames);
+
 /**
  * Per-Role Node Permission Management
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
  * Functions that add or remove permissions for a specific role on a node.
  * Unlike setNodeRolePermissions (which replaces the entire set), these
  * functions modify individual role entries within the node's permission
@@ -2866,79 +2866,8 @@ UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
                                 UA_Boolean recursive);
 
 /**
- * Permission Index Management
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * Low-level functions for directly managing a node's permission index
- * into the server's internal role-permission configuration table. */
-
-/* Set a node's permission index directly.
- *
- * @param server The server instance
- * @param nodeId The node to modify
- * @param permissionIndex The index to assign
- * @param recursive If true, apply recursively to child nodes
- * @return UA_STATUSCODE_GOOD on success */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
-                                 UA_PermissionIndex permissionIndex,
-                                 UA_Boolean recursive);
-
-/* Get a node's permission index.
- *
- * @param server The server instance
- * @param nodeId The node to query
- * @param permissionIndex Output: the current permission index
- * @return UA_STATUSCODE_GOOD on success */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_getNodePermissionIndex(UA_Server *server, const UA_NodeId nodeId,
-                                 UA_PermissionIndex *permissionIndex);
-
-/**
- * Role Permission Configuration Management
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
- * Functions for managing the internal role-permission configuration
- * table entries directly. */
-
-/* Add a new role permission configuration entry.
- *
- * @param server The server instance
- * @param entriesSize Number of role-permission entries
- * @param entries Array of role-permission entries
- * @param outIndex Output: index of the new configuration entry
- * @return UA_STATUSCODE_GOOD on success */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_addRolePermissionConfig(UA_Server *server,
-                                  size_t entriesSize,
-                                  const UA_RolePermission *entries,
-                                  UA_PermissionIndex *outIndex);
-
-/* Get a role permission configuration entry by index.
- * Returns NULL if index is out of range.
- *
- * @param server The server instance
- * @param index The configuration index
- * @return Pointer to the internal entry (do not modify), or NULL */
-UA_EXPORT const UA_RolePermissionSet *
-UA_Server_getRolePermissionConfig(UA_Server *server,
-                                  UA_PermissionIndex index);
-
-/* Update a role permission configuration entry.
- * Only entries with refCount == 0 can be updated.
- *
- * @param server The server instance
- * @param index The configuration index to update
- * @param entriesSize Number of new entries
- * @param entries Array of new role-permission entries
- * @return UA_STATUSCODE_GOOD on success */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_updateRolePermissionConfig(UA_Server *server,
-                                     UA_PermissionIndex index,
-                                     size_t entriesSize,
-                                     const UA_RolePermission *entries);
-
-/**
  * Effective Permission Queries
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
  * Functions for querying computed permissions based on session roles.
  * Per OPC UA Part 5: effective permissions are the logical OR of
  * permissions for all roles assigned to the session. */

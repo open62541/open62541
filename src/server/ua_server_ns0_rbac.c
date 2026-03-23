@@ -572,10 +572,10 @@ initNS0RBAC(UA_Server *server) {
         UA_QualifiedName_clear(&typebn);
 
     if(!hasFullRbacNS0) {
-        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                    "RBAC: RoleSetType (NS0 i=%u) not present - NS0 RBAC "
-                    "information model skipped (requires UA_NAMESPACE_ZERO=FULL)",
-                    UA_NS0ID_ROLESETTYPE);
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: RoleSetType (NS0 i=%u) not present - NS0 RBAC "
+                       "information model skipped (requires UA_NAMESPACE_ZERO=FULL)",
+                       UA_NS0ID_ROLESETTYPE);
         return UA_STATUSCODE_GOOD;
     }
 

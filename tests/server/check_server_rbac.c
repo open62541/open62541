@@ -10,6 +10,8 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/nodeids.h>
 
+#include "ua_server_rbac.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <check.h>

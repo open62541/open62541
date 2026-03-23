@@ -1070,6 +1070,57 @@ UA_Session_setRoles(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId *sessionId,
+                              size_t *outSize, UA_QualifiedName **outRoleNames) {
+    if(!server || !sessionId || !outSize || !outRoleNames)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    *outSize = 0;
+    *outRoleNames = NULL;
+
+    lockServer(server);
+
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
+    }
+
+    if(session->rolesSize == 0) {
+        unlockServer(server);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_QualifiedName *names = (UA_QualifiedName*)
+        UA_calloc(session->rolesSize, sizeof(UA_QualifiedName));
+    if(!names) {
+        unlockServer(server);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    size_t count = 0;
+    for(size_t i = 0; i < session->rolesSize; i++) {
+        const UA_Role *role = findRoleById(server, &session->roles[i]);
+        if(!role)
+            continue;
+        UA_StatusCode res = UA_QualifiedName_copy(&role->roleName, &names[count]);
+        if(res != UA_STATUSCODE_GOOD) {
+            for(size_t j = 0; j < count; j++)
+                UA_QualifiedName_clear(&names[j]);
+            UA_free(names);
+            unlockServer(server);
+            return res;
+        }
+        count++;
+    }
+
+    *outRoleNames = names;
+    *outSize = count;
+    unlockServer(server);
+    return UA_STATUSCODE_GOOD;
+}
+
 /*****************************************/
 /* Internal Helpers: Hierarchy Traversal */
 /*****************************************/
