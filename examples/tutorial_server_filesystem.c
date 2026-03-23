@@ -11,9 +11,9 @@
  * 5. Running the server so clients can interact with files
  *
  * Public Server API (for server-side code):
- *   - UA_Server_addFileSystem()   : Mount a filesystem directory
  *   - UA_Server_makeDirectory()   : Create a directory (on disk + address space)
  *   - UA_Server_makeFile()        : Create a file (on disk + address space)
+ *   - UA_FileServerDriver_addFileDirectory() : Mount a filesystem directory (driver-level)
  *
  * Client API (via OPC UA method calls on FileType/FileDirectoryType nodes):
  *   - CreateDirectory, CreateFile, DeleteFileSystemObject, MoveOrCopy
@@ -91,9 +91,12 @@ int main(void) {
     /* Step 4: Create a Pump object with attached FileSystem */
     manuallyDefinePump(server, fsDriver);
 
-    /* Step 5: Mount a standalone filesystem under Objects folder */
+    /* Step 5: Mount a standalone filesystem under Objects folder
+     * UA_FileServerDriver_addFileDirectory() is the driver-level function to
+     * mount a host directory into the OPC UA address space. */
     UA_NodeId objectsFolder = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_Server_addFileSystem(fsDriver, server, objectsFolder, ".");
+    UA_NodeId fsNodeId;
+    UA_FileServerDriver_addFileDirectory(fsDriver, server, &objectsFolder, ".", &fsNodeId, ".");
 
     /* Step 6: Start driver and run server */
     fsDriver->base.lifecycle.start((UA_Driver*)fsDriver);

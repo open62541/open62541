@@ -45,9 +45,10 @@ int main(void) {
     ctx.config = NULL;
     fsDriver->base.lifecycle.init(server, (UA_Driver*)fsDriver, &ctx);
 
-    /* Mount a filesystem */
+    /* Mount a filesystem using the driver-level function */
     UA_NodeId objectsFolder = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_Server_addFileSystem(fsDriver, server, objectsFolder, ".");
+    UA_NodeId fsNodeId;
+    UA_FileServerDriver_addFileDirectory(fsDriver, server, &objectsFolder, ".", &fsNodeId, ".");
 
     UA_NodeId fsRootId = fsDriver->fsNodes[0];
 

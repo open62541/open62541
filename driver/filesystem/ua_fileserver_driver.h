@@ -141,7 +141,7 @@ __directoryOperation(UA_Server *server,
  *  - UA_STATUSCODE_GOOD if the file system was successfully added.
  *  - An error code otherwise.
  */
-UA_StatusCode UA_FileServerDriver_addFileDirectory(
+UA_EXPORT UA_StatusCode UA_FileServerDriver_addFileDirectory(
     UA_FileServerDriver *driver,
     UA_Server *server,
     const UA_NodeId *parentNode,
@@ -164,7 +164,7 @@ UA_StatusCode UA_FileServerDriver_addFileDirectory(
  * - UA_STATUSCODE_GOOD if the file node was successfully added.
  * - An error code otherwise.
  */
-UA_StatusCode UA_FileServerDriver_addFile(UA_Server *server,
+UA_EXPORT UA_StatusCode UA_FileServerDriver_addFile(UA_Server *server,
                             const UA_NodeId *parentNode,
                             const char *filePath,
                             UA_NodeId *newNodeId);
@@ -182,18 +182,14 @@ UA_StatusCode UA_FileServerDriver_addFile(UA_Server *server,
  * Returns:
  *  - A pointer to the newly allocated FileServerDriver.
  */
-UA_FileServerDriver *
+UA_EXPORT UA_FileServerDriver *
 UA_FileServerDriver_new(const char *name, UA_Server *server, FileDriverType driverType);
 
 // ======================================================
-// Public API: Only makeFile, makeDirectory, and addFileSystem
+// Public API: Only makeFile and makeDirectory
 // All other operations (open, close, read, write, etc.) are accessed
 // by OPC UA clients via method calls on FileType/FileDirectoryType nodes.
-UA_EXPORT UA_THREADSAFE UA_StatusCode
-UA_Server_addFileSystem(UA_FileServerDriver *driver, UA_Server *server,
-                      const UA_NodeId parentNode,
-                      const char *mountPath);
-
+// To mount a filesystem, use UA_FileServerDriver_addFileDirectory() directly.
 UA_EXPORT UA_StatusCode
 UA_Server_makeDirectory(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *parentNode, const char *dirName, UA_NodeId *newNodeId);
 

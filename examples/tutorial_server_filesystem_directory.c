@@ -44,10 +44,11 @@ int main(void) {
     fsDriver->base.lifecycle.init(server, (UA_Driver*)fsDriver, &ctx);
 
     /* Step 4: Mount a filesystem directory
-     * This creates a FileDirectoryType node under the Objects folder that
-     * represents the given path on the host filesystem. */
+     * UA_FileServerDriver_addFileDirectory() creates a FileDirectoryType node
+     * under the Objects folder that represents the given path on the host filesystem. */
     UA_NodeId objectsFolder = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_Server_addFileSystem(fsDriver, server, objectsFolder, ".");
+    UA_NodeId fsNodeId;
+    UA_FileServerDriver_addFileDirectory(fsDriver, server, &objectsFolder, ".", &fsNodeId, ".");
 
     /* Step 5: Create subdirectories using the public API
      * UA_Server_makeDirectory() creates a new directory both on disk

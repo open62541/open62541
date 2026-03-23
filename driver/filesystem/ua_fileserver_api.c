@@ -2,18 +2,6 @@
 #include <filesystem/ua_fileserver_driver.h>
 
 UA_StatusCode
-UA_Server_addFileSystem(UA_FileServerDriver *driver, UA_Server *server,
-                      const UA_NodeId parentNode,
-                      const char *mountPath) {
-    if (driver) {
-        UA_NodeId newNodeId;
-        UA_StatusCode res = UA_FileServerDriver_addFileDirectory(driver, server, &parentNode, mountPath, &newNodeId, mountPath);
-        return res;
-    }
-    return UA_STATUSCODE_BADINVALIDARGUMENT;
-}
-
-UA_StatusCode
 UA_Server_makeDirectory(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *parentNode, const char *dirName, UA_NodeId *newNodeId) {
     UA_String dirNameVariant = UA_STRING_ALLOC(dirName);
 
