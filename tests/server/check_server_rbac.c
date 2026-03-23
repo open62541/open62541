@@ -122,13 +122,20 @@ END_TEST
 START_TEST(addRole_nullRoleIdAllowed) {
     UA_Role role;
     UA_Role_init(&role);
-    /* roleId is null => server accepts it as-is */
+    /* roleId is null => server auto-generates a numeric NodeId in NS1 */
     role.roleName = UA_QUALIFIEDNAME(1, "NullIdRole");
 
     UA_NodeId outId = UA_NODEID_NULL;
     UA_StatusCode res = UA_Server_addRole(server, &role, &outId);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    /* The roleId in the registry is null (no auto-generation in this batch) */
+
+    /* Verify the generated ID: numeric, namespace 1, non-zero */
+    ck_assert(!UA_NodeId_isNull(&outId));
+    ck_assert_uint_eq(outId.identifierType, UA_NODEIDTYPE_NUMERIC);
+    ck_assert_uint_eq(outId.namespaceIndex, 1);
+    ck_assert(outId.identifier.numeric != 0);
+
+    removeTestRole("NullIdRole", 1);
     UA_NodeId_clear(&outId);
 }
 END_TEST
@@ -1582,6 +1589,129 @@ START_TEST(permissionConfig_addAndGet) {
 }
 END_TEST
 
+/* Test getSessionRoleNames returns QualifiedNames for assigned roles */
+START_TEST(sessionRoleNames) {
+    UA_NodeId adminSessionId = UA_NODEID_GUID(0,
+        (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
+
+    /* Set two roles on the session */
+    UA_NodeId rolesToSet[2];
+    rolesToSet[0] = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
+    rolesToSet[1] = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+    UA_Variant v;
+    UA_Variant_setArray(&v, rolesToSet, 2, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_StatusCode res = UA_Server_setSessionAttribute(server, &adminSessionId,
+                                                      UA_RBAC_SESSION_ATTR_ROLES, &v);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Query role names */
+    size_t namesSize = 0;
+    UA_QualifiedName *names = NULL;
+    res = UA_Server_getSessionRoleNames(server, &adminSessionId,
+                                        &namesSize, &names);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(namesSize, 2);
+    ck_assert_ptr_nonnull(names);
+
+    UA_QualifiedName observerName = UA_QUALIFIEDNAME(0, "Observer");
+    UA_QualifiedName operatorName = UA_QUALIFIEDNAME(0, "Operator");
+    UA_Boolean foundObserver = false, foundOperator = false;
+    for(size_t i = 0; i < namesSize; i++) {
+        if(UA_QualifiedName_equal(&names[i], &observerName)) foundObserver = true;
+        if(UA_QualifiedName_equal(&names[i], &operatorName)) foundOperator = true;
+    }
+    ck_assert(foundObserver);
+    ck_assert(foundOperator);
+
+    UA_Array_delete(names, namesSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+
+    /* Invalid session */
+    UA_NodeId badSession = UA_NODEID_NUMERIC(0, 999999);
+    res = UA_Server_getSessionRoleNames(server, &badSession,
+                                        &namesSize, &names);
+    ck_assert_uint_ne(res, UA_STATUSCODE_GOOD);
+
+    /* Clean up */
+    UA_Server_deleteSessionAttribute(server, &adminSessionId,
+                                     UA_RBAC_SESSION_ATTR_ROLES);
+}
+END_TEST
+
+/* Test free-slot reuse: adding permissions, removing them (refCount→0),
+ * then adding different permissions reuses the freed slot index. */
+START_TEST(permissionEntry_slotReuse) {
+    UA_NodeId roleId;
+    UA_StatusCode res = addTestRole("SlotRole", 1, 51080, &roleId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Create two nodes */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "SlotVar1");
+    UA_Int32 val = 0;
+    UA_Variant_setScalar(&attr.value, &val, &UA_TYPES[UA_TYPES_INT32]);
+    UA_NodeId node1;
+    res = UA_Server_addVariableNode(server, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "SlotVar1"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, &node1);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "SlotVar2");
+    UA_NodeId node2;
+    res = UA_Server_addVariableNode(server, UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "SlotVar2"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+        attr, NULL, &node2);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Assign BROWSE permissions to node1 (creates an entry, refCount=1) */
+    res = UA_Server_addRolePermissions(server, node1, roleId,
+                                       UA_PERMISSIONTYPE_BROWSE, false, false);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_PermissionIndex idx1;
+    res = UA_Server_getNodePermissionIndex(server, node1, &idx1);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(idx1 != UA_PERMISSION_INDEX_INVALID);
+
+    /* Remove all permissions from node1 (refCount→0) */
+    res = UA_Server_removeNodeRolePermissions(server, node1, false);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Assign DIFFERENT permissions to node2 — should reuse the freed slot */
+    res = UA_Server_addRolePermissions(server, node2, roleId,
+                                       UA_PERMISSIONTYPE_READ | UA_PERMISSIONTYPE_WRITE,
+                                       false, false);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_PermissionIndex idx2;
+    res = UA_Server_getNodePermissionIndex(server, node2, &idx2);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(idx2 != UA_PERMISSION_INDEX_INVALID);
+
+    /* The new entry should have reused the old slot index */
+    ck_assert_uint_eq(idx1, idx2);
+
+    /* Verify the slot now has the new permissions */
+    const UA_RolePermissionSet *rp = UA_Server_getRolePermissionConfig(server, idx2);
+    ck_assert_ptr_nonnull(rp);
+    ck_assert_uint_eq(rp->rolePermissionsSize, 1);
+    ck_assert_uint_eq(rp->rolePermissions[0].permissions,
+                      UA_PERMISSIONTYPE_READ | UA_PERMISSIONTYPE_WRITE);
+
+    UA_Server_deleteNode(server, node1, true);
+    UA_Server_deleteNode(server, node2, true);
+    UA_NodeId_clear(&node1);
+    UA_NodeId_clear(&node2);
+    removeTestRole("SlotRole", 1);
+    UA_NodeId_clear(&roleId);
+}
+END_TEST
+
 static Suite *testSuite_RolTypeAPI(void) {
     Suite *s = suite_create("RBAC Role Type API");
     TCase *tc = tcase_create("RoleType");
@@ -1646,6 +1776,7 @@ static Suite *testSuite_PermissionMapping(void) {
     tcase_add_test(tc, effectivePermissions_logicalOR);
     tcase_add_test(tc, userRolePermissions_array);
     tcase_add_test(tc, permissionConfig_addAndGet);
+    tcase_add_test(tc, permissionEntry_slotReuse);
     tcase_add_test(tc, allPermissionsForAnonymousRole_config);
     suite_add_tcase(s, tc);
     return s;
@@ -1673,6 +1804,7 @@ static Suite *testSuite_InformationModel(void) {
     tcase_add_unchecked_fixture(tc_session, setup, teardown);
     tcase_add_test(tc_session, sessionRoleManagement);
     tcase_add_test(tc_session, addSessionRole);
+    tcase_add_test(tc_session, sessionRoleNames);
     suite_add_tcase(s, tc_session);
 
     TCase *tc_perms = tcase_create("NodePermissions");
