@@ -308,6 +308,41 @@ static const UA_String jsonEncoding = {sizeof("Default JSON")-1, (UA_Byte*)"Defa
         break;                                                  \
     }
 
+static void
+addMissingTimestamps(UA_Server *server, UA_DataValue *v,
+              UA_TimestampsToReturn timestampsToReturn,
+              const UA_ReadValueId *id) {
+    /* Always use the current time as the server-timestamp */
+    if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
+       timestampsToReturn == UA_TIMESTAMPSTORETURN_BOTH) {
+        UA_EventLoop *el = server->config.eventLoop;
+        v->serverTimestamp = el->dateTime_now(el);
+        v->hasServerTimestamp = true;
+        v->hasServerPicoseconds = false;
+    } else {
+        v->hasServerTimestamp = false;
+        v->hasServerPicoseconds = false;
+    }
+
+    /* Remove source timestamps when not required */
+    if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
+       timestampsToReturn == UA_TIMESTAMPSTORETURN_NEITHER) {
+        v->hasSourceTimestamp = false;
+        v->hasSourcePicoseconds = false;
+    } else if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SOURCE ||
+              timestampsToReturn == UA_TIMESTAMPSTORETURN_BOTH) {
+        /* Optional behavior and not required by the specification: Always
+         * set a SourceTimestamp for the value attribute, even if the value
+         * source didn't return one. */
+        if(!v->hasSourceTimestamp && id->attributeId == UA_ATTRIBUTEID_VALUE) {
+            UA_EventLoop *el = server->config.eventLoop;
+            v->sourceTimestamp = el->dateTime_now(el);
+            v->hasSourceTimestamp = true;
+            v->hasSourcePicoseconds = false;
+        }
+    }
+}
+
 /* Returns whether the operation is done or an async operation has been
  * triggered. */
 static UA_Boolean
@@ -327,6 +362,7 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
         else
            v->status = UA_STATUSCODE_BADDATAENCODINGINVALID;
         v->hasStatus = true;
+        addMissingTimestamps(server, v, timestampsToReturn, id);
         return true;
     }
 
@@ -334,6 +370,7 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
     if(id->indexRange.length > 0 && id->attributeId != UA_ATTRIBUTEID_VALUE) {
         v->hasStatus = true;
         v->status = UA_STATUSCODE_BADINDEXRANGENODATA;
+        addMissingTimestamps(server, v, timestampsToReturn, id);
         return true;
     }
 
@@ -564,24 +601,7 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
         v->status = UA_STATUSCODE_BADWAITINGFORINITIALDATA;
     }
 
-    /* Always use the current time as the server-timestamp */
-    if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
-       timestampsToReturn == UA_TIMESTAMPSTORETURN_BOTH) {
-        UA_EventLoop *el = server->config.eventLoop;
-        v->serverTimestamp = el->dateTime_now(el);
-        v->hasServerTimestamp = true;
-        v->hasServerPicoseconds = false;
-    } else {
-        v->hasServerTimestamp = false;
-        v->hasServerPicoseconds = false;
-    }
-
-    /* Don't "invent" source timestamps. But remove them when not required. */
-    if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
-       timestampsToReturn == UA_TIMESTAMPSTORETURN_NEITHER) {
-        v->hasSourceTimestamp = false;
-        v->hasSourcePicoseconds = false;
-    }
+    addMissingTimestamps(server, v, timestampsToReturn, id);
 
     /* Are we done or is this an async read? */
     return (retval != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
