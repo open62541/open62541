@@ -1701,10 +1701,11 @@ createEvent(UA_Server *server, const UA_EventDescription *ed,
             }
             ctx.filter = *(UA_EventFilter*)mon->parameters.filter.content.decoded.data;
 
-            /* Select the session used to resolve SimpleAttributeOperands. If
-             * the subscription is not bound to a session, use the AdminSession.
-             * TODO: Preserve the access rights of the last connected session? */
-            ctx.session = (sub->session) ? sub->session : &server->adminSession;
+            /* Do not evaluate event fields for detached subscriptions.
+             * Using adminSession would bypass per-session access control. */
+            if(!sub->session)
+                continue;
+            ctx.session = sub->session;
 
             /* Evaluate the where-clause and create a notification */
             res = UA_MonitoredItem_addEvent(mon, &ctx);
