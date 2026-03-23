@@ -284,6 +284,14 @@ if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
 endif()
 
+option(UA_ENABLE_FILESYSTEM "Enable filesystem support!" OFF)
+if(UA_ENABLE_FILESYSTEM AND UA_NAMESPACE_ZERO STREQUAL "FULL")
+    message("Filesystem support is enabled. This will add a lot of nodes to namespace zero and increase the binary size significantly. Consider using a reduced namespace zero configuration if you do not need the full filesystem information model.")
+    set(UA_FILESYSTEM ON)
+    mark_as_advanced(UA_FILESYSTEM)
+    add_compile_definitions(UA_FILESYSTEM)
+endif()
+
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     # Force enable options not passed in the build script, to also fuzzy-test this code
     set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
@@ -443,7 +451,7 @@ if(CMAKE_BUILD_TYPE MATCHES DEBUG)
 endif()
 
 # Build Targets
-option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
+option(UA_BUILD_EXAMPLES "Build example servers and clients" ON)
 option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
@@ -709,7 +717,7 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
         include(CheckIPOSupported)
         check_ipo_supported(RESULT CC_HAS_IPO)
         if(CC_HAS_IPO)
-            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
         endif()
     endif()
 
@@ -834,7 +842,16 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h)
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
+                     ${PROJECT_SOURCE_DIR}/driver/driver.h
+                     ${PROJECT_SOURCE_DIR}/driver/directoryArch/common/fileSystemOperations_common.h
+                     )
+
+if (UA_FILESYSTEM)
+    list(APPEND exported_headers
+                         ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.h
+                         ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_filetypes.h)
+endif()
 
 # Main Library
 
@@ -905,6 +922,17 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 if(UA_ENABLE_RBAC)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.c)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_rbac.c)
+endif()
+
+if(UA_FILESYSTEM)
+    list(APPEND lib_sources 
+                ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.c
+                ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_api.c
+                ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_server_ns0_fdt.c
+                ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_server_ns0_filetype.c
+                # driver
+                ${PROJECT_SOURCE_DIR}/driver/directoryArch/win32/fileSystemOperations_win32.c
+                ${PROJECT_SOURCE_DIR}/driver/directoryArch/posix/fileSystemOperations_posix.c)
 endif()
 
 set(lib_sources ${lib_sources}
@@ -1464,7 +1492,8 @@ endfunction()
 
 include_directories_public("${PROJECT_SOURCE_DIR}/include"
                            "${PROJECT_SOURCE_DIR}/plugins/include"
-                           "${PROJECT_BINARY_DIR}/src_generated")
+                           "${PROJECT_BINARY_DIR}/src_generated"
+                           "${PROJECT_SOURCE_DIR}/driver")
 
 if(UA_ENABLE_NODESETLOADER)
     include_directories_public(${NODESETLOADER_PUBLIC_INCLUDES})

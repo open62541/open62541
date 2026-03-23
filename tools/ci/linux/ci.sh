@@ -297,6 +297,7 @@ function unit_tests_alarms {
           -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
           -DUA_FORCE_WERROR=ON \
           -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_FILESYSTEM=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -407,6 +408,7 @@ function run_examples {
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_FILESYSTEM=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
@@ -452,6 +454,7 @@ function examples_valgrind {
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_FILESYSTEM=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
@@ -545,6 +548,7 @@ Mining-PELOServices-General\;Mining-PELOServices-FaceAlignmentSystem\;\
 Mining-MonitoringSupervisionServices-General\;\
 Shotblasting \
           -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_FILESYSTEM=ON \
           ..
     make ${MAKEOPTS}
 
