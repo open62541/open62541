@@ -157,7 +157,7 @@ START_TEST(read_file_test)
 
     UA_ByteString data;
     data.length = 10; // read "HelloWorld"
-    data.data = (void *)UA_calloc(10, sizeof(UA_Byte));
+    data.data = (UA_Byte *)UA_calloc(10, sizeof(UA_Byte));
 
     status = readFile(handle, 10, &data);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);

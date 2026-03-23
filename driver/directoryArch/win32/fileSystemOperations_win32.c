@@ -81,8 +81,8 @@ copyDirectory(const char *src, const char* dst) {
             continue;
         
         char srcPath[MAX_PATH], dstPath[MAX_PATH];
-        _snprintf_s(srcPath, MAX_PATH, "%s\\%s", src, fd.cFileName);
-        _snprintf_s(dstPath, MAX_PATH, "%s\\%s", dst, fd.cFileName);
+        _snprintf_s(srcPath, MAX_PATH, _TRUNCATE, "%s\\%s", src, fd.cFileName);
+        _snprintf_s(dstPath, MAX_PATH, _TRUNCATE, "%s\\%s", dst, fd.cFileName);
 
         if(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             copyDirectory(srcPath, dstPath);
@@ -275,7 +275,7 @@ scanDirectoryRecursive(
             continue;
         
         char fullPath[MAX_PATH];
-        _snprintf_s(fullPath, sizeof(fullPath), "%s\\%s", path, name);
+        _snprintf_s(fullPath, sizeof(fullPath), _TRUNCATE, "%s\\%s", path, name);
 
         if(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             UA_NodeId newDirNode;
