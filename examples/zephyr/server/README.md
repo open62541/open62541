@@ -1,6 +1,6 @@
 # Zephyr server example
 ## HOWTO
-```
+```sh
 # Initialize the west workspace
 cd examples/zephyr
 west init -l server

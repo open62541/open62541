@@ -607,7 +607,8 @@ readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
 
     /* Check the return value */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(dv.hasStatus)
+    /* The status may be uncertain */
+    if(dv.hasStatus && dv.status >= UA_STATUSCODE_BAD)
         retval = dv.status;
     else if(!dv.hasValue)
         retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
@@ -1732,7 +1733,7 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_ARRAYDIMENSIONS:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE | UA_NODECLASS_VARIABLETYPE);
-        CHECK_USERWRITEMASK(UA_WRITEMASK_ARRRAYDIMENSIONS);
+        CHECK_USERWRITEMASK(UA_WRITEMASK_ARRAYDIMENSIONS);
         CHECK_DATATYPE_ARRAY(UINT32);
         GET_NODETYPE;
         retval = writeArrayDimensionsAttribute(server, session, &node->variableNode,
@@ -1791,15 +1792,50 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_THREAD_LOCAL UA_Boolean preventAuditEventRecursion = false;
+
 UA_Boolean
 Operation_Write(UA_Server *server, UA_Session *session,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
     UA_assert(session != NULL);
+
+    /* Get the old value for the audit event */
+#ifdef UA_ENABLE_AUDITING
+    UA_DataValue oldValue;
+    if(!preventAuditEventRecursion && server->config.auditingEnabled &&
+       server->config.auditWriteUpdateEnabled) {
+        preventAuditEventRecursion = true;
+        UA_ReadValueId rvi;
+        UA_ReadValueId_init(&rvi);
+        rvi.nodeId = wv->nodeId;
+        rvi.attributeId = wv->attributeId;
+        rvi.indexRange = wv->indexRange;
+        oldValue = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        preventAuditEventRecursion = false;
+    } else {
+        UA_DataValue_init(&oldValue);
+    }
+#endif
+
     *result = editNode(server, session, &wv->nodeId, wv->attributeId,
                        UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
                        (UA_EditNodeCallback)copyAttributeIntoNode,
                        (void*)(uintptr_t)wv);
-    return (*result != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
+    UA_Boolean done = (*result != UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY);
+
+    /* Generate audit event for writing variables.
+     * TODO: Audit events for async writes. */
+#ifdef UA_ENABLE_AUDITING
+    if(done && server->config.auditingEnabled && server->config.auditWriteUpdateEnabled) {
+        auditWriteUpdateEvent(server, session->channel, session,
+                              (*result == UA_STATUSCODE_GOOD),
+                              &wv->nodeId, wv->attributeId, wv->indexRange,
+                              &wv->value.value, &oldValue.value);
+    }
+    UA_DataValue_clear(&oldValue);
+#endif
+
+    return done;
 }
 
 UA_StatusCode

@@ -337,23 +337,17 @@ void UA_GDSTransaction_delete(UA_GDSTransaction *transaction) {
     UA_free(transaction);
 }
 
-/********************/
-/*   GDS Manager    */
-/********************/
-
+#ifndef UA_ENABLE_GDS_PUSHMANAGEMENT
+/* Minimal stub: when GDS push management is not compiled in,
+ * only the embedded transaction needs to be cleared. */
 void
 UA_GDSManager_clear(UA_GDSManager *gdsManager) {
     if(!gdsManager)
         return;
     gdsManager->checkSessionCallbackId = 0;
     UA_GDSTransaction_clear(&gdsManager->transaction);
-    void *fileInfoContext = gdsManager->fileInfoContext;
-    while(fileInfoContext) {
-        void *next = *((void **)fileInfoContext);
-        UA_free(fileInfoContext);
-        fileInfoContext = next;
-    }
 }
+#endif
 
 /*********************/
 /* Server Components */
@@ -474,6 +468,11 @@ UA_Server_delete(UA_Server *server) {
 
     unlockServer(server); /* The timer has its own mutex */
 
+#ifdef UA_ENABLE_RBAC
+    /* Clean up internal RBAC state (before config clear) */
+    UA_Server_cleanupRBAC(server);
+#endif
+
     /* Clean up the config */
     UA_ServerConfig_clear(&server->config);
 
@@ -593,6 +592,15 @@ UA_Server_init(UA_Server *server) {
 
 #ifdef UA_ENABLE_NODESET_INJECTOR
     res = UA_Server_injectNodesets(server);
+    UA_CHECK_STATUS(res, goto cleanup);
+#endif
+
+#ifdef UA_ENABLE_RBAC
+    res = initNS0RBAC(server);
+    UA_CHECK_STATUS(res, goto cleanup);
+
+    /* Initialize RBAC: copy config presets into internal array */
+    res = UA_Server_initRBAC(server);
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
@@ -877,7 +885,9 @@ UA_Server_removeCertificates(UA_Server *server,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < certificatesSize; i++) {
         retval = certGroup->getCertificateCrls(certGroup, &certificates[i], isTrusted, &crls, &crlsSize);
-        if(retval != UA_STATUSCODE_GOOD) {
+        /* Tolerate "Bad_NoMatch" to support removing CA certificates that do
+         * not have an associated CRL. */
+        if((retval != UA_STATUSCODE_GOOD) && (retval != UA_STATUSCODE_BADNOMATCH)) {
             UA_Array_delete(crls, crlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
             return retval;
         }

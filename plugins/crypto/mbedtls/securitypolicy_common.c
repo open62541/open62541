@@ -598,6 +598,8 @@ UA_mbedTLS_LoadDerCertificate(const UA_ByteString *certificate, mbedtls_x509_crt
 UA_StatusCode
 UA_mbedTLS_LoadPemCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *target) {
     UA_ByteString certificateData = UA_mbedTLS_CopyDataFormatAware(certificate);
+    if(!certificateData.data)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     int mbedErr = mbedtls_x509_crt_parse(target, certificateData.data, certificateData.length);
     UA_ByteString_clear(&certificateData);
     if(mbedErr)
@@ -629,6 +631,8 @@ UA_mbedTLS_LoadDerCrl(const UA_ByteString *crl, mbedtls_x509_crl *target) {
 UA_StatusCode
 UA_mbedTLS_LoadPemCrl(const UA_ByteString *crl, mbedtls_x509_crl *target) {
     UA_ByteString crlData = UA_mbedTLS_CopyDataFormatAware(crl);
+    if(!crlData.data)
+        return UA_STATUSCODE_BADINTERNALERROR;
     int mbedErr = mbedtls_x509_crl_parse(target, crlData.data, crlData.length);
     UA_ByteString_clear(&crlData);
     if(mbedErr)
@@ -641,7 +645,10 @@ UA_StatusCode
 UA_mbedTLS_LoadLocalCertificate(const UA_ByteString *certData,
                                 UA_ByteString *target) {
     UA_ByteString data = UA_mbedTLS_CopyDataFormatAware(certData);
-
+    if(!data.data) {
+        UA_ByteString_init(target);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     mbedtls_x509_crt cert;
     mbedtls_x509_crt_init(&cert);
 
@@ -675,7 +682,9 @@ UA_mbedTLS_CopyDataFormatAware(const UA_ByteString *data) {
         return result;
 
     if (data->length && data->data[0] == '-') {
-        UA_ByteString_allocBuffer(&result, data->length + 1);
+        UA_StatusCode res = UA_ByteString_allocBuffer(&result, data->length + 1);
+        if(res != UA_STATUSCODE_GOOD)
+            return result;
         memcpy(result.data, data->data, data->length);
         result.data[data->length] = '\0';
     } else {

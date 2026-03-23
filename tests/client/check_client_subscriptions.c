@@ -1597,6 +1597,339 @@ START_TEST(Client_subscription_transfer) {
 }
 END_TEST
 
+START_TEST(Client_subscription_getSetContext) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Create subscription */
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+
+    /* Get context — initially NULL */
+    void *ctx = (void*)0xDEAD;
+    retval = UA_Client_Subscriptions_getContext(client, subId, &ctx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(ctx, NULL);
+
+    /* Set context */
+    int myData = 42;
+    retval = UA_Client_Subscriptions_setContext(client, subId, &myData);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Get context again */
+    retval = UA_Client_Subscriptions_getContext(client, subId, &ctx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(ctx, &myData);
+
+    /* Invalid subscription id */
+    retval = UA_Client_Subscriptions_getContext(client, 99999, &ctx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+
+    retval = UA_Client_Subscriptions_setContext(client, 99999, &myData);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+
+    /* NULL args */
+    retval = UA_Client_Subscriptions_getContext(client, subId, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    retval = UA_Client_Subscriptions_getContext(NULL, subId, &ctx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    UA_Client_Subscriptions_deleteSingle(client, subId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_subscription_deleteSingle) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Create subscription */
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+
+    /* Delete it */
+    retval = UA_Client_Subscriptions_deleteSingle(client, subId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Delete again — should fail */
+    retval = UA_Client_Subscriptions_deleteSingle(client, subId);
+    ck_assert(retval != UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_subscription_setPublishingMode) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Create subscription */
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+
+    /* Disable publishing */
+    UA_SetPublishingModeRequest spmReq;
+    UA_SetPublishingModeRequest_init(&spmReq);
+    spmReq.publishingEnabled = false;
+    spmReq.subscriptionIds = &subId;
+    spmReq.subscriptionIdsSize = 1;
+    UA_SetPublishingModeResponse spmResp =
+        UA_Client_Subscriptions_setPublishingMode(client, spmReq);
+    ck_assert_uint_eq(spmResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(spmResp.resultsSize, 1);
+    ck_assert_uint_eq(spmResp.results[0], UA_STATUSCODE_GOOD);
+    UA_SetPublishingModeResponse_clear(&spmResp);
+
+    /* Re-enable publishing */
+    spmReq.publishingEnabled = true;
+    spmResp = UA_Client_Subscriptions_setPublishingMode(client, spmReq);
+    ck_assert_uint_eq(spmResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_SetPublishingModeResponse_clear(&spmResp);
+
+    UA_Client_Subscriptions_deleteSingle(client, subId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+static void
+dataChangeCallback_ext(UA_Client *c, UA_UInt32 subId, void *subContext,
+                       UA_UInt32 monId, void *monContext,
+                       UA_DataValue *value) {
+    /* no-op: just need a valid callback */
+}
+
+START_TEST(Client_monitoredItem_getSetContext) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Create subscription */
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+
+    /* Create a monitored item */
+    UA_MonitoredItemCreateRequest monReq =
+        UA_MonitoredItemCreateRequest_default(
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+    UA_MonitoredItemCreateResult monResult =
+        UA_Client_MonitoredItems_createDataChange(client, subId,
+            UA_TIMESTAMPSTORETURN_BOTH, monReq, NULL, dataChangeCallback_ext, NULL);
+    ck_assert_uint_eq(monResult.statusCode, UA_STATUSCODE_GOOD);
+    UA_UInt32 monId = monResult.monitoredItemId;
+
+    /* Get context — initially NULL */
+    void *ctx = (void*)0xDEAD;
+    retval = UA_Client_MonitoredItem_getContext(client, subId, monId, &ctx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(ctx, NULL);
+
+    /* Set context */
+    int myData = 123;
+    retval = UA_Client_MonitoredItem_setContext(client, subId, monId, &myData);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Get context again */
+    retval = UA_Client_MonitoredItem_getContext(client, subId, monId, &ctx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_ptr_eq(ctx, &myData);
+
+    /* Invalid subscription id */
+    retval = UA_Client_MonitoredItem_getContext(client, 99999, monId, &ctx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+
+    /* Invalid monitored item id */
+    retval = UA_Client_MonitoredItem_getContext(client, subId, 99999, &ctx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
+
+    /* NULL args */
+    retval = UA_Client_MonitoredItem_getContext(client, subId, monId, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    retval = UA_Client_MonitoredItem_getContext(NULL, subId, monId, &ctx);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    /* Set context with invalid sub */
+    retval = UA_Client_MonitoredItem_setContext(client, 99999, monId, &myData);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID);
+
+    retval = UA_Client_MonitoredItem_setContext(client, subId, 99999, &myData);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADMONITOREDITEMIDINVALID);
+
+    retval = UA_Client_MonitoredItem_setContext(NULL, subId, monId, &myData);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+    UA_Client_MonitoredItems_deleteSingle(client, subId, monId);
+    UA_Client_Subscriptions_deleteSingle(client, subId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_subscription_setMonitoringMode) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Create subscription + monitored item */
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+
+    UA_MonitoredItemCreateRequest monReq =
+        UA_MonitoredItemCreateRequest_default(
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+    UA_MonitoredItemCreateResult monResult =
+        UA_Client_MonitoredItems_createDataChange(client, subId,
+            UA_TIMESTAMPSTORETURN_BOTH, monReq, NULL, dataChangeCallback_ext, NULL);
+    ck_assert_uint_eq(monResult.statusCode, UA_STATUSCODE_GOOD);
+    UA_UInt32 monId = monResult.monitoredItemId;
+
+    /* Set monitoring mode to Disabled */
+    UA_SetMonitoringModeRequest smmReq;
+    UA_SetMonitoringModeRequest_init(&smmReq);
+    smmReq.subscriptionId = subId;
+    smmReq.monitoringMode = UA_MONITORINGMODE_DISABLED;
+    smmReq.monitoredItemIds = &monId;
+    smmReq.monitoredItemIdsSize = 1;
+    UA_SetMonitoringModeResponse smmResp =
+        UA_Client_MonitoredItems_setMonitoringMode(client, smmReq);
+    ck_assert_uint_eq(smmResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_SetMonitoringModeResponse_clear(&smmResp);
+
+    /* Set back to Reporting */
+    smmReq.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    smmResp = UA_Client_MonitoredItems_setMonitoringMode(client, smmReq);
+    ck_assert_uint_eq(smmResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_SetMonitoringModeResponse_clear(&smmResp);
+
+    UA_Client_MonitoredItems_deleteSingle(client, subId, monId);
+    UA_Client_Subscriptions_deleteSingle(client, subId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_subscription_setTriggering) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Create subscription */
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+
+    /* Create trigger and triggering items */
+    UA_MonitoredItemCreateRequest monReqs[2];
+    monReqs[0] = UA_MonitoredItemCreateRequest_default(
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+    monReqs[1] = UA_MonitoredItemCreateRequest_default(
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
+
+    UA_MonitoredItemCreateResult monResults[2];
+    monResults[0] = UA_Client_MonitoredItems_createDataChange(client, subId,
+        UA_TIMESTAMPSTORETURN_BOTH, monReqs[0], NULL, dataChangeCallback_ext, NULL);
+    ck_assert_uint_eq(monResults[0].statusCode, UA_STATUSCODE_GOOD);
+    monResults[1] = UA_Client_MonitoredItems_createDataChange(client, subId,
+        UA_TIMESTAMPSTORETURN_BOTH, monReqs[1], NULL, dataChangeCallback_ext, NULL);
+    ck_assert_uint_eq(monResults[1].statusCode, UA_STATUSCODE_GOOD);
+
+    UA_UInt32 triggeringItemId = monResults[0].monitoredItemId;
+    UA_UInt32 linkedItemId = monResults[1].monitoredItemId;
+
+    /* SetTriggering: add a link */
+    UA_SetTriggeringRequest stReq;
+    UA_SetTriggeringRequest_init(&stReq);
+    stReq.subscriptionId = subId;
+    stReq.triggeringItemId = triggeringItemId;
+    stReq.linksToAdd = &linkedItemId;
+    stReq.linksToAddSize = 1;
+    UA_SetTriggeringResponse stResp =
+        UA_Client_MonitoredItems_setTriggering(client, stReq);
+    ck_assert_uint_eq(stResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_SetTriggeringResponse_clear(&stResp);
+
+    /* Remove the link */
+    UA_SetTriggeringRequest stReq2;
+    UA_SetTriggeringRequest_init(&stReq2);
+    stReq2.subscriptionId = subId;
+    stReq2.triggeringItemId = triggeringItemId;
+    stReq2.linksToRemove = &linkedItemId;
+    stReq2.linksToRemoveSize = 1;
+    stResp = UA_Client_MonitoredItems_setTriggering(client, stReq2);
+    ck_assert_uint_eq(stResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_SetTriggeringResponse_clear(&stResp);
+
+    UA_Client_MonitoredItems_deleteSingle(client, subId, monResults[0].monitoredItemId);
+    UA_Client_MonitoredItems_deleteSingle(client, subId, monResults[1].monitoredItemId);
+    UA_Client_Subscriptions_deleteSingle(client, subId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+START_TEST(Client_subscription_modifyAsync) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Create subscription */
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+
+    /* Modify via async */
+    UA_ModifySubscriptionRequest modReq;
+    UA_ModifySubscriptionRequest_init(&modReq);
+    modReq.subscriptionId = subId;
+    modReq.requestedPublishingInterval = 200.0;
+    modReq.requestedMaxKeepAliveCount = 20;
+    modReq.requestedLifetimeCount = 600;
+    modReq.maxNotificationsPerPublish = 100;
+
+    UA_UInt32 reqId = 0;
+    retval = UA_Client_Subscriptions_modify_async(client, modReq,
+                                                  NULL, NULL, &reqId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(reqId != 0);
+
+    /* Drive iterations to get response */
+    for(int i = 0; i < 20; i++) {
+        UA_fakeSleep(10);
+        UA_Client_run_iterate(client, 1);
+    }
+
+    UA_Client_Subscriptions_deleteSingle(client, subId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
 #ifdef UA_ENABLE_METHODCALLS
 START_TEST(Client_methodcall) {
     UA_Client *client = UA_Client_newForUnitTest();
@@ -1683,6 +2016,13 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_server_disappears);
     tcase_add_test(tc_client, Client_subscription_transfer);
     tcase_add_test(tc_client, Client_subscription_writeBurst);
+    tcase_add_test(tc_client, Client_subscription_getSetContext);
+    tcase_add_test(tc_client, Client_subscription_deleteSingle);
+    tcase_add_test(tc_client, Client_subscription_setPublishingMode);
+    tcase_add_test(tc_client, Client_monitoredItem_getSetContext);
+    tcase_add_test(tc_client, Client_subscription_setMonitoringMode);
+    tcase_add_test(tc_client, Client_subscription_setTriggering);
+    tcase_add_test(tc_client, Client_subscription_modifyAsync);
     suite_add_tcase(s,tc_client);
 
 #ifdef UA_ENABLE_METHODCALLS

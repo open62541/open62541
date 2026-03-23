@@ -291,12 +291,12 @@ scanDirectoryRecursive(
 
         if(S_ISDIR(st.st_mode)) {
             UA_NodeId newDirNode;
-            if(addDirFunc(NULL, server, parentNode, name, &newDirNode, NULL) == UA_STATUSCODE_GOOD) {
+            if(addDirFunc(NULL, server, parentNode, name, &newDirNode, false) == UA_STATUSCODE_GOOD) {
                 scanDirectoryRecursive(server, &newDirNode, fullPath, addDirFunc, addFileFunc);
             }
         } else {
             UA_NodeId newFileNode;
-            addFileFunc(server, parentNode, name, &newFileNode);
+            addFileFunc(NULL, server, parentNode, name, &newFileNode);
         }
     }
 

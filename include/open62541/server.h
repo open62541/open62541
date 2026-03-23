@@ -1523,7 +1523,7 @@ UA_Server_cancelAsync(UA_Server *server, void *asyncOpContext,
  *    "path-string", a :ref:``human-readable encoding of a
  *    SimpleAttributeOperand<parse-sao>`. For example ``/SourceNode`` or
  *    ``/EventType``.
- * 2. An NodeId pointing to an ObjectNode that instantiates an EventType. The
+ * 2. A NodeId pointing to an ObjectNode that instantiates an EventType. The
  *    ``SimpleAttributeOperands`` from the EventFilter are resolved in its
  *    context.
  * 3. The event fields defined as mandatory for the *BaseEventType* have a
@@ -1558,6 +1558,15 @@ UA_Server_cancelAsync(UA_Server *server, void *asyncOpContext,
  *    /Severity
  *       UInt16 for the urgency of the event defined to be between 1 (lowest) and
  *       1000 (catastrophic) (default: argument of ``_createEvent``)
+ *
+ * The "path-string" (SimpleAttributeOperand expression) can use
+ * namespace-indices and point into nested objects and variables. For example
+ * ``/1:Truck/2:Wheel``.
+ *
+ * The key-value map source for the event-fields uses a QualifiedName for the
+ * key. The NamespaceIndex from the key is used as the default NamespaceIndex
+ * for the path elements that do not define it explicitly. So the key
+ * ``2:"/1:Truck/Wheel"`` becomes ``/1:Truck/2:Wheel``.
  *
  * An event field that is missing from all sources resolves to an empty variant.
  *
@@ -2021,6 +2030,93 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              UA_Variant *value);
 
 /**
+ * Role-Based Access Control (RBAC) - Type Definitions
+ * ====================================================
+ *
+ * Role-Based Access Control implementation per OPC UA Part 18.
+ *
+ * **WARNING**: This feature is EXPERIMENTAL and NOT FOR PRODUCTION USE.
+ * The RBAC implementation is under active development and the API may change.
+ * Use only for testing and development purposes.
+ *
+ * RBAC allows fine-grained access control by assigning roles to sessions and
+ * defining permissions per role on individual nodes or entire namespaces.
+ */
+
+#ifdef UA_ENABLE_RBAC
+
+/**
+ * UA_RolePermission
+ * -----------------
+ * Maps a single role to its permissions bitmask. Used in the server
+ * configuration to define presets and in the public API to set or query
+ * role permissions on nodes. */
+typedef struct {
+    UA_NodeId roleId;
+    UA_PermissionType permissions;
+} UA_RolePermission;
+
+/**
+ * UA_RolePermissionSet
+ * --------------------
+ * A set of role-permission mappings. Used in the server configuration
+ * to define initial role-permission presets. */
+typedef struct {
+    size_t rolePermissionsSize;
+    UA_RolePermission *rolePermissions;
+} UA_RolePermissionSet;
+
+/* UA_RolePermissionSet Type Management */
+void UA_EXPORT
+UA_RolePermissionSet_init(UA_RolePermissionSet *rps);
+
+void UA_EXPORT
+UA_RolePermissionSet_clear(UA_RolePermissionSet *rps);
+
+UA_StatusCode UA_EXPORT
+UA_RolePermissionSet_copy(const UA_RolePermissionSet *src,
+                          UA_RolePermissionSet *dst);
+
+/**
+ * UA_Role
+ * -------
+ * Represents an OPC UA role with identity mapping rules and optional
+ * application/endpoint restrictions per OPC UA Part 18. */
+typedef struct {
+    UA_NodeId roleId;
+    UA_QualifiedName roleName;              /* BrowseName of the role */
+
+    /* Identity Mapping Rules - determine which sessions get this role */
+    size_t identityMappingRulesSize;
+    UA_IdentityMappingRuleType *identityMappingRules;
+
+    /* Application restrictions  (empty list = ignore) */
+    UA_Boolean applicationsExclude;
+    size_t applicationsSize;
+    UA_String *applications;
+
+    /* Endpoint restrictions (empty list = ignore) */
+    UA_Boolean endpointsExclude;
+    size_t endpointsSize;
+    UA_EndpointType *endpoints;
+} UA_Role;
+
+/* UA_Role Type Management */
+void UA_EXPORT
+UA_Role_init(UA_Role *role);
+
+void UA_EXPORT
+UA_Role_clear(UA_Role *role);
+
+UA_StatusCode UA_EXPORT
+UA_Role_copy(const UA_Role *src, UA_Role *dst);
+
+UA_Boolean UA_EXPORT
+UA_Role_equal(const UA_Role *r1, const UA_Role *r2);
+
+#endif /* UA_ENABLE_RBAC */
+
+/**
  * .. _server-configuration:
  *
  * Server Configuration
@@ -2126,6 +2222,9 @@ struct UA_ServerConfig {
     UA_ServerNotificationCallback sessionNotificationCallback;
     UA_ServerNotificationCallback serviceNotificationCallback;
     UA_ServerNotificationCallback subscriptionNotificationCallback;
+#ifdef UA_ENABLE_AUDITING
+    UA_ServerNotificationCallback auditNotificationCallback;
+#endif
 
     /* Networking
      * ~~~~~~~~~~
@@ -2228,11 +2327,9 @@ struct UA_ServerConfig {
     /* Limits for Requests */
     UA_UInt32 maxReferencesPerNode;
 
-#ifdef UA_ENABLE_ENCRYPTION
-    /* Limits for TrustList */
-    UA_UInt32 maxTrustListSize; /* in bytes, 0 => unlimited */
-    UA_UInt32 maxRejectedListSize; /* 0 => unlimited */
-#endif
+    /* Reverse Connect
+     * ~~~~~~~~~~~~~~~ */
+    UA_UInt32 reverseReconnectInterval; /* Default is 15000 ms */
 
     /* Async Operations
      * ~~~~~~~~~~~~~~~~
@@ -2244,6 +2341,12 @@ struct UA_ServerConfig {
      * memory for setting the output value is then freed internally and should
      * not be touched afterwards. */
     void (*asyncOperationCancelCallback)(UA_Server *server, const void *out);
+
+#ifdef UA_ENABLE_ENCRYPTION
+    /* Limits for TrustList */
+    UA_UInt32 maxTrustListSize; /* in bytes, 0 => unlimited */
+    UA_UInt32 maxRejectedListSize; /* 0 => unlimited */
+#endif
 
     /* Discovery
      * ~~~~~~~~~ */
@@ -2324,6 +2427,16 @@ struct UA_ServerConfig {
     UA_PubSubConfiguration pubSubConfig;
 #endif
 
+    /* Auditing
+     * ~~~~~~~~
+     * Drops audit events into the auditNotificationCallback and generates
+     * the corresponding Audit Events (if Events are enabled). */
+    UA_Boolean auditingEnabled;
+#ifdef UA_ENABLE_AUDITING
+    UA_Boolean auditWriteUpdateEnabled;  /* Mind the runtime overhead */
+    UA_Boolean auditMethodUpdateEnabled; /* Mind the runtime overhead */
+#endif
+
     /* Historical Access
      * ~~~~~~~~~~~~~~~~~ */
     UA_Boolean historizingEnabled;
@@ -2351,10 +2464,6 @@ struct UA_ServerConfig {
     UA_Boolean deleteAtTimeDataCapability;
 #endif
 
-    /* Reverse Connect
-     * ~~~~~~~~~~~~~~~ */
-    UA_UInt32 reverseReconnectInterval; /* Default is 15000 ms */
-
     /* Certificate Password Callback
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 #ifdef UA_ENABLE_ENCRYPTION
@@ -2365,6 +2474,43 @@ struct UA_ServerConfig {
      * config setup may depend on it. */
     UA_StatusCode (*privateKeyPasswordCallback)(UA_ServerConfig *sc,
                                                 UA_ByteString *password);
+#endif
+
+#ifdef UA_ENABLE_RBAC
+    /* Initial Role-Permission Presets
+     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     * Array of initial role-permission presets. Each entry is a set of
+     * UA_RolePermission mappings that define which roles get which
+     * permissions on nodes that reference this preset.
+     *
+     * During server startup, these presets are copied into the server's
+     * internal role-permissions array. The preset entries form the initial
+     * configuration with the following guarantees:
+     *
+     * - Preset entries are **never deleted** during server runtime.
+     * - Their position (index) in the internal array is **kept stable**,
+     *   ensuring that nodes assigned to a preset continue to reference
+     *   the same configuration throughout the server's lifetime.
+     * - Custom nodestore implementations should be aware of these
+     *   index-stability guarantees when managing node permission storage.
+     *
+     * Additional role-permission sets can be added at runtime through
+     * the server API (UA_Server_setNodeRolePermissions). Runtime entries
+     * may be garbage-collected when no longer referenced by any node. */
+    size_t rolePermissionPresetsSize;
+    UA_RolePermissionSet *rolePermissionPresets;
+
+    /* Initial Role Definitions
+     * ~~~~~~~~~~~~~~~~~~~~~~~~
+     * Array of initial role definitions. During server startup, these roles
+     * are copied into the server's internal role registry. Config roles are
+     * treated as **protected**: they cannot be removed at runtime via
+     * UA_Server_removeRole.
+     *
+     * Additional roles can be added at runtime through UA_Server_addRole.
+     * Runtime-added roles can be removed via UA_Server_removeRole. */
+    size_t rolesSize;
+    UA_Role *roles;
 #endif
 };
 
@@ -2447,89 +2593,172 @@ UA_Server_removeCertificates(UA_Server *server,
                              const UA_Boolean isTrusted);
 
 /**
- * Role-Based Access Control (RBAC)
- * =================================
- *
- * Role-Based Access Control implementation per OPC UA Part 18.
+ * Role-Based Access Control (RBAC) - API
+ * =======================================
  *
  * **WARNING**: This feature is EXPERIMENTAL and NOT FOR PRODUCTION USE.
  * The RBAC implementation is under active development and the API may change.
  * Use only for testing and development purposes.
- *
- * RBAC allows fine-grained access control by assigning roles to sessions and
- * defining permissions per role on individual nodes or entire namespaces.
  */
 
 #ifdef UA_ENABLE_RBAC
 
 /**
- * UA_RolePermissionEntry
- * ----------------------
- * Maps a role to its permissions. Used in both node-level and namespace-level
- * permission configurations. */
-typedef struct {
-    UA_NodeId roleId;
-    UA_UInt32 permissions;      /* Bitmask of UA_PermissionType values */
-} UA_RolePermissionEntry;
+ * Node Role-Permission Management
+ * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ * Functions for managing role permissions on individual nodes. */
+
+/* Set role permissions for a node.
+ *
+ * Assigns the given set of role-permission mappings to the specified node.
+ * If an identical permission configuration already exists internally, the
+ * node will reference the existing configuration (deduplication). Otherwise,
+ * a new internal entry is created.
+ *
+ * @param server The server instance
+ * @param nodeId The NodeId of the node
+ * @param rolePermissionsSize Number of role-permission entries
+ * @param rolePermissions Array of role-permission mappings
+ * @param recursive If true, also set for all hierarchically referenced
+ *        child nodes
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setNodeRolePermissions(UA_Server *server,
+                                 const UA_NodeId nodeId,
+                                 size_t rolePermissionsSize,
+                                 const UA_RolePermission *rolePermissions,
+                                 UA_Boolean recursive);
+
+/* Get the role permissions of a node.
+ *
+ * Returns a copy of the role-permission mappings currently assigned to
+ * the node. The output array and its entries are allocated and must be
+ * freed by the caller.
+ *
+ * If the node has no specific role permissions assigned, the output size
+ * is set to 0 and the output pointer to NULL.
+ *
+ * @param server The server instance
+ * @param nodeId The NodeId of the node
+ * @param rolePermissionsSize Output: number of entries
+ * @param rolePermissions Output: array of role-permission mappings
+ *        (caller must free each entry's roleId and the array itself)
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getNodeRolePermissions(UA_Server *server,
+                                 const UA_NodeId nodeId,
+                                 size_t *rolePermissionsSize,
+                                 UA_RolePermission **rolePermissions);
+
+/* Remove role permissions from a node.
+ *
+ * Resets the node to have no specific role permissions. Default access
+ * control behavior then applies. The internal reference count for the
+ * previously assigned permission configuration is decremented.
+ *
+ * @param server The server instance
+ * @param nodeId The NodeId of the node
+ * @param recursive If true, also remove from all hierarchically referenced
+ *        child nodes
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_removeNodeRolePermissions(UA_Server *server,
+                                    const UA_NodeId nodeId,
+                                    UA_Boolean recursive);
 
 /**
- * UA_RolePermissions
- * ------------------
- * Container for role permission entries with reference counting.
- * Multiple nodes can share the same RolePermissions configuration
- * through the refCount mechanism. */
-typedef struct {
-    size_t entriesSize;
-    UA_RolePermissionEntry *entries;
-    size_t refCount;            /* Number of nodes referencing this configuration */
-} UA_RolePermissions;
+ * Role Management
+ * ~~~~~~~~~~~~~~~
+ * Functions for managing the server's role registry. Roles define which
+ * sessions get which access rights. Config-provided roles are protected
+ * and cannot be removed at runtime. */
 
-/* UA_RolePermissions Type Management */
-void UA_EXPORT
-UA_RolePermissions_init(UA_RolePermissions *rp);
+/* Add a role to the server's role registry.
+ *
+ * The role's BrowseName (roleName) is the primary unique identifier,
+ * per OPC UA Part 18 Section 4.2. A role with the same roleName must
+ * not already exist.
+ *
+ * @param server The server instance
+ * @param role The role definition to add (deep-copied)
+ * @param outRoleNodeId Output: the NodeId of the new role (caller
+ *        must clear). May be NULL.
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADALREADYEXISTS if a role with the same
+ *         roleName already exists */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_addRole(UA_Server *server, const UA_Role *role,
+                  UA_NodeId *outRoleNodeId);
 
-void UA_EXPORT
-UA_RolePermissions_clear(UA_RolePermissions *rp);
+/* Remove a role from the server's role registry.
+ *
+ * Config-provided (protected) roles cannot be removed.
+ *
+ * @param server The server instance
+ * @param roleName The BrowseName (QualifiedName) of the role to remove
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADUSERACCESSDENIED if the role is protected,
+ *         UA_STATUSCODE_BADNOTFOUND if the role does not exist */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_removeRole(UA_Server *server,
+                     const UA_QualifiedName roleName);
 
-UA_StatusCode UA_EXPORT
-UA_RolePermissions_copy(const UA_RolePermissions *src, UA_RolePermissions *dst);
+/* Get a copy of a role by its BrowseName.
+ *
+ * @param server The server instance
+ * @param roleName The BrowseName (QualifiedName) of the role
+ * @param outRole Output: deep copy of the role (caller must clear)
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADNOTFOUND if the role does not exist */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getRole(UA_Server *server,
+                  const UA_QualifiedName roleName,
+                  UA_Role *outRole);
 
-/**
- * UA_Role
- * -------
- * Represents an OPC UA role with identity mapping rules and optional
- * application/endpoint restrictions per OPC UA Part 18. */
-typedef struct {
-    UA_NodeId roleId;
-    UA_QualifiedName roleName;              /* BrowseName of the role */
-    
-    /* Identity Mapping Rules - determine which sessions get this role */
-    size_t identityMappingRulesSize;
-    UA_IdentityMappingRuleType *identityMappingRules;
-    
-    /* Application restrictions  (empty list = ignore) */
-    UA_Boolean applicationsExclude;
-    size_t applicationsSize;
-    UA_String *applications;
-    
-    /* Endpoint restrictions (empty list = ignore) */
-    UA_Boolean endpointsExclude;
-    size_t endpointsSize;
-    UA_EndpointType *endpoints;
-} UA_Role;
+/* Get a copy of a role by its NodeId.
+ *
+ * @param server The server instance
+ * @param roleId The NodeId of the role
+ * @param outRole Output: deep copy of the role (caller must clear)
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADNOTFOUND if the role does not exist */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getRoleById(UA_Server *server, UA_NodeId roleId,
+                      UA_Role *outRole);
 
-/* UA_Role Type Management */
-void UA_EXPORT
-UA_Role_init(UA_Role *role);
+/* Get the BrowseNames of all registered roles.
+ *
+ * @param server The server instance
+ * @param rolesSize Output: number of roles
+ * @param roleNames Output: array of role BrowseNames (caller must
+ *        clear each entry and free the array)
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getRoles(UA_Server *server, size_t *rolesSize,
+                   UA_QualifiedName **roleNames);
 
-void UA_EXPORT
-UA_Role_clear(UA_Role *role);
-
-UA_StatusCode UA_EXPORT
-UA_Role_copy(const UA_Role *src, UA_Role *dst);
-
-UA_Boolean UA_EXPORT
-UA_Role_equal(const UA_Role *r1, const UA_Role *r2);
+/* Update a role in the server's role registry.
+ *
+ * The existing role is matched by roleId, roleName (QualifiedName) or
+ * both. At least one must be set. If both are provided they must
+ * identify the same role. Replaces all mutable fields (identityMappingRules,
+ * applications, endpoints and their exclude flags) with deep copies
+ * from the provided role. The roleId and roleName of the stored role
+ * are not changed.
+ *
+ * Anonymous and AuthenticatedUser are well-known roles defined by the
+ * OPC UA specification and cannot be modified.
+ *
+ * @param server The server instance
+ * @param role The role with updated fields
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADINVALIDARGUMENT if neither roleId nor
+ *         roleName is set,
+ *         UA_STATUSCODE_BADNOTFOUND if no matching role exists,
+ *         UA_STATUSCODE_BADUSERACCESSDENIED if the matched role is
+ *         Anonymous or AuthenticatedUser */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_updateRole(UA_Server *server, const UA_Role *role);
 
 #endif /* UA_ENABLE_RBAC */
 

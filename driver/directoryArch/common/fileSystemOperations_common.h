@@ -93,8 +93,8 @@ UA_StatusCode seekFile(UA_Int32 *handle, UA_UInt64 position);
 UA_StatusCode getFilePosition(UA_Int32 *handle, UA_UInt64 *position);
 UA_StatusCode getFileSize(const char *path, UA_UInt64 *size);
 
-typedef UA_StatusCode (*AddDirType)(UA_Driver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *, const char *);
-typedef UA_StatusCode (*AddFileType)(UA_Server *, const UA_NodeId *, const char *, UA_NodeId *);
+typedef UA_StatusCode (*AddDirType)(UA_Driver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *, const bool);
+typedef UA_StatusCode (*AddFileType)(UA_Driver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *);
 
 UA_StatusCode scanDirectoryRecursive(
     UA_Server *server, 

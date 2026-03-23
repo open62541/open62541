@@ -1695,7 +1695,7 @@ createSessionAsync(UA_Client *client) {
 
     /* Send the certificate that is used for the UserIdentiyToken as the
      * ApplicationCertificate */
-    request.clientCertificate = utpSp->localCertificate;
+    request.clientCertificate = client->channel.securityPolicy->localCertificate;
 
     /* Send the request */
     res = __Client_AsyncService(client, &request,
