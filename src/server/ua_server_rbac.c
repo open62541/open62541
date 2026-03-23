@@ -630,12 +630,9 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
         return res;
     }
 
-    /* Auto-assign a numeric roleId if the caller passed a null NodeId.
-     * Use namespace 1 to avoid collisions with well-known NS0 role IDs. */
-    if(UA_NodeId_isNull(&newRole->roleId)) {
-        UA_Guid g = UA_Guid_random();
-        newRole->roleId = UA_NODEID_NUMERIC(1, g.data1);
-    }
+    /* Auto-assign a numeric roleId if the caller passed a null NodeId */
+    if(UA_NodeId_isNull(&newRole->roleId))
+        newRole->roleId = UA_NODEID_NUMERIC(0, UA_UInt32_random());
 
     server->rolesProtected[server->rolesSize] = false;
     server->rolesSize++;

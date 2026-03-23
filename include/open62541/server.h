@@ -2638,8 +2638,7 @@ UA_Server_setNodeRolePermissions(UA_Server *server,
  * @param server The server instance
  * @param nodeId The NodeId of the node
  * @param rolePermissionsSize Output: number of entries
- * @param rolePermissions Output: array of role-permission mappings
- *        (caller must free each entry's roleId and the array itself)
+ * @param rolePermissions Output: deep-copy array of role-permission mappings
  * @return UA_STATUSCODE_GOOD on success */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getNodeRolePermissions(UA_Server *server,
@@ -2673,16 +2672,19 @@ UA_Server_removeNodeRolePermissions(UA_Server *server,
 /* Add a role to the server's role registry.
  *
  * The role's BrowseName (roleName) is the primary unique identifier,
- * per OPC UA Part 18 Section 4.2. A role with the same roleName must
- * not already exist.
+ * per OPC UA Part 18 Section 4.2. A role with the same roleName or
+ * roleId must not already exist.
+ *
+ * If role->roleId is null, the server auto-assigns a random numeric
+ * NodeId in namespace 0. To control the namespace or identifier, set
+ * role->roleId before calling.
  *
  * @param server The server instance
  * @param role The role definition to add (deep-copied)
- * @param outRoleNodeId Output: the NodeId of the new role (caller
- *        must clear). May be NULL.
+ * @param outRoleNodeId Output: the assigned NodeId (deep copy). May be NULL.
  * @return UA_STATUSCODE_GOOD on success,
  *         UA_STATUSCODE_BADALREADYEXISTS if a role with the same
- *         roleName already exists */
+ *         roleName or roleId already exists */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addRole(UA_Server *server, const UA_Role *role,
                   UA_NodeId *outRoleNodeId);
@@ -2761,7 +2763,7 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role);
  * Session Role Management
  * ^^^^^^^^^^^^^^^^^^^^^^^
  * Session roles are managed via the generic session attribute API using the
- * well-known key ``UA_RBAC_SESSION_ATTR_ROLES``. The value is a ``UA_NodeId[]``
+ * key ``UA_QUALIFIEDNAME(0, "roles")``. The value is a ``UA_NodeId[]``
  * array of the roles assigned to the session.
  *
  * All role NodeIds are validated against the server's role registry on write.
@@ -2774,7 +2776,7 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role);
  *    UA_Variant v;
  *    UA_Variant_setArray(&v, roles, 2, &UA_TYPES[UA_TYPES_NODEID]);
  *    UA_Server_setSessionAttribute(server, &sessionId,
- *                                  UA_RBAC_SESSION_ATTR_ROLES, &v);
+ *                                  UA_QUALIFIEDNAME(0, "roles"), &v);
  *
  * **Get roles (deep copy):**
  *
@@ -2782,7 +2784,7 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role);
  *
  *    UA_Variant out;
  *    UA_Server_getSessionAttributeCopy(server, &sessionId,
- *                                      UA_RBAC_SESSION_ATTR_ROLES, &out);
+ *                                      UA_QUALIFIEDNAME(0, "roles"), &out);
  *    UA_NodeId *roles = (UA_NodeId *)out.data;
  *    size_t count = out.arrayLength;
  *    // ... use roles ...
@@ -2793,17 +2795,16 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role);
  * .. code-block:: c
  *
  *    UA_Server_deleteSessionAttribute(server, &sessionId,
- *                                     UA_RBAC_SESSION_ATTR_ROLES); */
-#define UA_RBAC_SESSION_ATTR_ROLES UA_QUALIFIEDNAME(0, "roles")
+ *                                     UA_QUALIFIEDNAME(0, "roles")); */
 
 /* Convenience: Get role QualifiedNames assigned to a session.
- * Returns a deep-copy array of role names. Caller frees via
+ * Returns a deep copy of the role names. Free the result with
  * UA_Array_delete(roleNames, count, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]).
  *
  * @param server The server instance
  * @param sessionId The session to query
  * @param outSize Output: number of roles
- * @param outRoleNames Output: array of QualifiedNames (caller must free)
+ * @param outRoleNames Output: deep-copy array of QualifiedNames
  * @return UA_STATUSCODE_GOOD on success */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId *sessionId,
@@ -2823,8 +2824,7 @@ UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId *sessionId,
  * @param nodeId The node to modify
  * @param roleId The role to add permissions for
  * @param permissionType Permission bitmask to set
- * @param overwriteExisting If true, replace existing permissions for this
- *        role; if false, OR the new permissions with existing ones
+ * @param overwriteExisting If true, replace; if false, OR with existing
  * @param recursive If true, apply recursively to child nodes
  * @return UA_STATUSCODE_GOOD on success */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
