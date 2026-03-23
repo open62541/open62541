@@ -363,6 +363,49 @@ START_TEST(parseDateTime) {
     ck_assert_int_eq(dt, 133924124240000000);
 } END_TEST
 
+START_TEST(parseQualifiedNameWithSemicolon) {
+    UA_QualifiedName value;
+    UA_QualifiedName_init(&value);
+    value.name = UA_STRING_ALLOC("te;st");
+    value.namespaceIndex = 123;
+
+    UA_ByteString encoded;
+    UA_ByteString_init(&encoded);
+    const UA_StatusCode enc = UA_encodeJson(&value, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], &encoded, NULL);
+    UA_String expected_enc = UA_STRING("\"123:te;st\"");
+    ck_assert(UA_String_equal(&encoded, &expected_enc));
+
+    UA_QualifiedName decoded;
+    UA_QualifiedName_init(&decoded);
+    const UA_StatusCode dec = UA_decodeJson(&encoded, &decoded, &UA_TYPES[UA_TYPES_QUALIFIEDNAME], NULL);
+    UA_String expected_dec = UA_STRING("te;st");
+    ck_assert(UA_String_equal(&decoded.name, &expected_dec));
+    ck_assert_uint_eq(decoded.namespaceIndex, 123);
+
+    UA_ByteString_clear(&encoded);
+    UA_QualifiedName_clear(&value);
+    UA_QualifiedName_clear(&decoded);
+} END_TEST
+
+START_TEST(parseQualifiedNameWithNamespaceUri) {
+    UA_NamespaceMapping nsMapping;
+    memset(&nsMapping, 0, sizeof(UA_NamespaceMapping));
+    UA_String uris[3];
+    uris[0] = UA_STRING("");
+    uris[1] = UA_STRING("http://opcfoundation.org/UA/");
+    uris[2] = UA_STRING("urn:test");
+    nsMapping.namespaceUris = uris;
+    nsMapping.namespaceUrisSize = 3;
+
+    UA_QualifiedName qn;
+    UA_StatusCode res = UA_QualifiedName_parseEx(&qn, UA_STRING("urn:test;MyName"), &nsMapping);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(qn.namespaceIndex, 2);
+    UA_String expected = UA_STRING("MyName");
+    ck_assert(UA_String_equal(&qn.name, &expected));
+    UA_QualifiedName_clear(&qn);
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test Builtin Type Parsing");
     TCase *tc = tcase_create("test cases");
@@ -384,6 +427,8 @@ int main(void) {
     tcase_add_test(tc, parseSimpleAttributeOperand);
     tcase_add_test(tc, printSimpleAttributeOperand);
     tcase_add_test(tc, parseDateTime);
+    tcase_add_test(tc, parseQualifiedNameWithSemicolon);
+    tcase_add_test(tc, parseQualifiedNameWithNamespaceUri);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

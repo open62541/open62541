@@ -69,6 +69,7 @@ doc_src/
 /exampleClient_legacy
 /src_generated/
 **/build
+**/build_*
 /cmake-build*
 /tools/certs/certs/*
 Pipfile

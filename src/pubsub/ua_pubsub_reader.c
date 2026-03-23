@@ -132,6 +132,25 @@ validateDSRConfig(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
                                     "set in MetaData when using RawData field encoding.");
                 return UA_STATUSCODE_BADCONFIGURATIONERROR;
             }
+
+            /* Warn if the field is a structure type that contains
+             * String/ByteString members. MaxStringLength padding is not
+             * yet applied for strings nested inside structures. */
+            const UA_DataType *type =
+                UA_findDataTypeWithCustom(&field->dataType,
+                                          psm->sc.server->config.customDataTypes);
+            if(type &&
+               (type->typeKind == UA_DATATYPEKIND_STRUCTURE ||
+                type->typeKind == UA_DATATYPEKIND_UNION ||
+                type->typeKind == UA_DATATYPEKIND_OPTSTRUCT) &&
+               typeContainsString(type, 0)) {
+                UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                                      "Field %.*s uses a structure type that "
+                                      "contains String/ByteString members. "
+                                      "MaxStringLength padding is not applied for "
+                                      "strings inside structures with RawData encoding.",
+                                      (int)field->name.length, field->name.data);
+            }
         }
     }
     return UA_STATUSCODE_GOOD;

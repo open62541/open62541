@@ -9,7 +9,11 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/types.h>
-#include <open62541/plugin/accesscontrol_default.h>
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+#include "server/ua_server_internal.h"
+#include "server/ua_services.h"
+#endif
 
 #include <stdlib.h>
 #include <check.h>
@@ -196,6 +200,107 @@ START_TEST(Server_setSessionParameter) {
     UA_Server_delete(server);
 } END_TEST
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+/* Always denies subscription creation */
+static UA_Boolean
+denyCreateSubscription(UA_Server *s, UA_AccessControl *ac,
+                       const UA_NodeId *sessionId, void *sessionContext) {
+    return false;
+}
+
+/* Regression test for feat/accesscontrol-allow-create-subscription:
+ * When allowCreateSubscription denies the request, CreateSubscription
+ * must return BadUserAccessDenied instead of succeeding.
+ * Uses a direct service call (no network round-trip) to avoid
+ * timing-related flakiness. */
+START_TEST(Server_denyCreateSubscription) {
+    server = UA_Server_newForUnitTest();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_AccessControl_default(config, true, NULL, 0, NULL);
+    config->accessControl.allowCreateSubscription = denyCreateSubscription;
+    UA_Server_run_startup(server);
+
+    UA_CreateSubscriptionRequest request;
+    UA_CreateSubscriptionRequest_init(&request);
+    UA_CreateSubscriptionResponse response;
+    UA_CreateSubscriptionResponse_init(&response);
+
+    UA_LOCK(&server->serviceMutex);
+    Service_CreateSubscription(server, &server->adminSession,
+                               &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_BADUSERACCESSDENIED);
+
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+} END_TEST
+
+/* When allowCreateSubscription is NULL (not configured), subscription
+ * creation is allowed for backward compatibility — matching the pattern
+ * of allowAddNode, allowDeleteNode, etc. */
+START_TEST(Server_nullCreateSubscriptionCallback) {
+    server = UA_Server_newForUnitTest();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_AccessControl_default(config, true, NULL, 0, NULL);
+    config->accessControl.allowCreateSubscription = NULL;
+    UA_Server_run_startup(server);
+
+    UA_CreateSubscriptionRequest request;
+    UA_CreateSubscriptionRequest_init(&request);
+    request.requestedPublishingInterval = 500.0;
+    request.requestedLifetimeCount = 10000;
+    request.requestedMaxKeepAliveCount = 10;
+    request.maxNotificationsPerPublish = 0;
+    request.publishingEnabled = true;
+    UA_CreateSubscriptionResponse response;
+    UA_CreateSubscriptionResponse_init(&response);
+
+    UA_LOCK(&server->serviceMutex);
+    Service_CreateSubscription(server, &server->adminSession,
+                               &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(response.subscriptionId, 0);
+
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+} END_TEST
+/* When the default allowCreateSubscription callback is used (returns true),
+ * CreateSubscription must succeed. */
+START_TEST(Server_allowCreateSubscription) {
+    server = UA_Server_newForUnitTest();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_AccessControl_default(config, true, NULL, 0, NULL);
+    UA_Server_run_startup(server);
+
+    UA_CreateSubscriptionRequest request;
+    UA_CreateSubscriptionRequest_init(&request);
+    request.requestedPublishingInterval = 500.0;
+    request.requestedLifetimeCount = 10000;
+    request.requestedMaxKeepAliveCount = 10;
+    request.maxNotificationsPerPublish = 0;
+    request.publishingEnabled = true;
+    UA_CreateSubscriptionResponse response;
+    UA_CreateSubscriptionResponse_init(&response);
+
+    UA_LOCK(&server->serviceMutex);
+    Service_CreateSubscription(server, &server->adminSession,
+                               &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
+
+    ck_assert_uint_eq(response.responseHeader.serviceResult,
+                      UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(response.subscriptionId, 0);
+
+    UA_Server_run_shutdown(server);
+    UA_Server_delete(server);
+} END_TEST
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client_user = tcase_create("Client User/Password");
@@ -209,6 +314,11 @@ static Suite* testSuite_Client(void) {
     TCase *tc_server = tcase_create("Server-Side Access Control");
     tcase_add_test(tc_server, Server_sessionParameter);
     tcase_add_test(tc_server, Server_setSessionParameter);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    tcase_add_test(tc_server, Server_allowCreateSubscription);
+    tcase_add_test(tc_server, Server_denyCreateSubscription);
+    tcase_add_test(tc_server, Server_nullCreateSubscriptionCallback);
+#endif
     suite_add_tcase(s,tc_server);
     return s;
 }

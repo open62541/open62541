@@ -272,11 +272,11 @@ cmpRefTargetId(const void *a, const void *b) {
 
 enum ZIP_CMP
 cmpRefTargetName(const void *a, const void *b) {
-    const UA_ReferenceTargetTreeElem *aa = (const UA_ReferenceTargetTreeElem*)a;
-    const UA_ReferenceTargetTreeElem *bb = (const UA_ReferenceTargetTreeElem*)b;
-    if(aa->target.targetNameHash == bb->target.targetNameHash)
+    const UA_ReferenceTarget *aa = (const UA_ReferenceTarget*)a;
+    const UA_ReferenceTarget *bb = (const UA_ReferenceTarget*)b;
+    if(aa->targetNameHash == bb->targetNameHash)
         return ZIP_CMP_EQ;
-    return (aa->target.targetNameHash < bb->target.targetNameHash) ?
+    return (aa->targetNameHash < bb->targetNameHash) ?
         ZIP_CMP_LESS : ZIP_CMP_MORE;
 }
 

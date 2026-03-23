@@ -29,8 +29,32 @@ static UA_UInt64 lastTimedCallback;
 static const void *canceledCallRequest = NULL;
 static const void *expectedCanceledCallRequest = NULL;
 
+// Store active async reads and remove when cancelled
+static void *activeReads[16];
+
+static void
+asyncOperationCancelCallback(UA_Server *server, const void *out) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Request %p was canceled", out);
+    canceledCallRequest = out;
+    for(size_t i = 0; i < 16; i++) {
+        if(activeReads[i] == out)
+            activeReads[i] = NULL;
+    }
+}
+
 static void
 asyncRead(UA_Server *server, void *data) {
+    /* Already cancelled? */
+    size_t i = 0;
+    for(;i < 16; i++) {
+        if(activeReads[i] == data)
+            break;
+    }
+    if(i >= 16)
+        return;
+
+    activeReads[i] = NULL; /* Free the slot*/
+
     UA_DataValue *out = (UA_DataValue*)data;
     UA_UInt32 val = 42;
     UA_Variant_setScalarCopy(&out->value, &val, &UA_TYPES[UA_TYPES_UINT32]);
@@ -43,8 +67,17 @@ readCallback_async(UA_Server *server, const UA_NodeId *sessionId,
                    void *sessionContext, const UA_NodeId *nodeId,
                    void *nodeContext, UA_Boolean includeSourceTimeStamp,
                    const UA_NumericRange *range, UA_DataValue *value) {
+    size_t i = 0;
+    for(;i < 16; i++) {
+        if(activeReads[i] == NULL)
+            break;
+    }
+    if(i >= 16)
+        return UA_STATUSCODE_BADTOOMANYOPERATIONS;
+
     UA_DateTime callTime = UA_DateTime_now_fake(NULL) + UA_DATETIME_SEC;
     UA_Server_addTimedCallback(server, asyncRead, value, callTime, &lastTimedCallback);
+    activeReads[i] = value; /* store to see if canceled */
     return UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
 }
 
@@ -114,12 +147,6 @@ clientReceiveCallback(UA_Client *client, void *userdata,
     clientCounter++;
 }
 
-static void
-asyncOperationCancelCallback(UA_Server *server, const void *out) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Request %p was canceled", out);
-    canceledCallRequest = out;
-}
-
 THREAD_CALLBACK(serverloop) {
     while(running)
         UA_Server_run_iterate(server, true);
@@ -133,6 +160,7 @@ static void setup(void) {
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->asyncOperationTimeout = 2000.0; /* 2 seconds */
+    config->asyncOperationCancelCallback = asyncOperationCancelCallback;
 
     UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
     methodAttr.executable = true;
@@ -358,9 +386,13 @@ START_TEST(Async_timeout) {
 
     UA_fakeSleep(1000);
 
-    /* We expect to receive the timeout response */
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
+    /* We expect to receive the timeout response.
+     * Under lwip with TAP networking the response may need
+     * multiple iterations to be delivered. */
+    while(clientCounter == 0) {
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 0);
+    }
     ck_assert_uint_eq(clientCounter, 1);
 
     running = true;
@@ -407,8 +439,6 @@ START_TEST(Async_cancel) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    UA_Server_getConfig(server)->asyncOperationCancelCallback = asyncOperationCancelCallback;
 
     /* Call async method, then the sync method.
      * The sync method returns first. */
@@ -470,6 +500,172 @@ START_TEST(Async_cancel_multiple) {
     UA_Client_delete(client);
 } END_TEST
 
+/* --- Extended coverage tests --- */
+
+static UA_Boolean serverReadResultReceived = false;
+static UA_DataValue serverReadResult;
+
+static void
+serverAsyncReadCallback(UA_Server *s, void *asyncOpContext,
+                         const UA_DataValue *result) {
+    UA_DataValue_copy(result, &serverReadResult);
+    serverReadResultReceived = true;
+}
+
+START_TEST(Async_server_read) {
+    /* Use the server-side async read API directly */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    serverReadResultReceived = false;
+    UA_DataValue_init(&serverReadResult);
+
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = UA_NODEID_STRING(1, "asyncVar");
+    rvid.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    UA_StatusCode retval =
+        UA_Server_read_async(server, &rvid,
+                             UA_TIMESTAMPSTORETURN_BOTH,
+                             serverAsyncReadCallback, NULL, 5000);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Process until the callback fires */
+    UA_fakeSleep(1000);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+    ck_assert(serverReadResultReceived == true);
+    ck_assert(serverReadResult.hasValue);
+    UA_DataValue_clear(&serverReadResult);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+} END_TEST
+
+static UA_Boolean serverWriteResultReceived = false;
+static UA_StatusCode serverWriteResultCode = UA_STATUSCODE_BADINTERNALERROR;
+
+static void
+serverAsyncWriteCallback(UA_Server *s, void *asyncOpContext,
+                          UA_StatusCode result) {
+    serverWriteResultCode = result;
+    serverWriteResultReceived = true;
+}
+
+START_TEST(Async_server_write) {
+    /* Use the server-side async write API directly */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    serverWriteResultReceived = false;
+
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    wv.nodeId = UA_NODEID_STRING(1, "asyncVar");
+    wv.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_UInt32 val = 999;
+    UA_Variant_setScalar(&wv.value.value, &val, &UA_TYPES[UA_TYPES_UINT32]);
+    wv.value.hasValue = true;
+
+    UA_StatusCode retval =
+        UA_Server_write_async(server, &wv,
+                              serverAsyncWriteCallback, NULL, 5000);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Process until the callback fires */
+    UA_fakeSleep(1000);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+    ck_assert(serverWriteResultReceived == true);
+    ck_assert_uint_eq(serverWriteResultCode, UA_STATUSCODE_GOOD);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+} END_TEST
+
+START_TEST(Async_read_timeout_server) {
+    /* Start async read with very short timeout, remove the callback so it times out */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Stop the server thread. Iterate manually from now on */
+    running = false;
+    THREAD_JOIN(server_thread);
+
+    clientCounter = 0;
+    retval = UA_Client_readValueAttribute_async(client,
+                                                UA_NODEID_STRING(1, "asyncVar"),
+                                                clientReadCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Process the request on the server to start the async op */
+    UA_Server_run_iterate(server, true);
+    UA_Client_run_iterate(client, 0);
+
+    /* Remove the timed callback so it never completes */
+    UA_Server_removeCallback(server, lastTimedCallback);
+
+    /* Wait for the async timeout (2 seconds).
+     * Under lwip with TAP networking the response may need
+     * multiple iterations to be delivered. */
+    UA_fakeSleep(3000);
+    while(clientCounter == 0) {
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 0);
+    }
+    ck_assert_uint_eq(clientCounter, 1);
+
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Async_sync_method_call) {
+    /* Call a synchronous method via the async path - it should complete immediately */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    clientCounter = 0;
+    retval = UA_Client_call_async(client,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_STRING(1, "method"),
+                                  0, NULL, clientReceiveCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* The sync method should return immediately */
+    while(clientCounter == 0)
+        UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(clientCounter, 1);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Async_read_sync_variable) {
+    /* Read a sync variable via async client - should complete immediately */
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    clientCounter = 0;
+    retval = UA_Client_readValueAttribute_async(client,
+                                                UA_NODEID_STRING(1, "syncVar"),
+                                                clientReadCallback, NULL, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    while(clientCounter == 0)
+        UA_Client_run_iterate(client, 1);
+    ck_assert_uint_eq(clientCounter, 1);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 static Suite* method_async_suite(void) {
     /* set up unit test for internal data structures */
     Suite *s = suite_create("Async Method");
@@ -483,6 +679,11 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_forget);
     tcase_add_test(tc_manager, Async_cancel);
     tcase_add_test(tc_manager, Async_cancel_multiple);
+    tcase_add_test(tc_manager, Async_server_read);
+    tcase_add_test(tc_manager, Async_server_write);
+    tcase_add_test(tc_manager, Async_read_timeout_server);
+    tcase_add_test(tc_manager, Async_sync_method_call);
+    tcase_add_test(tc_manager, Async_read_sync_variable);
     suite_add_tcase(s, tc_manager);
 
     return s;

@@ -43,7 +43,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 5)
-set(OPEN62541_VER_PATCH 2)
+set(OPEN62541_VER_PATCH 3)
 set(OPEN62541_VER_LABEL "") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -131,6 +131,14 @@ endif()
 
 if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_BUILD_FUZZING)
     set(UA_ENABLE_NODESET_INJECTOR ON)
+
+    # Detect whether any loaded companion spec requires the RoleSet node
+    set(UA_NODESET_INJECTOR_NEEDS_ROLESET OFF)
+    foreach(_model ${UA_INFORMATION_MODEL_AUTOLOAD})
+        if(_model STREQUAL "GDS" OR _model STREQUAL "Onboarding" OR _model STREQUAL "UAFX-Data")
+            set(UA_NODESET_INJECTOR_NEEDS_ROLESET ON)
+        endif()
+    endforeach()
 endif()
 
 set(MULTITHREADING_DEFAULT 0)
@@ -146,6 +154,9 @@ mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
 
 option(UA_ENABLE_NODEMANAGEMENT "Enable dynamic addition and removal of nodes at runtime" ON)
 mark_as_advanced(UA_ENABLE_NODEMANAGEMENT)
+
+option(UA_ENABLE_AUDITING "Enable generation of audit events in servers" ON)
+mark_as_advanced(UA_ENABLE_AUDITING)
 
 option(UA_ENABLE_INLINABLE_EXPORT "Export 'static inline' methods as regular API" OFF)
 mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
@@ -185,14 +196,6 @@ else()
         set(UA_ENABLE_DISCOVERY_MULTICAST "AVAHI")
         set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
     endif()
-endif()
-
-option(UA_ENABLE_FILESYSTEM "Enable filesystem support!" ON)
-if(UA_ENABLE_FILESYSTEM AND UA_NAMESPACE_ZERO STREQUAL "FULL")
-    message("Filesystem support is enabled. This will add a lot of nodes to namespace zero and increase the binary size significantly. Consider using a reduced namespace zero configuration if you do not need the full filesystem information model.")
-    set(UA_FILESYSTEM ON)
-    mark_as_advanced(UA_FILESYSTEM)
-    add_compile_definitions(UA_FILESYSTEM)
 endif()
 
 # security provider
@@ -279,6 +282,14 @@ if(MSVC AND UA_NAMESPACE_ZERO STREQUAL "FULL")
     # For the full NS0 we need a stack size of 8MB (as it is default on linux)
     # See https://github.com/open62541/open62541/issues/1326
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /STACK:8000000")
+endif()
+
+option(UA_ENABLE_FILESYSTEM "Enable filesystem support!" OFF)
+if(UA_ENABLE_FILESYSTEM AND UA_NAMESPACE_ZERO STREQUAL "FULL")
+    message("Filesystem support is enabled. This will add a lot of nodes to namespace zero and increase the binary size significantly. Consider using a reduced namespace zero configuration if you do not need the full filesystem information model.")
+    set(UA_FILESYSTEM ON)
+    mark_as_advanced(UA_FILESYSTEM)
+    add_compile_definitions(UA_FILESYSTEM)
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
@@ -440,7 +451,7 @@ if(CMAKE_BUILD_TYPE MATCHES DEBUG)
 endif()
 
 # Build Targets
-option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
+option(UA_BUILD_EXAMPLES "Build example servers and clients" ON)
 option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
@@ -678,7 +689,6 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
     # Threading support
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
         check_add_cc_flag("-pthread")
-        check_add_cc_flag("-ftls-model=initial-exec") # Enable thread-local variables in the .so shared object
     endif()
 
     # Force 32bit build
@@ -707,7 +717,7 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
         include(CheckIPOSupported)
         check_ipo_supported(RESULT CC_HAS_IPO)
         if(CC_HAS_IPO)
-            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)
         endif()
     endif()
 
@@ -834,13 +844,13 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${PROJECT_SOURCE_DIR}/driver/driver.h
+                     ${PROJECT_SOURCE_DIR}/driver/directoryArch/common/fileSystemOperations_common.h
                      )
 
 if (UA_FILESYSTEM)
     list(APPEND exported_headers
                          ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_fileserver_driver.h
-                         ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_filetypes.h
-                         ${PROJECT_SOURCE_DIR}/driver/directoryArch/common/fileSystemOperations_common.h)
+                         ${PROJECT_SOURCE_DIR}/driver/filesystem/ua_filetypes.h)
 endif()
 
 # Main Library
@@ -892,6 +902,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_config.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_auditing.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c
@@ -910,6 +921,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 
 if(UA_ENABLE_RBAC)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_rbac.c)
 endif()
 
 if(UA_FILESYSTEM)
@@ -1395,16 +1407,18 @@ endif()
 if(UA_ENABLE_NODESET_INJECTOR)
     message(STATUS "Nodesetinjector feature enabled")
     set(UA_NODESETINJECTOR_SOURCE_FILES "") # List is appended from within ua_generate_nodeset
+    set(UA_NODESETINJECTOR_NAMES "") # Ordered list of AUTOLOAD namespace names
 
     add_custom_target(open62541-generator-nodesetinjector)
     add_dependencies(open62541-code-generation open62541-generator-nodesetinjector)
 
     add_subdirectory(tools/nodeset_injector)
+
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h
                               ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c
                        COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_injector/generate_nodesetinjector.py
                                                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector
-                                                     ${UA_INFORMATION_MODEL_AUTOLOAD})
+                                                     ${UA_NODESETINJECTOR_NAMES})
 
     set_source_files_properties(${UA_NODESETINJECTOR_SOURCE_FILES} PROPERTIES GENERATED 1)
     list(APPEND lib_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h)
@@ -1492,6 +1506,9 @@ add_library(open62541::open62541 ALIAS open62541)
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
+if(UA_NODESET_INJECTOR_NEEDS_ROLESET)
+    target_compile_definitions(open62541-object PRIVATE -DUA_NODESET_INJECTOR_NEEDS_ROLESET)
+endif()
 if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
     target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
     target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
@@ -1647,7 +1664,8 @@ install(DIRECTORY ${UA_SCHEMA_DIR}/
         PERMISSIONS OWNER_READ GROUP_READ)
 
 # Install python tools
-set(UA_install_tools_files "tools/generate_datatypes.py"
+set(UA_install_tools_files "tools/generate_bsd.py"
+                           "tools/generate_datatypes.py"
                            "tools/generate_nodeid_header.py"
                            "tools/generate_statuscode_descriptions.py")
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir}
