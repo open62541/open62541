@@ -911,6 +911,14 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=11564</Reference>
     </References>
   </UAVariable>
+  <UAVariable NodeId="i=31770" BrowseName="MaxMonitoredItemsQueueSize" ParentNodeId="i=2013" DataType="UInt32">
+    <DisplayName>MaxMonitoredItemsQueueSize</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2013</Reference>
+    </References>
+  </UAVariable>
   <UAVariableType NodeId="i=2138" BrowseName="ServerStatusType" DataType="i=862">
     <DisplayName>ServerStatusType</DisplayName>
     <References>
@@ -1077,6 +1085,7 @@
       <Reference ReferenceType="HasProperty">i=2735</Reference>
       <Reference ReferenceType="HasProperty">i=2736</Reference>
       <Reference ReferenceType="HasProperty">i=2737</Reference>
+      <Reference ReferenceType="HasProperty">i=31916</Reference>
       <Reference ReferenceType="HasProperty">i=3704</Reference>
       <Reference ReferenceType="HasComponent">i=2996</Reference>
       <Reference ReferenceType="HasComponent">i=2997</Reference>
@@ -1202,6 +1211,13 @@
     <References>
       <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
       <Reference ReferenceType="HasProperty" IsForward="false">i=11704</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="i=31916" BrowseName="MaxMonitoredItemsQueueSize" ParentNodeId="i=2268" DataType="UInt32">
+    <DisplayName>MaxMonitoredItemsQueueSize</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=2268</Reference>
     </References>
   </UAVariable>
   <UAObject NodeId="i=2996" BrowseName="ModellingRules" ParentNodeId="i=2268">

@@ -612,6 +612,18 @@ readOperationLimits(UA_Server *server, const UA_NodeId *sessionId, void *session
         case UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL:
             retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxMonitoredItemsPerCall, &UA_TYPES[UA_TYPES_UINT32]);
             break;
+        case UA_NS0ID_SERVER_SERVERCAPABILITIES_MAXMONITOREDITEMSQUEUESIZE:
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+            retval = UA_Variant_setScalarCopy(&value->value, &server->config.queueSizeLimits.max,
+                                              &UA_TYPES[UA_TYPES_UINT32]);
+#else
+            {
+                UA_UInt32 maxQueueSize = 0;
+                retval = UA_Variant_setScalarCopy(&value->value, &maxQueueSize,
+                                                  &UA_TYPES[UA_TYPES_UINT32]);
+            }
+#endif
+            break;
         default:
             retval = UA_STATUSCODE_BADNOTSUPPORTED;
     }
@@ -1016,7 +1028,6 @@ configureNS0(UA_Server *server) {
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_CONFORMANCEUNITS), true);
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXMONITOREDITEMS), true);
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXMONITOREDITEMSPERSUBSCRIPTION), true);
-    deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXMONITOREDITEMSQUEUESIZE), true);
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXSELECTCLAUSEPARAMETERS), true);
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXSESSIONS), true);
     deleteNode(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXSUBSCRIPTIONS), true);
@@ -1226,6 +1237,7 @@ connectNS0_dataSources(UA_Server *server) {
     retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERTRANSLATEBROWSEPATHSTONODEIDS), operationLimitRead);
     retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERNODEMANAGEMENT), operationLimitRead);
     retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL), operationLimitRead);
+    retVal |= setVariableNode_callbackValueSource(server, UA_NS0ID(SERVER_SERVERCAPABILITIES_MAXMONITOREDITEMSQUEUESIZE), operationLimitRead);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
     /* ServerDiagnostics */
