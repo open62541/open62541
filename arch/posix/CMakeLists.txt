@@ -1,8 +1,3 @@
-# Architecture-specific eventloop files for POSIX (Linux, BSD, Mac) and Win32.
-# This file is included from the main CMakeLists.txt via:
-#   include(${UA_ARCH_FOLDER}/CMakeLists.txt)
-
-# Make the POSIX eventloop header findable without a path prefix
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 
 list(APPEND plugin_sources
