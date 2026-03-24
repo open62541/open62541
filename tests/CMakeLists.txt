@@ -328,10 +328,6 @@ if(UA_ENABLE_SUBSCRIPTIONS)
     ua_add_test(server/check_local_monitored_item.c)
 endif()
 
-if(UA_FILESYSTEM)
-    ua_add_test(filesystem/check_filesystem_operations.c)
-endif()
-
 if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_encoding.c)
     ua_add_test(pubsub/check_pubsub_encoding_custom.c)
@@ -503,4 +499,8 @@ endif()
 # Only do the network replay test for 64bit builds, as there is a bug in the Debian multi-arch installation
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP AND NOT UA_FORCE_32BIT)
     ua_add_test(network_replay/check_network_replay.c)
+endif()
+
+if(UA_FILESYSTEM AND UA_ARCHITECTURE_POSIX)
+    ua_add_test(filesystem/check_filesystem_operations.c)
 endif()
