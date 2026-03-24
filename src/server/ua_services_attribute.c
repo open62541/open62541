@@ -1145,7 +1145,7 @@ adjustValueType(UA_Server *server, UA_Variant *value,
 
     /* Find the target type */
     const UA_DataType *targetType =
-        UA_findDataTypeWithCustom(targetDataTypeId, server->config.customDataTypes);
+        UA_findDataTypeWithCustom(targetDataTypeId, serverCustomTypes(server));
     if(!targetType)
         return;
 
