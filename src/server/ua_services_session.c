@@ -852,6 +852,13 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
 }
 
 static UA_StatusCode
+hideX509IdentityTokenValidationStatus(UA_StatusCode status) {
+    if(status == UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOOD;
+    return UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
+}
+
+static UA_StatusCode
 checkActivateSessionX509(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                          const UA_SecurityPolicy *tokenSp, UA_X509IdentityToken* token,
                          const UA_SignatureData *tokenSignature) {
@@ -886,6 +893,7 @@ checkActivateSessionX509(UA_Server *server, UA_SecureChannel *channel, UA_Sessio
     res = validateCertificate(server, &server->config.sessionPKI,
                               session->channel, session, "ActivateSession",
                               NULL, token->certificateData);
+    res = hideX509IdentityTokenValidationStatus(res);
 
  out:
     /* Delete the temporary channel context */
