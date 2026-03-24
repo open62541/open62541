@@ -240,7 +240,7 @@ START_TEST(Server_getEffectivePermissions_NoPermissionsOnNode) {
     /* Get the admin session ID */
     UA_NodeId adminSessionId = UA_NODEID_GUID(0, (UA_Guid){1, 0, 0, {0,0,0,0,0,0,0,0}});
 
-    /* No permissions and no NS1 defaults -> with allPermissionsForAnonymousRole
+    /* No permissions and no NS1 defaults -> with allPermissionsForAnonymous
      * (the default), unconfigured nodes are fully permissive. */
     UA_UInt32 effectivePerms = 0;
     retval = UA_Server_getEffectivePermissions(server, &adminSessionId,

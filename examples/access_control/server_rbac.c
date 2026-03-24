@@ -36,7 +36,7 @@ int main(void) {
     /* Allow username/password authentication over unencrypted connection (for demo) */
     config.allowNonePolicyPassword = true;
 
-    /* Configure RBAC mode: allPermissionsForAnonymousRole
+    /* Configure RBAC mode: allPermissionsForAnonymous
      * This controls the default role permissions applied to namespace 0 (NS0)
      * per OPC UA Part 18.
      *
@@ -50,10 +50,10 @@ int main(void) {
      *
      * These defaults apply to all nodes in NS0 that don't have explicit RolePermissions.
      * Change this to 'true' for testing without authentication. */
-    config.allPermissionsForAnonymousRole = false;
+    config.allPermissionsForAnonymous = false;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                "RBAC Mode: allPermissionsForAnonymousRole = %s",
-                config.allPermissionsForAnonymousRole ? "true (INSECURE)" : "false (secure)");
+                "RBAC Mode: allPermissionsForAnonymous = %s",
+                config.allPermissionsForAnonymous ? "true (INSECURE)" : "false (secure)");
 
     /* Configure users for authentication */
     UA_UsernamePasswordLogin logins[3] = {

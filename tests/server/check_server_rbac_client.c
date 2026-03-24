@@ -48,7 +48,7 @@ static void setup(void) {
 
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     sc->allowNonePolicyPassword = true;
-    sc->allPermissionsForAnonymousRole = false;
+    sc->allPermissionsForAnonymous = false;
 
     /* Configure AccessControl with usernames */
     UA_SecurityPolicy *sp = &sc->securityPolicies[sc->securityPoliciesSize-1];
