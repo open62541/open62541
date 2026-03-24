@@ -29,7 +29,12 @@ makeFile(const char *path, bool fileHandleBool, UA_Int32* output) {
             return UA_STATUSCODE_BADINTERNALERROR;
         }
 
-        *output = (UA_Int32)file;
+        int fd =fileno(file);
+        if(fd == -1) {
+            fclose(file);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        *output = (UA_Int32)fd;
         return UA_STATUSCODE_GOOD;
     }
     fclose(file);
