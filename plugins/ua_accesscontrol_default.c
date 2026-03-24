@@ -118,6 +118,17 @@ closeSession_default(UA_Server *server, UA_AccessControl *ac,
                      const UA_NodeId *sessionId, void *sessionContext) {
 }
 
+/* Map RBAC PermissionType bits to the node's UserWriteMask.
+ *
+ * OPC UA Part 3, Table 8 defines three separate permission bits that
+ * control attribute writing:
+ *   - WriteAttribute  -> all WriteMask bits EXCEPT RolePermissions
+ *                        and Historizing (the "catch-all" permission)
+ *   - WriteRolePermissions -> UA_WRITEMASK_ROLEPERMISSIONS (bit 23)
+ *   - WriteHistorizing     -> UA_WRITEMASK_HISTORIZING    (bit 9)
+ *
+ * 0xFFFFFFFF effectivePerms means "no RBAC restrictions configured" for
+ * the node, so we return all-bits-set (fully permissive). */
 static UA_UInt32
 getUserRightsMask_default(UA_Server *server, UA_AccessControl *ac,
                           const UA_NodeId *sessionId, void *sessionContext,
@@ -130,6 +141,8 @@ getUserRightsMask_default(UA_Server *server, UA_AccessControl *ac,
         return 0xFFFFFFFF;
     UA_UInt32 userWriteMask = 0;
     if(effectivePerms & UA_PERMISSIONTYPE_WRITEATTRIBUTE) {
+        /* Grant all attribute-write bits, then carve out the two that
+         * have their own dedicated permission bits. */
         userWriteMask = 0xFFFFFFFF;
         userWriteMask &= ~UA_WRITEMASK_ROLEPERMISSIONS;
         userWriteMask &= ~UA_WRITEMASK_HISTORIZING;
@@ -144,6 +157,19 @@ getUserRightsMask_default(UA_Server *server, UA_AccessControl *ac,
 #endif
 }
 
+/* Map RBAC PermissionType bits to the Variable node's UserAccessLevel.
+ *
+ * OPC UA Part 3, Table 8 maps:
+ *   - Read          -> ACCESSLEVELMASK_READ         (bit 0)
+ *   - Write         -> ACCESSLEVELMASK_WRITE        (bit 1)
+ *   - ReadHistory   -> ACCESSLEVELMASK_HISTORYREAD  (bit 2)
+ *   - InsertHistory |
+ *     ModifyHistory |
+ *     DeleteHistory -> ACCESSLEVELMASK_HISTORYWRITE (bit 3)
+ *
+ * StatusWrite (bit 5) and TimestampWrite (bit 6) are not mapped from
+ * RBAC permissions — they remain restricted unless the node has no
+ * RBAC configuration (0xFFFFFFFF). */
 static UA_Byte
 getUserAccessLevel_default(UA_Server *server, UA_AccessControl *ac,
                            const UA_NodeId *sessionId, void *sessionContext,
@@ -171,6 +197,7 @@ getUserAccessLevel_default(UA_Server *server, UA_AccessControl *ac,
 #endif
 }
 
+/* OPC UA Part 3, Table 8: Call permission -> UserExecutable attribute. */
 static UA_Boolean
 getUserExecutable_default(UA_Server *server, UA_AccessControl *ac,
                           const UA_NodeId *sessionId, void *sessionContext,
@@ -187,6 +214,8 @@ getUserExecutable_default(UA_Server *server, UA_AccessControl *ac,
 #endif
 }
 
+/* Call permission is checked on both the object and the method node.
+ * Both must grant CALL for the method invocation to be allowed. */
 static UA_Boolean
 getUserExecutableOnObject_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *sessionId, void *sessionContext,
@@ -213,6 +242,7 @@ getUserExecutableOnObject_default(UA_Server *server, UA_AccessControl *ac,
 #endif
 }
 
+/* AddNode permission is checked on the parent node. */
 static UA_Boolean
 allowAddNode_default(UA_Server *server, UA_AccessControl *ac,
                      const UA_NodeId *sessionId, void *sessionContext,
@@ -230,6 +260,7 @@ allowAddNode_default(UA_Server *server, UA_AccessControl *ac,
 #endif
 }
 
+/* AddReference permission is checked on the source node. */
 static UA_Boolean
 allowAddReference_default(UA_Server *server, UA_AccessControl *ac,
                           const UA_NodeId *sessionId, void *sessionContext,
@@ -247,6 +278,7 @@ allowAddReference_default(UA_Server *server, UA_AccessControl *ac,
 #endif
 }
 
+/* DeleteNode permission is checked on the node itself. */
 static UA_Boolean
 allowDeleteNode_default(UA_Server *server, UA_AccessControl *ac,
                         const UA_NodeId *sessionId, void *sessionContext,
@@ -264,6 +296,7 @@ allowDeleteNode_default(UA_Server *server, UA_AccessControl *ac,
 #endif
 }
 
+/* RemoveReference permission is checked on the source node. */
 static UA_Boolean
 allowDeleteReference_default(UA_Server *server, UA_AccessControl *ac,
                              const UA_NodeId *sessionId, void *sessionContext,
@@ -281,6 +314,7 @@ allowDeleteReference_default(UA_Server *server, UA_AccessControl *ac,
 #endif
 }
 
+/* OPC UA Part 3, Table 8: Browse permission. */
 static UA_Boolean
 allowBrowseNode_default(UA_Server *server, UA_AccessControl *ac,
                         const UA_NodeId *sessionId, void *sessionContext,
@@ -349,6 +383,8 @@ allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
 #endif
 
 #ifdef UA_ENABLE_HISTORIZING
+/* OPC UA Part 3, Table 8: InsertHistory / ModifyHistory permissions.
+ * INSERT -> InsertHistory, REPLACE/UPDATE -> ModifyHistory. */
 static UA_Boolean
 allowHistoryUpdateUpdateData_default(UA_Server *server, UA_AccessControl *ac,
                                      const UA_NodeId *sessionId, void *sessionContext,
@@ -372,6 +408,7 @@ allowHistoryUpdateUpdateData_default(UA_Server *server, UA_AccessControl *ac,
 #endif
 }
 
+/* OPC UA Part 3, Table 8: DeleteHistory permission. */
 static UA_Boolean
 allowHistoryUpdateDeleteRawModified_default(UA_Server *server, UA_AccessControl *ac,
                                             const UA_NodeId *sessionId, void *sessionContext,

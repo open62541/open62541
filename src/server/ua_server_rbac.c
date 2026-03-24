@@ -863,7 +863,9 @@ UA_Server_setNodeRolePermissions(UA_Server *server,
                                  const UA_NodeId nodeId,
                                  size_t rolePermissionsSize,
                                  const UA_RolePermission *rolePermissions,
-                                 UA_Boolean recursive) {
+                                 UA_Boolean recursive,
+                                 const UA_KeyValueMap *options) {
+    (void)options; /* Reserved for future use */
     if(!server || (rolePermissionsSize > 0 && !rolePermissions))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -1165,16 +1167,10 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
         userName = ut->userName;
     }
 
-    /* Pre-allocate for maximum possible matches */
-    UA_NodeId *matched = (UA_NodeId*)
-        UA_calloc(server->rolesSize, sizeof(UA_NodeId));
-    if(!matched)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
+    /* First pass: count matching roles */
     size_t matchCount = 0;
     for(size_t i = 0; i < server->rolesSize; i++) {
         UA_Role *role = &server->roles[i];
-        UA_Boolean roleMatched = false;
         for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
             UA_Boolean match = false;
             switch(role->identityMappingRules[j].criteriaType) {
@@ -1192,20 +1188,49 @@ UA_Server_evaluateSessionRoles(UA_Server *server,
             default:
                 break;
             }
-            if(match) { roleMatched = true; break; }
-        }
-        if(roleMatched) {
-            UA_NodeId_copy(&role->roleId, &matched[matchCount]);
-            matchCount++;
+            if(match) { matchCount++; break; }
         }
     }
 
-    if(matchCount > 0) {
-        *outRoleIds = matched;
-        *outRolesSize = matchCount;
-    } else {
-        UA_free(matched);
+    if(matchCount == 0)
+        return UA_STATUSCODE_GOOD;
+
+    /* Second pass: allocate exact size and collect role IDs */
+    UA_NodeId *matched = (UA_NodeId*)
+        UA_calloc(matchCount, sizeof(UA_NodeId));
+    if(!matched)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    size_t idx = 0;
+    for(size_t i = 0; i < server->rolesSize && idx < matchCount; i++) {
+        UA_Role *role = &server->roles[i];
+        for(size_t j = 0; j < role->identityMappingRulesSize; j++) {
+            UA_Boolean match = false;
+            switch(role->identityMappingRules[j].criteriaType) {
+            case UA_IDENTITYCRITERIATYPE_ANONYMOUS:
+                match = isAnonymous;
+                break;
+            case UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER:
+                match = !isAnonymous;
+                break;
+            case UA_IDENTITYCRITERIATYPE_USERNAME:
+                if(userName.length > 0)
+                    match = UA_String_equal(&userName,
+                                            &role->identityMappingRules[j].criteria);
+                break;
+            default:
+                break;
+            }
+            if(match) {
+                UA_NodeId_copy(&role->roleId, &matched[idx]);
+                idx++;
+                break;
+            }
+        }
     }
+
+    *outRoleIds = matched;
+    *outRolesSize = matchCount;
     return UA_STATUSCODE_GOOD;
 }
 
