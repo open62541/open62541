@@ -50,16 +50,25 @@ getFullPath(UA_Server *server,
                 .referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                 .nodeClassMask = UA_NODECLASS_OBJECT
             });
-
+        
         if(br.referencesSize == 0) {
             UA_BrowseResult_clear(&br);
             break;
         }
 
-        /* Move to parent */
-        current = br.references[0].nodeId.nodeId;
+        UA_NodeId parentNodeId;
+        UA_NodeId_init(&parentNodeId);
+        UA_StatusCode rc = UA_NodeId_copy(&br.references[0].nodeId.nodeId, &current);
 
         UA_BrowseResult_clear(&br);
+
+        if(rc != UA_STATUSCODE_GOOD) {
+            break;
+        }
+
+        /* Move to parent */
+        UA_NodeId_clear(&current);
+        current = parentNodeId;
     }
 
     return UA_STATUSCODE_GOOD;

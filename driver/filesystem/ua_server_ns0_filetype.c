@@ -73,6 +73,8 @@ openFileMethod(UA_Server *server,
     UA_Server_getNodeContext(server, *objectId, (void**)&fileCtx);
     
     if (!fileCtx) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
+                     "No FileDirectoryContext found for node");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     
@@ -88,22 +90,17 @@ openFileMethod(UA_Server *server,
     /* Open file */
     char fullPath[MAX_PATH];
     getFullPath(server, objectId, fullPath, MAX_PATH);
-    fullPath[strlen(fullPath)-1] = '\0';
+    size_t fullPathLen = strnlen(fullPath, MAX_PATH);
+    if(fullPathLen > 0 &&
+       (fullPath[fullPathLen - 1] == '/' || fullPath[fullPathLen - 1] == '\\')) {
+        fullPath[fullPathLen - 1] = '\0';
+    }
     UA_Int32 *handle = NULL;
     
     /* Perform filesystem delete */
     UA_FileDriverContext *driverCtx = NULL;
-    FileDirectoryContext *ctx = NULL;
-
-    /* Get the FileDirectoryContext stored on the node */
-    UA_StatusCode res = UA_Server_getNodeContext(server, *objectId, (void**)&ctx);
-    if(!ctx) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                     "No FileDirectoryContext found for node");
-        res |= UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_FileServerDriver *driver = (UA_FileServerDriver*)ctx->driver;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_FileServerDriver *driver = (UA_FileServerDriver*)fileCtx->driver;
     if(!driver) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
                      "Node has no driver");
@@ -128,11 +125,11 @@ openFileMethod(UA_Server *server,
         sessionCtx = createSessionContext(fileCtx, sessionId);
         if (!sessionCtx) {
             driverCtx->closeFile(handle);
-            UA_free(driverCtx);
+            
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
     }
-    UA_free(driverCtx);
+    
     
     /* Store handle in session context */
     sessionCtx->fileHandle.handle = handle;
@@ -200,7 +197,7 @@ closeFileMethod(UA_Server *server,
 
     /* Close file */
     driverCtx->closeFile(sessionCtx->fileHandle.handle);
-    UA_free(driverCtx);
+    
     /* Remove session context */
     removeSessionContext(fileCtx, sessionId);
     
@@ -271,7 +268,7 @@ readFileMethod(UA_Server *server,
     }
 
     res = driverCtx->readFile(sessionCtx->fileHandle.handle, length, &data);
-    UA_free(driverCtx);
+    
     if (res != UA_STATUSCODE_GOOD) {
         return res;
     }
@@ -347,7 +344,7 @@ writeFileMethod(UA_Server *server,
 
     /* Write to file */
     res = driverCtx->writeFile(sessionCtx->fileHandle.handle, data);
-    UA_free(driverCtx);
+    
     if (res != UA_STATUSCODE_GOOD) {
         return res;
     }
@@ -499,7 +496,7 @@ setPositionMethod(UA_Server *server,
 
     /* Seek to position */
     res = driverCtx->seekFile(sessionCtx->fileHandle.handle, position);
-    UA_free(driverCtx);
+    
     if (res != UA_STATUSCODE_GOOD) {
         return res;
     }

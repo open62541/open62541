@@ -19,12 +19,17 @@ makeDirectory(const char *path) {
 /*Create a File with the give path*/
 UA_StatusCode
 makeFile(const char *path, bool fileHandleBool, UA_Int32* output) {
-    FILE* file = fopen(path, "w");
-    if (output == NULL) {
+    FILE* file = fopen(path, "w");    
+    if(!file)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
+
     if (fileHandleBool) {
-        output = (UA_Int32*)file;
+        if (!output) {
+            fclose(file);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        *output = (UA_Int32)file;
         return UA_STATUSCODE_GOOD;
     }
     fclose(file);

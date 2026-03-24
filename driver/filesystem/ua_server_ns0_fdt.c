@@ -67,7 +67,7 @@ createDirectory(UA_Server *server,
 
     // Implementation to create a directory in the filesystem
     res |= driverCtx->makeDirectory(fullPath);
-    UA_free(driverCtx);
+    
     if (res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
                      "Failed to create directory: %s",
@@ -79,7 +79,7 @@ createDirectory(UA_Server *server,
     output[0].data = UA_NodeId_new();      // SAFE allocation
     UA_NodeId_init((UA_NodeId*)output[0].data);
 
-    UA_FileServerDriver_addFileDirectory(NULL, server, objectId, (const char*)folderName.data, (UA_NodeId*)output[0].data, false);
+    UA_FileServerDriver_addFileDirectory(NULL, server, objectId, name, (UA_NodeId*)output[0].data, false);
 
     UA_free(name);
     return res;
@@ -160,10 +160,10 @@ createFile(UA_Server *server,
                      "No FileDriverContext found for driver node");
         res |= UA_STATUSCODE_BADINTERNALERROR;
     }
-
+    UA_Int32 fileHandle = 0;
     // Implementation to create a directory in the filesystem
-    res = driverCtx->makeFile(fullPath, fileHandleBool, (UA_Int32*)output); // TODO: implement driver dependant file handling
-    UA_free(driverCtx);
+    res = driverCtx->makeFile(fullPath, fileHandleBool, &fileHandle); // TODO: implement driver dependant file handling
+    
     if (res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
                      "Failed to create file: %s",
@@ -173,8 +173,12 @@ createFile(UA_Server *server,
 
 
     output[0].type = &UA_TYPES[UA_TYPES_NODEID];
-    output[0].data = UA_NodeId_new();      // SAFE allocation
+    output[0].data = UA_NodeId_new();
     UA_NodeId_init((UA_NodeId*)output[0].data);
+
+    output[1].type = &UA_TYPES[UA_TYPES_INT32];
+    output[1].data = UA_Int32_new();
+    *(UA_Int32*)output[1].data = fileHandle;
 
     UA_FileServerDriver_addFile(NULL, server, objectId, name, (UA_NodeId*)output[0].data);
 
@@ -267,7 +271,7 @@ deleteSubtree(UA_Server *server, const UA_NodeId *nodeId, bool deleteFiles) {
 
             /* Perform filesystem delete */
             driverCtx->deleteDirOrFile(fullPath);
-            UA_free(driverCtx);
+            
         }
 
         /* Delete the child node itself */
@@ -343,7 +347,7 @@ deleteItem(UA_Server *server,
     }
 
     res = driverCtx->deleteDirOrFile(fullPath);
-    UA_free(driverCtx);
+    
     if (res == UA_STATUSCODE_GOOD) {
         res = UA_Server_deleteNode(server, *nodeId, true);           
         UA_NodeId_clear(nodeId);
@@ -432,7 +436,7 @@ moveOrCopy(UA_Server *server,
 
     bool isDir = driverCtx->isDirectory(srcPath);
     res = driverCtx->moveOrCopyItem(srcPath, dstPath, *createCopy);
-    UA_free(driverCtx);
+    
     if (res == UA_STATUSCODE_GOOD) {
         if (!*createCopy) {
             res |= deleteSubtree(server, nodeIdSrc, false);
