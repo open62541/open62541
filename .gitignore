@@ -97,6 +97,3 @@ nbbuild/
 dist/
 nbdist/
 .nb-gradle/
-# VS and build output
-/.vs
-/build*
