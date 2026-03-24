@@ -2512,7 +2512,7 @@ struct UA_ServerConfig {
 
     /* If true, all permissions are granted regardless of roles.
      * WARNING: Effectively disables authorization. Use for testing only. */
-    UA_Boolean allPermissionsForAnonymousRole;
+    UA_Boolean allPermissionsForAnonymous;
 #endif
 };
 
@@ -2808,7 +2808,7 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role);
  * @param outRoleNames Output: deep-copy array of QualifiedNames
  * @return UA_STATUSCODE_GOOD on success */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId *sessionId,
+UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId sessionId,
                               size_t *outSize, UA_QualifiedName **outRoleNames);
 
 /**
@@ -2824,14 +2824,16 @@ UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId *sessionId,
  * @param server The server instance
  * @param nodeId The node to modify
  * @param roleId The role to add permissions for
- * @param permissionType Permission bitmask to set
- * @param overwriteExisting If true, replace; if false, OR with existing
+ * @param permissions Permission bitmask to set
+ * @param overwriteExisting If true, replace the role's existing permission
+ *        bitmask entirely; if false, OR (merge) the new bits into the
+ *        existing bitmask
  * @param recursive If true, apply recursively to child nodes
  * @return UA_STATUSCODE_GOOD on success */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
                              const UA_NodeId roleId,
-                             UA_PermissionType permissionType,
+                             UA_PermissionType permissions,
                              UA_Boolean overwriteExisting,
                              UA_Boolean recursive);
 
@@ -2840,13 +2842,13 @@ UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
  * @param server The server instance
  * @param nodeId The node to modify
  * @param roleId The role to remove permissions for
- * @param permissionType Permission bitmask to clear
+ * @param permissions Permission bitmask to clear
  * @param recursive If true, apply recursively to child nodes
  * @return UA_STATUSCODE_GOOD on success */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
                                 const UA_NodeId roleId,
-                                UA_PermissionType permissionType,
+                                UA_PermissionType permissions,
                                 UA_Boolean recursive);
 
 #endif /* UA_ENABLE_RBAC */

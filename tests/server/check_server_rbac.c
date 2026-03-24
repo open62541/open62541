@@ -1552,12 +1552,12 @@ START_TEST(userRolePermissions_array) {
 }
 END_TEST
 
-START_TEST(allPermissionsForAnonymousRole_config) {
+START_TEST(allPermissionsForAnonymous_config) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    ck_assert(config->allPermissionsForAnonymousRole == true);
-    config->allPermissionsForAnonymousRole = false;
-    ck_assert(config->allPermissionsForAnonymousRole == false);
-    config->allPermissionsForAnonymousRole = true;
+    ck_assert(config->allPermissionsForAnonymous == true);
+    config->allPermissionsForAnonymous = false;
+    ck_assert(config->allPermissionsForAnonymous == false);
+    config->allPermissionsForAnonymous = true;
 }
 END_TEST
 
@@ -1606,7 +1606,7 @@ START_TEST(sessionRoleNames) {
     /* Query role names */
     size_t namesSize = 0;
     UA_QualifiedName *names = NULL;
-    res = UA_Server_getSessionRoleNames(server, &adminSessionId,
+    res = UA_Server_getSessionRoleNames(server, adminSessionId,
                                         &namesSize, &names);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(namesSize, 2);
@@ -1626,7 +1626,7 @@ START_TEST(sessionRoleNames) {
 
     /* Invalid session */
     UA_NodeId badSession = UA_NODEID_NUMERIC(0, 999999);
-    res = UA_Server_getSessionRoleNames(server, &badSession,
+    res = UA_Server_getSessionRoleNames(server, badSession,
                                         &namesSize, &names);
     ck_assert_uint_ne(res, UA_STATUSCODE_GOOD);
 
@@ -1776,7 +1776,7 @@ static Suite *testSuite_PermissionMapping(void) {
     tcase_add_test(tc, userRolePermissions_array);
     tcase_add_test(tc, permissionConfig_addAndGet);
     tcase_add_test(tc, permissionEntry_slotReuse);
-    tcase_add_test(tc, allPermissionsForAnonymousRole_config);
+    tcase_add_test(tc, allPermissionsForAnonymous_config);
     suite_add_tcase(s, tc);
     return s;
 }

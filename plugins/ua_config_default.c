@@ -530,7 +530,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 #endif
 
 #ifdef UA_ENABLE_RBAC
-    conf->allPermissionsForAnonymousRole = true;
+    conf->allPermissionsForAnonymous = true;
 #endif
 
     /* --> Finish setting the default static config <-- */

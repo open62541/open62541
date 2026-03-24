@@ -516,6 +516,13 @@ UA_Server_initRBAC(UA_Server *server) {
                 "%zu preset(s) loaded.",
                 server->rolePermissionsSize);
 
+    if(server->config.allPermissionsForAnonymous) {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: allPermissionsForAnonymous is enabled. "
+                       "All permissions are granted regardless of roles. "
+                       "Disable for production use.");
+    }
+
     /* Register the OPC UA well-known roles in the internal registry */
     UA_StatusCode stdRes = initializeStandardRoles(server);
     if(stdRes != UA_STATUSCODE_GOOD)
@@ -1087,9 +1094,9 @@ UA_Session_setRoles(UA_Server *server, UA_Session *session,
 }
 
 UA_StatusCode
-UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId *sessionId,
+UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId sessionId,
                               size_t *outSize, UA_QualifiedName **outRoleNames) {
-    if(!server || !sessionId || !outSize || !outRoleNames)
+    if(!server || !outSize || !outRoleNames)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     *outSize = 0;
@@ -1097,7 +1104,7 @@ UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId *sessionId,
 
     lockServer(server);
 
-    UA_Session *session = getSessionById(server, sessionId);
+    UA_Session *session = getSessionById(server, &sessionId);
     if(!session) {
         unlockServer(server);
         return UA_STATUSCODE_BADSESSIONIDINVALID;
@@ -1317,7 +1324,7 @@ applyToHierarchicalChildren(UA_Server *server, const UA_NodeId *nodeId,
  * 4. Update refcounts and the node's permissionIndex */
 static UA_StatusCode
 addRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
-                           const UA_NodeId *roleId, UA_PermissionType permissionType,
+                           const UA_NodeId *roleId, UA_PermissionType permissions,
                            UA_Boolean overwriteExisting) {
     const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
     if(!node)
@@ -1342,7 +1349,7 @@ addRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
             UA_free(newEntries);
             return res;
         }
-        newEntries[0].permissions = permissionType;
+        newEntries[0].permissions = permissions;
     } else {
         /* Copy existing entries and modify/add the role entry */
         UA_RolePermissionEntry *oldRp = &server->rolePermissions[currentIndex];
@@ -1374,9 +1381,9 @@ addRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
                 }
                 if(i == existingRoleIdx) {
                     if(overwriteExisting)
-                        newEntries[i].permissions = permissionType;
+                        newEntries[i].permissions = permissions;
                     else
-                        newEntries[i].permissions = oldRp->rolePermissions[i].permissions | permissionType;
+                        newEntries[i].permissions = oldRp->rolePermissions[i].permissions | permissions;
                 } else {
                     newEntries[i].permissions = oldRp->rolePermissions[i].permissions;
                 }
@@ -1406,7 +1413,7 @@ addRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
                 UA_free(newEntries);
                 return res;
             }
-            newEntries[oldRp->rolePermissionsSize].permissions = permissionType;
+            newEntries[oldRp->rolePermissionsSize].permissions = permissions;
         }
     }
 
@@ -1445,7 +1452,7 @@ addRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
 /* Callback context for recursive addRolePermissions */
 struct AddRolePermissionsContext {
     const UA_NodeId *roleId;
-    UA_PermissionType permissionType;
+    UA_PermissionType permissions;
     UA_Boolean overwriteExisting;
 };
 
@@ -1453,12 +1460,12 @@ static UA_StatusCode
 addRolePermissionsCallback(UA_Server *server, const UA_NodeId *nodeId, void *context) {
     struct AddRolePermissionsContext *ctx = (struct AddRolePermissionsContext*)context;
     return addRolePermissionsInternal(server, nodeId, ctx->roleId,
-                                     ctx->permissionType, ctx->overwriteExisting);
+                                     ctx->permissions, ctx->overwriteExisting);
 }
 
 UA_StatusCode
 UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
-                             const UA_NodeId roleId, UA_PermissionType permissionType,
+                             const UA_NodeId roleId, UA_PermissionType permissions,
                              UA_Boolean overwriteExisting, UA_Boolean recursive) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -1472,7 +1479,7 @@ UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
     }
 
     UA_StatusCode res = addRolePermissionsInternal(server, &nodeId, &roleId,
-                                                   permissionType, overwriteExisting);
+                                                   permissions, overwriteExisting);
     if(res != UA_STATUSCODE_GOOD) {
         unlockServer(server);
         return res;
@@ -1481,7 +1488,7 @@ UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
     if(recursive) {
         struct AddRolePermissionsContext ctx;
         ctx.roleId = &roleId;
-        ctx.permissionType = permissionType;
+        ctx.permissions = permissions;
         ctx.overwriteExisting = overwriteExisting;
         res = applyToHierarchicalChildren(server, &nodeId, addRolePermissionsCallback, &ctx);
     }
@@ -1494,7 +1501,7 @@ UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
  * Must be called with the server lock held. */
 static UA_StatusCode
 removeRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
-                              const UA_NodeId *roleId, UA_PermissionType permissionType) {
+                              const UA_NodeId *roleId, UA_PermissionType permissions) {
     const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -1520,7 +1527,7 @@ removeRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
         return UA_STATUSCODE_GOOD; /* Role not found, nothing to remove */
 
     /* Calculate new permissions for this role */
-    UA_PermissionType newPerms = oldRp->rolePermissions[roleEntryIdx].permissions & ~permissionType;
+    UA_PermissionType newPerms = oldRp->rolePermissions[roleEntryIdx].permissions & ~permissions;
 
     /* Build new entries array */
     size_t newEntriesSize = (newPerms == 0) ?
@@ -1594,18 +1601,18 @@ removeRolePermissionsInternal(UA_Server *server, const UA_NodeId *nodeId,
 
 struct RemoveRolePermissionsContext {
     const UA_NodeId *roleId;
-    UA_PermissionType permissionType;
+    UA_PermissionType permissions;
 };
 
 static UA_StatusCode
 removeRolePermissionsCallback(UA_Server *server, const UA_NodeId *nodeId, void *context) {
     struct RemoveRolePermissionsContext *ctx = (struct RemoveRolePermissionsContext*)context;
-    return removeRolePermissionsInternal(server, nodeId, ctx->roleId, ctx->permissionType);
+    return removeRolePermissionsInternal(server, nodeId, ctx->roleId, ctx->permissions);
 }
 
 UA_StatusCode
 UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
-                                const UA_NodeId roleId, UA_PermissionType permissionType,
+                                const UA_NodeId roleId, UA_PermissionType permissions,
                                 UA_Boolean recursive) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -1618,7 +1625,7 @@ UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    UA_StatusCode res = removeRolePermissionsInternal(server, &nodeId, &roleId, permissionType);
+    UA_StatusCode res = removeRolePermissionsInternal(server, &nodeId, &roleId, permissions);
     if(res != UA_STATUSCODE_GOOD) {
         unlockServer(server);
         return res;
@@ -1627,7 +1634,7 @@ UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
     if(recursive) {
         struct RemoveRolePermissionsContext ctx;
         ctx.roleId = &roleId;
-        ctx.permissionType = permissionType;
+        ctx.permissions = permissions;
         res = applyToHierarchicalChildren(server, &nodeId, removeRolePermissionsCallback, &ctx);
     }
 
@@ -1873,10 +1880,10 @@ computeEffectivePermissions(UA_Server *server, const UA_Node *node,
         entriesSize = rp->rolePermissionsSize;
     }
 
-    /* If no permissions configured, check allPermissionsForAnonymousRole.
+    /* If no permissions configured, check allPermissionsForAnonymous.
      * When true (the default), un-configured nodes are fully permissive. */
     if(!entries || entriesSize == 0) {
-        if(server->config.allPermissionsForAnonymousRole)
+        if(server->config.allPermissionsForAnonymous)
             return 0xFFFFFFFF; /* All permissions granted */
         return 0; /* Strict: deny unless explicitly configured */
     }
