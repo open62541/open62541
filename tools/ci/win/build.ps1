@@ -67,6 +67,23 @@ cmake @cmake_args `
       -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON `
       -DUA_FORCE_WERROR=ON `
       -DUA_NAMESPACE_ZERO:STRING=FULL `
+      ..
+cmake --build .
+if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+    Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
+    exit $LASTEXITCODE
+}
+cd ..
+Remove-Item -Path build -Recurse -Force
+
+Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with fileSystem`n"
+New-Item -ItemType directory -Path "build"
+cd build
+cmake @cmake_args `
+      -DBUILD_SHARED_LIBS:BOOL=OFF `
+      -DCMAKE_BUILD_TYPE=Debug `
+      -DUA_FORCE_WERROR=ON `
+      -DUA_NAMESPACE_ZERO:STRING=FULL `
       -DUA_ENABLE_FILESYSTEM:BOOL=ON `
       ..
 cmake --build .
