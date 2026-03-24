@@ -1,4 +1,5 @@
 add_compile_definitions(OPEN62541_NODESET_DIR="${UA_NODESET_DIR}/")
+ua_add_test(check_client_write_custom_enum.c)
 ua_add_test(check_nodeset_loader_di.c)
 ua_add_test(check_nodeset_loader_autoid.c)
 ua_add_test(check_nodeset_loader_plc.c)
