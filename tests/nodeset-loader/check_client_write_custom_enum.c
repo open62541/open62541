@@ -71,6 +71,13 @@ setup(void) {
 
     const UA_StatusCode resConnect = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(resConnect, UA_STATUSCODE_GOOD);
+
+    UA_DataTypeArray* array = NULL;
+    ck_assert_uint_eq(UA_STATUSCODE_GOOD, UA_Client_getRemoteDataTypes(client, 0, NULL,
+        &array));
+    ck_assert(NULL != array);
+    ck_assert(NULL != UA_Client_getConfig(client));
+    UA_Client_getConfig(client)->customDataTypes = array;
 }
 
 static void
@@ -93,6 +100,10 @@ START_TEST(Client_writeCustomEnum_emptyScaffold) {
         UA_STRING("http://opcfoundation.org/UA/DI/"), &nsIdx));
     ck_assert_uint_ne(0, nsIdx);
 
+    const UA_NodeId dti = UA_NODEID_NUMERIC(nsIdx, 6244);
+    const UA_DataType* deviceHealthEnumerationType = UA_Client_findDataType(client, &dti);
+    ck_assert(NULL != deviceHealthEnumerationType);
+
     UA_Int32 newValue = 3;
     UA_Variant value;
     UA_Variant_init(&value);
@@ -114,6 +125,7 @@ START_TEST(Client_writeCustomEnum_emptyScaffold) {
     UA_Variant_clear(&stored);
 }
 END_TEST
+
 
 static Suite *
 testSuite_Client(void) {
