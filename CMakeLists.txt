@@ -1033,9 +1033,6 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
 # Add clock implementation based on the base architecture
-# Note: For plain POSIX/Win32, the clock is included via ${UA_ARCH_FOLDER}/CMakeLists.txt.
-# For posix-lwip, the POSIX clock must be added explicitly because the LWIP branch in the
-# eventloop selection below takes precedence and the arch CMakeLists.txt is never included.
 if(UA_ARCHITECTURE_ZEPHYR)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/zephyr/clock_zephyr.c)
 endif()
@@ -1078,17 +1075,9 @@ elseif(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
          ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
          ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c)
     # Architecture-specific files (clock, TCP, UDP, eth, interrupt).
-    # The folder can be overridden via -DUA_ARCH_FOLDER=... to point to a
-    # custom implementation outside the source tree.
-    #
-    # Example (custom code in /mnt/d/opcua-test/linux, building in WSL2):
-    #   mkdir build-wsl2 && cd build-wsl2
-    #   cmake -DUA_ARCH_FOLDER=/mnt/d/opcua-test/linux ../
     if(NOT DEFINED UA_ARCH_FOLDER)
         set(UA_ARCH_FOLDER ${PROJECT_SOURCE_DIR}/arch/posix)
     endif()
-    # Delegate arch-specific source registration to the architecture folder.
-    # Each arch folder must provide its own CMakeLists.txt.
     include(${UA_ARCH_FOLDER}/CMakeLists.txt)
 endif()
 
