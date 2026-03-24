@@ -623,7 +623,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->authenticationToken = newSession->authenticationToken;
     rh->serviceResult |= UA_ByteString_copy(&newSession->serverNonce,
                                             &response->serverNonce);
-    if(sessionSp)
+    if(sessionSp && channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
         rh->serviceResult |= UA_ByteString_copy(&sessionSp->localCertificate,
                                                 &response->serverCertificate);
 
