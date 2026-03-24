@@ -2619,13 +2619,16 @@ UA_Server_removeCertificates(UA_Server *server,
  * @param rolePermissions Array of role-permission mappings
  * @param recursive If true, also set for all hierarchically referenced
  *        child nodes
+ * @param options Reserved for future use (e.g. to restrict the reference
+ *        type for recursive traversal). Pass NULL for now.
  * @return UA_STATUSCODE_GOOD on success */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setNodeRolePermissions(UA_Server *server,
                                  const UA_NodeId nodeId,
                                  size_t rolePermissionsSize,
                                  const UA_RolePermission *rolePermissions,
-                                 UA_Boolean recursive);
+                                 UA_Boolean recursive,
+                                 const UA_KeyValueMap *options);
 
 /* Get the role permissions of a node.
  *
