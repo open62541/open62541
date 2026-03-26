@@ -321,6 +321,7 @@ ua_add_test(server/check_services_attributes_all.c)
 
 if(UA_ENABLE_RBAC)
     ua_add_test(server/check_server_rbac.c)
+    ua_add_test(server/check_server_rbac_permissions.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)

@@ -640,6 +640,23 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
     # Some methods need unused arguments to conform with a defined method pointer signature
     check_add_cc_flag("-Wno-unused-parameter")
 
+    # Clang 22 added -Wcast-function-type-mismatch to -Wextra; suppress the parent group.
+    # add_cc_flag bypasses check_c_compiler_flag which can give false negatives under -Werror.
+    if(CMAKE_C_COMPILER_ID STREQUAL "Clang" AND
+       CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "13.0")
+        add_cc_flag("-Wno-cast-function-type")
+    else()
+        check_add_cc_flag("-Wno-cast-function-type")
+    endif()
+
+    # Clang 22 flags __COUNTER__ as -Wc2y-extensions under -Wpedantic -std=c99
+    if(CMAKE_C_COMPILER_ID STREQUAL "Clang" AND
+       CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "22.0")
+        add_cc_flag("-Wno-c2y-extensions")
+    else()
+        check_add_cc_flag("-Wno-c2y-extensions")
+    endif()
+
     # Overlength strings may occur in generated code and are not harmful
     check_add_cc_flag("-Wno-overlength-strings")
 
@@ -926,6 +943,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 if(UA_ENABLE_RBAC)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.c)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_rbac.c)
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/server/ua_server_rbac.h)
 endif()
 
 if(UA_FILESYSTEM)
