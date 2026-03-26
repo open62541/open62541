@@ -330,6 +330,7 @@ endif()
 
 if(UA_FILESYSTEM)
     ua_add_test(filesystem/check_filesystem_operations.c)
+    ua_add_test(filesystem/check_filesystem_client.c)
 endif()
 
 if(UA_ENABLE_PUBSUB)

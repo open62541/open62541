@@ -9,7 +9,6 @@
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
- *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -386,13 +385,8 @@ updateEndpointUserIdentityToken(UA_Server *server,
         if(utp->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
            UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI) &&
            (!sc->allowNonePolicyPassword || utp->tokenType != UA_USERTOKENTYPE_USERNAME)) {
-            /* Use the SecurityPolicy for the SecureChannel also for the
-             * username/password. Otherwise pick the "bëst" SecurityPolicÿ. */
-            UA_SecurityPolicy *encSP;
-            if(ed->securityMode == UA_MESSAGESECURITYMODE_NONE)
-                encSP = getDefaultEncryptedSecurityPolicy(server, policyType);
-            else
-                encSP = getSecurityPolicyByUri(server, &ed->securityPolicyUri);
+            UA_SecurityPolicy *encSP =
+                getDefaultEncryptedSecurityPolicy(server, policyType);
             if(!encSP) {
                 /* No encrypted SecurityPolicy available */
                 UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_CLIENT,
@@ -438,8 +432,7 @@ updateEndpointUserIdentityToken(UA_Server *server,
 /* Also reused to create the EndpointDescription array in the
  * CreateSessionResponse */
 UA_StatusCode
-setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
-                         const UA_String endpointUrl,
+setCurrentEndPointsArray(UA_Server *server, const UA_String endpointUrl,
                          UA_String *profileUris, size_t profileUrisSize,
                          UA_EndpointDescription **arr, size_t *arrSize) {
     UA_ServerConfig *sc = &server->config;
@@ -459,12 +452,11 @@ setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
     size_t pos = 0;
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t j = 0; j < sc->endpointsSize; ++j) {
-        const UA_EndpointDescription *ep = &sc->endpoints[j];
-
         /* Test if the supported binary profile shall be returned */
         UA_Boolean usable = (profileUrisSize == 0);
         if(!usable) {
             for(size_t i = 0; i < profileUrisSize; ++i) {
+                UA_EndpointDescription *ep = &sc->endpoints[j];
                 if(!UA_String_equal(&profileUris[i], &ep->transportProfileUri))
                     continue;
                 usable = true;
@@ -472,21 +464,6 @@ setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
             }
         }
         if(!usable)
-            continue;
-
-        /* Get the SecurityPolicy */
-        UA_SecurityPolicy *sp =
-            getSecurityPolicyByUri(server, &ep->securityPolicyUri);
-        if(!sp) {
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "GetEndpoints: Endpoint defines SecurityPolicy "
-                           "%S which is not available", ep->securityPolicyUri);
-            continue;
-        }
-
-        /* Coming from CreateSession we have a channel already. Only return
-         * Endpoints where SecurityPolicy is an exact match. */
-        if(channel && channel->securityPolicy != sp)
             continue;
 
         /* Copy into the results */
@@ -497,6 +474,19 @@ setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
             UA_ApplicationDescription_clear(&ed->server);
             retval |= UA_ApplicationDescription_copy(&sc->applicationDescription,
                                                      &ed->server);
+
+            /* Return the certificate for the SecurityPolicy. If the
+             * SecureChannel is unencrypted, select the default encrypted
+             * SecurityPolicy. */
+            UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
+                                                           &ed->securityPolicyUri);
+            if(!sp) {
+                UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                             "GetEndpoints: Endpoint defines SecurityPolicy "
+                             "%S which is not available", ed->securityPolicyUri);
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto error;
+            }
 
             /* Set the local certificate configured for the SecurityPolicy */
             UA_ByteString_clear(&ed->serverCertificate);
@@ -562,7 +552,7 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
     /* If the client expects to see a specific endpointurl, mirror it back. If
      * not, clone the endpoints with the discovery url of all networklayers. */
     response->responseHeader.serviceResult =
-        setCurrentEndPointsArray(server, NULL, request->endpointUrl,
+        setCurrentEndPointsArray(server, request->endpointUrl,
                                  request->profileUris, request->profileUrisSize,
                                  &response->endpoints, &response->endpointsSize);
     return true;
@@ -656,7 +646,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                requestServer->semaphoreFilePath.length );
         filePath[requestServer->semaphoreFilePath.length] = '\0';
         if(!UA_fileExists( filePath )) {
-            responseHeader->serviceResult = UA_STATUSCODE_BADSEMAPHOREFILEMISSING;
+            responseHeader->serviceResult = UA_STATUSCODE_BADSEMPAHOREFILEMISSING;
             UA_free(filePath);
             return;
         }
