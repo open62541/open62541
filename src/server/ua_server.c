@@ -446,8 +446,7 @@ UA_Server_delete(UA_Server *server) {
     while((top = server->components)) {
         server->components = top->next;
         UA_assert(top->state == UA_LIFECYCLESTATE_STOPPED);
-        top->clear(top);
-        UA_free(top);
+        top->free(top);
     }
 
     unlockServer(server); /* The timer has its own mutex */
