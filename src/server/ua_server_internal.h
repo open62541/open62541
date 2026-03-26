@@ -139,11 +139,16 @@ UA_GDSManager_clear(UA_GDSManager *gdsManager);
  * ServerComponents can only be deleted when they are STOPPED. The server will
  * not fully shut down as long as there is a component remaining. */
 
-typedef struct UA_ServerComponent {
-    UA_UInt64 identifier;
+struct UA_ServerComponent;
+typedef struct UA_ServerComponent UA_ServerComponent;
+
+struct UA_ServerComponent {
     UA_String name;
-    ZIP_ENTRY(UA_ServerComponent) treeEntry;
+
+    UA_ServerComponent *next; /* linked-list */
+
     UA_LifecycleState state;
+
     UA_Server *server; /* Every ServerComponent has a backpointer to the server */
 
     /* Starting fails if the server is not also already started */
@@ -154,28 +159,19 @@ typedef struct UA_ServerComponent {
     void (*stop)(struct UA_ServerComponent *sc);
 
     /* Clean up the ServerComponent. Can fail if it is not stopped. This does
-     * not free the memory and does not remove from the ziptree. */
+     * not free the memory. */
     UA_StatusCode (*clear)(struct UA_ServerComponent *sc);
 
     /* To be set by the server. So the component can notify the server about
      * asynchronous state changes. */
     void (*notifyState)(struct UA_ServerComponent *sc,
                         UA_LifecycleState state);
-} UA_ServerComponent;
+};
 
-enum ZIP_CMP
-cmpServerComponent(const UA_UInt64 *a, const UA_UInt64 *b);
-
-typedef ZIP_HEAD(UA_ServerComponentTree, UA_ServerComponent) UA_ServerComponentTree;
-
-ZIP_FUNCTIONS(UA_ServerComponentTree, UA_ServerComponent, treeEntry,
-              UA_UInt64, identifier, cmpServerComponent)
-
-/* Assigns the identifier if the pointer is non-NULL.
+/* Adds the component to the linked-list.
  * Starts the component if the server is started. */
 void
-addServerComponent(UA_Server *server, UA_ServerComponent *sc,
-                   UA_UInt64 *identifier);
+addServerComponent(UA_Server *server, UA_ServerComponent *sc);
 
 UA_ServerComponent *
 getServerComponentByName(UA_Server *server, UA_String name);
@@ -222,8 +218,8 @@ struct UA_Server {
     UA_LifecycleState state;
     UA_UInt64 houseKeepingCallbackId;
 
-    UA_UInt64 serverComponentIds; /* Counter to assign ids from */
-    UA_ServerComponentTree serverComponents;
+    /* Server Components with individual life cycles */
+    UA_ServerComponent *components;
 
     UA_AsyncManager asyncManager;
 
