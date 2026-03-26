@@ -29,6 +29,7 @@
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/accesscontrol.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/plugin/servercomponent.h>
 
 #ifdef UA_ENABLE_HISTORIZING
 #include <open62541/plugin/historydatabase.h>

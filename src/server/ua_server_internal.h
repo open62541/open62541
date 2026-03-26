@@ -131,49 +131,6 @@ UA_GDSManager_clear(UA_GDSManager *gdsManager);
 /* Server Component */
 /********************/
 
-/* ServerComponents have an explicit lifecycle. But they can only be started
- * when the underlying server is started. The starting/stopping of
- * ServerComponents is asynchronous. That is, they might require several
- * iterations of the EventLoop to finish starting/stopping.
- *
- * ServerComponents can only be deleted when they are STOPPED. The server will
- * not fully shut down as long as there is a component remaining. */
-
-struct UA_ServerComponent;
-typedef struct UA_ServerComponent UA_ServerComponent;
-
-struct UA_ServerComponent {
-    UA_ServerComponent *next; /* linked-list */
-
-    UA_String name;
-    UA_LifecycleState state;
-
-    /* Backpointer to the server. Needs to be set before the ServerComponent is
-     * started. */
-    UA_Server *server;
-
-    /* Start the ServerComponent. It will typically register itself in the
-     * EventLoop and may add nodes in the information model. Starting can fail
-     * if the server is not already started also.
-     *
-     * During startup, the server calls start on all registered
-     * ServerComponents. */
-    UA_StatusCode (*start)(UA_ServerComponent *sc);
-
-    /* Stopping is asynchronous and might need a few iterations of the eventloop
-     * to succeed. */
-    void (*stop)(UA_ServerComponent *sc);
-
-    /* Clean up and delete the ServerComponent. Can fail if it is not fully
-     * stopped. When successfully removed, the ServerComponent must no longer be
-     * accessed from the server.
-     *
-     * ServerComponents are all free'd when the server is deleted. If a
-     * ServerComponent is manually removed before, then it needs to be unlinked
-     * from the server's internal linked-list before. */
-    UA_StatusCode (*free)(UA_ServerComponent *sc);
-};
-
 /* Adds the component to the linked-list.
  * Starts the component if the server is started. */
 UA_StatusCode
