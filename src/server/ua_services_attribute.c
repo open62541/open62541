@@ -17,6 +17,7 @@
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include "ua_server_internal.h"
@@ -1406,7 +1407,7 @@ static UA_StatusCode
 writeInternalValueAttribute(UA_DataValue *oldValue,
                             const UA_DataValue *value,
                             const UA_NumericRange *rangeptr) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* Overwrite only a sub-range in the (multi-dimensional) array */
     if(rangeptr) {
         /* Value on both sides? */
         if(value->status != oldValue->status || !value->hasValue || !oldValue->hasValue)
@@ -1427,10 +1428,10 @@ writeInternalValueAttribute(UA_DataValue *oldValue,
             return UA_STATUSCODE_BADTYPEMISMATCH;
 
         /* Write the value */
-        retval = UA_Variant_setRangeCopy(&oldValue->value, v->data,
-                                         v->arrayLength, *rangeptr);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+        UA_StatusCode res =
+            UA_Variant_setRangeCopy(&oldValue->value, v->data, v->arrayLength, *rangeptr);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
 
         /* Write the status and timestamps */
         oldValue->hasStatus = value->hasStatus;
@@ -1442,49 +1443,7 @@ writeInternalValueAttribute(UA_DataValue *oldValue,
         return UA_STATUSCODE_GOOD;
     }
 
-    UA_DataValue tmpValue = *value;
-
-    /* If possible memcpy the new value over the old value without a malloc. For
-     * this the value needs to be "pointerfree". */
-    if(oldValue->hasValue && oldValue->value.type &&
-       oldValue->value.type->pointerFree && value->hasValue &&
-       value->value.type && value->value.type->pointerFree &&
-       oldValue->value.type->memSize == value->value.type->memSize) {
-        size_t oSize = 1;
-        size_t vSize = 1;
-        if(!UA_Variant_isScalar(&oldValue->value))
-            oSize = oldValue->value.arrayLength;
-        if(!UA_Variant_isScalar(&value->value))
-            vSize = value->value.arrayLength;
-
-        if(oSize == vSize &&
-           oldValue->value.arrayDimensionsSize == value->value.arrayDimensionsSize) {
-            /* Keep the old pointers, but adjust type and array length */
-            tmpValue.value = oldValue->value;
-            tmpValue.value.type = value->value.type;
-            tmpValue.value.arrayLength = value->value.arrayLength;
-
-            /* Copy the data over the old memory */
-            memcpy(tmpValue.value.data, value->value.data,
-                   oSize * oldValue->value.type->memSize);
-            if(oldValue->value.arrayDimensionsSize > 0) /* No memcpy with NULL-ptr */
-                memcpy(tmpValue.value.arrayDimensions, value->value.arrayDimensions,
-                       sizeof(UA_UInt32) * oldValue->value.arrayDimensionsSize);
-
-            /* Set the value */
-            *oldValue = tmpValue;
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-
-    /* Make a deep copy of the value and replace when this succeeds */
-    retval = UA_Variant_copy(&value->value, &tmpValue.value);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-    UA_DataValue_clear(oldValue);
-    *oldValue = tmpValue;
-
-    return retval;
+    return UA_replace(oldValue, value, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 
 static UA_StatusCode
