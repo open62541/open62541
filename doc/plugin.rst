@@ -9,3 +9,4 @@ Plugin API
    plugin_eventloop
    plugin_certificategroup
    plugin_securitypolicy
+   plugin_servercomponent
