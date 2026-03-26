@@ -47,7 +47,7 @@ UA_DiscoveryManager_setState(UA_DiscoveryManager *dm,
 }
 
 static UA_StatusCode
-UA_DiscoveryManager_clear(struct UA_ServerComponent *sc) {
+UA_DiscoveryManager_free(struct UA_ServerComponent *sc) {
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
 
     if(sc->state != UA_LIFECYCLESTATE_STOPPED) {
@@ -67,6 +67,8 @@ UA_DiscoveryManager_clear(struct UA_ServerComponent *sc) {
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_DiscoveryManager_clearMdns(dm);
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
+
+    UA_free(sc);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -200,7 +202,7 @@ UA_DiscoveryManager_new(void) {
     dm->sc.name = UA_STRING("discovery");
     dm->sc.start = UA_DiscoveryManager_start;
     dm->sc.stop = UA_DiscoveryManager_stop;
-    dm->sc.clear = UA_DiscoveryManager_clear;
+    dm->sc.free = UA_DiscoveryManager_free;
     return &dm->sc;
 }
 

@@ -158,9 +158,10 @@ struct UA_ServerComponent {
      * to succeed. */
     void (*stop)(struct UA_ServerComponent *sc);
 
-    /* Clean up the ServerComponent. Can fail if it is not stopped. This does
-     * not free the memory. */
-    UA_StatusCode (*clear)(struct UA_ServerComponent *sc);
+    /* Remove the ServerComponent. Can fail if it is not stopped. When
+     * successfully removed, the ServerComponent must no longer be accessed from
+     * the server. */
+    UA_StatusCode (*free)(struct UA_ServerComponent *sc);
 };
 
 /* Adds the component to the linked-list.

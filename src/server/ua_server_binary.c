@@ -1468,13 +1468,14 @@ UA_BinaryProtocolManager_stop(UA_ServerComponent *comp) {
 }
 
 static UA_StatusCode
-UA_BinaryProtocolManager_clear(UA_ServerComponent *sc) {
+UA_BinaryProtocolManager_free(UA_ServerComponent *sc) {
     if(sc->state != UA_LIFECYCLESTATE_STOPPED) {
         UA_LOG_ERROR(sc->server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Cannot delete the BinaryProtocolManager because "
                      "it is not stopped");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+    UA_free(sc);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1490,7 +1491,7 @@ UA_BinaryProtocolManager_new(UA_Server *server) {
     bpm->sc.name = UA_STRING("binary");
     bpm->sc.start = UA_BinaryProtocolManager_start;
     bpm->sc.stop = UA_BinaryProtocolManager_stop;
-    bpm->sc.clear = UA_BinaryProtocolManager_clear;
+    bpm->sc.free = UA_BinaryProtocolManager_free;
 
     bpm->sc.server = server;
     bpm->logging = server->config.logging;

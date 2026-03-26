@@ -791,6 +791,14 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+UA_PubSubManager_free(UA_PubSubManager *psm) {
+    UA_StatusCode res = UA_PubSubManager_clear(psm);
+    if(res == UA_STATUSCODE_GOOD)
+        UA_free(psm);
+    return res;
+}
+
 UA_ServerComponent *
 UA_PubSubManager_new(UA_Server *server) {
     UA_PubSubManager *psm = (UA_PubSubManager*)UA_calloc(1, sizeof(UA_PubSubManager));
@@ -801,7 +809,7 @@ UA_PubSubManager_new(UA_Server *server) {
     psm->sc.name = UA_STRING("pubsub");
     psm->sc.start = UA_PubSubManager_start;
     psm->sc.stop = UA_PubSubManager_stop;
-    psm->sc.clear = (UA_StatusCode (*)(UA_ServerComponent *))UA_PubSubManager_clear;
+    psm->sc.free = (UA_StatusCode (*)(UA_ServerComponent *))UA_PubSubManager_free;
 
     /* Set the logging shortcut */
     psm->logging = server->config.logging;
