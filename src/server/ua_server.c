@@ -353,9 +353,22 @@ UA_GDSManager_clear(UA_GDSManager *gdsManager) {
 /* Server Components */
 /*********************/
 
-void
+UA_StatusCode
 addServerComponent(UA_Server *server, UA_ServerComponent *sc) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* If undefined, set the backpointer to the current server */
+    if(!sc->server)
+        sc->server = server;
+
+    /* Check that the ServerComponent is not configured for a different server */
+    if(sc->server != server) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Cannot add the ServerComponent \"%S\". "
+                     "The ServerComponent is configured for a different server",
+                     sc->name);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* Add to the linked list */
     sc->next = server->components;
@@ -363,7 +376,9 @@ addServerComponent(UA_Server *server, UA_ServerComponent *sc) {
 
     /* Start the component if the server is started */
     if(server->state == UA_LIFECYCLESTATE_STARTED && sc->start)
-        sc->start(sc, server);
+        sc->start(sc);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_ServerComponent *
@@ -588,17 +603,21 @@ UA_Server_init(UA_Server *server) {
 #endif
 
     /* Initialize the binay protocol support */
-    addServerComponent(server, UA_BinaryProtocolManager_new(server));
+    res = addServerComponent(server, UA_BinaryProtocolManager_new(server));
+    UA_CHECK_STATUS(res, goto cleanup);
 
     /* Initialized Discovery */
 #ifdef UA_ENABLE_DISCOVERY
-    addServerComponent(server, UA_DiscoveryManager_new());
+    res = addServerComponent(server, UA_DiscoveryManager_new());
+    UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
     /* Initialize PubSub */
 #ifdef UA_ENABLE_PUBSUB
-    if(server->config.pubsubEnabled)
-        addServerComponent(server, UA_PubSubManager_new(server));
+    if(server->config.pubsubEnabled) {
+        res = addServerComponent(server, UA_PubSubManager_new(server));
+        UA_CHECK_STATUS(res, goto cleanup);
+    }
 #endif
 
     /* For all custom datatypes, check if they are represented in the
@@ -1315,7 +1334,7 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Start all ServerComponents */
     for(UA_ServerComponent *sc = server->components; sc; sc = sc->next) {
-        sc->start(sc, server);
+        sc->start(sc);
     }
 
     /* Check that the binary protocol support component have been started */

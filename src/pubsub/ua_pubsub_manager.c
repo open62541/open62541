@@ -29,7 +29,7 @@ static void
 UA_PubSubManager_stop(UA_ServerComponent *sc);
 
 static UA_StatusCode
-UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server);
+UA_PubSubManager_start(UA_ServerComponent *sc);
 
 const char *
 UA_PubSubState_name(UA_PubSubState state) {
@@ -353,7 +353,7 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode res = UA_PubSubManager_start(&psm->sc, server);
+    UA_StatusCode res = UA_PubSubManager_start(&psm->sc);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -718,16 +718,22 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
 }
 
 static UA_StatusCode
-UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server) {
+UA_PubSubManager_start(UA_ServerComponent *sc) {
+    /* Check that the server backpointer is set */
+    UA_Server *server = sc->server;
+    if(!server)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Re-cache logging for the case that the configuration has been updated */
     UA_PubSubManager *psm = (UA_PubSubManager*)sc;
+    psm->logging = server->config.logging;
+
+    /* Cannot start an already started PubSubManager */
     if(psm->sc.state == UA_LIFECYCLESTATE_STOPPING) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "The PubSubManager is still stopping");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-    /* Re-cache for the case that the configuration has been updated */
-    psm->logging = server->config.logging;
 
     UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
 

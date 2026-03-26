@@ -1346,9 +1346,10 @@ serverReverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 /***************************/
 
 static UA_StatusCode
-UA_BinaryProtocolManager_start(UA_ServerComponent *sc, UA_Server *server) {
+UA_BinaryProtocolManager_start(UA_ServerComponent *sc) {
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)sc;
 
+    UA_Server *server = sc->server;
     UA_ServerConfig *config = &server->config;
     
     UA_StatusCode retVal =
