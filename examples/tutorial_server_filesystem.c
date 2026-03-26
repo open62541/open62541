@@ -67,7 +67,7 @@ manuallyDefinePump(UA_Server *server, UA_FileServerDriver *driver) {
      */
     UA_NodeId filesystemId; /* NodeId assigned by the server for the FileSystem */
     UA_FileServerDriver_addFileDirectory(driver, server, &pumpId,
-                                      ".", &filesystemId, ".");
+                                      "./", &filesystemId, "./");
 }
 
 int main(void) {
