@@ -143,30 +143,40 @@ struct UA_ServerComponent;
 typedef struct UA_ServerComponent UA_ServerComponent;
 
 struct UA_ServerComponent {
-    UA_String name;
-
     UA_ServerComponent *next; /* linked-list */
 
+    UA_String name;
     UA_LifecycleState state;
 
-    UA_Server *server; /* Every ServerComponent has a backpointer to the server */
+    /* Backpointer to the server. Needs to be set before the ServerComponent is
+     * started. */
+    UA_Server *server;
 
-    /* Starting fails if the server is not also already started */
-    UA_StatusCode (*start)(struct UA_ServerComponent *sc, UA_Server *server);
+    /* Start the ServerComponent. It will typically register itself in the
+     * EventLoop and may add nodes in the information model. Starting can fail
+     * if the server is not already started also.
+     *
+     * During startup, the server calls start on all registered
+     * ServerComponents. */
+    UA_StatusCode (*start)(UA_ServerComponent *sc);
 
-    /* Stopping is asynchronous and might need a few iterations of the main-loop
+    /* Stopping is asynchronous and might need a few iterations of the eventloop
      * to succeed. */
-    void (*stop)(struct UA_ServerComponent *sc);
+    void (*stop)(UA_ServerComponent *sc);
 
-    /* Remove the ServerComponent. Can fail if it is not stopped. When
-     * successfully removed, the ServerComponent must no longer be accessed from
-     * the server. */
-    UA_StatusCode (*free)(struct UA_ServerComponent *sc);
+    /* Clean up and delete the ServerComponent. Can fail if it is not fully
+     * stopped. When successfully removed, the ServerComponent must no longer be
+     * accessed from the server.
+     *
+     * ServerComponents are all free'd when the server is deleted. If a
+     * ServerComponent is manually removed before, then it needs to be unlinked
+     * from the server's internal linked-list before. */
+    UA_StatusCode (*free)(UA_ServerComponent *sc);
 };
 
 /* Adds the component to the linked-list.
  * Starts the component if the server is started. */
-void
+UA_StatusCode
 addServerComponent(UA_Server *server, UA_ServerComponent *sc);
 
 UA_ServerComponent *

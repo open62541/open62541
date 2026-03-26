@@ -141,12 +141,15 @@ UA_DiscoveryManager_cyclicTimer(UA_Server *server, void *data) {
 }
 
 static UA_StatusCode
-UA_DiscoveryManager_start(struct UA_ServerComponent *sc,
-                          UA_Server *server) {
-    if(sc->state != UA_LIFECYCLESTATE_STOPPED)
+UA_DiscoveryManager_start(struct UA_ServerComponent *sc) {
+    /* Check that the server backpointer is set */
+    UA_Server *server = sc->server;
+    if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    sc->server = server; /* Set the backpointer */
+    /* Cannot start an already started DiscoveryManager */
+    if(sc->state != UA_LIFECYCLESTATE_STOPPED)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
 
