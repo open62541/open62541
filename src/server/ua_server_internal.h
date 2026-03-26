@@ -161,11 +161,6 @@ struct UA_ServerComponent {
     /* Clean up the ServerComponent. Can fail if it is not stopped. This does
      * not free the memory. */
     UA_StatusCode (*clear)(struct UA_ServerComponent *sc);
-
-    /* To be set by the server. So the component can notify the server about
-     * asynchronous state changes. */
-    void (*notifyState)(struct UA_ServerComponent *sc,
-                        UA_LifecycleState state);
 };
 
 /* Adds the component to the linked-list.

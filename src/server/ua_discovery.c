@@ -44,8 +44,6 @@ UA_DiscoveryManager_setState(UA_DiscoveryManager *dm,
 
     /* Set the new state and notify */
     dm->sc.state = state;
-    if(dm->sc.notifyState)
-        dm->sc.notifyState(&dm->sc, state);
 }
 
 static UA_StatusCode

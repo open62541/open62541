@@ -100,8 +100,6 @@ setBinaryProtocolManagerState(UA_BinaryProtocolManager *bpm,
     if(state == bpm->sc.state)
         return;
     bpm->sc.state = state;
-    if(bpm->sc.notifyState)
-        bpm->sc.notifyState(&bpm->sc, state);
 }
 
 static void
