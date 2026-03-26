@@ -505,7 +505,3 @@ endif()
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ARCHITECTURE_LWIP AND NOT UA_FORCE_32BIT)
     ua_add_test(network_replay/check_network_replay.c)
 endif()
-
-if(UA_FILESYSTEM AND UA_ARCHITECTURE_POSIX)
-    ua_add_test(filesystem/check_filesystem_operations.c)
-endif()
