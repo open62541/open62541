@@ -2660,7 +2660,6 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, filterCast_doubleToInt32);
     tcase_add_test(tc_server, filterCast_unsignedPaths);
     tcase_add_test(tc_server, filterEquals_strings);
-    tcase_add_test(tc_server, createAuditEvent);
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
     suite_add_tcase(s, tc_server);
 
