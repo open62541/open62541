@@ -357,6 +357,10 @@ UA_StatusCode
 addServerComponent(UA_Server *server, UA_ServerComponent *sc) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
+    /* Did the allocation of the ServerComponent fail? */
+    if(!sc)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* If undefined, set the backpointer to the current server */
     if(!sc->server)
         sc->server = server;
