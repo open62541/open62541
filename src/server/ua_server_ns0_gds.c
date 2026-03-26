@@ -908,7 +908,8 @@ writeTrustList(UA_Server *server,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    memcpy(dataToWrite.data, fileContext->dataToWrite.data, fileContext->dataToWrite.length);
+    if(fileContext->dataToWrite.length)
+        memcpy(dataToWrite.data, fileContext->dataToWrite.data, fileContext->dataToWrite.length);
     memcpy(dataToWrite.data + fileContext->dataToWrite.length, data.data, data.length);
 
     UA_ByteString_clear(&fileContext->dataToWrite);
