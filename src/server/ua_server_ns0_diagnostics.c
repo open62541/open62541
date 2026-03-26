@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -59,7 +60,7 @@ fillSubscriptionDiagnostics(UA_Subscription *sub,
     diag->monitoredItemCount = sub->monitoredItemsSize;
     diag->monitoringQueueOverflowCount = sub->monitoringQueueOverflowCount;
     diag->nextSequenceNumber = sub->nextSequenceNumber;
-    diag->eventQueueOverFlowCount = sub->eventQueueOverFlowCount;
+    diag->eventQueueOverflowCount = sub->eventQueueOverflowCount;
 
     /* Count the disabled MonitoredItems */
     UA_MonitoredItem *mon;
