@@ -387,7 +387,7 @@ typedef union {
 
 /* Do not expose UA_String_equal_ignorecase to public API as it currently only handles
  * ASCII strings, and not UTF8! */
-UA_Boolean UA_EXPORT
+UA_Boolean
 UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2);
 
 /********************/
