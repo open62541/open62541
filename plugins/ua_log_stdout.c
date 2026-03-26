@@ -10,6 +10,10 @@
 
 #include <stdio.h>
 
+#ifdef _WIN32
+# include <VersionHelpers.h>
+#endif
+
 #include "mp_printf.h"
 
 /* ANSI escape sequences for color output taken from here:
@@ -19,26 +23,55 @@
 # define ANSI_COLOR_RED     "\x1b[31m"
 # define ANSI_COLOR_GREEN   "\x1b[32m"
 # define ANSI_COLOR_YELLOW  "\x1b[33m"
-/* # define ANSI_COLOR_BLUE    "\x1b[34m" */
 # define ANSI_COLOR_MAGENTA "\x1b[35m"
-/* # define ANSI_COLOR_CYAN    "\x1b[36m" */
 # define ANSI_COLOR_RESET   "\x1b[0m"
+#elif defined(_WIN32)
+static const char *ANSI_COLOR_RED     = "";
+static const char *ANSI_COLOR_GREEN   = "";
+static const char *ANSI_COLOR_YELLOW  = "";
+static const char *ANSI_COLOR_MAGENTA = "";
+static const char *ANSI_COLOR_RESET   = "";
+
+static void
+initAnsiColors(void) {
+    if (IsWindows10OrGreater()) {
+        ANSI_COLOR_RED     = "\x1b[31m";
+        ANSI_COLOR_GREEN   = "\x1b[32m";
+        ANSI_COLOR_YELLOW  = "\x1b[33m";
+        ANSI_COLOR_MAGENTA = "\x1b[35m";
+        ANSI_COLOR_RESET   = "\x1b[0m";
+    }
+}
 #else
 # define ANSI_COLOR_RED     ""
 # define ANSI_COLOR_GREEN   ""
 # define ANSI_COLOR_YELLOW  ""
-/* # define ANSI_COLOR_BLUE    "" */
 # define ANSI_COLOR_MAGENTA ""
-/* # define ANSI_COLOR_CYAN    "" */
 # define ANSI_COLOR_RESET   ""
 #endif
 
-static
-const char *logLevelNames[6] = {"trace", "debug",
-                                ANSI_COLOR_GREEN "info",
-                                ANSI_COLOR_YELLOW "warn",
-                                ANSI_COLOR_RED "error",
-                                ANSI_COLOR_MAGENTA "fatal"};
+static const char *
+getLogLevelColor(int slot) {
+    switch(slot) {
+    case 2: return ANSI_COLOR_GREEN;
+    case 3: return ANSI_COLOR_YELLOW;
+    case 4: return ANSI_COLOR_RED;
+    default: return ANSI_COLOR_MAGENTA;
+    }
+}
+
+static const char *
+getLogLevelName(int slot) {
+    switch(slot) {
+    case 0: return "trace";
+    case 1: return "debug";
+    case 2: return "info";
+    case 3: return "warn";
+    case 4: return "error";
+    default: return "fatal";
+    }
+}
+
 static const char *
 logCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server", "client",
@@ -83,10 +116,13 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
     char logbuf[STDOUT_LOGBUFSIZE];
 
     /* Log */
-    printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s/%s" ANSI_COLOR_RESET "\t",
+    printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s%s/%s%s\t",
            dts.year, dts.month, dts.day, dts.hour, dts.min, dts.sec, dts.milliSec,
-           (int)(tOffset / UA_DATETIME_SEC / 36), logLevelNames[logLevelSlot],
-           logCategoryNames[category]);
+           (int)(tOffset / UA_DATETIME_SEC / 36),
+           getLogLevelColor(logLevelSlot),
+           getLogLevelName(logLevelSlot),
+           logCategoryNames[category],
+           ANSI_COLOR_RESET);
     mp_vsnprintf(logbuf, STDOUT_LOGBUFSIZE, msg, args);
     printf("%s\n", logbuf);
     fflush(stdout);
@@ -114,6 +150,9 @@ UA_Log_Stdout_withLevel(UA_LogLevel minlevel) {
 
 UA_Logger *
 UA_Log_Stdout_new(UA_LogLevel minlevel) {
+#ifdef _WIN32
+    initAnsiColors();
+#endif
     UA_Logger *logger = (UA_Logger*)UA_malloc(sizeof(UA_Logger));
     if(!logger)
         return NULL;
