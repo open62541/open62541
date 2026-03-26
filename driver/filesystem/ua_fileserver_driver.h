@@ -141,7 +141,7 @@ __directoryOperation(UA_Server *server,
  *  - UA_STATUSCODE_GOOD if the file system was successfully added.
  *  - An error code otherwise.
  */
-UA_EXPORT UA_StatusCode UA_FileServerDriver_addFileDirectory(
+UA_StatusCode UA_FileServerDriver_addFileDirectory(
     UA_FileServerDriver *driver,
     UA_Server *server,
     const UA_NodeId *parentNode,
@@ -165,7 +165,7 @@ UA_EXPORT UA_StatusCode UA_FileServerDriver_addFileDirectory(
  * - UA_STATUSCODE_GOOD if the file node was successfully added.
  * - An error code otherwise.
  */
-UA_EXPORT UA_StatusCode UA_FileServerDriver_addFile(
+UA_StatusCode UA_FileServerDriver_addFile(
     UA_FileServerDriver *driver,
     UA_Server *server,
     const UA_NodeId *parentNode,
@@ -186,7 +186,7 @@ UA_EXPORT UA_StatusCode UA_FileServerDriver_addFile(
  * Returns:
  *  - A pointer to the newly allocated FileServerDriver.
  */
-UA_EXPORT UA_FileServerDriver *
+UA_FileServerDriver *
 UA_FileServerDriver_new(const char *name, UA_Server *server, FileDriverType driverType);
 
 // ======================================================

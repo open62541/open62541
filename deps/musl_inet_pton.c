@@ -29,10 +29,6 @@
 #include <errno.h>
 #include <string.h>
 
-#ifndef EAFNOSUPPORT
-#define EAFNOSUPPORT 97
-#endif
-
 static int hexval(unsigned c)
 {
 	if (c-'0'<10) return (int)(c-'0');

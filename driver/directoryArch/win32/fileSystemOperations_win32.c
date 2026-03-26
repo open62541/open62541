@@ -81,8 +81,8 @@ copyDirectory(const char *src, const char* dst) {
             continue;
         
         char srcPath[MAX_PATH], dstPath[MAX_PATH];
-        _snprintf_s(srcPath, MAX_PATH, _TRUNCATE, "%s\\%s", src, fd.cFileName);
-        _snprintf_s(dstPath, MAX_PATH, _TRUNCATE, "%s\\%s", dst, fd.cFileName);
+        snprintf(srcPath, MAX_PATH, "%s\\%s", src, fd.cFileName);
+        snprintf(dstPath, MAX_PATH, "%s\\%s", dst, fd.cFileName);
 
         if(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             copyDirectory(srcPath, dstPath);
@@ -242,8 +242,8 @@ getFilePosition(UA_Int32 *handle, UA_UInt64 *position) {
 /* Get file size */
 UA_StatusCode
 getFileSize(const char *path, UA_UInt64 *size) {
-    struct stat st;
-    if (stat(path, &st) != 0) {
+    struct _stat64 st;
+    if (_stat64(path, &st) != 0) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     *size = (UA_UInt64)st.st_size;
@@ -275,16 +275,16 @@ scanDirectoryRecursive(
             continue;
         
         char fullPath[MAX_PATH];
-        _snprintf_s(fullPath, sizeof(fullPath), _TRUNCATE, "%s\\%s", path, name);
+        snprintf(fullPath, sizeof(fullPath), "%s\\%s", path, name);
 
         if(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             UA_NodeId newDirNode;
-            if ((addDirFunc)(NULL, server, parentNode, name, &newDirNode, false) == UA_STATUSCODE_GOOD) {
+            if ((addDirFunc)(NULL, server, parentNode, name, &newDirNode, NULL) == UA_STATUSCODE_GOOD) {
                 scanDirectoryRecursive(server, &newDirNode, fullPath, addDirFunc, addFileFunc);
             }
         } else {
             UA_NodeId newFileNode;
-            ((UA_StatusCode (*)(UA_Driver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *))addFileFunc)(NULL, server, parentNode, name, &newFileNode);
+            ((UA_StatusCode (*)(UA_Server *, const UA_NodeId *, const char *, UA_NodeId *))addFileFunc)(server, parentNode, name, &newFileNode);
         }
     } while(FindNextFileA(hfind, &ffd) != 0);
 

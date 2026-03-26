@@ -28,11 +28,6 @@
 #endif
 #include <windows.h>
 
-/* Define WINAPI_FAMILY_PARTITION if not available (e.g. MinGW) */
-#ifndef WINAPI_FAMILY_PARTITION
-#	define WINAPI_FAMILY_PARTITION(x) 1
-#endif
-
 #include <stdio.h>
 #include <stdarg.h>
 #include <wchar.h>
