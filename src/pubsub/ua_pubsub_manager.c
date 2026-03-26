@@ -702,8 +702,6 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     if(state == psm->sc.state)
         return;
     psm->sc.state = state;
-    if(psm->sc.notifyState)
-        psm->sc.notifyState(&psm->sc, state);
 
     /* When we just started, trigger all connections to go from PAUSED to
      * OPERATIONAL */
