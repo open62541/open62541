@@ -1439,49 +1439,50 @@ writeInternalValueAttribute(UA_DataValue *oldValue,
         oldValue->sourceTimestamp = value->sourceTimestamp;
         oldValue->hasSourcePicoseconds = value->hasSourcePicoseconds;
         oldValue->sourcePicoseconds = value->sourcePicoseconds;
-    } else {
-        UA_DataValue tmpValue = *value;
-
-        /* If possible memcpy the new value over the old value without
-         * a malloc. For this the value needs to be "pointerfree". */
-        if(oldValue->hasValue && oldValue->value.type &&
-           oldValue->value.type->pointerFree && value->hasValue &&
-           value->value.type && value->value.type->pointerFree &&
-           oldValue->value.type->memSize == value->value.type->memSize) {
-            size_t oSize = 1;
-            size_t vSize = 1;
-            if(!UA_Variant_isScalar(&oldValue->value))
-                oSize = oldValue->value.arrayLength;
-            if(!UA_Variant_isScalar(&value->value))
-                vSize = value->value.arrayLength;
-
-            if(oSize == vSize &&
-               oldValue->value.arrayDimensionsSize == value->value.arrayDimensionsSize) {
-                /* Keep the old pointers, but adjust type and array length */
-                tmpValue.value = oldValue->value;
-                tmpValue.value.type = value->value.type;
-                tmpValue.value.arrayLength = value->value.arrayLength;
-
-                /* Copy the data over the old memory */
-                memcpy(tmpValue.value.data, value->value.data,
-                       oSize * oldValue->value.type->memSize);
-                if(oldValue->value.arrayDimensionsSize > 0) /* No memcpy with NULL-ptr */
-                    memcpy(tmpValue.value.arrayDimensions, value->value.arrayDimensions,
-                           sizeof(UA_UInt32) * oldValue->value.arrayDimensionsSize);
-
-                /* Set the value */
-                *oldValue = tmpValue;
-                return UA_STATUSCODE_GOOD;
-            }
-        }
-
-        /* Make a deep copy of the value and replace when this succeeds */
-        retval = UA_Variant_copy(&value->value, &tmpValue.value);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-        UA_DataValue_clear(oldValue);
-        *oldValue = tmpValue;
+        return UA_STATUSCODE_GOOD;
     }
+
+    UA_DataValue tmpValue = *value;
+
+    /* If possible memcpy the new value over the old value without a malloc. For
+     * this the value needs to be "pointerfree". */
+    if(oldValue->hasValue && oldValue->value.type &&
+       oldValue->value.type->pointerFree && value->hasValue &&
+       value->value.type && value->value.type->pointerFree &&
+       oldValue->value.type->memSize == value->value.type->memSize) {
+        size_t oSize = 1;
+        size_t vSize = 1;
+        if(!UA_Variant_isScalar(&oldValue->value))
+            oSize = oldValue->value.arrayLength;
+        if(!UA_Variant_isScalar(&value->value))
+            vSize = value->value.arrayLength;
+
+        if(oSize == vSize &&
+           oldValue->value.arrayDimensionsSize == value->value.arrayDimensionsSize) {
+            /* Keep the old pointers, but adjust type and array length */
+            tmpValue.value = oldValue->value;
+            tmpValue.value.type = value->value.type;
+            tmpValue.value.arrayLength = value->value.arrayLength;
+
+            /* Copy the data over the old memory */
+            memcpy(tmpValue.value.data, value->value.data,
+                   oSize * oldValue->value.type->memSize);
+            if(oldValue->value.arrayDimensionsSize > 0) /* No memcpy with NULL-ptr */
+                memcpy(tmpValue.value.arrayDimensions, value->value.arrayDimensions,
+                       sizeof(UA_UInt32) * oldValue->value.arrayDimensionsSize);
+
+            /* Set the value */
+            *oldValue = tmpValue;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    /* Make a deep copy of the value and replace when this succeeds */
+    retval = UA_Variant_copy(&value->value, &tmpValue.value);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_DataValue_clear(oldValue);
+    *oldValue = tmpValue;
 
     return retval;
 }
