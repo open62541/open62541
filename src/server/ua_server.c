@@ -353,59 +353,43 @@ UA_GDSManager_clear(UA_GDSManager *gdsManager) {
 /* Server Components */
 /*********************/
 
-enum ZIP_CMP
-cmpServerComponent(const UA_UInt64 *a, const UA_UInt64 *b) {
-    if(*a == *b)
-        return ZIP_CMP_EQ;
-    return (*a < *b) ? ZIP_CMP_LESS : ZIP_CMP_MORE;
-}
-
 void
-addServerComponent(UA_Server *server, UA_ServerComponent *sc,
-                   UA_UInt64 *identifier) {
-    if(!sc)
-        return;
+addServerComponent(UA_Server *server, UA_ServerComponent *sc) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
-    sc->identifier = ++server->serverComponentIds;
-    ZIP_INSERT(UA_ServerComponentTree, &server->serverComponents, sc);
+    /* Add to the linked list */
+    sc->next = server->components;
+    server->components = sc;
 
     /* Start the component if the server is started */
     if(server->state == UA_LIFECYCLESTATE_STARTED && sc->start)
         sc->start(sc, server);
-
-    if(identifier)
-        *identifier = sc->identifier;
-}
-
-static void *
-findServerComponent(void *context, UA_ServerComponent *sc) {
-    UA_String *name = (UA_String*)context;
-    return (UA_String_equal(&sc->name, name)) ? sc : NULL;
 }
 
 UA_ServerComponent *
 getServerComponentByName(UA_Server *server, UA_String name) {
-    return (UA_ServerComponent*)
-        ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
-                 findServerComponent, &name);
-}
-
-static void *
-startServerComponent(void *server, UA_ServerComponent *sc) {
-    sc->start(sc, (UA_Server*)server);
+    for(UA_ServerComponent *sc = server->components; sc; sc = sc->next) {
+        if(UA_String_equal(&name, &sc->name))
+            return sc;
+    }
     return NULL;
 }
 
-static void *
-stopServerComponent(void *_, UA_ServerComponent *sc) {
-    sc->stop(sc);
-    return NULL;
+static void
+stopServerComponents(UA_Server *server) {
+    for(UA_ServerComponent *sc = server->components; sc; sc = sc->next) {
+        sc->stop(sc);
+    }
 }
 
-/* ZIP_ITER returns NULL only if all components are stopped */
-static void *
-checkServerComponent(void *_, UA_ServerComponent *sc) {
-    return (sc->state == UA_LIFECYCLESTATE_STOPPED) ? NULL : (void*)0x01;
+static UA_Boolean
+testStoppedCondition(UA_Server *server) {
+    /* Check if there are remaining server components that did not fully stop */
+    for(UA_ServerComponent *sc = server->components; sc; sc = sc->next) {
+        if(sc->state != UA_LIFECYCLESTATE_STOPPED)
+            return false;
+    }
+    return true;
 }
 
 /********************/
@@ -459,10 +443,10 @@ UA_Server_delete(UA_Server *server) {
 
     /* Remove all server components (all stopped by now) */
     UA_ServerComponent *top;
-    while((top = ZIP_ROOT(&server->serverComponents))) {
+    while((top = server->components)) {
+        server->components = top->next;
         UA_assert(top->state == UA_LIFECYCLESTATE_STOPPED);
         top->clear(top);
-        ZIP_REMOVE(UA_ServerComponentTree, &server->serverComponents, top);
         UA_free(top);
     }
 
@@ -605,17 +589,17 @@ UA_Server_init(UA_Server *server) {
 #endif
 
     /* Initialize the binay protocol support */
-    addServerComponent(server, UA_BinaryProtocolManager_new(server), NULL);
+    addServerComponent(server, UA_BinaryProtocolManager_new(server));
 
     /* Initialized Discovery */
 #ifdef UA_ENABLE_DISCOVERY
-    addServerComponent(server, UA_DiscoveryManager_new(), NULL);
+    addServerComponent(server, UA_DiscoveryManager_new());
 #endif
 
     /* Initialize PubSub */
 #ifdef UA_ENABLE_PUBSUB
     if(server->config.pubsubEnabled)
-        addServerComponent(server, UA_PubSubManager_new(server), NULL);
+        addServerComponent(server, UA_PubSubManager_new(server));
 #endif
 
     /* For all custom datatypes, check if they are represented in the
@@ -1331,8 +1315,9 @@ UA_Server_run_startup(UA_Server *server) {
     writeValueAttribute(server, startTime, &var);
 
     /* Start all ServerComponents */
-    ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
-             startServerComponent, server);
+    for(UA_ServerComponent *sc = server->components; sc; sc = sc->next) {
+        sc->start(sc, server);
+    }
 
     /* Check that the binary protocol support component have been started */
     UA_ServerComponent *binaryProtocolManager =
@@ -1341,8 +1326,7 @@ UA_Server_run_startup(UA_Server *server) {
         UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
                      "Binary protocol support component not found.");
         /* Stop all server components that have already been started */
-        ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
-                 stopServerComponent, server);
+        stopServerComponents(server);
         unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -1350,8 +1334,7 @@ UA_Server_run_startup(UA_Server *server) {
         UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
                        "The binary protocol support component could not been started.");
         /* Stop all server components that have already been started */
-        ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
-                 stopServerComponent, NULL);
+        stopServerComponents(server);
         unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -1394,15 +1377,6 @@ testShutdownCondition(UA_Server *server) {
     return (el->dateTime_now(el) > server->endTime);
 }
 
-static UA_Boolean
-testStoppedCondition(UA_Server *server) {
-    /* Check if there are remaining server components that did not fully stop */
-    if(ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
-                checkServerComponent, NULL) != NULL)
-        return false;
-    return true;
-}
-
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
     if(server == NULL)
@@ -1432,8 +1406,7 @@ UA_Server_run_shutdown(UA_Server *server) {
     }
 
     /* Stop all ServerComponents */
-    ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
-             stopServerComponent, NULL);
+    stopServerComponents(server);
 
     /* Are we already stopped? */
     if(testStoppedCondition(server)) {
