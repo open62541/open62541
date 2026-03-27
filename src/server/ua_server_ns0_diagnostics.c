@@ -60,7 +60,7 @@ fillSubscriptionDiagnostics(UA_Subscription *sub,
     diag->monitoredItemCount = sub->monitoredItemsSize;
     diag->monitoringQueueOverflowCount = sub->monitoringQueueOverflowCount;
     diag->nextSequenceNumber = sub->nextSequenceNumber;
-    diag->eventQueueOverFlowCount = sub->eventQueueOverflowCount;
+    diag->eventQueueOverflowCount = sub->eventQueueOverflowCount;
 
     /* Count the disabled MonitoredItems */
     UA_MonitoredItem *mon;
