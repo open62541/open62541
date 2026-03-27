@@ -45,11 +45,11 @@ typedef struct {
     UA_Boolean shutdown;
     UA_Boolean connectSuccess;
 } asyncRegisterRequest;
+
 #define UA_MAXREGISTERREQUESTS 4
 
 struct UA_DiscoveryManager {
     UA_ServerComponent sc;
-
     UA_UInt64 discoveryCallbackId;
 
     /* Outstanding requests. So they can be cancelled during shutdown. */
@@ -57,71 +57,11 @@ struct UA_DiscoveryManager {
 
     LIST_HEAD(, registeredServer) registeredServers;
     size_t registeredServersSize;
-    UA_Server_registerServerCallback registerServerCallback;
-    void* registerServerCallbackData;
-
-# ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_Boolean mdnsMainSrvAdded;
-    UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
-    void *serverOnNetworkCallbackData;
-#  ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
-    UA_ConnectionManager *cm;
-#  endif
-# endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 };
 
 void
 UA_DiscoveryManager_setState(UA_DiscoveryManager *dm,
                              UA_LifecycleState state);
-
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-
-/* Sends out a new mDNS package for the given server data. This Method is
- * normally called when another server calls the RegisterServer Service on this
- * server. Then this server is responsible to send out a new mDNS package to
- * announce it.
- *
- * Additionally this method also adds the given server to the internal
- * serversOnNetwork list so that a client finds it when calling
- * FindServersOnNetwork. */
-void
-UA_Discovery_updateMdnsForDiscoveryUrl(UA_DiscoveryManager *dm, const UA_String serverName,
-                                       const UA_MdnsDiscoveryConfiguration *mdnsConfig,
-                                       const UA_String discoveryUrl, UA_Boolean isOnline,
-                                       UA_Boolean updateTxt);
-
-void UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm);
-void UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm);
-
-void
-UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm);
-
-UA_UInt32
-UA_DiscoveryManager_getMdnsConnectionCount(void);
-
-UA_UInt32
-UA_DiscoveryManager_getServerOnNetworkRecordIdCounter(UA_DiscoveryManager *dm);
-
-UA_StatusCode
-UA_DiscoveryManager_resetServerOnNetworkRecordCounter(UA_DiscoveryManager *dm);
-
-UA_DateTime
-UA_DiscoveryManager_getServerOnNetworkCounterResetTime(UA_DiscoveryManager *dm);
-
-UA_ServerOnNetwork*
-UA_DiscoveryManager_getServerOnNetworkList(UA_DiscoveryManager *dm);
-
-UA_ServerOnNetwork*
-UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_DiscoveryManager *dm,
-                                  UA_ServerOnNetwork *current);
-
-UA_StatusCode
-UA_DiscoveryManager_clearServerOnNetwork(UA_DiscoveryManager *dm);
-
-void
-UA_DiscoveryManager_mdnsCyclicTimer(UA_Server *server, void *data);
-
-#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
 #endif /* UA_ENABLE_DISCOVERY */
 
