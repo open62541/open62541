@@ -57,6 +57,12 @@ add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
 add_example(tutorial_server_object tutorial_server_object.c)
 add_example(tutorial_server_reverseconnect tutorial_server_reverseconnect.c)
 
+if (UA_FILESYSTEM)
+    add_example(tutorial_server_filesystem filesystem/tutorial_server_filesystem.c)
+    add_example(tutorial_server_filesystem_directory filesystem/tutorial_server_filesystem_directory.c)
+    add_example(tutorial_server_filesystem_file filesystem/tutorial_server_filesystem_file.c)
+endif()
+
 if(UA_ENABLE_SUBSCRIPTIONS)
     add_example(tutorial_server_monitoreditems tutorial_server_monitoreditems.c)
 endif()
