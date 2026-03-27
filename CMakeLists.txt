@@ -480,9 +480,6 @@ endif()
 set(UA_DYNAMIC_LINKING OFF)
 if(BUILD_SHARED_LIBS)
   set(UA_DYNAMIC_LINKING ON)
-  if(UA_ENABLE_DISCOVERY_MULTICAST)
-      set(MDNSD_DYNAMIC_LINKING ON)
-  endif()
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
@@ -1051,16 +1048,17 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         ${MDNSD_GENERATED_DIR}/sdtxt.h
         ${MDNSD_GENERATED_DIR}/mdnsd.h)
     list(APPEND lib_sources
-        ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
+        ${PROJECT_SOURCE_DIR}/plugins/mdns/discovery_mdnsd.c
         ${MDNSD_GENERATED_DIR}/1035.c
         ${MDNSD_GENERATED_DIR}/xht.c
         ${MDNSD_GENERATED_DIR}/sdtxt.c
         ${MDNSD_GENERATED_DIR}/mdnsd.c
         ${MDNSD_GENERATED_DIR}/log.c)
-elseif(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+endif()
+
+if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
     list(APPEND lib_sources
-      ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns_avahi.c
-    )
+         ${PROJECT_SOURCE_DIR}/plugins/mdns/discovery_avahi.c)
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
@@ -1544,10 +1542,6 @@ target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 if(UA_NODESET_INJECTOR_NEEDS_ROLESET)
     target_compile_definitions(open62541-object PRIVATE -DUA_NODESET_INJECTOR_NEEDS_ROLESET)
-endif()
-if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
-    target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
-    target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
 endif()
 
 # Prevent Wincrypt override warning.
