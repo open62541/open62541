@@ -54,7 +54,7 @@ int main(void) {
 
     /* Create a directory first to organize our files */
     UA_NodeId dataDirId;
-    UA_Server_makeDirectory(server, NULL, NULL, &fsRootId, "Data", &dataDirId);
+    UA_Server_makeDirectory(fsDriver, server, &fsRootId, "Data", &dataDirId);
 
     /* ----------------------------------------------------------------
      * Create files using UA_Server_makeFile()
@@ -70,20 +70,20 @@ int main(void) {
      * ---------------------------------------------------------------- */
 
     /* Create a simple data file */
-    UA_Int32 handle1;
-    UA_StatusCode res = UA_Server_makeFile(server, NULL, NULL,
+    UA_NodeId fileNode1;
+    UA_StatusCode res = UA_Server_makeFile(fsDriver, server,
                                             &dataDirId, "sensor_log.csv",
-                                            false, &handle1);
+                                            &fileNode1);
     if (res == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "Created 'Data/sensor_log.csv' successfully");
     }
 
     /* Create a config file */
-    UA_Int32 handle2;
-    res = UA_Server_makeFile(server, NULL, NULL,
+    UA_NodeId fileNode2;
+    res = UA_Server_makeFile(fsDriver, server,
                               &dataDirId, "config.json",
-                              false, &handle2);
+                              &fileNode2);
     if (res == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "Created 'Data/config.json' successfully");

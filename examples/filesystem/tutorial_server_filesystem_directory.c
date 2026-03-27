@@ -48,7 +48,7 @@ int main(void) {
      * under the Objects folder that represents the given path on the host filesystem. */
     UA_NodeId objectsFolder = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId fsNodeId;
-    UA_FileServerDriver_addFileDirectory(fsDriver, server, &objectsFolder, ".", &fsNodeId, ".");
+    UA_FileServerDriver_addFileDirectory(fsDriver, server, &objectsFolder, ".", &fsNodeId, true);
 
     /* Step 5: Create subdirectories using the public API
      * UA_Server_makeDirectory() creates a new directory both on disk
@@ -60,8 +60,7 @@ int main(void) {
     UA_NodeId fsRootId = fsDriver->fsNodes[0]; /* The mounted filesystem root node */
     UA_NodeId newDirId;
 
-    UA_StatusCode res = UA_Server_makeDirectory(server, NULL, NULL,
-                                                 &fsRootId, "Logs", &newDirId);
+    UA_StatusCode res = UA_Server_makeDirectory(fsDriver, server, &fsRootId, "Logs", &newDirId);
     if (res == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "Created 'Logs' directory successfully");
@@ -69,8 +68,7 @@ int main(void) {
 
     /* Create a nested directory inside Logs */
     UA_NodeId nestedDirId;
-    res = UA_Server_makeDirectory(server, NULL, NULL,
-                                   &newDirId, "2024", &nestedDirId);
+    res = UA_Server_makeDirectory(fsDriver, server, &newDirId, "2024", &nestedDirId);
     if (res == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "Created 'Logs/2024' directory successfully");

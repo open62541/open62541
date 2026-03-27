@@ -276,6 +276,7 @@ getFileSize(const char *path, UA_UInt64 *size) {
 
 UA_StatusCode
 scanDirectoryRecursive(
+    UA_FileServerDriver *driver,
     UA_Server *server, 
     const UA_NodeId *parentNode, 
     const char *path, 

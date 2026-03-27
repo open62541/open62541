@@ -6,7 +6,6 @@
 #include <driver.h>
 #include <filesystem/ua_filetypes.h>
 
-typedef struct UA_FileDriverContext UA_FileDriverContext; /* Forward declaration for driver context */
 
 /*
  * Enumeration for different types of file drivers. 
@@ -16,23 +15,6 @@ typedef struct UA_FileDriverContext UA_FileDriverContext; /* Forward declaration
 typedef enum {
     FILE_DRIVER_TYPE_LOCAL /* Local file system driver, which interacts with the host's native file system APIs. */
 } FileDriverType;
-
-struct UA_FileDriverContext {
-    UA_StatusCode (*openFile)(const char *path, UA_Byte openMode, UA_Int32 **handle);
-    UA_StatusCode (*closeFile)(UA_Int32 *handle);
-    UA_StatusCode (*readFile)(UA_Int32 *handle, UA_Int32 length, UA_ByteString *data);
-    UA_StatusCode (*writeFile)(UA_Int32 *handle, const UA_ByteString *data);
-    UA_StatusCode (*seekFile)(UA_Int32 *handle, UA_UInt64 position);
-    UA_StatusCode (*getFilePosition)(UA_Int32 *handle, UA_UInt64 *position);
-    UA_StatusCode (*getFileSize)(const char *path, UA_UInt64 *size);
-    UA_StatusCode (*deleteDirOrFile)(const char *path);
-    UA_StatusCode (*moveOrCopyItem)(const char *sourcePath, const char *destinationPath, bool copy);
-    UA_StatusCode (*makeDirectory)(const char *path);
-    UA_StatusCode (*makeFile)(const char *path, bool fileHandleBool, UA_Int32* output);
-    UA_Boolean (*isDirectory)(const char *path);
-}; 
-
-#include <directoryArch/common/fileSystemOperations_common.h>
 
 /* Structure representing the FileServer driver.
  *
@@ -46,58 +28,23 @@ typedef struct UA_FileServerDriver {
     FileDriverType driverType; /* Type of file driver (e.g., local, network) */
     size_t fsCount;             /* Number of FileSystemNodes currently managed */
     UA_NodeId *fsNodes; /* FileSystems dynamically allocated array of FileSystemNodeIds */
+    
+    // File operation function pointers (populated based on driverType)
+    UA_StatusCode (*openFile)(const char *path, UA_Byte openMode, UA_Int32 **handle);
+    UA_StatusCode (*closeFile)(UA_Int32 *handle);
+    UA_StatusCode (*readFile)(UA_Int32 *handle, UA_Int32 length, UA_ByteString *data);
+    UA_StatusCode (*writeFile)(UA_Int32 *handle, const UA_ByteString *data);
+    UA_StatusCode (*seekFile)(UA_Int32 *handle, UA_UInt64 position);
+    UA_StatusCode (*getFilePosition)(UA_Int32 *handle, UA_UInt64 *position);
+    UA_StatusCode (*getFileSize)(const char *path, UA_UInt64 *size);
+    UA_StatusCode (*deleteDirOrFile)(const char *path);
+    UA_StatusCode (*moveOrCopyItem)(const char *sourcePath, const char *destinationPath, bool copy);
+    UA_StatusCode (*makeDirectory)(const char *path);
+    UA_StatusCode (*makeFile)(const char *path, bool fileHandleBool, UA_Int32* output);
+    UA_Boolean (*isDirectory)(const char *path);
 } UA_FileServerDriver;
 
-inline static UA_StatusCode
-getDriverContext(UA_Server *server,
-                 UA_NodeId *nodeId,
-                 UA_FileDriverContext **driverCtx)
-{
-    FileDirectoryContext *ctx = NULL;
-
-    /* Get the FileDirectoryContext stored on the node */
-    UA_Server_getNodeContext(server, *nodeId, (void**)&ctx);
-    if(!ctx) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                     "No FileDirectoryContext found for node");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_FileServerDriver *driver = (UA_FileServerDriver*)ctx->driver;
-    if(!driver) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                     "Node has no driver");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Retrieve the driver context */
-    *driverCtx = NULL;
-    UA_Server_getNodeContext(server, driver->base.nodeId, (void**)driverCtx);
-
-    if(!*driverCtx) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                     "No FileDriverContext found for driver node");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-typedef enum {
-    FILE_OP_OPEN,
-    FILE_OP_CLOSE,
-    FILE_OP_READ,
-    FILE_OP_WRITE,
-    FILE_OP_GETPOSITION,
-    FILE_OP_SETPOSITION
-} FileOperationType;
-
-typedef enum {
-    DIR_OP_DELETE,
-    DIR_OP_MOVEORCOPY,
-    DIR_OP_MKDIR,
-    DIR_OP_MKFILE
-} DirectoryOperationType;
+#include <directoryArch/common/fileSystemOperations_common.h>
 
 UA_StatusCode
 initFileSystemManagement(UA_FileServerDriver *fileDriver);
@@ -106,23 +53,6 @@ initFileSystemManagement(UA_FileServerDriver *fileDriver);
 UA_StatusCode
 initFileTypeOperations(UA_FileServerDriver *fileDriver);
 
-UA_StatusCode
-__fileTypeOperation(UA_Server *server,
-                   const UA_NodeId *sessionId, void *sessionContext,
-                   const UA_NodeId *methodId, void *methodContext,
-                   const UA_NodeId *objectId, void *objectContext,
-                   size_t inputSize, const UA_Variant *input,
-                   size_t outputSize, UA_Variant *output,
-                   FileOperationType opType);
-
-UA_StatusCode
-__directoryOperation(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output,
-                  DirectoryOperationType opType);
 /* API function: Add a new FileSystem to the driver and the OPC UA server.
  *
  * This function registers a new FileSystemNode under a given parent node in
@@ -146,7 +76,8 @@ UA_StatusCode UA_FileServerDriver_addFileDirectory(
     UA_Server *server,
     const UA_NodeId *parentNode,
     const char *mountPath,
-    UA_NodeId *newNodeId, const bool dirExists
+    UA_NodeId *newNodeId,
+    const bool asFileSystem
 );
     
 /* API function: Add a new File node to the OPC UA server.
@@ -195,10 +126,10 @@ UA_FileServerDriver_new(const char *name, UA_Server *server, FileDriverType driv
 // by OPC UA clients via method calls on FileType/FileDirectoryType nodes.
 // To mount a filesystem, use UA_FileServerDriver_addFileDirectory() directly.
 UA_EXPORT UA_StatusCode
-UA_Server_makeDirectory(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *parentNode, const char *dirName, UA_NodeId *newNodeId);
+UA_Server_makeDirectory(UA_FileServerDriver *driver, UA_Server *server, const UA_NodeId *parentNode, const char *dirName, UA_NodeId *newNodeId);
 
 UA_EXPORT UA_StatusCode
-UA_Server_makeFile(UA_Server *server, UA_NodeId *sessionId, void *sessionContext, const UA_NodeId *parentNode, const char *fileName, bool fileHandleBool, UA_Int32* output);
+UA_Server_makeFile(UA_FileServerDriver *driver, UA_Server *server, const UA_NodeId *parentNode, const char *fileName, UA_NodeId *newNodeId);
 // ======================================================
 
 #endif /* UA_FILESERVER_DRIVER_H */

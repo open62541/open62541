@@ -102,10 +102,11 @@ UA_StatusCode seekFile(UA_Int32 *handle, UA_UInt64 position);
 UA_StatusCode getFilePosition(UA_Int32 *handle, UA_UInt64 *position);
 UA_StatusCode getFileSize(const char *path, UA_UInt64 *size);
 
-typedef UA_StatusCode (*AddDirType)(UA_Driver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *, const bool);
-typedef UA_StatusCode (*AddFileType)(UA_Driver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *);
+typedef UA_StatusCode (*AddDirType)(UA_FileServerDriver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *, const bool);
+typedef UA_StatusCode (*AddFileType)(UA_FileServerDriver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *);
 
 UA_StatusCode scanDirectoryRecursive(
+    UA_FileServerDriver *driver,
     UA_Server *server, 
     const UA_NodeId *parentNode, 
     const char *path, 
@@ -113,25 +114,19 @@ UA_StatusCode scanDirectoryRecursive(
     AddFileType addFileFunc);
 
 inline static UA_StatusCode
-fillLocalFileDriverContext(UA_FileDriverContext *ctx, FileDriverType driverType) {
-    switch (driverType) {
-        case FILE_DRIVER_TYPE_LOCAL:
-            ctx->openFile = &openFile;
-            ctx->closeFile = &closeFile;
-            ctx->readFile = &readFile;
-            ctx->writeFile = &writeFile;
-            ctx->seekFile = &seekFile;
-            ctx->getFilePosition = &getFilePosition;
-            ctx->getFileSize = &getFileSize;
-            ctx->deleteDirOrFile = &deleteDirOrFile;
-            ctx->moveOrCopyItem = &moveOrCopyItem;
-            ctx->makeDirectory = &makeDirectory;
-            ctx->makeFile = &makeFile;
-            ctx->isDirectory = &isDirectory;
-            break;
-        default:
-            return UA_STATUSCODE_BADINTERNALERROR;
-    }
+fillLocalFileDriver(UA_FileServerDriver *ctx) {
+    ctx->openFile = &openFile;
+    ctx->closeFile = &closeFile;
+    ctx->readFile = &readFile;
+    ctx->writeFile = &writeFile;
+    ctx->seekFile = &seekFile;
+    ctx->getFilePosition = &getFilePosition;
+    ctx->getFileSize = &getFileSize;
+    ctx->deleteDirOrFile = &deleteDirOrFile;
+    ctx->moveOrCopyItem = &moveOrCopyItem;
+    ctx->makeDirectory = &makeDirectory;
+    ctx->makeFile = &makeFile;
+    ctx->isDirectory = &isDirectory;
     return UA_STATUSCODE_GOOD;
 }
 

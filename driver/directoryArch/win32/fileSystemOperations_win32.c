@@ -262,6 +262,7 @@ getFileSize(const char *path, UA_UInt64 *size) {
 
 UA_StatusCode
 scanDirectoryRecursive(
+    UA_FileServerDriver *driver,
     UA_Server *server, 
     const UA_NodeId *parentNode, 
     const char *path, 
@@ -289,12 +290,12 @@ scanDirectoryRecursive(
 
         if(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             UA_NodeId newDirNode;
-            if ((addDirFunc)(NULL, server, parentNode, name, &newDirNode, NULL) == UA_STATUSCODE_GOOD) {
-                scanDirectoryRecursive(server, &newDirNode, fullPath, addDirFunc, addFileFunc);
+            if ((addDirFunc)(driver, server, parentNode, name, &newDirNode, false) == UA_STATUSCODE_GOOD) {
+                scanDirectoryRecursive(driver, server, &newDirNode, fullPath, addDirFunc, addFileFunc);
             }
         } else {
             UA_NodeId newFileNode;
-            ((UA_StatusCode (*)(UA_Server *, const UA_NodeId *, const char *, UA_NodeId *))addFileFunc)(server, parentNode, name, &newFileNode);
+            (addFileFunc)(driver, server, parentNode, name, &newFileNode);
         }
     } while(FindNextFileA(hfind, &ffd) != 0);
 
