@@ -67,6 +67,16 @@ struct UA_ServerComponent {
     UA_StatusCode (*free)(UA_ServerComponent *sc);
 };
 
+/* Adds the ServerComponent to the server.
+ * Starts the component if the server is started. */
+UA_StatusCode
+UA_Server_addServerComponent(UA_Server *server, UA_ServerComponent *sc);
+
+/* Remove the ServerComponent from the server.
+ * This will fail if the ServerComponent is not already fully stopped. */
+UA_StatusCode
+UA_Server_removeServerComponent(UA_Server *server, UA_ServerComponent *sc);
+
 _UA_END_DECLS
 
 #endif /* UA_SERVERCOMPONENT_H_ */

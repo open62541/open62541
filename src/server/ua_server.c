@@ -353,7 +353,7 @@ UA_GDSManager_clear(UA_GDSManager *gdsManager) {
 /* Server Components */
 /*********************/
 
-UA_StatusCode
+static UA_StatusCode
 addServerComponent(UA_Server *server, UA_ServerComponent *sc) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
@@ -383,6 +383,40 @@ addServerComponent(UA_Server *server, UA_ServerComponent *sc) {
         sc->start(sc);
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_addServerComponent(UA_Server *server, UA_ServerComponent *sc) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = addServerComponent(server, sc);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_removeServerComponent(UA_Server *server, UA_ServerComponent *sc) {
+    UA_LOCK(&server->serviceMutex);
+
+    if(sc->state != UA_LIFECYCLESTATE_STOPPED) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Cannot remove the ServerComponent \"%S\". "
+                     "It is not fully stopped.", sc->name);
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    UA_ServerComponent **prev = &server->components;
+    for(UA_ServerComponent *sc2 = server->components; sc2; prev = &sc2->next, sc2 = sc2->next) {
+        if(sc2 == sc) {
+            *prev = sc->next;
+            res = UA_STATUSCODE_GOOD;
+            break;
+        }
+    }
+
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 static void

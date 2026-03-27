@@ -128,15 +128,6 @@ void
 UA_GDSManager_clear(UA_GDSManager *gdsManager);
 
 /********************/
-/* Server Component */
-/********************/
-
-/* Adds the component to the linked-list.
- * Starts the component if the server is started. */
-UA_StatusCode
-addServerComponent(UA_Server *server, UA_ServerComponent *sc);
-
-/********************/
 /* Server Structure */
 /********************/
 
