@@ -414,8 +414,7 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
                    const UA_String discoveryServerUrl,
                    const UA_String semaphoreFilePath) {
     /* Get the discovery manager */
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
-        getServerComponentByName(server, UA_STRING("discovery"));
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
     if(!dm) {
         UA_ClientConfig_clear(cc);
         return UA_STATUSCODE_BADINTERNALERROR;

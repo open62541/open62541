@@ -385,15 +385,6 @@ addServerComponent(UA_Server *server, UA_ServerComponent *sc) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_ServerComponent *
-getServerComponentByName(UA_Server *server, UA_String name) {
-    for(UA_ServerComponent *sc = server->components; sc; sc = sc->next) {
-        if(UA_String_equal(&name, &sc->name))
-            return sc;
-    }
-    return NULL;
-}
-
 static void
 stopServerComponents(UA_Server *server) {
     for(UA_ServerComponent *sc = server->components; sc; sc = sc->next) {
@@ -607,19 +598,22 @@ UA_Server_init(UA_Server *server) {
 #endif
 
     /* Initialize the binay protocol support */
-    res = addServerComponent(server, UA_BinaryProtocolManager_new(server));
+    server->binarySC = UA_BinaryProtocolManager_new();
+    res = addServerComponent(server, server->binarySC);
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Initialized Discovery */
 #ifdef UA_ENABLE_DISCOVERY
-    res = addServerComponent(server, UA_DiscoveryManager_new());
+    server->discoverySC = UA_DiscoveryManager_new();
+    res = addServerComponent(server, server->discoverySC);
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
     /* Initialize PubSub */
 #ifdef UA_ENABLE_PUBSUB
     if(server->config.pubsubEnabled) {
-        res = addServerComponent(server, UA_PubSubManager_new(server));
+        server->pubSubSC = UA_PubSubManager_new(server);
+        res = addServerComponent(server, server->pubSubSC);
         UA_CHECK_STATUS(res, goto cleanup);
     }
 #endif
@@ -1339,26 +1333,6 @@ UA_Server_run_startup(UA_Server *server) {
     /* Start all ServerComponents */
     for(UA_ServerComponent *sc = server->components; sc; sc = sc->next) {
         sc->start(sc);
-    }
-
-    /* Check that the binary protocol support component have been started */
-    UA_ServerComponent *binaryProtocolManager =
-        getServerComponentByName(server, UA_STRING("binary"));
-    if(!binaryProtocolManager) {
-        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
-                     "Binary protocol support component not found.");
-        /* Stop all server components that have already been started */
-        stopServerComponents(server);
-        unlockServer(server);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    if(binaryProtocolManager->state != UA_LIFECYCLESTATE_STARTED) {
-        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
-                       "The binary protocol support component could not been started.");
-        /* Stop all server components that have already been started */
-        stopServerComponents(server);
-        unlockServer(server);
-        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Set the server to STARTED. From here on, only use

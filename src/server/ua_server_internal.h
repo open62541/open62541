@@ -136,9 +136,6 @@ UA_GDSManager_clear(UA_GDSManager *gdsManager);
 UA_StatusCode
 addServerComponent(UA_Server *server, UA_ServerComponent *sc);
 
-UA_ServerComponent *
-getServerComponentByName(UA_Server *server, UA_String name);
-
 /********************/
 /* Server Structure */
 /********************/
@@ -182,7 +179,10 @@ struct UA_Server {
     UA_UInt64 houseKeepingCallbackId;
 
     /* Server Components with individual life cycles */
-    UA_ServerComponent *components;
+    UA_ServerComponent *components; /* linked-list of all SC */
+    UA_ServerComponent *binarySC;
+    UA_ServerComponent *discoverySC;
+    UA_ServerComponent *pubSubSC;
 
     UA_AsyncManager asyncManager;
 
@@ -710,8 +710,7 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 UA_ServerComponent * UA_DiscoveryManager_new(void);
 #endif
 
-UA_ServerComponent * UA_BinaryProtocolManager_new(UA_Server *server);
-
+UA_ServerComponent * UA_BinaryProtocolManager_new(void);
 
 #ifdef UA_ENABLE_PUBSUB
 UA_ServerComponent * UA_PubSubManager_new(UA_Server *server);
