@@ -248,7 +248,13 @@ struct UA_Server {
     size_t rolesSize;
     UA_Role *roles;
     UA_Boolean *rolesProtected; /* Parallel array: true for config roles */
+#endif
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    UA_UInt32 serversOnNetworkRecordCounter;
+    UA_DateTime lastCounterResetTime;
+    size_t serversOnNetworkSize;
+    UA_ServerOnNetwork *serversOnNetwork;
 #endif
 };
 

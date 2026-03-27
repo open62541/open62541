@@ -1623,10 +1623,7 @@ UA_Server_createEventEx(UA_Server *server,
 
 /**
  * Discovery
- * ---------
- *
- * Registering at a Discovery Server
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
+ * --------- */
 
 /* Register the given server instance at the discovery server. This should be
  * called periodically, for example every 10 minutes, depending on the
@@ -1651,59 +1648,50 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_deregisterDiscovery(UA_Server *server, UA_ClientConfig *cc,
                               const UA_String discoveryServerUrl);
 
-/**
- * Operating a Discovery Server
- * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
-
-/* Callback for RegisterServer. Data is passed from the register call */
-typedef void
-(*UA_Server_registerServerCallback)(const UA_RegisteredServer *registeredServer,
-                                    void* data);
-
-/* Set the callback which is called if another server registeres or unregisters
- * with this instance. This callback is called every time the server gets a
- * register call. This especially means that for every periodic server register
- * the callback will be called.
- *
- * @param server
- * @param cb the callback
- * @param data data passed to the callback
- * @return ``UA_STATUSCODE_SUCCESS`` on success */
-void UA_EXPORT UA_THREADSAFE
-UA_Server_setRegisterServerCallback(UA_Server *server,
-                                    UA_Server_registerServerCallback cb, void* data);
-
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
-/* Callback for server detected through mDNS. Data is passed from the register
- * call
+/**
+ * Discovery via multicast-DNS is performed by a MdnsServerComponent "plugin".
+ * The implementation is outside the core library. The MdnsServerComponent
+ * interacts with the server using the following methods.
  *
- * @param isServerAnnounce indicates if the server has just been detected. If
- *        set to false, this means the server is shutting down.
- * @param isTxtReceived indicates if we already received the corresponding TXT
- *        record with the path and caps data */
-typedef void
-(*UA_Server_serverOnNetworkCallback)(const UA_ServerOnNetwork *serverOnNetwork,
-                                     UA_Boolean isServerAnnounce,
-                                     UA_Boolean isTxtReceived, void* data);
+ * There is no automatic link between the two systems _registerDiscovery and
+ * _registerServerOnNetwork. Applications can register for notifications on the
+ * ``discoveryNotificationCallback`` and trigger a reaction, e.g. launching a
+ * client for discovery of a new DiscoveryUrl received via mDNS or announcing a
+ * new server over mDNS. */
 
-/* Set the callback which is called if another server is found through mDNS or
- * deleted. It will be called for any mDNS message from the remote server, thus
- * it may be called multiple times for the same instance. Also the SRV and TXT
- * records may arrive later, therefore for the first call the server
- * capabilities may not be set yet. If called multiple times, previous data will
- * be overwritten.
+/* Register a remote server. If the server name was previously known, the
+ * existing entry gets updated.
  *
- * @param server
- * @param cb the callback
- * @param data data passed to the callback
- * @return ``UA_STATUSCODE_SUCCESS`` on success */
-void UA_EXPORT UA_THREADSAFE
-UA_Server_setServerOnNetworkCallback(UA_Server *server,
-                                     UA_Server_serverOnNetworkCallback cb,
-                                     void* data);
+ * This gets called from the MdnsServerComponent. It can also be called
+ * manually. An announcement over mDNS can be triggered by setting the
+ * appropriate parameter.
+ *
+ * Parameter-options for the key-value map:
+ *
+ * 0:announce [bool]
+ *    Announce the server over mDNS (default: false). */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_registerServerOnNetwork(UA_Server *server,
+                                  const UA_ServerOnNetwork *son,
+                                  const UA_KeyValueMap *params);
 
-#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
+/* Remove the entry of the remote server with the matching server name.
+ *
+ * This gets called from the MdnsServerComponent when a retraction message is
+ * received over mDNS. It can also be called manually. With the
+ * retract-parameter set, the corresponding retraction messsage is sent over
+ * mDNS from here
+ *
+ * Parameter-options for the key-value map:
+ *
+ * 0:retract [bool]
+ *    Retract the server over mDNS (default: false). */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_deregisterServerOnNetwork(UA_Server *server, UA_String serverName,
+                                    const UA_KeyValueMap *params);
+#endif
 
 #endif /* UA_ENABLE_DISCOVERY */
 
@@ -2220,6 +2208,7 @@ struct UA_ServerConfig {
     UA_ServerNotificationCallback sessionNotificationCallback;
     UA_ServerNotificationCallback serviceNotificationCallback;
     UA_ServerNotificationCallback subscriptionNotificationCallback;
+    UA_ServerNotificationCallback discoveryNotificationCallback;
 #ifdef UA_ENABLE_AUDITING
     UA_ServerNotificationCallback auditNotificationCallback;
 #endif

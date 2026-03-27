@@ -356,6 +356,28 @@ typedef enum {
     UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_MONITORINGMODE,
     UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE,
 
+    /* (Server only) Signals the registering of a server via the RegisterServer
+     * Service.
+     *
+     * 0:registered-server [RegisteredServer]
+     *    Server information received. */
+    UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_REGISTERSERVER,
+
+    /* (Server only) Signals server information that was rceived over multicast
+     * DNS.
+     *
+     * 0:server-on-network [ServerOnNetwork]
+     *    Server information received. The RecordId within the structure is
+     *    defined internally in the server. It does not have semantic meaning
+     *    here.
+     * 0:server-added [Boolean]
+     *    They entry was added with a previously unknown ServerName.
+     * 0:server-removed [Boolean]
+     *    The entry was removed.
+     * 0:server-updated [Boolean]
+     *    The entry updated information for a previously known ServerName. */
+    UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_SERVERONNETWORK,
+
     /* Audit events are described in a separete section.
      * The enum values are bitfields to filter in a hierarchy. */
     UA_APPLICATIONNOTIFICATIONTYPE_AUDIT                                   = 0x1000,
