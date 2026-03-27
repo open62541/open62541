@@ -1,9 +1,80 @@
 #include <check.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <stdio.h>
-#include <sys/stat.h> 
+#include <sys/stat.h>
 #include <directoryArch/common/fileSystemOperations_common.h>
+
+#if defined(UA_ARCHITECTURE_POSIX)
+#include <dirent.h>
+#include <unistd.h>
+
+static void deleteRecursive(const char *path) {
+    struct stat st;
+    if(stat(path, &st) != 0)
+        return;
+
+    if(S_ISDIR(st.st_mode)) {
+        DIR *dir = opendir(path);
+        if(!dir)
+            return;
+
+        struct dirent *entry;
+        char buf[1024];
+
+        while((entry = readdir(dir)) != NULL) {
+            if(strcmp(entry->d_name, ".") == 0 ||
+               strcmp(entry->d_name, "..") == 0)
+                continue;
+
+            snprintf(buf, sizeof(buf), "%s/%s", path, entry->d_name);
+            deleteRecursive(buf);
+        }
+
+        closedir(dir);
+        rmdir(path);
+    } else {
+        unlink(path);
+    }
+}
+
+#endif
+
+#if defined(UA_ARCHITECTURE_WIN32)
+#include <windows.h>
+#include <io.h>
+static void deleteRecursive(const char *path) {
+    DWORD attrs = GetFileAttributesA(path);
+    if(attrs == INVALID_FILE_ATTRIBUTES)
+        return;
+
+    if(attrs & FILE_ATTRIBUTE_DIRECTORY) {
+        char searchPath[MAX_PATH];
+        snprintf(searchPath, sizeof(searchPath), "%s\\*", path);
+
+        WIN32_FIND_DATAA fd;
+        HANDLE h = FindFirstFileA(searchPath, &fd);
+        if(h == INVALID_HANDLE_VALUE)
+            return;
+
+        do {
+            if(strcmp(fd.cFileName, ".") == 0 ||
+               strcmp(fd.cFileName, "..") == 0)
+                continue;
+
+            char child[MAX_PATH];
+            snprintf(child, sizeof(child), "%s\\%s", path, fd.cFileName);
+            deleteRecursive(child);
+
+        } while(FindNextFileA(h, &fd));
+
+        FindClose(h);
+        RemoveDirectoryA(path);
+    } else {
+        DeleteFileA(path);
+    }
+}
+
+#endif
 
 #if defined(UA_FILESYSTEM)
 
@@ -106,7 +177,7 @@ START_TEST(delete_item)
 START_TEST(open_file_test)
 {
     UA_Int32 *handle = NULL;
-    UA_StatusCode status = openFile("./TestDir/TestFile.txt", 'r', &handle);
+    UA_StatusCode status = openFile("./TestDir/TestFile.txt", 0x01, &handle);
     ck_assert_int_eq(status, UA_STATUSCODE_GOOD);
     ck_assert_ptr_ne(handle, NULL);
 
@@ -201,13 +272,16 @@ END_TEST
 /* FIXTURES                                                                  */
 /* ------------------------------------------------------------------------- */
 
-
 static void setup(void) {
-    system("rm -rf ./TestDir ./TestDir2 ./TestFile.txt");
+    deleteRecursive("./TestDir");
+    deleteRecursive("./TestDir2");
+    deleteRecursive("./TestFile.txt");
 }
 
 static void teardown(void) {
-    system("rm -rf ./TestDir ./TestDir2 ./TestFile.txt");
+    deleteRecursive("./TestDir");
+    deleteRecursive("./TestDir2");
+    deleteRecursive("./TestFile.txt");
 }
 
 /* ------------------------------------------------------------------------- */

@@ -361,24 +361,18 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
                                   UA_Server *server,
                                   const UA_NodeId *parentNode,
                                   const char *mountPath,
-                                  UA_NodeId *newNodeId, const bool dirExists) {
+                                  UA_NodeId *newNodeId, const bool asFileSystem) {
 
     char name[MAX_PATH]; // Buffer for node name, with extra space for hashing if needed
-    if (driver == NULL) {
+    if (asFileSystem == false) {
         strncpy(name, mountPath, sizeof(name));
         
         if (childExists(server, parentNode, name)) {
             return UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
         }
     } else {
-        UA_Boolean exists;
-        directoryExists(mountPath, &exists);
-        if (!exists) {
-            return UA_STATUSCODE_BADNOTFOUND;
-        }
-
         strncpy(name, "FileSystem", sizeof(name));
-        
+
         if (childExists(server, parentNode, name)) {
             uint32_t hash = 2166136261u; // FNV-1a
             for(const char *p = mountPath; *p; p++) {
@@ -393,6 +387,12 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
                 return UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
             }
         }
+    }
+    UA_Boolean exists;
+    directoryExists(mountPath, &exists);
+    if (!exists) {
+        driver->makeDirectory(mountPath);
+        return UA_STATUSCODE_BADNOTFOUND;
     }
 
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
@@ -421,9 +421,7 @@ UA_FileServerDriver_addFileDirectory(UA_FileServerDriver *driver,
     UA_LocalizedText_clear(&oAttr.displayName);
     UA_QualifiedName_clear(&browseName);
 
-    if (dirExists) {
-        scanDirectoryRecursive(server, newNodeId, mountPath, (AddDirType)&UA_FileServerDriver_addFileDirectory, (AddFileType)&UA_FileServerDriver_addFile);
-    }
+    scanDirectoryRecursive(driver, server, newNodeId, mountPath, (AddDirType)&UA_FileServerDriver_addFileDirectory, (AddFileType)&UA_FileServerDriver_addFile);
 
     if (driver == NULL) {
         return retval; 
@@ -530,13 +528,11 @@ UA_FileServerDriver_new(const char *name, UA_Server *server, FileDriverType driv
     oAttr.displayName = UA_LOCALIZEDTEXT_ALLOC("en-US", "FileServerDriver");
     UA_QualifiedName browseName = UA_QUALIFIEDNAME_ALLOC(1, name);
 
-    UA_FileDriverContext *ctx = (UA_FileDriverContext*)UA_calloc(1, sizeof(UA_FileDriverContext));
-
     /* --- Setting the FileDriverType for the corresponding functions --- */
     switch (driverType) {
         case FILE_DRIVER_TYPE_LOCAL:
             driver->driverType = FILE_DRIVER_TYPE_LOCAL;
-            fillLocalFileDriverContext(ctx, driver->driverType);
+            fillLocalFileDriver(driver);
             break;
         default:
             free(driver);
@@ -550,7 +546,7 @@ UA_FileServerDriver_new(const char *name, UA_Server *server, FileDriverType driv
         UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
         browseName,
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-        oAttr, ctx, &driverNodeId);
+        oAttr, NULL, &driverNodeId);
 
     UA_LocalizedText_clear(&oAttr.displayName);
     UA_QualifiedName_clear(&browseName);

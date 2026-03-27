@@ -38,7 +38,6 @@ createDirectory(UA_Server *server,
                 fullPath);
 
     /* Perform filesystem delete */
-    UA_FileDriverContext *driverCtx = NULL;
     FileDirectoryContext *ctx = NULL;
 
     /* Get the FileDirectoryContext stored on the node */
@@ -56,18 +55,9 @@ createDirectory(UA_Server *server,
         res |= UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Retrieve the driver context */
-    res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
-
-    if(!driverCtx) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                     "No FileDriverContext found for driver node");
-        res |= UA_STATUSCODE_BADINTERNALERROR;
-    }
-
     // Implementation to create a directory in the filesystem
-    res |= driverCtx->makeDirectory(fullPath);
-    UA_free(driverCtx);
+    res |= driver->makeDirectory(fullPath);
+    
     if (res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
                      "Failed to create directory: %s",
@@ -79,7 +69,7 @@ createDirectory(UA_Server *server,
     output[0].data = UA_NodeId_new();      // SAFE allocation
     UA_NodeId_init((UA_NodeId*)output[0].data);
 
-    UA_FileServerDriver_addFileDirectory(NULL, server, objectId, (const char*)folderName.data, (UA_NodeId*)output[0].data, false);
+    UA_FileServerDriver_addFileDirectory(driver, server, objectId, name, (UA_NodeId*)output[0].data, false);
 
     UA_free(name);
     return res;
@@ -134,7 +124,6 @@ createFile(UA_Server *server,
 
     
     /* Perform filesystem delete */
-    UA_FileDriverContext *driverCtx = NULL;
     FileDirectoryContext *ctx = NULL;
 
     /* Get the FileDirectoryContext stored on the node */
@@ -152,18 +141,10 @@ createFile(UA_Server *server,
         res |= UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Retrieve the driver context */
-    res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
-
-    if(!driverCtx) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                     "No FileDriverContext found for driver node");
-        res |= UA_STATUSCODE_BADINTERNALERROR;
-    }
-
+    UA_Int32 fileHandle = 0;
     // Implementation to create a directory in the filesystem
-    res = driverCtx->makeFile(fullPath, fileHandleBool, (UA_Int32*)output); // TODO: implement driver dependant file handling
-    UA_free(driverCtx);
+    res = driver->makeFile(fullPath, fileHandleBool, &fileHandle); // TODO: implement driver dependant file handling
+    
     if (res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
                      "Failed to create file: %s",
@@ -173,10 +154,14 @@ createFile(UA_Server *server,
 
 
     output[0].type = &UA_TYPES[UA_TYPES_NODEID];
-    output[0].data = UA_NodeId_new();      // SAFE allocation
+    output[0].data = UA_NodeId_new();
     UA_NodeId_init((UA_NodeId*)output[0].data);
 
-    UA_FileServerDriver_addFile(NULL, server, objectId, name, (UA_NodeId*)output[0].data);
+    output[1].type = &UA_TYPES[UA_TYPES_INT32];
+    output[1].data = UA_Int32_new();
+    *(UA_Int32*)output[1].data = fileHandle;
+
+    UA_FileServerDriver_addFile(driver, server, objectId, name, (UA_NodeId*)output[0].data);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -238,7 +223,6 @@ deleteSubtree(UA_Server *server, const UA_NodeId *nodeId, bool deleteFiles) {
         if (deleteFiles) {
             
             /* Perform filesystem delete */
-            UA_FileDriverContext *driverCtx = NULL;
             FileDirectoryContext *ctx = NULL;
 
             /* Get the FileDirectoryContext stored on the node */
@@ -256,18 +240,9 @@ deleteSubtree(UA_Server *server, const UA_NodeId *nodeId, bool deleteFiles) {
                 res |= UA_STATUSCODE_BADINTERNALERROR;
             }
 
-            /* Retrieve the driver context */
-            res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
-
-            if(!driverCtx) {
-                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                            "No FileDriverContext found for driver node");
-                res |= UA_STATUSCODE_BADINTERNALERROR;
-            }
-
             /* Perform filesystem delete */
-            driverCtx->deleteDirOrFile(fullPath);
-            UA_free(driverCtx);
+            driver->deleteDirOrFile(fullPath);
+            
         }
 
         /* Delete the child node itself */
@@ -309,7 +284,6 @@ deleteItem(UA_Server *server,
                  "FullPath for deletion: %s", fullPath);
 
     /* Perform filesystem delete */
-    UA_FileDriverContext *driverCtx = NULL;
     FileDirectoryContext *ctx = NULL;
 
     /* Get the FileDirectoryContext stored on the node */
@@ -327,23 +301,14 @@ deleteItem(UA_Server *server,
         res |= UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Retrieve the driver context */
-    res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
-
-    if(!driverCtx) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                     "No FileDriverContext found for driver node");
-        res |= UA_STATUSCODE_BADINTERNALERROR;
-    }
-
     if (res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
                         "Failed to get driver context for deletion");
         return res;
     }
 
-    res = driverCtx->deleteDirOrFile(fullPath);
-    UA_free(driverCtx);
+    res = driver->deleteDirOrFile(fullPath);
+    
     if (res == UA_STATUSCODE_GOOD) {
         res = UA_Server_deleteNode(server, *nodeId, true);           
         UA_NodeId_clear(nodeId);
@@ -403,7 +368,6 @@ moveOrCopy(UA_Server *server,
     strncpy(dstPath, temp, MAX_PATH);
 
     /* Perform filesystem delete */
-    UA_FileDriverContext *driverCtx = NULL;
     FileDirectoryContext *ctx = NULL;
 
     /* Get the FileDirectoryContext stored on the node */
@@ -421,18 +385,9 @@ moveOrCopy(UA_Server *server,
         res |= UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Retrieve the driver context */
-    res |= UA_Server_getNodeContext(server, driver->base.nodeId, (void**)&driverCtx);
-
-    if(!driverCtx) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_DRIVER,
-                     "No FileDriverContext found for driver node");
-        res |= UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    bool isDir = driverCtx->isDirectory(srcPath);
-    res = driverCtx->moveOrCopyItem(srcPath, dstPath, *createCopy);
-    UA_free(driverCtx);
+    bool isDir = driver->isDirectory(srcPath);
+    res = driver->moveOrCopyItem(srcPath, dstPath, *createCopy);
+    
     if (res == UA_STATUSCODE_GOOD) {
         if (!*createCopy) {
             res |= deleteSubtree(server, nodeIdSrc, false);
@@ -443,7 +398,7 @@ moveOrCopy(UA_Server *server,
             UA_NodeId_clear(nodeIdSrc);
         }
         if (isDir) {
-            res |= UA_FileServerDriver_addFileDirectory(NULL, server, nodeIdDst, name, (UA_NodeId*)output, true);
+            res |= UA_FileServerDriver_addFileDirectory(NULL, server, nodeIdDst, name, (UA_NodeId*)output, false);
         } else {
             res |= UA_FileServerDriver_addFile(NULL, server, nodeIdDst, name, (UA_NodeId*)output);
         }
@@ -517,57 +472,6 @@ moveOrCopyAction(UA_Server *server,
                            inputSize, input,
                            outputSize, output);
     unlockServer(server);
-    return res;
-}
-
-UA_StatusCode
-__directoryOperation(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
-                  const UA_NodeId *methodId, void *methodContext,
-                  const UA_NodeId *objectId, void *objectContext,
-                  size_t inputSize, const UA_Variant *input,
-                  size_t outputSize, UA_Variant *output,
-                  DirectoryOperationType opType) {
-    if (!server) {
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-
-    switch (opType) {
-        case DIR_OP_MKDIR:
-            res = createDirectoryAction(server, sessionId, sessionHandle,
-                                methodId, methodContext,
-                                objectId, objectContext,
-                                inputSize, input,
-                                outputSize, output);
-            break;
-        case DIR_OP_MKFILE:
-            res = createFileAction(server, sessionId, sessionHandle,
-                           methodId, methodContext,
-                           objectId, objectContext,
-                           inputSize, input,
-                           outputSize, output);
-            break;
-        case DIR_OP_DELETE:
-            res = deleteAction(server, sessionId, sessionHandle,
-                           methodId, methodContext,
-                           objectId, objectContext,
-                           inputSize, input,
-                           outputSize, output);
-            break;
-        case DIR_OP_MOVEORCOPY:
-            res = moveOrCopyAction(server, sessionId, sessionHandle,
-                           methodId, methodContext,
-                           objectId, objectContext,
-                           inputSize, input,
-                           outputSize, output);
-            break;
-        default:
-            res = UA_STATUSCODE_BADINVALIDARGUMENT;
-            break;
-    }
-
     return res;
 }
 

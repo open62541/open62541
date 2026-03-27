@@ -20,11 +20,22 @@ makeDirectory(const char *path) {
 UA_StatusCode
 makeFile(const char *path, bool fileHandleBool, UA_Int32* output) {
     FILE* file = fopen(path, "w");
-    if (output == NULL) {
+    if (!file) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if (fileHandleBool) {
-        output = (UA_Int32*)file;
+        if (!output) {
+            fclose(file);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        
+        int fd = fileno(file);
+        if(fd == -1) {
+            fclose(file);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        *output = (UA_Int32)fd;
         return UA_STATUSCODE_GOOD;
     }
     fclose(file);
@@ -265,6 +276,7 @@ getFileSize(const char *path, UA_UInt64 *size) {
 
 UA_StatusCode
 scanDirectoryRecursive(
+    UA_FileServerDriver *driver,
     UA_Server *server, 
     const UA_NodeId *parentNode, 
     const char *path, 

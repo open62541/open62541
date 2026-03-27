@@ -263,15 +263,9 @@ UA_EXPORT UA_StatusCode
 UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk);
 
 #ifdef UA_ENABLE_RBAC
-/**
- * Permission Index
- * ~~~~~~~~~~~~~~~~
- * Compact index stored in each node to reference a position in the server's
- * internal role-permissions array. Users interact with role permissions
- * through the high-level API (UA_Server_setNodeRolePermissions etc.).
- *
- * Configured via UA_ROLEPERMISSIONS_NODE_SIZE_BYTE in config.h
- * (valid options: 2, 4, or 8 bytes). */
+
+/* Compact index stored in each node to reference a position in the server's
+ * role-permissions array. Size configured via UA_ROLEPERMISSIONS_NODE_SIZE_BYTE. */
 #if UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 2
 typedef UA_UInt16 UA_PermissionIndex;
 #define UA_PERMISSION_INDEX_INVALID 0xFFFF

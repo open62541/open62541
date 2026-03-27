@@ -298,6 +298,7 @@ struct UA_Server {
     size_t rolesSize;
     UA_Role *roles;
     UA_Boolean *rolesProtected; /* Parallel array: true for config roles */
+
 #endif
 };
 

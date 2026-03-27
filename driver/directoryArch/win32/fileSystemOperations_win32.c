@@ -19,12 +19,22 @@ makeDirectory(const char *path) {
 /*Create a File with the give path*/
 UA_StatusCode
 makeFile(const char *path, bool fileHandleBool, UA_Int32* output) {
-    FILE* file = fopen(path, "w");
-    if (output == NULL) {
+    FILE* file = fopen(path, "w");    
+    if(!file)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
+
     if (fileHandleBool) {
-        output = (UA_Int32*)file;
+        if (!output) {
+            fclose(file);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        int fd =fileno(file);
+        if(fd == -1) {
+            fclose(file);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        *output = (UA_Int32)fd;
         return UA_STATUSCODE_GOOD;
     }
     fclose(file);
@@ -81,8 +91,8 @@ copyDirectory(const char *src, const char* dst) {
             continue;
         
         char srcPath[MAX_PATH], dstPath[MAX_PATH];
-        _snprintf_s(srcPath, MAX_PATH, _TRUNCATE, "%s\\%s", src, fd.cFileName);
-        _snprintf_s(dstPath, MAX_PATH, _TRUNCATE, "%s\\%s", dst, fd.cFileName);
+        snprintf(srcPath, MAX_PATH, "%s\\%s", src, fd.cFileName);
+        snprintf(dstPath, MAX_PATH, "%s\\%s", dst, fd.cFileName);
 
         if(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             copyDirectory(srcPath, dstPath);
@@ -252,6 +262,7 @@ getFileSize(const char *path, UA_UInt64 *size) {
 
 UA_StatusCode
 scanDirectoryRecursive(
+    UA_FileServerDriver *driver,
     UA_Server *server, 
     const UA_NodeId *parentNode, 
     const char *path, 
@@ -275,16 +286,16 @@ scanDirectoryRecursive(
             continue;
         
         char fullPath[MAX_PATH];
-        _snprintf_s(fullPath, sizeof(fullPath), _TRUNCATE, "%s\\%s", path, name);
+        snprintf(fullPath, sizeof(fullPath), "%s\\%s", path, name);
 
         if(ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
             UA_NodeId newDirNode;
-            if ((addDirFunc)(NULL, server, parentNode, name, &newDirNode, false) == UA_STATUSCODE_GOOD) {
-                scanDirectoryRecursive(server, &newDirNode, fullPath, addDirFunc, addFileFunc);
+            if ((addDirFunc)(driver, server, parentNode, name, &newDirNode, false) == UA_STATUSCODE_GOOD) {
+                scanDirectoryRecursive(driver, server, &newDirNode, fullPath, addDirFunc, addFileFunc);
             }
         } else {
             UA_NodeId newFileNode;
-            ((UA_StatusCode (*)(UA_Driver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *))addFileFunc)(NULL, server, parentNode, name, &newFileNode);
+            (addFileFunc)(driver, server, parentNode, name, &newFileNode);
         }
     } while(FindNextFileA(hfind, &ffd) != 0);
 

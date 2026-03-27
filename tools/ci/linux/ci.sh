@@ -548,7 +548,6 @@ Mining-PELOServices-General\;Mining-PELOServices-FaceAlignmentSystem\;\
 Mining-MonitoringSupervisionServices-General\;\
 Shotblasting \
           -DUA_NAMESPACE_ZERO=FULL \
-          -DUA_ENABLE_FILESYSTEM=ON \
           ..
     make ${MAKEOPTS}
 
@@ -590,6 +589,7 @@ PlasticsRubber-Extrusion_v2-Calender\;PlasticsRubber-Extrusion_v2-Calibrator\;\
 PlasticsRubber-Extrusion_v2-Corrugator\;PlasticsRubber-Extrusion_v2-Cutter\;\
 UAFX-Data\;UAFX-AC\;UAFX-CM\;Robotics \
           -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_FILESYSTEM=ON \
           ..
     make ${MAKEOPTS}
 }

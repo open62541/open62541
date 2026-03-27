@@ -438,6 +438,7 @@ updateEndpointUserIdentityToken(UA_Server *server,
 /* Also reused to create the EndpointDescription array in the
  * CreateSessionResponse */
 UA_StatusCode
+
 setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
                          const UA_String endpointUrl,
                          UA_String *profileUris, size_t profileUrisSize,
@@ -460,7 +461,6 @@ setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t j = 0; j < sc->endpointsSize; ++j) {
         const UA_EndpointDescription *ep = &sc->endpoints[j];
-
         /* Test if the supported binary profile shall be returned */
         UA_Boolean usable = (profileUrisSize == 0);
         if(!usable) {

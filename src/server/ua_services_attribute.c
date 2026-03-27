@@ -17,6 +17,7 @@
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include "ua_server_internal.h"
@@ -113,6 +114,81 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
 /****************/
 /* Read Service */
 /****************/
+
+#ifdef UA_ENABLE_RBAC
+static UA_StatusCode
+readRolePermissions(UA_Server *server, UA_Session *session,
+                    const UA_Node *node, UA_DataValue *v) {
+    /* Check if the user has ReadRolePermissions permission on this node */
+    UA_UInt32 effectivePerms = 0;
+    UA_StatusCode retval = UA_Server_getEffectivePermissions(
+        server, &session->sessionId, &node->head.nodeId, &effectivePerms);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    if(!(effectivePerms & UA_PERMISSIONTYPE_READROLEPERMISSIONS))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+    /* Check if node has a valid permission index */
+    if(node->head.permissionIndex == UA_PERMISSION_INDEX_INVALID) {
+        UA_Variant_setArray(&v->value, NULL, 0,
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    const UA_RolePermissionEntry *rp =
+        &server->rolePermissions[node->head.permissionIndex];
+
+    /* If no entries -> return empty array */
+    if(rp->rolePermissionsSize == 0 || !rp->rolePermissions) {
+        UA_Variant_setArray(&v->value, NULL, 0,
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_RolePermissionType *permissions = (UA_RolePermissionType*)
+        UA_Array_new(rp->rolePermissionsSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    if(!permissions)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    retval = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < rp->rolePermissionsSize; i++) {
+        retval = UA_NodeId_copy(&rp->rolePermissions[i].roleId, &permissions[i].roleId);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(permissions, i, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+            return retval;
+        }
+        permissions[i].permissions = rp->rolePermissions[i].permissions;
+    }
+
+    UA_Variant_setArray(&v->value, permissions, rp->rolePermissionsSize,
+                       &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+readUserRolePermissions(UA_Server *server, UA_Session *session,
+                        const UA_Node *node, UA_DataValue *v) {
+    /* Return only the roles that the current session has been granted */
+    size_t entriesSize = 0;
+    UA_RolePermissionType *entries = NULL;
+
+    UA_StatusCode retval = UA_Server_getUserRolePermissions(
+        server, &session->sessionId, &node->head.nodeId,
+        &entriesSize, &entries);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        /* On error, return empty array (fail open for compatibility) */
+        UA_Variant_setArray(&v->value, NULL, 0,
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_Variant_setArray(&v->value, entries, entriesSize,
+                       &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+#endif /* UA_ENABLE_RBAC */
 
 static UA_StatusCode
 readIsAbstractAttribute(const UA_Node *node, UA_Variant *v) {
@@ -500,9 +576,24 @@ ReadWithNodeMaybeAsync(const UA_Node *node, UA_Server *server, UA_Session *sessi
         break;
     }
     case UA_ATTRIBUTEID_ROLEPERMISSIONS:
+#ifdef UA_ENABLE_RBAC
+        retval = readRolePermissions(server, session, node, v);
+#else
+        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+#endif
+        break;
     case UA_ATTRIBUTEID_USERROLEPERMISSIONS:
+#ifdef UA_ENABLE_RBAC
+        retval = readUserRolePermissions(server, session, node, v);
+#else
+        /* Without RBAC, return empty array */
+        UA_Variant_setArray(&v->value, NULL, 0,
+                           &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        retval = UA_STATUSCODE_GOOD;
+#endif
+        break;
     case UA_ATTRIBUTEID_ACCESSRESTRICTIONS:
-        /* TODO: Add support for the attributes from the 1.04 spec */
+        /* TODO: Add support for AccessRestrictions from the 1.04 spec */
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break;
 
@@ -1316,7 +1407,7 @@ static UA_StatusCode
 writeInternalValueAttribute(UA_DataValue *oldValue,
                             const UA_DataValue *value,
                             const UA_NumericRange *rangeptr) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* Overwrite only a sub-range in the (multi-dimensional) array */
     if(rangeptr) {
         /* Value on both sides? */
         if(value->status != oldValue->status || !value->hasValue || !oldValue->hasValue)
@@ -1337,10 +1428,10 @@ writeInternalValueAttribute(UA_DataValue *oldValue,
             return UA_STATUSCODE_BADTYPEMISMATCH;
 
         /* Write the value */
-        retval = UA_Variant_setRangeCopy(&oldValue->value, v->data,
-                                         v->arrayLength, *rangeptr);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+        UA_StatusCode res =
+            UA_Variant_setRangeCopy(&oldValue->value, v->data, v->arrayLength, *rangeptr);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
 
         /* Write the status and timestamps */
         oldValue->hasStatus = value->hasStatus;
@@ -1349,51 +1440,10 @@ writeInternalValueAttribute(UA_DataValue *oldValue,
         oldValue->sourceTimestamp = value->sourceTimestamp;
         oldValue->hasSourcePicoseconds = value->hasSourcePicoseconds;
         oldValue->sourcePicoseconds = value->sourcePicoseconds;
-    } else {
-        UA_DataValue tmpValue = *value;
-
-        /* If possible memcpy the new value over the old value without
-         * a malloc. For this the value needs to be "pointerfree". */
-        if(oldValue->hasValue && oldValue->value.type &&
-           oldValue->value.type->pointerFree && value->hasValue &&
-           value->value.type && value->value.type->pointerFree &&
-           oldValue->value.type->memSize == value->value.type->memSize) {
-            size_t oSize = 1;
-            size_t vSize = 1;
-            if(!UA_Variant_isScalar(&oldValue->value))
-                oSize = oldValue->value.arrayLength;
-            if(!UA_Variant_isScalar(&value->value))
-                vSize = value->value.arrayLength;
-
-            if(oSize == vSize &&
-               oldValue->value.arrayDimensionsSize == value->value.arrayDimensionsSize) {
-                /* Keep the old pointers, but adjust type and array length */
-                tmpValue.value = oldValue->value;
-                tmpValue.value.type = value->value.type;
-                tmpValue.value.arrayLength = value->value.arrayLength;
-
-                /* Copy the data over the old memory */
-                memcpy(tmpValue.value.data, value->value.data,
-                       oSize * oldValue->value.type->memSize);
-                if(oldValue->value.arrayDimensionsSize > 0) /* No memcpy with NULL-ptr */
-                    memcpy(tmpValue.value.arrayDimensions, value->value.arrayDimensions,
-                           sizeof(UA_UInt32) * oldValue->value.arrayDimensionsSize);
-
-                /* Set the value */
-                *oldValue = tmpValue;
-                return UA_STATUSCODE_GOOD;
-            }
-        }
-
-        /* Make a deep copy of the value and replace when this succeeds */
-        retval = UA_Variant_copy(&value->value, &tmpValue.value);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-        UA_DataValue_clear(oldValue);
-        *oldValue = tmpValue;
+        return UA_STATUSCODE_GOOD;
     }
 
-    return retval;
+    return UA_replace(oldValue, value, &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 
 static UA_StatusCode
@@ -1770,6 +1820,15 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_USERWRITEMASK(UA_WRITEMASK_EXECUTABLE);
         CHECK_DATATYPE_SCALAR(BOOLEAN);
         node->methodNode.executable = *(const UA_Boolean*)value;
+        break;
+    case UA_ATTRIBUTEID_ROLEPERMISSIONS:
+        /* Writing RolePermissions via the attribute service is not yet
+         * supported. Use the RBAC C API to configure role permissions. */
+        retval = UA_STATUSCODE_BADNOTWRITABLE;
+        break;
+    case UA_ATTRIBUTEID_USERROLEPERMISSIONS:
+        /* UserRolePermissions is read-only, cannot be written */
+        retval = UA_STATUSCODE_BADNOTWRITABLE;
         break;
     default:
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;

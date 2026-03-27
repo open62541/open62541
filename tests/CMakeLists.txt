@@ -321,6 +321,7 @@ ua_add_test(server/check_services_attributes_all.c)
 
 if(UA_ENABLE_RBAC)
     ua_add_test(server/check_server_rbac.c)
+    ua_add_test(server/check_server_rbac_permissions.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
@@ -330,6 +331,7 @@ endif()
 
 if(UA_FILESYSTEM)
     ua_add_test(filesystem/check_filesystem_operations.c)
+    ua_add_test(filesystem/check_filesystem_client.c)
 endif()
 
 if(UA_ENABLE_PUBSUB)

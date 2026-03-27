@@ -1202,6 +1202,17 @@ UA_ReadValueId_print(const UA_ReadValueId *rvi, UA_String *out) {
     return moveTmpToOut(&tmp, out);
 }
 
+UA_StatusCode
+UA_replace(void *orig, const void *val, const UA_DataType *type) {
+    UA_STACKARRAY(char, tmp, type->memSize);
+    UA_StatusCode res = UA_copy(val, tmp, type);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    UA_clear(orig, type);
+    memcpy(orig, tmp, type->memSize);
+    return UA_STATUSCODE_GOOD;
+}
+
 /************************/
 /* Cryptography Helpers */
 /************************/

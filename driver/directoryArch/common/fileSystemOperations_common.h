@@ -50,16 +50,25 @@ getFullPath(UA_Server *server,
                 .referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                 .nodeClassMask = UA_NODECLASS_OBJECT
             });
-
+        
         if(br.referencesSize == 0) {
             UA_BrowseResult_clear(&br);
             break;
         }
 
-        /* Move to parent */
-        current = br.references[0].nodeId.nodeId;
+        UA_NodeId parentNodeId;
+        UA_NodeId_init(&parentNodeId);
+        UA_StatusCode rc = UA_NodeId_copy(&br.references[0].nodeId.nodeId, &current);
 
         UA_BrowseResult_clear(&br);
+
+        if(rc != UA_STATUSCODE_GOOD) {
+            break;
+        }
+
+        /* Move to parent */
+        UA_NodeId_clear(&current);
+        current = parentNodeId;
     }
 
     return UA_STATUSCODE_GOOD;
@@ -93,10 +102,11 @@ UA_StatusCode seekFile(UA_Int32 *handle, UA_UInt64 position);
 UA_StatusCode getFilePosition(UA_Int32 *handle, UA_UInt64 *position);
 UA_StatusCode getFileSize(const char *path, UA_UInt64 *size);
 
-typedef UA_StatusCode (*AddDirType)(UA_Driver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *, const bool);
-typedef UA_StatusCode (*AddFileType)(UA_Driver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *);
+typedef UA_StatusCode (*AddDirType)(UA_FileServerDriver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *, const bool);
+typedef UA_StatusCode (*AddFileType)(UA_FileServerDriver *, UA_Server *, const UA_NodeId *, const char *, UA_NodeId *);
 
 UA_StatusCode scanDirectoryRecursive(
+    UA_FileServerDriver *driver,
     UA_Server *server, 
     const UA_NodeId *parentNode, 
     const char *path, 
@@ -104,25 +114,19 @@ UA_StatusCode scanDirectoryRecursive(
     AddFileType addFileFunc);
 
 inline static UA_StatusCode
-fillLocalFileDriverContext(UA_FileDriverContext *ctx, FileDriverType driverType) {
-    switch (driverType) {
-        case FILE_DRIVER_TYPE_LOCAL:
-            ctx->openFile = &openFile;
-            ctx->closeFile = &closeFile;
-            ctx->readFile = &readFile;
-            ctx->writeFile = &writeFile;
-            ctx->seekFile = &seekFile;
-            ctx->getFilePosition = &getFilePosition;
-            ctx->getFileSize = &getFileSize;
-            ctx->deleteDirOrFile = &deleteDirOrFile;
-            ctx->moveOrCopyItem = &moveOrCopyItem;
-            ctx->makeDirectory = &makeDirectory;
-            ctx->makeFile = &makeFile;
-            ctx->isDirectory = &isDirectory;
-            break;
-        default:
-            return UA_STATUSCODE_BADINTERNALERROR;
-    }
+fillLocalFileDriver(UA_FileServerDriver *ctx) {
+    ctx->openFile = &openFile;
+    ctx->closeFile = &closeFile;
+    ctx->readFile = &readFile;
+    ctx->writeFile = &writeFile;
+    ctx->seekFile = &seekFile;
+    ctx->getFilePosition = &getFilePosition;
+    ctx->getFileSize = &getFileSize;
+    ctx->deleteDirOrFile = &deleteDirOrFile;
+    ctx->moveOrCopyItem = &moveOrCopyItem;
+    ctx->makeDirectory = &makeDirectory;
+    ctx->makeFile = &makeFile;
+    ctx->isDirectory = &isDirectory;
     return UA_STATUSCODE_GOOD;
 }
 
