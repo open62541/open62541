@@ -571,7 +571,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
     find_package(PkgConfig REQUIRED)
     pkg_search_module(AVAHI REQUIRED avahi-client avahi-common)
     include_directories(${AVAHI_INCLUDE_DIRS})
-    list(APPEND open62541_LIBRARIES "${AVAHI_LIBRARIES}")
+    list(APPEND open62541_PUBLIC_LIBRARIES "${AVAHI_LIBRARIES}")
 endif()
 
 if(UA_ARCHITECTURE_LWIP)
@@ -1541,9 +1541,6 @@ SET_TARGET_PROPERTIES(open62541 PROPERTIES
 # DLL requires linking to dependencies
 target_link_libraries(open62541 PUBLIC ${open62541_PUBLIC_LIBRARIES})
 target_link_libraries(open62541 PRIVATE ${open62541_LIBRARIES})
-if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
-    target_link_libraries(open62541 PUBLIC ${AVAHI_LIBRARIES})
-endif()
 
 ##########################
 # Build Selected Targets #
