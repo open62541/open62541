@@ -14,14 +14,6 @@
 
 #define RECEIVE_BUFFER_SIZE 65535
 
-static void *
-_removeServerComponent(void *application, UA_ServerComponent *sc) {
-    UA_assert(sc->state == UA_LIFECYCLESTATE_STOPPED);
-    sc->clear(sc);
-    UA_free(sc);
-    return NULL;
-}
-
 /*
 ** Main entry point.  The fuzzer invokes this function with each
 ** fuzzed input.
@@ -61,15 +53,14 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
     memcpy(msg.data, data, size);
 
-    /* Remove all remaining server components (must be all stopped) */
-    lockServer(server);
-    ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
-             _removeServerComponent, server);
-    ZIP_INIT(&server->serverComponents);
-    unlockServer(server);
-
-    UA_ServerComponent *bpm = UA_BinaryProtocolManager_new(server);
-    addServerComponent(server, bpm, NULL);
+    /* Get the binary server components */
+    UA_String binStr = UA_STRING((char*)(uintptr_t)"binary");
+    UA_ServerComponent *bpm = NULL;
+    for(UA_ServerComponent *sc = server->components; sc; sc = sc->next) {
+        if(UA_String_equal(&binStr, &sc->name))
+            bpm = sc;
+    }
+    UA_assert(bpm != NULL);
 
     void *ctx = NULL;
     serverNetworkCallback(&testConnectionManagerTCP, 0, bpm,

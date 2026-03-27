@@ -655,7 +655,7 @@ struct UA_PubSubManager {
 
 static UA_INLINE UA_PubSubManager *
 getPSM(UA_Server *server) {
-    return (UA_PubSubManager*)getServerComponentByName(server, UA_STRING("pubsub"));
+    return (UA_PubSubManager*)server->pubSubSC;
 }
 
 UA_StatusCode

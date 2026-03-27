@@ -692,8 +692,7 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data) {
     lockServer(server);
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
-        getServerComponentByName(server, UA_STRING("discovery"));
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
     if(dm) {
         dm->serverOnNetworkCallback = cb;
         dm->serverOnNetworkCallbackData = data;

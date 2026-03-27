@@ -1104,9 +1104,7 @@ UA_Server_addReverseConnect(UA_Server *server, UA_String url,
                             UA_Server_ReverseConnectStateCallback stateCallback,
                             void *callbackContext, UA_UInt64 *handle) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerComponent *sc =
-        getServerComponentByName(server, UA_STRING("binary"));
-    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)sc;
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)server->binarySC;
     if(!bpm) {
         UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
                      "No BinaryProtocolManager configured");
@@ -1159,9 +1157,7 @@ UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
 
     lockServer(server);
 
-    UA_ServerComponent *sc =
-        getServerComponentByName(server, UA_STRING("binary"));
-    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)sc;
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)server->binarySC;
     if(!bpm) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "No BinaryProtocolManager configured");
@@ -1351,6 +1347,9 @@ UA_BinaryProtocolManager_start(UA_ServerComponent *sc) {
 
     UA_Server *server = sc->server;
     UA_ServerConfig *config = &server->config;
+
+    /* Set the logging shortcut */
+    bpm->logging = config->logging;
     
     UA_StatusCode retVal =
         addRepeatedCallback(server, secureChannelHouseKeeping,
@@ -1481,7 +1480,7 @@ UA_BinaryProtocolManager_free(UA_ServerComponent *sc) {
 }
 
 UA_ServerComponent *
-UA_BinaryProtocolManager_new(UA_Server *server) {
+UA_BinaryProtocolManager_new(void) {
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)
         UA_calloc(1, sizeof(UA_BinaryProtocolManager));
     if(!bpm)
@@ -1494,8 +1493,8 @@ UA_BinaryProtocolManager_new(UA_Server *server) {
     bpm->sc.stop = UA_BinaryProtocolManager_stop;
     bpm->sc.free = UA_BinaryProtocolManager_free;
 
-    bpm->sc.server = server;
-    bpm->logging = server->config.logging;
+    /* Gets set during start */
+    /* bpm->sc.server = server; */
 
     return &bpm->sc;
 }

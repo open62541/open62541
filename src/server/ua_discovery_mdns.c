@@ -1198,8 +1198,7 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data) {
     lockServer(server);
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
-        getServerComponentByName(server, UA_STRING("discovery"));
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
     if(dm) {
         dm->serverOnNetworkCallback = cb;
         dm->serverOnNetworkCallbackData = data;
@@ -1264,8 +1263,7 @@ UA_Discovery_recordExists(UA_DiscoveryManager *dm, const char* fullServiceDomain
 static int
 discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg) {
     UA_Server *server = (UA_Server*) arg;
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
-        getServerComponentByName(server, UA_STRING("discovery"));
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
     if(!dm)
         return 0;
 
