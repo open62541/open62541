@@ -6,10 +6,12 @@
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2024 (c) Linutronix GmbH (Author: Vasilij Strassheim)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
-#include "ua_discovery.h"
-#include "ua_server_internal.h"
+#include <open62541/server.h>
+#include <open62541/plugin/servercomponent.h>
+
 #include <stdio.h>
 #include <avahi-client/client.h>
 #include <avahi-client/lookup.h>
@@ -22,331 +24,190 @@
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_AVAHI
 
-typedef struct serverOnNetwork {
-    LIST_ENTRY(serverOnNetwork) pointers;
+typedef struct ServerOnNetwork {
+    struct ServerOnNetwork *next;
     UA_ServerOnNetwork serverOnNetwork;
     AvahiEntryGroup *group;
-    UA_DateTime created;
-    UA_DateTime lastSeen;
     UA_Boolean txtSet;
     UA_Boolean srvSet;
     char* pathTmp;
-} serverOnNetwork;
+} ServerOnNetwork;
 
-#define SERVER_ON_NETWORK_HASH_SIZE 1000
-typedef struct serverOnNetwork_hash_entry {
-    serverOnNetwork *entry;
-    struct serverOnNetwork_hash_entry* next;
-} serverOnNetwork_hash_entry;
+typedef struct {
+    UA_MdnsServerComponent msc;
 
-typedef struct avahiPrivate {
+    UA_Logger *logging; /* Shortcut from msc->server->logging */
+
+    UA_Boolean mdnsMainSrvAdded;
+
     AvahiClient *client;
     AvahiSimplePoll *simple_poll;
     AvahiServiceBrowser *browser;
-    UA_Server *server;
-    /* hash mapping domain name to serverOnNetwork list entry */
-    struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_SIZE];
-    LIST_HEAD(, serverOnNetwork) serverOnNetwork;
+
+    ServerOnNetwork *serverList;
+
     /* Name of server itself. Used to detect if received mDNS
      * message was from itself */
     UA_String selfMdnsRecord;
-    UA_UInt32 serverOnNetworkRecordIdCounter;
-    UA_DateTime serverOnNetworkRecordIdLastReset;
-} avahiPrivate;
 
-static
-avahiPrivate mdnsPrivateData;
+    UA_UInt64 pollCallbackId;
+} AvahiServerComponent;
 
 static UA_StatusCode
-UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
-                                               UA_String serverName,
-                                               struct serverOnNetwork **addedEntry);
+addEntryToServersOnNetwork(AvahiServerComponent *asc,
+                           UA_String serverName,
+                           ServerOnNetwork **addedEntry);
 
 static void
-UA_Discovery_multicastConflict(UA_String name, UA_DiscoveryManager *dm) {
+multicastConflict(UA_String name, AvahiServerComponent *asc) {
     /* In case logging is disabled */
     (void)name;
-    UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+    UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                  "Multicast DNS name conflict detected: '%S'", name);
 }
 
-static struct serverOnNetwork *
-mdns_record_add_or_get(UA_DiscoveryManager *dm, UA_String serverName,
+static ServerOnNetwork *
+mdns_record_add_or_get(AvahiServerComponent *asc, UA_String serverName,
                        UA_Boolean createNew) {
-    UA_UInt32 hashIdx = UA_ByteString_hash(0, serverName.data,
-                                           serverName.length) % SERVER_ON_NETWORK_HASH_SIZE;
-    struct serverOnNetwork_hash_entry *hash_entry = mdnsPrivateData.serverOnNetworkHash[hashIdx];
-
-    while(hash_entry) {
-        size_t maxLen = serverName.length;
-        if(maxLen > hash_entry->entry->serverOnNetwork.serverName.length)
-            maxLen = hash_entry->entry->serverOnNetwork.serverName.length;
-
-        if(UA_String_equal(&hash_entry->entry->serverOnNetwork.serverName, &serverName))
-            return hash_entry->entry;
-        hash_entry = hash_entry->next;
+    for(ServerOnNetwork *son = asc->serverList; son; son = son->next) {
+        if(UA_String_equal(&serverName, &son->serverOnNetwork.serverName))
+            return son;
     }
 
     if(!createNew)
         return NULL;
 
-    struct serverOnNetwork *listEntry;
-    UA_StatusCode res =
-        UA_DiscoveryManager_addEntryToServersOnNetwork(dm, serverName, &listEntry);
-    if(res != UA_STATUSCODE_GOOD)
-        return NULL;
-
-    return listEntry;
+    ServerOnNetwork *entry = NULL;
+    addEntryToServersOnNetwork(asc, serverName, &entry);
+    return entry;
 }
 
 static UA_StatusCode
-UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
-                                               UA_String serverName,
-                                               struct serverOnNetwork **addedEntry) {
-    struct serverOnNetwork *entry =
-            mdns_record_add_or_get(dm, serverName, false);
+addEntryToServersOnNetwork(AvahiServerComponent *asc, UA_String serverName,
+                           ServerOnNetwork **addedEntry) {
+    /* Lookup without creating new */
+    ServerOnNetwork *entry = mdns_record_add_or_get(asc, serverName, false);
     if(entry) {
         if(addedEntry != NULL)
             *addedEntry = entry;
         return UA_STATUSCODE_BADALREADYEXISTS;
     }
 
-    UA_LOG_DEBUG(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
-                 "Multicast DNS: Add entry to ServersOnNetwork: (%S)", serverName);
+    UA_LOG_DEBUG(asc->logging, UA_LOGCATEGORY_SERVER,
+                 "Multicast DNS: Add entry to ServersOnNetwork: (%S)",
+                 serverName);
 
-    struct serverOnNetwork *listEntry = (serverOnNetwork*)
-            UA_malloc(sizeof(struct serverOnNetwork));
+    ServerOnNetwork *listEntry = (ServerOnNetwork*)
+        UA_calloc(1, sizeof(ServerOnNetwork));
     if(!listEntry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-
-    UA_EventLoop *el = dm->sc.server->config.eventLoop;
-    listEntry->created = el->dateTime_now(el);
-    listEntry->pathTmp = NULL;
-    listEntry->txtSet = false;
-    listEntry->srvSet = false;
-    UA_ServerOnNetwork_init(&listEntry->serverOnNetwork);
-    listEntry->serverOnNetwork.recordId = mdnsPrivateData.serverOnNetworkRecordIdCounter;
-    UA_StatusCode res = UA_String_copy(&serverName, &listEntry->serverOnNetwork.serverName);
+    UA_StatusCode res = UA_String_copy(&serverName,
+                                       &listEntry->serverOnNetwork.serverName);
     if(res != UA_STATUSCODE_GOOD) {
         UA_free(listEntry);
         return res;
     }
-    mdnsPrivateData.serverOnNetworkRecordIdCounter++;
-    if(mdnsPrivateData.serverOnNetworkRecordIdCounter == 0)
-        UA_DiscoveryManager_resetServerOnNetworkRecordCounter(dm);
-    listEntry->lastSeen = el->dateTime_nowMonotonic(el);
 
-    /* add to hash */
-    UA_UInt32 hashIdx = UA_ByteString_hash(0, serverName.data, serverName.length) %
-                        SERVER_ON_NETWORK_HASH_SIZE;
-    struct serverOnNetwork_hash_entry *newHashEntry = (struct serverOnNetwork_hash_entry*)
-            UA_malloc(sizeof(struct serverOnNetwork_hash_entry));
-    if(!newHashEntry) {
-        UA_String_clear(&listEntry->serverOnNetwork.serverName);
+    /* Add to the server */
+    UA_Server *server = asc->msc.serverComponent.server;
+    res = UA_Server_registerServerOnNetwork(server, &listEntry->serverOnNetwork, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ServerOnNetwork_clear(&listEntry->serverOnNetwork);
         UA_free(listEntry);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        return res;
     }
-    newHashEntry->next = mdnsPrivateData.serverOnNetworkHash[hashIdx];
-    mdnsPrivateData.serverOnNetworkHash[hashIdx] = newHashEntry;
-    newHashEntry->entry = listEntry;
 
-    LIST_INSERT_HEAD(&mdnsPrivateData.serverOnNetwork, listEntry, pointers);
+    /* Add to the linked list */
+    listEntry->next = asc->serverList;
+    asc->serverList = listEntry;
+
+    /* Return pointer if requested */
     if(addedEntry != NULL)
         *addedEntry = listEntry;
-
-    /* call callback for every entry we receive. */
-    if(dm->serverOnNetworkCallback) {
-        dm->serverOnNetworkCallback(&listEntry->serverOnNetwork, true, listEntry->txtSet,
-                                    dm->serverOnNetworkCallbackData);
-    }
-
     return UA_STATUSCODE_GOOD;
 }
 
 static void
 entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
                      AVAHI_GCC_UNUSED void *userdata) {
-    bool groupFound = false;
     if(!userdata)
         return;
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager *)userdata;
+
+    AvahiServerComponent *asc = (AvahiServerComponent*)userdata;
     if(!g) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                      "AvahiEntryGroup or userdata is NULL");
         return;
     }
+
     /* Called whenever the entry group state changes */
     /* Find the registered service on network */
-    serverOnNetwork *current;
-    LIST_FOREACH(current, &mdnsPrivateData.serverOnNetwork, pointers) {
-        if(current->group == g) {
-            groupFound = true;
-            break;
-        }
-    }
+    ServerOnNetwork *current = asc->serverList;
+    while(current && current->group != g)
+        current = current->next;
+
+    int err;
     switch(state) {
         case AVAHI_ENTRY_GROUP_ESTABLISHED:
-            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_INFO(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                         "Entry group established.");
             break;
         case AVAHI_ENTRY_GROUP_COLLISION: {
-            if(!groupFound) {
-                UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            if(!current) {
+                UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                              "Entry group collision for unknown group.");
                 break;
             }
-            UA_Discovery_multicastConflict(current->serverOnNetwork.serverName, dm);
+            multicastConflict(current->serverOnNetwork.serverName, asc);
             break;
         }
         case AVAHI_ENTRY_GROUP_FAILURE:
-            UA_LOG_ERROR(
-                dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                "Entry group failure: %s",
-                avahi_strerror(avahi_client_errno(avahi_entry_group_get_client(g))));
+            err = avahi_client_errno(avahi_entry_group_get_client(g));
+            UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                         "Entry group failure: %s", avahi_strerror(err));
 
-            /* Some kind of failure happened while we were registering our services */
-            avahi_simple_poll_quit(mdnsPrivateData.simple_poll);
+            /* Some kind of failure happened while we were registering our
+             * services */
+            avahi_simple_poll_quit(asc->simple_poll);
             break;
         case AVAHI_ENTRY_GROUP_UNCOMMITED:
         case AVAHI_ENTRY_GROUP_REGISTERING:
             break;
         default:
-            UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                          "Unknown entry group state");
             break;
     }
 }
 
 static UA_StatusCode
-UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
-                                                    UA_String serverName) {
-    UA_LOG_DEBUG(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
-                 "Multicast DNS: Remove entry from ServersOnNetwork: %S",serverName);
-
-    struct serverOnNetwork *entry =
-            mdns_record_add_or_get(dm, serverName, false);
-    if(!entry)
-        return UA_STATUSCODE_BADNOTFOUND;
-
-    /* remove from hash */
-    UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)serverName.data,
-                                           serverName.length) % SERVER_ON_NETWORK_HASH_SIZE;
-    struct serverOnNetwork_hash_entry *hash_entry = mdnsPrivateData.serverOnNetworkHash[hashIdx];
-    struct serverOnNetwork_hash_entry *prevEntry = hash_entry;
-    while(hash_entry) {
-        if(hash_entry->entry == entry) {
-            if(mdnsPrivateData.serverOnNetworkHash[hashIdx] == hash_entry)
-                mdnsPrivateData.serverOnNetworkHash[hashIdx] = hash_entry->next;
-            else if(prevEntry)
-                prevEntry->next = hash_entry->next;
-            break;
-        }
-        prevEntry = hash_entry;
-        hash_entry = hash_entry->next;
-    }
-    UA_free(hash_entry);
-
-    if(dm->serverOnNetworkCallback &&
-        !UA_String_equal(&mdnsPrivateData.selfMdnsRecord, &serverName))
-        dm->serverOnNetworkCallback(&entry->serverOnNetwork, false,
-                                    entry->txtSet,
-                                    dm->serverOnNetworkCallbackData);
+removeEntryFromServersOnNetwork(AvahiServerComponent *asc,
+                                UA_String serverName) {
+    UA_LOG_DEBUG(asc->logging, UA_LOGCATEGORY_SERVER,
+                 "Multicast DNS: Remove entry from ServersOnNetwork: %S",
+                 serverName);
 
     /* Remove from list */
-    LIST_REMOVE(entry, pointers);
-    UA_ServerOnNetwork_clear(&entry->serverOnNetwork);
-    if(entry->pathTmp) {
-        UA_free(entry->pathTmp);
-        entry->pathTmp = NULL;
-    }
-    UA_free(entry);
-    return UA_STATUSCODE_GOOD;
-}
-
-
-UA_StatusCode
-UA_DiscoveryManager_clearServerOnNetwork(UA_DiscoveryManager *dm) {
-    if(!dm) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                     "DiscoveryManager is NULL");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
-    serverOnNetwork *son, *son_tmp;
-    LIST_FOREACH_SAFE(son, &mdnsPrivateData.serverOnNetwork, pointers, son_tmp) {
-        LIST_REMOVE(son, pointers);
-        UA_ServerOnNetwork_clear(&son->serverOnNetwork);
-        if(son->pathTmp)
-            UA_free(son->pathTmp);
-        UA_free(son);
-    }
-
-    UA_String_clear(&mdnsPrivateData.selfMdnsRecord);
-
-    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_SIZE; i++) {
-        serverOnNetwork_hash_entry* currHash = mdnsPrivateData.serverOnNetworkHash[i];
-        while(currHash) {
-            serverOnNetwork_hash_entry* nextHash = currHash->next;
-            UA_free(currHash);
-            currHash = nextHash;
+    ServerOnNetwork *entry = mdns_record_add_or_get(asc, serverName, false);
+    if(entry) {
+        for(ServerOnNetwork *son = asc->serverList; son; son = son->next) {
+            if(son->next == entry) {
+                son->next = entry->next;
+                break;
+            }
         }
+        UA_ServerOnNetwork_clear(&entry->serverOnNetwork);
+        if(entry->pathTmp)
+            UA_free(entry->pathTmp);
+        UA_free(entry);
     }
+
+    /* Remove from the server */
+    UA_Server *server = asc->msc.serverComponent.server;
+    UA_Server_deregisterServerOnNetwork(server, serverName, NULL);
 
     return UA_STATUSCODE_GOOD;
-}
-
-UA_ServerOnNetwork*
-UA_DiscoveryManager_getServerOnNetworkList(UA_DiscoveryManager *dm) {
-    serverOnNetwork* entry = LIST_FIRST(&mdnsPrivateData.serverOnNetwork);
-    return entry ? &entry->serverOnNetwork : NULL;
-}
-
-UA_ServerOnNetwork*
-UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_DiscoveryManager *dm,
-                                   UA_ServerOnNetwork *current) {
-    serverOnNetwork *entry = NULL;
-    LIST_FOREACH(entry, &mdnsPrivateData.serverOnNetwork, pointers) {
-        if(&entry->serverOnNetwork == current) {
-            entry = LIST_NEXT(entry, pointers);
-            break;
-        }
-    }
-    return entry ? &entry->serverOnNetwork : NULL;
-}
-
-
-UA_UInt32
-UA_DiscoveryManager_getServerOnNetworkRecordIdCounter(UA_DiscoveryManager *dm) {
-    if(!dm) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                     "DiscoveryManager is NULL");
-        return 0;
-    }
-    return mdnsPrivateData.serverOnNetworkRecordIdCounter;
-}
-
-UA_StatusCode
-UA_DiscoveryManager_resetServerOnNetworkRecordCounter(UA_DiscoveryManager *dm) {
-    if(!dm) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                     "DiscoveryManager is NULL");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    mdnsPrivateData.serverOnNetworkRecordIdCounter = 0;
-    mdnsPrivateData.serverOnNetworkRecordIdLastReset = dm->sc.server->config.eventLoop->dateTime_now(
-        dm->sc.server->config.eventLoop);
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_DateTime
-UA_DiscoveryManager_getServerOnNetworkCounterResetTime(UA_DiscoveryManager *dm) {
-    if(!dm) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                     "DiscoveryManager is NULL");
-        return 0;
-    }
-    return mdnsPrivateData.serverOnNetworkRecordIdLastReset;
 }
 
 typedef enum {
@@ -361,12 +222,11 @@ typedef enum {
  * serversOnNetwork list so that a client finds it when calling
  * FindServersOnNetwork. */
 static UA_StatusCode
-UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
-                       const UA_String hostname, UA_UInt16 port,
-                       const UA_String path, const UA_DiscoveryProtocol protocol,
-                       UA_Boolean createTxt, const UA_String* capabilites,
-                       const size_t capabilitiesSize,
-                       UA_Boolean isSelf);
+addRecord(AvahiServerComponent *asc, const UA_String servername,
+          const UA_String hostname, UA_UInt16 port,
+          const UA_String path, const UA_DiscoveryProtocol protocol,
+          const UA_String* capabilites, const size_t capabilitiesSize,
+          UA_Boolean isSelf);
 
 /* Create a mDNS Record for the given server info with TTL=0 and adds it to the
  * mDNS output queue.
@@ -375,12 +235,11 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
  * serversOnNetwork list so that a client gets the updated data when calling
  * FindServersOnNetwork. */
 static UA_StatusCode
-UA_Discovery_removeRecord(UA_DiscoveryManager *dm, const UA_String servername,
-                          const UA_String hostname, UA_UInt16 port,
-                          UA_Boolean removeTxt);
+removeRecord(AvahiServerComponent *asc, const UA_String servername,
+             const UA_String hostname, UA_UInt16 port);
 
 static UA_StatusCode
-addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName,
+addMdnsRecordForNetworkLayer(AvahiServerComponent *asc, const UA_String serverName,
                              const UA_String *discoveryUrl) {
     UA_String hostname = UA_STRING_NULL;
     UA_UInt16 port = 4840;
@@ -388,27 +247,32 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName
     UA_StatusCode retval =
         UA_parseEndpointUrl(discoveryUrl, &hostname, &port, &path);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_WARNING(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                        "Server url is invalid: %S", *discoveryUrl);
         return retval;
     }
 
+    UA_Server *server = asc->msc.serverComponent.server;
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
     if(hostname.length == 0) {
         /* get host name used by avahi */
-        const char *hoststr = avahi_client_get_host_name(mdnsPrivateData.client);
+        const char *hoststr = avahi_client_get_host_name(asc->client);
         if(!hoststr) {
-            UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_WARNING(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                            "Cannot get hostname from avahi");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
         hostname = UA_String_fromChars(hoststr);
     }
-    retval = UA_Discovery_addRecord(dm, serverName, hostname, port, path, UA_DISCOVERY_TCP, true,
-                                    dm->sc.server->config.mdnsConfig.serverCapabilities,
-                                    dm->sc.server->config.mdnsConfig.serverCapabilitiesSize, true);
+    retval = addRecord(asc, serverName, hostname, port,
+                       path, UA_DISCOVERY_TCP,
+                       config->mdnsConfig.serverCapabilities,
+                       config->mdnsConfig.serverCapabilitiesSize, true);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                       "Cannot add mDNS Record: %s", UA_StatusCode_name(retval));
+        UA_LOG_WARNING(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                       "Cannot add mDNS Record: %s",
+                       UA_StatusCode_name(retval));
         return retval;
     }
     return UA_STATUSCODE_GOOD;
@@ -418,8 +282,9 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName
 static
 void client_callback(AvahiClient *c, AvahiClientState state, void *userdata) {
     /* Handle state changes if necessary */
-    UA_LOG_INFO(((UA_DiscoveryManager *)userdata)->sc.server->config.logging,
-                UA_LOGCATEGORY_DISCOVERY, "Avahi client state changed to %d", state);
+    AvahiServerComponent *asc = (AvahiServerComponent *)userdata;
+    UA_LOG_INFO(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                "Avahi client state changed to %d", state);
 }
 
 /* Called whenever a service has been resolved successfully or timed out */
@@ -431,15 +296,16 @@ resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIndex interfac
                  AvahiStringList *txt, AvahiLookupResultFlags flags,
                  AVAHI_GCC_UNUSED void *userdata) {
 
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager *)userdata;
+    AvahiServerComponent *asc = (AvahiServerComponent *)userdata;
 
+    int err;
     switch(event) {
         case AVAHI_RESOLVER_FAILURE:
-            UA_LOG_ERROR(
-                dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                "Failed to resolve service '%s' of type '%s' in domain '%s': %s", name,
-                type, domain,
-                avahi_strerror(avahi_client_errno(avahi_service_resolver_get_client(r))));
+            err = avahi_client_errno(avahi_service_resolver_get_client(r));
+            UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                         "Failed to resolve service '%s' of type '%s' in "
+                         "domain '%s': %s", name, type, domain,
+                         avahi_strerror(err));
             break;
 
         case AVAHI_RESOLVER_FOUND: {
@@ -448,28 +314,29 @@ resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIndex interfac
 
             /* Ignore own name */
             UA_String serverName = UA_STRING((char*)(uintptr_t)name);
-            if(UA_String_equal(&mdnsPrivateData.selfMdnsRecord, &serverName))
+            if(UA_String_equal(&asc->selfMdnsRecord, &serverName))
                 return;
 
-            struct serverOnNetwork *listEntry;
+            ServerOnNetwork *listEntry;
             UA_StatusCode res =
-                UA_DiscoveryManager_addEntryToServersOnNetwork(dm, serverName, &listEntry);
+                addEntryToServersOnNetwork(asc, serverName, &listEntry);
             if(res == UA_STATUSCODE_BADALREADYEXISTS) {
-                UA_LOG_DEBUG(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                UA_LOG_DEBUG(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                              "Server already in ServersOnNetwork: %s", name);
                 return;
             }
             if(res != UA_STATUSCODE_GOOD) {
-                UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                              "Failed to add server to ServersOnNetwork: %s",
                              UA_StatusCode_name(res));
                 return;
             }
 
-            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                        "Service '%s' of type '%s' in domain '%s':", name, type, domain);
+            UA_LOG_INFO(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                        "Service '%s' of type '%s' in domain '%s':",
+                        name, type, domain);
 
-            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_INFO(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                         "  %s:%u (%s)", host_name, port, a);
 
             /* Add discoveryUrl opc.tcp://[servername]:[port][path] */
@@ -494,16 +361,11 @@ resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIndex interfac
             UA_String_format(&listEntry->serverOnNetwork.discoveryUrl,
                              "opc.tcp://%s:%u%S", host_name, port, path);
             UA_String_clear(&path);
-
-            listEntry->lastSeen =
-                dm->sc.server->config.eventLoop->
-                dateTime_nowMonotonic(dm->sc.server->config.eventLoop);
-
             break;
         }
 
         default:
-            UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                         "Invalid avahi resolver event %d", event);
             break;
 
@@ -512,200 +374,110 @@ resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIndex interfac
 }
 
 static void
-browse_callback(AvahiServiceBrowser *b, AvahiIfIndex interface, AvahiProtocol protocol,
-                AvahiBrowserEvent event, const char *name, const char *type,
-                const char *domain, AVAHI_GCC_UNUSED AvahiLookupResultFlags flags,
-                void *userdata) {
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager *)userdata;
+browse_callback(AvahiServiceBrowser *b, AvahiIfIndex interface,
+                AvahiProtocol protocol, AvahiBrowserEvent event,
+                const char *name, const char *type, const char *domain,
+                AVAHI_GCC_UNUSED AvahiLookupResultFlags flags, void *userdata) {
+    AvahiServerComponent *asc = (AvahiServerComponent*)userdata;
+    int err;
     switch(event) {
         case AVAHI_BROWSER_FAILURE:
-            UA_LOG_ERROR(
-                dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                "Browser failure: %s",
-                avahi_strerror(avahi_client_errno(avahi_service_browser_get_client(b))));
-            avahi_simple_poll_quit(mdnsPrivateData.simple_poll);
+            err = avahi_client_errno(avahi_service_browser_get_client(b));
+            UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                         "Browser failure: %s", avahi_strerror(err));
+            avahi_simple_poll_quit(asc->simple_poll);
             return;
         case AVAHI_BROWSER_NEW:
             /* We ignore the returned resolver object. In the callback
                function we free it. If the server is terminated before
                the callback function is called the server will free
                the resolver for us. */
-            if(!(avahi_service_resolver_new(
-                   mdnsPrivateData.client, interface, protocol, name, type, domain, AVAHI_PROTO_INET,
-                   AVAHI_LOOKUP_USE_MULTICAST, resolve_callback, dm))) {
-                UA_LOG_INFO(
-                    dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                    "Failed to resolve service '%s' of type '%s' in domain '%s': %s",
-                    name, type, domain, avahi_strerror(avahi_client_errno(mdnsPrivateData.client)));
+            if(!(avahi_service_resolver_new(asc->client, interface, protocol,
+                                            name, type, domain, AVAHI_PROTO_INET,
+                                            AVAHI_LOOKUP_USE_MULTICAST,
+                                            resolve_callback, asc))) {
+                err = avahi_client_errno(asc->client);
+                UA_LOG_INFO(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                            "Failed to resolve service '%s' of type '%s' in "
+                            "domain '%s': %s", name, type, domain,
+                            avahi_strerror(err));
             }
             break;
         case AVAHI_BROWSER_REMOVE:
-            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                        "Service '%s' of type '%s' in domain '%s' removed", name, type,
-                        domain);
+            UA_LOG_INFO(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                        "Service '%s' of type '%s' in domain '%s' removed",
+                        name, type, domain);
             UA_String nameStr = UA_STRING_ALLOC(name);
-            UA_DiscoveryManager_removeEntryFromServersOnNetwork(dm, nameStr);
+            removeEntryFromServersOnNetwork(asc, nameStr);
             UA_String_clear(&nameStr);
             break;
         case AVAHI_BROWSER_ALL_FOR_NOW:
-        case AVAHI_BROWSER_CACHE_EXHAUSTED:
-            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                        "Browser %s",
-                        event == AVAHI_BROWSER_CACHE_EXHAUSTED ? "CACHE_EXHAUSTED"
-                                                               : "ALL_FOR_NOW");
+        case AVAHI_BROWSER_CACHE_EXHAUSTED: {
+            char *b = (event == AVAHI_BROWSER_CACHE_EXHAUSTED) ?
+                "CACHE_EXHAUSTED" : "ALL_FOR_NOW";
+            UA_LOG_INFO(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                        "Browser %s", b);
             break;
-    }
-}
-
-void
-UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm) {
-    int error;
-    mdnsPrivateData.simple_poll = avahi_simple_poll_new();
-    if(!mdnsPrivateData.simple_poll) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                     "Failed to create avahi simple poll");
-        return;
-    }
-
-    mdnsPrivateData.client = avahi_client_new(avahi_simple_poll_get(mdnsPrivateData.simple_poll),
-                                  AVAHI_CLIENT_NO_FAIL, client_callback, dm, &error);
-    if(!mdnsPrivateData.client) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                     "Failed to create avahi client: %s", avahi_strerror(error));
-        return;
-    }
-    /* Add record for the server itself */
-    UA_String appName = dm->sc.server->config.mdnsConfig.mdnsServerName;
-    for(size_t i = 0; i < dm->sc.server->config.serverUrlsSize; i++)
-        addMdnsRecordForNetworkLayer(dm, appName, &dm->sc.server->config.serverUrls[i]);
-
-    mdnsPrivateData.browser = avahi_service_browser_new(mdnsPrivateData.client, AVAHI_IF_UNSPEC, AVAHI_PROTO_INET,
-                              "_opcua-tcp._tcp", NULL, AVAHI_LOOKUP_USE_MULTICAST,
-                              browse_callback, dm);
-}
-
-void
-UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
-    UA_Server *server = dm->sc.server;
-    for(size_t i = 0; i < server->config.serverUrlsSize; i++) {
-        UA_String hostname = UA_STRING_NULL;
-        UA_String path = UA_STRING_NULL;
-        UA_UInt16 port = 0;
-
-        UA_StatusCode retval =
-            UA_parseEndpointUrl(&server->config.serverUrls[i],
-                                &hostname, &port, &path);
-
-        if(retval != UA_STATUSCODE_GOOD)
-            continue;
-        if(hostname.length == 0) {
-            /* get host name used by avahi */
-            const char *hoststr = avahi_client_get_host_name(mdnsPrivateData.client);
-            if(!hoststr) {
-                UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                               "Cannot get hostname from avahi");
-                continue;
-            }
-            hostname = UA_String_fromChars(hoststr);
-        }
-
-        UA_Discovery_removeRecord(dm, server->config.mdnsConfig.mdnsServerName,
-                                  hostname, port, true);
-    }
-    /* clean up avahi resources */
-    if(mdnsPrivateData.browser)
-        avahi_service_browser_free(mdnsPrivateData.browser);
-    if(mdnsPrivateData.client)
-        avahi_client_free(mdnsPrivateData.client);
-    if(mdnsPrivateData.simple_poll)
-        avahi_simple_poll_free(mdnsPrivateData.simple_poll);
-}
-
-void
-UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm) {
-    /* Clean up the serverOnNetwork list */
-    serverOnNetwork *son, *son_tmp;
-    LIST_FOREACH_SAFE(son, &mdnsPrivateData.serverOnNetwork, pointers, son_tmp) {
-        LIST_REMOVE(son, pointers);
-        UA_ServerOnNetwork_clear(&son->serverOnNetwork);
-        if(son->pathTmp)
-            UA_free(son->pathTmp);
-        UA_free(son);
-    }
-
-    UA_String_clear(&mdnsPrivateData.selfMdnsRecord);
-
-    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_SIZE; i++) {
-        serverOnNetwork_hash_entry* currHash = mdnsPrivateData.serverOnNetworkHash[i];
-        while(currHash) {
-            serverOnNetwork_hash_entry* nextHash = currHash->next;
-            UA_free(currHash);
-            currHash = nextHash;
         }
     }
 }
 
-void
-UA_Discovery_updateMdnsForDiscoveryUrl(UA_DiscoveryManager *dm, const UA_String serverName,
-                                       const UA_MdnsDiscoveryConfiguration *mdnsConfig,
-                                       const UA_String discoveryUrl,
-                                       UA_Boolean isOnline, UA_Boolean updateTxt) {
+static void
+AvahiServerComponent_announce(UA_MdnsServerComponent *msc,
+                              const UA_ServerOnNetwork *son,
+                              const UA_KeyValueMap *params) {
+    AvahiServerComponent *asc = (AvahiServerComponent*)msc;
     UA_String hostname = UA_STRING_NULL;
     UA_UInt16 port = 4840;
     UA_String path = UA_STRING_NULL;
-    UA_StatusCode retval =
+    UA_StatusCode res =
+        UA_parseEndpointUrl(&son->discoveryUrl, &hostname, &port, &path);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                       "Server url invalid: %S", son->discoveryUrl);
+        return;
+    }
+
+    res = addRecord(asc, son->serverName, hostname, port, path, UA_DISCOVERY_TCP,
+                    son->serverCapabilities, son->serverCapabilitiesSize, false);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                       "Could not add mDNS record for hostname %S",
+                       son->serverName);
+}
+
+static void
+AvahiServerComponent_retract(UA_MdnsServerComponent *msc,
+                             const UA_String serverName,
+                             const UA_String discoveryUrl,
+                             const UA_KeyValueMap *params) {
+    AvahiServerComponent *asc = (AvahiServerComponent*)msc;
+    UA_String hostname = UA_STRING_NULL;
+    UA_UInt16 port = 4840;
+    UA_String path = UA_STRING_NULL;
+    UA_StatusCode res =
         UA_parseEndpointUrl(&discoveryUrl, &hostname, &port, &path);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                        "Server url invalid: %S", discoveryUrl);
         return;
     }
 
-    if(!isOnline) {
-        UA_StatusCode removeRetval =
-                UA_Discovery_removeRecord(dm, serverName, hostname,
-                                          port, updateTxt);
-        if(removeRetval != UA_STATUSCODE_GOOD)
-            UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                           "Could not remove mDNS record for hostname %S", serverName);
-        return;
-    }
-
-    UA_String *capabilities = NULL;
-    size_t capabilitiesSize = 0;
-    if(mdnsConfig) {
-        capabilities = mdnsConfig->serverCapabilities;
-        capabilitiesSize = mdnsConfig->serverCapabilitiesSize;
-    }
-
-    UA_StatusCode addRetval =
-        UA_Discovery_addRecord(dm, serverName, hostname,
-                               port, path, UA_DISCOVERY_TCP, updateTxt,
-                               capabilities, capabilitiesSize, false);
-    if(addRetval != UA_STATUSCODE_GOOD)
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                       "Could not add mDNS record for hostname %S", serverName);
+    res = removeRecord(asc, serverName, hostname, port);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_LOG_WARNING(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                       "Could not remove mDNS record for hostname %S",
+                       serverName);
 }
 
-void
-UA_Server_setServerOnNetworkCallback(UA_Server *server,
-                                     UA_Server_serverOnNetworkCallback cb,
-                                     void* data) {
-    lockServer(server);
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
-    if(dm) {
-        dm->serverOnNetworkCallback = cb;
-        dm->serverOnNetworkCallbackData = data;
-    }
-    unlockServer(server);
-}
-
-void
-UA_DiscoveryManager_mdnsCyclicTimer(UA_Server *server, void *data) {
-    int ret = avahi_simple_poll_iterate(mdnsPrivateData.simple_poll, 0);
+static void
+pollAvahiMdns(UA_Server *server, void *data) {
+    AvahiServerComponent *asc = (AvahiServerComponent*)data;
+    int ret = avahi_simple_poll_iterate(asc->simple_poll, 0);
     if(ret < 0) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                     "Error in avahi_simple_poll_iterate: %s", avahi_strerror(ret));
+        UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                     "Error in avahi_simple_poll_iterate: %s",
+                     avahi_strerror(ret));
     }
 }
 
@@ -741,11 +513,10 @@ createServiceDomain(UA_String *outServiceDomain,
 
 /* Check if mDNS already has an entry for given hostname and port combination */
 static UA_Boolean
-UA_Discovery_recordExists(UA_DiscoveryManager *dm, UA_String serviceDomain,
-                          unsigned short port, const UA_DiscoveryProtocol protocol) {
-    struct serverOnNetwork *current;
-    LIST_FOREACH(current, &mdnsPrivateData.serverOnNetwork, pointers) {
-        if(UA_String_equal(&current->serverOnNetwork.serverName, &serviceDomain) == 0)
+recordExists(AvahiServerComponent *asc, UA_String serviceDomain,
+             unsigned short port, const UA_DiscoveryProtocol protocol) {
+    for(ServerOnNetwork *son = asc->serverList; son; son = son->next) {
+        if(UA_String_equal(&son->serverOnNetwork.serverName, &serviceDomain))
             return true;
     }
     return false;
@@ -817,12 +588,11 @@ handle_capabilities(AvahiStringList **txt, const UA_String *capabilities,
 }
 
 static UA_StatusCode
-UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
-                       const UA_String hostname, UA_UInt16 port,
-                       const UA_String path, const UA_DiscoveryProtocol protocol,
-                       UA_Boolean createTxt, const UA_String* capabilites,
-                       const size_t capabilitiesSize,
-                       UA_Boolean isSelf) {
+addRecord(AvahiServerComponent *asc, const UA_String servername,
+          const UA_String hostname, UA_UInt16 port,
+          const UA_String path, const UA_DiscoveryProtocol protocol,
+          const UA_String* capabilites, const size_t capabilitiesSize,
+          UA_Boolean isSelf) {
     /* We assume that the hostname is not an IP address, but a valid domain
      * name. It is required by the OPC UA spec (see Part 12, DiscoveryURL to DNS
      * SRV mapping) to always use the hostname instead of the IP address. */
@@ -835,97 +605,104 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
 
     /* Use a limit for the hostname length to make sure full string fits into 63
      * chars (limited by DNS spec) */
-    if(hostname.length + servername.length + 1 > 63) { /* include dash between servername-hostname */
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+    if(hostname.length + servername.length + 1 > 63) {
+        UA_LOG_WARNING(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                        "Multicast DNS: Combination of hostname+servername exceeds "
                        "maximum of 62 chars. It will be truncated.");
     } else if(hostname.length > 63) {
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                       "Multicast DNS: Hostname length exceeds maximum of 63 chars. "
-                       "It will be truncated.");
+        UA_LOG_WARNING(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                       "Multicast DNS: Hostname length exceeds maximum "
+                       "of 63 chars. It will be truncated.");
     }
 
-    if(!dm->mdnsMainSrvAdded) {
-        dm->mdnsMainSrvAdded = true;
-    }
+    if(!asc->mdnsMainSrvAdded)
+        asc->mdnsMainSrvAdded = true;
 
-    /* [servername]-[hostname] */
+    /* Include dash between servername-hostname: [servername]-[hostname] */
     UA_Byte serviceDomainBuf[64];
     UA_String serviceDomain = {64, serviceDomainBuf};
     createServiceDomain(&serviceDomain, servername, hostname);
 
-    UA_Boolean exists = UA_Discovery_recordExists(dm, serviceDomain, port, protocol);
+    UA_Boolean exists = recordExists(asc, serviceDomain, port, protocol);
     if(exists == true)
         return UA_STATUSCODE_GOOD;
 
-    UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+    UA_LOG_INFO(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                 "Multicast DNS: add record for domain: %S", serviceDomain);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(isSelf && mdnsPrivateData.selfMdnsRecord.length == 0) {
-        retval = UA_String_copy(&serviceDomain, &mdnsPrivateData.selfMdnsRecord);
+    if(isSelf && asc->selfMdnsRecord.length == 0) {
+        retval = UA_String_copy(&serviceDomain, &asc->selfMdnsRecord);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
 
     /* The servername is servername + hostname. It is the same which we get
      * through mDNS and therefore we need to match servername */
-    struct serverOnNetwork *listEntry;
-    retval = UA_DiscoveryManager_addEntryToServersOnNetwork(dm, serviceDomain, &listEntry);
+    ServerOnNetwork *entry;
+    retval = addEntryToServersOnNetwork(asc, serviceDomain, &entry);
     if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADALREADYEXISTS)
         return retval;
 
-    /* If entry is already in list, skip initialization of capabilities and txt+srv */
+    /* If entry is already in list, skip initialization of capabilities and
+     * txt+srv */
     if(retval != UA_STATUSCODE_BADALREADYEXISTS) {
-        listEntry->group = avahi_entry_group_new(mdnsPrivateData.client, entry_group_callback, dm);
-        if(!listEntry->group) {
-            UA_free(listEntry);
+        entry->group =
+            avahi_entry_group_new(asc->client, entry_group_callback, asc);
+        if(!entry->group) {
+            UA_free(entry);
             return UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
         }
-        /* if capabilitiesSize is 0, then add default cap 'NA' */
-        listEntry->serverOnNetwork.serverCapabilitiesSize = UA_MAX(1, capabilitiesSize);
-        listEntry->serverOnNetwork.serverCapabilities = (UA_String *)
-            UA_Array_new(listEntry->serverOnNetwork.serverCapabilitiesSize,
+
+        /* If capabilitiesSize is 0, then add default cap 'NA' */
+        entry->serverOnNetwork.serverCapabilitiesSize =
+            UA_MAX(1, capabilitiesSize);
+        entry->serverOnNetwork.serverCapabilities = (UA_String *)
+            UA_Array_new(entry->serverOnNetwork.serverCapabilitiesSize,
                          &UA_TYPES[UA_TYPES_STRING]);
-        if(!listEntry->serverOnNetwork.serverCapabilities)
+        if(!entry->serverOnNetwork.serverCapabilities)
             return UA_STATUSCODE_BADOUTOFMEMORY;
+
         if(capabilitiesSize == 0) {
             UA_String na;
             na.length = 2;
             na.data = (UA_Byte *) (uintptr_t) "NA";
-            UA_String_copy(&na, &listEntry->serverOnNetwork.serverCapabilities[0]);
+            UA_String_copy(&na, &entry->serverOnNetwork.serverCapabilities[0]);
         } else {
             for(size_t i = 0; i < capabilitiesSize; i++)
                 UA_String_copy(&capabilites[i],
-                               &listEntry->serverOnNetwork.serverCapabilities[i]);
+                               &entry->serverOnNetwork.serverCapabilities[i]);
         }
 
-        listEntry->txtSet = true;
+        entry->txtSet = true;
 
         if(path.length > 0) {
-            UA_String_format(&listEntry->serverOnNetwork.discoveryUrl,
+            UA_String_format(&entry->serverOnNetwork.discoveryUrl,
                              "opc.tcp://%S.local:%d/%S", hostname, port, path);
         } else {
-            UA_String_format(&listEntry->serverOnNetwork.discoveryUrl,
+            UA_String_format(&entry->serverOnNetwork.discoveryUrl,
                              "opc.tcp://%S.local:%d", hostname, port);
         }
-        listEntry->srvSet = true;
+        entry->srvSet = true;
     }
 
     /* Prepare the TXT records */
     AvahiStringList *txt = NULL;
+
     /* Handle 'path' */
     if(handle_path(&txt, path) != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                      "Failed to add TXT record for %S", serviceDomain);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
     /* Handle 'caps' */
     if(capabilitiesSize > 0) {
-        if(handle_capabilities(&txt, capabilites, capabilitiesSize) != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+        retval = handle_capabilities(&txt, capabilites, capabilitiesSize);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                          "Failed to add TXT record for %s", serviceDomain);
-            return UA_STATUSCODE_BADINTERNALERROR;
+            return retval;
         }
     } else {
         txt = avahi_string_list_add(txt, "caps=NA");
@@ -934,61 +711,56 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     /* prepare hostname for avahi */
     size_t hostnameLen = hostname.length + strlen(".local");
     char *hostnameStr = (char *)avahi_malloc(hostnameLen + 1);
-    if(!hostnameStr) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                     "Failed to add TXT record for %s", serviceDomain);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    if(!hostnameStr)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     memcpy(hostnameStr, hostname.data, hostname.length);
     memcpy(hostnameStr + hostname.length, ".local", strlen(".local"));
     hostnameStr[hostnameLen] = '\0';
 
     /* Add the service with TXT records using default host and domain */
-    int ret = avahi_entry_group_add_service_strlst(listEntry->group, AVAHI_IF_UNSPEC,
-                                                   AVAHI_PROTO_UNSPEC,
-                                                   AVAHI_PUBLISH_USE_MULTICAST,
-                                                   (char*)serviceDomainBuf, "_opcua-tcp._tcp",
-                                                   NULL, hostnameStr, port, txt);
+    int ret =
+        avahi_entry_group_add_service_strlst(entry->group, AVAHI_IF_UNSPEC,
+                                             AVAHI_PROTO_UNSPEC,
+                                             AVAHI_PUBLISH_USE_MULTICAST,
+                                             (char*)serviceDomainBuf,
+                                             "_opcua-tcp._tcp",
+                                             NULL, hostnameStr, port, txt);
+    avahi_free(hostnameStr);
     if(ret < 0) {
         if(ret == AVAHI_ERR_COLLISION) {
-            UA_Discovery_multicastConflict(serviceDomain, dm);
+            multicastConflict(serviceDomain, asc);
         } else {
-            UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                          "Failed to add TXT record for %s", serviceDomain);
-            goto cleanup;
         }
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                     "Failed to add TXT record for %s", serviceDomain);
-        goto cleanup;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
-    avahi_free(hostnameStr);
 
-    if(avahi_entry_group_commit(listEntry->group) < 0) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                     "Failed to commit entry group for %s", serviceDomain);
+    /* Commit to the multicast group */
+    ret = avahi_entry_group_commit(entry->group);
+    if(ret < 0) {
+        UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                     "Failed to commit entry group for %s",
+                     serviceDomain);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     return UA_STATUSCODE_GOOD;
-
-cleanup:
-    avahi_free(hostnameStr);
-    return UA_STATUSCODE_BADINTERNALERROR;
 }
 
 static UA_StatusCode
-UA_Discovery_removeRecord(UA_DiscoveryManager *dm, const UA_String servername,
-                          const UA_String hostname, UA_UInt16 port,
-                          UA_Boolean removeTxt) {
-    /* use a limit for the hostname length to make sure full string fits into 63
+removeRecord(AvahiServerComponent *asc, const UA_String servername,
+             const UA_String hostname, UA_UInt16 port) {
+    /* Use a limit for the hostname length to make sure full string fits into 63
      * chars (limited by DNS spec) */
     if(hostname.length == 0 || servername.length == 0)
         return UA_STATUSCODE_BADOUTOFRANGE;
 
-    if(hostname.length + servername.length + 1 > 63) { /* include dash between servername-hostname */
-        UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                       "Multicast DNS: Combination of hostname+servername exceeds "
-                       "maximum of 62 chars. It will be truncated.");
+    /* Include dash between servername-hostname */
+    if(hostname.length + servername.length + 1 > 63) {
+        UA_LOG_WARNING(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                       "Multicast DNS: Combination of hostname+servername "
+                       "exceeds maximum of 62 chars. It will be truncated.");
     }
 
     /* [servername]-[hostname] */
@@ -996,10 +768,158 @@ UA_Discovery_removeRecord(UA_DiscoveryManager *dm, const UA_String servername,
     UA_String serviceDomain = {64, serviceDomainBuf};
     createServiceDomain(&serviceDomain, servername, hostname);
 
-    UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+    UA_LOG_INFO(asc->logging, UA_LOGCATEGORY_DISCOVERY,
                 "Multicast DNS: remove record for domain: %S", serviceDomain);
 
-    return UA_DiscoveryManager_removeEntryFromServersOnNetwork(dm, serviceDomain);
+    return removeEntryFromServersOnNetwork(asc, serviceDomain);
+}
+
+static UA_StatusCode
+AvahiServerComponent_start(UA_ServerComponent *sc) {
+    AvahiServerComponent *asc = (AvahiServerComponent*)sc;
+
+    UA_ServerConfig *config = UA_Server_getConfig(sc->server);
+    asc->logging = config->logging;
+
+    if(sc->state != UA_LIFECYCLESTATE_STOPPED) {
+        UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                     "Cannot start multicast discovery that is already running");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    asc->simple_poll = avahi_simple_poll_new();
+    if(!asc->simple_poll) {
+        UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                     "Failed to create avahi simple poll");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    int error;
+    asc->client =
+        avahi_client_new(avahi_simple_poll_get(asc->simple_poll),
+                         AVAHI_CLIENT_NO_FAIL, client_callback,
+                         asc, &error);
+    if(!asc->client) {
+        UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                     "Failed to create avahi client: %s",
+                     avahi_strerror(error));
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Add record for the server itself */
+    UA_String appName = config->mdnsConfig.mdnsServerName;
+    for(size_t i = 0; i < config->serverUrlsSize; i++)
+        addMdnsRecordForNetworkLayer(asc, appName, &config->serverUrls[i]);
+
+    asc->browser =
+        avahi_service_browser_new(asc->client, AVAHI_IF_UNSPEC,
+                                  AVAHI_PROTO_INET, "_opcua-tcp._tcp",
+                                  NULL, AVAHI_LOOKUP_USE_MULTICAST,
+                                  browse_callback, asc);
+
+    /* Add a repeated callback to send out multicast messages */
+    UA_Server_addRepeatedCallback(sc->server, pollAvahiMdns,
+                                  asc, 1000.0, &asc->pollCallbackId);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+AvahiServerComponent_stop(UA_ServerComponent *sc) {
+    UA_Server *server = sc->server;
+    AvahiServerComponent *asc = (AvahiServerComponent*)sc;
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    /* Already stopped */
+    if(sc->state == UA_LIFECYCLESTATE_STOPPED)
+        return;
+
+    /* Commence async stopping */
+    sc->state = UA_LIFECYCLESTATE_STOPPING;
+
+    /* Add a repeated callback to send out multicast messages */
+    UA_Server_removeRepeatedCallback(sc->server, asc->pollCallbackId);
+    asc->pollCallbackId = 0;
+
+    for(size_t i = 0; i < config->serverUrlsSize; i++) {
+        UA_String hostname = UA_STRING_NULL;
+        UA_String path = UA_STRING_NULL;
+        UA_UInt16 port = 0;
+
+        UA_StatusCode retval =
+            UA_parseEndpointUrl(&config->serverUrls[i],
+                                &hostname, &port, &path);
+
+        if(retval != UA_STATUSCODE_GOOD)
+            continue;
+
+        /* Get host name used by avahi */
+        if(hostname.length == 0) {
+            const char *hoststr = avahi_client_get_host_name(asc->client);
+            if(!hoststr) {
+                UA_LOG_WARNING(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                               "Cannot get hostname from avahi");
+                continue;
+            }
+            hostname = UA_String_fromChars(hoststr);
+        }
+
+        removeRecord(asc, config->mdnsConfig.mdnsServerName, hostname, port);
+    }
+
+    /* Clean up avahi resources */
+    if(asc->browser)
+        avahi_service_browser_free(asc->browser);
+    if(asc->client)
+        avahi_client_free(asc->client);
+    if(asc->simple_poll)
+        avahi_simple_poll_free(asc->simple_poll);
+
+    /* Stopping avahi is synchronous */
+    sc->state = UA_LIFECYCLESTATE_STOPPED;
+}
+
+static UA_StatusCode
+AvahiServerComponent_free(UA_ServerComponent *sc) {
+    AvahiServerComponent *asc = (AvahiServerComponent*)sc;
+
+    if(sc->state != UA_LIFECYCLESTATE_STOPPED) {
+        UA_LOG_ERROR(asc->logging, UA_LOGCATEGORY_DISCOVERY,
+                     "Cannot free multicast discovery that is not stopped");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Clean up the serverOnNetwork list */
+    ServerOnNetwork *son;
+    while((son = asc->serverList)) {
+        asc->serverList = son->next;
+        UA_ServerOnNetwork_clear(&son->serverOnNetwork);
+        if(son->pathTmp)
+            UA_free(son->pathTmp);
+        UA_free(son);
+    }
+
+    UA_String_clear(&asc->selfMdnsRecord);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_MdnsServerComponent *
+UA_MdnsServerComponent_Avahi(void) {
+    UA_MdnsServerComponent *msc = (UA_MdnsServerComponent*)
+        UA_calloc(1, sizeof(AvahiServerComponent));
+    if(!msc)
+        return NULL;
+
+    msc->serverComponent.serverComponentType = UA_SERVERCOMPONENTTYPE_MDNS;
+    msc->serverComponent.name = UA_STRING("discovery-avahi");
+    msc->serverComponent.start = AvahiServerComponent_start;
+    msc->serverComponent.stop = AvahiServerComponent_stop;
+    msc->serverComponent.free = AvahiServerComponent_free;
+    msc->announce = AvahiServerComponent_announce;
+    msc->retract = AvahiServerComponent_retract;
+
+    return msc;
 }
 
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
