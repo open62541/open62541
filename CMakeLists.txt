@@ -913,13 +913,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_monitoreditem.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
-                # client
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
-                ${PROJECT_SOURCE_DIR}/src/client/ua_client_util.c
                 # dependencies
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.c
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.c
@@ -935,6 +928,15 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.h)
     list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c)
+endif()
+
+if(UA_ENABLE_DISCOVERY)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
+                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
+                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
+                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_highlevel.c
+                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_subscriptions.c
+                            ${PROJECT_SOURCE_DIR}/src/client/ua_client_util.c)
 endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
