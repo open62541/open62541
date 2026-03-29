@@ -14,14 +14,16 @@
  *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
  */
 
-#include <open62541/client.h>
-#include <open62541/client_config_default.h>
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/nodestore_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
+#ifdef UA_ENABLE_DISCOVERY
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+#endif
 
 #include "../deps/mp_printf.h"
 
@@ -1662,6 +1664,8 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
 
 #endif /* UA_ENABLE_ENCRYPTION */
 
+#ifdef UA_ENABLE_DISCOVERY
+
 /***************************/
 /* Default Client Settings */
 /***************************/
@@ -1975,3 +1979,5 @@ UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
     return clientConfig_setAuthenticationSecurityPolicies(config, certificateAuth, privateKeyAuth);
 }
 #endif
+
+#endif /* UA_ENABLE_DISCOVERY */
