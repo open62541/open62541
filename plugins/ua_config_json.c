@@ -8,8 +8,10 @@
 
 #include <open62541/plugin/log.h>
 #include <open62541/server.h>
+#include <open62541/client.h>
 #include "cj5.h"
 #include "open62541/server_config_default.h"
+#include "open62541/client_config_default.h"
 #include "open62541/plugin/securitypolicy_default.h"
 #ifdef UA_ENABLE_ENCRYPTION
 #include "open62541/plugin/certificategroup_default.h"
@@ -72,6 +74,17 @@ PARSE_JSON(Int64Field) {
     return retval;
 }
 #endif
+PARSE_JSON(ByteField) {
+    cj5_token tok = ctx->result.tokens[++ctx->index];
+    UA_ByteString buf = getJsonPart(tok, ctx->json);
+    UA_Byte out;
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_BYTE], NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_Byte *field = (UA_Byte*)configField;
+    *field = out;
+    return retval;
+}
 PARSE_JSON(UInt16Field) {
     cj5_token tok = ctx->result.tokens[++ctx->index];
     UA_ByteString buf = getJsonPart(tok, ctx->json);
@@ -105,6 +118,17 @@ PARSE_JSON(UInt64Field) {
     *field = out;
     return retval;
 }
+PARSE_JSON(Int32Field) {
+    cj5_token tok = ctx->result.tokens[++ctx->index];
+    UA_ByteString buf = getJsonPart(tok, ctx->json);
+    UA_Int32 out;
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_INT32], NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_Int32 *field = (UA_Int32*)configField;
+    *field = out;
+    return retval;
+}
 PARSE_JSON(StringField) {
     cj5_token tok = ctx->result.tokens[++ctx->index];
     UA_ByteString buf = getJsonPart(tok, ctx->json);
@@ -117,6 +141,17 @@ PARSE_JSON(StringField) {
         UA_String_clear(field);
         *field = out;
     }
+    return retval;
+}
+PARSE_JSON(ByteStringField) {
+    cj5_token tok = ctx->result.tokens[++ctx->index];
+    UA_ByteString buf = getJsonPart(tok, ctx->json);
+    UA_ByteString out;
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_BYTESTRING], NULL);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    UA_ByteString *field = (UA_ByteString*)configField;
+    *field = out;
     return retval;
 }
 PARSE_JSON(LocalizedTextField) {
@@ -453,6 +488,44 @@ GenericApplicationDescriptionField_parseJson(ParsingCtx *ctx, void *configField,
     return UA_STATUSCODE_GOOD;
 }
 
+PARSE_JSON(MessageSecurityMode) {
+    size_t index = ++ctx->index;
+    cj5_token tok = ctx->result.tokens[index];
+    UA_ByteString rawToken = getJsonPart(tok, ctx->json);
+    UA_MessageSecurityMode *field = (UA_MessageSecurityMode*)configField;
+    char *fieldStr = (char*)UA_malloc(tok.size + 1);
+    unsigned int strLen = 0;
+
+    if(cj5_get_str(&ctx->result, (unsigned int)ctx->index, fieldStr, &strLen) == CJ5_ERROR_NONE) {
+        if(strcmp("Invalid", fieldStr) == 0)
+            *field = UA_MESSAGESECURITYMODE_INVALID;
+        else if(strcmp("None", fieldStr) == 0)
+            *field = UA_MESSAGESECURITYMODE_NONE;
+        else if(strcmp("Sign", fieldStr) == 0)
+            *field = UA_MESSAGESECURITYMODE_SIGN;
+        else if(strcmp("SignAndEncrypt", fieldStr) == 0)
+            *field = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+        else {
+            UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                         "Unknown MessageSecurityMode '%.*s'", (int)strLen, fieldStr);
+            UA_free(fieldStr);
+            return UA_STATUSCODE_BAD;
+        }
+        UA_free(fieldStr);
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_free(fieldStr);
+    /* Try numeric fallback */
+    UA_UInt32 enumValue;
+    UA_StatusCode retval = UA_decodeJson(&rawToken, &enumValue, &UA_TYPES[UA_TYPES_UINT32], NULL);
+    if(retval == UA_STATUSCODE_GOOD) {
+        *field = (UA_MessageSecurityMode)enumValue;
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                    "Unknown MessageSecurityMode '%S'", rawToken);
+    return UA_STATUSCODE_BAD;
+}
 #if defined(UA_ENABLE_DISCOVERY_MULTICAST) && defined(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD) && !defined(UA_HAS_GETIFADDR)
 PARSE_JSON(UInt32ArrayField) {
     if(configFieldSize == NULL) {
@@ -1119,6 +1192,514 @@ UA_ServerConfig_loadFromFile(UA_ServerConfig *config, const UA_ByteString jsonCo
     return res;
 }
 
+PARSE_JSON(ConnectionConfig) {
+    UA_ConnectionConfig *field = (UA_ConnectionConfig*)configField;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    cj5_token tok = ctx->result.tokens[++ctx->index];
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = ctx->result.tokens[++ctx->index];
+        switch (tok.type) {
+        case CJ5_TOKEN_STRING: {
+            char *field_str = (char*)UA_malloc(tok.size + 1);
+            unsigned int str_len = 0;
+            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
+            if(strcmp(field_str, "protocolVersion") == 0)
+                retval = UInt32Field_parseJson(ctx, &field->protocolVersion, NULL);
+            else if(strcmp(field_str, "recvBufferSize") == 0)
+                retval = UInt32Field_parseJson(ctx, &field->recvBufferSize, NULL);
+            else if(strcmp(field_str, "sendBufferSize") == 0)
+                retval = UInt32Field_parseJson(ctx, &field->sendBufferSize, NULL);
+            else if(strcmp(field_str, "localMaxMessageSize") == 0)
+                retval = UInt32Field_parseJson(ctx, &field->localMaxMessageSize, NULL);
+            else if(strcmp(field_str, "remoteMaxMessageSize") == 0)
+                retval = UInt32Field_parseJson(ctx, &field->remoteMaxMessageSize, NULL);
+            else if(strcmp(field_str, "localMaxChunkCount") == 0)
+                retval = UInt32Field_parseJson(ctx, &field->localMaxChunkCount, NULL);
+            else if(strcmp(field_str, "remoteMaxChunkCount") == 0)
+                retval = UInt32Field_parseJson(ctx, &field->remoteMaxChunkCount, NULL);
+            else {
+                LOG_UNKNOWN_FIELD(ctx, field_str);
+            }
+            UA_free(field_str);
+            if(retval != UA_STATUSCODE_GOOD) {
+                return retval;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+PARSE_JSON(UserTokenType) {
+    cj5_token tok = ctx->result.tokens[++ctx->index];
+    UA_ByteString rawToken = getJsonPart(tok, ctx->json);
+    UA_UserTokenType *field = (UA_UserTokenType*)configField;
+    char *fieldStr = (char*)UA_malloc(tok.size + 1);
+    unsigned int strLen = 0;
+
+    if(cj5_get_str(&ctx->result, (unsigned int)ctx->index, fieldStr, &strLen) == CJ5_ERROR_NONE) {
+        if(strcmp("Anonymous", fieldStr) == 0)
+            *field = UA_USERTOKENTYPE_ANONYMOUS;
+        else if(strcmp("UserName", fieldStr) == 0)
+            *field = UA_USERTOKENTYPE_USERNAME;
+        else if(strcmp("Certificate", fieldStr) == 0)
+            *field = UA_USERTOKENTYPE_CERTIFICATE;
+        else if(strcmp("IssuedToken", fieldStr) == 0)
+            *field = UA_USERTOKENTYPE_ISSUEDTOKEN;
+        else {
+            UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                        "Unknown UserTokenType '%s'", fieldStr);
+            UA_free(fieldStr);
+            return UA_STATUSCODE_BAD;
+        }
+        UA_free(fieldStr);
+        return UA_STATUSCODE_GOOD;
+    }
+    UA_free(fieldStr);
+
+    /* Try numeric fallback */
+    UA_UInt32 enumValue;
+    UA_StatusCode retval = UA_decodeJson(&rawToken, &enumValue, &UA_TYPES[UA_TYPES_UINT32], NULL);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                    "Unknown UserTokenType '%S'", rawToken);
+        return retval;
+    }
+    *field = (UA_UserTokenType)enumValue;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Parse the userIdentityToken field. This creates an ExtensionObject containing
+ * one of three token types: Anonymous, Username, or Certificate.
+ * The type can be explicitly specified via the "type" field, or inferred by
+ * the presence of other fields. */
+PARSE_JSON(UserIdentityToken) {
+    UA_ExtensionObject *field = (UA_ExtensionObject*)configField;
+    cj5_token tok = ctx->result.tokens[++ctx->index];
+
+    /* Variables to track which fields are encountered */
+    UA_Int32 detectedType = -1; /* -1 indicates no type detected yet */
+    UA_Boolean typeExplicitlySet = false;
+
+    /* Temporary storage for token fields */
+    UA_AnonymousIdentityToken anonToken;
+    UA_UserNameIdentityToken userNameToken;
+    UA_X509IdentityToken certToken;
+
+    UA_AnonymousIdentityToken_init(&anonToken);
+    UA_UserNameIdentityToken_init(&userNameToken);
+    UA_X509IdentityToken_init(&certToken);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    for(size_t j = tok.size/2; j > 0 && retval == UA_STATUSCODE_GOOD; j--) {
+        tok = ctx->result.tokens[++ctx->index];
+        switch (tok.type) {
+        case CJ5_TOKEN_STRING: {
+            char *field_str = (char*)UA_malloc(tok.size + 1);
+            unsigned int str_len = 0;
+            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
+
+            if(strcmp(field_str, "type") == 0) {
+
+                if (detectedType != -1) {
+                    UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                                 "Inconsistent type information in userIdentityToken. Type was "
+                                 "already detected as %d, but 'type' field is set to a different "
+                                 "value.",
+                                 detectedType);
+                    retval = UA_STATUSCODE_BAD;
+                }
+
+                if (retval == UA_STATUSCODE_GOOD) {
+                    /* Parse the type field */
+                    cj5_token typeToken = ctx->result.tokens[++ctx->index];
+                    char *typeStr = (char*)UA_malloc(typeToken.size + 1);
+                    unsigned int typeLen = 0;
+
+                    if(cj5_get_str(&ctx->result, (unsigned int)ctx->index, typeStr, &typeLen) == CJ5_ERROR_NONE) {
+                        if(strcmp("Anonymous", typeStr) == 0) {
+                            detectedType = UA_USERTOKENTYPE_ANONYMOUS;
+                            typeExplicitlySet = true;
+                        } else if(strcmp("UserName", typeStr) == 0) {
+                            detectedType = UA_USERTOKENTYPE_USERNAME;
+                            typeExplicitlySet = true;
+                        } else if(strcmp("Certificate", typeStr) == 0) {
+                            detectedType = UA_USERTOKENTYPE_CERTIFICATE;
+                            typeExplicitlySet = true;
+                        } else {
+                            UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                                        "Unknown userIdentityToken type '%s'", typeStr);
+                            retval = UA_STATUSCODE_BAD;
+                        }
+                    } else {
+                        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                                    "Failed to parse userIdentityToken type field");
+                        retval = UA_STATUSCODE_BAD;
+                    }
+                    UA_free(typeStr);
+                }
+            }
+            else if(strcmp(field_str, "userName") == 0) {
+                /* This field locks in UserName token type */
+                if(!typeExplicitlySet && detectedType == -1) {
+                    detectedType = UA_USERTOKENTYPE_USERNAME;
+                }
+                if(detectedType != UA_USERTOKENTYPE_USERNAME) {
+                    UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                                "Field 'userName' can only be used with UserName token type");
+                    retval = UA_STATUSCODE_BAD;
+                }
+                else {
+                    retval = StringField_parseJson(ctx, &userNameToken.userName, NULL);
+                }
+            }
+            else if(strcmp(field_str, "password") == 0) {
+                /* This field locks in UserName token type */
+                if(!typeExplicitlySet && detectedType == -1) {
+                    detectedType = UA_USERTOKENTYPE_USERNAME;
+                }
+                if(detectedType != UA_USERTOKENTYPE_USERNAME) {
+                    UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                                "Field 'password' can only be used with UserName token type");
+                    retval = UA_STATUSCODE_BAD;
+                } else {
+                    retval = ByteStringField_parseJson(ctx, &userNameToken.password, NULL);
+                }
+            }
+            else if(strcmp(field_str, "encryptionAlgorithm") == 0) {
+                /* This field can be used with UserName token type */
+                if(!typeExplicitlySet && detectedType == -1) {
+                    detectedType = UA_USERTOKENTYPE_USERNAME;
+                }
+                if(detectedType != UA_USERTOKENTYPE_USERNAME) {
+                    UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                                "Field 'encryptionAlgorithm' can only be used with UserName token type");
+                    retval = UA_STATUSCODE_BAD;
+                }
+                else {
+                    retval = StringField_parseJson(ctx, &userNameToken.encryptionAlgorithm, NULL);
+                }
+            }
+            else if(strcmp(field_str, "certificateData") == 0) {
+                /* This field locks in Certificate token type */
+                if(!typeExplicitlySet && detectedType == -1) {
+                    detectedType = UA_USERTOKENTYPE_CERTIFICATE;
+                }
+                if(detectedType != UA_USERTOKENTYPE_CERTIFICATE) {
+                    UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                                "Field 'certificateData' can only be used with Certificate token type");
+                    retval = UA_STATUSCODE_BAD;
+                }
+                else {
+                    retval = CertificateFileField_parseJson(ctx, &certToken.certificateData, NULL);
+                }
+            }
+            else {
+                LOG_UNKNOWN_FIELD(ctx, field_str);
+            }
+            UA_free(field_str);
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        /* If no type was detected, default to Anonymous */
+        if(detectedType == -1) {
+            detectedType = UA_USERTOKENTYPE_ANONYMOUS;
+        }
+
+        /* Create the ExtensionObject with the appropriate token type */
+        if(detectedType == UA_USERTOKENTYPE_ANONYMOUS) {
+            retval = UA_ExtensionObject_setValueCopy(field, &anonToken,
+                                                    &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
+        } else if(detectedType == UA_USERTOKENTYPE_USERNAME) {
+            retval = UA_ExtensionObject_setValueCopy(field, &userNameToken,
+                                                    &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]);
+        } else if(detectedType == UA_USERTOKENTYPE_CERTIFICATE) {
+            retval = UA_ExtensionObject_setValueCopy(field, &certToken,
+                                                    &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]);
+        } else {
+            UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                        "Invalid userIdentityToken type");
+            retval = UA_STATUSCODE_BAD;
+        }
+    }
+
+    UA_AnonymousIdentityToken_clear(&anonToken);
+    UA_UserNameIdentityToken_clear(&userNameToken);
+    UA_X509IdentityToken_clear(&certToken);
+    return retval;
+}
+
+PARSE_JSON(UserTokenPolicy) {
+    UA_Boolean issuedTokenTypeFieldsUsed = false;
+
+    UA_UserTokenPolicy *field = (UA_UserTokenPolicy*)configField;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    cj5_token tok = ctx->result.tokens[++ctx->index];
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = ctx->result.tokens[++ctx->index];
+        switch (tok.type) {
+        case CJ5_TOKEN_STRING: {
+            char *field_str = (char*)UA_malloc(tok.size + 1);
+            unsigned int str_len = 0;
+            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
+            if(strcmp(field_str, "policyId") == 0)
+                retval = StringField_parseJson(ctx, &field->policyId, NULL);
+            else if(strcmp(field_str, "tokenType") == 0)
+                retval = UserTokenType_parseJson(ctx, &field->tokenType, NULL);
+            else if(strcmp(field_str, "issuedTokenType") == 0) {
+                issuedTokenTypeFieldsUsed = true;
+                retval = StringField_parseJson(ctx, &field->issuedTokenType, NULL);
+            }
+            else if(strcmp(field_str, "issuerEndpointUrl") == 0) {
+                issuedTokenTypeFieldsUsed = true;
+                retval = StringField_parseJson(ctx, &field->issuerEndpointUrl, NULL);
+            }
+            else if(strcmp(field_str, "securityPolicyUri") == 0)
+                retval = StringField_parseJson(ctx, &field->securityPolicyUri, NULL);
+            else {
+                LOG_UNKNOWN_FIELD(ctx, field_str);
+            }
+            UA_free(field_str);
+            if(retval != UA_STATUSCODE_GOOD) {
+                return retval;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    if(issuedTokenTypeFieldsUsed && field->tokenType != UA_USERTOKENTYPE_ISSUEDTOKEN) {
+        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION,
+                    "Fields 'issuedTokenType' and 'issuerEndpointUrl' can only be used if tokenType is 'IssuedToken'.");
+        return UA_STATUSCODE_BAD;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+PARSE_JSON(UserTokenPolicyArrayField) {
+    if(configFieldSize == NULL) {
+        UA_LOG_ERROR(ctx->logging, UA_LOGCATEGORY_APPLICATION, "Pointer to the array size is not set.");
+        return UA_STATUSCODE_BADARGUMENTSMISSING;
+    }
+    cj5_token tok = ctx->result.tokens[++ctx->index];
+    UA_UserTokenPolicy *policyArray = (UA_UserTokenPolicy*)UA_malloc(sizeof(UA_UserTokenPolicy) * tok.size);
+    size_t policyArraySize = 0;
+    for(size_t j = tok.size; j > 0; j--) {
+        /* initialize element to zeros so clear functions are safe */
+        memset(&policyArray[policyArraySize], 0, sizeof(UA_UserTokenPolicy));
+        UA_StatusCode retval = UserTokenPolicy_parseJson(ctx, &policyArray[policyArraySize], NULL);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(policyArray, policyArraySize, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+            return retval;
+        }
+        policyArraySize++;
+    }
+    /* Add to the config */
+    UA_UserTokenPolicy **field = (UA_UserTokenPolicy**)configField;
+    if(*configFieldSize > 0) {
+        UA_Array_delete(*field, *configFieldSize,
+                        &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+        *field = NULL;
+        *configFieldSize = 0;
+    }
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(policyArraySize > 0) {
+        retval = UA_Array_copy(policyArray, policyArraySize,
+                               (void **)field, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+        *configFieldSize = policyArraySize;
+    }
+
+    /* Clean up */
+    UA_Array_delete(policyArray, policyArraySize, &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+    return retval;
+}
+
+
+PARSE_JSON(EndpointDescription) {
+    UA_EndpointDescription *field = (UA_EndpointDescription*)configField;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    cj5_token tok = ctx->result.tokens[++ctx->index];
+    for(size_t j = tok.size/2; j > 0; j--) {
+        tok = ctx->result.tokens[++ctx->index];
+        switch (tok.type) {
+        case CJ5_TOKEN_STRING: {
+            char *field_str = (char*)UA_malloc(tok.size + 1);
+            unsigned int str_len = 0;
+            cj5_get_str(&ctx->result, (unsigned int)ctx->index, field_str, &str_len);
+            if(strcmp(field_str, "endpointUrl") == 0)
+                retval = StringField_parseJson(ctx, &field->endpointUrl, NULL);
+            else if(strcmp(field_str, "server") == 0)
+                retval = GenericApplicationDescriptionField_parseJson(ctx, &field->server, NULL, GENERICAPPLICATIONTYPE_ANY);
+            else if(strcmp(field_str, "serverCertificate") == 0)
+                retval = CertificateFileField_parseJson(ctx, &field->serverCertificate, NULL);
+            else if(strcmp(field_str, "securityMode") == 0)
+                retval = MessageSecurityMode_parseJson(ctx, &field->securityMode, NULL);
+            else if(strcmp(field_str, "securityPolicyUri") == 0)
+                retval = StringField_parseJson(ctx, &field->securityPolicyUri, NULL);
+            else if(strcmp(field_str, "userIdentityTokens") == 0)
+                retval = UserTokenPolicyArrayField_parseJson(ctx, &field->userIdentityTokens, &field->userIdentityTokensSize);
+            else if(strcmp(field_str, "transportProfileUri") == 0)
+                retval = StringField_parseJson(ctx, &field->transportProfileUri, NULL);
+            else if(strcmp(field_str, "securityLevel") == 0)
+                retval = ByteField_parseJson(ctx, &field->securityLevel, NULL);
+            else {
+                LOG_UNKNOWN_FIELD(ctx, field_str);
+            }
+            UA_free(field_str);
+            if(retval != UA_STATUSCODE_GOOD) {
+                return retval;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+parseJSONClientConfig(UA_ClientConfig *config, UA_ByteString json_config) {
+    // Parsing json config
+    const char *json = (const char*)json_config.data;
+    cj5_token tokens[MAX_TOKENS];
+    cj5_result r = cj5_parse(json, (unsigned int)json_config.length, tokens, MAX_TOKENS, NULL);
+
+    ParsingCtx ctx;
+    ctx.json = json;
+    ctx.result = r;
+    ctx.index = 1; // The first token is ignored because it is known and not needed.
+
+    ctx.logging = config->logging;
+
+    size_t clientConfigSize = 0;
+    if(ctx.result.tokens)
+        clientConfigSize = (ctx.result.tokens[ctx.index-1].size/2);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for (size_t j = clientConfigSize; j > 0; j--) {
+        cj5_token tok = ctx.result.tokens[ctx.index];
+        switch (tok.type) {
+            case CJ5_TOKEN_STRING: {
+                char *field = (char*)UA_malloc(tok.size + 1);
+                unsigned int str_len = 0;
+                cj5_get_str(&ctx.result, (unsigned int)ctx.index, field, &str_len);
+                if(strcmp(field, "timeout") == 0)
+                    retval = Int32Field_parseJson(&ctx, &config->timeout, NULL);
+                else if(strcmp(field, "applicationDescription") == 0)
+                    retval = GenericApplicationDescriptionField_parseJson(&ctx, &config->clientDescription, NULL, GENERICAPPLICATIONTYPE_CLIENT);
+                else if(strcmp(field, "endpointUrl") == 0)
+                    retval = StringField_parseJson(&ctx, &config->endpointUrl, NULL);
+                else if (strcmp(field, "userIdentityToken") == 0)
+                    retval = UserIdentityToken_parseJson(&ctx, &config->userIdentityToken, NULL);
+                else if(strcmp(field, "sessionName") == 0)
+                    retval = StringField_parseJson(&ctx, &config->sessionName, NULL);
+                else if(strcmp(field, "sessionLocaleIds") == 0)
+                    /* UA_LocaleId is an alias of UA_String */
+                    retval = StringArrayField_parseJson(&ctx, &config->sessionLocaleIds, &config->sessionLocaleIdsSize);
+                else if(strcmp(field, "noSession") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->noSession, NULL);
+                else if(strcmp(field, "noReconnect") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->noReconnect, NULL);
+                else if(strcmp(field, "noNewSession") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->noNewSession, NULL);
+                else if(strcmp(field, "secureChannelLifeTime") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->secureChannelLifeTime, NULL);
+                else if(strcmp(field, "requestedSessionTimeout") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->requestedSessionTimeout, NULL);
+                else if(strcmp(field, "localConnectionConfig") == 0)
+                    retval = ConnectionConfig_parseJson(&ctx, &config->localConnectionConfig, NULL);
+                else if(strcmp(field, "connectivityCheckInterval") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->connectivityCheckInterval, NULL);
+                else if(strcmp(field, "tcpReuseAddr") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->tcpReuseAddr, NULL);
+                else if(strcmp(field, "endpoint") == 0)
+                    retval = EndpointDescription_parseJson(&ctx, &config->endpoint, NULL);
+                else if(strcmp(field, "userTokenPolicy") == 0)
+                    retval = UserTokenPolicy_parseJson(&ctx, &config->userTokenPolicy, NULL);
+                else if(strcmp(field, "applicationUri") == 0)
+                    retval = StringField_parseJson(&ctx, &config->applicationUri, NULL);
+                else if(strcmp(field, "securityMode") == 0)
+                    retval = MessageSecurityMode_parseJson(&ctx, &config->securityMode, NULL);
+                else if(strcmp(field, "securityPolicyUri") == 0)
+                    retval = StringField_parseJson(&ctx, &config->securityPolicyUri, NULL);
+                else if(strcmp(field, "authSecurityPolicyUri") == 0)
+                    retval = StringField_parseJson(&ctx, &config->authSecurityPolicyUri, NULL);
+                else if(strcmp(field, "securityPolicies") == 0)
+                    retval = SecurityPoliciesField_parseJson(&ctx, &config->securityPolicies, &config->securityPoliciesSize, UA_APPLICATIONTYPE_CLIENT, config->logging);
+                else if(strcmp(field, "authSecurityPolicies") == 0)
+                    retval = SecurityPoliciesField_parseJson(&ctx, &config->authSecurityPolicies, &config->authSecurityPoliciesSize, UA_APPLICATIONTYPE_CLIENT, config->logging);
+                else if(strcmp(field, "allowNonePolicyPassword") == 0)
+                    retval = BooleanField_parseJson(&ctx, &config->allowNonePolicyPassword, NULL);
+#ifdef UA_ENABLE_ENCRYPTION
+                else if(strcmp(field, "maxTrustListSize") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->maxTrustListSize, NULL);
+                else if(strcmp(field, "maxRejectedListSize") == 0)
+                    retval = UInt32Field_parseJson(&ctx, &config->maxRejectedListSize, NULL);
+#endif
+                else if(strcmp(field, "namespaces") == 0)
+                    retval = StringArrayField_parseJson(&ctx, &config->namespaces, &config->namespacesSize);
+                else if(strcmp(field, "outStandingPublishRequests") == 0)
+                    retval = UInt16Field_parseJson(&ctx, &config->outStandingPublishRequests, NULL);
+                else {
+                    UA_LOG_WARNING(ctx.logging, UA_LOGCATEGORY_APPLICATION,
+                                   "Field name '%s' unknown or misspelled. Maybe the feature is not enabled either.", field);
+                    /* skip the name of item */
+                    ++ctx.index;
+                    /* skip value of unknown item */
+                    skipUnknownItem(&ctx);
+                    /* after skipUnknownItem() ctx->index points to the name of the following item.
+                       We must decrement index in oder following increment will
+                       still set index to the right position (name of the following item) */
+                    --ctx.index;
+                }
+                UA_free(field);
+                if(retval != UA_STATUSCODE_GOOD) {
+                    UA_LOG_ERROR(ctx.logging, UA_LOGCATEGORY_APPLICATION, "An error occurred while parsing the configuration file.");
+                    return retval;
+                }
+                break;
+            }
+            default:
+                break;
+        }
+        ctx.index += 1;
+    }
+    return retval;
+}
+
+UA_Client *
+UA_Client_newFromFile(const UA_ByteString jsonConfig)
+{
+    UA_ClientConfig config;
+    UA_StatusCode res = UA_ClientConfig_loadFromFile(&config, jsonConfig);
+    if(res != UA_STATUSCODE_GOOD)
+        return NULL;
+    return UA_Client_newWithConfig(&config);
+}
+
+UA_StatusCode
+UA_ClientConfig_loadFromFile(UA_ClientConfig *config, const UA_ByteString jsonConfig)
+{
+    memset(config, 0, sizeof(UA_ClientConfig));
+    UA_StatusCode res = UA_ClientConfig_setDefault(config);
+    if (res == UA_STATUSCODE_GOOD) {
+        res = parseJSONClientConfig(config, jsonConfig);
+        if (UA_StatusCode_isBad(res)) {
+            UA_ClientConfig_clear(config);
+        }
+    }
+    return res;
+}
 
 #ifdef UA_ENABLE_ENCRYPTION
 static UA_ByteString
