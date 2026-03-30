@@ -143,9 +143,10 @@ type_alignment(const UA_DataType *type) {
     return alignment[type->typeKind];
 }
 
-/* The #ifdef block below guards all functions that require UA_DataTypeDescription
- * and its derived types (StructureDescription, EnumDescription,
- * SimpleTypeDescription). These are only generated with UA_ENABLE_PUBSUB. */
+/* The functions below require StructureDescription, EnumDescription,
+ * and SimpleTypeDescription which are derived from UA_DataTypeDescription.
+ * They are available when UA_TYPES_STRUCTUREDESCRIPTION is defined
+ * (guarded by the #ifdef at the top of this file). */
 
 static UA_StatusCode
 UA_DataType_fromStructureDescription(UA_DataType *type,
