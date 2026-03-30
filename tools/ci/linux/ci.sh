@@ -392,8 +392,8 @@ function run_examples {
     python3 ../tools/certs/create_self-signed.py -c server
     python3 ../tools/certs/create_self-signed.py -c client
 
-    # copy json server config
-    cp ../examples/json_config/server_json_config.json5 server_json_config.json5
+    # copy json configs for the examples
+    cp ../examples/json_config/*.json5 ./
 
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \

@@ -70,7 +70,7 @@ depending on the contained information model.
 
 - Configuration
 
-  - JSON5-based configuration files for the server (:ref:`server-json-config`)
+  - JSON5-based configuration files for both client and server (:ref:`client-json-config`, :ref:`server-json-config`)
   - Flexible configuration API for runtime setup
 
 - Information model
