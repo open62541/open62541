@@ -16,7 +16,10 @@ _UA_BEGIN_DECLS
 struct UA_ServerComponent;
 typedef struct UA_ServerComponent UA_ServerComponent;
 
-/* ServerComponents are different from other "plugins" in that they have an
+/**
+ * ServerComponent Plugin API
+ * ==========================
+ * ServerComponents are different from other "plugins" in that they have an
  * explicit stateful lifecycle and can be started/stopped at runtime. They
  * typically register connections and timers in the server's EventLoop and can
  * also register nodes in the server's information model.
@@ -28,7 +31,8 @@ typedef struct UA_ServerComponent UA_ServerComponent;
 /* Type-tag for some well-known extensions of the general ServerComponent
  * structure. See below. */
 typedef enum {
-    UA_SERVERCOMPONENTTYPE_NORMAL = 0
+    UA_SERVERCOMPONENTTYPE_NORMAL = 0,
+    UA_SERVERCOMPONENTTYPE_MDNS
 } UA_ServerComponentType;
 
 struct UA_ServerComponent {
@@ -76,6 +80,55 @@ UA_Server_addServerComponent(UA_Server *server, UA_ServerComponent *sc);
  * This will fail if the ServerComponent is not already fully stopped. */
 UA_StatusCode
 UA_Server_removeServerComponent(UA_Server *server, UA_ServerComponent *sc);
+
+/**
+ * MDNS ServerComponent
+ * --------------------
+ *
+ * Can announce / retract a server via multicast DNS. Also can receive multicast
+ * information about other servers. Uses UA_Server_registerServerOnNetwork and
+ * UA_Server_deregisterServerOnNetwork to store server information and make it
+ * accessible to the discovery services. */
+
+struct UA_MdnsServerComponent;
+typedef struct UA_MdnsServerComponent UA_MdnsServerComponent;
+
+struct UA_MdnsServerComponent {
+    UA_ServerComponent serverComponent;
+
+    /* Receive information about OPC UA servers on the network via mDNS. Calls
+     * UA_Server_registerServerOnNetwork and UA_Server_deregisterServerOnNetwork
+     * to store the server information locally. */
+    UA_Boolean listen;
+
+    /* Send a mDNS packet to announce a server. This method is called during
+     * startup of the local server and by the RegisterServer2 Service when a new
+     * server is registered.
+     *
+     * The UA_MdnsDiscoveryConfiguration (from the OPC UA specification) is
+     * assembled from the UA_ServerOnNetwork structure.
+     *
+     * The params key-value map is for future additional options; can be NULL. */
+    void (*announce)(UA_MdnsServerComponent *msc,
+                     const UA_ServerOnNetwork *son,
+                     const UA_KeyValueMap *params);
+
+    /* Send a mDNS packet with TTL=0 to retract a server from the network.
+     * The params key-value map is for future additional options; can be NULL. */
+    void (*retract)(UA_MdnsServerComponent *msc,
+                    const UA_String serverName,
+                    const UA_String discoveryUrl,
+                    const UA_KeyValueMap *params);
+};
+
+/* Default implementations of UA_MdnsServerComponent.
+ * (Compilation depends on the project configurations) */
+
+/* Based on the libmdnsd dependency */
+UA_MdnsServerComponent * UA_MdnsServerComponent_Mdnsd(void);
+
+/* Based on the libavahi dependency */
+UA_MdnsServerComponent * UA_MdnsServerComponent_Avahi(void);
 
 _UA_END_DECLS
 

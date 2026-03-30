@@ -10,15 +10,36 @@
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include "ua_server_internal.h"
 #include "ua_discovery.h"
-#include "ua_services.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 
-#include <open62541/client.h>
+static void
+notifyRegisteredServer(UA_Server *server,
+                       const UA_RegisteredServer *requestServer) {
+    if(!server->config.discoveryNotificationCallback &&
+       !server->config.globalNotificationCallback)
+        return;
+
+    static UA_KeyValuePair kvp[1] = {
+        {{0, UA_STRING_STATIC("registered-server")}, {0}},
+    };
+    UA_Variant_setScalar(&kvp[0].value,
+                         (void*)(uintptr_t)requestServer,
+                         &UA_TYPES[UA_TYPES_REGISTEREDSERVER]);
+    UA_KeyValueMap kvm = {1, kvp};
+
+    if(server->config.discoveryNotificationCallback)
+        server->config.discoveryNotificationCallback(server,
+            UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_REGISTERSERVER, kvm);
+    if(server->config.globalNotificationCallback)
+        server->config.globalNotificationCallback(server,
+            UA_APPLICATIONNOTIFICATIONTYPE_DISCOVERY_REGISTERSERVER, kvm);
+}
 
 static UA_StatusCode
 setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *request,
@@ -231,54 +252,39 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                              UA_FindServersOnNetworkResponse *response) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
-    if(!dm) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        return true;
-    }
-
     if(!server->config.mdnsEnabled) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTIMPLEMENTED;
         return true;
     }
 
     /* Set LastCounterResetTime */
-    response->lastCounterResetTime =
-        UA_DiscoveryManager_getServerOnNetworkCounterResetTime(dm);
+    response->lastCounterResetTime = server->lastCounterResetTime;
+
+    /* Skip records under the threshold */
+    size_t recordOffset = 0;
+    for(; recordOffset < server->serversOnNetworkSize; recordOffset++) {
+        if(server->serversOnNetwork[recordOffset].recordId > request->startingRecordId)
+            break;
+    }
 
     /* Compute the max number of records to return */
-    UA_UInt32 recordCount = 0;
-    UA_UInt32 serverOnNetworkRecordIdCounter =
-        UA_DiscoveryManager_getServerOnNetworkRecordIdCounter(dm);
-    if(request->startingRecordId < serverOnNetworkRecordIdCounter)
-        recordCount = serverOnNetworkRecordIdCounter - request->startingRecordId;
-    if(request->maxRecordsToReturn && recordCount > request->maxRecordsToReturn)
-        recordCount = UA_MIN(recordCount, request->maxRecordsToReturn);
-    if(recordCount == 0) {
-        response->serversSize = 0;
+    size_t recordCount = server->serversOnNetworkSize - recordOffset;
+    if(request->maxRecordsToReturn > 0 && request->maxRecordsToReturn < recordCount)
+        recordCount = request->maxRecordsToReturn;
+    UA_assert(recordCount <= server->serversOnNetworkSize);
+
+    if(recordCount == 0)
         return true;
-    }
 
     /* Iterate over all records and add to filtered list */
     UA_UInt32 filteredCount = 0;
     UA_STACKARRAY(UA_ServerOnNetwork*, filtered, recordCount);
-    UA_ServerOnNetwork *current = UA_DiscoveryManager_getServerOnNetworkList(dm);
-    if(!current) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        return true;
-    }
     for(size_t i = 0; i < recordCount; i++) {
-        if(filteredCount >= recordCount)
-            break;
-        if(current->recordId < request->startingRecordId)
-            continue;
+        UA_ServerOnNetwork *son = &server->serversOnNetwork[i + recordOffset];
         if(!entryMatchesCapabilityFilter(request->serverCapabilityFilterSize,
-                               request->serverCapabilityFilter, current))
+                                         request->serverCapabilityFilter, son))
             continue;
-        filtered[filteredCount++] = current;
-        current = UA_DiscoveryManager_getNextServerOnNetworkRecord(dm, current);
-        if(!current)
-            break;
+        filtered[filteredCount++] = son;
     }
 
     if(filteredCount == 0)
@@ -286,7 +292,7 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 
     /* Allocate the array for the response */
     response->servers = (UA_ServerOnNetwork*)
-        UA_malloc(sizeof(UA_ServerOnNetwork)*filteredCount);
+        UA_calloc(filteredCount, sizeof(UA_ServerOnNetwork));
     if(!response->servers) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return true;
@@ -295,7 +301,8 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
 
     /* Copy the server names */
     for(size_t i = 0; i < filteredCount; i++) {
-        UA_ServerOnNetwork_copy(filtered[i], &response->servers[filteredCount-i-1]);
+        response->responseHeader.serviceResult |=
+            UA_ServerOnNetwork_copy(filtered[i], &response->servers[i]);
     }
     return true;
 }
@@ -665,20 +672,6 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 #endif
     }
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(sc->mdnsEnabled) {
-        for(size_t i = 0; i < requestServer->discoveryUrlsSize; i++) {
-            /* create TXT if is online and first index, delete TXT if is offline
-             * and last index */
-            UA_Boolean updateTxt = (requestServer->isOnline && i==0) ||
-                (!requestServer->isOnline && i==requestServer->discoveryUrlsSize);
-            UA_Discovery_updateMdnsForDiscoveryUrl(dm, *mdnsServerName, mdnsConfig,
-                                                   requestServer->discoveryUrls[i],
-                                                   requestServer->isOnline, updateTxt);
-        }
-    }
-#endif
-
     if(!requestServer->isOnline) {
         /* Server is shutting down. Remove it from the registered servers list */
         if(!rs) {
@@ -690,8 +683,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             return;
         }
 
-        if(dm->registerServerCallback)
-            dm->registerServerCallback(requestServer, dm->registerServerCallbackData);
+        notifyRegisteredServer(server, requestServer);
 
         /* Server found, remove from list */
         LIST_REMOVE(rs, pointers);
@@ -721,13 +713,11 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         UA_RegisteredServer_clear(&rs->registeredServer);
     }
 
-    /* Always call the callback, if it is set. Previously we only called it if
-     * it was a new register call. It may be the case that this endpoint
-     * registered before, then crashed, restarts and registeres again. In that
-     * case the entry is not deleted and the callback would not be called. */
-    if(dm->registerServerCallback)
-        dm->registerServerCallback(requestServer,
-                                   dm->registerServerCallbackData);
+    /* Always notify the application. Previously we only called it if it was a
+     * new register call. It may be the case that this endpoint registered
+     * before, then crashed, restarts and registeres again. In that case the
+     * entry is not deleted and the callback would not be called. */
+    notifyRegisteredServer(server, requestServer);
 
     /* Ccopy the data from the request into the list */
     UA_EventLoop *el = sc->eventLoop;
