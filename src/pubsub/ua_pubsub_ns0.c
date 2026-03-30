@@ -1806,11 +1806,19 @@ removeGroupAction(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_NodeId nodeToRemove = *((UA_NodeId *)input->data);
-    if(UA_WriterGroup_find(psm, nodeToRemove)) {
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, nodeToRemove);
+    if(wg) {
+        if(wg->configurationFrozen)
+            UA_Server_unfreezeWriterGroupConfiguration(server, nodeToRemove);
         return UA_Server_removeWriterGroup(server, nodeToRemove);
-    } else {
-        return UA_Server_removeReaderGroup(server, nodeToRemove);
     }
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, nodeToRemove);
+    if(!rg)
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+
+    if(rg->configurationFrozen)
+        UA_Server_unfreezeReaderGroupConfiguration(server, nodeToRemove);
+    return UA_Server_removeReaderGroup(server, nodeToRemove);
 }
 
 /**********************************************/
@@ -2188,21 +2196,24 @@ publishedDataItemsTypeDestructor(UA_Server *server,
     void *childContext;
     UA_NodeId node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
                                          UA_NS0ID(HASPROPERTY), *nodeId);
-    getNodeContext(server, node, (void**)&childContext);
-    if(!UA_NodeId_isNull(&node))
+    if(!UA_NodeId_isNull(&node)) {
+        getNodeContext(server, node, (void**)&childContext);
         UA_free(childContext);
+    }
 
     node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
                                UA_NS0ID(HASPROPERTY), *nodeId);
-    getNodeContext(server, node, (void**)&childContext);
-    if(!UA_NodeId_isNull(&node))
+    if(!UA_NodeId_isNull(&node)) {
+        getNodeContext(server, node, (void**)&childContext);
         UA_free(childContext);
+    }
 
     node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
                                UA_NS0ID(HASPROPERTY), *nodeId);
-    getNodeContext(server, node, (void**)&childContext);
-    if(!UA_NodeId_isNull(&node))
+    if(!UA_NodeId_isNull(&node)) {
+        getNodeContext(server, node, (void**)&childContext);
         UA_free(childContext);
+    }
 }
 
 static void
@@ -2217,14 +2228,16 @@ subscribedDataSetTypeDestructor(UA_Server *server,
     UA_NodeId node =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
                             UA_NS0ID(HASPROPERTY), *nodeId);
-    getNodeContext(server, node, (void**)&childContext);
-    if(!UA_NodeId_equal(&UA_NODEID_NULL , &node))
+    if(!UA_NodeId_isNull(&node)) {
+        getNodeContext(server, node, (void**)&childContext);
         UA_free(childContext);
+    }
     node = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "IsConnected"),
                                UA_NS0ID(HASPROPERTY), *nodeId);
-    getNodeContext(server, node, (void**)&childContext);
-    if(!UA_NodeId_equal(&UA_NODEID_NULL , &node))
+    if(!UA_NodeId_isNull(&node)) {
+        getNodeContext(server, node, (void**)&childContext);
         UA_free(childContext);
+    }
 }
 
 /*************************************/
