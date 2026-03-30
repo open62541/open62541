@@ -199,7 +199,18 @@ if(UA_ENABLE_JSON_ENCODING)
     ua_add_test(check_types_json_decode.c)
 
     configure_file(${CMAKE_SOURCE_DIR}/tests/server/server_json_config.json5 ${CMAKE_BINARY_DIR}/tests/server_json_config.json5 COPYONLY)
-    ua_add_test(server/check_json_config.c)
+    ua_add_test(server/check_server_json_config.c)
+
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_json_config.json5 ${CMAKE_BINARY_DIR}/tests/client_json_config.json5 COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_json_config_username.json5 ${CMAKE_BINARY_DIR}/tests/client_json_config_username.json5 COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_json_config_certificate.json5 ${CMAKE_BINARY_DIR}/tests/client_json_config_certificate.json5 COPYONLY)
+    ua_add_test(client/check_client_json_config.c)
+
+    # Copy client and server certificates and keys for test
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_cert.der ${CMAKE_BINARY_DIR}/tests/client_cert.der COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/client_key.der ${CMAKE_BINARY_DIR}/tests/client_key.der COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_cert.der ${CMAKE_BINARY_DIR}/tests/server_cert.der COPYONLY)
+    configure_file(${CMAKE_SOURCE_DIR}/tests/client/client_json/server_key.der ${CMAKE_BINARY_DIR}/tests/server_key.der COPYONLY)
 
     if(UA_ENABLE_PUBSUB)
         ua_add_test(pubsub/check_pubsub_encoding_json.c)
