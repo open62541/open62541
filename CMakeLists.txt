@@ -1024,6 +1024,13 @@ if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c)
+    set_source_files_properties(
+        ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c
+        PROPERTIES COMPILE_FLAGS "-Wno-undef")
 elseif(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
     list(APPEND lib_sources
       ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns_avahi.c
