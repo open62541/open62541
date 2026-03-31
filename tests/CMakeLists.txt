@@ -429,6 +429,7 @@ if(UA_ENABLE_ENCRYPTION)
     ua_add_test(encryption/check_crl_validation.c)
     ua_add_test(encryption/check_cert_validation_client_response.c)
     ua_add_test(encryption/check_ca_chain.c)
+    ua_add_test(server/check_server_getendpoints.c)
 
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_MBEDTLS)
         ua_add_test(client/check_client_authentication.c)
