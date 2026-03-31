@@ -301,6 +301,7 @@ const char *securityModeStrs[4] = {"-invalid", "-none", "-sign", "-sign+encrypt"
 
 UA_String
 securityPolicyUriPostfix(const UA_String uri) {
+    if(uri.length == 0) return uri;
     for(UA_Byte *b = uri.data + uri.length - 1; b >= uri.data; b--) {
         if(*b != '#')
             continue;
