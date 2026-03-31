@@ -16,6 +16,8 @@
 
 /* All descriptions begin with UA_DataTypeDescription */
 
+#ifdef UA_TYPES_STRUCTUREDESCRIPTION
+
 static UA_StatusCode
 fromDescription(UA_DataType *type, const UA_DataTypeDescription *descr) {
     memset(type, 0, sizeof(UA_DataType));
@@ -140,6 +142,11 @@ type_alignment(const UA_DataType *type) {
     }
     return alignment[type->typeKind];
 }
+
+/* The functions below require StructureDescription, EnumDescription,
+ * and SimpleTypeDescription which are derived from UA_DataTypeDescription.
+ * They are available when UA_TYPES_STRUCTUREDESCRIPTION is defined
+ * (guarded by the #ifdef at the top of this file). */
 
 static UA_StatusCode
 UA_DataType_fromStructureDescription(UA_DataType *type,
@@ -538,3 +545,5 @@ UA_DataType_toDescription(const UA_DataType *type, UA_ExtensionObject *descr) {
     UA_ExtensionObject_setValue(descr, descr_data, descr_type);
     return UA_STATUSCODE_GOOD;
 }
+
+#endif /* UA_TYPES_STRUCTUREDESCRIPTION */
