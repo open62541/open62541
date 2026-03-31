@@ -1806,19 +1806,11 @@ removeGroupAction(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_NodeId nodeToRemove = *((UA_NodeId *)input->data);
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, nodeToRemove);
-    if(wg) {
-        if(wg->configurationFrozen)
-            UA_Server_unfreezeWriterGroupConfiguration(server, nodeToRemove);
+    if(UA_WriterGroup_find(psm, nodeToRemove)) {
         return UA_Server_removeWriterGroup(server, nodeToRemove);
+    } else {
+        return UA_Server_removeReaderGroup(server, nodeToRemove);
     }
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, nodeToRemove);
-    if(!rg)
-        return UA_STATUSCODE_BADNODEIDUNKNOWN;
-
-    if(rg->configurationFrozen)
-        UA_Server_unfreezeReaderGroupConfiguration(server, nodeToRemove);
-    return UA_Server_removeReaderGroup(server, nodeToRemove);
 }
 
 /**********************************************/

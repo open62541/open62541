@@ -86,6 +86,14 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
 }
 
 static UA_Byte
+getAccessLevel(UA_Server *server, const UA_Session *session,
+               const UA_VariableNode *node) {
+    if(session == &server->adminSession)
+        return 0xFF; /* the local admin user has all rights */
+    return node->accessLevel;
+}
+
+static UA_Byte
 getUserAccessLevel(UA_Server *server, const UA_Session *session,
                    const UA_VariableNode *node) {
     UA_LOCK_ASSERT(&server->serviceMutex);
