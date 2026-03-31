@@ -931,7 +931,7 @@ Variant_setRange(UA_Variant *v, void *array, size_t arraySize,
 
     /* If members were moved, initialize original array to prevent reuse */
     if(!copy && !v->type->pointerFree)
-        memset(array, 0, sizeof(elem_size)*arraySize);
+        memset(array, 0, elem_size*arraySize);
 
     return retval;
 }
