@@ -479,11 +479,6 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
     if(depth == UA_MBEDTLS_MAX_CHAIN_LENGTH)
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
 
-    /* Verification Step: Validity Period */
-    if(mbedtls_x509_time_is_future(&cert->valid_from) ||
-       mbedtls_x509_time_is_past(&cert->valid_to))
-        return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
-            UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
 
     /* Return the most specific error code. BADCERTIFICATECHAININCOMPLETE is
      * returned only if all possible chains are incomplete. */
@@ -550,9 +545,19 @@ mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_c
      * certificate "on the way down". Can we trust this certificate? */
     if(ret == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
         for(mbedtls_x509_crt *t = &ctx->trustedCertificates; t; t = t->next) {
-            if(mbedtlsSameBuf(&cert->tbs, &t->tbs))
-                return UA_STATUSCODE_GOOD;
+            if(mbedtlsSameBuf(&cert->tbs, &t->tbs)) {
+                ret = UA_STATUSCODE_GOOD;
+                break;
+            }
         }
+    }
+
+    if(ret == UA_STATUSCODE_GOOD) {
+        /* Verification Step: Validity Period */
+        if(mbedtls_x509_time_is_future(&cert->valid_from) ||
+        mbedtls_x509_time_is_past(&cert->valid_to))
+            return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
+                UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
     }
 
     return ret;
