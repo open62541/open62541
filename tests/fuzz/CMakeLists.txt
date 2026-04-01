@@ -79,6 +79,7 @@ add_fuzzer(fuzz_tcp_message fuzz_tcp_message.cc)
 add_fuzzer(fuzz_binary_decode fuzz_binary_decode.cc)
 add_fuzzer(fuzz_src_ua_util fuzz_src_ua_util.cc)
 add_fuzzer(fuzz_attributeoperand fuzz_attributeoperand.cc)
+add_fuzzer(fuzz_parse_string fuzz_parse_string.cc)
 
 # Add fuzzer for mdns dependency. It's currently not fuzzed separately.
 # See also: https://github.com/google/oss-fuzz/pull/2928
@@ -91,10 +92,26 @@ add_fuzzer(fuzz_base64_decode fuzz_base64_decode.cc)
 if(UA_ENABLE_JSON_ENCODING)
     add_fuzzer(fuzz_json_decode fuzz_json_decode.cc)
     add_fuzzer(fuzz_json_decode_encode fuzz_json_decode_encode.cc)
+    if(UA_ENABLE_PUBSUB)
+        add_fuzzer(fuzz_pubsub_json fuzz_pubsub_json.cc)
+    endif()
+endif()
+
+if(UA_ENABLE_PUBSUB)
+    add_fuzzer(fuzz_pubsub_binary fuzz_pubsub_binary.cc)
+endif()
+
+if(UA_ENABLE_ENCRYPTION)
+    add_fuzzer(fuzz_certificate_parse fuzz_certificate_parse.cc)
 endif()
 
 if(UA_ENABLE_XML_ENCODING)
     add_fuzzer(fuzz_xml_decode_encode fuzz_xml_decode_encode.cc)
+endif()
+
+# EventFilter parser fuzzer
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+    add_fuzzer(fuzz_eventfilter_parse fuzz_eventfilter_parse.cc)
 endif()
 
 # Run fuzzer on existing corpus to avoid regression

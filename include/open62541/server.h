@@ -12,6 +12,8 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020-2022 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2025-2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #ifndef UA_SERVER_H_
@@ -22,17 +24,25 @@
 #include <open62541/types.h>
 #include <open62541/client.h>
 
+#include <open62541/plugin/log.h>
+#include <open62541/plugin/certificategroup.h>
+#include <open62541/plugin/eventloop.h>
+#include <open62541/plugin/accesscontrol.h>
+#include <open62541/plugin/securitypolicy.h>
+#include <open62541/plugin/servercomponent.h>
+
+#ifdef UA_ENABLE_HISTORIZING
+#include <open62541/plugin/historydatabase.h>
+#endif
+
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/server_pubsub.h>
 #endif
 
-/* Forward declarations */
-typedef void (*UA_Server_AsyncOperationNotifyCallback)(UA_Server *server);
-
+/* Forward Declarations */
 struct UA_Nodestore;
 typedef struct UA_Nodestore UA_Nodestore;
 
-/* Forward Declarations */
 struct UA_ServerConfig;
 typedef struct UA_ServerConfig UA_ServerConfig;
 
@@ -189,6 +199,27 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
 #define UA_Server_removeRepeatedCallback(server, callbackId) \
     UA_Server_removeCallback(server, callbackId)
+
+/**
+ * Application Notification
+ * ------------------------
+ * The server defines callbacks to notify the application on defined triggering
+ * points. These callbacks are executed with the (re-entrant) server-mutex held.
+ *
+ * The different types of callback are disambiguated by their type enum. Besides
+ * the global notification callback (which is always triggered), the server
+ * configuration contains specialized callbacks that trigger only for specific
+ * notifications. This can reduce the burden of high-frequency notifications.
+ *
+ * If a specialized notification callback is set, it always gets called before
+ * the global notification callback for the same triggering point.
+ *
+ * See the section on the :ref:`Application Notification` enum for more
+ * documentation on the notifications and their defined payload. */
+
+typedef void (*UA_ServerNotificationCallback)(UA_Server *server,
+                                              UA_ApplicationNotificationType type,
+                                              const UA_KeyValueMap payload);
 
 /**
  * .. _server-session-handling:
@@ -462,16 +493,80 @@ UA_Server_writeExecutable(UA_Server *server, const UA_NodeId nodeId,
                           const UA_Boolean executable);
 
 /**
+ * .. _server-method-call:
+ *
  * Method Service Set
  * ------------------
- * The Method Service Set defines the means to invoke methods. A MethodNode
- * shall be a component of an ObjectNode. Since the same MethodNode can be
- * referenced from multiple ObjectNodes, for calling a method, both method and
- * object need to be defined by their NodeId.
  *
- * The input and output arguments of a method are a list of ``UA_Variant``. The
- * type- and size-requirements of the arguments can be retrieved from the
- * **InputArguments** and **OutputArguments** variable below the MethodNode. */
+ * The Method Service Set defines the means to invoke methods. A MethodNode is a
+ * component of an ObjectNode or of an ObjectTypeNode. The input and output
+ * arguments of a method are a list of ``UA_Variant``. The type- and
+ * size-requirements of the arguments can be retrieved from the
+ * **InputArguments** and **OutputArguments** variable below the MethodNode.
+ *
+ * For calling a method, both ``methodId`` and ``objectId`` need to be defined
+ * by their NodeId. This is required because the same MethodNode can be
+ * referenced from multiple objects.
+ *
+ * In this server implementation, when an object is instantiated from a an
+ * ObjectType, all (mandatory) methods are automatically added to the new object
+ * instance. This is done by adding an additional reference to the original
+ * MethodNode. It is however possible to add a custom MethodNode directly to the
+ * object instance. It is also possible to remove a (optional) MethodNode that
+ * exists in the ObjectType from an instance.
+ *
+ * The ``methodId`` can point to a MethodNode that exists in the ObjectType but
+ * not in the object instance. It is resolved to the actual MethodNode of the
+ * object instance by taking the *BrowseName* attribute of the
+ * ``methodId``-MethodNode and looking up the member of the ``objectId`` object
+ * with the same BrowseName.
+ *
+ * The resolved MethodNode then is used to
+ *
+ * - Check permissions for the current Session to call the method
+ * - Obtain the ``UA_MethodCallback`` to execute
+ * - Forwarded as ``methodId`` to said callback
+ *
+ * To showcase the resolution of the MethodNode with an example, consider this
+ * information model::
+ *
+ *      ObjectType                      ObjectType                     Object
+ *    Creature (i=10)  <-isSubTypeOf-  Insect (i=20)  <-hasTypeDef-   Ant (i=30)
+ *          |                               |                            |
+ *     hasComponent                    hasComponent                 hasComponent
+ *          |                               |                            |
+ *          v                               v                            v
+ *       Methods                         Methods                      Methods
+ *    - Walk (i=11)                   - Walk (i=21)                - Walk (i=31)
+ *    - Fly (i=12)                    - Fly (i=22)                 - Amount (i=33)
+ *    - Amount (i=13)                 - Amount (i=23)
+ *
+ * The following table shows what ``methodId`` - ``objectId`` combinations are
+ * allowed to be used as parameters for the Call service and the resolved
+ * ``methodId``.
+ *
+ * ========  ========  ====================================  =================
+ * objectId  methodId  Corresponds to in OO-languages        Resolved methodId
+ * ========  ========  ====================================  =================
+ * i=30      i=31      ``Ant a; a.Walk();``                  i=31
+ * i=30      i=21      ``Ant a; Insect i = a; i.Walk();``    i=31
+ * i=30      i=11      ``Ant a; Creature c = a; c.Walk();``  i=31
+ * i=20      i=23      ``Insect::Amount();``                 i=23
+ * i=10      i=13      ``Creature::Amount();``               i=13
+ * ========  ========  ====================================  =================
+ *
+ * The next table shows ``methodId`` - ``objectId`` combinations that are not
+ * allowed. Note that an ObjecType cannot execute a methodId from a subtype or
+ * instance.
+ *
+ * ========  ========  =====================================================
+ * objectId  methodId  Reason
+ * ========  ========  =====================================================
+ * i=30      i=22      Object "Ant" does not own a method "Fly"
+ * i=30      i=12      Object "Ant" does not own a method "Fly"
+ * i=10      i=23      The method is not owned by the object type "Creature"
+ * i=20      i=13      The method is not owned by the object type "Insect"
+ * ========  ========  ===================================================== */
 
 #ifdef UA_ENABLE_METHODCALLS
 UA_CallMethodResult UA_EXPORT UA_THREADSAFE
@@ -608,15 +703,13 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
  *
  * The received event-fields map could look like this::
  *
- *   0:/Severity   => UInt16(1000)
- *   0:/Message    => LocalizedText("en-US", "My Event Message")
- *   0:/EventType  => NodeId(i=50831)
- *   0:/SourceNode => NodeId(i=2253)
+ *   /Severity   => UInt16(1000)
+ *   /Message    => LocalizedText("en-US", "My Event Message")
+ *   /EventType  => NodeId(i=50831)
+ *   /SourceNode => NodeId(i=2253)
  *
  * The order of the keys is identical to the order of SimpleAttributeOperands in
- * the select-clause. This feature requires the build flag ``UA_ENABLE_PARSING``
- * enabled. Otherwise the key-value map uses empty keys (the order of fields is
- * still the same as the specified select-clauses). */
+ * the select-clause. */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
@@ -890,7 +983,7 @@ UA_Server_setVariableNode_callbackValueSource(UA_Server *server,
 /* Deprecated API */
 typedef UA_CallbackValueSource UA_DataSource;
 #define UA_Server_setVariableNode_dataSource(server, nodeId, dataSource) \
-    UA_Server_setVariableNode_callbackValueSource(server, nodeId, dataSource);
+    UA_Server_setVariableNode_callbackValueSource(server, nodeId, dataSource)
 
 /* Deprecated API */
 typedef UA_ValueSourceNotifications UA_ValueCallback;
@@ -920,7 +1013,10 @@ UA_Server_addVariableTypeNode(UA_Server *server,
 
 /**
  * MethodNode
- * ~~~~~~~~~~ */
+ * ~~~~~~~~~~
+ * Please refer to the :ref:`Method Service Set <server-method-call>` to get
+ * information about which MethodNodes may get executed and would thus require
+ * callbacks to be registered. */
 
 typedef UA_StatusCode
 (*UA_MethodCallback)(UA_Server *server,
@@ -1023,6 +1119,50 @@ UA_Server_addDataTypeNode(UA_Server *server,
                           const UA_QualifiedName browseName,
                           const UA_DataTypeAttributes attr,
                           void *nodeContext, UA_NodeId *outNewNodeId);
+
+/**
+ * Due to the history of development, the DataTypeAttributes structure used in
+ * the AddNodes Service does not describe the layout of the DataType. But the
+ * (newer) structures for describing DataTypes do:
+ *
+ * - SimpleTypeDescription
+ * - EnumDescription
+ * - StructureDescription
+ *
+ * The ``UA_Server_addDataTypeFromDescription`` function translates the
+ * DataTypeDescription into a UA_DataType structure and adds it to an internal
+ * array of the server. Then the DataType is automatically decoded in messages
+ * received by the server. Also the ``DataTypeDefinition`` attribute of the
+ * corresponding DataTypeNode can then be read via the Read service.
+ *
+ * The memory layout of the internally generated ``UA_DataType`` corresponds to
+ * the matching C-structure including padding.
+ *
+ * Note that a DataTypeDescription can be added only once during the lifetime of
+ * the server. This protects against existing instances of the DataType to
+ * having their layout changed. */
+
+/* Use the DataType description to create an internal UA_DataType entry in the
+ * server */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_addDataTypeFromDescription(UA_Server *server,
+                                     const UA_ExtensionObject *description);
+
+/* The same as UA_Server_addDataTypeFromDescription, but with the description
+ * already converted into a UA_DataType. Makes a copy of the UA_DataType
+ * internally. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Server_addDataType(UA_Server *server, const UA_NodeId parentNodeId,
+                      const UA_DataType *type);
+
+/* Get the entry to the linked list of custom datatypes. This includes both the
+ * datatypes from serverConfig->customDataTypes and the internal custom data
+ * types from UA_Server_addDataType.
+ *
+ * Attention! The output pointer is only valid until the next call to
+ * UA_Server_addDataType. */
+UA_EXPORT UA_THREADSAFE const UA_DataTypeArray *
+UA_Server_getDataTypes(UA_Server *server);
 
 /**
  * ViewNode
@@ -1289,57 +1429,193 @@ UA_Server_setAsyncWriteResult(UA_Server *server, const UA_DataValue *value,
                               UA_StatusCode result);
 
 /**
+ * The server supports asynchronous "local" read/write/call operations. The user
+ * supplies a result-callback that gets called either synchronously (if the
+ * operation terminates right away) or asynchronously at a later time. The
+ * result-callback is called exactly one time for each operation, also if the
+ * operation is cancelled. In this case a StatusCode like
+ * ``UA_STATUSCODE_BADTIMEOUT`` or ``UA_STATUSCODE_BADSHUTDOWN`` is set.
+ *
+ * If an operation returns asynchronously, then the result-callback is executed
+ * only in the next iteration of the Eventloop. An exception to this is
+ * UA_Server_cancelAsync, which can optionally call the result-callback right
+ * away (e.g. as part of a cleanup where the context of the result-callback gets
+ * removed).
+ *
+ * Async operations incur a small overhead since memory is allocated to persist
+ * the operation over time.
+ *
+ * The operation timeout is defined in milliseconds. A timeout of zero means
+ * infinite. */
+
+typedef void(*UA_ServerAsyncReadResultCallback)
+    (UA_Server *server, void *asyncOpContext, const UA_DataValue *result);
+typedef void(*UA_ServerAsyncWriteResultCallback)
+    (UA_Server *server, void *asyncOpContext, UA_StatusCode result);
+typedef void(*UA_ServerAsyncMethodResultCallback)
+    (UA_Server *server, void *asyncOpContext, const UA_CallMethodResult *result);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_read_async(UA_Server *server, const UA_ReadValueId *operation,
+                     UA_TimestampsToReturn timestamps,
+                     UA_ServerAsyncReadResultCallback callback,
+                     void *asyncOpContext, UA_UInt32 timeout);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_write_async(UA_Server *server, const UA_WriteValue *operation,
+                      UA_ServerAsyncWriteResultCallback callback,
+                      void *asyncOpContext, UA_UInt32 timeout);
+
+#ifdef UA_ENABLE_METHODCALLS
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_call_async(UA_Server *server, const UA_CallMethodRequest *operation,
+                     UA_ServerAsyncMethodResultCallback callback,
+                     void *asyncOpContext, UA_UInt32 timeout);
+#endif
+
+/**
+ * Local async operations can be manually cancelled (besides an internal cancel
+ * due to a timeout or server shutdown). The local async operations to be
+ * cancelled are selected by matching their asyncOpContext pointer. This can
+ * cancel multiple operations that use the same context pointer.
+ *
+ * For operations where the async result was not yet set, the
+ * asyncOperationCancelCallback from the server-config gets called and the
+ * cancel-status is set in the operation result.
+ *
+ * For async operations where the result has already been set, but not yet
+ * notified with the result-callback (to be done in the next EventLoop
+ * iteration), the asyncOperationCancelCallback is not called and no cancel
+ * status is set in the result.
+ *
+ * Each operation's result-callback gets called exactly once. When the operation
+ * is cancelled, the result-callback can be called synchronously using the
+ * synchronousResultCallback flag. Otherwise the result gets returned "normally"
+ * in the next EventLoop iteration. The synchronous option ensures that all
+ * (matching) async operations are fully cancelled right away. This can be
+ * important in a cleanup situation where the asyncOpContext is no longer valid
+ * in the future. */
+
+void UA_EXPORT UA_THREADSAFE
+UA_Server_cancelAsync(UA_Server *server, void *asyncOpContext,
+                      UA_StatusCode status,
+                      UA_Boolean synchronousResultCallback);
+
+/**
  * .. _events:
  *
  * Events
  * ------
- * The method ``UA_Server_createEvent`` creates an event and represents it as
- * node. The node receives a unique `EventId` which is automatically added to
- * the node. The method returns a `NodeId` to the object node which represents
- * the event through ``outNodeId``. The `NodeId` can be used to set the
- * attributes of the event. The generated `NodeId` is always numeric.
- * ``outNodeId`` cannot be ``NULL``.
+ * Events are emitted by objects in the OPC UA information model. Starting at
+ * the source-node, the events "bubble up" in the hierarchy of objects and are
+ * caught by MonitoredItems listening for them.
  *
- * Note: In order to see an event in UAExpert, the field `Time` must be given a
- * value!
+ * EventTypes are special ObjectTypeNodes that describe the (data) fields of an
+ * event instance. An EventType can simply contain a flat list of VariableNodes.
+ * But (deep) nesting of objects and variables is also allowed. The individual
+ * MonitoredItems then contain an EventFilter (with a select-clause) that
+ * defines the event fields to be transmitted to a particular client.
  *
- * The method ``UA_Server_triggerEvent`` "triggers" an event by adding it to all
- * monitored items of the specified origin node and those of all its parents.
- * Any filters specified by the monitored items are automatically applied. Using
- * this method deletes the node generated by ``UA_Server_createEvent``. The
- * `EventId` for the new event is generated automatically and is returned
- * through ``outEventId``. ``NULL`` can be passed if the `EventId` is not
- * needed. ``deleteEventNode`` specifies whether the node representation of the
- * event should be deleted after invoking the method. This can be useful if
- * events with the similar attributes are triggered frequently. ``UA_TRUE``
- * would cause the node to be deleted. */
+ * In open62541, there are three possible sources for the event fields. When the
+ * select-clause of an EventFilter is resolved, the sources are evaluated in the
+ * following order:
+ *
+ * 1. An key-value map that defines event fields. The key of its entries is a
+ *    "path-string", a :ref:``human-readable encoding of a
+ *    SimpleAttributeOperand<parse-sao>`. For example ``/SourceNode`` or
+ *    ``/EventType``.
+ * 2. A NodeId pointing to an ObjectNode that instantiates an EventType. The
+ *    ``SimpleAttributeOperands`` from the EventFilter are resolved in its
+ *    context.
+ * 3. The event fields defined as mandatory for the *BaseEventType* have a
+ *    default that gets used if they are not defined otherwise:
+ *
+ *    /EventId
+ *       ByteString to uniquely identify the event instance
+ *       (default: random 16-byte ByteString)
+ *
+ *    /EventType
+ *       NodeId of the EventType (default: argument of ``_createEvent``)
+ *
+ *    /SourceNode
+ *       NodeId of the emitting node (default: argument of ``_createEvent``)
+ *
+ *    /SourceName
+ *       LocalizedText with the DisplayName of the source node
+ *       (default: read from the information model)
+ *
+ *    /Time
+ *       DateTime with the timestamp when the event occurred
+ *       (default: current time)
+ *
+ *    /ReceiveTime
+ *       DateTime when the server received the information about the event from an
+ *       underlying device (default: current time)
+ *
+ *    /Message
+ *       LocalizedText with a human-readable description of the event (default:
+ *       argument of ``_createEvent``)
+ *
+ *    /Severity
+ *       UInt16 for the urgency of the event defined to be between 1 (lowest) and
+ *       1000 (catastrophic) (default: argument of ``_createEvent``)
+ *
+ * The "path-string" (SimpleAttributeOperand expression) can use
+ * namespace-indices and point into nested objects and variables. For example
+ * ``/1:Truck/2:Wheel``.
+ *
+ * The key-value map source for the event-fields uses a QualifiedName for the
+ * key. The NamespaceIndex from the key is used as the default NamespaceIndex
+ * for the path elements that do not define it explicitly. So the key
+ * ``2:"/1:Truck/Wheel"`` becomes ``/1:Truck/2:Wheel``.
+ *
+ * An event field that is missing from all sources resolves to an empty variant.
+ *
+ * It is typically faster to define event-fields in the key-value map than to
+ * look them up from an event instance in the information model. This is
+ * particularly important for events emitted at a high frequency. */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
-/* Creates a node representation of an event
- *
- * @param server The server object
- * @param eventType The type of the event for which a node should be created
- * @param outNodeId The NodeId of the newly created node for the event
- * @return The StatusCode of the UA_Server_createEvent method */
+/* Create an event in the server. The eventFields and eventInstance pointer can
+ * be NULL and are then not considered as a source of event fields. The
+ * outEventId pointer can be NULL. If set, the EventId of a successfully created
+ * Event gets copied into the argument. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_createEvent(UA_Server *server, const UA_NodeId eventType,
-                      UA_NodeId *outNodeId);
+UA_Server_createEvent(UA_Server *server, const UA_NodeId sourceNode,
+                      const UA_NodeId eventType, UA_UInt16 severity,
+                      const UA_LocalizedText message,
+                      const UA_KeyValueMap *eventFields,
+                      const UA_NodeId *eventInstance,
+                      UA_ByteString *outEventId);
 
-/* Triggers a node representation of an event by applying EventFilters and
- * adding the event to the appropriate queues.
+/* Extended version of the _createEvent API. The members of the
+ * UA_EventDescription structure have the same meaning as above.
  *
- * @param server The server object
- * @param eventNodeId The NodeId of the node representation of the event which
- *        should be triggered
- * @param outEvent the EventId of the new event
- * @param deleteEventNode Specifies whether the node representation of the event
- *        should be deleted
- * @return The StatusCode of the UA_Server_triggerEvent method */
+ * In addition, the extended version allows the filtering of Events to be only
+ * transmitted to a particular Session/Subscription/MonitoredItem. The filtering
+ * criteria can be NULL. But the subscriptionId requires a sessionId and the
+ * monitoredItemId requires a subscriptionId as context. */
+
+typedef struct {
+    /* Event fields */
+    UA_NodeId sourceNode;
+    UA_NodeId eventType;
+    UA_UInt16 severity;
+    UA_LocalizedText message;
+    const UA_KeyValueMap *eventFields;
+    const UA_NodeId *eventInstance;
+
+    /* Restrict who can receive the event */
+    const UA_NodeId *sessionId;
+    const UA_UInt32 *subscriptionId;
+    const UA_UInt32 *monitoredItemId;
+} UA_EventDescription;
+
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
-                       const UA_NodeId originId, UA_ByteString *outEventId,
-                       const UA_Boolean deleteEventNode);
+UA_Server_createEventEx(UA_Server *server,
+                        const UA_EventDescription *ed,
+                        UA_ByteString *outEventId);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
@@ -1755,6 +2031,90 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              UA_Variant *value);
 
 /**
+ * Role-Based Access Control (RBAC)
+ * --------------------------------
+ *
+ * Role-Based Access Control implementation per OPC UA Part 18.
+ *
+ * **WARNING**: This feature is EXPERIMENTAL and NOT FOR PRODUCTION USE.
+ * The RBAC implementation is under active development and the API may change.
+ * Use only for testing and development purposes.
+ *
+ * RBAC allows fine-grained access control by assigning roles to sessions and
+ * defining permissions per role on individual nodes or entire namespaces.
+ *
+ * Type Definitions
+ * ~~~~~~~~~~~~~~~~
+ */
+
+#ifdef UA_ENABLE_RBAC
+
+/* UA_RolePermission
+ * Maps a single role to its permissions bitmask. Used in the server
+ * configuration to define presets and in the public API to set or query
+ * role permissions on nodes. */
+typedef struct {
+    UA_NodeId roleId;
+    UA_PermissionType permissions;
+} UA_RolePermission;
+
+/* UA_RolePermissionSet
+ * A set of role-permission mappings. Used in the server configuration
+ * to define initial role-permission presets. */
+typedef struct {
+    size_t rolePermissionsSize;
+    UA_RolePermission *rolePermissions;
+} UA_RolePermissionSet;
+
+/* UA_RolePermissionSet Type Management */
+void UA_EXPORT
+UA_RolePermissionSet_init(UA_RolePermissionSet *rps);
+
+void UA_EXPORT
+UA_RolePermissionSet_clear(UA_RolePermissionSet *rps);
+
+UA_StatusCode UA_EXPORT
+UA_RolePermissionSet_copy(const UA_RolePermissionSet *src,
+                          UA_RolePermissionSet *dst);
+
+/* UA_Role
+ * Represents an OPC UA role with identity mapping rules and optional
+ * application/endpoint restrictions per OPC UA Part 18. */
+typedef struct {
+    UA_NodeId roleId;
+    UA_QualifiedName roleName;              /* BrowseName of the role */
+
+    /* Identity Mapping Rules - determine which sessions get this role */
+    size_t identityMappingRulesSize;
+    UA_IdentityMappingRuleType *identityMappingRules;
+
+    /* Application restrictions  (empty list = ignore) */
+    UA_Boolean applicationsExclude;
+    size_t applicationsSize;
+    UA_String *applications;
+
+    /* Endpoint restrictions (empty list = ignore) */
+    UA_Boolean endpointsExclude;
+    size_t endpointsSize;
+    UA_EndpointType *endpoints;
+} UA_Role;
+
+/* UA_Role Type Management */
+void UA_EXPORT
+UA_Role_init(UA_Role *role);
+
+void UA_EXPORT
+UA_Role_clear(UA_Role *role);
+
+UA_StatusCode UA_EXPORT
+UA_Role_copy(const UA_Role *src, UA_Role *dst);
+
+UA_Boolean UA_EXPORT
+UA_Role_equal(const UA_Role *r1, const UA_Role *r2);
+
+#endif /* UA_ENABLE_RBAC */
+
+/**
  * .. _server-configuration:
  *
  * Server Configuration
@@ -1774,17 +2134,6 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
  * 4. After shutdown of the server, clean up the configuration (free memory)
  *
  * The :ref:`tutorials` provide a good starting point for this. */
-
-#include <open62541/plugin/log.h>
-#include <open62541/plugin/certificategroup.h>
-#include <open62541/plugin/nodestore.h>
-#include <open62541/plugin/eventloop.h>
-#include <open62541/plugin/accesscontrol.h>
-#include <open62541/plugin/securitypolicy.h>
-
-#ifdef UA_ENABLE_HISTORIZING
-#include <open62541/plugin/historydatabase.h>
-#endif
 
 struct UA_ServerConfig {
     void *context; /* Used to attach custom data to a server config. This can
@@ -1850,7 +2199,7 @@ struct UA_ServerConfig {
      *
      * See the section on :ref:`generic-types`. Examples for working with custom
      * data types are provided in ``/examples/custom_datatype/``. */
-    const UA_DataTypeArray *customDataTypes;
+    UA_DataTypeArray *customDataTypes;
 
     /* EventLoop
      * ~~~~~~~~~
@@ -1859,6 +2208,21 @@ struct UA_ServerConfig {
      * be destroyed when the config is cleaned up. */
     UA_EventLoop *eventLoop;
     UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
+
+    /* Application Notification
+     * ~~~~~~~~~~~~~~~~~~~~~~~~
+     * The notification callbacks can be NULL. The global callback receives all
+     * notifications. The specialized callbacks receive only the subset
+     * indicated by their name. */
+    UA_ServerNotificationCallback globalNotificationCallback;
+    UA_ServerNotificationCallback lifecycleNotificationCallback;
+    UA_ServerNotificationCallback secureChannelNotificationCallback;
+    UA_ServerNotificationCallback sessionNotificationCallback;
+    UA_ServerNotificationCallback serviceNotificationCallback;
+    UA_ServerNotificationCallback subscriptionNotificationCallback;
+#ifdef UA_ENABLE_AUDITING
+    UA_ServerNotificationCallback auditNotificationCallback;
+#endif
 
     /* Networking
      * ~~~~~~~~~~
@@ -1910,7 +2274,13 @@ struct UA_ServerConfig {
      * Make sure you really need this before enabling plain text passwords. */
     UA_Boolean allowNonePolicyPassword;
 
-    /* Different sets of certificates are trusted for SecureChannel / Session */
+    /* Different sets of certificates are trusted for SecureChannel / Session.
+     * They correspond to the CertificateGroups "DefaultApplicationGroup" and
+     * "DefaultUserTokenGroup" from Part 12.
+     *
+     * If the client authenticates with an X509IdentityToken (ActivateSession
+     * Service), then this certificate is validated with the sessionPKI before
+     * forwarding the token to the AccessControl plugin. */
     UA_CertificateGroup secureChannelPKI;
     UA_CertificateGroup sessionPKI;
 
@@ -1955,11 +2325,9 @@ struct UA_ServerConfig {
     /* Limits for Requests */
     UA_UInt32 maxReferencesPerNode;
 
-#ifdef UA_ENABLE_ENCRYPTION
-    /* Limits for TrustList */
-    UA_UInt32 maxTrustListSize; /* in bytes, 0 => unlimited */
-    UA_UInt32 maxRejectedListSize; /* 0 => unlimited */
-#endif
+    /* Reverse Connect
+     * ~~~~~~~~~~~~~~~ */
+    UA_UInt32 reverseReconnectInterval; /* Default is 15000 ms */
 
     /* Async Operations
      * ~~~~~~~~~~~~~~~~
@@ -1971,6 +2339,12 @@ struct UA_ServerConfig {
      * memory for setting the output value is then freed internally and should
      * not be touched afterwards. */
     void (*asyncOperationCancelCallback)(UA_Server *server, const void *out);
+
+#ifdef UA_ENABLE_ENCRYPTION
+    /* Limits for TrustList */
+    UA_UInt32 maxTrustListSize; /* in bytes, 0 => unlimited */
+    UA_UInt32 maxRejectedListSize; /* 0 => unlimited */
+#endif
 
     /* Discovery
      * ~~~~~~~~~ */
@@ -2051,6 +2425,16 @@ struct UA_ServerConfig {
     UA_PubSubConfiguration pubSubConfig;
 #endif
 
+    /* Auditing
+     * ~~~~~~~~
+     * Drops audit events into the auditNotificationCallback and generates
+     * the corresponding Audit Events (if Events are enabled). */
+    UA_Boolean auditingEnabled;
+#ifdef UA_ENABLE_AUDITING
+    UA_Boolean auditWriteUpdateEnabled;  /* Mind the runtime overhead */
+    UA_Boolean auditMethodUpdateEnabled; /* Mind the runtime overhead */
+#endif
+
     /* Historical Access
      * ~~~~~~~~~~~~~~~~~ */
     UA_Boolean historizingEnabled;
@@ -2078,10 +2462,6 @@ struct UA_ServerConfig {
     UA_Boolean deleteAtTimeDataCapability;
 #endif
 
-    /* Reverse Connect
-     * ~~~~~~~~~~~~~~~ */
-    UA_UInt32 reverseReconnectInterval; /* Default is 15000 ms */
-
     /* Certificate Password Callback
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 #ifdef UA_ENABLE_ENCRYPTION
@@ -2092,6 +2472,47 @@ struct UA_ServerConfig {
      * config setup may depend on it. */
     UA_StatusCode (*privateKeyPasswordCallback)(UA_ServerConfig *sc,
                                                 UA_ByteString *password);
+#endif
+
+#ifdef UA_ENABLE_RBAC
+    /* Initial Role-Permission Presets
+     * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+     * Array of initial role-permission presets. Each entry is a set of
+     * UA_RolePermission mappings that define which roles get which
+     * permissions on nodes that reference this preset.
+     *
+     * During server startup, these presets are copied into the server's
+     * internal role-permissions array. The preset entries form the initial
+     * configuration with the following guarantees:
+     *
+     * - Preset entries are **never deleted** during server runtime.
+     * - Their position (index) in the internal array is **kept stable**,
+     *   ensuring that nodes assigned to a preset continue to reference
+     *   the same configuration throughout the server's lifetime.
+     * - Custom nodestore implementations should be aware of these
+     *   index-stability guarantees when managing node permission storage.
+     *
+     * Additional role-permission sets can be added at runtime through
+     * the server API (UA_Server_setNodeRolePermissions). Runtime entries
+     * may be garbage-collected when no longer referenced by any node. */
+    size_t rolePermissionPresetsSize;
+    UA_RolePermissionSet *rolePermissionPresets;
+
+    /* Initial Role Definitions
+     * ~~~~~~~~~~~~~~~~~~~~~~~~
+     * Array of initial role definitions. During server startup, these roles
+     * are copied into the server's internal role registry. Config roles are
+     * treated as **protected**: they cannot be removed at runtime via
+     * UA_Server_removeRole.
+     *
+     * Additional roles can be added at runtime through UA_Server_addRole.
+     * Runtime-added roles can be removed via UA_Server_removeRole. */
+    size_t rolesSize;
+    UA_Role *roles;
+
+    /* If true, all permissions are granted regardless of roles.
+     * WARNING: Effectively disables authorization. Use for testing only. */
+    UA_Boolean allPermissionsForAnonymousRole;
 #endif
 };
 
@@ -2173,6 +2594,300 @@ UA_Server_removeCertificates(UA_Server *server,
                              size_t certificatesSize,
                              const UA_Boolean isTrusted);
 
+/**
+ * RBAC API
+ * ~~~~~~~~
+ */
+
+#ifdef UA_ENABLE_RBAC
+
+/**
+ * Node Role-Permission Management
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ * Functions for managing role permissions on individual nodes. */
+
+/* Set role permissions for a node.
+ *
+ * Assigns the given set of role-permission mappings to the specified node.
+ * If an identical permission configuration already exists internally, the
+ * node will reference the existing configuration (deduplication). Otherwise,
+ * a new internal entry is created.
+ *
+ * @param server The server instance
+ * @param nodeId The NodeId of the node
+ * @param rolePermissionsSize Number of role-permission entries
+ * @param rolePermissions Array of role-permission mappings
+ * @param recursive If true, also set for all hierarchically referenced
+ *        child nodes
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setNodeRolePermissions(UA_Server *server,
+                                 const UA_NodeId nodeId,
+                                 size_t rolePermissionsSize,
+                                 const UA_RolePermission *rolePermissions,
+                                 UA_Boolean recursive);
+
+/* Get the role permissions of a node.
+ *
+ * Returns a copy of the role-permission mappings currently assigned to
+ * the node. The output array and its entries are allocated and must be
+ * freed by the caller.
+ *
+ * If the node has no specific role permissions assigned, the output size
+ * is set to 0 and the output pointer to NULL.
+ *
+ * @param server The server instance
+ * @param nodeId The NodeId of the node
+ * @param rolePermissionsSize Output: number of entries
+ * @param rolePermissions Output: deep-copy array of role-permission mappings
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getNodeRolePermissions(UA_Server *server,
+                                 const UA_NodeId nodeId,
+                                 size_t *rolePermissionsSize,
+                                 UA_RolePermission **rolePermissions);
+
+/* Remove role permissions from a node.
+ *
+ * Resets the node to have no specific role permissions. Default access
+ * control behavior then applies. The internal reference count for the
+ * previously assigned permission configuration is decremented.
+ *
+ * @param server The server instance
+ * @param nodeId The NodeId of the node
+ * @param recursive If true, also remove from all hierarchically referenced
+ *        child nodes
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_removeNodeRolePermissions(UA_Server *server,
+                                    const UA_NodeId nodeId,
+                                    UA_Boolean recursive);
+
+/**
+ * Role Management
+ * ^^^^^^^^^^^^^^^
+ * Functions for managing the server's role registry. Roles define which
+ * sessions get which access rights. Config-provided roles are protected
+ * and cannot be removed at runtime. */
+
+/* Add a role to the server's role registry.
+ *
+ * The role's BrowseName (roleName) is the primary unique identifier,
+ * per OPC UA Part 18 Section 4.2. A role with the same roleName or
+ * roleId must not already exist.
+ *
+ * If role->roleId is null, the server auto-assigns a random numeric
+ * NodeId in namespace 0. To control the namespace or identifier, set
+ * role->roleId before calling.
+ *
+ * @param server The server instance
+ * @param role The role definition to add (deep-copied)
+ * @param outRoleNodeId Output: the assigned NodeId (deep copy). May be NULL.
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADALREADYEXISTS if a role with the same
+ *         roleName or roleId already exists */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_addRole(UA_Server *server, const UA_Role *role,
+                  UA_NodeId *outRoleNodeId);
+
+/* Remove a role from the server's role registry.
+ *
+ * Config-provided (protected) roles cannot be removed.
+ *
+ * @param server The server instance
+ * @param roleName The BrowseName (QualifiedName) of the role to remove
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADUSERACCESSDENIED if the role is protected,
+ *         UA_STATUSCODE_BADNOTFOUND if the role does not exist */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_removeRole(UA_Server *server,
+                     const UA_QualifiedName roleName);
+
+/* Get a copy of a role by its BrowseName.
+ *
+ * @param server The server instance
+ * @param roleName The BrowseName (QualifiedName) of the role
+ * @param outRole Output: deep copy of the role (caller must clear)
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADNOTFOUND if the role does not exist */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getRole(UA_Server *server,
+                  const UA_QualifiedName roleName,
+                  UA_Role *outRole);
+
+/* Get a copy of a role by its NodeId.
+ *
+ * @param server The server instance
+ * @param roleId The NodeId of the role
+ * @param outRole Output: deep copy of the role (caller must clear)
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADNOTFOUND if the role does not exist */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getRoleById(UA_Server *server, UA_NodeId roleId,
+                      UA_Role *outRole);
+
+/* Get the BrowseNames of all registered roles.
+ *
+ * @param server The server instance
+ * @param rolesSize Output: number of roles
+ * @param roleNames Output: array of role BrowseNames (caller must
+ *        clear each entry and free the array)
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getRoles(UA_Server *server, size_t *rolesSize,
+                   UA_QualifiedName **roleNames);
+
+/* Update a role in the server's role registry.
+ *
+ * The existing role is matched by roleId, roleName (QualifiedName) or
+ * both. At least one must be set. If both are provided they must
+ * identify the same role. Replaces all mutable fields (identityMappingRules,
+ * applications, endpoints and their exclude flags) with deep copies
+ * from the provided role. The roleId and roleName of the stored role
+ * are not changed.
+ *
+ * Anonymous and AuthenticatedUser are well-known roles defined by the
+ * OPC UA specification and cannot be modified.
+ *
+ * @param server The server instance
+ * @param role The role with updated fields
+ * @return UA_STATUSCODE_GOOD on success,
+ *         UA_STATUSCODE_BADINVALIDARGUMENT if neither roleId nor
+ *         roleName is set,
+ *         UA_STATUSCODE_BADNOTFOUND if no matching role exists,
+ *         UA_STATUSCODE_BADUSERACCESSDENIED if the matched role is
+ *         Anonymous or AuthenticatedUser */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_updateRole(UA_Server *server, const UA_Role *role);
+
+/**
+ * Session Role Management
+ * ^^^^^^^^^^^^^^^^^^^^^^^
+ * Session roles are managed via the generic session attribute API using the
+ * key ``UA_QUALIFIEDNAME(0, "roles")``. The value is a ``UA_NodeId[]``
+ * array of the roles assigned to the session.
+ *
+ * All role NodeIds are validated against the server's role registry on write.
+ *
+ * **Set roles:**
+ *
+ * .. code-block:: c
+ *
+ *    UA_NodeId roles[2] = { role1Id, role2Id };
+ *    UA_Variant v;
+ *    UA_Variant_setArray(&v, roles, 2, &UA_TYPES[UA_TYPES_NODEID]);
+ *    UA_Server_setSessionAttribute(server, &sessionId,
+ *                                  UA_QUALIFIEDNAME(0, "roles"), &v);
+ *
+ * **Get roles (deep copy):**
+ *
+ * .. code-block:: c
+ *
+ *    UA_Variant out;
+ *    UA_Server_getSessionAttributeCopy(server, &sessionId,
+ *                                      UA_QUALIFIEDNAME(0, "roles"), &out);
+ *    UA_NodeId *roles = (UA_NodeId *)out.data;
+ *    size_t count = out.arrayLength;
+ *    // ... use roles ...
+ *    UA_Variant_clear(&out);
+ *
+ * **Clear roles:**
+ *
+ * .. code-block:: c
+ *
+ *    UA_Server_deleteSessionAttribute(server, &sessionId,
+ *                                     UA_QUALIFIEDNAME(0, "roles")); */
+
+/* Convenience: Get role QualifiedNames assigned to a session.
+ * Returns a deep copy of the role names. Free the result with
+ * UA_Array_delete(roleNames, count, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]).
+ *
+ * @param server The server instance
+ * @param sessionId The session to query
+ * @param outSize Output: number of roles
+ * @param outRoleNames Output: deep-copy array of QualifiedNames
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_getSessionRoleNames(UA_Server *server, const UA_NodeId *sessionId,
+                              size_t *outSize, UA_QualifiedName **outRoleNames);
+
+/**
+ * Per-Role Node Permission Management
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ * Functions that add or remove permissions for a specific role on a node.
+ * Unlike setNodeRolePermissions (which replaces the entire set), these
+ * functions modify individual role entries within the node's permission
+ * configuration. */
+
+/* Add role permissions to a node for a specific role.
+ *
+ * @param server The server instance
+ * @param nodeId The node to modify
+ * @param roleId The role to add permissions for
+ * @param permissionType Permission bitmask to set
+ * @param overwriteExisting If true, replace; if false, OR with existing
+ * @param recursive If true, apply recursively to child nodes
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                             const UA_NodeId roleId,
+                             UA_PermissionType permissionType,
+                             UA_Boolean overwriteExisting,
+                             UA_Boolean recursive);
+
+/* Remove role permissions from a node for a specific role.
+ *
+ * @param server The server instance
+ * @param nodeId The node to modify
+ * @param roleId The role to remove permissions for
+ * @param permissionType Permission bitmask to clear
+ * @param recursive If true, apply recursively to child nodes
+ * @return UA_STATUSCODE_GOOD on success */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                                const UA_NodeId roleId,
+                                UA_PermissionType permissionType,
+                                UA_Boolean recursive);
+
+#endif /* UA_ENABLE_RBAC */
+
+/**
+ * .. _server-json-config:
+ *
+ * Configuration from File
+ * -----------------------
+ *
+ * The server can be configured from JSON5-formatted content stored in a
+ * ``UA_ByteString``.
+ *
+ * The example files ``examples/json_config/server_json_config.json5`` and
+ * ``examples/server_json_config.c`` document the intended workflow and the
+ * currently supported keys. They cover the common runtime limits as well as
+ * optional blocks for discovery, subscriptions, historizing, PubSub and
+ * security policy configuration.
+ *
+ * The following functions require JSON encoding support
+ * (``UA_ENABLE_JSON_ENCODING``). */
+
+#ifdef UA_ENABLE_JSON_ENCODING
+
+/* Loads the server configuration from a Json5 file into the server.
+ *
+ * @param jsonConfig The configuration in json5 format.
+ */
+UA_EXPORT UA_Server *
+UA_Server_newFromFile(const UA_ByteString jsonConfig);
+
+/* Loads a server configuration from a file.  The passed server configuration
+ * is cleared.  Memory will be allocated for fields in config.
+ *
+ * @param config The server configuration.
+ * @param jsonConfig The configuration in json5 format.
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_loadFromFile(UA_ServerConfig *config, const UA_ByteString jsonConfig);
+
+#endif /* UA_ENABLE_JSON_ENCODING */
 
 _UA_END_DECLS
 

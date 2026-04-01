@@ -170,7 +170,7 @@ typedef enum  {
     UA_PUBSUBCOMPONENT_READERGROUP  = 3,
     UA_PUBSUBCOMPONENT_DATASETREADER  = 4,
     UA_PUBSUBCOMPONENT_PUBLISHEDDATASET  = 5,
-    UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET = 6,
+    UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET = 6
 } UA_PubSubComponentType;
 
 /**
@@ -210,7 +210,14 @@ typedef enum  {
 UA_EXPORT UA_StatusCode
 UA_Server_enableAllPubSubComponents(UA_Server *server);
 
-/* Disable all PubSubComponents (same order as for _enableAll) */
+/* Disable all PubSubComponents.
+ * They are triggered in the following order:
+ * DataSetReader, ReaderGroups, DataSetWriter, WriterGroups, PubSubConnections.
+ *
+ * A timeout might occur if the writers are disabled before the readers
+ * in case of a loopback configuration on the same server.
+ * So disable the reader side before the writer side.
+ */
 UA_EXPORT void
 UA_Server_disableAllPubSubComponents(UA_Server *server);
 
@@ -287,6 +294,54 @@ typedef struct {
     size_t securityPoliciesSize;
     UA_PubSubSecurityPolicy *securityPolicies;
 } UA_PubSubConfiguration;
+
+/**
+ * PubSub Custom State Machine
+ * -----------------
+ * All PubSubComponents (Connection, Reader, ReaderGroup, ...) have a two
+ * configuration items in common: A void context-pointer and a callback to
+ * override the default state machine with a custom implementation.
+ *
+ * When a custom state machine is set, then internally no sockets are opened and
+ * no periodic callbacks are registered. All "active behavior" has to be
+ * managed/configured entirely in the custom state machine. */
+
+/* The custom state machine callback is optional (can be NULL). It gets called
+ * with a request to change the state targetState. The state pointer contains
+ * the old (and afterwards the new) state. The notification stateChangeCallback
+ * is called afterwards. When a bad statuscode is returned, the component must
+ * be set to an ERROR state. */
+#define UA_PUBSUB_COMPONENT_CONTEXT                                   \
+    void *context;                                                    \
+    UA_StatusCode (*customStateMachine)(UA_Server *server,            \
+                                        const UA_NodeId componentId,  \
+                                        void *componentContext,       \
+                                        UA_PubSubState *state,        \
+                                        UA_PubSubState targetState);  \
+
+/**
+ * The following methods are used to retrieve the metadata of PubSubComponents.
+ * So gar they are implemented to operate only on the components with a state
+ * machine (connection, ReaderGroup, Reder, WriterGroup, Writer). */
+
+/* Get the component-type enum from the identifier */
+UA_EXPORT UA_StatusCode
+UA_Server_getPubSubComponentType(UA_Server *server, UA_NodeId componentId,
+                                 UA_PubSubComponentType *outType);
+
+/* Get the parent of a PubSubComponent (PubSubConnections have no parent).
+ * Returns a deep copy of the parent's NodeId. */
+UA_EXPORT UA_StatusCode
+UA_Server_getPubSubComponentParent(UA_Server *server, UA_NodeId componentId,
+                                   UA_NodeId *outParent);
+
+/* Get the list of child-components. Allocates the output array. For
+ * PubSubConnections, both the ReaderGroups and WriterGroups attached to it are
+ * returned. */
+UA_EXPORT UA_StatusCode
+UA_Server_getPubSubComponentChildren(UA_Server *server, UA_NodeId componentId,
+                                     size_t *outChildrenSize,
+                                     UA_NodeId **outChildren);
 
 /**
  * PubSubConnection

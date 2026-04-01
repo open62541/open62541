@@ -97,7 +97,8 @@ UA_AttributeId_name(UA_AttributeId attrId);
  * are ANDed for the overall write mask. Part 3: 5.2.7 Table 2 */
 
 #define UA_WRITEMASK_ACCESSLEVEL             (0x01u << 0u)
-#define UA_WRITEMASK_ARRRAYDIMENSIONS        (0x01u << 1u)
+#define UA_WRITEMASK_ARRAYDIMENSIONS         (0x01u << 1u)
+#define UA_WRITEMASK_ARRRAYDIMENSIONS        UA_WRITEMASK_ARRAYDIMENSIONS /* legacy typo alias */
 #define UA_WRITEMASK_BROWSENAME              (0x01u << 2u)
 #define UA_WRITEMASK_CONTAINSNOLOOPS         (0x01u << 3u)
 #define UA_WRITEMASK_DATATYPE                (0x01u << 4u)
@@ -184,6 +185,256 @@ typedef enum {
 } UA_Order;
 
 /**
+ * .. _application-notification:
+ *
+ * Application Notification
+ * ------------------------
+ *
+ * The ApplicationNotification enum indicates the type of notification for the
+ * server/client in which the corresponding callback is configured.
+ *
+ * The notification comes with a key-value map for the payload. Future
+ * additional payload members are added to the end of the payload. So that the
+ * names, type and also index of the payload members is stable. */
+
+typedef enum {
+    /* Lifetime notifications, no payload */
+    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STARTED  = 0x0,
+    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_SHUTDOWN = 0x01, /* prepare shutdown */
+    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPING = 0x02, /* shutdown now */
+    UA_APPLICATIONNOTIFICATIONTYPE_LIFECYCLE_STOPPED  = 0x03,
+
+    /* (Server only) Give background information after a SecureChannel is opened
+     * or closed.
+     *
+     * 0:securechannel-id [UInt32]
+     *    Identifier of the SecureChannel to which the Session is connected.
+     * 0:connection-manager-name [String]
+     *    Name of the ConnectionManager (configured in the EventLoop) from which
+     *    the connction was opened.
+     * 0:connection-id [UInt64]
+     *    Identifier of the connection in the context of the EventLoop. This is
+     *    often the socket identifier, but that is not necessarily the case.
+     * 0:remote-addresss [String]
+     *   Address (hostname or IP that opened the SecureChannel.
+     *
+     * 0:protocol-version [UInt32]
+     *   The version of the UACP protocol requested by the Client.
+     * 0:recv-buffer-size [UInt32]
+     *   The largest buffer (chunk size) we can receive over the channel.
+     * 0:recv-max-message-size [UInt32]
+     *   The maximum size of received messages.
+     * 0:recv-max-chunk-count [UInt32]
+     *   The maximum number of chunks for received messages.
+     * 0:send-buffer-size [UInt32]
+     *   The largest buffer (chunk size) we can send over the channel.
+     * 0:send-max-message-size [UInt32]
+     *   The maximum size of sent messages.
+     * 0:send-max-chunk-count [UInt32]
+     *   The maximum number of chunks for sent messages.
+     * 0:endpoint-url
+     *   The target EndpointUri (for the server) indicated by the client.
+     *
+     * 0:security-mode [MessageSecurityMode]
+     *   The SecurityChannel can be unsigned, signed or signed+encrypted.
+     * 0:security-policy-uri [String]
+     *   Uri of the SecurityPolicy for this SecyrityChannel.
+     * 0:remote-certificate [ByteString]
+     *   Certificate used by the remote side during OpenSecureChannel. */
+    UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_OPENED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SECURECHANNEL_CLOSED,
+
+    /* (Server only) Give background information for Sessions. The _DEACTIVATE
+     * notification occurs when a Sesssion is unbound from its original
+     * SecureChannel. Either because the SecureChannel is closed or because the
+     * session is activated on another SecureChannel.
+     *
+     * 0:session-id [NodeId]
+     *   Identifier of the Session.
+     * 0:securechannel-id [UInt32]
+     *   Identifier of the SecureChannel on which the Session is activated.
+     *   Zero if the Session is not bound to any SecureChannel.
+     * 0:session-name [String]
+     *   Name of the Session as defined by the client.
+     * 0:client-description [ApplicationDescription]
+     *   Name of the Session as defined by the client.
+     * 0:client-user-id [String]
+     *   User identifier used to activate the session. This is extracted from
+     *   the UserIdentityToken (e.g. username but not the password).
+     * 0:locale-ids [Array of String]
+     *   List of preferred languages.
+     *
+     * Any additional attributes set via UA_Server_setSessionAttribute are
+     * appended to the above list. */
+    UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CREATED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SESSION_ACTIVATED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SESSION_DEACTIVATED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SESSION_CLOSED,
+
+    /* Processing of a service request or response. The server-side processing
+     * of a request can be asynchronous. The existence of a yet-unfinished async
+     * operation from the request is signaled with the _SERVICE_ASYNC enum. The
+     * _SERVICE_END enum is signalled eventually, once all async operations from
+     * the service request are completed.
+     *
+     * 0:securechannel-id [UInt32]
+     *    Identifier of the SecureChannel to which the Session is connected.
+     * 0:session-id [NodeId]
+     *    Identifier of the Session for/from which the Service is requested.
+     *    This is the ns=0;i=0 NodeId if no Session is bound to the receiving
+     *    SecureChannel.
+     * 0:request-id [UInt32]
+     *    Identifier of the RequestId for the Request/Response pair.
+     * 0:service-type [NodeId]
+     *    DataType identifier for the Request (server) or Response (client). */
+    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN = 0x10,
+    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_ASYNC = 0x11,
+    UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_END   = 0x12,
+
+    /* (Server only) Signals the creation or modification of a Subscription.
+     *
+     * 0:session-id [NodeId]
+     *    Identifier of the Session for which the Subscription is created.
+     *    If the subscription is not bound to any Session, then the NodeId
+     *    ns=0;i=0 is returned.
+     * 0:subscription-id [UInt32]
+     *    Identifier of the Subscription (unique for the Session).
+     * 0:publishing-interval [Double]
+     *    Frequence at which accumulated notifications are sent out.
+     * 0:lifetime-count [UInt32]
+     *    Number of consecutive publishing interval with a missing
+     *    PublishRequest before the Subscription is starved (deleted).
+     * 0:max-keepalive-count [UInt32]
+     *    Number of consecutive publishing intervals without a PublishResponse
+     *    before a keepalive is sent.
+     * 0:max-notifications-per-publish [UInt32]
+     *    Number of notifications that can be in a PublishResponse.
+     * 0:priority [Byte]
+     *    Higher-priority subscriptions send out PublishResponses first.
+     * 0:publishing-enabled [Boolean]
+     *    What the name says. */
+    UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_CREATED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_MODIFIED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_PUBLISHINGMODE,
+    UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_TRANSFERRED,
+    UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_DELETED,
+
+    /* (Server only) Signals the creation or modification of a MonitoredItem.
+     *
+     * 0:session-id [NodeId]
+     *    Identifier of the Session for which the Subscription is created.
+     *    If the subscription is not bound to any Session, then the NodeId
+     *    ns=0;i=0 is returned.
+     * 0:subscription-id [UInt32]
+     *    Identifier of the Subscription (unique for the Session).
+     * 0:monitoreditem-id [UInt32]
+     *    Identifier of the MonitoredItem (unique for the Subscription).
+     * 0:target-node [NodeId]
+     *    Identifier of the Node that is monitored.
+     * 0:attribute-id [UInt32]
+     *    Node-attribute that is being monitored.
+     *    Conforms to the values from the UA_AttributeId enum.
+     * 0:index-range [String]
+     *    Defines if only part of an array value is monitored.
+     * 0:timestamps-to-return [TimestampsToReturn]
+     *    Enum with the options SOURCE | SERVER | BOTH | NEITHER.
+     * 0:monitorimg-mode [MonitoringMode]
+     *    Enum with the options DISABLED | SAMPLING | REPORTING.
+     * 0:client-handle [UInt32]
+     *   Client-supplied identifier of the MonitoredItem.
+     * 0:samping-interval [Double]
+     *    Interval to evaluate the MonitoredItem in milliseconds.
+     * 0:filter [Empty | DataChangeFilter | EventFilter | AggregateFilter]
+     *    The filter used to emit notifications.
+     * 0:queue-size [UInt32]
+     *    Maximum number of notifications waiting to be published.
+     * 0:discard-oldest [Boolean]
+     *    When the queue overflows, delete the newest or the oldest
+     *    notification. */
+    UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_CREATED,
+    UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_MODIFIED,
+    UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_MONITORINGMODE,
+    UA_APPLICATIONNOTIFICATIONTYPE_MONITOREDITEM_DELETE,
+
+    /* Audit events are described in a separete section.
+     * The enum values are bitfields to filter in a hierarchy. */
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT                                   = 0x1000,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY                          = 0x1100,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL                  = 0x1110,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CHANNEL_OPEN             = 0x1111,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION                  = 0x1120,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CREATE           = 0x1121,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_ACTIVATE         = 0x1122,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_SESSION_CANCEL           = 0x1124,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE              = 0x1140,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_DATAMISMATCH = 0x1141,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_EXPIRED      = 0x1142,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_INVALID      = 0x1143,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_UNTRUSTED    = 0x1144,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_REVOKED      = 0x1145,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE_MISMATCH     = 0x1146,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE                              = 0x1200,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_ADD                          = 0x1210,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_DELETE                       = 0x1220,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_ADDREFERENCES                = 0x1240,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_NODE_DELETEREFERENCES             = 0x1280,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE                            = 0x1400,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_WRITE                      = 0x1410,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_HISTORY                    = 0x1420,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_UPDATE_METHOD                     = 0x1440,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT                            = 0x1800,
+    UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_CLIENT_UPDATEMETHOD               = 0x1810
+} UA_ApplicationNotificationType;
+
+/**
+ * Auditing
+ * --------
+ *
+ * The key-value map for audit application notifications follows the properties
+ * defined for the AuditEventType and its subtypes. The key-string is the
+ * human-readable encoding for the SimpleAttributeOperand of the event
+ * properties (value attribute only). The properties should be looked up from
+ * their string-key and not via their order-index in the key-value map.
+ *
+ * Examples properties are (datatype in brackets):
+ *
+ * - /ActionTimeStamp [DateTime]
+ * - /Status          [Boolean]
+ * - /ServerId        [String]
+ *
+ * See the definition of the AuditEventType and its subtypes in part 5 of the
+ * OPC UA specification. Below follows the hierarchy of the event types.
+ * Properties from the super-type are inherited.
+ *
+ * - AuditEventType
+ *   - AuditSecurityEventType
+ *     - AuditChannelEventType
+ *       - AuditOpenSecureChannelEventType
+ *     - AuditSessionEventType
+ *       - AuditCreateSessionEventType
+ *       - AuditActivateSessionEventType
+ *       - AuditCancelEventType
+ *     - AuditCertificateEventType
+ *       - AuditCertificateDataMismatchEventType
+ *       - AuditCertificateExpiredEventType
+ *       - AuditCertificateInvalidEventType
+ *       - AuditCertificateUntrustedEventType
+ *       - AuditCertificateRevokedEventType
+ *       - AuditCertificateMismatchEventType
+ *   - AuditNodeManagementEventType
+ *     - AuditAddNodesEventType
+ *     - AuditDeleteNodesEventType
+ *     - AuditAddReferencesEventType
+ *     - AuditDeleteReferencesEventType
+ *   - AuditUpdateEventType
+ *     - AuditWriteUpdateEventType
+ *     - AuditHistoryUpdateEventType
+ *   - AuditUpdateMethodEventType
+ *   - AuditClientEventType
+ *     - AuditClientUpdateMethodResultEventType
+ */
+
+/**
  * Connection State
  * ---------------- */
 
@@ -194,9 +445,10 @@ typedef enum {
                                       fully established */
     UA_CONNECTIONSTATE_ESTABLISHED,/* The socket is open and the connection
                                     * configured */
-    UA_CONNECTIONSTATE_CLOSING     /* The socket is closing down */
+    UA_CONNECTIONSTATE_CLOSING,    /* The socket is closing down */
+    UA_CONNECTIONSTATE_BLOCKING,   /* Listening disabled (e.g. max connections reached) */
+    UA_CONNECTIONSTATE_REOPENING   /* Listening resumed after being blocked */
 } UA_ConnectionState;
-
 
 typedef enum {
     UA_SECURECHANNELSTATE_CLOSED = 0,

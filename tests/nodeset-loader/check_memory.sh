@@ -121,7 +121,7 @@ memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
 
 echo "... DotNet ..."
 memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
-             $UA_NODESET_PATH/DotNet/Opc.Ua.NodeSet.xml
+             $UA_NODESET_PATH/DotNet/Opc.Ua.PredefinedNodes.xml
 
 echo "... FDI5 ..."
 memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
@@ -145,12 +145,6 @@ memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
 echo "... GDS.Part12 ..."
 memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
              $UA_NODESET_PATH/GDS/Opc.Ua.Gds.NodeSet2.Part12.xml
-
-echo "... Flat.Glass ..."
-memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
-             $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
-             $UA_NODESET_PATH/Machinery/Opc.Ua.Machinery.NodeSet2.xml \
-             $UA_NODESET_PATH/Glass/Flat/Opc.Ua.Glass.NodeSet2.xml
 
 echo "... I4AAS ..."
 memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \

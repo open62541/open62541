@@ -104,8 +104,8 @@ size_t parseDouble(const char *str, size_t size, double *result) {
     buf[size] = 0;
     errno = 0;
     char *endptr;
-    *result = strtod(str, &endptr);
+    *result = strtod(buf, &endptr);
     if(errno != 0 && errno != ERANGE)
         return 0;
-    return (uintptr_t)endptr - (uintptr_t)str;
+    return (uintptr_t)endptr - (uintptr_t)buf;
 }

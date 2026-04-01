@@ -135,9 +135,6 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
                 c->head.logIdString, newGroup->head.identifier);
     newGroup->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(psm->logging, newGroup, "ReaderGroup created (State: %s)",
-                       UA_PubSubState_name(newGroup->head.state));
-
     /* Validate the connection settings */
     retval = UA_ReaderGroup_connect(psm, newGroup, true);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -185,9 +182,13 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
         }
     }
 
+    UA_LOG_INFO_PUBSUB(psm->logging, newGroup, "ReaderGroup created (State: %s)",
+                   UA_PubSubState_name(newGroup->head.state));
+
     /* Trigger the connection state machine. It might open a socket only when
      * the first ReaderGroup is attached. */
-    UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
+    if(rgc->enabled)
+        UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(readerGroupId)
@@ -229,7 +230,8 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
     }
 
     if(rg->config.securityPolicy && rg->securityPolicyContext) {
-        rg->config.securityPolicy->deleteContext(rg->securityPolicyContext);
+        UA_PubSubSecurityPolicy *sp = rg->config.securityPolicy;
+        sp->deleteGroupContext(sp, rg->securityPolicyContext);
         rg->securityPolicyContext = NULL;
     }
 
@@ -378,7 +380,11 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
      * Keep the current child state as the target state for the child. */
     UA_DataSetReader *dsr;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state, UA_STATUSCODE_GOOD);
+        if(psm->pubSubInitialSetupMode && dsr->config.enabled) {
+            UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_PREOPERATIONAL, UA_STATUSCODE_GOOD);
+        } else {
+            UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state, UA_STATUSCODE_GOOD);
+        }
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
@@ -400,7 +406,9 @@ UA_ReaderGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                               "only defined for the UADP message mapping.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if(!rg->config.securityPolicy) {
+
+    UA_PubSubSecurityPolicy *sp = rg->config.securityPolicy;
+    if(!sp) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
                               "No SecurityPolicy configured for the ReaderGroup");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -413,16 +421,13 @@ UA_ReaderGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_ReaderGroup *rg,
 
     /* Create a new context */
     if(!rg->securityPolicyContext) {
-        return rg->config.securityPolicy->
-            newContext(rg->config.securityPolicy->policyContext,
-                       &signingKey, &encryptingKey, &keyNonce,
-                       &rg->securityPolicyContext);
+        return sp->newGroupContext(sp, &signingKey, &encryptingKey, &keyNonce,
+                                   &rg->securityPolicyContext);
     }
 
     /* Update the context */
-    return rg->config.securityPolicy->
-        setSecurityKeys(rg->securityPolicyContext, &signingKey,
-                        &encryptingKey, &keyNonce);
+    return sp->setSecurityKeys(sp, rg->securityPolicyContext, &signingKey,
+                               &encryptingKey, &keyNonce);
 }
 
 UA_Boolean
@@ -508,17 +513,9 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
         if(rv == UA_STATUSCODE_GOOD)
             break;
     }
-
     if(!dsr) {
         UA_NetworkMessage_clear(nm);
         return UA_STATUSCODE_BADNOTFOUND;
-    }
-
-    /* Decrypt */
-    rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx.ctx, nm, rg);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_NetworkMessage_clear(nm);
-        return rv;
     }
 
     /* Prepare the metadata with information from the readers to decode the
@@ -533,6 +530,17 @@ UA_ReaderGroup_decodeNetworkMessage(UA_PubSubManager *psm,
         emd[i].fields = dsr->config.dataSetMetaData.fields;
         emd[i].fieldsSize = dsr->config.dataSetMetaData.fieldsSize;
         i++;
+    }
+
+    /* Handle missing payload header and "inject" metadata */
+    if(!nm->payloadHeaderEnabled)
+        UA_NetworkMessage_makeSyntheticPayloadHeader(&ctx.eo, nm);
+
+    /* Decrypt */
+    rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx.ctx, nm, rg);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_NetworkMessage_clear(nm);
+        return rv;
     }
 
     /* Decode the payload */
@@ -665,27 +673,25 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
     if(!doValidate && !doDecrypt)
         return UA_STATUSCODE_GOOD;
 
-    UA_PubSubSecurityPolicy *securityPolicy = rg->config.securityPolicy;
-    UA_CHECK_MEM_ERROR(securityPolicy, return UA_STATUSCODE_BADINVALIDARGUMENT,
+    UA_PubSubSecurityPolicy *sp = rg->config.securityPolicy;
+    UA_CHECK_MEM_ERROR(sp, return UA_STATUSCODE_BADINVALIDARGUMENT,
                        logger, UA_LOGCATEGORY_PUBSUB,
                        "PubSub receive. securityPolicy must be set when security mode"
                        "is enabled to sign and/or encrypt");
 
-    void *channelContext = rg->securityPolicyContext;
-    UA_CHECK_MEM_ERROR(channelContext, return UA_STATUSCODE_BADINVALIDARGUMENT,
+    void *cc = rg->securityPolicyContext;
+    UA_CHECK_MEM_ERROR(cc, return UA_STATUSCODE_BADINVALIDARGUMENT,
                        logger, UA_LOGCATEGORY_PUBSUB,
                        "PubSub receive. securityPolicyContext must be initialized "
                        "when security mode is enabled to sign and/or encrypt");
 
     /* Validate the signature */
     if(doValidate) {
-        size_t sigSize = securityPolicy->symmetricModule.cryptoModule.
-            signatureAlgorithm.getLocalSignatureSize(channelContext);
+        size_t sigSize = sp->getSignatureSize(sp, cc);
         UA_ByteString toBeVerified = {buffer.length - sigSize, buffer.data};
         UA_ByteString signature = {sigSize, buffer.data + buffer.length - sigSize};
 
-        rv = securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
-            verify(channelContext, &toBeVerified, &signature);
+        rv = sp->verify(sp, cc, &toBeVerified, &signature);
         UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Signature invalid");
 
@@ -699,13 +705,12 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
             (size_t)nm->securityHeader.messageNonceSize,
             (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
         };
-        rv = securityPolicy->setMessageNonce(channelContext, &nonce);
+        rv = sp->setMessageNonce(sp, cc, &nonce);
         UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Faulty Nonce set");
 
         UA_ByteString toBeDecrypted = {(uintptr_t)(ctx->end - ctx->pos), ctx->pos};
-        rv = securityPolicy->symmetricModule.cryptoModule
-            .encryptionAlgorithm.decrypt(channelContext, &toBeDecrypted);
+        rv = sp->decrypt(sp, cc, &toBeDecrypted);
         UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Faulty Decryption");
     }
@@ -952,7 +957,7 @@ UA_ReaderGroup_connect(UA_PubSubManager *psm, UA_ReaderGroup *rg, UA_Boolean val
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
     if(!el) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, rg, "No EventLoop configured");
-        return UA_STATUSCODE_BADINTERNALERROR;;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_PubSubConnection *c = rg->linkedConnection;
@@ -1177,10 +1182,6 @@ UA_Server_updateReaderGroupConfig(UA_Server *server, const UA_NodeId rgId,
         }
     }
 #endif
-
-    /* Call the state-machine. This can move the rg state from _ERROR to
-     * _DISABLED. */
-    UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
 
     /* Clean up and return */
     UA_ReaderGroupConfig_clear(&oldConfig);

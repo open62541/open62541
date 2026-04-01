@@ -720,7 +720,7 @@ UDP_registerListenSocket(UA_LWIPConnectionManager *pcm, UA_UInt16 port,
     MultiCastType mc = multiCastType(info);
 
     /* Bind socket to the address */
-    int ret = UA_bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
+    int ret = UA_bind(listenSocket, info->ai_addr, info->ai_addrlen);
 
     /* Get the port being used if dynamic porting was used */
     if(port == 0) {
@@ -943,7 +943,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     UDP_FD *conn = (UDP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!conn) {
         UA_UNLOCK(&el->elMutex);
-        UA_ByteString_clear(buf);
+        UA_EventLoopLWIP_freeNetworkBuffer(cm, connectionId, buf);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -965,14 +965,15 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                 /* An error we cannot recover from? */
                 if(UA_ERRNO != UA_INTERRUPTED &&
                    UA_ERRNO != UA_WOULDBLOCK &&
-                   UA_ERRNO != UA_AGAIN) {
+                   UA_ERRNO != UA_AGAIN &&
+                   UA_ERRNO != UA_INPROGRESS) {
                     UA_LOG_SOCKET_ERRNO_WRAP(
                        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                                     "UDP %u\t| Send failed with error %s",
                                     (unsigned)connectionId, errno_str));
                     UA_UNLOCK(&el->elMutex);
                     UDP_shutdownConnection(cm, connectionId);
-                    UA_ByteString_clear(buf);
+                    UA_EventLoopLWIP_freeNetworkBuffer(cm, connectionId, buf);
                     return UA_STATUSCODE_BADCONNECTIONCLOSED;
                 }
 
@@ -992,7 +993,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                                         (unsigned)connectionId, errno_str));
                         UA_UNLOCK(&el->elMutex);
                         UDP_shutdownConnection(cm, connectionId);
-                        UA_ByteString_clear(buf);
+                        UA_EventLoopLWIP_freeNetworkBuffer(cm, connectionId, buf);
                         return UA_STATUSCODE_BADCONNECTIONCLOSED;
                     }
                 } while(poll_ret <= 0);
@@ -1003,7 +1004,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* Free the buffer */
     UA_UNLOCK(&el->elMutex);
-    UA_ByteString_clear(buf);
+    UA_EventLoopLWIP_freeNetworkBuffer(cm, connectionId, buf);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1358,6 +1359,7 @@ UDP_eventSourceDelete(UA_ConnectionManager *cm) {
     }
 
     UA_ByteString_clear(&pcm->rxBuffer);
+    UA_ByteString_clear(&pcm->txBuffer);
     UA_KeyValueMap_clear(&cm->eventSource.params);
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);

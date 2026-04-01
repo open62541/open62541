@@ -54,6 +54,7 @@ extern "C" {
  *
  * %S - UA_String (without wrapping in quotation marks)
  * %N - UA_NodeId (using UA_NodeId_print)
+ * %Q - UA_QualifiedName (using UA_QualifiedName_print)
  *
  * @param s An array in which to store the formatted string. It must be large
  * enough to fit either the entire formatted output, or at least @p n

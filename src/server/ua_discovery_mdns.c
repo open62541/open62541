@@ -9,6 +9,7 @@
 
 #include "ua_discovery.h"
 #include "ua_server_internal.h"
+#include <stdlib.h>
 #include "mdnsd/libmdnsd/mdnsd.h"
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
 
@@ -278,11 +279,13 @@ mdns_append_path_to_url(UA_String *url, const char *path) {
     size_t newUrlLen = url->length + pathLen; //size of the new url string incl. the path 
     /* todo: malloc may fail: return a statuscode */
     char *newUrl = (char *)UA_malloc(url->length + pathLen);
-    memcpy(newUrl, url->data, url->length);
-    memcpy(newUrl + url->length, path, pathLen);
-    UA_String_clear(url);
-    url->length = newUrlLen;
-    url->data = (UA_Byte *) newUrl;
+    if (newUrl) {
+        memcpy(newUrl, url->data, url->length);
+        memcpy(newUrl + url->length, path, pathLen);
+        UA_String_clear(url);
+        url->length = newUrlLen;
+        url->data = (UA_Byte *) newUrl;
+    }
 }
 
 static void
@@ -521,7 +524,7 @@ mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain, const ch
     xht_free(h);
     mdnsd_set_raw(mdnsPrivateData.mdnsDaemon, r, (char *) packet,
                   (unsigned short) txtRecordLength);
-    UA_free(packet);
+    MDNSD_free(packet);
 }
 
 static mdns_record_t *
@@ -1145,7 +1148,7 @@ UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm) {
 
 UA_UInt32
 UA_DiscoveryManager_getMdnsConnectionCount(void) {
-    return mdnsPrivateData.mdnsRecvConnectionsSize + (mdnsPrivateData.mdnsSendConnection != 0);
+    return (UA_UInt32)(mdnsPrivateData.mdnsRecvConnectionsSize + (mdnsPrivateData.mdnsSendConnection != 0));
 }
 
 void
@@ -1195,8 +1198,7 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data) {
     lockServer(server);
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
-        getServerComponentByName(server, UA_STRING("discovery"));
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
     if(dm) {
         dm->serverOnNetworkCallback = cb;
         dm->serverOnNetworkCallbackData = data;
@@ -1261,8 +1263,7 @@ UA_Discovery_recordExists(UA_DiscoveryManager *dm, const char* fullServiceDomain
 static int
 discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg) {
     UA_Server *server = (UA_Server*) arg;
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
-        getServerComponentByName(server, UA_STRING("discovery"));
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
     if(!dm)
         return 0;
 

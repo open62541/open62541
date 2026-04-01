@@ -31,9 +31,9 @@
 
 static int hexval(unsigned c)
 {
-	if (c-'0'<10) return c-'0';
+	if (c-'0'<10) return (int)(c-'0');
 	c |= 32;
-	if (c-'a'<6) return c-'a'+10;
+	if (c-'a'<6) return (int)(c-'a'+10);
 	return -1;
 }
 
@@ -48,7 +48,7 @@ int musl_inet_pton(int af, const char * UA_RESTRICT s, void * UA_RESTRICT a0)
 			for (v=j=0; j<3 && isdigit((unsigned char)s[j]); j++)
 				v = 10*v + s[j]-'0';
 			if (j==0 || (j>1 && s[0]=='0') || v>255) return 0;
-			a[i] = v;
+			a[i] = (unsigned char)v;
 			if (s[j]==0 && i==3) return 1;
 			if (s[j]!='.') return 0;
 			s += j+1;
@@ -69,10 +69,10 @@ int musl_inet_pton(int af, const char * UA_RESTRICT s, void * UA_RESTRICT a0)
 			if (i==7) return 0;
 			continue;
 		}
-		for (v=j=0; j<4 && (d=hexval(s[j]))>=0; j++)
+		for (v=j=0; j<4 && (d=hexval((unsigned)s[j]))>=0; j++)
 			v=16*v+d;
 		if (j==0) return 0;
-		ip[i&7] = v;
+		ip[i&7] = (uint16_t)v;
 		if (!s[j] && (brk>=0 || i==7)) break;
 		if (i==7) return 0;
 		if (s[j]!=':') {
@@ -85,11 +85,11 @@ int musl_inet_pton(int af, const char * UA_RESTRICT s, void * UA_RESTRICT a0)
 		s += j+1;
 	}
 	if (brk>=0) {
-		memmove(ip+brk+7-i, ip+brk, 2*(i+1-brk));
+		memmove(ip+brk+7-i, ip+brk, (size_t)(2*(i+1-brk)));
 		for (j=0; j<7-i; j++) ip[brk+j] = 0;
 	}
 	for (j=0; j<8; j++) {
-		*a++ = ip[j]>>8;
+		*a++ = (unsigned char)(ip[j]>>8);
 		*a++ = (unsigned char)ip[j];
 	}
 	if (need_v4 && musl_inet_pton(AF_INET, (char *)(uintptr_t)s, a-4) <= 0) return 0;

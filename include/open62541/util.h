@@ -3,12 +3,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_HELPER_H_
 #define UA_HELPER_H_
 
 #include <open62541/types.h>
+#include <open62541/types_generated.h>
 #include <open62541/plugin/log.h>
 
 _UA_BEGIN_DECLS
@@ -46,7 +48,6 @@ typedef struct {
  * Event-Filter Parsing
  * --------------------
  */
-#ifdef UA_ENABLE_PARSING
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 #ifdef UA_ENABLE_JSON_ENCODING
 
@@ -58,7 +59,6 @@ UA_EXPORT UA_StatusCode
 UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
                      UA_EventFilterParserOptions *options);
 
-#endif
 #endif
 #endif
 
@@ -84,6 +84,26 @@ UA_Guid UA_EXPORT
 UA_Guid_random(void);   /* no cryptographic entropy */
 
 /**
+ * Translate between DataTypeDescription and UA_DataType
+ * ------------------------------------------------------
+ *
+ * The ExtensionObject for the description is either of
+ *
+ * - SimpleTypeDescription
+ * - EnumDescription
+ * - StructureDescription
+ *
+ * The generated UA_DataType faithfully generates the padding of the
+ * corresponding C-structures. */
+
+UA_EXPORT UA_StatusCode
+UA_DataType_fromDescription(UA_DataType *type, const UA_ExtensionObject *descr,
+                            const UA_DataTypeArray *customTypes);
+
+UA_EXPORT UA_StatusCode
+UA_DataType_toDescription(const UA_DataType *type, UA_ExtensionObject *descr);
+
+/**
  * Key Value Map
  * -------------
  * Helper functions to work with configuration parameters in an array of
@@ -91,6 +111,7 @@ UA_Guid_random(void);   /* no cryptographic entropy */
  * methods below that accept a `const UA_KeyValueMap` as an argument also accept
  * NULL for that argument and treat it as an empty map. */
 
+/* The layout is identical to UA_AdditionalParametersType (casting possible) */
 typedef struct {
     size_t mapSize;
     UA_KeyValuePair *map;
@@ -123,13 +144,27 @@ UA_KeyValueMap_set(UA_KeyValueMap *map,
                    const UA_QualifiedName key,
                    const UA_Variant *value);
 
+/* The same as _set, but inserts a shallow copy of the value. Set
+ * UA_VARIANT_DATA_NODELETE if the value should not be _cleared together with
+ * the map. */
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_setShallow(UA_KeyValueMap *map,
+                          const UA_QualifiedName key,
+                          UA_Variant *value);
+
 /* Helper function for scalar insertion that internally calls
  * `UA_KeyValueMap_set` */
 UA_EXPORT UA_StatusCode
 UA_KeyValueMap_setScalar(UA_KeyValueMap *map,
                          const UA_QualifiedName key,
-                         void * UA_RESTRICT p,
+                         const void * UA_RESTRICT p,
                          const UA_DataType *type);
+
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_setScalarShallow(UA_KeyValueMap *map,
+                                const UA_QualifiedName key,
+                                void * UA_RESTRICT p,
+                                const UA_DataType *type);
 
 /* Returns a pointer to the value or NULL if the key is not found */
 UA_EXPORT const UA_Variant *
@@ -303,12 +338,12 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * the following (in addition to whitespaces and unprintable ASCII control
  * codes).::
  *
- *    ' ' - %20     '(' - %28     '>' - %3E
- *    '"' - %22     ')' - %29     '[' - %5B
- *    '#' - %23     ',' - %2C     '\' - %5C
- *    '%' - %25     '/' - %2F     ']' - %5D
- *    '&' - %26     ';' - %3B     '`' - %60
- *    ''' - %27     '<' - %3C
+ *    ' ' - %20     '(' - %28     '<' - %3C
+ *    '"' - %22     ')' - %29     '>' - %3E
+ *    '#' - %23     ',' - %2C     '[' - %5B
+ *    '%' - %25     '/' - %2F     '\' - %5C
+ *    '&' - %26     ':' - %3A     ']' - %5D
+ *    ''' - %27     ';' - %3B     '`' - %60
  *
  * .. _relativepath:
  *
@@ -353,7 +388,6 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * - ``<HasChild>``
  */
 
-#ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 
@@ -368,7 +402,6 @@ UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
  * returned. If the out-string is NULL, then memory is allocated for it. */
 UA_EXPORT UA_StatusCode
 UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
-#endif
 
 /**
  * .. _parse-sao:
@@ -422,7 +455,6 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
  * - ``/3:Truck/5:Wheel``
  * - ``#BrowseName`` */
 
-#ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
 UA_ReadValueId_parse(UA_ReadValueId *rvi,
                      const UA_String str);
@@ -448,7 +480,6 @@ UA_AttributeOperand_print(const UA_AttributeOperand *ao,
 UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
                                 UA_String *out);
-#endif
 
 /**
  * Convenience macros for complex types

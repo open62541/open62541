@@ -12,25 +12,142 @@
 
 #include "ua_server_internal.h"
 
+/****************************/
+/* Custom DataType Handling */
+/****************************/
+
+const UA_DataTypeArray *
+serverCustomTypes(UA_Server *server) {
+    if(server->customTypes_internalSize == 0)
+        return server->config.customDataTypes;
+    server->customTypes_internal[server->customTypes_internalSize-1].next = server->config.customDataTypes;
+    return server->customTypes_internal;
+}
+
+const UA_DataTypeArray *
+UA_Server_getDataTypes(UA_Server *server) {
+    lockServer(server);
+    const UA_DataTypeArray * out = serverCustomTypes(server);
+    unlockServer(server);
+    return out;
+}
+
 const UA_DataType *
 UA_Server_findDataType(UA_Server *server, const UA_NodeId *typeId) {
-    return UA_findDataTypeWithCustom(typeId, server->config.customDataTypes);
+    return UA_findDataTypeWithCustom(typeId, serverCustomTypes(server));
+}
+
+/* DataTypes need a stable pointer. So we allocate an array of 64 datatypes.
+ * When that is full we move the server->customTypes_internal into a
+ * heap-structure that gets cleaned up with the server lifecycle. */
+static UA_StatusCode
+addDataType(UA_Server *server, UA_DataType *dt) {
+    /* Allocate the space for the new DataType */
+#define TYPES_LIST_SIZE 64
+    UA_DataTypeArray *current = NULL;
+    if(server->customTypes_internalSize > 0)
+        current = &server->customTypes_internal[server->customTypes_internalSize-1];
+    if(!current || current->typesSize == TYPES_LIST_SIZE) {
+        /* Increase the list-of-lists size */
+        UA_DataTypeArray *lol = (UA_DataTypeArray*)
+            UA_realloc(server->customTypes_internal,
+                       sizeof(UA_DataTypeArray) * (server->customTypes_internalSize+1));
+        if(!lol)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        memset(&lol[server->customTypes_internalSize], 0, sizeof(UA_DataTypeArray));
+        server->customTypes_internal = lol;
+        server->customTypes_internalSize++;
+
+        /* Update the next-pointers for the internal DataTypeArray */
+        for(size_t i = 0; i < server->customTypes_internalSize-1; i++)
+            lol[i].next = &lol[i+1];
+
+        /* Add a new types list. With the space for the datatypes already appended */
+        current = &server->customTypes_internal[server->customTypes_internalSize-1];
+        current->types = (UA_DataType*)UA_calloc(TYPES_LIST_SIZE, sizeof(UA_DataType));
+        current->typesSize = 0;
+        if(!current->types) {
+            server->customTypes_internalSize--;
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+    }
+
+    /* Move the datatype into the stable location in the server */
+    current->types[current->typesSize] = *dt;
+    current->typesSize++;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_addDataType(UA_Server *server, const UA_NodeId parentNodeId,
+                      const UA_DataType *type) {
+    /* Check that the type does not already exist. We do not allow changes to
+     * DataTypes once they are set. */
+    if(UA_Server_findDataType(server, &type->typeId))
+        return UA_STATUSCODE_BADNODEIDEXISTS;
+
+    /* Make a copy of the UA_DataType */
+    UA_DataType dt2;
+    UA_StatusCode res = UA_DataType_copy(type, &dt2);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Add the UA_DataType to the server */
+    res = addDataType(server, &dt2);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_DataType_clear(&dt2);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_addDataTypeFromDescription(UA_Server *server,
+                                     const UA_ExtensionObject *description) {
+    /* Translate into a new UA_DataType */
+    UA_DataType dt;
+    UA_StatusCode res =
+        UA_DataType_fromDescription(&dt, description, serverCustomTypes(server));
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Check that the type does not already exist. We do not allow changes to
+     * DataTypes once they are set. */
+    if(UA_Server_findDataType(server, &dt.typeId)) {
+        UA_DataType_clear(&dt);
+        return UA_STATUSCODE_BADNODEIDEXISTS;
+    }
+
+    /* Add the UA_DataType to the server */
+    res = addDataType(server, &dt);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_DataType_clear(&dt);
+    return res;
 }
 
 /********************************/
 /* Information Model Operations */
 /********************************/
 
+struct ReturnTypeContext {
+    UA_Server *server;
+    UA_UInt32 attributeMask;
+    UA_ReferenceTypeSet references;
+    UA_BrowseDirection referenceDirections;
+};
+
 static void *
 returnFirstType(void *context, UA_ReferenceTarget *t) {
-    UA_Server *server = (UA_Server*)context;
+    struct ReturnTypeContext *ctx = (struct ReturnTypeContext*)context;
     /* Don't release the node that is returned.
      * Continues to iterate if NULL is returned. */
-    return (void*)(uintptr_t)UA_NODESTORE_GETFROMREF(server, t->targetId);
+    return (void *)(uintptr_t)UA_NODESTORE_GETFROMREF_SELECTIVE(
+        ctx->server, t->targetId, ctx->attributeMask, ctx->references,
+        ctx->referenceDirections);
 }
 
 const UA_Node *
-getNodeType(UA_Server *server, const UA_NodeHead *head) {
+getNodeType(UA_Server *server, const UA_NodeHead *head,
+            UA_UInt32 attributeMask, UA_ReferenceTypeSet references,
+            UA_BrowseDirection referenceDirections) {
     /* The reference to the parent is different for variable and variabletype */
     UA_Byte parentRefIndex;
     UA_Boolean inverse;
@@ -51,6 +168,12 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
         return NULL;
     }
 
+    struct ReturnTypeContext ctx;
+    ctx.server = server;
+    ctx.attributeMask = attributeMask;
+    ctx.references = references;
+    ctx.referenceDirections = referenceDirections;
+
     /* Return the first matching candidate */
     for(size_t i = 0; i < head->referencesSize; ++i) {
         UA_NodeReferenceKind *rk = &head->references[i];
@@ -59,7 +182,7 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
         if(rk->referenceTypeIndex != parentRefIndex)
             continue;
         const UA_Node *type = (const UA_Node*)
-            UA_NodeReferenceKind_iterate(rk, returnFirstType, server);
+            UA_NodeReferenceKind_iterate(rk, returnFirstType, &ctx);
         if(type)
             return type;
     }
@@ -81,194 +204,136 @@ UA_Node_hasSubTypeOrInstances(const UA_NodeHead *head) {
 }
 
 UA_StatusCode
-getParentTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *typeNode,
-                                   UA_NodeId **typeHierarchy, size_t *typeHierarchySize) {
-    UA_ReferenceTypeSet reftypes_subtype =
-        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
-    UA_ExpandedNodeId *subTypes = NULL;
-    size_t subTypesSize = 0;
-    UA_StatusCode retval = browseRecursive(server, 1, typeNode,
-                                           UA_BROWSEDIRECTION_INVERSE,
-                                           &reftypes_subtype, UA_NODECLASS_UNSPECIFIED,
-                                           false, &subTypesSize, &subTypes);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+getTypeAndInterfaceHierarchy(UA_Server *server, const UA_NodeId *leafNode,
+                             UA_Boolean includeLeaf, UA_NodeId **typeHierarchy,
+                             size_t *typeHierarchySize) {
+    UA_ReferenceTypeSet hastype = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
+    UA_ReferenceTypeSet hassubtype = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
+    UA_ReferenceTypeSet hasinterface = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
 
-    UA_assert(subTypesSize < 1000);
+    /* Initialize the tree and add the leaf */
+    RefTree rt;
+    UA_StatusCode res = RefTree_init(&rt);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = RefTree_addNodeId(&rt, leafNode, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
 
-    UA_ReferenceTypeSet reftypes_interface =
-        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
-    UA_ExpandedNodeId *interfaces = NULL;
-    size_t interfacesSize = 0;
-    retval = browseRecursive(server, 1, typeNode, UA_BROWSEDIRECTION_FORWARD,
-                             &reftypes_interface, UA_NODECLASS_UNSPECIFIED,
-                             false, &interfacesSize, &interfaces);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_NODEID]);
-        return retval;
+    /* Get all types */
+    res = browseRecursiveRefTree(server, &rt, UA_BROWSEDIRECTION_FORWARD, &hastype,
+                                 UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Get all super types */
+    res = browseRecursiveRefTree(server, &rt, UA_BROWSEDIRECTION_INVERSE, &hassubtype,
+                                 UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Get all interfaces */
+    res = browseRecursiveRefTree(server, &rt, UA_BROWSEDIRECTION_FORWARD, &hasinterface,
+                                 UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE);
+
+ errout:
+    if(res != UA_STATUSCODE_GOOD || rt.size == 0) {
+        RefTree_clear(&rt);
+        return res;
     }
 
-    UA_assert(interfacesSize < 1000);
-
-    UA_NodeId *hierarchy = (UA_NodeId*)
-        UA_malloc(sizeof(UA_NodeId) * (1 + subTypesSize + interfacesSize));
-    if(!hierarchy) {
-        UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-        UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+    /* Make the array of ExpandedNodeId into an array of NodeId */
+    UA_NodeId *outArray = (UA_NodeId*)rt.targets;
+    size_t pos = 0;
+    for(size_t i = 0; i < rt.size; i++) {
+        UA_NodeId *n = &outArray[pos];
+        UA_ExpandedNodeId *e = &rt.targets[i];
+        if(!UA_ExpandedNodeId_isLocal(e)) {
+            UA_ExpandedNodeId_clear(e);
+            continue;
+        }
+        *n = e->nodeId;
+        UA_String_clear(&e->namespaceUri);
+        pos++;
     }
 
-    retval = UA_NodeId_copy(typeNode, hierarchy);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(hierarchy);
-        UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-        UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    for(size_t i = 0; i < subTypesSize; i++) {
-        hierarchy[i+1] = subTypes[i].nodeId;
-        UA_NodeId_init(&subTypes[i].nodeId);
-    }
-    for(size_t i = 0; i < interfacesSize; i++) {
-        hierarchy[i+1+subTypesSize] = interfaces[i].nodeId;
-        UA_NodeId_init(&interfaces[i].nodeId);
-    }
-
-    *typeHierarchy = hierarchy;
-    *typeHierarchySize = subTypesSize + interfacesSize + 1;
-
-    UA_assert(*typeHierarchySize < 1000);
-
-    UA_Array_delete(subTypes, subTypesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-    UA_Array_delete(interfaces, interfacesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    *typeHierarchySize = pos;
+    *typeHierarchy = outArray;
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
-                            const UA_NodeId *objectTypeNode,
-                            UA_NodeId **interfaceChildNodes,
-                            size_t *interfaceChildNodesSize) {
-    if(interfaceChildNodesSize == NULL || interfaceChildNodes == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    *interfaceChildNodesSize = 0;
-    *interfaceChildNodes = NULL;
+getAllInterfaces(UA_Server *server, const UA_NodeId *objectNode,
+                 UA_NodeId **interfaceNodes, size_t *interfaceNodesSize) {
+    UA_ReferenceTypeSet hastype = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASTYPEDEFINITION);
+    UA_ReferenceTypeSet hassubtype = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
+    UA_ReferenceTypeSet hasinterface = UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
 
-    UA_ExpandedNodeId *hasInterfaceCandidates = NULL;
-    size_t hasInterfaceCandidatesSize = 0;
-    UA_ReferenceTypeSet reftypes_subtype =
-        UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASSUBTYPE);
+    /* Initialize the tree and add the leaf */
+    size_t beforeInterfaces = 0;
+    RefTree rt;
+    UA_StatusCode res = RefTree_init(&rt);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    res = RefTree_addNodeId(&rt, objectNode, NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
 
-    UA_StatusCode retval =
-        browseRecursive(server, 1, objectTypeNode, UA_BROWSEDIRECTION_INVERSE,
-                        &reftypes_subtype, UA_NODECLASS_OBJECTTYPE,
-                        true, &hasInterfaceCandidatesSize,
-                        &hasInterfaceCandidates);
+    /* Get all types */
+    res = browseRecursiveRefTree(server, &rt, UA_BROWSEDIRECTION_FORWARD, &hastype,
+                                 UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
 
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    /* Get all super types */
+    res = browseRecursiveRefTree(server, &rt, UA_BROWSEDIRECTION_INVERSE, &hassubtype,
+                                 UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE);
+    if(res != UA_STATUSCODE_GOOD)
+        goto errout;
 
-    /* The interface could also have been added manually before calling UA_Server_addNode_finish
-     * This can be handled by adding the object node as a start node for the HasInterface lookup */
-    UA_ExpandedNodeId *resizedHasInterfaceCandidates = (UA_ExpandedNodeId*)
-        UA_realloc(hasInterfaceCandidates,
-                   (hasInterfaceCandidatesSize + 1) * sizeof(UA_ExpandedNodeId));
+    /* Get all interfaces */
+    beforeInterfaces = rt.size; /* Return only the interfaces */
+    res = browseRecursiveRefTree(server, &rt, UA_BROWSEDIRECTION_FORWARD, &hasinterface,
+                                 UA_NODECLASS_OBJECTTYPE | UA_NODECLASS_VARIABLETYPE);
 
-    if(!resizedHasInterfaceCandidates) {
-        if(hasInterfaceCandidates)
-            UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize,
-                            &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+ errout:
+    if(res != UA_STATUSCODE_GOOD || rt.size == 0) {
+        RefTree_clear(&rt);
+        return res;
     }
 
-    hasInterfaceCandidates = resizedHasInterfaceCandidates;
-    hasInterfaceCandidatesSize += 1;
-    UA_ExpandedNodeId_init(&hasInterfaceCandidates[hasInterfaceCandidatesSize - 1]);
-
-    UA_ExpandedNodeId_init(&hasInterfaceCandidates[hasInterfaceCandidatesSize - 1]);
-    UA_NodeId_copy(objectNode, &hasInterfaceCandidates[hasInterfaceCandidatesSize - 1].nodeId);
-
-    size_t outputIndex = 0;
-
-    for(size_t i = 0; i < hasInterfaceCandidatesSize; ++i) {
-        UA_ReferenceTypeSet reftypes_interface =
-            UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASINTERFACE);
-        UA_ExpandedNodeId *interfaceChildren = NULL;
-        size_t interfacesChildrenSize = 0;
-        retval = browseRecursive(server, 1, &hasInterfaceCandidates[i].nodeId,
-                                 UA_BROWSEDIRECTION_FORWARD,
-                                 &reftypes_interface, UA_NODECLASS_OBJECTTYPE,
-                                 false, &interfacesChildrenSize, &interfaceChildren);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize,
-                            &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-            if(*interfaceChildNodesSize) {
-                UA_Array_delete(*interfaceChildNodes, *interfaceChildNodesSize,
-                                &UA_TYPES[UA_TYPES_NODEID]);
-                *interfaceChildNodesSize = 0;
-            }
-            return retval;
-        }
-
-        UA_assert(interfacesChildrenSize < 1000);
-
-        if(interfacesChildrenSize == 0) {
+    /* Make the array of ExpandedNodeId into an array of NodeId */
+    UA_NodeId *outArray = (UA_NodeId*)rt.targets;
+    size_t pos = 0;
+    for(size_t i = 0; i < rt.size; i++) {
+        UA_NodeId *n = &outArray[pos];
+        UA_ExpandedNodeId *e = &rt.targets[i];
+        if(i < beforeInterfaces || !UA_ExpandedNodeId_isLocal(e)) {
+            UA_ExpandedNodeId_clear(e);
             continue;
         }
-
-        if(!*interfaceChildNodes) {
-            *interfaceChildNodes = (UA_NodeId*)
-                UA_calloc(interfacesChildrenSize, sizeof(UA_NodeId));
-            *interfaceChildNodesSize = interfacesChildrenSize;
-
-            if(!*interfaceChildNodes) {
-                UA_Array_delete(interfaceChildren, interfacesChildrenSize,
-                                &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-                UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize,
-                                &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-        } else {
-            UA_NodeId *resizedInterfaceChildNodes = (UA_NodeId*)
-                UA_realloc(*interfaceChildNodes,
-                           ((*interfaceChildNodesSize + interfacesChildrenSize) * sizeof(UA_NodeId)));
-
-            if(!resizedInterfaceChildNodes) {
-                UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize,
-                                &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-                UA_Array_delete(interfaceChildren, interfacesChildrenSize,
-                                &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-
-            const size_t oldSize = *interfaceChildNodesSize;
-            *interfaceChildNodesSize += interfacesChildrenSize;
-            *interfaceChildNodes = resizedInterfaceChildNodes;
-
-            for(size_t j = oldSize; j < *interfaceChildNodesSize; ++j)
-                UA_NodeId_init(&(*interfaceChildNodes)[j]);
-        }
-
-        for(size_t j = 0; j < interfacesChildrenSize; j++) {
-            (*interfaceChildNodes)[outputIndex++] = interfaceChildren[j].nodeId;
-        }
-
-        UA_assert(*interfaceChildNodesSize < 1000);
-        UA_Array_delete(interfaceChildren, interfacesChildrenSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+        *n = e->nodeId;
+        UA_String_clear(&e->namespaceUri);
+        pos++;
     }
 
-    UA_Array_delete(hasInterfaceCandidates, hasInterfaceCandidatesSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    /* No interfaces found */
+    if(pos == 0) {
+        RefTree_clear(&rt);
+        outArray = NULL;
+    }
 
+    *interfaceNodesSize = pos;
+    *interfaceNodes = outArray;
     return UA_STATUSCODE_GOOD;
 }
 
 /* Get the node, make the changes and release */
 UA_StatusCode
-UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
-                   UA_UInt32 attributeMask, UA_ReferenceTypeSet references,
-                   UA_BrowseDirection referenceDirections,
-                   UA_EditNodeCallback callback, void *data) {
+editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+         UA_UInt32 attributeMask, UA_ReferenceTypeSet references,
+         UA_BrowseDirection referenceDirections,
+         UA_EditNodeCallback callback, void *data) {
     UA_Node *node =
         UA_NODESTORE_GET_EDIT_SELECTIVE(server, nodeId, attributeMask,
                                         references, referenceDirections);
@@ -277,6 +342,101 @@ UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *node
     UA_StatusCode retval = callback(server, session, node, data);
     UA_NODESTORE_RELEASE(server, node);
     return retval;
+}
+
+/**************************/
+/* Certificate Validation */
+/**************************/
+
+UA_StatusCode
+validateCertificate(UA_Server *server, UA_CertificateGroup *cg,
+                    UA_SecureChannel *channel, UA_Session *session,
+                    const char *logPrefix,
+                    const UA_ApplicationDescription *ad,
+                    const UA_ByteString certificate) {
+    /* Verify the ApplicationUri */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(ad) {
+        res = UA_CertificateUtils_verifyApplicationUri(&certificate, &ad->applicationUri);
+        if(res != UA_STATUSCODE_GOOD) {
+            if(server->config.allowAllCertificateUris <= UA_RULEHANDLING_WARN) {
+                if(session) {
+                    UA_LOG_ERROR_SESSION(server->config.logging, session,
+                                         "%s: The client's ApplicationUri "
+                                         "could not be verified against the "
+                                         "ApplicationUri %S from the client's "
+                                         "ApplicationDescription", logPrefix,
+                                         ad->applicationUri);
+                } else if(channel) {
+                    UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                                         "%s: The client certificate's ApplicationUri "
+                                         "could not be verified against the "
+                                         "ApplicationUri %S from the client's "
+                                         "ApplicationDescription", logPrefix,
+                                         ad->applicationUri);
+                } else {
+                    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                                 "%s: The server certificate's ApplicationUri "
+                                 "could not be verified against the "
+                                 "ApplicationUri %S from its "
+                                 "ApplicationDescription", logPrefix,
+                                 ad->applicationUri);
+                }
+            }
+
+            /* Throw an audit event and abort */
+            if(server->config.allowAllCertificateUris < UA_RULEHANDLING_WARN) {
+#ifdef UA_ENABLE_AUDITING
+                auditCertificateDataMismatchEvent(server, channel, session, logPrefix,
+                                                  res, certificate, ad->applicationUri);
+#endif
+                return UA_STATUSCODE_BADCERTIFICATEINVALID;
+            }
+
+            /* Ignore the bad result depending on the server configuration.
+             * The res variable gets overwritten in all cases. */
+        }
+    }
+
+    if(!cg->verifyCertificate) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "%s: Could not validate the certificate "
+                     "as the CertificateGroup is not configured", logPrefix);
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    /* Validate in the CertificateGroup */
+    res = cg->verifyCertificate(cg, &certificate);
+    if(res != UA_STATUSCODE_GOOD) {
+        const char *descr = UA_StatusCode_name(res);
+        if(session) {
+            UA_LOG_ERROR_SESSION(server->config.logging, session,
+                                 "%s: The client certificate failed the verification "
+                                 "in the CertificateGroup with StatusCode %s",
+                                 logPrefix, descr);
+        } else if(channel) {
+            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                                 "%s: The client certificate failed the verification "
+                                 "in the CertificateGroup with StatusCode %s",
+                                 logPrefix, descr);
+        } else {
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                         "%s: The client certificate failed the verification "
+                         "in the CertificateGroup with StatusCode %s",
+                         logPrefix, descr);
+        }
+    }
+
+ errout:
+#ifdef UA_ENABLE_AUDITING
+    /* Create the audit event */
+    auditCertificateEvent(server,
+                          UA_APPLICATIONNOTIFICATIONTYPE_AUDIT_SECURITY_CERTIFICATE,
+                          channel, session, logPrefix, res, certificate, UA_STRING(""));
+#endif
+
+    return res;
 }
 
 /*********************************/

@@ -67,6 +67,10 @@ jobs:
           - name: "Amalgamation Build"
             cmd_action: build_amalgamation
 
+          - name: "Amalgamation Build (MinGW cross)"
+            cmd_deps: sudo apt-get install -y -qq gcc-mingw-w64-x86-64
+            cmd_action: build_amalgamation_mingw_cross
+
           - name: "Amalgamation Build with Multithreading"
             cmd_action: build_amalgamation_mt
 
@@ -223,7 +227,14 @@ jobs:
                 cd ${HOME}/tpm2-pkcs11/tools/
                 pip3 install --break-system-packages .
               cmd_action: build_tpm_tool   
-                 
+
+          # Run examples for specific Ubuntu versions
+          - os: ubuntu-24.04
+            build:
+              name: "Examples with MbedTLS and mDNSD (gcc)"
+              cmd_deps: sudo apt-get install -y -qq libmbedtls-dev python3-netifaces
+              cmd_action: run_examples MBEDTLS MDNSD
+
           # Valgrind tests for specific Ubuntu versions
           - os: ubuntu-24.04
             build:
@@ -288,13 +299,13 @@ jobs:
           IPV6="$(cat /proc/sys/net/ipv6/conf/eth0/disable_ipv6)"
           echo "New IPv6 status on eth0: $IPV6"
           [ "$IPV6" = "0" ] || { echo "Failed to enable IPv6 on eth0"; exit 1; }      
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev libreadline-dev
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq build-essential cmake curl libcap2-bin pkg-config libssl-dev python3-sphinx graphviz check libxml2-dev libpcap-dev libreadline-dev
           ${{ matrix.build.cmd_deps }}
       - name: ${{ matrix.build.name }}
         shell: bash

@@ -1,0 +1,534 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://open62541.org/schemas/server-config.json",
+  "title": "OPC UA Server Configuration",
+  "description": "JSON schema for open62541 server configuration",
+  "type": "object",
+  "properties": {
+    "buildInfo": {
+      "$ref": "#/definitions/BuildInfo",
+      "description": "Server build information"
+    },
+    "applicationDescription": {
+      "$ref": "#/definitions/ApplicationDescription",
+      "description": "Server application description"
+    },
+    "shutdownDelay": {
+      "type": "number",
+      "description": "Delay before server shutdown in seconds",
+      "minimum": 0
+    },
+    "verifyRequestTimestamp": {
+      "$ref": "#/definitions/RuleHandling",
+      "description": "Rule for verifying request timestamps"
+    },
+    "allowEmptyVariables": {
+      "$ref": "#/definitions/RuleHandling",
+      "description": "Rule for allowing empty variables"
+    },
+    "serverUrls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of server URLs"
+    },
+    "tcpEnabled": {
+      "type": "boolean",
+      "description": "Enable TCP transport",
+      "default": true
+    },
+    "tcp": {
+      "$ref": "#/definitions/TcpConfiguration",
+      "description": "TCP configuration"
+    },
+    "securityPolicyNoneDiscoveryOnly": {
+      "type": "boolean",
+      "description": "Allow SecurityPolicy None only for discovery",
+      "default": false
+    },
+    "modellingRulesOnInstances": {
+      "type": "boolean",
+      "description": "Add modelling rules on instances",
+      "default": false
+    },
+    "maxSecureChannels": {
+      "type": "integer",
+      "description": "Maximum number of secure channels",
+      "minimum": 0
+    },
+    "maxSecurityTokenLifetime": {
+      "type": "integer",
+      "description": "Maximum security token lifetime in milliseconds",
+      "minimum": 0
+    },
+    "maxSessions": {
+      "type": "integer",
+      "description": "Maximum number of sessions",
+      "minimum": 0
+    },
+    "maxSessionTimeout": {
+      "type": "number",
+      "description": "Maximum session timeout in milliseconds",
+      "minimum": 0
+    },
+    "maxNodesPerRead": {
+      "type": "integer",
+      "description": "Maximum nodes per read operation",
+      "minimum": 0
+    },
+    "maxNodesPerWrite": {
+      "type": "integer",
+      "description": "Maximum nodes per write operation",
+      "minimum": 0
+    },
+    "maxNodesPerMethodCall": {
+      "type": "integer",
+      "description": "Maximum nodes per method call",
+      "minimum": 0
+    },
+    "maxNodesPerBrowse": {
+      "type": "integer",
+      "description": "Maximum nodes per browse operation",
+      "minimum": 0
+    },
+    "maxNodesPerRegisterNodes": {
+      "type": "integer",
+      "description": "Maximum nodes per register nodes operation",
+      "minimum": 0
+    },
+    "maxNodesPerTranslateBrowsePathsToNodeIds": {
+      "type": "integer",
+      "description": "Maximum nodes per translate browse paths operation",
+      "minimum": 0
+    },
+    "maxNodesPerNodeManagement": {
+      "type": "integer",
+      "description": "Maximum nodes per node management operation",
+      "minimum": 0
+    },
+    "maxMonitoredItemsPerCall": {
+      "type": "integer",
+      "description": "Maximum monitored items per call",
+      "minimum": 0
+    },
+    "maxReferencesPerNode": {
+      "type": "integer",
+      "description": "Maximum references per node",
+      "minimum": 0
+    },
+    "reverseReconnectInterval": {
+      "type": "integer",
+      "description": "Interval for reverse reconnect attempts in milliseconds",
+      "minimum": 0
+    },
+    "asyncOperationTimeout": {
+      "type": "number",
+      "description": "Timeout for async operations in seconds (only if multithreading enabled)",
+      "minimum": 0
+    },
+    "maxAsyncOperationQueueSize": {
+      "type": "integer",
+      "description": "Maximum async operation queue size (only if multithreading enabled)",
+      "minimum": 0
+    },
+    "discoveryCleanupTimeout": {
+      "type": "integer",
+      "description": "Discovery cleanup timeout in milliseconds (only if discovery enabled)",
+      "minimum": 0
+    },
+    "mdnsEnabled": {
+      "type": "boolean",
+      "description": "Enable mDNS discovery (only if multicast discovery enabled)",
+      "default": false
+    },
+    "mdns": {
+      "$ref": "#/definitions/MdnsConfiguration",
+      "description": "mDNS configuration (only if multicast discovery enabled)"
+    },
+    "subscriptionsEnabled": {
+      "type": "boolean",
+      "description": "Enable subscriptions (only if subscriptions enabled)",
+      "default": true
+    },
+    "subscriptions": {
+      "$ref": "#/definitions/SubscriptionConfiguration",
+      "description": "Subscription configuration (only if subscriptions enabled)"
+    },
+    "historizingEnabled": {
+      "type": "boolean",
+      "description": "Enable historizing (only if historizing enabled)",
+      "default": false
+    },
+    "historizing": {
+      "$ref": "#/definitions/HistorizingConfiguration",
+      "description": "Historizing configuration (only if historizing enabled)"
+    },
+    "pubsubEnabled": {
+      "type": "boolean",
+      "description": "Enable PubSub (only if PubSub enabled)",
+      "default": false
+    },
+    "pubsub": {
+      "$ref": "#/definitions/PubsubConfiguration",
+      "description": "PubSub configuration (only if PubSub enabled)"
+    },
+    "securityPolicies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of security policy URIs (only if encryption enabled)"
+    },
+    "pkiFolder": {
+      "type": "string",
+      "description": "Path to PKI folder (only if encryption enabled)"
+    }
+  },
+  "definitions": {
+    "BuildInfo": {
+      "type": "object",
+      "properties": {
+        "productUri": {
+          "type": "string",
+          "description": "Product URI"
+        },
+        "manufacturerName": {
+          "type": "string",
+          "description": "Manufacturer name"
+        },
+        "productName": {
+          "type": "string",
+          "description": "Product name"
+        },
+        "softwareVersion": {
+          "type": "string",
+          "description": "Software version"
+        },
+        "buildNumber": {
+          "type": "string",
+          "description": "Build number"
+        },
+        "buildDate": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Build date in ISO 8601 format"
+        }
+      }
+    },
+    "ApplicationDescription": {
+      "type": "object",
+      "properties": {
+        "applicationUri": {
+          "type": "string",
+          "description": "Application URI"
+        },
+        "productUri": {
+          "type": "string",
+          "description": "Product URI"
+        },
+        "applicationName": {
+          "$ref": "#/definitions/LocalizedText",
+          "description": "Application name"
+        },
+        "applicationType": {
+          "$ref": "#/definitions/ApplicationType",
+          "description": "Application type"
+        },
+        "gatewayServerUri": {
+          "type": "string",
+          "description": "Gateway server URI"
+        },
+        "discoveryProfileUri": {
+          "type": "string",
+          "description": "Discovery profile URI"
+        },
+        "discoveryUrls": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Discovery URLs"
+        }
+      }
+    },
+    "LocalizedText": {
+      "type": "object",
+      "properties": {
+        "locale": {
+          "type": "string",
+          "description": "Locale identifier (e.g., 'en-US', 'de-DE')"
+        },
+        "text": {
+          "type": "string",
+          "description": "Localized text content"
+        }
+      }
+    },
+    "ApplicationType": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["Server", "Client", "ClientAndServer", "DiscoveryServer"]
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        }
+      ],
+      "description": "Application type: Server (0), Client (1), ClientAndServer (2), DiscoveryServer (3)"
+    },
+    "RuleHandling": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["Accept", "Warn", "Abort"]
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        }
+      ],
+      "description": "Rule handling: Accept (0), Warn (1), Abort (2)"
+    },
+    "TcpConfiguration": {
+      "type": "object",
+      "properties": {
+        "tcpBufSize": {
+          "type": "integer",
+          "description": "TCP buffer size in bytes",
+          "minimum": 0
+        },
+        "tcpMaxMsgSize": {
+          "type": "integer",
+          "description": "TCP maximum message size in bytes",
+          "minimum": 0
+        },
+        "tcpMaxChunks": {
+          "type": "integer",
+          "description": "TCP maximum chunks",
+          "minimum": 0
+        }
+      }
+    },
+    "MdnsConfiguration": {
+      "type": "object",
+      "properties": {
+        "mdnsServerName": {
+          "type": "string",
+          "description": "mDNS server name"
+        },
+        "serverCapabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Server capabilities"
+        },
+        "mdnsInterfaceIP": {
+          "type": "string",
+          "description": "mDNS interface IP address"
+        },
+        "mdnsIpAddressList": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "description": "mDNS IP address list (only if UA_HAS_GETIFADDR not defined)"
+        }
+      }
+    },
+    "SubscriptionConfiguration": {
+      "type": "object",
+      "properties": {
+        "maxSubscriptions": {
+          "type": "integer",
+          "description": "Maximum number of subscriptions",
+          "minimum": 0
+        },
+        "maxSubscriptionsPerSession": {
+          "type": "integer",
+          "description": "Maximum subscriptions per session",
+          "minimum": 0
+        },
+        "publishingIntervalLimits": {
+          "$ref": "#/definitions/DurationRange",
+          "description": "Publishing interval limits"
+        },
+        "lifeTimeCountLimits": {
+          "$ref": "#/definitions/UInt32Range",
+          "description": "Lifetime count limits"
+        },
+        "keepAliveCountLimits": {
+          "$ref": "#/definitions/UInt32Range",
+          "description": "Keep alive count limits"
+        },
+        "maxNotificationsPerPublish": {
+          "type": "integer",
+          "description": "Maximum notifications per publish",
+          "minimum": 0
+        },
+        "enableRetransmissionQueue": {
+          "type": "boolean",
+          "description": "Enable retransmission queue",
+          "default": false
+        },
+        "maxRetransmissionQueueSize": {
+          "type": "integer",
+          "description": "Maximum retransmission queue size",
+          "minimum": 0
+        },
+        "maxEventsPerNode": {
+          "type": "integer",
+          "description": "Maximum events per node (only if events enabled)",
+          "minimum": 0
+        },
+        "maxMonitoredItems": {
+          "type": "integer",
+          "description": "Maximum monitored items",
+          "minimum": 0
+        },
+        "maxMonitoredItemsPerSubscription": {
+          "type": "integer",
+          "description": "Maximum monitored items per subscription",
+          "minimum": 0
+        },
+        "samplingIntervalLimits": {
+          "$ref": "#/definitions/DurationRange",
+          "description": "Sampling interval limits"
+        },
+        "queueSizeLimits": {
+          "$ref": "#/definitions/UInt32Range",
+          "description": "Queue size limits"
+        },
+        "maxPublishReqPerSession": {
+          "type": "integer",
+          "description": "Maximum publish requests per session",
+          "minimum": 0
+        }
+      }
+    },
+    "DurationRange": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "number",
+          "description": "Minimum duration in milliseconds",
+          "minimum": 0
+        },
+        "max": {
+          "type": "number",
+          "description": "Maximum duration in milliseconds",
+          "minimum": 0
+        }
+      }
+    },
+    "UInt32Range": {
+      "type": "object",
+      "properties": {
+        "min": {
+          "type": "integer",
+          "description": "Minimum value",
+          "minimum": 0
+        },
+        "max": {
+          "type": "integer",
+          "description": "Maximum value",
+          "minimum": 0
+        }
+      }
+    },
+    "HistorizingConfiguration": {
+      "type": "object",
+      "properties": {
+        "accessHistoryDataCapability": {
+          "type": "boolean",
+          "description": "Access history data capability",
+          "default": false
+        },
+        "maxReturnDataValues": {
+          "type": "integer",
+          "description": "Maximum return data values",
+          "minimum": 0
+        },
+        "accessHistoryEventsCapability": {
+          "type": "boolean",
+          "description": "Access history events capability",
+          "default": false
+        },
+        "maxReturnEventValues": {
+          "type": "integer",
+          "description": "Maximum return event values",
+          "minimum": 0
+        },
+        "insertDataCapability": {
+          "type": "boolean",
+          "description": "Insert data capability",
+          "default": false
+        },
+        "insertEventCapability": {
+          "type": "boolean",
+          "description": "Insert event capability",
+          "default": false
+        },
+        "insertAnnotationsCapability": {
+          "type": "boolean",
+          "description": "Insert annotations capability",
+          "default": false
+        },
+        "replaceDataCapability": {
+          "type": "boolean",
+          "description": "Replace data capability",
+          "default": false
+        },
+        "replaceEventCapability": {
+          "type": "boolean",
+          "description": "Replace event capability",
+          "default": false
+        },
+        "updateDataCapability": {
+          "type": "boolean",
+          "description": "Update data capability",
+          "default": false
+        },
+        "updateEventCapability": {
+          "type": "boolean",
+          "description": "Update event capability",
+          "default": false
+        },
+        "deleteRawCapability": {
+          "type": "boolean",
+          "description": "Delete raw capability",
+          "default": false
+        },
+        "deleteEventCapability": {
+          "type": "boolean",
+          "description": "Delete event capability",
+          "default": false
+        },
+        "deleteAtTimeDataCapability": {
+          "type": "boolean",
+          "description": "Delete at time data capability",
+          "default": false
+        }
+      }
+    },
+    "PubsubConfiguration": {
+      "type": "object",
+      "properties": {
+        "enableDeltaFrames": {
+          "type": "boolean",
+          "description": "Enable delta frames",
+          "default": false
+        },
+        "enableInformationModelMethods": {
+          "type": "boolean",
+          "description": "Enable information model methods (only if information model enabled)",
+          "default": false
+        }
+      }
+    }
+  }
+}

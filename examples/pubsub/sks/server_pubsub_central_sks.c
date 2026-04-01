@@ -165,20 +165,17 @@ setSecurityGroupRolePermission(UA_Server *server, UA_NodeId securityGroupNodeId,
 
 static void
 usage(char *progname) {
-    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                    "Usage:\n"
 #ifndef UA_ENABLE_ENCRYPTION
                    "%s [<server-certificate.der>]\n"
 #else
                    "%s <server-certificate.der> <private-key.der>\n"
-#ifndef __linux__
                    "\t[--trustlist <tl1.ctl> <tl2.ctl> ... ]\n"
                    "\t[--issuerlist <il1.der> <il2.der> ... ]\n"
                    "\t[--revocationlist <rv1.crl> <rv2.crl> ...]\n"
-#else
-                   "\t[--trustlistFolder <folder>]\n"
-                   "\t[--issuerlistFolder <folder>]\n"
-                   "\t[--revocationlistFolder <folder>]\n"
+#ifdef __linux__
+                   "\t[--pkiFolder <folder>]\n"
 #endif
                    "\t[--enableUnencrypted]\n"
                    "\t[--enableOutdatedSecurityPolicy]\n"
@@ -206,7 +203,7 @@ main(int argc, char **argv) {
     if((size_t)argc >= pos + 1) {
         certificate = loadFile(argv[1]);
         if(certificate.length == 0) {
-            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                          "Unable to load file %s.", argv[pos]);
             return EXIT_FAILURE;
         }
@@ -219,7 +216,7 @@ main(int argc, char **argv) {
     if((size_t)argc >= pos + 1) {
         privateKey = loadFile(argv[2]);
         if(privateKey.length == 0) {
-            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                          "Unable to load file %s.", argv[pos]);
             return EXIT_FAILURE;
         }
@@ -230,16 +227,15 @@ main(int argc, char **argv) {
     UA_Boolean enableUnencr = false;
     UA_Boolean enableSec = false;
 
-#ifndef __linux__
     UA_ByteString trustList[100];
     size_t trustListSize = 0;
     UA_ByteString issuerList[100];
     size_t issuerListSize = 0;
     UA_ByteString revocationList[100];
     size_t revocationListSize = 0;
-#else
+#ifdef __linux__
     char *pkiFolder = NULL;
-#endif /* __linux__ */
+#endif
 
 #endif /* UA_ENABLE_ENCRYPTION */
 
@@ -283,7 +279,6 @@ main(int argc, char **argv) {
             continue;
         }
 
-#ifndef __linux__
         if(strcmp(argv[pos], "--trustlist") == 0) {
             filetype = 't';
             continue;
@@ -301,13 +296,13 @@ main(int argc, char **argv) {
 
         if(filetype == 't') {
             if(trustListSize >= 100) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                              "Too many trust lists");
                 return EXIT_FAILURE;
             }
             trustList[trustListSize] = loadFile(argv[pos]);
             if(trustList[trustListSize].data == NULL) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                              "Unable to load trust list %s", argv[pos]);
                 return EXIT_FAILURE;
             }
@@ -317,13 +312,13 @@ main(int argc, char **argv) {
 
         if(filetype == 'l') {
             if(issuerListSize >= 100) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                              "Too many trust lists");
                 return EXIT_FAILURE;
             }
             issuerList[issuerListSize] = loadFile(argv[pos]);
             if(issuerList[issuerListSize].data == NULL) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                              "Unable to load trust list %s", argv[pos]);
                 return EXIT_FAILURE;
             }
@@ -333,20 +328,21 @@ main(int argc, char **argv) {
 
         if(filetype == 'r') {
             if(revocationListSize >= 100) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                              "Too many revocation lists");
                 return EXIT_FAILURE;
             }
             revocationList[revocationListSize] = loadFile(argv[pos]);
             if(revocationList[revocationListSize].data == NULL) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                              "Unable to load revocationlist %s", argv[pos]);
                 return EXIT_FAILURE;
             }
             revocationListSize++;
             continue;
         }
-#else  /* __linux__ */
+
+#ifdef  __linux__
         if(strcmp(argv[pos], "--pkiFolder") == 0) {
             filetype = 't';
             continue;
@@ -365,27 +361,21 @@ main(int argc, char **argv) {
     }
 
     UA_Server *server = NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
 
 #ifdef UA_ENABLE_ENCRYPTION
-#ifndef __linux__
-    UA_StatusCode res = UA_ServerConfig_setDefaultWithSecurityPolicies(
-        &config, port, &certificate, &privateKey, trustList, trustListSize, issuerList,
-        issuerListSize, revocationList, revocationListSize);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-#else /* On Linux we can monitor the pki folder and reload when changes are made */
-    if(!pkiFolder) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                                 "Path to the Pki folder must be specified.");
-        goto cleanup;
+#ifdef __linux__
+    if(pkiFolder) {
+        res = UA_ServerConfig_setDefaultWithFilestore(&config, port, &certificate, &privateKey, UA_STRING(pkiFolder));
+    } else
+#endif
+    {
+        res = UA_ServerConfig_setDefaultWithSecurityPolicies(&config, port, &certificate, &privateKey,
+                                                             trustList, trustListSize, issuerList,
+                                                             issuerListSize, revocationList, revocationListSize);
     }
-    UA_String pkiStoreFolder = UA_STRING(pkiFolder);
-    UA_StatusCode res = UA_ServerConfig_setDefaultWithFilestore(
-        &config, port, &certificate, &privateKey, pkiStoreFolder);
-    UA_String_clear(&pkiStoreFolder);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
-#endif /* __linux__ */
 
     if(!enableUnencr)
         disableUnencrypted(&config);
@@ -393,7 +383,7 @@ main(int argc, char **argv) {
         disableOutdatedSecurityPolicy(&config);
 
 #else  /* UA_ENABLE_ENCRYPTION */
-    UA_StatusCode res = UA_ServerConfig_setMinimal(&config, port, &certificate);
+    res = UA_ServerConfig_setMinimal(&config, port, &certificate);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 #endif /* UA_ENABLE_ENCRYPTION */
@@ -464,14 +454,12 @@ cleanup:
     UA_ByteString_clear(&certificate);
 #if defined(UA_ENABLE_ENCRYPTION)
     UA_ByteString_clear(&privateKey);
-#ifndef __linux__
     for(size_t i = 0; i < trustListSize; i++)
         UA_ByteString_clear(&trustList[i]);
     for(size_t i = 0; i < issuerListSize; i++)
         UA_ByteString_clear(&issuerList[i]);
     for(size_t i = 0; i < revocationListSize; i++)
         UA_ByteString_clear(&revocationList[i]);
-#endif
 #endif
 
     return res == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;

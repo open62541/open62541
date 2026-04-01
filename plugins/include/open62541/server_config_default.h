@@ -74,6 +74,11 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
                                                const UA_ByteString *revocationList,
                                                size_t revocationListSize);
 
+/* This function adds only secure security policies to the policy list,
+ * explicitly excluding the 'None' policy.
+ * Because of this, clients cannot retrieve the server certificate
+ * or access the server’s exposed endpoints.
+ * As a result, connections can only be established in 'direct' way. */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
                                                      UA_UInt16 portNumber,

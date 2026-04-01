@@ -14,6 +14,7 @@
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
+  *   Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -51,11 +52,65 @@ setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
     subscription->priority = priority;
 }
 
+static void
+notifySubscription(UA_Server *server, UA_Subscription *sub,
+                   UA_ApplicationNotificationType type) {
+    if(!server->config.subscriptionNotificationCallback &&
+       !server->config.globalNotificationCallback)
+        return;
+
+    static UA_THREAD_LOCAL UA_KeyValuePair createSubData[8] = {
+        {{0, UA_STRING_STATIC("session-id")}, {0}},
+        {{0, UA_STRING_STATIC("subscription-id")}, {0}},
+        {{0, UA_STRING_STATIC("publishing-interval")}, {0}},
+        {{0, UA_STRING_STATIC("lifetime-count")}, {0}},
+        {{0, UA_STRING_STATIC("max-keepalive-count")}, {0}},
+        {{0, UA_STRING_STATIC("max-notifications-per-publish")}, {0}},
+        {{0, UA_STRING_STATIC("priority")}, {0}},
+        {{0, UA_STRING_STATIC("publishing-enabled")}, {0}}
+    };
+    UA_KeyValueMap createSubMap = {8, createSubData};
+
+    UA_NodeId sessionId = (sub->session) ? sub->session->sessionId : UA_NODEID_NULL;
+    UA_Boolean enabled = (sub->state = UA_SUBSCRIPTIONSTATE_ENABLED);
+
+    UA_Variant_setScalar(&createSubData[0].value, &sessionId,
+                         &UA_TYPES[UA_TYPES_NODEID]);
+    UA_Variant_setScalar(&createSubData[1].value, &sub->subscriptionId,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&createSubData[2].value, &sub->publishingInterval,
+                         &UA_TYPES[UA_TYPES_DOUBLE]);
+    UA_Variant_setScalar(&createSubData[3].value, &sub->lifeTimeCount,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&createSubData[4].value, &sub->maxKeepAliveCount,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&createSubData[5].value, &sub->notificationsPerPublish,
+                         &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&createSubData[6].value, &sub->priority,
+                         &UA_TYPES[UA_TYPES_BYTE]);
+    UA_Variant_setScalar(&createSubData[7].value, &enabled,
+                         &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    if(server->config.subscriptionNotificationCallback)
+        server->config.subscriptionNotificationCallback(server, type, createSubMap);
+    if(server->config.globalNotificationCallback)
+        server->config.globalNotificationCallback(server, type, createSubMap);
+}
+
 UA_Boolean
 Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            const UA_CreateSubscriptionRequest *request,
                            UA_CreateSubscriptionResponse *response) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* Check with AccessControl if the creation is allowed */
+    if(server->config.accessControl.allowCreateSubscription &&
+       !server->config.accessControl.
+           allowCreateSubscription(server, &server->config.accessControl,
+                                   &session->sessionId, session->context)) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return true;
+    }
 
     /* Check limits for the number of subscriptions */
     if(((server->config.maxSubscriptions != 0) &&
@@ -118,6 +173,10 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                              "max %lu notifications per publish)",
                              sub->publishingInterval,
                              (long unsigned)sub->notificationsPerPublish);
+
+    /* Notify the application */
+    notifySubscription(server, sub,
+                       UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_CREATED);
 
     /* Prepare the response */
     response->subscriptionId = sub->subscriptionId;
@@ -183,6 +242,10 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
         UA_Session_attachSubscription(session, sub);
     }
 
+    /* Notify the application */
+    notifySubscription(server, sub,
+                       UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_MODIFIED);
+
     /* Set the response */
     response->revisedPublishingInterval = sub->publishingInterval;
     response->revisedLifetimeCount = sub->lifeTimeCount;
@@ -215,6 +278,10 @@ Operation_SetPublishingMode(UA_Server *server, UA_Session *session,
 
     /* Reset the lifetime counter */
     Subscription_resetLifetime(sub);
+
+    /* Notify the application */
+    notifySubscription(server, sub,
+                       UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_PUBLISHINGMODE);
 }
 
 UA_Boolean
@@ -358,6 +425,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
 static void
 Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
                              const UA_UInt32 *subscriptionId, UA_StatusCode *result) {
+    /* Find the Subscription */
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, *subscriptionId);
     if(!sub) {
         *result = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
@@ -368,8 +436,14 @@ Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
         return;
     }
 
+    /* Notify the application */
+    notifySubscription(server, sub,
+                       UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_DELETED);
+
+    /* Delete the Subscription */
     UA_Subscription_delete(server, sub);
     *result = UA_STATUSCODE_GOOD;
+
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Subscription %" PRIu32 " | Subscription deleted",
                          *subscriptionId);
@@ -464,6 +538,8 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
                                const UA_Boolean *sendInitialValues,
                                const UA_UInt32 *subscriptionId,
                                UA_TransferResult *result) {
+    UA_LOCK_ASSERT(&server->serviceMutex);
+
     /* Get the subscription. This requires a server-wide lookup instead of the
      * usual session-wide lookup. */
     UA_Subscription *sub = getSubscriptionById(server, *subscriptionId);
@@ -489,7 +565,6 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
 
     /* Check with AccessControl if the transfer is allowed */
     if(server->config.accessControl.allowTransferSubscription) {
-        UA_LOCK_ASSERT(&server->serviceMutex);
         if(!server->config.accessControl.
            allowTransferSubscription(server, &server->config.accessControl,
                                      oldSession ? &oldSession->sessionId : NULL,
@@ -544,6 +619,10 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
 
     /* <-- The point of no return --> */
 
+    /* Mark the old subscription as transferred to prevent incorrect
+     * diagnostic counter updates when it is deleted */
+    sub->wasTransferred = true;
+
     /* Move over the MonitoredItems and adjust the backpointers */
     LIST_INIT(&newSub->monitoredItems);
     UA_MonitoredItem *mon, *mon_tmp;
@@ -585,7 +664,12 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     /* Attach to the session */
     UA_Session_attachSubscription(session, newSub);
 
-    UA_LOG_INFO_SUBSCRIPTION(server->config.logging, newSub, "Transferred to this Session");
+    /* Notify the application */
+    notifySubscription(server, newSub,
+                       UA_APPLICATIONNOTIFICATIONTYPE_SUBSCRIPTION_TRANSFERRED);
+
+    UA_LOG_INFO_SUBSCRIPTION(server->config.logging, newSub,
+                             "Transferred to this Session");
 
     /* Set StatusChange in the original subscription and force publish. This
      * also removes the Subscription, even if there was no PublishResponse

@@ -17,7 +17,7 @@
 
 int main(int argc, char* argv[]) {
     if(argc < MIN_ARGS) {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Arguments are missing. The required arguments are "
                      "<opc.tcp://host:port> "
                      "<client-certificate.der> <client-private-key.der> "

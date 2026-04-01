@@ -17,7 +17,7 @@ int main(void) {
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "The connection failed with status code %s",
                     UA_StatusCode_name(retval));
         UA_Client_delete(client);
@@ -37,12 +37,12 @@ int main(void) {
        UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTime raw_date = *(UA_DateTime *) value.data;
         UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "date is: %u-%u-%u %u:%u:%u.%03u",
                     dts.day, dts.month, dts.year, dts.hour,
                     dts.min, dts.sec, dts.milliSec);
     } else {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "Reading the value failed with status code %s",
                     UA_StatusCode_name(retval));
     }

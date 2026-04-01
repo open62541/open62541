@@ -8,7 +8,6 @@
 
 #include <open62541/plugin/nodesetloader.h>
 #include <NodesetLoader/backendOpen62541.h>
-#include <NodesetLoader/dataTypes.h>
 #include <open62541/server.h>
 
 UA_StatusCode

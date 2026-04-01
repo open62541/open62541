@@ -10,7 +10,7 @@
 
 
 import logging
-from datatypes import QualifiedName, LocalizedText, NodeId
+from .datatypes import QualifiedName, LocalizedText, NodeId
 
 __all__ = ['Reference', 'RefOrAlias', 'Node', 'ReferenceTypeNode',
            'ObjectNode', 'VariableNode', 'VariableTypeNode',
@@ -251,7 +251,7 @@ class VariableNode(Node):
             if x.localName == "Value":
                 self.value = x
             elif x.localName == "DataType":
-                self.dataType = RefOrAlias(av)
+                self.dataType = RefOrAlias(x.firstChild.data)
             elif x.localName == "ValueRank":
                 self.valueRank = int(x.firstChild.data)
             elif x.localName == "ArrayDimensions" and len(self.arrayDimensions) == 0:

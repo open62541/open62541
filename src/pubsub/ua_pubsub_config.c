@@ -17,7 +17,7 @@
 static UA_StatusCode
 createPubSubConnection(UA_PubSubManager *psm,
                        const UA_PubSubConnectionDataType *connection,
-                       UA_UInt32 pdsCount, UA_NodeId *pdsIdent);
+                       UA_UInt32 pdsCount, UA_NodeId *pdsIdent, UA_NodeId *connectionIdent);
 
 static UA_StatusCode
 createWriterGroup(UA_PubSubManager *psm,
@@ -100,8 +100,23 @@ updatePubSubConfig(UA_PubSubManager *psm,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
+    /* Check if the PubSubManager is in an active state and has connections attached. */
+    if(psm->sc.state != UA_LIFECYCLESTATE_STOPPED && psm->connectionsSize > 0) {
+        UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                       "[UA_PubSubManager_updatePubSubConfig] PubSub configured and active. "
+                       "Disable the PublishSubscribe state before loading a pubsub configuration");
+        return UA_STATUSCODE_BADINVALIDSTATE;
+    }
+
+    /* Ensure the PubSubManager is stopped before clearing */
+    if(psm->sc.state != UA_LIFECYCLESTATE_STOPPED) {
+        UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                    "[UA_PubSubManager_updatePubSubConfig] Stopping PubSubManager before loading configuration");
+        UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
+    }
+
     /* Clear the PubSubManager to load a new config.
-     * To succeed the PubSubManager needs to be stopped. */
+     * The PubSubManager is now guaranteed to be stopped. */
     UA_StatusCode res = UA_PubSubManager_clear(psm);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -133,21 +148,101 @@ updatePubSubConfig(UA_PubSubManager *psm,
         return UA_STATUSCODE_GOOD;
     }
 
-    for(size_t i = 0; i < configurationParameters->connectionsSize; i++) {
-        res = createPubSubConnection(psm, &configurationParameters->connections[i],
-                                     pdsCount, publishedDataSetIdent);
-        if(res != UA_STATUSCODE_GOOD)
-            break;
+    /* Phase 1: Create all components with enabled = false to avoid premature state changes */
+    UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                "[UA_PubSubManager_updatePubSubConfig] START CONNECTIONS (Phase 1: Creation)");
+
+    /* Store connection NodeIds for Phase 2 */
+    UA_NodeId *connectionIdents = (UA_NodeId*)UA_calloc(configurationParameters->connectionsSize, sizeof(UA_NodeId));
+    if(!connectionIdents) {
+        UA_free(publishedDataSetIdent);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    UA_free(publishedDataSetIdent);
+    for(size_t i = 0; i < configurationParameters->connectionsSize; i++) {
+        res = createPubSubConnection(psm, &configurationParameters->connections[i],
+                                     pdsCount, publishedDataSetIdent, &connectionIdents[i]);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_free(connectionIdents);
+            break;
+        }
+    }
+    
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(publishedDataSetIdent);
+        return res;
+    }
+    
+    /* Phase 2: Enable components based on original configuration */
+    UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                "[UA_PubSubManager_updatePubSubConfig] START COMPONENTS (Phase 2: Enabling)");
+    
+    /* Enable connections and their child components */
+    for(size_t i = 0; i < configurationParameters->connectionsSize; i++) {
+        const UA_PubSubConnectionDataType *connParams = &configurationParameters->connections[i];
+        
+        if(connParams->enabled) {
+            UA_PubSubConnection *conn = UA_PubSubConnection_find(psm, connectionIdents[i]);
+            if(conn) {
+                conn->config.enabled = true;                
+                UA_WriterGroup *wg;
+                size_t wgIndex = 0;
+                LIST_FOREACH(wg, &conn->writerGroups, listEntry) {
+                    if(wgIndex < connParams->writerGroupsSize && connParams->writerGroups[wgIndex].enabled) {
+                        wg->config.enabled = true;
+                        UA_DataSetWriter *dsw;
+                        size_t dswIndex = 0;
+                        LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                            if(dswIndex < connParams->writerGroups[wgIndex].dataSetWritersSize && 
+                               connParams->writerGroups[wgIndex].dataSetWriters[dswIndex].enabled) {
+                                dsw->config.enabled = true;
+                            }
+                            dswIndex++;
+                        }
+                    }
+                    wgIndex++;
+                }
+                
+                /* Enable reader groups */
+                UA_ReaderGroup *rg;
+                size_t rgIndex = 0;
+                LIST_FOREACH(rg, &conn->readerGroups, listEntry) {
+                    if(rgIndex < connParams->readerGroupsSize && connParams->readerGroups[rgIndex].enabled) {
+                        rg->config.enabled = true;                        
+                        UA_DataSetReader *dsr;
+                        size_t dsrIndex = 0;
+                        LIST_FOREACH(dsr, &rg->readers, listEntry) {
+                            if(dsrIndex < connParams->readerGroups[rgIndex].dataSetReadersSize && 
+                               connParams->readerGroups[rgIndex].dataSetReaders[dsrIndex].enabled) {
+                                dsr->config.enabled = true;
+                            }
+                            dsrIndex++;
+                        }
+                    }
+                    rgIndex++;
+                }
+            }
+        }
+    }
 
+    /* Enable PubSubManager if specified */
+    if(configurationParameters->enabled) {
+        UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                       "[UA_PubSubManager_updatePubSubConfig] PubSubManager is enabled");
+        UA_assert(psm->sc.state == UA_LIFECYCLESTATE_STOPPED);
+        psm->pubSubInitialSetupMode = true;
+        UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
+        psm->pubSubInitialSetupMode = false;
+    }
+    
+    UA_free(connectionIdents);
+    UA_free(publishedDataSetIdent);
     return res;
 }
 
 static UA_StatusCode
 createPubSubConnection(UA_PubSubManager *psm, const UA_PubSubConnectionDataType *connParams,
-                       UA_UInt32 pdsCount, UA_NodeId *pdsIdent) {
+                       UA_UInt32 pdsCount, UA_NodeId *pdsIdent, UA_NodeId *connectionIdent) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PubSubConnectionConfig config;
@@ -157,6 +252,7 @@ createPubSubConnection(UA_PubSubManager *psm, const UA_PubSubConnectionDataType 
     config.transportProfileUri =        connParams->transportProfileUri;
     config.connectionProperties.map =   connParams->connectionProperties;
     config.connectionProperties.mapSize = connParams->connectionPropertiesSize;
+    config.enabled = false;  /* Always create disabled, enabling during the last stage of updatePubSubConfig */
 
     UA_StatusCode res = UA_PublisherId_fromVariant(&config.publisherId,
                                                    &connParams->publisherId);
@@ -183,16 +279,13 @@ createPubSubConnection(UA_PubSubManager *psm, const UA_PubSubConnectionDataType 
         UA_Variant_setScalar(&(config.connectionTransportSettings),
                              connParams->transportSettings.content.decoded.data,
                              connParams->transportSettings.content.decoded.type);
-    } else {
+    } else if (connParams->transportSettings.encoding != UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
         UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
                        "[UA_PubSubManager_createPubSubConnection] "
                        "TransportSettings can not be read");
     }
 
-    /* Load connection config. The enabled flag is false here.
-     * Auto-enable after adding the components. */
-    UA_NodeId connectionIdent;
-    res = UA_PubSubConnection_create(psm, &config, &connectionIdent);
+    res = UA_PubSubConnection_create(psm, &config, connectionIdent);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_createPubSubConnection] "
@@ -200,24 +293,13 @@ createPubSubConnection(UA_PubSubManager *psm, const UA_PubSubConnectionDataType 
         return res;
     }
 
-    /* WriterGroups configuration */
     for(size_t i = 0; i < connParams->writerGroupsSize; i++) {
         createWriterGroup(psm, &connParams->writerGroups[i],
-                          connectionIdent, pdsCount, pdsIdent);
+                          *connectionIdent, pdsCount, pdsIdent);
     }
 
-    /* ReaderGroups configuration */
     for(size_t j = 0; j < connParams->readerGroupsSize; j++) {
-        createReaderGroup(psm, &connParams->readerGroups[j], connectionIdent);
-    }
-
-    /* Enable and set the flag */
-    if(connParams->enabled) {
-        UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionIdent);
-        if(c) {
-            c->config.enabled = true;
-            UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL);
-        }
+        createReaderGroup(psm, &connParams->readerGroups[j], *connectionIdent);
     }
 
     UA_PublisherId_clear(&config.publisherId);
@@ -280,6 +362,7 @@ createWriterGroup(UA_PubSubManager *psm,
     config.groupProperties.mapSize =   writerGroupParameters->groupPropertiesSize;
     config.groupProperties.map =   writerGroupParameters->groupProperties;
     config.maxEncapsulatedDataSetMessageCount = 255; /* non std parameter */
+    config.enabled = false;  /* Always create disabled, enabling during the last stage of updatePubSubConfig */
 
     UA_StatusCode res = setWriterGroupEncodingType(psm, writerGroupParameters, &config);
     if(res != UA_STATUSCODE_GOOD) {
@@ -300,19 +383,10 @@ createWriterGroup(UA_PubSubManager *psm,
         return res;
     }
 
-    /* Configuration of all DataSetWriters that belong to this WriterGroup */
+    /* Configuration of all DataSetWriters that belong to this WriterGroup - all created disabled */
     for(size_t dsw = 0; dsw < writerGroupParameters->dataSetWritersSize; dsw++) {
         createDataSetWriter(psm, &writerGroupParameters->dataSetWriters[dsw],
                             writerGroupIdent, pdsCount, pdsIdent);
-    }
-
-    /* Enable if the flag is set */
-    if(writerGroupParameters->enabled) {
-        UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroupIdent);
-        if(wg) {
-            wg->config.enabled = true;
-            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
-        }
     }
 
     return res;
@@ -358,9 +432,9 @@ createDataSetWriter(UA_PubSubManager *psm,
     config.dataSetName = dataSetWriterParameters->dataSetName;
     config.dataSetWriterProperties.mapSize = dataSetWriterParameters->dataSetWriterPropertiesSize;
     config.dataSetWriterProperties.map = dataSetWriterParameters->dataSetWriterProperties;
-    config.enabled = dataSetWriterParameters->enabled;
+    config.enabled = false;  /* Always create disabled, enabling during the last stage of updatePubSubConfig */
 
-    /* Create the DataSetWriter. It gets enabled internally if the flag is set. */
+    /* Create the DataSetWriter disabled. Enable later in Phase 2. */
     UA_NodeId dataSetWriterIdent;
     UA_StatusCode res =
         UA_DataSetWriter_create(psm, writerGroupIdent, pdsIdent[i],
@@ -385,9 +459,8 @@ createReaderGroup(UA_PubSubManager *psm,
 
     config.name = readerGroupParameters->name;
     config.securityMode = readerGroupParameters->securityMode;
+    config.enabled = false;  /* Always create disabled, enabling during the last stage of updatePubSubConfig */
 
-    /* Create the ReaderGroup. It only gets activated once the DataSetReaders
-     * have been added. */
     UA_NodeId readerGroupIdent;
     UA_StatusCode res = UA_ReaderGroup_create(psm, connectionIdent,
                                               &config, &readerGroupIdent);
@@ -398,21 +471,9 @@ createReaderGroup(UA_PubSubManager *psm,
         return res;
     }
 
-    UA_LOG_INFO(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                "[UA_PubSubManager_createReaderGroup] ReaderGroup successfully added.");
-
     for(UA_UInt32 i = 0; i < readerGroupParameters->dataSetReadersSize; i++) {
         createDataSetReader(psm, &readerGroupParameters->dataSetReaders[i],
                             readerGroupIdent);
-    }
-
-    /* Enable the ReaderGroup if the flag is set */
-    if(readerGroupParameters->enabled) {
-        UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupIdent);
-        if(rg) {
-            rg->config.enabled = true;
-            UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
-        }
     }
 
     return UA_STATUSCODE_GOOD;
@@ -471,12 +532,12 @@ createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrPa
     config.dataSetFieldContentMask = dsrParams->dataSetFieldContentMask;
     config.messageReceiveTimeout =  dsrParams->messageReceiveTimeout;
     config.messageSettings = dsrParams->messageSettings;
+    config.enabled = false;  /* Always create disabled, enabling during the last stage of updatePubSubConfig */
     UA_StatusCode res = UA_PublisherId_fromVariant(&config.publisherId,
                                                    &dsrParams->publisherId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* Create the Reader. It gets enabled after the SubscribedDataSet has been added.  */
     UA_NodeId dsReaderIdent;
     res = UA_DataSetReader_create(psm, readerGroupIdent, &config, &dsReaderIdent);
     UA_PublisherId_clear(&config.publisherId);
@@ -494,16 +555,6 @@ createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrPa
                      "[UA_PubSubManager_createDataSetReader] "
                      "Create subscribedDataSet failed");
         return res;
-    }
-
-    /* Enable the Reader */
-    if(dsrParams->enabled) {
-        UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsReaderIdent);
-        if(dsr) {
-            dsr->config.enabled = dsrParams->enabled;
-            UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
-                                            UA_STATUSCODE_GOOD);
-        }
     }
 
     return UA_STATUSCODE_GOOD;
@@ -1105,7 +1156,7 @@ UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
         unlockServer(server);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    
+
     UA_PubSubConfigurationDataType config;
     UA_PubSubConfigurationDataType_init(&config);
 

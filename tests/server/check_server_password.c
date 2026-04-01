@@ -110,7 +110,7 @@ loginCallback(const UA_String *userName, const UA_ByteString *password,
         for (i = 0; i < sizeof(salt) - 1 && i < loginList->password.length; i++) {
             if (dollar == 3)
                 break;
-            salt[i] = loginList->password.data[i];
+            salt[i] = (char)loginList->password.data[i];
             if (salt[i] == '$')
                 dollar++;
         }

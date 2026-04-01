@@ -10,6 +10,8 @@
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
+ *    Copyright 2025 (c) Siemens AG (Author: Tin Raic)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_UTIL_H_
@@ -20,12 +22,22 @@
 #include <open62541/util.h>
 #include <open62541/statuscodes.h>
 
+#include <open62541/plugin/log.h>
+#include <open62541/plugin/securitypolicy.h>
+
 #include "../ua_types_encoding_binary.h"
+#include "../ua_securechannel.h"
 
 _UA_BEGIN_DECLS
 
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x
+
+/* Often-used macro to get the beginning of the parent data structure */
+#ifndef container_of
+# define container_of(ptr, type, member) \
+    (type *)((uintptr_t)ptr - offsetof(type,member))
+#endif
 
 /* Try if the type of the value can be adjusted "in situ" to the target type.
  * That can be done, for example, to map between int32 and an enum.
@@ -74,7 +86,7 @@ isReservedAnd(u8 c) {
 }
 
 static UA_INLINE UA_Boolean
-isReservedExtended(u8 c) {
+isReservedAndExtended(u8 c) {
     return (isReservedAnd(c) || c == ',' || c == '(' || c == ')' ||
             c == '[' || c == ']' || c <= ' ' || c == 127);
 }
@@ -86,10 +98,9 @@ isReservedPercent(u8 c) {
 
 static UA_INLINE UA_Boolean
 isReservedPercentExtended(u8 c) {
-    return (isReservedPercent(c) || c == '#' || c == '[' ||
-            c == ']' || c == '&' || c == '(' || c == ')' ||
-            c == ',' || c == '<' || c == '>' || c == '`' ||
-            c == '/' || c == '\\' || c == '"' || c == '\'' );
+    return (isReservedPercent(c) || c == ':' || c == '#' || c == '[' || c == ']' ||
+            c == '&' || c == '(' || c == ')' || c == ',' || c == '<' || c == '>' ||
+            c == '`' || c == '/' || c == '\\' || c == '"' || c == '\'' );
 }
 
 /* Unescape string. The copyEscape boolean indicates whether a copy of the
@@ -124,7 +135,17 @@ nodeId_printEscape(const UA_NodeId *id, UA_String *output,
                    const UA_NamespaceMapping *nsMapping, UA_Escaping idEsc);
 
 UA_StatusCode
+sao_parseWithDefaultNsIdx(UA_SimpleAttributeOperand *sao,
+                          const UA_String str, UA_UInt16 defaultNsIndex);
+
+UA_StatusCode
 encodeDateTime(const UA_DateTime dt, UA_String *output);
+
+/***************/
+/* Log Helpers */
+/***************/
+
+extern char * securityModeNames[4];
 
 /**
  * Error checking macros
@@ -253,7 +274,7 @@ isTrue(uint8_t expr) {
 #endif
 
 void
-UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes);
+UA_cleanupDataTypeWithCustom(UA_DataTypeArray *customTypes);
 
 /* Get the number of optional fields contained in an structure type */
 size_t UA_EXPORT
@@ -366,8 +387,13 @@ typedef union {
 
 /* Do not expose UA_String_equal_ignorecase to public API as it currently only handles
  * ASCII strings, and not UTF8! */
-UA_Boolean UA_EXPORT
+UA_Boolean
 UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2);
+
+/* Make a deep copy of val and clear+replace orig.
+ * orig is not touched when the deep copy fails. */
+UA_StatusCode
+UA_replace(void *orig, const void *val, const UA_DataType *type);
 
 /********************/
 /* Encoding Helpers */
@@ -417,6 +443,39 @@ UA_ENCODING_HELPERS(ExtensionObject, EXTENSIONOBJECT)
 UA_ENCODING_HELPERS(DataValue, DATAVALUE)
 UA_ENCODING_HELPERS(Variant, VARIANT)
 UA_ENCODING_HELPERS(DiagnosticInfo, DIAGNOSTICINFO)
+
+/****************************/
+/* Legacy Secret Encryption */
+/****************************/
+
+UA_StatusCode
+encryptSecretLegacy(const UA_SecurityPolicy *sp, void *spContext,
+                    const UA_ByteString serverSessionNonce,
+                    UA_ByteString *tokenData);
+
+UA_StatusCode
+decryptSecretLegacy(const UA_SecurityPolicy *sp, void *spContext,
+                    const UA_ByteString serverSessionNonce,
+                    UA_ByteString *tokenData);
+
+/******************/
+/* ECC Encryption */
+/******************/
+
+UA_StatusCode
+encryptUserIdentityTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
+                            const UA_SecurityPolicy *sp, void *spContext,
+                            UA_ByteString *tokenData,
+                            const UA_ByteString serverSessionNonce,
+                            const UA_ByteString serverEphemeralPubKey);
+
+/* If the EccEncryptedSecret does not define a certificate, check if the
+ * SecureChannel uses the same SecurityPolicy and reuse its context. */
+UA_StatusCode
+decryptUserTokenEcc(UA_Logger *logger, UA_SecureChannel *channel,
+                    const UA_SecurityPolicy *sp, void *spContext,
+                    UA_ByteString sessionServerNonce,
+                    UA_ByteString *es);
 
 _UA_END_DECLS
 

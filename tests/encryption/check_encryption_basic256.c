@@ -302,6 +302,11 @@ START_TEST(encryption_connect_pem) {
                                          revocationList, revocationListSize);
     UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
+    /* Set the ApplicationUri used in the certificate */
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri =
+        UA_STRING_ALLOC("urn:unconfigured:application");
+
     /* Manually add the Basic256 SecurityPolicy.
      * It does not get added by default as it is considered unsecure. */
     cc->securityPolicies = (UA_SecurityPolicy *)

@@ -54,13 +54,20 @@ detectScalarDeadBand(const void *data1, const void *data2,
 static UA_Boolean
 detectVariantDeadband(const UA_Variant *value, const UA_Variant *oldValue,
                       const UA_Double deadbandValue) {
+    /* Be careful to avoid a NULL access. We could have the value a scalar and
+     * oldValue an empty array. Both define a type and arrayLength == 0. */
     if(value->arrayLength != oldValue->arrayLength)
         return true;
     if(value->type != oldValue->type)
         return true;
+    if(UA_Variant_isScalar(value) != UA_Variant_isScalar(oldValue))
+        return true;
+
+    /* Treat scalars as an array of length 1 and iterate */
     size_t length = 1;
     if(!UA_Variant_isScalar(value))
         length = value->arrayLength;
+
     uintptr_t data = (uintptr_t)value->data;
     uintptr_t oldData = (uintptr_t)oldValue->data;
     UA_UInt32 memSize = value->type->memSize;
@@ -102,6 +109,10 @@ detectValueChange(UA_Server *server, UA_MonitoredItem *mon, const UA_DataValue *
     UA_assert(trigger == UA_DATACHANGETRIGGER_STATUSVALUE ||
               trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP);
 
+    /* Can we compare values? */
+    if(dv->hasValue != mon->lastValue.hasValue)
+       return true;
+
     /* Test absolute deadband */
     if(dcf && dcf->deadbandType == UA_DEADBANDTYPE_ABSOLUTE &&
        dv->value.type != NULL && UA_DataType_isNumeric(dv->value.type))
@@ -118,8 +129,6 @@ detectValueChange(UA_Server *server, UA_MonitoredItem *mon, const UA_DataValue *
     }
 
     /* Has the value changed? */
-    if(dv->hasValue != mon->lastValue.hasValue)
-        return true;
     return !UA_equal(&dv->value, &mon->lastValue.value,
                      &UA_TYPES[UA_TYPES_VARIANT]);
 }
@@ -194,6 +203,19 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
     }
 }
 
+/* We know the result is a deep-copy. So we can abuse the const result-pointer
+ * and take ownership of the value. */
+static void
+processMonitoredItemAsyncRead(UA_Server *server, UA_MonitoredItem *mon,
+                              const UA_DataValue *result) {
+    mon->outstandingAsyncReads--;
+    UA_DataValue *mut_result = (UA_DataValue*)(uintptr_t)result;
+    if(mut_result->status == UA_STATUSCODE_BADREQUESTCANCELLEDBYREQUEST)
+        return; /* Controlled shut-down */
+    UA_MonitoredItem_processSampledValue(server, mon, mut_result);
+    UA_DataValue_init(mut_result);
+}
+
 void
 UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -207,11 +229,23 @@ UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
      * sub->session can be NULL when the subscription is detached. Then
      * readWithSession returns the error-code BADUSERACCESSDENIED. */
     UA_Session *session = (sub) ? sub->session : &server->adminSession;
-    UA_DataValue dv = readWithSession(server, session, &mon->itemToMonitor,
-                                      mon->timestampsToReturn);
 
-    /* Process the sample. This always clears the value. */
-    UA_MonitoredItem_processSampledValue(server, mon, &dv);
+    /* Read the value possibly asynchronous */
+    UA_StatusCode res = UA_STATUSCODE_BADTOOMANYOPERATIONS;
+    if(UA_LIKELY(mon->outstandingAsyncReads < UA_MONITOREDITEM_ASYNC_MAX)) {
+        res = read_async(server, session, &mon->itemToMonitor, mon->timestampsToReturn,
+                         (UA_ServerAsyncReadResultCallback)processMonitoredItemAsyncRead, mon, 0);
+    }
+    if(res == UA_STATUSCODE_GOOD) {
+        mon->outstandingAsyncReads++;
+    } else {
+        /* Reading failed, process with the StatusCode */
+        UA_DataValue dv;
+        UA_DataValue_init(&dv);
+        dv.hasStatus = true;
+        dv.status = res;
+        UA_MonitoredItem_processSampledValue(server, mon, &dv);
+    }
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

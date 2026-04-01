@@ -174,6 +174,8 @@ _UA_END_DECLS
 /* POSIX Definitions */
 /*********************/
 
+#include <time.h>
+
 /*---------------------*/
 /* Network Definitions */
 /*---------------------*/
@@ -273,12 +275,6 @@ typedef int SOCKET;
 #endif /* !__APPLE__ */
 #include <sys/stat.h>
 
-#ifndef __ANDROID__
-#ifndef __APPLE__
-#include <bits/stdio_lim.h>
-#endif /* !__APPLE__ */
-#endif /* !__ANDROID__ */
-
 #define UA_STAT stat
 #define UA_DIR DIR
 #define UA_DIRENT dirent
@@ -353,6 +349,11 @@ struct UA_RegisteredFD {
     UA_FD fd;
     short listenEvents; /* UA_FDEVENT_IN | UA_FDEVENT_OUT*/
 
+    /* Information to reopen listen socket */
+    UA_String hostname;
+    UA_UInt16 port;
+    UA_Boolean reuseaddr;
+
     UA_EventSource *es; /* Backpointer to the EventSource */
     UA_FDCallback eventSourceCB;
 };
@@ -360,6 +361,13 @@ struct UA_RegisteredFD {
 enum ZIP_CMP cmpFD(const UA_FD *a, const UA_FD *b);
 typedef ZIP_HEAD(UA_FDTree, UA_RegisteredFD) UA_FDTree;
 ZIP_FUNCTIONS(UA_FDTree, UA_RegisteredFD, zipPointers, UA_FD, fd, cmpFD)
+
+typedef struct UA_DeregisteredListenFD {
+    LIST_ENTRY(UA_DeregisteredListenFD) pointers;
+    UA_RegisteredFD *listenFd;
+} UA_DeregisteredListenFD;
+
+typedef LIST_HEAD(UA_DeregisteredListenFDList, UA_DeregisteredListenFD) UA_DeregisteredListenFDList;
 
 /* All ConnectionManager in the POSIX EventLoop can be cast to
  * UA_ConnectionManagerPOSIX. They carry a sorted tree of their open
@@ -374,6 +382,9 @@ typedef struct {
     /* Sorted tree of the FDs */
     size_t fdsSize;
     UA_FDTree fds;
+
+    /* Closed listening sockets queued for later reopening */
+    UA_DeregisteredListenFDList listenFDs;
 } UA_POSIXConnectionManager;
 
 typedef struct {
@@ -400,11 +411,13 @@ typedef struct {
      * "run" method */
     volatile UA_Boolean executing;
 
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+    /* Indicates that the maximum number of sockets has been reached.
+     * All listening sockets will be closed. */
+    UA_Boolean maxSocketsLimitReached;
+
     /* Clocks for the eventloop's time domain */
     UA_Int32 clockSource;
     UA_Int32 clockSourceMonotonic;
-#endif
 
 #if defined(UA_HAVE_EPOLL)
     UA_FD epollfd;

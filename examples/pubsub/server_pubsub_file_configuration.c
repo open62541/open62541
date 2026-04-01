@@ -101,13 +101,13 @@ int main(int argc, char** argv) {
     }
 
     /* 5. start server */
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Starting server...");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Starting server...");
 
     UA_StatusCode statusCode = UA_STATUSCODE_GOOD;
     statusCode |= UA_Server_enableAllPubSubComponents(server);
     statusCode |= UA_Server_runUntilInterrupt(server);
     if(statusCode != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Server stopped. Status code: 0x%x\n", statusCode);
         return(-1);
     }
@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
             statusCode = writeFile(argv[2], buffer);
 
         if(statusCode != UA_STATUSCODE_GOOD)
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                          "Saving PubSub configuration to file failed. "
                          "StatusCode: 0x%x\n", statusCode);
 

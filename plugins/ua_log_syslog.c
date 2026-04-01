@@ -10,14 +10,13 @@
 #if defined(__linux__) || defined(__unix__)
 
 #include <syslog.h>
-#include <stdio.h>
 #include "mp_printf.h"
 
 static const char *syslogLevelNames[6] = {"trace", "debug", "info",
                                    "warn", "error", "fatal"};
 static const char *syslogCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server", "client",
-     "userland", "security", "eventloop", "pubsub", "discovery"};
+     "application", "security", "eventloop", "pubsub", "discovery"};
 
 #ifdef __clang__
 __attribute__((__format__(__printf__, 4 , 0)))
@@ -52,8 +51,6 @@ UA_Log_Syslog_log(void *context, UA_LogLevel level, UA_LogCategory category,
     }
 
     int logLevelSlot = ((int)level / 100) - 1;
-    if(logLevelSlot < 0 || logLevelSlot > 5)
-        logLevelSlot = 5; /* Set to fatal if the level is outside the range */
 
 #define LOGBUFSIZE 512
     char logbuf[LOGBUFSIZE];
@@ -64,7 +61,7 @@ UA_Log_Syslog_log(void *context, UA_LogLevel level, UA_LogCategory category,
         syslog(LOG_WARNING, "Log message too long for syslog");
         return;
     }
-    pos = vsnprintf(&logbuf[pos], LOGBUFSIZE - (size_t)pos, msg, args);
+    pos = mp_vsnprintf(&logbuf[pos], LOGBUFSIZE - (size_t)pos, msg, args);
     if(pos < 0) {
         syslog(LOG_WARNING, "Log message too long for syslog");
         return;

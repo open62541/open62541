@@ -29,7 +29,7 @@ static void
 UA_PubSubManager_stop(UA_ServerComponent *sc);
 
 static UA_StatusCode
-UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server);
+UA_PubSubManager_start(UA_ServerComponent *sc);
 
 const char *
 UA_PubSubState_name(UA_PubSubState state) {
@@ -353,7 +353,7 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode res = UA_PubSubManager_start(&psm->sc, server);
+    UA_StatusCode res = UA_PubSubManager_start(&psm->sc);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -389,15 +389,6 @@ static void
 disableAllPubSubComponents(UA_PubSubManager *psm) {
     UA_PubSubConnection *c;
     TAILQ_FOREACH(c, &psm->connections, listEntry) {
-        UA_WriterGroup *wg;
-        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
-            UA_DataSetWriter *dsw;
-            LIST_FOREACH(dsw, &wg->writers, listEntry) {
-                UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
-            }
-            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
-        }
-
         UA_ReaderGroup *rg;
         LIST_FOREACH(rg, &c->readerGroups, listEntry) {
             UA_DataSetReader *dsr;
@@ -406,6 +397,15 @@ disableAllPubSubComponents(UA_PubSubManager *psm) {
                                                 UA_STATUSCODE_BADSHUTDOWN);
             }
             UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
+        }
+
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            UA_DataSetWriter *dsw;
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
+            }
+            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
         }
 
         UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
@@ -419,6 +419,254 @@ UA_Server_disableAllPubSubComponents(UA_Server *server) {
     if(psm)
         UA_PubSubManager_stop(&psm->sc); /* Calls disableAll internally */
     unlockServer(server);
+}
+
+static UA_StatusCode
+getPubSubComponentType(UA_PubSubManager *psm, UA_NodeId componentId,
+                       UA_PubSubComponentType *outType) {
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        if(UA_NodeId_equal(&componentId, &c->head.identifier)) {
+            *outType = c->head.componentType;
+            return UA_STATUSCODE_GOOD;
+        }
+
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            if(UA_NodeId_equal(&componentId, &wg->head.identifier)) {
+                *outType = wg->head.componentType;
+                return UA_STATUSCODE_GOOD;
+            }
+
+            UA_DataSetWriter *dsw;
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                if(UA_NodeId_equal(&componentId, &dsw->head.identifier)) {
+                    *outType = dsw->head.componentType;
+                    return UA_STATUSCODE_GOOD;
+                }
+            }
+        }
+
+        UA_ReaderGroup *rg;
+        LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+            if(UA_NodeId_equal(&componentId, &rg->head.identifier)) {
+                *outType = rg->head.componentType;
+                return UA_STATUSCODE_GOOD;
+            }
+
+            UA_DataSetReader *dsr;
+            LIST_FOREACH(dsr, &rg->readers, listEntry) {
+                if(UA_NodeId_equal(&componentId, &dsr->head.identifier)) {
+                    *outType = dsr->head.componentType;
+                    return UA_STATUSCODE_GOOD;
+                }
+            }
+        }
+    }
+
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_StatusCode
+UA_Server_getPubSubComponentType(UA_Server *server, UA_NodeId componentId,
+                                 UA_PubSubComponentType *outType) {
+    if(!outType)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode res = (psm) ?
+        getPubSubComponentType(psm, componentId, outType) : UA_STATUSCODE_BADINTERNALERROR;
+    unlockServer(server);
+    return res;
+}
+
+static UA_StatusCode
+getPubSubComponentParent(UA_PubSubManager *psm, UA_NodeId componentId,
+                         UA_NodeId *outParent) {
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        if(UA_NodeId_equal(&componentId, &c->head.identifier))
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            if(UA_NodeId_equal(&componentId, &wg->head.identifier))
+                return UA_NodeId_copy(&c->head.identifier, outParent);
+
+            UA_DataSetWriter *dsw;
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                if(UA_NodeId_equal(&componentId, &dsw->head.identifier))
+                    return UA_NodeId_copy(&wg->head.identifier, outParent);
+            }
+        }
+
+        UA_ReaderGroup *rg;
+        LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+            if(UA_NodeId_equal(&componentId, &rg->head.identifier))
+                return UA_NodeId_copy(&c->head.identifier, outParent);
+
+            UA_DataSetReader *dsr;
+            LIST_FOREACH(dsr, &rg->readers, listEntry) {
+                if(UA_NodeId_equal(&componentId, &dsr->head.identifier))
+                    return UA_NodeId_copy(&rg->head.identifier, outParent);
+            }
+        }
+    }
+
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_StatusCode
+UA_Server_getPubSubComponentParent(UA_Server *server, UA_NodeId componentId,
+                                   UA_NodeId *outParent) {
+    if(!outParent)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode res = (psm) ?
+        getPubSubComponentParent(psm, componentId, outParent) : UA_STATUSCODE_BADINTERNALERROR;
+    unlockServer(server);
+    return res;
+}
+
+static UA_StatusCode
+getPubSubComponentChildren(UA_PubSubManager *psm, UA_NodeId componentId,
+                           size_t *outChildrenSize, UA_NodeId **outChildren) {
+    UA_WriterGroup *wg;
+    UA_ReaderGroup *rg;
+    UA_DataSetWriter *dsw;
+    UA_DataSetReader *dsr;
+    UA_PubSubConnection *c;
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        if(UA_NodeId_equal(&componentId, &c->head.identifier)) {
+            /* Count the children */
+            size_t children = 0;
+            LIST_FOREACH(wg, &c->writerGroups, listEntry)
+                children++;
+            LIST_FOREACH(rg, &c->readerGroups, listEntry)
+                children++;
+
+            /* Empty array? */
+            if(children == 0) {
+                *outChildren = NULL;
+                *outChildrenSize = 0;
+                return UA_STATUSCODE_GOOD;
+            }
+
+            /* Allocate the array */
+            *outChildren = (UA_NodeId*)UA_calloc(children, sizeof(UA_NodeId));
+            if(!*outChildren)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            *outChildrenSize = children;
+
+            /* Copy the NodeIds */
+            size_t pos = 0;
+            LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+                res |= UA_NodeId_copy(&wg->head.identifier, (*outChildren) + pos);
+                pos++;
+            }
+            LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+                res |= UA_NodeId_copy(&rg->head.identifier, (*outChildren) + pos);
+                pos++;
+            }
+            goto out;
+        }
+
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            if(UA_NodeId_equal(&componentId, &wg->head.identifier)) {
+                /* Count the children */
+                size_t children = 0;
+                LIST_FOREACH(dsw, &wg->writers, listEntry)
+                    children++;
+
+                /* Empty array? */
+                if(children == 0) {
+                    *outChildren = NULL;
+                    *outChildrenSize = 0;
+                    return UA_STATUSCODE_GOOD;
+                }
+
+                /* Allocate the array */
+                *outChildren = (UA_NodeId*)UA_calloc(children, sizeof(UA_NodeId));
+                if(!*outChildren)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                *outChildrenSize = children;
+
+                /* Copy the NodeIds */
+                size_t pos = 0;
+                LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                    res |= UA_NodeId_copy(&dsw->head.identifier, (*outChildren) + pos);
+                    pos++;
+                }
+                goto out;
+            }
+
+            /* DataSetWriter have no children (with a state machine) */
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                if(UA_NodeId_equal(&componentId, &dsw->head.identifier))
+                    return UA_STATUSCODE_BADNOTSUPPORTED;
+            }
+        }
+
+        LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+            if(UA_NodeId_equal(&componentId, &rg->head.identifier)) {
+                /* Count the children */
+                size_t children = 0;
+                LIST_FOREACH(dsr, &rg->readers, listEntry)
+                    children++;
+
+                /* Empty array? */
+                if(children == 0) {
+                    *outChildren = NULL;
+                    *outChildrenSize = 0;
+                    return UA_STATUSCODE_GOOD;
+                }
+
+                /* Allocate the array */
+                *outChildren = (UA_NodeId*)UA_calloc(children, sizeof(UA_NodeId));
+                if(!*outChildren)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                *outChildrenSize = children;
+
+                /* Copy the NodeIds */
+                size_t pos = 0;
+                LIST_FOREACH(dsr, &rg->readers, listEntry) {
+                    res |= UA_NodeId_copy(&dsr->head.identifier, (*outChildren) + pos);
+                    pos++;
+                }
+                goto out;
+            }
+
+            /* DataSetReader have no children (with a state machine) */
+            LIST_FOREACH(dsr, &rg->readers, listEntry) {
+                if(UA_NodeId_equal(&componentId, &dsr->head.identifier))
+                    return UA_STATUSCODE_BADNOTSUPPORTED;
+            }
+        }
+    }
+
+    return UA_STATUSCODE_BADNOTFOUND;
+
+ out:
+    if(res != UA_STATUSCODE_GOOD)
+        UA_Array_delete(*outChildren, *outChildrenSize, &UA_TYPES[UA_TYPES_NODEID]);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getPubSubComponentChildren(UA_Server *server, UA_NodeId componentId,
+                                     size_t *outChildrenSize, UA_NodeId **outChildren) {
+    if(!outChildrenSize || !outChildren)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    lockServer(server);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode res = (psm) ?
+        getPubSubComponentChildren(psm, componentId,
+                                   outChildrenSize, outChildren) : UA_STATUSCODE_BADINTERNALERROR;
+    unlockServer(server);
+    return res;
 }
 
 void
@@ -454,30 +702,38 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     if(state == psm->sc.state)
         return;
     psm->sc.state = state;
-    if(psm->sc.notifyState)
-        psm->sc.notifyState(&psm->sc, state);
 
     /* When we just started, trigger all connections to go from PAUSED to
      * OPERATIONAL */
     if(state == UA_LIFECYCLESTATE_STARTED) {
         UA_PubSubConnection *c;
         TAILQ_FOREACH(c, &psm->connections, listEntry) {
-            UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
+            if (psm->pubSubInitialSetupMode) {
+                UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL);
+            } else {
+                UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
+            }
         }
     }
 }
 
 static UA_StatusCode
-UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server) {
+UA_PubSubManager_start(UA_ServerComponent *sc) {
+    /* Check that the server backpointer is set */
+    UA_Server *server = sc->server;
+    if(!server)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Re-cache logging for the case that the configuration has been updated */
     UA_PubSubManager *psm = (UA_PubSubManager*)sc;
+    psm->logging = server->config.logging;
+
+    /* Cannot start an already started PubSubManager */
     if(psm->sc.state == UA_LIFECYCLESTATE_STOPPING) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "The PubSubManager is still stopping");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-    /* Re-cache for the case that the configuration has been updated */
-    psm->logging = server->config.logging;
 
     UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
 
@@ -541,6 +797,14 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+UA_PubSubManager_free(UA_PubSubManager *psm) {
+    UA_StatusCode res = UA_PubSubManager_clear(psm);
+    if(res == UA_STATUSCODE_GOOD)
+        UA_free(psm);
+    return res;
+}
+
 UA_ServerComponent *
 UA_PubSubManager_new(UA_Server *server) {
     UA_PubSubManager *psm = (UA_PubSubManager*)UA_calloc(1, sizeof(UA_PubSubManager));
@@ -551,7 +815,7 @@ UA_PubSubManager_new(UA_Server *server) {
     psm->sc.name = UA_STRING("pubsub");
     psm->sc.start = UA_PubSubManager_start;
     psm->sc.stop = UA_PubSubManager_stop;
-    psm->sc.clear = (UA_StatusCode (*)(UA_ServerComponent *))UA_PubSubManager_clear;
+    psm->sc.free = (UA_StatusCode (*)(UA_ServerComponent *))UA_PubSubManager_free;
 
     /* Set the logging shortcut */
     psm->logging = server->config.logging;

@@ -47,18 +47,22 @@ typedef enum {
     UA_LOGCATEGORY_SESSION = 2,
     UA_LOGCATEGORY_SERVER = 3,
     UA_LOGCATEGORY_CLIENT = 4,
-    UA_LOGCATEGORY_USERLAND = 5,
-    UA_LOGCATEGORY_SECURITYPOLICY = 6,
-    UA_LOGCATEGORY_SECURITY = 6, /* == SECURITYPOLICY */
+    UA_LOGCATEGORY_APPLICATION= 5,
+    UA_LOGCATEGORY_USERLAND = 5, /* == APPLICATION */
+    UA_LOGCATEGORY_SECURITY = 6,
+    UA_LOGCATEGORY_SECURITYPOLICY = 6, /* == SECURITY */
     UA_LOGCATEGORY_EVENTLOOP = 7,
     UA_LOGCATEGORY_PUBSUB = 8,
     UA_LOGCATEGORY_DISCOVERY = 9
 } UA_LogCategory;
 
 typedef struct UA_Logger {
-    /* Log a message. The message string and following varargs are formatted for
-     * the mp_snprintf command. Use the convenience macros below that take the
-     * minimum log level defined in ua_config.h into account. */
+    /* Log a message. The message string and following varargs matching the
+     * format specifiers of UA_String_format.
+     *
+     * !!Attention!! UA_String_format takes additional format specifiers that
+     * are not known for standard printf. These special specifiers are getting
+     * used throughout the library. */
     void (*log)(void *logContext, UA_LogLevel level, UA_LogCategory category,
                 const char *msg, va_list args);
 

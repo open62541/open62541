@@ -388,11 +388,19 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
      * Keep the current child state as the target state for the child. */
     UA_ReaderGroup *rg;
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-        UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
+        if(psm->pubSubInitialSetupMode && rg->config.enabled) {
+            UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
+        } else {
+            UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
+        }
     }
     UA_WriterGroup *wg;
     LIST_FOREACH(wg, &c->writerGroups, listEntry) {
-        UA_WriterGroup_setPubSubState(psm, wg, wg->head.state);
+        if(psm->pubSubInitialSetupMode && wg->config.enabled) {
+            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
+        } else {
+            UA_WriterGroup_setPubSubState(psm, wg, wg->head.state);
+        }
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
@@ -705,18 +713,20 @@ UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
 
     /* Extract hostname and port */
     UA_String address;
-    UA_String vidPCP = UA_STRING_NULL;
-    UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, NULL, &vidPCP);
+
+    UA_UInt16 vid = 0;
+    UA_Byte pcp = 0;
+
+    UA_StatusCode res = UA_parseEndpointUrlEthernet(&addressUrl->url, &address, &vid, &pcp);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the ETH network URL");
         return res;
     }
 
-    /* Set up the connection parameters.
-     * TDOD: Complete the considered parameters. VID, PCP, etc. */
     UA_Boolean listen = true;
-    UA_KeyValuePair kvp[4];
-    UA_KeyValueMap kvm = {4, kvp};
+    UA_KeyValuePair kvp[7];
+    UA_KeyValueMap kvm = {7, kvp};
+    
     kvp[0].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&kvp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     kvp[1].key = UA_QUALIFIEDNAME(0, "listen");
@@ -726,6 +736,15 @@ UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
                          &UA_TYPES[UA_TYPES_STRING]);
     kvp[3].key = UA_QUALIFIEDNAME(0, "validate");
     UA_Variant_setScalar(&kvp[3].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_UInt16 ether_type = 0xB62C;
+    kvp[4].key = UA_QUALIFIEDNAME(0, "ethertype");
+    UA_Variant_setScalar(&kvp[4].value, &ether_type, &UA_TYPES[UA_TYPES_UINT16]);
+    
+    kvp[5].key = UA_QUALIFIEDNAME(0,"vid");
+    UA_Variant_setScalar(&kvp[5].value, &vid, &UA_TYPES[UA_TYPES_UINT16]);
+
+    kvp[6].key = UA_QUALIFIEDNAME(0,"pcp");
+    UA_Variant_setScalar(&kvp[6].value, &pcp, &UA_TYPES[UA_TYPES_BYTE]);
 
     /* Open recv channels */
     if(validate || (c->recvChannelsSize == 0 && c->readerGroupsSize > 0)) {
@@ -766,7 +785,7 @@ UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
     if(!el) {
         UA_LOG_ERROR_PUBSUB(psm->logging, c, "No EventLoop configured");
-        return UA_STATUSCODE_BADINTERNALERROR;;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Look up the connection manager for the connection */
@@ -938,10 +957,6 @@ UA_Server_updatePubSubConnectionConfig(UA_Server *server,
         UA_LOG_ERROR_PUBSUB(psm->logging, c, "The connection parameters did not validate");
         goto errout;
     }
-
-    /* Call the state-machine. This can move the connection state from _ERROR to
-     * _DISABLED. */
-    UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
 
     UA_PubSubConnectionConfig_clear(&oldConfig);
     unlockServer(server);

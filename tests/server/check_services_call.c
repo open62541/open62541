@@ -20,6 +20,7 @@
 #include "check.h"
 
 static UA_Server *server = NULL;
+static UA_NodeId methodIdInCallback;
 
 static UA_StatusCode
 methodCallback(UA_Server *serverArg,
@@ -29,12 +30,14 @@ methodCallback(UA_Server *serverArg,
          size_t inputSize, const UA_Variant *input,
          size_t outputSize, UA_Variant *output)
 {
+    UA_NodeId_copy(methodId, &methodIdInCallback);
     return UA_STATUSCODE_GOOD;
 }
 
 static void setup(void) {
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
+    UA_NodeId_init(&methodIdInCallback);
 
     UA_MethodAttributes noFpAttr = UA_MethodAttributes_default;
     noFpAttr.description = UA_LOCALIZEDTEXT("en-US","No function pointer attached");
@@ -68,6 +71,7 @@ static void setup(void) {
 
 static void teardown(void) {
     UA_Server_delete(server);
+    UA_NodeId_clear(&methodIdInCallback);
 }
 
 START_TEST(callUnknownMethod) {
@@ -240,7 +244,14 @@ START_TEST(callMethodWithEmptyArgument) {
 
 START_TEST(callObjectTypeMethodOnInstance) {
 /* Minimal nodeset does not add any method nodes we may call here */
-#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_SUBSCRIPTIONS)
+    /* replace callback function on target method with ours */
+    UA_Server_setMethodNodeCallback(
+        server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
+        methodCallback
+    );
+
     UA_Variant inputArgument;
     UA_Variant_init(&inputArgument);
     UA_UInt32 inputArgumentValue = 0;
@@ -250,17 +261,18 @@ START_TEST(callObjectTypeMethodOnInstance) {
     UA_CallMethodRequest_init(&callMethodRequest);
     callMethodRequest.inputArgumentsSize = 1;
     callMethodRequest.inputArguments = &inputArgument;
-    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS);
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE_GETMONITOREDITEMS);
     callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
 
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
 
-    /* Fails because the "local" session has not subscriptions.
-     * Notifications are directly forwarded to a callback method.
-     * However all the type-checking before calling the method has to work. */
-    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID); 
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_NodeId expected = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS);
+    UA_NodeId unexpected = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE_GETMONITOREDITEMS);
+    ck_assert_int_eq(1, UA_NodeId_equal(&expected, &methodIdInCallback));
+    ck_assert_int_eq(0, UA_NodeId_equal(&unexpected, &methodIdInCallback));
     UA_CallMethodResult_clear(&result);
 #endif
 } END_TEST
@@ -314,10 +326,69 @@ START_TEST(callObjectTypeMethodOnInstance2) {
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
 
-    /* Has to succeed even though the method is not directly referenced from the
-     * object. We look up that the method is defined in its ObjectType and then
-     * allow it to be called. */
+    /* Has to fail because the method is not directly referenced from the
+     * object. Even though we look up that the method is defined in its
+     * ObjectType this is not sufficient to evaluate the required role
+     * permissions! */
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADMETHODINVALID);
+    UA_CallMethodResult_clear(&result);
+#endif
+} END_TEST
+
+START_TEST(callObjectTypeMethod) {
+/* Minimal nodeset does not add any method nodes we may call here */
+#if defined(UA_GENERATED_NAMESPACE_ZERO_FULL) && defined(UA_ENABLE_SUBSCRIPTIONS)
+    /* replace callback function on target method with ours */
+    UA_Server_setMethodNodeCallback(
+        server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE_GETMONITOREDITEMS),
+        methodCallback
+    );
+
+    UA_Variant inputArgument;
+    UA_Variant_init(&inputArgument);
+    UA_UInt32 inputArgumentValue = 0;
+    UA_Variant_setScalar(&inputArgument, &inputArgumentValue, &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_CallMethodRequest callMethodRequest;
+    UA_CallMethodRequest_init(&callMethodRequest);
+    callMethodRequest.inputArgumentsSize = 1;
+    callMethodRequest.inputArguments = &inputArgument;
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE_GETMONITOREDITEMS);
+    callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE);
+
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    result = UA_Server_call(server, &callMethodRequest);
+
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_NodeId expected = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE_GETMONITOREDITEMS);
+    ck_assert_int_eq(1, UA_NodeId_equal(&expected, &methodIdInCallback));
+    UA_CallMethodResult_clear(&result);
+#endif
+} END_TEST
+
+START_TEST(callObjectTypeMethod2) {
+/* Minimal nodeset does not add any method nodes we may call here */
+#if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_SUBSCRIPTIONS)
+    UA_Variant inputArgument;
+    UA_Variant_init(&inputArgument);
+    UA_UInt32 inputArgumentValue = 0;
+    UA_Variant_setScalar(&inputArgument, &inputArgumentValue, &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_CallMethodRequest callMethodRequest;
+    UA_CallMethodRequest_init(&callMethodRequest);
+    callMethodRequest.inputArgumentsSize = 1;
+    callMethodRequest.inputArguments = &inputArgument;
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS);
+    callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERTYPE);
+
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    result = UA_Server_call(server, &callMethodRequest);
+
+    /* Should not work because method is not owned by ServerType. */
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADMETHODINVALID);
     UA_CallMethodResult_clear(&result);
 #endif
 } END_TEST
@@ -339,6 +410,8 @@ int main(void) {
     tcase_add_test(tc_call, callMethodWithEmptyArgument);
     tcase_add_test(tc_call, callObjectTypeMethodOnInstance);
     tcase_add_test(tc_call, callObjectTypeMethodOnInstance2);
+    tcase_add_test(tc_call, callObjectTypeMethod);
+    tcase_add_test(tc_call, callObjectTypeMethod2);
     suite_add_tcase(s, tc_call);
 
     SRunner *sr = srunner_create(s);

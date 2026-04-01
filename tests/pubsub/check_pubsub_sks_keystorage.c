@@ -5,6 +5,7 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
+#include <open62541/plugin/securitypolicy.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
@@ -47,7 +48,7 @@ UA_NodeId connection, writerGroup, readerGroup, publishedDataSet, dataSetWriter;
 
 
 static UA_StatusCode
-generateKeyData(const UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
+generateKeyData(UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
     if(!key || !policy)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -66,12 +67,12 @@ generateKeyData(const UA_PubSubSecurityPolicy *policy, UA_ByteString *key) {
     seed.data = seedBytes;
     seed.length = UA_PUBSUB_KEYMATERIAL_NONCELENGTH;
 
-    retVal = policy->symmetricModule.generateNonce(policy->policyContext, &secret);
-    retVal |= policy->symmetricModule.generateNonce(policy->policyContext, &seed);
+    retVal = policy->generateNonce(policy, NULL, &secret);
+    retVal |= policy->generateNonce(policy, NULL, &seed);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
-    retVal = policy->symmetricModule.generateKey(policy->policyContext, &secret, &seed, key);
+    retVal = policy->generateKey(policy, NULL, &secret, &seed, key);
     return retVal;
 }
 
@@ -128,8 +129,7 @@ createKeyStoragewithkeys(UA_UInt32 currentTokenId, UA_UInt32 keysize,
     UA_PubSubKeyStorage *tKeyStorage =
         UA_PubSubKeyStorage_find(psm, SecurityGroupId);
 
-    size_t keyLength = server->config.pubSubConfig.securityPolicies->symmetricModule
-                           .secureChannelNonceLength;
+    size_t keyLength = server->config.pubSubConfig.securityPolicies->nonceLength;
     UA_ByteString_allocBuffer(&currentKey, keyLength);
     generateKeyData(server->config.pubSubConfig.securityPolicies, &currentKey);
 
@@ -326,21 +326,22 @@ START_TEST(TestPubSubKeystorage_ImportedKey){
 
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    retval = wg->config.securityPolicy->setMessageNonce(wg->securityPolicyContext, &testMsgNonce);
-    retval =  wg->config.securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.encrypt( wg->securityPolicyContext, &buffer);
+    UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
+    retval = sp->setMessageNonce(sp, wg->securityPolicyContext, &testMsgNonce);
+    retval = sp->encrypt(sp, wg->securityPolicyContext, &buffer);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected retval to be GOOD");
-    size_t sigSize = wg->config.securityPolicy->symmetricModule.cryptoModule.
-                     signatureAlgorithm.getLocalSignatureSize(wg->securityPolicyContext);
+    size_t sigSize = sp->getSignatureSize(sp, wg->securityPolicyContext);
     UA_ByteString_allocBuffer(&signature, sigSize);
-    retval = wg->config.securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.sign(wg->securityPolicyContext,&buffer,&signature);
+    retval = sp->sign(sp, wg->securityPolicyContext, &buffer, &signature);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected retval to be GOOD: Error Code %s", UA_StatusCode_name(retval));
 
     /*decrypt and verify with the imported key in the ReaderGroup*/
     UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroup);
-    retval = rg->config.securityPolicy->setMessageNonce(rg->securityPolicyContext, &testMsgNonce);
-    retval = rg->config.securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.verify(rg->securityPolicyContext, &buffer,&signature);
+    sp = rg->config.securityPolicy;
+    retval = sp->setMessageNonce(sp, rg->securityPolicyContext, &testMsgNonce);
+    retval = sp->verify(sp, rg->securityPolicyContext, &buffer,&signature);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected retval to be GOOD: Error Code %s", UA_StatusCode_name(retval));
-    retval = rg->config.securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.decrypt(rg->securityPolicyContext,&buffer);
+    retval = sp->decrypt(sp, rg->securityPolicyContext, &buffer);
     ck_assert(memcmp(buffer.data, expect_buf.data, buffer.length) == 0);
     UA_ByteString_clear(&expect_buf);
     UA_ByteString_clear(&signature);

@@ -680,7 +680,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
             if(n < 0) {
                 /* An error we cannot recover from? */
                 if(UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_WOULDBLOCK &&
-                   UA_ERRNO != UA_AGAIN)
+                   UA_ERRNO != UA_AGAIN && UA_ERRNO != UA_INPROGRESS)
                     goto shutdown;
 
                 /* Poll for the socket resources to become available and retry
@@ -697,7 +697,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     } while(nWritten < buf->length);
 
     /* Free the buffer */
-    UA_ByteString_clear(buf);
+    UA_EventLoopLWIP_freeNetworkBuffer(cm, connectionId, buf);
     return UA_STATUSCODE_GOOD;
 
  shutdown:
@@ -706,7 +706,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                     "TCP %u\t| Send failed with error %s",
                     (unsigned)connectionId, errno_str));
     TCP_shutdownConnection(cm, connectionId);
-    UA_ByteString_clear(buf);
+    UA_EventLoopLWIP_freeNetworkBuffer(cm, connectionId, buf);
     return UA_STATUSCODE_BADCONNECTIONCLOSED;
 }
 
@@ -744,10 +744,6 @@ TCP_openPassiveConnection(UA_LWIPConnectionManager *pcm, const UA_KeyValueMap *p
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     if(reuseaddrTmp)
         reuseaddr = *reuseaddrTmp;
-
-#ifdef UA_ENABLE_ALLOW_REUSEADDR
-    reuseaddr = true;
-#endif
 
     /* Undefined or empty addresses array -> listen on all interfaces */
     if(addrsSize == 0) {
@@ -1101,6 +1097,7 @@ TCP_eventSourceDelete(UA_ConnectionManager *cm) {
     }
 
     UA_ByteString_clear(&pcm->rxBuffer);
+    UA_ByteString_clear(&pcm->txBuffer);
     UA_KeyValueMap_clear(&cm->eventSource.params);
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);

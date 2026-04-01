@@ -7,6 +7,7 @@
  */
 
 #include <open62541/server.h>
+#include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/nodestore_default.h>
 #include "ziptree.h"
 #include "pcg_basic.h"
@@ -98,6 +99,9 @@ newEntry(UA_NodeClass nodeClass) {
         return NULL;
     UA_Node *node = (UA_Node*)&entry->nodeId;
     node->head.nodeClass = nodeClass;
+#ifdef UA_ENABLE_RBAC
+    node->head.permissionIndex = UA_PERMISSION_INDEX_INVALID;
+#endif
     return entry;
 }
 

@@ -12,6 +12,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2023 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #ifndef UA_TYPES_H_
@@ -181,7 +182,7 @@ UA_StatusCode_name(UA_StatusCode code);
 UA_EXPORT UA_Boolean
 UA_StatusCode_isBad(UA_StatusCode code);
 
-/* ((code >> 30) == 0x01) && ((code >> 30) < 0x02) */
+/* (code >> 30) == 0x01 */
 UA_EXPORT UA_Boolean
 UA_StatusCode_isUncertain(UA_StatusCode code);
 
@@ -233,6 +234,7 @@ UA_String_append(UA_String *s, const UA_String s2);
  *
  * - %S - UA_String (not wrapped in quotation marks in the output)
  * - %N - UA_NodeId (using UA_NodeId_print)
+ * - %Q - UA_QualifiedName (using UA_QualifiedName_print)
  *
  * Example usage:
  *   UA_NodeId nodeId = UA_NODEID_NUMERIC(1, 4711);
@@ -357,13 +359,11 @@ UA_StatusCode UA_EXPORT
 UA_Guid_print(const UA_Guid *guid, UA_String *output);
 
 /* Parse the humand-readable Guid format */
-#ifdef UA_ENABLE_PARSING
 UA_StatusCode UA_EXPORT
 UA_Guid_parse(UA_Guid *guid, const UA_String str);
 
 /* Shorthand, returns UA_GUID_NULL upon failure to parse */
 UA_EXPORT UA_Guid UA_GUID(const char *chars);
-#endif
 
 /**
  * ByteString
@@ -485,7 +485,6 @@ UA_StatusCode UA_EXPORT
 UA_NodeId_printEx(const UA_NodeId *id, UA_String *output,
                   const UA_NamespaceMapping *nsMapping);
 
-#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
  * cleaned up. */
@@ -509,7 +508,6 @@ UA_NodeId_parseEx(UA_NodeId *id, const UA_String str,
 
 /* Shorthand, returns UA_NODEID_NULL when parsing fails */
 UA_EXPORT UA_NodeId UA_NODEID(const char *chars);
-#endif
 
 /* Total ordering of NodeId */
 UA_Order UA_EXPORT
@@ -583,7 +581,6 @@ UA_ExpandedNodeId_printEx(const UA_ExpandedNodeId *id, UA_String *output,
                           const UA_NamespaceMapping *nsMapping,
                           size_t serverUrisSize, const UA_String *serverUris);
 
-#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable NodeId format. Attention! String and
  * ByteString NodeIds have their identifier malloc'ed and need to be
  * cleaned up. */
@@ -598,7 +595,6 @@ UA_ExpandedNodeId_parseEx(UA_ExpandedNodeId *id, const UA_String str,
 /* Shorthand, returns UA_EXPANDEDNODEID_NULL when parsing fails */
 UA_EXPORT UA_ExpandedNodeId
 UA_EXPANDEDNODEID(const char *chars);
-#endif
 
 /* Does the ExpandedNodeId point to a local node? That is, are namespaceUri and
  * serverIndex empty? */
@@ -663,7 +659,6 @@ UA_StatusCode UA_EXPORT
 UA_QualifiedName_printEx(const UA_QualifiedName *qn, UA_String *output,
                          const UA_NamespaceMapping *nsMapping);
 
-#ifdef UA_ENABLE_PARSING
 /* Parse the human-readable QualifiedName format.
  *
  * The extended parsing tries to translate the NamespaceIndex to a NamespaceUri
@@ -675,7 +670,6 @@ UA_QualifiedName_parse(UA_QualifiedName *qn, const UA_String str);
 UA_StatusCode UA_EXPORT
 UA_QualifiedName_parseEx(UA_QualifiedName *qn, const UA_String str,
                          const UA_NamespaceMapping *nsMapping);
-#endif
 
 /**
  * LocalizedText
@@ -976,6 +970,9 @@ typedef struct UA_DiagnosticInfo {
  * Specializations, such as ``UA_Int32_new()`` are derived from the generic
  * type operations as static inline functions. */
 
+/* UA_DataTypeMember describes the fields of structures/unions/etc. In addition
+ * it is used to describe the possible values of enums. For enums, the
+ * memberType value is cast to an integer to represent the enum value. */
 typedef struct {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     const char *memberName;       /* Human-readable member name */
@@ -1047,15 +1044,22 @@ struct UA_DataType {
     UA_DataTypeMember *members;
 };
 
+/* Clean up type definition with heap-allocated data */
+UA_EXPORT void
+UA_DataType_clear(UA_DataType *type);
+
+UA_EXPORT UA_StatusCode
+UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2);
+
 /* Datatype arrays with custom type definitions can be added in a linked list to
  * the client or server configuration. */
 typedef struct UA_DataTypeArray {
-    const struct UA_DataTypeArray *next;
-    const size_t typesSize;
-    const UA_DataType *types;
-    UA_Boolean cleanup; /* Free the array structure and its content
-                           when the client or server configuration
-                           containing it is cleaned up */
+    struct UA_DataTypeArray *next;
+    size_t typesSize;
+    UA_DataType *types;
+    UA_Boolean cleanup; /* Free the array structure and its content when the
+                         * client or server configuration containing it is
+                         * cleaned up */
 } UA_DataTypeArray;
 
 /* Returns the offset and type of a structure member. The return value is false
@@ -1092,6 +1096,12 @@ UA_findDataType(const UA_NodeId *typeId);
 const UA_DataType UA_EXPORT *
 UA_findDataTypeWithCustom(const UA_NodeId *typeId,
                           const UA_DataTypeArray *customTypes);
+
+/* Datatypes need to have unique name */
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+const UA_DataType UA_EXPORT *
+UA_findDataTypeByName(const UA_QualifiedName *qn);
+#endif
 
 /** The following functions are used for generic handling of data types. */
 
@@ -1252,6 +1262,9 @@ typedef struct {
      * memory is not freed if decoding fails afterwards. */
     void *callocContext;
     void * (*calloc)(void *callocContext, size_t nelem, size_t elsize);
+
+    size_t decodedLength; /* After each successful decoding, this contains the
+                           * number of decoded bytes. */
 } UA_DecodeBinaryOptions;
 
 /* Decodes a data structure from the input buffer in the binary format. It is
@@ -1260,7 +1273,7 @@ typedef struct {
 UA_EXPORT UA_StatusCode
 UA_decodeBinary(const UA_ByteString *inBuf,
                 void *p, const UA_DataType *type,
-                const UA_DecodeBinaryOptions *options);
+                UA_DecodeBinaryOptions *options);
 
 /**
  * JSON En/Decoding
@@ -1274,9 +1287,9 @@ UA_decodeBinary(const UA_ByteString *inBuf,
  *   convenience features such as trailing commas in arrays and comments within
  *   JSON documents.
  * - Int64/UInt64 don't necessarily have to be wrapped into a string.
- * - If `UA_ENABLE_PARSING` is set, NodeIds and ExpandedNodeIds can be given in
- *   the string encoding (e.g. "ns=1;i=42", see `UA_NodeId_parse`). The standard
- *   encoding is to express NodeIds as JSON objects.
+ * - NodeIds and ExpandedNodeIds can be given in the string encoding (e.g.
+ *   "ns=1;i=42", see `UA_NodeId_parse`). The standard encoding is to express
+ *   NodeIds as JSON objects.
  *
  * These extensions are not intended to be used for the OPC UA protocol on the
  * network. They were rather added to allow more convenient configuration file
@@ -1426,7 +1439,7 @@ UA_Array_new(size_t size, const UA_DataType *type) UA_FUNC_ATTR_MALLOC;
  * to the allocated memory. */
 UA_StatusCode UA_EXPORT
 UA_Array_copy(const void *src, size_t size, void **dst,
-              const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+              const UA_DataType *type);
 
 /* Resizes (and reallocates) an array. The last entries are initialized to zero
  * if the array length is increased. If the array length is decreased, the last
@@ -1436,20 +1449,20 @@ UA_Array_copy(const void *src, size_t size, void **dst,
  * success. The array remains untouched in case of an internal error. */
 UA_StatusCode UA_EXPORT
 UA_Array_resize(void **p, size_t *size, size_t newSize,
-                const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                const UA_DataType *type);
 
 /* Append a scalar value at the end of the array. The content is moved (shallow
  * copy) and the original value location is _init'ed if appending is successful.
  * Otherwise similar to UA_Array_resize. */
 UA_StatusCode UA_EXPORT
 UA_Array_append(void **p, size_t *size, void *newElem,
-                const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                const UA_DataType *type);
 
 /* Append a copy of the given element at the end of the array. The memory of the
  * newValue argument is not written. Otherwise similar to UA_Array_append. */
 UA_StatusCode UA_EXPORT
 UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
-                    const UA_DataType *type) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+                    const UA_DataType *type);
 
 /* Deletes an array by calling _clear on the element and freeing the memory */
 void UA_EXPORT
