@@ -1056,7 +1056,7 @@ UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2);
 typedef struct UA_DataTypeArray {
     struct UA_DataTypeArray *next;
     size_t typesSize;
-    UA_DataType *types;
+    const UA_DataType *types;
     UA_Boolean cleanup; /* Free the array structure and its content when the
                          * client or server configuration containing it is
                          * cleaned up */

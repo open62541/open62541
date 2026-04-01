@@ -13,6 +13,17 @@ Property. Semantic changes also set the `SemanticsChanged` StatusCode bit on
 the next DataChange notification for Value MonitoredItems on the affected
 Variable.
 
+### UA_DataTypeArray.types is const
+
+The `types` field in `UA_DataTypeArray` changed from `UA_DataType *` to
+`const UA_DataType *`. The built-in `UA_TYPES` array is now declared
+`const` as well. DataType definitions are immutable at runtime; declaring
+them `const` makes this explicit in the API, protects against accidental
+modification and allows the toolchain to place the definitions in
+read-only memory. DataType arrays generated for additional nodesets
+remain mutable, as their NamespaceIndex gets adjusted when the nodeset
+is loaded into a server.
+
 ### PubSub DataSetOrdering Support (OPC UA Part 14)
 
 Support for DataSetOrdering mechanism as defined in OPC UA Part 14, section
