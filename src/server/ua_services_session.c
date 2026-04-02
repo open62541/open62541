@@ -1085,13 +1085,16 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         activateSession(server, &server->config.accessControl, ed,
                         &channel->remoteCertificate, &session->sessionId,
                         &req->userIdentityToken, &session->context);
-    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+    if((rh->serviceResult != UA_STATUSCODE_GOOD) && (rh->serviceResult != UA_STATUSCODE_GOODPASSWORDCHANGEREQUIRED)) {
         UA_LOG_ERROR_SESSION(server->config.logging, session,
                              "ActivateSession: The AccessControl plugin "
                              "denied the activation with the StatusCode %s",
                              UA_StatusCode_name(rh->serviceResult));
         UA_SECURITY_REJECT;
     }
+
+    // We must not touch the serviceResult if everything works fine!
+    UA_StatusCode stepResult = UA_STATUSCODE_BADINTERNALERROR;
 
     /* Attach the session to the currently used channel if the session isn't
      * attached to a channel or if the session is activated on a different
@@ -1104,10 +1107,11 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Generate a new session nonce for the next time ActivateSession is called */
-    rh->serviceResult = UA_Session_generateNonce(session);
-    rh->serviceResult |= UA_ByteString_copy(&session->serverNonce,
-                                            &resp->serverNonce);
-    if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+    stepResult = UA_Session_generateNonce(session);
+    stepResult |= UA_ByteString_copy(&session->serverNonce,
+                                     &resp->serverNonce);
+    if(stepResult != UA_STATUSCODE_GOOD) {
+        rh->serviceResult = stepResult;
         UA_Session_detachFromSecureChannel(server, session);
         UA_LOG_ERROR_SESSION(server->config.logging, session,
                              "ActivateSession: Could not generate the server nonce");
@@ -1121,10 +1125,11 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
          * Session. If it is not specified the Server shall keep using the
          * current localeIds for the Session. */
         UA_String *tmpLocaleIds;
-        rh->serviceResult |=
+        stepResult |=
             UA_Array_copy(req->localeIds, req->localeIdsSize,
                           (void**)&tmpLocaleIds, &UA_TYPES[UA_TYPES_STRING]);
-        if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+        if(stepResult != UA_STATUSCODE_GOOD) {
+            rh->serviceResult = stepResult;
             UA_Session_detachFromSecureChannel(server, session);
             UA_LOG_ERROR_SESSION(server->config.logging, session,
                                  "ActivateSession: Could not store the "
@@ -1147,9 +1152,10 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     const UA_SecurityPolicy *sessionSp = session->sessionSp;
     if(sessionSp && session->sessionSpContext &&
        sessionSp->policyType == UA_SECURITYPOLICYTYPE_ECC) {
-        rh->serviceResult = addEphemeralKeyAdditionalHeader(server, session,
+        stepResult = addEphemeralKeyAdditionalHeader(server, session,
                                                             &rh->additionalHeader);
-        if(rh->serviceResult != UA_STATUSCODE_GOOD) {
+        if(stepResult != UA_STATUSCODE_GOOD) {
+            rh->serviceResult = stepResult;
             UA_LOG_ERROR_SESSION(server->config.logging, session,
                                  "ActivateSession: Could not prepare the "
                                  "ephemeral key (%s)",
