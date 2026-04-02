@@ -354,7 +354,7 @@ sendResponse(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* If the overall service call failed, answer with a ServiceFault */
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+    if(!UA_StatusCode_isGood(response->responseHeader.serviceResult))
         return sendServiceFault(server, channel, requestId,
                                 response->responseHeader.requestHandle,
                                 response->responseHeader.serviceResult);
