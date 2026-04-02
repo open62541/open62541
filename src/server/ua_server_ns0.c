@@ -1086,6 +1086,18 @@ configureNS0(UA_Server *server) {
     deleteNode(server, UA_NS0ID(SERVER_REQUESTSERVERSTATECHANGE), true);
     deleteNode(server, UA_NS0ID(SERVER_SETSUBSCRIPTIONDURABLE), true);
     deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTHTTPSGROUP), true);
+#ifdef UA_NS0ID_SERVERLOG
+    deleteNode(server, UA_NS0ID(SERVERLOG), true);
+#endif
+#ifdef UA_NS0ID_LLDP
+    deleteNode(server, UA_NS0ID(LLDP), true);
+#endif
+    deleteNode(server, UA_NS0ID(PROVISIONABLEDEVICE), true);
+    deleteNode(server, UA_NS0ID(USERMANAGEMENT), true);
+    deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_TRANSACTIONDIAGNOSTICS), true);
+#ifdef UA_NS0ID_SERVERCONFIGURATION_CONFIGURATIONFILE
+    deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CONFIGURATIONFILE), true);
+#endif
 #ifndef UA_ENABLE_GDS_PUSHMANAGEMENT
     deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP), true);
     deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP), true);
@@ -1109,8 +1121,42 @@ configureNS0(UA_Server *server) {
     deleteNode(server, UA_NS0ID(PUBLISHSUBSCRIBE), true);
 #endif
 
+    /* ServerConfiguration - MulticastDnsEnabled */
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_MULTICASTDNSENABLED,
+                               &server->config.mdnsEnabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+#elif defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
+    {
+        UA_Boolean mdnsEnabled = false;
+        retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_MULTICASTDNSENABLED,
+                                   &mdnsEnabled, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    }
+#endif
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    /* ServerConfiguration - HasSecureElement */
+    {
+        UA_Boolean hasSecureElement = false;
+        retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_HASSECUREELEMENT,
+                                   &hasSecureElement, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    }
+    /* ServerConfiguration - ApplicationType */
+    retVal |= writeNs0Variable(server, UA_NS0ID_SERVERCONFIGURATION_APPLICATIONTYPE,
+                               &server->config.applicationDescription.applicationType,
+                               &UA_TYPES[UA_TYPES_APPLICATIONTYPE]);
+    /* OPCUANamespaceMetadata - DefaultAccessRestrictions */
+    {
+        UA_AccessRestrictionType defaultAccessRestrictions = UA_ACCESSRESTRICTIONTYPE_NONE;
+        retVal |= writeNs0Variable(server, UA_NS0ID_OPCUANAMESPACEMETADATA_DEFAULTACCESSRESTRICTIONS,
+                                   &defaultAccessRestrictions,
+                                   &UA_TYPES[UA_TYPES_ACCESSRESTRICTIONTYPE]);
+    }
+#endif
 #ifndef UA_ENABLE_HISTORIZING
     deleteNode(server, UA_NS0ID(HISTORYSERVERCAPABILITIES), true);
+#ifdef UA_NS0ID_DEFAULTHACONFIGURATION
+    deleteNode(server, UA_NS0ID(DEFAULTHACONFIGURATION), true);
+#endif
 #else
     /* ServerCapabilities - HistoryServerCapabilities - AccessHistoryDataCapability */
     retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_ACCESSHISTORYDATACAPABILITY,
@@ -1167,6 +1213,65 @@ configureNS0(UA_Server *server) {
     /* ServerCapabilities - HistoryServerCapabilities - DeleteAtTimeDataCapability */
     retVal |= writeNs0Variable(server, UA_NS0ID_HISTORYSERVERCAPABILITIES_DELETEATTIMECAPABILITY,
                                &server->config.deleteAtTimeDataCapability, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+#ifdef UA_GENERATED_NAMESPACE_ZERO_FULL
+    /* HistoryServerCapabilities - ServerTimestampSupported */
+    {
+        UA_Boolean serverTimestampSupported = true;
+        retVal |= writeNs0Variable(server,
+                                   UA_NS0ID_HISTORYSERVERCAPABILITIES_SERVERTIMESTAMPSUPPORTED,
+                                   &serverTimestampSupported, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    }
+#endif
+
+    /* DefaultHAConfiguration */
+#ifdef UA_NS0ID_DEFAULTHACONFIGURATION_STEPPED
+    {
+        UA_Boolean bTrue = true, bFalse = false;
+        UA_Byte percentDataBad = 100, percentDataGood = 100;
+        UA_Duration zeroDuration = 0.0;
+        UA_Double zeroDouble = 0.0;
+        UA_UInt32 zeroUInt32 = 0;
+        UA_ExceptionDeviationFormat absValue = UA_EXCEPTIONDEVIATIONFORMAT_ABSOLUTEVALUE;
+
+        retVal |= writeNs0Variable(server,
+                                   UA_NS0ID_DEFAULTHACONFIGURATION_AGGREGATECONFIGURATION_TREATUNCERTAINASBAD,
+                                   &bTrue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        retVal |= writeNs0Variable(server,
+                                   UA_NS0ID_DEFAULTHACONFIGURATION_AGGREGATECONFIGURATION_PERCENTDATABAD,
+                                   &percentDataBad, &UA_TYPES[UA_TYPES_BYTE]);
+        retVal |= writeNs0Variable(server,
+                                   UA_NS0ID_DEFAULTHACONFIGURATION_AGGREGATECONFIGURATION_PERCENTDATAGOOD,
+                                   &percentDataGood, &UA_TYPES[UA_TYPES_BYTE]);
+        retVal |= writeNs0Variable(server,
+                                   UA_NS0ID_DEFAULTHACONFIGURATION_AGGREGATECONFIGURATION_USESLOPEDEXTRAPOLATION,
+                                   &bFalse, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        retVal |= writeNs0Variable(server,
+                                   UA_NS0ID_DEFAULTHACONFIGURATION_STEPPED,
+                                   &bFalse, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        retVal |= writeNs0Variable(server,
+                                   UA_NS0ID_DEFAULTHACONFIGURATION_MAXTIMEINTERVAL,
+                                   &zeroDuration, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retVal |= writeNs0Variable(server,
+                                   UA_NS0ID_DEFAULTHACONFIGURATION_MINTIMEINTERVAL,
+                                   &zeroDuration, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retVal |= writeNs0Variable(server,
+                                   UA_NS0ID_DEFAULTHACONFIGURATION_EXCEPTIONDEVIATION,
+                                   &zeroDouble, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retVal |= writeNs0Variable(server,
+                                   UA_NS0ID_DEFAULTHACONFIGURATION_EXCEPTIONDEVIATIONFORMAT,
+                                   &absValue, &UA_TYPES[UA_TYPES_EXCEPTIONDEVIATIONFORMAT]);
+        retVal |= writeNs0Variable(server,
+                                   UA_NS0ID_DEFAULTHACONFIGURATION_SERVERTIMESTAMPSUPPORTED,
+                                   &bTrue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        retVal |= writeNs0Variable(server,
+                                   UA_NS0ID_DEFAULTHACONFIGURATION_MAXTIMESTOREDVALUES,
+                                   &zeroDuration, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retVal |= writeNs0Variable(server,
+                                   UA_NS0ID_DEFAULTHACONFIGURATION_MAXCOUNTSTOREDVALUES,
+                                   &zeroUInt32, &UA_TYPES[UA_TYPES_UINT32]);
+    }
+#endif
 #endif
 
     /* The HasComponent references to the ModellingRules are not part of the
