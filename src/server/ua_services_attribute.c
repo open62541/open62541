@@ -1507,6 +1507,16 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
                 UA_free(rangeptr->dimensions);
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
+    /* Reject writing a null/empty value for non-nullable data types.
+     * OPC UA Part 6, Table 1 defines which built-in types are non-nullable
+     * (Boolean, numeric, StatusCode, enumerations). Part 4, 7.11.5 states:
+     * "the Severity shall be BAD if the value is NULL for a non-nullable
+     * Datatype". Without this check the node is left in a state that returns
+     * BadWaitingForInitialData on subsequent reads. */
+    } else if(!isNullableDataType(server, &node->dataType)) {
+        if(rangeptr && rangeptr->dimensions != NULL)
+            UA_free(rangeptr->dimensions);
+        return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
     /* If no source timestamp is defined create one here.
