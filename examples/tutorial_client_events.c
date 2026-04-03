@@ -11,25 +11,6 @@
 #include <open62541/util.h>
 
 #include <stdio.h>
-#include <signal.h>
-
-#ifdef _MSC_VER
-#pragma warning(disable:4996) // warning C4996: 'UA_Client_Subscriptions_addMonitoredEvent': was declared deprecated
-#endif
-
-#ifdef __clang__
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
-#ifdef __GNUC__
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
-static UA_Boolean running = true;
-static void stopHandler(int sig) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "received ctrl-c");
-    running = false;
-}
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
@@ -92,9 +73,6 @@ setupSelectClauses(void) {
 #endif
 
 int main(int argc, char *argv[]) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
     if(argc < 2) {
         printf("Usage: tutorial_client_events <opc.tcp://server-url>\n");
         return 0;
@@ -158,8 +136,8 @@ int main(int argc, char *argv[]) {
 
     monId = result.monitoredItemId;
 
-    while(running)
-        UA_Client_run_iterate(client, 100);
+    /* Run the client */
+    UA_Client_runUntilInterrupt(client);
 
     /* Delete the subscription */
  cleanup:
