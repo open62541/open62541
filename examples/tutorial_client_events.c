@@ -12,8 +12,6 @@
 
 #include <stdio.h>
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
 static void
 handler_events(UA_Client *client, UA_UInt32 subId, void *subContext,
                UA_UInt32 monId, void *monContext,
@@ -70,8 +68,6 @@ setupSelectClauses(void) {
     return selectClauses;
 }
 
-#endif
-
 int main(int argc, char *argv[]) {
     if(argc < 2) {
         printf("Usage: tutorial_client_events <opc.tcp://server-url>\n");
@@ -90,7 +86,6 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Create a subscription */
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
@@ -144,7 +139,6 @@ int main(int argc, char *argv[]) {
     UA_MonitoredItemCreateResult_clear(&result);
     UA_Client_Subscriptions_deleteSingle(client, response.subscriptionId);
     UA_Array_delete(filter.selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
-#endif
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
