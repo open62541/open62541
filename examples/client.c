@@ -18,7 +18,8 @@ handler_TheAnswerChanged(UA_Client *client, UA_UInt32 subId, void *subContext,
 #endif
 
 static UA_StatusCode
-nodeIter(UA_NodeId childId, UA_Boolean isInverse, UA_NodeId referenceTypeId, void *handle) {
+nodeIter(UA_NodeId childId, UA_Boolean isInverse,
+         UA_NodeId referenceTypeId, void *handle) {
     if(isInverse)
         return UA_STATUSCODE_GOOD;
     UA_NodeId *parent = (UA_NodeId *)handle;
@@ -36,11 +37,11 @@ int main(int argc, char *argv[]) {
     /* Listing endpoints */
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
-    UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
-                                                  &endpointArraySize, &endpointArray);
+    UA_StatusCode retval =
+        UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
+                               &endpointArraySize, &endpointArray);
     if(retval != UA_STATUSCODE_GOOD) {
         printf("Could not get the endpoints\n");
-        UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
         UA_Client_delete(client);
         return EXIT_SUCCESS;
     }
@@ -50,15 +51,16 @@ int main(int argc, char *argv[]) {
                (int)endpointArray[i].endpointUrl.length,
                endpointArray[i].endpointUrl.data);
     }
-    UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    UA_Array_delete(endpointArray,endpointArraySize,
+                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     UA_Client_delete(client);
     
     /* Create a client and connect */
     client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    /* Connect to a server */
-    /* anonymous connect would be: retval = UA_Client_connect(client, "opc.tcp://localhost:4840"); */
-    retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
+    /* Anonymous connect: UA_Client_connect(client, "opc.tcp://localhost:4840"); */
+    retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840",
+                                       "user1", "password");
     if(retval != UA_STATUSCODE_GOOD) {
         printf("Could not connect\n");
         UA_Client_delete(client);
@@ -75,7 +77,8 @@ int main(int argc, char *argv[]) {
     bReq.nodesToBrowse[0].nodeId = UA_NS0ID(OBJECTSFOLDER); /* browse objects folder */
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
     UA_BrowseResponse bResp = UA_Client_Service_browse(client, bReq);
-    printf("%-9s %-16s %-16s %-16s\n", "NAMESPACE", "NODEID", "BROWSE NAME", "DISPLAY NAME");
+    printf("%-9s %-16s %-16s %-16s\n", "NAMESPACE", "NODEID",
+           "BROWSE NAME", "DISPLAY NAME");
     for(size_t i = 0; i < bResp.resultsSize; ++i) {
         for(size_t j = 0; j < bResp.results[i].referencesSize; ++j) {
             UA_ReferenceDescription *ref = &(bResp.results[i].references[j]);
@@ -107,8 +110,8 @@ int main(int argc, char *argv[]) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Create a subscription */
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
-                                                                            NULL, NULL, NULL);
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
 
     UA_UInt32 subId = response.subscriptionId;
     if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
@@ -120,10 +123,10 @@ int main(int argc, char *argv[]) {
     UA_MonitoredItemCreateResult monResponse =
     UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
                                               UA_TIMESTAMPSTORETURN_BOTH,
-                                              monRequest, NULL, handler_TheAnswerChanged, NULL);
+                                              monRequest, NULL,
+                                              handler_TheAnswerChanged, NULL);
     if(monResponse.statusCode == UA_STATUSCODE_GOOD)
         printf("Monitoring 'the.answer', id %u\n", monResponse.monitoredItemId);
-
 
     /* The first publish request should return the initial value of the variable */
     UA_Client_run_iterate(client, 1000);
@@ -151,12 +154,11 @@ int main(int argc, char *argv[]) {
     wReq.nodesToWrite[0].nodeId = UA_NODEID_STRING_ALLOC(1, "the.answer");
     wReq.nodesToWrite[0].attributeId = UA_ATTRIBUTEID_VALUE;
     wReq.nodesToWrite[0].value.hasValue = true;
-    wReq.nodesToWrite[0].value.value.type = &UA_TYPES[UA_TYPES_INT32];
-    wReq.nodesToWrite[0].value.value.storageType = UA_VARIANT_DATA_NODELETE; /* do not free the integer on deletion */
-    wReq.nodesToWrite[0].value.value.data = &value;
+    UA_Variant_setScalar(&wReq.nodesToWrite[0].value.value,
+                         &value, &UA_TYPES[UA_TYPES_INT32]);
     UA_WriteResponse wResp = UA_Client_Service_write(client, wReq);
     if(wResp.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
-            printf("the new value is: %i\n", value);
+        printf("the new value is: %i\n", value);
     UA_WriteRequest_clear(&wReq);
     UA_WriteResponse_clear(&wResp);
 
@@ -196,7 +198,6 @@ int main(int argc, char *argv[]) {
 #endif
 
 #ifdef UA_ENABLE_NODEMANAGEMENT
-    /* Add new nodes*/
     /* New ReferenceType */
     UA_NodeId ref_id;
     UA_ReferenceTypeAttributes ref_attr = UA_ReferenceTypeAttributes_default;
