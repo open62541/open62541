@@ -481,8 +481,8 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
         UA_init(response, ac->responseType);
         if(UA_NodeId_equal(&responseTypeId, &serviceFaultId)) {
             /* Decode as a ServiceFault, i.e. only the response header */
-            UA_LOG_INFO(config->logging, UA_LOGCATEGORY_CLIENT,
-                        "Received a ServiceFault response");
+            UA_LOG_DEBUG(config->logging, UA_LOGCATEGORY_CLIENT,
+                         "Received a ServiceFault response");
             responseType = &UA_TYPES[UA_TYPES_SERVICEFAULT];
         } else {
             UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_CLIENT,
