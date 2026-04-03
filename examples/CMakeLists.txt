@@ -92,7 +92,7 @@ if(UA_ENABLE_HISTORIZING)
     add_example(client_historical client_historical.c)
 endif()
 
-if(UA_ENABLE_METHODCALLS AND UA_MULTITHREADING GREATER_EQUAL 100)
+if(UA_ENABLE_METHODCALLS)
     add_example(client_method_async client_method_async.c)
 endif()
 
