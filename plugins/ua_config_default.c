@@ -1680,6 +1680,73 @@ UA_Client * UA_Client_new(void) {
     return UA_Client_newWithConfig(&config);
 }
 
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) || defined(UA_ARCHITECTURE_ZEPHYR)
+
+struct ClientInterruptContext {
+    UA_Client *client;
+    UA_Boolean running;
+};
+
+static void
+interruptClient(UA_InterruptManager *im, uintptr_t interruptHandle,
+                void *context, const UA_KeyValueMap *parameters) {
+    struct ClientInterruptContext *ic = (struct ClientInterruptContext*)context;
+    UA_ClientConfig *config = UA_Client_getConfig(ic->client);
+    UA_LOG_INFO(config->logging, UA_LOGCATEGORY_APPLICATION, "Stopping the client");
+    ic->running = false;
+}
+
+UA_StatusCode
+UA_Client_runUntilInterrupt(UA_Client *client) {
+    if(!client)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_EventLoop *el = config->eventLoop;
+    if(!el)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Get the interrupt manager */
+    UA_EventSource *es = el->eventSources;
+    while(es) {
+        if(es->eventSourceType == UA_EVENTSOURCETYPE_INTERRUPTMANAGER)
+            break;
+        es = es->next;
+    }
+    if(!es) {
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_APPLICATION,
+                       "No Interrupt EventSource configured");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_InterruptManager *im = (UA_InterruptManager*)es;
+
+    /* Register the interrupt */
+    struct ClientInterruptContext ic;
+    ic.client = client;
+    ic.running = true;
+    UA_StatusCode res =
+        im->registerInterrupt(im, SIGINT, &UA_KEYVALUEMAP_NULL,
+                              interruptClient, &ic);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_APPLICATION,
+                     "Could not register the interrupt with status code %s",
+                     UA_StatusCode_name(res));
+        return res;
+    }
+
+    /* Run the client */
+    while(ic.running) {
+        res = UA_Client_run_iterate(client, 100);
+        if(res != UA_STATUSCODE_GOOD)
+            break;
+    }
+
+    /* Deregister the interrupt */
+    im->deregisterInterrupt(im, SIGINT);
+    return res;
+}
+
+#endif /* defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) */
+
 UA_StatusCode
 UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     /* The following fields are untouched and OK to leave as NULL or 0:
