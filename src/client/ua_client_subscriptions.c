@@ -27,8 +27,8 @@ struct UA_Client_MonitoredItem_ForDelete {
 /* Subscriptions */
 /*****************/
 
-static enum ZIP_CMP
 /* For ZIP_TREE we use clientHandle comparison */
+static enum ZIP_CMP
 UA_ClientHandle_cmp(const void *a, const void *b) {
     const UA_Client_MonitoredItem *aa = (const UA_Client_MonitoredItem *)a;
     const UA_Client_MonitoredItem *bb = (const UA_Client_MonitoredItem *)b;
@@ -156,7 +156,7 @@ UA_Client_Subscriptions_create_async(UA_Client *client, const UA_CreateSubscript
                                  Subscriptions_create_handler,
                                  &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE],
                                  cc, requestId);
-    if (res != UA_STATUSCODE_GOOD) {
+    if(res != UA_STATUSCODE_GOOD) {
         UA_free(cc);
         UA_free(sub);
     }
@@ -425,7 +425,7 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
                                    Subscriptions_delete_handler,
                                    &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE],
                                    dsc, requestId);
-    if (res != UA_STATUSCODE_GOOD) {
+    if(res != UA_STATUSCODE_GOOD) {
         UA_DeleteSubscriptionsRequest_clear(&dsc->request);
         UA_free(dsc);
     }
@@ -1081,7 +1081,7 @@ UA_Client_MonitoredItems_delete_async(UA_Client *client,
                                  MonitoredItems_delete_handler,
                                  &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE],
                                  cc, requestId);
-    if (res != UA_STATUSCODE_GOOD) {
+    if(res != UA_STATUSCODE_GOOD) {
         UA_DeleteMonitoredItemsRequest_delete(req_copy);
         UA_free(cc);
     }
@@ -1294,17 +1294,18 @@ __Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request) {
     size_t i = 0;
     UA_Client_NotificationsAckNumber *ack_tmp;
     LIST_FOREACH_SAFE(ack, &client->pendingNotificationsAcks, listEntry, ack_tmp) {
-        request->subscriptionAcknowledgements[i].sequenceNumber = ack->subAck.sequenceNumber;
-        request->subscriptionAcknowledgements[i].subscriptionId = ack->subAck.subscriptionId;
-        ++i;
         LIST_REMOVE(ack, listEntry);
+        UA_SubscriptionAcknowledgement *reqAck = &request->subscriptionAcknowledgements[i];
+        reqAck->sequenceNumber = ack->subAck.sequenceNumber;
+        reqAck->subscriptionId = ack->subAck.subscriptionId;
         UA_free(ack);
+        i++;
     }
     return UA_STATUSCODE_GOOD;
 }
 
-/* According to OPC Unified Architecture, Part 4 5.13.1.1 i) */
-/* The value 0 is never used for the sequence number         */
+/* According to specification, Part 4 5.13.1, the value 0 is never used for the
+ * sequence number */
 static UA_UInt32
 __nextSequenceNumber(UA_UInt32 sequenceNumber) {
     UA_UInt32 nextSequenceNumber = sequenceNumber + 1;
@@ -1534,7 +1535,7 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
      * the sequence number of the next NotificationMessage that is to be sent =>
      * More than one consecutive keep-alive message or a NotificationMessage
      * following a keep-alive message will share the same sequence number. */
-    if (msg->notificationDataSize)
+    if(msg->notificationDataSize)
         sub->sequenceNumber = msg->sequenceNumber;
 
     /* Process the notification messages */
@@ -1619,7 +1620,8 @@ __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
                 client->config.subscriptionInactivityCallback(client, subId, subC);
             }
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "Inactivity for Subscription %" PRIu32 ".", sub->subscriptionId);
+                           "Inactivity for Subscription %" PRIu32 ".",
+                           sub->subscriptionId);
         }
     }
 }
