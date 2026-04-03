@@ -18,9 +18,6 @@ handler_events(UA_Client *client, UA_UInt32 subId, void *subContext,
                const UA_KeyValueMap eventFields) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Notification");
 
-    /* The context should point to the monId on the stack */
-    UA_assert(*(UA_UInt32*)monContext == monId);
-
     for(size_t i = 0; i < eventFields.mapSize; ++i) {
         UA_String out = UA_STRING_NULL;
         UA_print(&eventFields.map[i].value, &UA_TYPES[UA_TYPES_VARIANT], &out);
@@ -28,44 +25,6 @@ handler_events(UA_Client *client, UA_UInt32 subId, void *subContext,
                     "%S: '%S", eventFields.map[i].key.name, out);
         UA_String_clear(&out);
     }
-}
-
-static const size_t nSelectClauses = 2;
-
-static UA_SimpleAttributeOperand *
-setupSelectClauses(void) {
-    UA_SimpleAttributeOperand *selectClauses = (UA_SimpleAttributeOperand*)
-        UA_Array_new(nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
-    if(!selectClauses)
-        return NULL;
-
-    for(size_t i =0; i<nSelectClauses; ++i) {
-        UA_SimpleAttributeOperand_init(&selectClauses[i]);
-    }
-
-    selectClauses[0].typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
-    selectClauses[0].browsePathSize = 1;
-    selectClauses[0].browsePath = (UA_QualifiedName*)
-        UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    if(!selectClauses[0].browsePath) {
-        UA_SimpleAttributeOperand_delete(selectClauses);
-        return NULL;
-    }
-    selectClauses[0].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectClauses[0].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
-
-    selectClauses[1].typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
-    selectClauses[1].browsePathSize = 1;
-    selectClauses[1].browsePath = (UA_QualifiedName*)
-        UA_Array_new(selectClauses[1].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    if(!selectClauses[1].browsePath) {
-        UA_SimpleAttributeOperand_delete(selectClauses);
-        return NULL;
-    }
-    selectClauses[1].attributeId = UA_ATTRIBUTEID_VALUE;
-    selectClauses[1].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
-
-    return selectClauses;
 }
 
 int main(int argc, char *argv[]) {
@@ -102,46 +61,39 @@ int main(int argc, char *argv[]) {
     /* Add a MonitoredItem */
     UA_MonitoredItemCreateRequest item;
     UA_MonitoredItemCreateRequest_init(&item);
-    item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, 2253); // Root->Objects->Server
+    item.itemToMonitor.nodeId = UA_NS0ID(SERVER);
     item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
     item.monitoringMode = UA_MONITORINGMODE_REPORTING;
 
+    /* Set the EventFilter. See the documentation for the human-readable
+     * EventFilter expression developed for open62541. */
+    char *eventFilter = "SELECT /Message, /Severity WHERE /Severity >= 100";
     UA_EventFilter filter;
-    UA_EventFilter_init(&filter);
-    filter.selectClauses = setupSelectClauses();
-    filter.selectClausesSize = nSelectClauses;
+    retval = UA_EventFilter_parse(&filter, UA_STRING(eventFilter), NULL);
+    UA_assert(retval == UA_STATUSCODE_GOOD);
+    UA_ExtensionObject_setValue(&item.requestedParameters.filter,
+                                &filter, &UA_TYPES[UA_TYPES_EVENTFILTER]);
 
-    item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
-    item.requestedParameters.filter.content.decoded.data = &filter;
-    item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
-
-    UA_UInt32 monId = 0;
     UA_MonitoredItemCreateResult result =
         UA_Client_MonitoredItems_createEvent(client, subId,
                                              UA_TIMESTAMPSTORETURN_BOTH, item,
-                                             &monId, handler_events, NULL);
+                                             NULL, handler_events, NULL);
 
-    if(result.statusCode != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
-                    "Could not add the MonitoredItem with %s", UA_StatusCode_name(retval));
-        goto cleanup;
+    if(result.statusCode == UA_STATUSCODE_GOOD) {
+        /* Run the client until ctrl-c */
+        UA_Client_runUntilInterrupt(client);
     } else {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
-                    "Monitoring 'Root->Objects->Server', id %u", response.subscriptionId);
+                    "Could not add the MonitoredItem with %s",
+                    UA_StatusCode_name(result.statusCode));
     }
 
-    monId = result.monitoredItemId;
-
-    /* Run the client */
-    UA_Client_runUntilInterrupt(client);
-
-    /* Delete the subscription */
- cleanup:
-    UA_MonitoredItemCreateResult_clear(&result);
+    /* Disconnect and clean up */
     UA_Client_Subscriptions_deleteSingle(client, response.subscriptionId);
-    UA_Array_delete(filter.selectClauses, nSelectClauses, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
-
     UA_Client_disconnect(client);
     UA_Client_delete(client);
+    UA_MonitoredItemCreateResult_clear(&result);
+    UA_EventFilter_clear(&filter);
+
     return 0;
 }
