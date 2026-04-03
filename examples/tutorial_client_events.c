@@ -88,15 +88,16 @@ int main(int argc, char *argv[]) {
 
     /* Create a subscription */
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
-                                                                            NULL, NULL, NULL);
+    UA_CreateSubscriptionResponse response =
+        UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_Client_disconnect(client);
         UA_Client_delete(client);
         return 0;
     }
     UA_UInt32 subId = response.subscriptionId;
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Create subscription succeeded, id %u", subId);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
+                "Create subscription succeeded, id %u", subId);
 
     /* Add a MonitoredItem */
     UA_MonitoredItemCreateRequest item;
