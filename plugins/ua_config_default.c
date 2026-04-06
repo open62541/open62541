@@ -20,7 +20,7 @@
 #include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
-#ifdef UA_ENABLE_DISCOVERY
+#if defined(UA_ENABLE_DISCOVERY) || defined(UA_ENABLE_AMALGAMATION)
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #endif
@@ -1664,7 +1664,7 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
 
 #endif /* UA_ENABLE_ENCRYPTION */
 
-#ifdef UA_ENABLE_DISCOVERY
+#if defined(UA_ENABLE_DISCOVERY) || defined(UA_ENABLE_AMALGAMATION)
 
 /***************************/
 /* Default Client Settings */
@@ -1980,4 +1980,4 @@ UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
 }
 #endif
 
-#endif /* UA_ENABLE_DISCOVERY */
+#endif /* UA_ENABLE_DISCOVERY OR UA_ENABLE_AMALGAMATION*/
