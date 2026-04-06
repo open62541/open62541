@@ -166,6 +166,12 @@ int main(void) {
         return 1;
 
     UA_Server_delete(server);
+
+    UA_Client *client = UA_Client_new();
+    if(!client)
+        return 2;
+    UA_Client_delete(client);
+
     return 0;
 }
 EOF
