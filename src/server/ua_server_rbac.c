@@ -12,7 +12,33 @@
 
 /* RBAC implementation. Permission configurations are deduplicated internally;
  * nodes sharing the same role permissions reference a shared entry via a
- * compact permission index in the node head. */
+ * compact permission index in the node head.
+ *
+ * Known Limitations (OPC UA Part 18 / Part 3 / Part 5):
+ *
+ * - TrustedApplication role (i=18625) is not registered because the current
+ *   nodeset version does not assign that node ID to the role and
+ *   IdentityCriteriaType value 9 (TrustedApplication) is absent from
+ *   the generated type definitions.
+ *
+ * - Writing RolePermissions via the OPC UA attribute service (Part 3
+ *   §5.2.9) returns BadNotWritable.  Use the C API instead:
+ *   UA_Server_addRolePermissions / UA_Server_setNodeRolePermissions.
+ *
+ * - AccessRestrictions attribute (Part 3 §5.2.11) and
+ *   DefaultAccessRestrictions in NamespaceMetadata are not implemented.
+ *
+ * - Identity criteria auto-assignment is limited to Anonymous and
+ *   AuthenticatedUser.  Username, Thumbprint, GroupId, Application and
+ *   X509Subject require explicit UA_Server_addRoleIdentity() calls.
+ *
+ * - Application / Endpoint role filters (and their Exclude variants)
+ *   defined on well-known role objects are not evaluated during role
+ *   resolution.
+ *
+ * - RBAC-related audit events (e.g. AuditUpdateMethodResultEvent) are
+ *   not emitted.
+ */
 
 /*********************************/
 /* UA_RolePermissionSet Type API */
