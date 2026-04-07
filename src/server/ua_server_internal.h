@@ -901,6 +901,9 @@ UA_StatusCode initNS0_dataSources(UA_Server *server);
 #ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
 UA_StatusCode
 initNS0PushManagement(UA_Server *server);
+
+UA_StatusCode
+initGDSRolePermissions(UA_Server *server);
 #endif
 
 
