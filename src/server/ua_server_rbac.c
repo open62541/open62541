@@ -644,6 +644,31 @@ UA_Server_addRole(UA_Server *server, const UA_Role *role,
     server->rolesProtected[server->rolesSize] = false;
     server->rolesSize++;
 
+    /* Warn about features that are stored but not yet evaluated */
+    if(role->applicationsSize > 0)
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Role '%.*s' has application filters configured, "
+                       "but application-based role assignment is not yet implemented",
+                       (int)role->roleName.name.length, role->roleName.name.data);
+    if(role->endpointsSize > 0)
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Role '%.*s' has endpoint filters configured, "
+                       "but endpoint-based role assignment is not yet implemented",
+                       (int)role->roleName.name.length, role->roleName.name.data);
+    for(size_t k = 0; k < role->identityMappingRulesSize; k++) {
+        UA_IdentityCriteriaType ct = role->identityMappingRules[k].criteriaType;
+        if(ct != UA_IDENTITYCRITERIATYPE_ANONYMOUS &&
+           ct != UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER &&
+           ct != UA_IDENTITYCRITERIATYPE_USERNAME) {
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "RBAC: Role '%.*s' has an identity mapping rule with "
+                           "criteriaType %d which is not yet evaluated during "
+                           "session role assignment",
+                           (int)role->roleName.name.length, role->roleName.name.data,
+                           (int)ct);
+        }
+    }
+
     /* Return the assigned roleId */
     if(outRoleNodeId) {
         res = UA_NodeId_copy(&newRole->roleId, outRoleNodeId);
@@ -1061,6 +1086,31 @@ UA_Server_updateRole(UA_Server *server, const UA_Role *role) {
     copy.endpointsSize = 0;
     copy.endpoints = NULL;
     UA_Role_clear(&copy);
+
+    /* Warn about features that are stored but not yet evaluated */
+    if(role->applicationsSize > 0)
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Role '%.*s' has application filters configured, "
+                       "but application-based role assignment is not yet implemented",
+                       (int)role->roleName.name.length, role->roleName.name.data);
+    if(role->endpointsSize > 0)
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "RBAC: Role '%.*s' has endpoint filters configured, "
+                       "but endpoint-based role assignment is not yet implemented",
+                       (int)role->roleName.name.length, role->roleName.name.data);
+    for(size_t k = 0; k < role->identityMappingRulesSize; k++) {
+        UA_IdentityCriteriaType ct = role->identityMappingRules[k].criteriaType;
+        if(ct != UA_IDENTITYCRITERIATYPE_ANONYMOUS &&
+           ct != UA_IDENTITYCRITERIATYPE_AUTHENTICATEDUSER &&
+           ct != UA_IDENTITYCRITERIATYPE_USERNAME) {
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                           "RBAC: Role '%.*s' has an identity mapping rule with "
+                           "criteriaType %d which is not yet evaluated during "
+                           "session role assignment",
+                           (int)role->roleName.name.length, role->roleName.name.data,
+                           (int)ct);
+        }
+    }
 
     unlockServer(server);
     return UA_STATUSCODE_GOOD;

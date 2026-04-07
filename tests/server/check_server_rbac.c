@@ -139,6 +139,68 @@ START_TEST(addRole_nullRoleIdAllowed) {
 }
 END_TEST
 
+/* Verify that adding a role with unsupported identity criteria types
+ * succeeds (the role is stored) but the criteria will not be evaluated.
+ * This exercises the warning log path added for unsupported criteria. */
+START_TEST(addRole_unsupportedCriteriaStored) {
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleName = UA_QUALIFIEDNAME(0, "ThumbprintRole");
+
+    /* Add a Thumbprint identity rule — currently not evaluated */
+    UA_IdentityMappingRuleType rule;
+    UA_IdentityMappingRuleType_init(&rule);
+    rule.criteriaType = UA_IDENTITYCRITERIATYPE_THUMBPRINT;
+    rule.criteria = UA_STRING("AB:CD:EF");
+    role.identityMappingRules = &rule;
+    role.identityMappingRulesSize = 1;
+
+    UA_NodeId outId;
+    UA_StatusCode res = UA_Server_addRole(server, &role, &outId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Verify the role was stored with the identity rule */
+    UA_Role retrieved;
+    res = UA_Server_getRole(server, UA_QUALIFIEDNAME(0, "ThumbprintRole"), &retrieved);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retrieved.identityMappingRulesSize, 1);
+    ck_assert_uint_eq(retrieved.identityMappingRules[0].criteriaType,
+                      UA_IDENTITYCRITERIATYPE_THUMBPRINT);
+    UA_Role_clear(&retrieved);
+    removeTestRole("ThumbprintRole", 0);
+    UA_NodeId_clear(&outId);
+}
+END_TEST
+
+/* Verify that adding a role with application/endpoint filters succeeds
+ * (stored but not evaluated for role assignment). */
+START_TEST(addRole_applicationFiltersStored) {
+    UA_Role role;
+    UA_Role_init(&role);
+    role.roleName = UA_QUALIFIEDNAME(0, "AppFilterRole");
+
+    /* Add application filter */
+    UA_String app = UA_STRING("urn:example:app");
+    role.applications = &app;
+    role.applicationsSize = 1;
+    role.applicationsExclude = false;
+
+    UA_NodeId outId;
+    UA_StatusCode res = UA_Server_addRole(server, &role, &outId);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Verify the role was stored with the application filter */
+    UA_Role retrieved;
+    res = UA_Server_getRole(server, UA_QUALIFIEDNAME(0, "AppFilterRole"), &retrieved);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(retrieved.applicationsSize, 1);
+    ck_assert(UA_String_equal(&retrieved.applications[0], &app));
+    UA_Role_clear(&retrieved);
+    removeTestRole("AppFilterRole", 0);
+    UA_NodeId_clear(&outId);
+}
+END_TEST
+
 START_TEST(getRoles_empty) {
     size_t rolesSize = 99;
     UA_QualifiedName *roleNames = NULL;
@@ -1727,6 +1789,8 @@ static Suite *testSuite_RoleManagement(void) {
     tcase_add_test(tc_add, addRole_basic);
     tcase_add_test(tc_add, addRole_duplicateNameFails);
     tcase_add_test(tc_add, addRole_nullRoleIdAllowed);
+    tcase_add_test(tc_add, addRole_unsupportedCriteriaStored);
+    tcase_add_test(tc_add, addRole_applicationFiltersStored);
     suite_add_tcase(s, tc_add);
 
     TCase *tc_get = tcase_create("GetRoles");

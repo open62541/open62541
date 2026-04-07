@@ -7,9 +7,6 @@
  * 2. Role identity mapping (UserName criteria) for automatic role assignment
  * 3. Runtime role management via Server API
  *
- * Per OPC UA Part 18, roles are automatically assigned to sessions during
- * ActivateSession based on the IdentityMappingRuleType configured for each role.
- *
  * The default access control plugin (ua_accesscontrol_default.c) implements
  * automatic role assignment by evaluating IdentityCriteriaType:
  * - Anonymous: Matches anonymous sessions
