@@ -930,7 +930,7 @@ if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c)
 endif()
 
-if(UA_ENABLE_DISCOVERY)
+if(UA_ENABLE_DISCOVERY OR UA_ENABLE_AMALGAMATION)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                             ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
                             ${PROJECT_SOURCE_DIR}/src/client/ua_client_discovery.c
