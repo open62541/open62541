@@ -12,7 +12,19 @@
 
 #ifdef UA_ENABLE_RBAC
 
-/* RBAC NS0 information model integration */
+/* RBAC NS0 information model integration.
+ *
+ * Known Limitations:
+ *
+ * - AddRole / RemoveRole methods do not emit audit events.
+ *
+ * - AddIdentity / RemoveIdentity only modify the in-memory role
+ *   registry; changes are not persisted across server restarts.
+ *
+ * - The Identities variable on role nodes is read-only via a data
+ *   source callback; it cannot be written through the attribute
+ *   service.
+ */
 
 static UA_StatusCode
 readRoleIdentities(UA_Server *server, const UA_NodeId *sessionId,
