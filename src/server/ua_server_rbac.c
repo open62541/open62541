@@ -398,7 +398,15 @@ initializeStandardRoles(UA_Server *server) {
         {UA_NS0ID_WELLKNOWNROLE_ENGINEER, "Engineer", {0, 0}, 0},
         {UA_NS0ID_WELLKNOWNROLE_SUPERVISOR, "Supervisor", {0, 0}, 0},
         {UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN, "ConfigureAdmin", {0, 0}, 0},
-        {UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN, "SecurityAdmin", {0, 0}, 0}
+        {UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN, "SecurityAdmin", {0, 0}, 0},
+#ifdef UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERADMIN
+        {UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERADMIN,
+         "SecurityKeyServerAdmin", {0, 0}, 0},
+        {UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERPUSH,
+         "SecurityKeyServerPush", {0, 0}, 0},
+        {UA_NS0ID_WELLKNOWNROLE_SECURITYKEYSERVERACCESS,
+         "SecurityKeyServerAccess", {0, 0}, 0},
+#endif
     };
     size_t count = sizeof(stdRoles) / sizeof(stdRoles[0]);
 
