@@ -1059,16 +1059,16 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
 # Add clock implementation based on the base architecture
-if(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32)
-    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c)
-endif()
-
 if(UA_ARCHITECTURE_ZEPHYR)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/zephyr/clock_zephyr.c)
 endif()
 
 if(UA_ARCHITECTURE_FREERTOS)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/freertos/clock_freertos.c)
+endif()
+
+if(UA_ARCHITECTURE_POSIX AND UA_ARCHITECTURE_LWIP)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_clock.c)
 endif()
 
 # Add eventloop and common files (mutually exclusive based on eventloop type)
@@ -1094,18 +1094,17 @@ elseif(UA_ARCHITECTURE_ZEPHYR)
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
 elseif(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
-    # POSIX eventloop (default for amalgamation)
+    # Common eventloop files shared across all POSIX/Win32 builds
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/arch/common/timer.h
          ${PROJECT_SOURCE_DIR}/arch/common/timer.c
          ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
-         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.h
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_tcp.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c)
+         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c)
+    # Architecture-specific files (clock, TCP, UDP, eth, interrupt).
+    if(NOT DEFINED UA_ARCH_FOLDER)
+        set(UA_ARCH_FOLDER ${PROJECT_SOURCE_DIR}/arch/posix)
+    endif()
+    include(${UA_ARCH_FOLDER}/CMakeLists.txt)
 endif()
 
 if(UA_ARCHITECTURE_FREERTOS)
