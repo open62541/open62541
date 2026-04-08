@@ -583,6 +583,8 @@ removeCertificate(UA_Server *server,
     UA_ByteString *crls = NULL;
     size_t crlsSize = 0;
 
+    UA_ByteString certificate = UA_BYTESTRING_NULL;
+
     UA_String thumbpr = UA_STRING_NULL;
     thumbpr.length = (UA_SHA1_LENGTH * 2);
     thumbpr.data = (UA_Byte*)UA_malloc(sizeof(UA_Byte)*thumbpr.length);
@@ -593,7 +595,7 @@ removeCertificate(UA_Server *server,
         if(!UA_String_equal_ignorecase(&thumbprint, &thumbpr))
             continue;
 
-        UA_ByteString certificate = certificates[i];
+        certificate = certificates[i];
         retval = certGroup->getCertificateCrls(certGroup, &certificate, isTrustedCertificate,
                                                &crls, &crlsSize);
         /* Tolerate "Bad_NoMatch" to support removing CA certificates that do
