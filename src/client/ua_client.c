@@ -680,6 +680,9 @@ __Client_Service(UA_Client *client, const void *request,
     UA_UInt32 requestId = 0;
     UA_StatusCode retval = sendRequest(client, request, requestType, &requestId);
     if(retval != UA_STATUSCODE_GOOD) {
+        if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
+            closeSecureChannel(client);
+       
         /* If sending failed, the status is set to closing. The SecureChannel is
          * the actually closed in the next iteration of the EventLoop. */
         UA_assert(client->channel.state == UA_SECURECHANNELSTATE_CLOSING ||
@@ -828,6 +831,9 @@ __Client_AsyncService(UA_Client *client, const void *request,
     /* Call the service and set the requestId */
     UA_StatusCode retval = sendRequest(client, request, requestType, &ac->requestId);
     if(retval != UA_STATUSCODE_GOOD) {
+        if(client->channel.state == UA_SECURECHANNELSTATE_OPEN)
+            closeSecureChannel(client);
+        
         /* If sending failed, the status is set to closing. The SecureChannel is
          * the actually closed in the next iteration of the EventLoop. */
         UA_assert(client->channel.state == UA_SECURECHANNELSTATE_CLOSING ||
