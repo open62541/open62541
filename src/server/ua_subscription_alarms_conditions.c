@@ -2865,10 +2865,13 @@ static UA_StatusCode
 getLowLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *lowLimit) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
+    UA_Variant_init(&value);
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_LOWLIMIT), &value);
-    *lowLimit = *(UA_Double*) value.data;
+    if(retval == UA_STATUSCODE_GOOD)
+        *lowLimit = *(UA_Double*)value.data;
+    UA_Variant_clear(&value);
     return retval;
 }
 
@@ -2876,10 +2879,13 @@ static UA_StatusCode
 getLowLowLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *lowLowLimit) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
+    UA_Variant_init(&value);
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_LOWLOWLIMIT), &value);
-    *lowLowLimit = *(UA_Double*) value.data;
+    if(retval == UA_STATUSCODE_GOOD)
+        *lowLowLimit = *(UA_Double*)value.data;
+    UA_Variant_clear(&value);
     return retval;
 }
 
@@ -2887,10 +2893,13 @@ static UA_StatusCode
 getHighLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *highLimit) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
+    UA_Variant_init(&value);
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_HIGHLIMIT), &value);
-    *highLimit = *(UA_Double*) value.data;
+    if(retval == UA_STATUSCODE_GOOD)
+        *highLimit = *(UA_Double*)value.data;
+    UA_Variant_clear(&value);
     return retval;
 }
 
@@ -2898,10 +2907,13 @@ static UA_StatusCode
 getHighHighLimit(UA_Server *server, UA_NodeId conditionId, UA_Double *highHighLimit) {
     UA_LOCK_ASSERT(&server->serviceMutex);
     UA_Variant value;
+    UA_Variant_init(&value);
     UA_StatusCode retval =
         readObjectProperty(server, conditionId,
                            UA_QUALIFIEDNAME(0, CONDITION_FIELD_HIGHHIGHLIMIT), &value);
-    *highHighLimit = *(UA_Double*) value.data;
+    if(retval == UA_STATUSCODE_GOOD)
+        *highHighLimit = *(UA_Double*)value.data;
+    UA_Variant_clear(&value);
     return retval;
 }
 
