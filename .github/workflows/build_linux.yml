@@ -30,6 +30,10 @@ jobs:
           - name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
             cmd_action: unit_tests_alarms
 
+          - name: "Valgrind Build & Unit Tests with Alarms&Conditions (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind
+            cmd_action: unit_tests_alarms_memcheck
+
           - name: "Debug Build & Unit Tests (tcc)"
             cmd_deps: sudo apt-get install -y -qq tcc
             cmd_action: CC=tcc unit_tests
