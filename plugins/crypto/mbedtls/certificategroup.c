@@ -1049,8 +1049,11 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    /* Already in DER format -> return verbatim */
-    if(privateKey.length > 1 && privateKey.data[0] == 0x30 && privateKey.data[1] == 0x82)
+    /* Already in DER format -> return verbatim.
+     * DER-encoded keys start with ASN.1 SEQUENCE tag (0x30). PEM-encoded keys
+     * start with "-----BEGIN" (0x2D). Check only the tag byte to handle both
+     * short-form (< 128 bytes) and long-form length encodings. */
+    if(privateKey.length > 1 && privateKey.data[0] == 0x30)
         return UA_ByteString_copy(&privateKey, outDerKey);
 
     /* Create a null-terminated string */

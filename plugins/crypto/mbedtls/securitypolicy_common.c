@@ -694,4 +694,572 @@ UA_mbedTLS_CopyDataFormatAware(const UA_ByteString *data) {
     return result;
 }
 
+#if MBEDTLS_VERSION_NUMBER >= 0x03000000
+
+#include <mbedtls/ecdh.h>
+#include <mbedtls/ecdsa.h>
+#include <mbedtls/ecp.h>
+#include <mbedtls/hkdf.h>
+#include <mbedtls/sha256.h>
+#include <mbedtls/sha512.h>
+
+/* ECDH shared secret computation for Weierstrass curves (NIST/Brainpool) */
+static UA_StatusCode
+UA_mbedTLS_ECDH(mbedtls_ecp_group_id grpId,
+                mbedtls_pk_context *keyPairLocal,
+                mbedtls_ctr_drbg_context *drbgContext,
+                const UA_ByteString *keyPublicRemote,
+                UA_ByteString *sharedSecretOut) {
+    mbedtls_ecp_group grp;
+    mbedtls_ecp_point Qpeer;
+    mbedtls_mpi z;
+
+    mbedtls_ecp_group_init(&grp);
+    mbedtls_ecp_point_init(&Qpeer);
+    mbedtls_mpi_init(&z);
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    int mbedErr;
+
+    mbedErr = mbedtls_ecp_group_load(&grp, grpId);
+    if(mbedErr != 0)
+        goto errout;
+
+    /* Import the remote public key (uncompressed point: x || y) */
+    mbedErr = mbedtls_mpi_read_binary(&Qpeer.MBEDTLS_PRIVATE(X),
+                                      keyPublicRemote->data,
+                                      keyPublicRemote->length / 2);
+    if(mbedErr != 0)
+        goto errout;
+
+    mbedErr = mbedtls_mpi_read_binary(&Qpeer.MBEDTLS_PRIVATE(Y),
+                                      keyPublicRemote->data + keyPublicRemote->length / 2,
+                                      keyPublicRemote->length / 2);
+    if(mbedErr != 0)
+        goto errout;
+
+    mbedErr = mbedtls_mpi_lset(&Qpeer.MBEDTLS_PRIVATE(Z), 1);
+    if(mbedErr != 0)
+        goto errout;
+
+    /* Get the local private key scalar d from the pk_context */
+    mbedtls_ecp_keypair *kp = mbedtls_pk_ec(*keyPairLocal);
+    if(kp == NULL)
+        goto errout;
+
+    /* Compute ECDH shared secret: z = d * Qpeer */
+    mbedErr = mbedtls_ecdh_compute_shared(&grp, &z, &Qpeer,
+                                          &kp->MBEDTLS_PRIVATE(d),
+                                          mbedtls_ctr_drbg_random,
+                                          drbgContext);
+    if(mbedErr != 0)
+        goto errout;
+
+    /* Export shared secret to byte string */
+    size_t olen = mbedtls_mpi_size(&z);
+    ret = UA_ByteString_allocBuffer(sharedSecretOut, olen);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    mbedErr = mbedtls_mpi_write_binary(&z, sharedSecretOut->data,
+                                       sharedSecretOut->length);
+    if(mbedErr != 0) {
+        UA_ByteString_clear(sharedSecretOut);
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    ret = UA_STATUSCODE_GOOD;
+
+errout:
+    mbedtls_ecp_group_free(&grp);
+    mbedtls_ecp_point_free(&Qpeer);
+    mbedtls_mpi_free(&z);
+    return ret;
+}
+
+/* Salt generation for ECC key derivation (same algorithm as OpenSSL version) */
+static UA_StatusCode
+UA_mbedTLS_ECC_GenerateSalt(const size_t L,
+                            const UA_ByteString *label,
+                            const UA_ByteString *key1,
+                            const UA_ByteString *key2,
+                            UA_ByteString *salt) {
+    if(salt == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    size_t saltLen = sizeof(uint16_t) + label->length + key1->length + key2->length;
+    if(UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(salt, saltLen))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    salt->data[0] = (UA_Byte)((L) & 0xFF);
+    salt->data[1] = (UA_Byte)((L >> 8) & 0xFF);
+
+    UA_Byte *saltPtr = &salt->data[2];
+    memcpy(saltPtr, label->data, label->length);
+    saltPtr += label->length;
+    memcpy(saltPtr, key1->data, key1->length);
+    saltPtr += key1->length;
+    memcpy(saltPtr, key2->data, key2->length);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+/* HKDF key derivation */
+static UA_StatusCode
+UA_mbedTLS_HKDF(mbedtls_md_type_t mdType,
+                const UA_ByteString *ikm,
+                const UA_ByteString *salt,
+                const UA_ByteString *info,
+                UA_ByteString *out) {
+    const mbedtls_md_info_t *mdInfo = mbedtls_md_info_from_type(mdType);
+    if(mdInfo == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    int mbedErr = mbedtls_hkdf(mdInfo,
+                               salt->data, salt->length,
+                               ikm->data, ikm->length,
+                               info->data, info->length,
+                               out->data, out->length);
+    if(mbedErr != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+/* ECC key generation for Weierstrass curves */
+static UA_StatusCode
+UA_mbedTLS_ECC_GenerateKey(mbedtls_ecp_group_id grpId,
+                           mbedtls_pk_context *keyPairOut,
+                           mbedtls_ctr_drbg_context *drbgContext,
+                           UA_ByteString *keyPublicEncOut) {
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+
+    mbedtls_pk_init(keyPairOut);
+
+    int mbedErr = mbedtls_pk_setup(keyPairOut,
+                                   mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
+    if(mbedErr != 0)
+        goto errout;
+
+    mbedtls_ecp_keypair *kp = mbedtls_pk_ec(*keyPairOut);
+    if(kp == NULL)
+        goto errout;
+
+    mbedErr = mbedtls_ecp_gen_key(grpId, kp,
+                                  mbedtls_ctr_drbg_random, drbgContext);
+    if(mbedErr != 0)
+        goto errout;
+
+    /* Export public key as uncompressed point (x || y) */
+    {
+        size_t coordLen = keyPublicEncOut->length / 2;
+        mbedErr = mbedtls_mpi_write_binary(&kp->MBEDTLS_PRIVATE(Q).MBEDTLS_PRIVATE(X),
+                                           keyPublicEncOut->data, coordLen);
+        if(mbedErr != 0)
+            goto errout;
+
+        mbedErr = mbedtls_mpi_write_binary(&kp->MBEDTLS_PRIVATE(Q).MBEDTLS_PRIVATE(Y),
+                                           keyPublicEncOut->data + coordLen, coordLen);
+        if(mbedErr != 0)
+            goto errout;
+    }
+
+    return UA_STATUSCODE_GOOD;
+
+errout:
+    mbedtls_pk_free(keyPairOut);
+    return ret;
+}
+
+/* Full ECC key derivation pipeline: ECDH → salt → HKDF */
+UA_StatusCode
+UA_mbedTLS_ECC_DeriveKeys(mbedtls_ecp_group_id curveID,
+                          mbedtls_md_type_t hashType,
+                          const UA_ApplicationType applicationType,
+                          mbedtls_pk_context *localEphemeralKeyPair,
+                          mbedtls_ctr_drbg_context *drbgContext,
+                          const UA_ByteString *key1,
+                          const UA_ByteString *key2,
+                          UA_ByteString *out) {
+    UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
+    UA_ByteString salt = UA_BYTESTRING_NULL;
+
+    /* Get the local ephemeral public key for comparison */
+    mbedtls_ecp_keypair *kp = mbedtls_pk_ec(*localEphemeralKeyPair);
+    if(kp == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Export local public key as x || y for comparison */
+    size_t coordLen = key1->length / 2;
+    UA_ByteString localPubKey;
+    UA_StatusCode ret = UA_ByteString_allocBuffer(&localPubKey, key1->length);
+    if(ret != UA_STATUSCODE_GOOD)
+        return ret;
+
+    int mbedErr = mbedtls_mpi_write_binary(&kp->MBEDTLS_PRIVATE(Q).MBEDTLS_PRIVATE(X),
+                                           localPubKey.data, coordLen);
+    if(mbedErr != 0) {
+        UA_ByteString_clear(&localPubKey);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    mbedErr = mbedtls_mpi_write_binary(&kp->MBEDTLS_PRIVATE(Q).MBEDTLS_PRIVATE(Y),
+                                       localPubKey.data + coordLen, coordLen);
+    if(mbedErr != 0) {
+        UA_ByteString_clear(&localPubKey);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Determine the label for salt generation, remote ephemeral public key for
+     * ECDH, and info for HKDF */
+    UA_ByteString *label = NULL;
+    const UA_ByteString *remoteEphPubKey = NULL;
+    static UA_String serverLabel = UA_STRING_STATIC("opcua-server");
+    static UA_String clientLabel = UA_STRING_STATIC("opcua-client");
+    static UA_String sessionLabel = UA_STRING_STATIC("opcua-secret");
+
+    /* (Temporary) measure to signal salt generation for sessions */
+    if(out->data[0] == 0x03 && out->data[1] == 0x03 && out->data[2] == 0x04) {
+        label = &sessionLabel;
+        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
+            remoteEphPubKey = key2;
+        } else {
+            remoteEphPubKey = key1;
+        }
+    }
+    else if(memcmp(localPubKey.data, key1->data, key1->length) == 0) {
+        /* Key 1 is local ephemeral public key => generating remote keys */
+        remoteEphPubKey = key2;
+        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
+            label = &clientLabel;
+        } else {
+            label = &serverLabel;
+        }
+    }
+    else if(memcmp(localPubKey.data, key2->data, key2->length) == 0) {
+        /* Key 2 is local ephemeral public key => generating local keys */
+        remoteEphPubKey = key1;
+        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
+            label = &serverLabel;
+        } else {
+            label = &clientLabel;
+        }
+    } else {
+        UA_ByteString_clear(&localPubKey);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_ByteString_clear(&localPubKey);
+
+    /* Use ECDH to calculate shared secret */
+    ret = UA_mbedTLS_ECDH(curveID, localEphemeralKeyPair, drbgContext,
+                          remoteEphPubKey, &sharedSecret);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Calculate salt. The order of the (ephemeral public) keys (key1, key2) is
+     * reversed because the caller sends [remote, local] for local key
+     * computation and [local, remote] for remote key computation. According to
+     * 6.8.1., the local salt computation appends the keys in order [local |
+     * remote] and the remote salt computation [remote | local]. Therefore, no
+     * additional logic is required, reversing the order is sufficient. */
+    ret = UA_mbedTLS_ECC_GenerateSalt(out->length, label, key2, key1, &salt);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Call HKDF to derive keys */
+    /* Salt is given as the info argument (check 6.8.1., tables 66 and 67) */
+    ret = UA_mbedTLS_HKDF(hashType, &sharedSecret, &salt, &salt, out);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto errout;
+
+errout:
+    UA_ByteString_clear(&sharedSecret);
+    UA_ByteString_clear(&salt);
+    return ret;
+}
+
+/* ECDSA sign (internal, parameterized by hash algorithm) */
+static UA_StatusCode
+UA_mbedTLS_ECDSA_Sign(const UA_ByteString *message,
+                      mbedtls_pk_context *privateKey,
+                      mbedtls_ctr_drbg_context *drbgContext,
+                      mbedtls_md_type_t mdType,
+                      size_t hashLen,
+                      UA_ByteString *outSignature) {
+    unsigned char hash[64]; /* big enough for SHA-384 (48) and SHA-256 (32) */
+    unsigned char derSig[MBEDTLS_ECDSA_MAX_LEN];
+    size_t derSigLen = 0;
+
+    if(mdType == MBEDTLS_MD_SHA256) {
+        mbedtls_sha256(message->data, message->length, hash, 0);
+    } else if(mdType == MBEDTLS_MD_SHA384) {
+        mbedtls_sha512(message->data, message->length, hash, 1);
+    } else {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    int mbedErr = mbedtls_pk_sign(privateKey, mdType, hash, hashLen,
+                                  derSig, sizeof(derSig), &derSigLen,
+                                  mbedtls_ctr_drbg_random, drbgContext);
+    if(mbedErr != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Convert DER-encoded ECDSA signature to raw (r || s) format.
+     * DER format: 0x30 <len> 0x02 <r_len> <r> 0x02 <s_len> <s> */
+    const unsigned char *p = derSig;
+    const unsigned char *end = derSig + derSigLen;
+    size_t sizeEncCoordinate = outSignature->length / 2;
+
+    /* Skip SEQUENCE tag and length */
+    if(*p != 0x30)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    p++;
+    if(*p & 0x80) p += (*p & 0x7F) + 1; /* long form length */
+    else p++;
+
+    /* Read r */
+    if(p >= end || *p != 0x02)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    p++;
+    size_t rLen = *p++; 
+    /* Skip leading zero padding */
+    while(rLen > sizeEncCoordinate && *p == 0x00) { p++; rLen--; }
+    if(rLen > sizeEncCoordinate)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    /* Right-align r in the output */
+    memset(outSignature->data, 0, sizeEncCoordinate);
+    memcpy(outSignature->data + (sizeEncCoordinate - rLen), p, rLen);
+    p += rLen;
+
+    /* Read s */
+    if(p >= end || *p != 0x02)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    p++;
+    size_t sLen = *p++;
+    /* Skip leading zero padding */
+    while(sLen > sizeEncCoordinate && *p == 0x00) { p++; sLen--; }
+    if(sLen > sizeEncCoordinate)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    /* Right-align s in the output */
+    memset(outSignature->data + sizeEncCoordinate, 0, sizeEncCoordinate);
+    memcpy(outSignature->data + sizeEncCoordinate + (sizeEncCoordinate - sLen), p, sLen);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+/* ECDSA verify (internal, parameterized by hash algorithm) */
+static UA_StatusCode
+UA_mbedTLS_ECDSA_Verify(const UA_ByteString *message,
+                        mbedtls_x509_crt *publicKeyCert,
+                        mbedtls_md_type_t mdType,
+                        size_t hashLen,
+                        const UA_ByteString *signature) {
+    unsigned char hash[64];
+    size_t sizeEncCoordinate = signature->length / 2;
+
+    if(mdType == MBEDTLS_MD_SHA256) {
+        mbedtls_sha256(message->data, message->length, hash, 0);
+    } else if(mdType == MBEDTLS_MD_SHA384) {
+        mbedtls_sha512(message->data, message->length, hash, 1);
+    } else {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    /* Convert raw (r || s) signature to DER format for mbedtls_pk_verify.
+     * DER format: 0x30 <len> 0x02 <r_len> <r> 0x02 <s_len> <s>
+     * Each r/s component may need a leading 0x00 if the high bit is set. */
+    const unsigned char *rRaw = signature->data;
+    const unsigned char *sRaw = signature->data + sizeEncCoordinate;
+
+    /* Skip leading zeros but keep at least 1 byte */
+    size_t rOff = 0;
+    while(rOff < sizeEncCoordinate - 1 && rRaw[rOff] == 0x00) rOff++;
+    size_t sOff = 0;
+    while(sOff < sizeEncCoordinate - 1 && sRaw[sOff] == 0x00) sOff++;
+
+    size_t rLen = sizeEncCoordinate - rOff;
+    size_t sLen = sizeEncCoordinate - sOff;
+
+    /* Add leading zero byte if high bit is set */
+    int rPad = (rRaw[rOff] & 0x80) ? 1 : 0;
+    int sPad = (sRaw[sOff] & 0x80) ? 1 : 0;
+
+    size_t rDerLen = rLen + (size_t)rPad;
+    size_t sDerLen = sLen + (size_t)sPad;
+
+    /* Total DER: SEQUENCE(2 + rDerLen + 2 + sDerLen) */
+    size_t innerLen = 2 + rDerLen + 2 + sDerLen;
+    unsigned char derSig[MBEDTLS_ECDSA_MAX_LEN];
+    unsigned char *p = derSig;
+
+    *p++ = 0x30;
+    if(innerLen >= 128) {
+        *p++ = 0x81;
+        *p++ = (unsigned char)innerLen;
+    } else {
+        *p++ = (unsigned char)innerLen;
+    }
+
+    *p++ = 0x02;
+    *p++ = (unsigned char)rDerLen;
+    if(rPad) *p++ = 0x00;
+    memcpy(p, rRaw + rOff, rLen); p += rLen;
+
+    *p++ = 0x02;
+    *p++ = (unsigned char)sDerLen;
+    if(sPad) *p++ = 0x00;
+    memcpy(p, sRaw + sOff, sLen); p += sLen;
+
+    size_t derSigLen = (size_t)(p - derSig);
+
+    int mbedErr = mbedtls_pk_verify(&publicKeyCert->pk, mdType,
+                                    hash, hashLen, derSig, derSigLen);
+    if(mbedErr != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+/* Per-curve key generation wrappers */
+UA_StatusCode
+UA_mbedTLS_ECC_NISTP256_GenerateKey(mbedtls_pk_context *keyPairOut,
+                                    mbedtls_ctr_drbg_context *drbgContext,
+                                    UA_ByteString *keyPublicEncOut) {
+    return UA_mbedTLS_ECC_GenerateKey(MBEDTLS_ECP_DP_SECP256R1, keyPairOut,
+                                     drbgContext, keyPublicEncOut);
+}
+
+UA_StatusCode
+UA_mbedTLS_ECC_NISTP384_GenerateKey(mbedtls_pk_context *keyPairOut,
+                                    mbedtls_ctr_drbg_context *drbgContext,
+                                    UA_ByteString *keyPublicEncOut) {
+    return UA_mbedTLS_ECC_GenerateKey(MBEDTLS_ECP_DP_SECP384R1, keyPairOut,
+                                     drbgContext, keyPublicEncOut);
+}
+
+UA_StatusCode
+UA_mbedTLS_ECC_BRAINPOOLP256R1_GenerateKey(mbedtls_pk_context *keyPairOut,
+                                           mbedtls_ctr_drbg_context *drbgContext,
+                                           UA_ByteString *keyPublicEncOut) {
+    return UA_mbedTLS_ECC_GenerateKey(MBEDTLS_ECP_DP_BP256R1, keyPairOut,
+                                     drbgContext, keyPublicEncOut);
+}
+
+UA_StatusCode
+UA_mbedTLS_ECC_BRAINPOOLP384R1_GenerateKey(mbedtls_pk_context *keyPairOut,
+                                           mbedtls_ctr_drbg_context *drbgContext,
+                                           UA_ByteString *keyPublicEncOut) {
+    return UA_mbedTLS_ECC_GenerateKey(MBEDTLS_ECP_DP_BP384R1, keyPairOut,
+                                     drbgContext, keyPublicEncOut);
+}
+
+/* ECDSA SHA-256 wrappers */
+UA_StatusCode
+UA_mbedTLS_ECDSA_SHA256_Sign(const UA_ByteString *message,
+                             mbedtls_pk_context *privateKey,
+                             mbedtls_ctr_drbg_context *drbgContext,
+                             UA_ByteString *outSignature) {
+    return UA_mbedTLS_ECDSA_Sign(message, privateKey, drbgContext,
+                                MBEDTLS_MD_SHA256, 32, outSignature);
+}
+
+UA_StatusCode
+UA_mbedTLS_ECDSA_SHA256_Verify(const UA_ByteString *message,
+                               mbedtls_x509_crt *publicKeyCert,
+                               const UA_ByteString *signature) {
+    return UA_mbedTLS_ECDSA_Verify(message, publicKeyCert,
+                                  MBEDTLS_MD_SHA256, 32, signature);
+}
+
+/* ECDSA SHA-384 wrappers */
+UA_StatusCode
+UA_mbedTLS_ECDSA_SHA384_Sign(const UA_ByteString *message,
+                             mbedtls_pk_context *privateKey,
+                             mbedtls_ctr_drbg_context *drbgContext,
+                             UA_ByteString *outSignature) {
+    return UA_mbedTLS_ECDSA_Sign(message, privateKey, drbgContext,
+                                MBEDTLS_MD_SHA384, 48, outSignature);
+}
+
+UA_StatusCode
+UA_mbedTLS_ECDSA_SHA384_Verify(const UA_ByteString *message,
+                               mbedtls_x509_crt *publicKeyCert,
+                               const UA_ByteString *signature) {
+    return UA_mbedTLS_ECDSA_Verify(message, publicKeyCert,
+                                  MBEDTLS_MD_SHA384, 48, signature);
+}
+
+/* HMAC-SHA256 sign/verify */
+UA_StatusCode
+UA_mbedTLS_HMAC_SHA256_Verify(const UA_ByteString *message,
+                              const UA_ByteString *key,
+                              const UA_ByteString *signature) {
+    const mbedtls_md_info_t *mdInfo = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+    unsigned char mac[32];
+
+    int mbedErr = mbedtls_md_hmac(mdInfo, key->data, key->length,
+                                  message->data, message->length, mac);
+    if(mbedErr != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_ByteString macBs = {32, mac};
+    if(!UA_ByteString_equal(signature, &macBs))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_mbedTLS_HMAC_SHA256_Sign(const UA_ByteString *message,
+                            const UA_ByteString *key,
+                            UA_ByteString *signature) {
+    const mbedtls_md_info_t *mdInfo = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+
+    int mbedErr = mbedtls_md_hmac(mdInfo, key->data, key->length,
+                                  message->data, message->length,
+                                  signature->data);
+    if(mbedErr != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    signature->length = 32;
+    return UA_STATUSCODE_GOOD;
+}
+
+/* HMAC-SHA384 sign/verify */
+UA_StatusCode
+UA_mbedTLS_HMAC_SHA384_Verify(const UA_ByteString *message,
+                              const UA_ByteString *key,
+                              const UA_ByteString *signature) {
+    const mbedtls_md_info_t *mdInfo = mbedtls_md_info_from_type(MBEDTLS_MD_SHA384);
+    unsigned char mac[48];
+
+    int mbedErr = mbedtls_md_hmac(mdInfo, key->data, key->length,
+                                  message->data, message->length, mac);
+    if(mbedErr != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_ByteString macBs = {48, mac};
+    if(!UA_ByteString_equal(signature, &macBs))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_mbedTLS_HMAC_SHA384_Sign(const UA_ByteString *message,
+                            const UA_ByteString *key,
+                            UA_ByteString *signature) {
+    const mbedtls_md_info_t *mdInfo = mbedtls_md_info_from_type(MBEDTLS_MD_SHA384);
+
+    int mbedErr = mbedtls_md_hmac(mdInfo, key->data, key->length,
+                                  message->data, message->length,
+                                  signature->data);
+    if(mbedErr != 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    signature->length = 48;
+    return UA_STATUSCODE_GOOD;
+}
+
+#endif /* MBEDTLS_VERSION_NUMBER >= 0x03000000 */
+
 #endif
