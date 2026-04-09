@@ -248,6 +248,11 @@ UA_ServerConfig_addSecurityPolicyEccNistP384(UA_ServerConfig *config,
                                              const UA_ByteString *certificate,
                                              const UA_ByteString *privateKey);
 
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1(UA_ServerConfig *config,
+                                                    const UA_ByteString *certificate,
+                                                    const UA_ByteString *privateKey);
+
 /* Adds all supported security policies and sets up certificate
  * validation procedures.
  *

@@ -50,7 +50,13 @@ static EccCurveTestData eccCurves[] = {
      CERT_P384_DER_DATA, CERT_P384_DER_LENGTH,
      KEY_P384_DER_DATA, KEY_P384_DER_LENGTH,
      CERT_P384_PEM_DATA, CERT_P384_PEM_LENGTH,
-     KEY_P384_PEM_DATA, KEY_P384_PEM_LENGTH}
+     KEY_P384_PEM_DATA, KEY_P384_PEM_LENGTH},
+    {"ECC_brainpoolP256r1",
+     "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1",
+     CERT_BP256R1_DER_DATA, CERT_BP256R1_DER_LENGTH,
+     KEY_BP256R1_DER_DATA, KEY_BP256R1_DER_LENGTH,
+     CERT_BP256R1_PEM_DATA, CERT_BP256R1_PEM_LENGTH,
+     KEY_BP256R1_PEM_DATA, KEY_BP256R1_PEM_LENGTH}
 };
 
 #define NUM_ECC_CURVES (sizeof(eccCurves) / sizeof(eccCurves[0]))
@@ -101,9 +107,10 @@ static void setup_common(void) {
     static void setup_curve_##N(void) { activeCurve = N; setup_common(); }
 
 DEFINE_CURVE_SETUP(0)
+DEFINE_CURVE_SETUP(1)
 
 static void (*curveSetups[])(void) = {
-    setup_curve_0
+    setup_curve_0, setup_curve_1
 };
 
 static void teardown(void) {
