@@ -1222,6 +1222,14 @@ setServerLifecycleState(UA_Server *server, UA_LifecycleState state) {
     if(server->state == state)
         return;
 
+    /* Refuse to mark STOPPED while the EventLoop is still draining */
+    if(state == UA_LIFECYCLESTATE_STOPPED) {
+        UA_EventLoop *el = server->config.eventLoop;
+        if(el && el->state != UA_EVENTLOOPSTATE_STOPPED &&
+           el->state != UA_EVENTLOOPSTATE_FRESH)
+            return;
+    }
+
     server->state = state; /* Apply the state change */
 
     /* Call the application notification callback */
