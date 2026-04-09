@@ -1173,6 +1173,7 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AM
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_eccnistp256.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_eccnistp384.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_eccbrainpoolp256r1.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_eccbrainpoolp384r1.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/create_certificate.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/certificategroup.c)
 endif()

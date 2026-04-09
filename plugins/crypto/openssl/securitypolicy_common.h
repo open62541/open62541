@@ -274,6 +274,11 @@ UA_OpenSSL_ECC_BRAINPOOLP256R1_GenerateKey (EVP_PKEY ** keyPairOut,
                                              UA_ByteString * keyPublicEncOut);
 
 
+UA_StatusCode
+UA_OpenSSL_ECC_BRAINPOOLP384R1_GenerateKey (EVP_PKEY ** keyPairOut,
+                                             UA_ByteString * keyPublicEncOut);
+
+
 _UA_END_DECLS
 
 #endif /* defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */
