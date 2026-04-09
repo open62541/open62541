@@ -2083,4 +2083,421 @@ UA_OpenSSL_HMAC_SHA384_Sign(const UA_ByteString *message,
 
 /* EdDSA Ed25519 Sign/Verify */
 
+UA_StatusCode
+UA_OpenSSL_EdDSA_Ed25519_Sign(const UA_ByteString *message,
+                              EVP_PKEY *privateKey,
+                              UA_ByteString *outSignature) {
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if(!mdctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_DigestSignInit(mdctx, NULL, NULL, NULL, privateKey) != 1)
+        goto errout;
+
+    size_t sigLen = outSignature->length;
+    if(EVP_DigestSign(mdctx, outSignature->data, &sigLen,
+                      message->data, message->length) != 1)
+        goto errout;
+
+    outSignature->length = sigLen;
+    ret = UA_STATUSCODE_GOOD;
+errout:
+    EVP_MD_CTX_free(mdctx);
+    return ret;
+}
+
+UA_StatusCode
+UA_OpenSSL_EdDSA_Ed25519_Verify(const UA_ByteString *message,
+                                X509 *publicKeyX509,
+                                const UA_ByteString *signature) {
+    EVP_PKEY *pubKey = X509_get0_pubkey(publicKeyX509);
+    if(!pubKey)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if(!mdctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_DigestVerifyInit(mdctx, NULL, NULL, NULL, pubKey) != 1)
+        goto errout;
+
+    if(EVP_DigestVerify(mdctx, signature->data, signature->length,
+                        message->data, message->length) != 1) {
+        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto errout;
+    }
+
+    ret = UA_STATUSCODE_GOOD;
+errout:
+    EVP_MD_CTX_free(mdctx);
+    return ret;
+}
+
+/* EdDSA Ed448 Sign/Verify */
+
+UA_StatusCode
+UA_OpenSSL_X25519_GenerateKey(EVP_PKEY **keyPairOut,
+                              UA_ByteString *keyPublicEncOut) {
+    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_X25519, NULL);
+    if(!pctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_PKEY_keygen_init(pctx) != 1)
+        goto errout;
+
+    if(EVP_PKEY_keygen(pctx, keyPairOut) != 1)
+        goto errout;
+
+    /* Get the raw public key (32 bytes for X25519) */
+    size_t pubKeyLen = keyPublicEncOut->length;
+    if(EVP_PKEY_get_raw_public_key(*keyPairOut, keyPublicEncOut->data, &pubKeyLen) != 1)
+        goto errout;
+
+    keyPublicEncOut->length = pubKeyLen;
+    ret = UA_STATUSCODE_GOOD;
+errout:
+    EVP_PKEY_CTX_free(pctx);
+    return ret;
+}
+
+static UA_StatusCode
+UA_OpenSSL_XDHE(int keyType,
+                EVP_PKEY *localEphemeralKeyPair,
+                const UA_ByteString *remoteEphPubKey,
+                UA_ByteString *sharedSecretOut) {
+    /* Create remote public key from raw bytes */
+    EVP_PKEY *remotePubKey = EVP_PKEY_new_raw_public_key(
+        keyType, NULL, remoteEphPubKey->data, remoteEphPubKey->length);
+    if(!remotePubKey)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    EVP_PKEY_CTX *kctx = EVP_PKEY_CTX_new(localEphemeralKeyPair, NULL);
+    if(!kctx) {
+        EVP_PKEY_free(remotePubKey);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_PKEY_derive_init(kctx) <= 0)
+        goto errout;
+
+    if(EVP_PKEY_derive_set_peer(kctx, remotePubKey) <= 0)
+        goto errout;
+
+    /* Get shared secret size */
+    size_t secretLen = 0;
+    if(EVP_PKEY_derive(kctx, NULL, &secretLen) <= 0)
+        goto errout;
+
+    ret = UA_ByteString_allocBuffer(sharedSecretOut, secretLen);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    if(EVP_PKEY_derive(kctx, sharedSecretOut->data, &sharedSecretOut->length) <= 0) {
+        UA_ByteString_clear(sharedSecretOut);
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
+    ret = UA_STATUSCODE_GOOD;
+errout:
+    EVP_PKEY_CTX_free(kctx);
+    EVP_PKEY_free(remotePubKey);
+    return ret;
+}
+
+UA_StatusCode
+UA_OpenSSL_XDHE_DeriveKeys(int keyType,
+                            const char *hashAlgorithm,
+                            UA_ApplicationType applicationType,
+                            EVP_PKEY *localEphemeralKeyPair,
+                            const UA_ByteString *key1,
+                            const UA_ByteString *key2,
+                            UA_ByteString *out) {
+    UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
+    UA_ByteString salt = UA_BYTESTRING_NULL;
+
+    /* Get the local ephemeral public key for comparison */
+    size_t pubKeyLen = 0;
+    if(EVP_PKEY_get_raw_public_key(localEphemeralKeyPair, NULL, &pubKeyLen) != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_Byte keyPubEnc[64]; /* Max 56 bytes for X448 */
+    if(pubKeyLen > sizeof(keyPubEnc))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_PKEY_get_raw_public_key(localEphemeralKeyPair, keyPubEnc, &pubKeyLen) != 1)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Determine label and remote ephemeral public key */
+    UA_ByteString *label = NULL;
+    const UA_ByteString *remoteEphPubKey = NULL;
+    static UA_String serverLabel = UA_STRING_STATIC("opcua-server");
+    static UA_String clientLabel = UA_STRING_STATIC("opcua-client");
+    static UA_String sessionLabel = UA_STRING_STATIC("opcua-secret");
+
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(out->data[0] == 0x03 && out->data[1] == 0x03 && out->data[2] == 0x04) {
+        label = &sessionLabel;
+        if(applicationType == UA_APPLICATIONTYPE_SERVER) {
+            remoteEphPubKey = key2;
+        } else {
+            remoteEphPubKey = key1;
+        }
+    } else if(pubKeyLen == key1->length &&
+              memcmp(keyPubEnc, key1->data, key1->length) == 0) {
+        /* Key 1 is local ephemeral public key => generating remote keys */
+        remoteEphPubKey = key2;
+        if(applicationType == UA_APPLICATIONTYPE_SERVER)
+            label = &clientLabel;
+        else
+            label = &serverLabel;
+    } else if(pubKeyLen == key2->length &&
+              memcmp(keyPubEnc, key2->data, key2->length) == 0) {
+        /* Key 2 is local ephemeral public key => generating local keys */
+        remoteEphPubKey = key1;
+        if(applicationType == UA_APPLICATIONTYPE_SERVER)
+            label = &serverLabel;
+        else
+            label = &clientLabel;
+    } else {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* XDHE key agreement */
+    ret = UA_OpenSSL_XDHE(keyType, localEphemeralKeyPair, remoteEphPubKey, &sharedSecret);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* Generate salt */
+    ret = UA_OpenSSL_ECC_GenerateSalt(out->length, label, key2, key1, &salt);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto errout;
+
+    /* HKDF to derive keys */
+    ret = UA_OpenSSL_HKDF((char*)(uintptr_t)hashAlgorithm, &sharedSecret, &salt, &salt, out);
+
+errout:
+    UA_ByteString_clear(&sharedSecret);
+    UA_ByteString_clear(&salt);
+    return ret;
+}
+
+/* ChaCha20-Poly1305 AEAD Encrypt */
+
+UA_StatusCode
+UA_OpenSSL_ChaCha20Poly1305_Encrypt(const UA_ByteString *iv,
+                                    const UA_ByteString *key,
+                                    const UA_ByteString *aad,
+                                    UA_ByteString *data,
+                                    UA_Boolean encryptData) {
+    if(iv->length != 12 || key->length != 32)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* The last 16 bytes of data are reserved for the Poly1305 tag */
+    if(data->length < 16)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    size_t plainLen = data->length - 16;
+    UA_Byte *tagPos = data->data + plainLen;
+
+    if(!encryptData) {
+        /* Sign-only mode: use ChaCha20-Poly1305 AEAD to compute the
+         * Poly1305 tag. Treat all data (AAD + plaintext) as AAD so
+         * nothing is encrypted, but the AEAD derives a proper one-time
+         * Poly1305 key from the ChaCha20 keystream with the nonce. */
+        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+        if(!ctx)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+        if(EVP_EncryptInit_ex(ctx, EVP_chacha20_poly1305(),
+                              NULL, NULL, NULL) != 1)
+            goto so_errout;
+        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
+            goto so_errout;
+        if(EVP_EncryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
+            goto so_errout;
+
+        int outl = 0;
+        /* Include AAD header */
+        if(aad && aad->length > 0) {
+            if(EVP_EncryptUpdate(ctx, NULL, &outl,
+                                 aad->data, (int)aad->length) != 1)
+                goto so_errout;
+        }
+        /* Include plaintext as additional AAD (not encrypted) */
+        if(plainLen > 0) {
+            if(EVP_EncryptUpdate(ctx, NULL, &outl,
+                                 data->data, (int)plainLen) != 1)
+                goto so_errout;
+        }
+
+        UA_Byte dummy;
+        if(EVP_EncryptFinal_ex(ctx, &dummy, &outl) != 1)
+            goto so_errout;
+        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, tagPos) != 1)
+            goto so_errout;
+
+        ret = UA_STATUSCODE_GOOD;
+    so_errout:
+        EVP_CIPHER_CTX_free(ctx);
+        return ret;
+    }
+
+    /* SignAndEncrypt mode: full ChaCha20-Poly1305 AEAD */
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if(!ctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_EncryptInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL) != 1)
+        goto errout;
+
+    /* Set IV length to 12 */
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
+        goto errout;
+
+    if(EVP_EncryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
+        goto errout;
+
+    /* Process AAD */
+    int outl = 0;
+    if(aad && aad->length > 0) {
+        if(EVP_EncryptUpdate(ctx, NULL, &outl, aad->data, (int)aad->length) != 1)
+            goto errout;
+    }
+
+    /* Encrypt the plaintext in-place */
+    if(EVP_EncryptUpdate(ctx, data->data, &outl, data->data, (int)plainLen) != 1)
+        goto errout;
+
+    int tmpLen = 0;
+    if(EVP_EncryptFinal_ex(ctx, data->data + outl, &tmpLen) != 1)
+        goto errout;
+
+    /* Get the 16-byte authentication tag */
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_GET_TAG, 16, tagPos) != 1)
+        goto errout;
+
+    ret = UA_STATUSCODE_GOOD;
+errout:
+    EVP_CIPHER_CTX_free(ctx);
+    return ret;
+}
+
+/* ChaCha20-Poly1305 AEAD Decrypt */
+
+UA_StatusCode
+UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
+                                    const UA_ByteString *key,
+                                    const UA_ByteString *aad,
+                                    UA_ByteString *data,
+                                    UA_Boolean decryptData) {
+    if(iv->length != 12 || key->length != 32)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* The last 16 bytes are the Poly1305 tag */
+    if(data->length < 16)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    size_t cipherLen = data->length - 16;
+    UA_Byte *tagPos = data->data + cipherLen;
+
+    if(!decryptData) {
+        /* Verify-only mode: use ChaCha20-Poly1305 AEAD to verify the
+         * Poly1305 tag. All data is treated as AAD (not decrypted). */
+        EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+        if(!ctx)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
+        UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+        if(EVP_DecryptInit_ex(ctx, EVP_chacha20_poly1305(),
+                              NULL, NULL, NULL) != 1)
+            goto vo_errout;
+        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
+            goto vo_errout;
+        if(EVP_DecryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
+            goto vo_errout;
+
+        /* Set the expected tag for verification */
+        if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16, tagPos) != 1)
+            goto vo_errout;
+
+        int outl = 0;
+        /* Include AAD header */
+        if(aad && aad->length > 0) {
+            if(EVP_DecryptUpdate(ctx, NULL, &outl,
+                                 aad->data, (int)aad->length) != 1)
+                goto vo_errout;
+        }
+        /* Include data as additional AAD (not decrypted) */
+        if(cipherLen > 0) {
+            if(EVP_DecryptUpdate(ctx, NULL, &outl,
+                                 data->data, (int)cipherLen) != 1)
+                goto vo_errout;
+        }
+
+        /* Finalize triggers tag verification */
+        UA_Byte dummy;
+        if(EVP_DecryptFinal_ex(ctx, &dummy, &outl) != 1) {
+            ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+            goto vo_errout;
+        }
+
+        /* Strip the tag from the output */
+        data->length = cipherLen;
+        ret = UA_STATUSCODE_GOOD;
+    vo_errout:
+        EVP_CIPHER_CTX_free(ctx);
+        return ret;
+    }
+
+    /* SignAndEncrypt mode: full ChaCha20-Poly1305 AEAD decrypt */
+    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
+    if(!ctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_DecryptInit_ex(ctx, EVP_chacha20_poly1305(), NULL, NULL, NULL) != 1)
+        goto d_errout;
+
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_IVLEN, 12, NULL) != 1)
+        goto d_errout;
+
+    if(EVP_DecryptInit_ex(ctx, NULL, NULL, key->data, iv->data) != 1)
+        goto d_errout;
+
+    /* Set the expected tag */
+    if(EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_AEAD_SET_TAG, 16, tagPos) != 1)
+        goto d_errout;
+
+    /* Process AAD */
+    int outl = 0;
+    if(aad && aad->length > 0) {
+        if(EVP_DecryptUpdate(ctx, NULL, &outl, aad->data, (int)aad->length) != 1)
+            goto d_errout;
+    }
+
+    /* Decrypt in-place */
+    if(EVP_DecryptUpdate(ctx, data->data, &outl, data->data, (int)cipherLen) != 1)
+        goto d_errout;
+
+    int tmpLen = 0;
+    if(EVP_DecryptFinal_ex(ctx, data->data + outl, &tmpLen) != 1) {
+        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto d_errout;
+    }
+
+    /* Strip the tag from the output length */
+    data->length = cipherLen;
+    ret = UA_STATUSCODE_GOOD;
+d_errout:
+    EVP_CIPHER_CTX_free(ctx);
+    return ret;
+}
+
+
 #endif

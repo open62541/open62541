@@ -279,6 +279,50 @@ UA_OpenSSL_ECC_BRAINPOOLP384R1_GenerateKey (EVP_PKEY ** keyPairOut,
                                              UA_ByteString * keyPublicEncOut);
 
 
+/* EdDSA Ed25519 signing and verification */
+UA_StatusCode
+UA_OpenSSL_EdDSA_Ed25519_Sign(const UA_ByteString *message,
+                              EVP_PKEY *privateKey,
+                              UA_ByteString *outSignature);
+
+UA_StatusCode
+UA_OpenSSL_EdDSA_Ed25519_Verify(const UA_ByteString *message,
+                                X509 *publicKeyX509,
+                                const UA_ByteString *signature);
+
+/* X25519/X448 key generation */
+UA_StatusCode
+UA_OpenSSL_X25519_GenerateKey(EVP_PKEY **keyPairOut,
+                              UA_ByteString *keyPublicEncOut);
+
+/* X25519/X448 ECDH key agreement and HKDF key derivation */
+UA_StatusCode
+UA_OpenSSL_XDHE_DeriveKeys(int keyType,
+                            const char *hashAlgorithm,
+                            UA_ApplicationType applicationType,
+                            EVP_PKEY *localEphemeralKeyPair,
+                            const UA_ByteString *key1,
+                            const UA_ByteString *key2,
+                            UA_ByteString *out);
+
+/* ChaCha20-Poly1305 AEAD encrypt/decrypt.
+ * If encryptData/decryptData is true, the data part is encrypted or decrypted.
+ * Otherwise, only the authentication tag is computed/verified. */
+UA_StatusCode
+UA_OpenSSL_ChaCha20Poly1305_Encrypt(const UA_ByteString *iv,
+                                    const UA_ByteString *key,
+                                    const UA_ByteString *aad,
+                                    UA_ByteString *data,
+                                    UA_Boolean encryptData);
+
+UA_StatusCode
+UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
+                                    const UA_ByteString *key,
+                                    const UA_ByteString *aad,
+                                    UA_ByteString *data,
+                                    UA_Boolean decryptData);
+
+
 _UA_END_DECLS
 
 #endif /* defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */
