@@ -269,6 +269,11 @@ UA_OpenSSL_HMAC_SHA384_Sign(const UA_ByteString *message,
                             UA_ByteString *signature);
 
 
+UA_StatusCode
+UA_OpenSSL_ECC_BRAINPOOLP256R1_GenerateKey (EVP_PKEY ** keyPairOut,
+                                             UA_ByteString * keyPublicEncOut);
+
+
 _UA_END_DECLS
 
 #endif /* defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */
