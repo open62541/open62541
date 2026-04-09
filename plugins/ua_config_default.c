@@ -964,6 +964,38 @@ UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1(UA_ServerConfig *config,
     config->securityPoliciesSize++;
     return UA_STATUSCODE_GOOD;
 }
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1(UA_ServerConfig *config,
+                                                    const UA_ByteString *certificate,
+                                                    const UA_ByteString *privateKey) {
+    UA_SecurityPolicy *tmp = (UA_SecurityPolicy *)
+        UA_realloc(config->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (1 + config->securityPoliciesSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    config->securityPolicies = tmp;
+
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+        localPrivateKey = *privateKey;
+    UA_StatusCode retval =
+        UA_SecurityPolicy_EccBrainpoolP384r1(&config->securityPolicies[config->securityPoliciesSize],
+                                             UA_APPLICATIONTYPE_SERVER, localCertificate,
+                                             localPrivateKey, config->logging);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
+        return retval;
+    }
+
+    config->securityPoliciesSize++;
+    return UA_STATUSCODE_GOOD;
+}
 #endif
 
 
@@ -1031,6 +1063,16 @@ addAllSecurityPolicies(UA_SecurityPolicy *sp, size_t *length,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
                        "Could not add SecurityPolicy#EccBrainpoolP256r1 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    /* EccBrainpoolP384r1 */
+    retval = UA_SecurityPolicy_EccBrainpoolP384r1(sp + *length, applicationType,
+                                                   certificate, privateKey, logging);
+    *length += (retval == UA_STATUSCODE_GOOD) ? 1 : 0;
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(logging, UA_LOGCATEGORY_APPLICATION,
+                       "Could not add SecurityPolicy#EccBrainpoolP384r1 with error code %s",
                        UA_StatusCode_name(retval));
     }
 #endif

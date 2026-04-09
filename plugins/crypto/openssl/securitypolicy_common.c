@@ -2017,6 +2017,13 @@ UA_OpenSSL_ECC_BRAINPOOLP256R1_GenerateKey(EVP_PKEY ** keyPairOut,
     return UA_OpenSSL_ECC_GenerateKey(OBJ_txt2nid("brainpoolP256r1"), keyPairOut,
                                       keyPublicEncOut);
 }
+
+UA_StatusCode
+UA_OpenSSL_ECC_BRAINPOOLP384R1_GenerateKey(EVP_PKEY ** keyPairOut,
+                                            UA_ByteString * keyPublicEncOut) {
+    return UA_OpenSSL_ECC_GenerateKey(OBJ_txt2nid("brainpoolP384r1"), keyPairOut,
+                                      keyPublicEncOut);
+}
 UA_StatusCode
 UA_Openssl_ECDSA_SHA256_Sign(const UA_ByteString * message,
                              EVP_PKEY * privateKey,
