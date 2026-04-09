@@ -2138,6 +2138,60 @@ errout:
 /* EdDSA Ed448 Sign/Verify */
 
 UA_StatusCode
+UA_OpenSSL_EdDSA_Ed448_Sign(const UA_ByteString *message,
+                            EVP_PKEY *privateKey,
+                            UA_ByteString *outSignature) {
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if(!mdctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_DigestSignInit(mdctx, NULL, NULL, NULL, privateKey) != 1)
+        goto errout;
+
+    size_t sigLen = outSignature->length;
+    if(EVP_DigestSign(mdctx, outSignature->data, &sigLen,
+                      message->data, message->length) != 1)
+        goto errout;
+
+    outSignature->length = sigLen;
+    ret = UA_STATUSCODE_GOOD;
+errout:
+    EVP_MD_CTX_free(mdctx);
+    return ret;
+}
+
+UA_StatusCode
+UA_OpenSSL_EdDSA_Ed448_Verify(const UA_ByteString *message,
+                              X509 *publicKeyX509,
+                              const UA_ByteString *signature) {
+    EVP_PKEY *pubKey = X509_get0_pubkey(publicKeyX509);
+    if(!pubKey)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+    if(!mdctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_DigestVerifyInit(mdctx, NULL, NULL, NULL, pubKey) != 1)
+        goto errout;
+
+    if(EVP_DigestVerify(mdctx, signature->data, signature->length,
+                        message->data, message->length) != 1) {
+        ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto errout;
+    }
+
+    ret = UA_STATUSCODE_GOOD;
+errout:
+    EVP_MD_CTX_free(mdctx);
+    return ret;
+}
+
+/* X25519 / X448 Key Generation */
+
+UA_StatusCode
 UA_OpenSSL_X25519_GenerateKey(EVP_PKEY **keyPairOut,
                               UA_ByteString *keyPublicEncOut) {
     EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_X25519, NULL);
@@ -2162,6 +2216,34 @@ errout:
     EVP_PKEY_CTX_free(pctx);
     return ret;
 }
+
+UA_StatusCode
+UA_OpenSSL_X448_GenerateKey(EVP_PKEY **keyPairOut,
+                            UA_ByteString *keyPublicEncOut) {
+    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_X448, NULL);
+    if(!pctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_StatusCode ret = UA_STATUSCODE_BADINTERNALERROR;
+    if(EVP_PKEY_keygen_init(pctx) != 1)
+        goto errout;
+
+    if(EVP_PKEY_keygen(pctx, keyPairOut) != 1)
+        goto errout;
+
+    /* Get the raw public key (56 bytes for X448) */
+    size_t pubKeyLen = keyPublicEncOut->length;
+    if(EVP_PKEY_get_raw_public_key(*keyPairOut, keyPublicEncOut->data, &pubKeyLen) != 1)
+        goto errout;
+
+    keyPublicEncOut->length = pubKeyLen;
+    ret = UA_STATUSCODE_GOOD;
+errout:
+    EVP_PKEY_CTX_free(pctx);
+    return ret;
+}
+
+/* X25519/X448 ECDH Key Agreement (XDHE) + HKDF Key Derivation */
 
 static UA_StatusCode
 UA_OpenSSL_XDHE(int keyType,

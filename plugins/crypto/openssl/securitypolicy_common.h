@@ -323,6 +323,23 @@ UA_OpenSSL_ChaCha20Poly1305_Decrypt(const UA_ByteString *iv,
                                     UA_Boolean decryptData);
 
 
+/* EdDSA Ed448 signing and verification */
+UA_StatusCode
+UA_OpenSSL_EdDSA_Ed448_Sign(const UA_ByteString *message,
+                            EVP_PKEY *privateKey,
+                            UA_ByteString *outSignature);
+
+UA_StatusCode
+UA_OpenSSL_EdDSA_Ed448_Verify(const UA_ByteString *message,
+                              X509 *publicKeyX509,
+                              const UA_ByteString *signature);
+
+/* X448 key generation */
+UA_StatusCode
+UA_OpenSSL_X448_GenerateKey(EVP_PKEY **keyPairOut,
+                            UA_ByteString *keyPublicEncOut);
+
+
 _UA_END_DECLS
 
 #endif /* defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */
