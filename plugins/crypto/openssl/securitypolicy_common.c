@@ -8,6 +8,7 @@
  *    Copyright 2022 (c) Fraunhofer IOSB (Author: Noel Graf)
  *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include <open62541/plugin/securitypolicy_default.h>
@@ -2002,6 +2003,13 @@ UA_OpenSSL_ECC_NISTP256_GenerateKey(EVP_PKEY ** keyPairOut,
                                       keyPublicEncOut);
 }
 
+
+UA_StatusCode
+UA_OpenSSL_ECC_NISTP384_GenerateKey(EVP_PKEY ** keyPairOut,
+                                    UA_ByteString * keyPublicEncOut) {
+    return UA_OpenSSL_ECC_GenerateKey(EC_curve_nist2nid("P-384"), keyPairOut,
+                                      keyPublicEncOut);
+}
 UA_StatusCode
 UA_Openssl_ECDSA_SHA256_Sign(const UA_ByteString * message,
                              EVP_PKEY * privateKey,
@@ -2015,5 +2023,50 @@ UA_Openssl_ECDSA_SHA256_Verify(const UA_ByteString * message,
                                const UA_ByteString * signature) {
     return UA_Openssl_ECDSA_Verify(message, EVP_sha256(), publicKeyX509, signature);
 }
+
+
+UA_StatusCode
+UA_Openssl_ECDSA_SHA384_Sign(const UA_ByteString * message,
+                             EVP_PKEY * privateKey,
+                             UA_ByteString * outSignature) {
+    return UA_Openssl_ECDSA_Sign(message, privateKey, EVP_sha384(), outSignature);
+}
+
+UA_StatusCode
+UA_Openssl_ECDSA_SHA384_Verify(const UA_ByteString * message,
+                               X509 * publicKeyX509,
+                               const UA_ByteString * signature) {
+    return UA_Openssl_ECDSA_Verify(message, EVP_sha384(), publicKeyX509, signature);
+}
+
+UA_StatusCode
+UA_OpenSSL_HMAC_SHA384_Verify(const UA_ByteString *message,
+                              const UA_ByteString *key,
+                              const UA_ByteString *signature) {
+    unsigned char buf[SHA384_DIGEST_LENGTH] = {0};
+    UA_ByteString mac = {SHA384_DIGEST_LENGTH, buf};
+
+    if(HMAC(EVP_sha384(), key->data, (int) key->length, message->data, message->length,
+            mac.data, (unsigned int *) &mac.length) == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    if(!UA_ByteString_equal(signature, &mac))
+        return UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_OpenSSL_HMAC_SHA384_Sign(const UA_ByteString *message,
+                            const UA_ByteString *key,
+                            UA_ByteString *signature) {
+    if(HMAC(EVP_sha384(), key->data, (int)key->length, message->data, message->length,
+            signature->data, (unsigned int *) &(signature->length)) == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+/* EdDSA Ed25519 Sign/Verify */
 
 #endif

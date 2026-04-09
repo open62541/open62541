@@ -5,7 +5,7 @@
  *    Copyright 2020 (c) Wind River Systems, Inc.
  *    Copyright 2020 (c) basysKom GmbH
  *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
- *
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #ifndef SECURITYPOLICY_OPENSSL_COMMON_H_
@@ -242,6 +242,32 @@ UA_StatusCode
 UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate,
                                 UA_ByteString *target,
                                 int keyType);
+
+
+UA_StatusCode
+UA_OpenSSL_ECC_NISTP384_GenerateKey (EVP_PKEY ** keyPairOut,
+                                     UA_ByteString * keyPublicEncOut);
+
+UA_StatusCode
+UA_Openssl_ECDSA_SHA384_Sign (const UA_ByteString * message,
+                              EVP_PKEY * privateKey,
+                              UA_ByteString * outSignature);
+
+UA_StatusCode
+UA_Openssl_ECDSA_SHA384_Verify (const UA_ByteString * message,
+                                X509 * publicKeyX509,
+                                const UA_ByteString * signature);
+
+UA_StatusCode
+UA_OpenSSL_HMAC_SHA384_Verify(const UA_ByteString *message,
+                              const UA_ByteString *key,
+                              const UA_ByteString *signature);
+
+UA_StatusCode
+UA_OpenSSL_HMAC_SHA384_Sign(const UA_ByteString *message,
+                            const UA_ByteString *key,
+                            UA_ByteString *signature);
+
 
 _UA_END_DECLS
 
