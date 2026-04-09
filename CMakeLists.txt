@@ -1159,6 +1159,7 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_AMALGAMATION)
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_eccnistp256.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_eccnistp384.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_eccbrainpoolp256r1.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_eccbrainpoolp384r1.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/create_certificate.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/certificategroup.c)
 endif()
