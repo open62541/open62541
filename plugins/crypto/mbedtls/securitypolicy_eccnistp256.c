@@ -87,6 +87,15 @@ UA_Policy_EccNistP256_New_Context(UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
+    /* Verify the key is an EC key */
+    if(!mbedtls_pk_can_do(&context->localPrivateKey, MBEDTLS_PK_ECKEY)) {
+        mbedtls_pk_free(&context->localPrivateKey);
+        mbedtls_ctr_drbg_free(&context->drbgContext);
+        mbedtls_entropy_free(&context->entropyContext);
+        UA_free(context);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
     UA_StatusCode retval =
         UA_ByteString_allocBuffer(&context->localCertThumbprint, UA_SHA1_LENGTH);
     if(retval != UA_STATUSCODE_GOOD) {

@@ -56,6 +56,23 @@ endif()
 # Set the libraries variable for convenience
 set(MBEDTLS_LIBRARIES ${MBEDTLS_LIBRARY} ${MBEDX509_LIBRARY} ${MBEDCRYPTO_LIBRARY})
 
+# Detect mbedTLS major version from header
+if(MBEDTLS_INCLUDE_DIRS)
+    foreach(_ver_hdr "mbedtls/build_info.h" "mbedtls/version.h")
+        set(_ver_path "${MBEDTLS_INCLUDE_DIRS}/${_ver_hdr}")
+        if(EXISTS "${_ver_path}")
+            file(STRINGS "${_ver_path}" _ver_line
+                 REGEX "^#[ \t]*define[ \t]+MBEDTLS_VERSION_NUMBER[ \t]+0x")
+            if(_ver_line)
+                string(REGEX REPLACE ".*0x([0-9a-fA-F]+).*" "\\1" _ver_hex "${_ver_line}")
+                math(EXPR MBEDTLS_VERSION_MAJOR "0x${_ver_hex} >> 24")
+                message(STATUS "mbedTLS major version: ${MBEDTLS_VERSION_MAJOR}")
+                break()
+            endif()
+        endif()
+    endforeach()
+endif()
+
 # Standard CMake package handling
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(MbedTLS DEFAULT_MSG 

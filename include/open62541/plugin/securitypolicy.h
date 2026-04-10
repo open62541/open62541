@@ -159,6 +159,17 @@ typedef struct {
      *         is known. */
     size_t (*getRemotePlainTextBlockSize)(const UA_SecurityPolicy *policy,
                                           const void *channelContext);
+
+    /* Returns the IV (initialization vector) length for symmetric encryption.
+     * For AEAD ciphers (e.g. ChaCha20-Poly1305) the IV length differs from the
+     * block size. If NULL, the block size is used as the IV length (which is
+     * correct for traditional block ciphers like AES-CBC).
+     *
+     * @param policy The SecurityPolicy to which the callback belongs.
+     * @param channelContext The context to retrieve data from.
+     * @return The IV length in bytes. */
+    size_t (*getLocalIvLength)(const UA_SecurityPolicy *policy,
+                               const void *channelContext);
 } UA_SecurityPolicyEncryptionAlgorithm;
 
 typedef enum {

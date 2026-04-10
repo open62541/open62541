@@ -457,6 +457,12 @@ UA_SymEn_EccCurve448_getBlockSize(const UA_SecurityPolicy *p,
     return 1;
 }
 
+static size_t
+UA_SymEn_EccCurve448_getIvLength(const UA_SecurityPolicy *p,
+                                  const void *ctx) {
+    return UA_ECCCURVE448_SYM_IV_LENGTH;
+}
+
 static UA_StatusCode
 UA_SymEn_EccCurve448_encrypt(const UA_SecurityPolicy *policy,
                               void *channelContext, UA_ByteString *data) {
@@ -680,6 +686,7 @@ UA_SecurityPolicy_EccCurve448(UA_SecurityPolicy *sp,
     symEnc->getRemoteKeyLength = UA_SymEn_EccCurve448_getRemoteKeyLength;
     symEnc->getRemoteBlockSize = UA_SymEn_EccCurve448_getBlockSize;
     symEnc->getRemotePlainTextBlockSize = UA_SymEn_EccCurve448_getBlockSize;
+    symEnc->getLocalIvLength = UA_SymEn_EccCurve448_getIvLength;
 
     /* Certificate signing uses the same algorithm as asymmetric */
     sp->certSignatureAlgorithm = sp->asymSignatureAlgorithm;
