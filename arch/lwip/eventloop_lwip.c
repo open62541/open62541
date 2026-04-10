@@ -173,9 +173,7 @@ processDelayed(UA_EventLoopLWIP *el) {
             next = (UA_DelayedCallback *)UA_atomic_load((void**)&dc->next);
         if(!dc->callback)
             continue;
-        UA_UNLOCK(&el->elMutex);
         dc->callback(dc->application, dc->context);
-        UA_LOCK(&el->elMutex);
     }
 }
 
@@ -262,9 +260,7 @@ UA_EventLoopLWIP_start(UA_EventLoopLWIP *el) {
     /* Start the EventSources */
     UA_EventSource *es = el->eventLoop.eventSources;
     while(es) {
-        UA_UNLOCK(&el->elMutex);
         res |= es->start(es);
-        UA_LOCK(&el->elMutex);
         es = es->next;
     }
 
@@ -326,9 +322,7 @@ UA_EventLoopLWIP_stop(UA_EventLoopLWIP *el) {
     for(; es; es = es->next) {
         if(es->state == UA_EVENTSOURCESTATE_STARTING ||
            es->state == UA_EVENTSOURCESTATE_STARTED) {
-            UA_UNLOCK(&el->elMutex);
             es->stop(es);
-            UA_LOCK(&el->elMutex);
         }
     }
 
@@ -368,9 +362,7 @@ UA_EventLoopLWIP_run(UA_EventLoopLWIP *el, UA_UInt32 timeout) {
     UA_DateTime dateBefore =
         el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
 
-    UA_UNLOCK(&el->elMutex);
     UA_DateTime dateNext = UA_Timer_process(&el->timer, dateBefore);
-    UA_LOCK(&el->elMutex);
 
     /* Process delayed callbacks here:
      * - Removes closed sockets already here instead of polling them again.
@@ -540,9 +532,7 @@ UA_EventLoopLWIP_free(UA_EventLoopLWIP *el) {
     /* Deregister and delete all the EventSources */
     while(el->eventLoop.eventSources) {
         UA_EventSource *es = el->eventLoop.eventSources;
-        UA_UNLOCK(&el->elMutex);
         UA_EventLoopLWIP_deregisterEventSource(el, es);
-        UA_LOCK(&el->elMutex);
         es->free(es);
     }
 
@@ -613,6 +603,16 @@ static void defaultNetifShutdown(UA_EventLoopLWIP *el) {
 
 #endif
 
+static void
+UA_EventLoopLWIP_lock(UA_EventLoop *public_el) {
+    UA_LOCK(&((UA_EventLoopLWIP*)public_el)->elMutex);
+}
+
+static void
+UA_EventLoopLWIP_unlock(UA_EventLoop *public_el) {
+    UA_UNLOCK(&((UA_EventLoopLWIP*)public_el)->elMutex);
+}
+
 UA_EventLoop *
 UA_EventLoop_new_LWIP(const UA_Logger *logger, UA_EventLoopConfiguration *config) {
     UA_EventLoopLWIP *el = (UA_EventLoopLWIP*)
@@ -673,6 +673,9 @@ UA_EventLoop_new_LWIP(const UA_Logger *logger, UA_EventLoopConfiguration *config
     el->eventLoop.deregisterEventSource =
         (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))
         UA_EventLoopLWIP_deregisterEventSource;
+
+    el->eventLoop.lock = UA_EventLoopLWIP_lock;
+    el->eventLoop.unlock = UA_EventLoopLWIP_unlock;
 
     return &el->eventLoop;
 }
