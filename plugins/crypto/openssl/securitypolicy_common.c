@@ -1130,57 +1130,90 @@ UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
     X509_NAME_free(name);
 
     if(newPrivateKey) {
-        size_t keySize = 0;
-        UA_CertificateUtils_getKeySize(&securityPolicy->localCertificate, &keySize);
+        int keyType = EVP_PKEY_base_id(localPrivateKey);
+        if(keyType == EVP_PKEY_EC) {
+            /* Generate a new EC key on the same curve as the local key */
 #if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
-        *csrLocalPrivateKey = EVP_RSA_gen(keySize);
-        if(!*csrLocalPrivateKey) {
-            retval = UA_STATUSCODE_BADOUTOFMEMORY;
-            goto cleanup;
-        }
+            char curveName[64];
+            size_t curveNameLen = 0;
+            if(!EVP_PKEY_get_utf8_string_param(localPrivateKey, "group",
+                                               curveName, sizeof(curveName),
+                                               &curveNameLen)) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+            *csrLocalPrivateKey = EVP_PKEY_Q_keygen(NULL, NULL, "EC", curveName);
 #else
-        BIGNUM *exponent = BN_new();
-        *csrLocalPrivateKey = EVP_PKEY_new();
-        RSA *rsa = RSA_new();
-        if(!*csrLocalPrivateKey || !exponent || !rsa) {
-            if(*csrLocalPrivateKey)
+            int nid = EC_GROUP_get_curve_name(
+                EC_KEY_get0_group(EVP_PKEY_get0_EC_KEY(localPrivateKey)));
+            EC_KEY *ecKey = EC_KEY_new_by_curve_name(nid);
+            if(!ecKey || !EC_KEY_generate_key(ecKey)) {
+                if(ecKey) EC_KEY_free(ecKey);
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+            *csrLocalPrivateKey = EVP_PKEY_new();
+            if(!*csrLocalPrivateKey ||
+               !EVP_PKEY_assign_EC_KEY(*csrLocalPrivateKey, ecKey)) {
+                if(*csrLocalPrivateKey) EVP_PKEY_free(*csrLocalPrivateKey);
+                else EC_KEY_free(ecKey);
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+#endif
+        } else {
+            /* Generate a new RSA key */
+            size_t keySize = 0;
+            UA_CertificateUtils_getKeySize(&securityPolicy->localCertificate, &keySize);
+#if(OPENSSL_VERSION_NUMBER >= 0x30000000L)
+            *csrLocalPrivateKey = EVP_RSA_gen(keySize);
+#else
+            BIGNUM *exponent = BN_new();
+            *csrLocalPrivateKey = EVP_PKEY_new();
+            RSA *rsa = RSA_new();
+            if(!*csrLocalPrivateKey || !exponent || !rsa) {
+                if(*csrLocalPrivateKey)
+                    EVP_PKEY_free(*csrLocalPrivateKey);
+                if(exponent)
+                    BN_free(exponent);
+                if(rsa)
+                    RSA_free(rsa);
+                retval = UA_STATUSCODE_BADOUTOFMEMORY;
+                goto cleanup;
+            }
+
+            if(BN_set_word(exponent, RSA_F4) != 1) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
                 EVP_PKEY_free(*csrLocalPrivateKey);
-            if(exponent)
                 BN_free(exponent);
-            if(rsa)
                 RSA_free(rsa);
-            retval = UA_STATUSCODE_BADOUTOFMEMORY;
-            goto cleanup;
-        }
+                goto cleanup;
+            }
 
-        if(BN_set_word(exponent, RSA_F4) != 1) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
-            EVP_PKEY_free(*csrLocalPrivateKey);
+            if(RSA_generate_key_ex(rsa, (int) keySize, exponent, NULL) != 1) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                EVP_PKEY_free(*csrLocalPrivateKey);
+                BN_free(exponent);
+                RSA_free(rsa);
+                goto cleanup;
+            }
+
+            if(EVP_PKEY_assign_RSA(*csrLocalPrivateKey, rsa) != 1) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                EVP_PKEY_free(*csrLocalPrivateKey);
+                BN_free(exponent);
+                RSA_free(rsa);
+                goto cleanup;
+            }
             BN_free(exponent);
-            RSA_free(rsa);
-            goto cleanup;
-        }
-
-        if(RSA_generate_key_ex(rsa, (int) keySize, exponent, NULL) != 1) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
-            EVP_PKEY_free(*csrLocalPrivateKey);
-            BN_free(exponent);
-            RSA_free(rsa);
-            goto cleanup;
-        }
-
-        if(EVP_PKEY_assign_RSA(*csrLocalPrivateKey, rsa) != 1) {
-            retval = UA_STATUSCODE_BADINTERNALERROR;
-            EVP_PKEY_free(*csrLocalPrivateKey);
-            BN_free(exponent);
-            RSA_free(rsa);
-            goto cleanup;
-        }
-        BN_free(exponent);
-        /* rsa will be freed by pkey */
-        rsa = NULL;
-
+            /* rsa will be freed by pkey */
+            rsa = NULL;
 #endif  /* end of OPENSSL_VERSION_NUMBER >= 0x30000000L */
+        }
+        if(!*csrLocalPrivateKey) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
         if(UA_OpenSSL_writePrivateKeyDer(*csrLocalPrivateKey, newPrivateKey) != UA_STATUSCODE_GOOD) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             EVP_PKEY_free(*csrLocalPrivateKey);

@@ -8,7 +8,9 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/util.h>
 
-#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && MBEDTLS_VERSION_NUMBER >= 0x03000000
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+#include <mbedtls/version.h>
+#if MBEDTLS_VERSION_NUMBER >= 0x03000000
 
 #include "securitypolicy_common.h"
 
@@ -85,10 +87,29 @@ UA_Policy_EccNistP384_New_Context(UA_SecurityPolicy *securityPolicy,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
+    /* Verify the key is an EC key */
+    if(!mbedtls_pk_can_do(&context->localPrivateKey, MBEDTLS_PK_ECKEY)) {
+        mbedtls_pk_free(&context->localPrivateKey);
+        mbedtls_ctr_drbg_free(&context->drbgContext);
+        mbedtls_entropy_free(&context->entropyContext);
+        UA_free(context);
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
     UA_StatusCode retval =
-        mbedtls_thumbprint_sha1(&securityPolicy->localCertificate,
-                                &context->localCertThumbprint);
+        UA_ByteString_allocBuffer(&context->localCertThumbprint, UA_SHA1_LENGTH);
     if(retval != UA_STATUSCODE_GOOD) {
+        mbedtls_pk_free(&context->localPrivateKey);
+        mbedtls_ctr_drbg_free(&context->drbgContext);
+        mbedtls_entropy_free(&context->entropyContext);
+        UA_free(context);
+        return retval;
+    }
+
+    retval = mbedtls_thumbprint_sha1(&securityPolicy->localCertificate,
+                                     &context->localCertThumbprint);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ByteString_clear(&context->localCertThumbprint);
         mbedtls_pk_free(&context->localPrivateKey);
         mbedtls_ctr_drbg_free(&context->drbgContext);
         mbedtls_entropy_free(&context->entropyContext);
@@ -168,6 +189,9 @@ updateCertificateAndPrivateKey_sp_EccNistP384(UA_SecurityPolicy *securityPolicy,
     }
 
     UA_ByteString_clear(&pc->localCertThumbprint);
+    retval = UA_ByteString_allocBuffer(&pc->localCertThumbprint, UA_SHA1_LENGTH);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
     retval = mbedtls_thumbprint_sha1(&securityPolicy->localCertificate,
                                      &pc->localCertThumbprint);
     if(retval != UA_STATUSCODE_GOOD)
@@ -661,4 +685,5 @@ UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *sp,
     return UA_STATUSCODE_GOOD;
 }
 
-#endif
+#endif /* MBEDTLS_VERSION_NUMBER >= 0x03000000 */
+#endif /* UA_ENABLE_ENCRYPTION_MBEDTLS */

@@ -1568,7 +1568,6 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
                                           &certificateKeyLength) == UA_STATUSCODE_GOOD &&
            certificateKeyLength > 2048)
             onlySecure = true;
-        retval = UA_STATUSCODE_GOOD;
     } else {
         onlyNone = true;
     }

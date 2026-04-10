@@ -55,19 +55,21 @@ UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
     const UA_SecurityPolicyEncryptionAlgorithm *ea = &sp->symEncryptionAlgorithm;
 
     /* Generate symmetric key buffer of the required length. The block size is
-     * identical for local/remote. */
+     * identical for local/remote. For AEAD ciphers the IV length differs from
+     * the block size, so use getLocalIvLength when available. */
     UA_ByteString buf;
     size_t encrKL = ea->getLocalKeyLength(sp, cc);
     size_t encrBS = ea->getRemoteBlockSize(sp, cc);
+    size_t ivLen = ea->getLocalIvLength ? ea->getLocalIvLength(sp, cc) : encrBS;
     size_t signKL = sp->symSignatureAlgorithm.getLocalKeyLength(sp, cc);
-    if(encrBS + signKL + encrKL == 0)
+    if(ivLen + signKL + encrKL == 0)
         return UA_STATUSCODE_GOOD; /* No keys to generate */
 
-    UA_StatusCode res = UA_ByteString_allocBuffer(&buf, encrBS + signKL + encrKL);
+    UA_StatusCode res = UA_ByteString_allocBuffer(&buf, ivLen + signKL + encrKL);
     UA_CHECK_STATUS(res, return res);
     UA_ByteString localSigningKey = {signKL, buf.data};
     UA_ByteString localEncryptingKey = {encrKL, &buf.data[signKL]};
-    UA_ByteString localIv = {encrBS, &buf.data[signKL + encrKL]};
+    UA_ByteString localIv = {ivLen, &buf.data[signKL + encrKL]};
 
     /* TODO: Signal that no ECC salt is generated. Find a clean solution for this.  */
     buf.data[0] = 0x00;
@@ -100,19 +102,22 @@ generateRemoteKeys(const UA_SecureChannel *channel) {
     void *cc = channel->channelContext;
     const UA_SecurityPolicyEncryptionAlgorithm *ea = &sp->symEncryptionAlgorithm;
 
-    /* Generate symmetric key buffer of the required length */
+    /* Generate symmetric key buffer of the required length. For AEAD ciphers
+     * the IV length differs from the block size, so use getLocalIvLength when
+     * available. */
     UA_ByteString buf;
     size_t encrKL = ea->getRemoteKeyLength(sp, cc);
     size_t encrBS = ea->getRemoteBlockSize(sp, cc);
+    size_t ivLen = ea->getLocalIvLength ? ea->getLocalIvLength(sp, cc) : encrBS;
     size_t signKL = sp->symSignatureAlgorithm.getRemoteKeyLength(sp, cc);
-    if(encrBS + signKL + encrKL == 0)
+    if(ivLen + signKL + encrKL == 0)
         return UA_STATUSCODE_GOOD; /* No keys to generate */
 
-    UA_StatusCode res = UA_ByteString_allocBuffer(&buf, encrBS + signKL + encrKL);
+    UA_StatusCode res = UA_ByteString_allocBuffer(&buf, ivLen + signKL + encrKL);
     UA_CHECK_STATUS(res, return res);
     UA_ByteString remoteSigningKey = {signKL, buf.data};
     UA_ByteString remoteEncryptingKey = {encrKL, &buf.data[signKL]};
-    UA_ByteString remoteIv = {encrBS, &buf.data[signKL + encrKL]};
+    UA_ByteString remoteIv = {ivLen, &buf.data[signKL + encrKL]};
 
     /* TODO: Signal that no ECC salt is generated. Find a clean solution for this.  */
     buf.data[0] = 0x00;

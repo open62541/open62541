@@ -481,7 +481,8 @@ UA_Byte CERT_BP384R1_PEM_DATA[CERT_BP384R1_PEM_LENGTH] = {
     0x43, 0x41, 0x54, 0x45, 0x2d, 0x2d, 0x2d, 0x2d, 0x2d, 0x0a
 };
 
-/* Ed25519 certificates for ECC_curve25519 */
+/* Ed25519 certificates for ECC_curve25519 (OpenSSL-only) */
+#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
 
 #define KEY_ED25519_DER_LENGTH 48
 UA_Byte KEY_ED25519_DER_DATA[KEY_ED25519_DER_LENGTH] = {
@@ -724,4 +725,5 @@ UA_Byte CERT_ED448_PEM_DATA[CERT_ED448_PEM_LENGTH] = {
     0x4e, 0x44, 0x20, 0x43, 0x45, 0x52, 0x54, 0x49, 0x46, 0x49, 0x43, 0x41,
     0x54, 0x45, 0x2d, 0x2d, 0x2d, 0x2d, 0x2d, 0x0a
 };
+#endif /* UA_ENABLE_ENCRYPTION_OPENSSL */
 

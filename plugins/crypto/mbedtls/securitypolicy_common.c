@@ -421,7 +421,6 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
      * if a new one has been generated. */
     if(newPrivateKey && newPrivateKey->length > 0) {
         mbedtls_pk_init(csrLocalPrivateKey);
-        mbedtls_pk_setup(csrLocalPrivateKey, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
 
         /* Set the private key */
         if(UA_mbedTLS_LoadPrivateKey(newPrivateKey, csrLocalPrivateKey, entropyContext))
@@ -513,12 +512,29 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
     /* Set private key in CSR context */
     if(newPrivateKey) {
         mbedtls_pk_init(csrLocalPrivateKey);
-        mbedtls_pk_setup(csrLocalPrivateKey, mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
-
-        size_t keySize = 0;
-        UA_CertificateUtils_getKeySize(&securityPolicy->localCertificate, &keySize);
-        mbedtls_rsa_gen_key(mbedtls_pk_rsa(*csrLocalPrivateKey), mbedtls_ctr_drbg_random,
-                            drbgContext, (unsigned int)keySize, 65537);
+#if MBEDTLS_VERSION_NUMBER >= 0x03000000
+        if(mbedtls_pk_can_do(localPrivateKey, MBEDTLS_PK_ECKEY)) {
+            mbedtls_pk_setup(csrLocalPrivateKey,
+                             mbedtls_pk_info_from_type(MBEDTLS_PK_ECKEY));
+            mbedtls_ecp_keypair *existingKp = mbedtls_pk_ec(*localPrivateKey);
+            mbedtls_ecp_keypair *newKp = mbedtls_pk_ec(*csrLocalPrivateKey);
+            if(mbedtls_ecp_gen_key(
+                   existingKp->MBEDTLS_PRIVATE(grp).id,
+                   newKp, mbedtls_ctr_drbg_random, drbgContext) != 0) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+        } else
+#endif
+        {
+            mbedtls_pk_setup(csrLocalPrivateKey,
+                             mbedtls_pk_info_from_type(MBEDTLS_PK_RSA));
+            size_t keySize = 0;
+            UA_CertificateUtils_getKeySize(&securityPolicy->localCertificate, &keySize);
+            mbedtls_rsa_gen_key(mbedtls_pk_rsa(*csrLocalPrivateKey),
+                                mbedtls_ctr_drbg_random,
+                                drbgContext, (unsigned int)keySize, 65537);
+        }
         mbedtls_x509write_csr_set_key(&request, csrLocalPrivateKey);
         mbedtls_writePrivateKeyDer(csrLocalPrivateKey, newPrivateKey);
     } else {
@@ -526,16 +542,17 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
     }
 
     /* The private key associated with the request will be used for signing the
-     * created CSR. Enforce using RSASSA-PKCS1-v1_5 scheme. The hash_id
-     * argument is ignored when padding is set to MBEDTLS_RSA_PKCS_V15, so just
-     * set it to MBEDTLS_MD_NONE. */
-    mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(
+     * created CSR. For RSA keys, enforce using RSASSA-PKCS1-v1_5 scheme. */
+    mbedtls_pk_context *reqKey =
 #if MBEDTLS_VERSION_NUMBER < 0x03000000
-        *request.key);
+        request.key;
 #else
-        *request.private_key);
+        request.private_key;
 #endif
-    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
+    if(mbedtls_pk_can_do(reqKey, MBEDTLS_PK_RSA)) {
+        mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(*reqKey);
+        mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
+    }
 
     unsigned char requestBuf[CSR_BUFFER_SIZE];
     memset(requestBuf, 0, sizeof(requestBuf));
