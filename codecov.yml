@@ -1,9 +1,6 @@
 codecov:
   notify:
-    # Wait for 20 of ~31 coverage uploads before reporting status.
-    # 10 gcov-producing matrix entries × 3 OS = 30, plus 1 lwip auto-detected.
-    # Jobs without coverage data do not create uploads (codecov-action errors
-    # silently when no reports are found).
+    # Wait for 20 coverage uploads before reporting status.
     after_n_builds: 20
 
 coverage:
