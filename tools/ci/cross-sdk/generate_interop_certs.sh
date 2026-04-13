@@ -106,7 +106,7 @@ cp "$OUTDIR/server_dotnet.cert.der" "$DOTNET_PKI/trusted/certs/"
 cp "$OUTDIR/client_dotnet.cert.der" "$DOTNET_PKI/trusted/certs/"
 
 echo "  .NET PKI trust store: $DOTNET_PKI"
-echo "  Trusted certs: $(ls "$DOTNET_PKI/trusted/certs/" | wc -l) files"
+echo "  Trusted certs (RSA): $(ls "$DOTNET_PKI/trusted/certs/" | wc -l) files"
 
 # ---- node-opcua PKI directory structure ----
 NODE_PKI="$OUTDIR/node_pki"
@@ -125,8 +125,130 @@ cp "$OUTDIR/client_c.cert.pem" "$NODE_PKI/trusted/certs/"
 
 echo "  node-opcua PKI trust store: $NODE_PKI"
 
+# ============================================================
+# ECC certificates (for ECC security policy interop tests)
+# ============================================================
+
+echo ""
+echo "=== Generating ECC certificates ==="
+
+ECC_DIR="$OUTDIR/ecc"
+mkdir -p "$ECC_DIR"
+
+# --- Helper: create a self-signed ECC cert (ECDSA curves) ---
+# Args: <name> <curve> <sha_digest> <CN> <ApplicationUri>
+#   sha_digest: sha256 for P256 curves, sha384 for P384 curves
+generate_ecc_cert() {
+    local name="$1" curve="$2" sha="$3" cn="$4" uri="$5"
+    local keyfile="$ECC_DIR/${name}.key.pem"
+    local certfile="$ECC_DIR/${name}.cert.pem"
+
+    openssl ecparam -name "$curve" -genkey -noout -out "$keyfile" 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "  SKIP: $name ($curve not supported by this OpenSSL)"
+        return 1
+    fi
+
+    openssl req -new -x509 -key "$keyfile" \
+        -out "$certfile" \
+        -days 365 -"$sha" \
+        -subj "/C=DE/O=open62541/CN=${cn}" \
+        -addext "subjectAltName=URI:${uri},DNS:localhost,IP:127.0.0.1" \
+        -addext "basicConstraints=critical,CA:TRUE" \
+        -addext "keyUsage=critical,digitalSignature,nonRepudiation,keyAgreement,keyCertSign" \
+        -addext "extendedKeyUsage=serverAuth,clientAuth" \
+        2>/dev/null
+
+    openssl x509 -in "$certfile" -outform DER -out "$ECC_DIR/${name}.cert.der"
+    openssl ec -in "$keyfile" -outform DER -out "$ECC_DIR/${name}.key.der" 2>/dev/null
+
+    echo "  Generated: ${name} ($curve, $sha)"
+    return 0
+}
+
+# --- Helper: create a self-signed EdDSA cert (Ed25519/Ed448) ---
+# Args: <name> <algorithm> <CN> <ApplicationUri>
+generate_eddsa_cert() {
+    local name="$1" algo="$2" cn="$3" uri="$4"
+    local keyfile="$ECC_DIR/${name}.key.pem"
+    local certfile="$ECC_DIR/${name}.cert.pem"
+
+    openssl genpkey -algorithm "$algo" -out "$keyfile" 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo "  SKIP: $name ($algo not supported by this OpenSSL)"
+        return 1
+    fi
+
+    openssl req -new -x509 -key "$keyfile" \
+        -out "$certfile" \
+        -days 365 \
+        -subj "/C=DE/O=open62541/CN=${cn}" \
+        -addext "subjectAltName=URI:${uri},DNS:localhost,IP:127.0.0.1" \
+        2>/dev/null
+
+    openssl x509 -in "$certfile" -outform DER -out "$ECC_DIR/${name}.cert.der"
+    openssl pkey -in "$keyfile" -outform DER -out "$ECC_DIR/${name}.key.der" 2>/dev/null
+
+    echo "  Generated: ${name} ($algo)"
+    return 0
+}
+
+# ECC_nistP256 (prime256v1 / secp256r1)
+# ApplicationUri must match the RSA certs so that the C server/client
+# ApplicationDescription.applicationUri stays consistent.
+generate_ecc_cert "server_c_nistP256" prime256v1 sha256 \
+    "open62541 Server ECC" "urn:open62541.unconfigured.application"
+generate_ecc_cert "client_c_nistP256" prime256v1 sha256 \
+    "open62541 Client ECC" "urn:open62541.client.application"
+
+# ECC_nistP384 (secp384r1) – must use SHA-384 per OPC UA ECC_nistP384 policy
+generate_ecc_cert "server_c_nistP384" secp384r1 sha384 \
+    "open62541 Server ECC" "urn:open62541.unconfigured.application"
+generate_ecc_cert "client_c_nistP384" secp384r1 sha384 \
+    "open62541 Client ECC" "urn:open62541.client.application"
+
+# ECC_brainpoolP256r1
+generate_ecc_cert "server_c_brainpoolP256r1" brainpoolP256r1 sha256 \
+    "open62541 Server ECC" "urn:open62541.unconfigured.application"
+generate_ecc_cert "client_c_brainpoolP256r1" brainpoolP256r1 sha256 \
+    "open62541 Client ECC" "urn:open62541.client.application"
+
+# ECC_brainpoolP384r1 – must use SHA-384 per OPC UA ECC_brainpoolP384r1 policy
+generate_ecc_cert "server_c_brainpoolP384r1" brainpoolP384r1 sha384 \
+    "open62541 Server ECC" "urn:open62541.unconfigured.application"
+generate_ecc_cert "client_c_brainpoolP384r1" brainpoolP384r1 sha384 \
+    "open62541 Client ECC" "urn:open62541.client.application"
+
+# ECC_curve25519 (Ed25519)
+generate_eddsa_cert "server_c_curve25519" Ed25519 \
+    "open62541 Server ECC" "urn:open62541.unconfigured.application"
+generate_eddsa_cert "client_c_curve25519" Ed25519 \
+    "open62541 Client ECC" "urn:open62541.client.application"
+
+# ECC_curve448 (Ed448)
+generate_eddsa_cert "server_c_curve448" Ed448 \
+    "open62541 Server ECC" "urn:open62541.unconfigured.application"
+generate_eddsa_cert "client_c_curve448" Ed448 \
+    "open62541 Client ECC" "urn:open62541.client.application"
+
+# --- Copy C client ECC certs into .NET PKI trust store ---
+# The .NET Reference Server supports ECC (nistP256, nistP384,
+# brainpoolP256r1, brainpoolP384r1) and auto-generates its own ECC
+# server certs.  For the C client to be accepted by the .NET server
+# in Scenario B, the .NET server must trust the C client's ECC certs.
+echo ""
+echo "=== Adding ECC certs to .NET PKI trust store ==="
+for eccCert in "$ECC_DIR"/client_c_*.cert.der; do
+    [ -f "$eccCert" ] || continue
+    cp "$eccCert" "$DOTNET_PKI/trusted/certs/"
+    echo "  Trusted: $(basename "$eccCert")"
+done
+echo "  .NET PKI trusted certs total: $(ls "$DOTNET_PKI/trusted/certs/" | wc -l) files"
+
 echo ""
 echo "=== Certificate generation complete ==="
 echo ""
 echo "Files generated:"
 ls -la "$OUTDIR"/*.pem "$OUTDIR"/*.der 2>/dev/null | awk '{print "  " $NF}'
+echo "ECC certificates:"
+ls -la "$ECC_DIR"/ 2>/dev/null | awk '{print "  " $NF}'

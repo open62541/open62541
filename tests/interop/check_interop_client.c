@@ -351,6 +351,82 @@ test_encrypted_anonymous(const char *url, const char *policyUri,
     }
     UA_Client_delete(client);
 }
+
+/* Variant for ECC tests that can treat cert-trust problems as failures
+ * when the test is expected to succeed (INTEROP_REQUIRE_ECC). */
+static void
+test_ecc_encrypted_anonymous(const char *url, const char *policyUri,
+                             const char *label,
+                             UA_ByteString *certificate, UA_ByteString *privateKey,
+                             UA_ByteString *trustList, size_t trustListSize,
+                             UA_Boolean required) {
+    interop_log("--- %s: ECC Encrypted Anonymous (%s) ---", label, policyUri);
+
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
+
+    UA_StatusCode retval =
+        configureEncryption(cc, policyUri, certificate, privateKey,
+                            trustList, trustListSize);
+    if(retval != UA_STATUSCODE_GOOD) {
+        INTEROP_CHECK(UA_FALSE, "Configure encryption");
+        UA_Client_delete(client);
+        return;
+    }
+
+    retval = UA_Client_connect(client, url);
+    char msg[128];
+    snprintf(msg, sizeof(msg), "%s ECC anonymous connect", label);
+
+    /* Server genuinely does not offer this specific ECC policy.
+     * Always a legitimate SKIP regardless of the required flag. */
+    if(retval == UA_STATUSCODE_BADSECURITYPOLICYREJECTED ||
+       retval == UA_STATUSCODE_BADSECURITYMODEREJECTED   ||
+       retval == UA_STATUSCODE_BADNOTSUPPORTED            ||
+       retval == UA_STATUSCODE_BADIDENTITYTOKENREJECTED) {
+        char skip_msg[160];
+        snprintf(skip_msg, sizeof(skip_msg),
+                 "%s (policy not offered by server, 0x%08x)",
+                 label, (unsigned)retval);
+        interop_skip(skip_msg);
+        UA_Client_delete(client);
+        return;
+    }
+
+    /* Certificate trust / channel establishment errors.
+     * When ECC is required, these indicate a misconfiguration and
+     * should be treated as failures rather than silent skips. */
+    if(retval == UA_STATUSCODE_BADSECURITYCHECKSFAILED    ||
+       retval == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED    ||
+       retval == UA_STATUSCODE_BADSECURECHANNELIDINVALID  ||
+       retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
+        if(required) {
+            char fail_msg[180];
+            snprintf(fail_msg, sizeof(fail_msg),
+                     "%s ECC cert/trust failure (0x%08x) – "
+                     "expected PASS because INTEROP_REQUIRE_ECC is set",
+                     label, (unsigned)retval);
+            interop_fail("%s", fail_msg);
+        } else {
+            char skip_msg[160];
+            snprintf(skip_msg, sizeof(skip_msg),
+                     "%s (cert not trusted by server, 0x%08x)",
+                     label, (unsigned)retval);
+            interop_skip(skip_msg);
+        }
+        UA_Client_delete(client);
+        return;
+    }
+
+    INTEROP_CHECK(retval == UA_STATUSCODE_GOOD, msg);
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        check_read_server_status(client);
+        UA_Client_disconnect(client);
+    }
+    UA_Client_delete(client);
+}
 #endif
 
 /* ------------------------------------------------------------------ */
@@ -515,6 +591,14 @@ int main(int argc, char *argv[]) {
     interop_log("=== Cross-SDK Interop Test Suite ===");
     interop_log("Server: %s", url);
     interop_log("Encryption: %s", haveEncryption ? "yes" : "no");
+
+    /* When INTEROP_REQUIRE_ECC is set, certificate-trust problems on ECC
+     * connections are treated as FAIL instead of SKIP.  This catches
+     * misconfigurations where all ECC tests silently skip in CI. */
+    const char *requireEcc = getenv("INTEROP_REQUIRE_ECC");
+    UA_Boolean eccRequired = (requireEcc && requireEcc[0] != '0');
+    if(eccRequired)
+        interop_log("ECC: required (INTEROP_REQUIRE_ECC=%s)", requireEcc);
     interop_log("");
 
     /* === Tests without encryption === */
@@ -567,13 +651,92 @@ int main(int argc, char *argv[]) {
         interop_skip("T-8 Username over encrypted (no certs)");
         interop_skip("T-9 X509 certificate auth (no certs)");
     }
+
+    /* === ECC security policy tests (T-10..T-15) === */
+
+    {
+        int eccPassesBefore = g_passed;
+        const char *eccDir = getenv("INTEROP_ECC_CERT_DIR");
+        if(eccDir) {
+            struct {
+                const char *label;
+                const char *curve;
+                const char *policyUri;
+            } eccTests[] = {
+                {"T-10", "nistP256",
+                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256"},
+                {"T-11", "nistP384",
+                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384"},
+                {"T-12", "brainpoolP256r1",
+                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1"},
+                {"T-13", "brainpoolP384r1",
+                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1"},
+                {"T-14", "curve25519",
+                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519"},
+                {"T-15", "curve448",
+                 "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448"}
+            };
+            size_t numEcc = sizeof(eccTests) / sizeof(eccTests[0]);
+
+            for(size_t i = 0; i < numEcc; i++) {
+                char certPath[512], keyPath[512];
+                snprintf(certPath, sizeof(certPath),
+                         "%s/client_c_%s.cert.der", eccDir, eccTests[i].curve);
+                snprintf(keyPath, sizeof(keyPath),
+                         "%s/client_c_%s.key.der", eccDir, eccTests[i].curve);
+
+                UA_ByteString eccCert = loadFileFromDisk(certPath);
+                UA_ByteString eccKey = loadFileFromDisk(keyPath);
+                if(eccCert.length == 0 || eccKey.length == 0) {
+                    char skipMsg[128];
+                    snprintf(skipMsg, sizeof(skipMsg),
+                             "%s ECC_%s (cert not available)",
+                             eccTests[i].label, eccTests[i].curve);
+                    interop_skip(skipMsg);
+                    UA_ByteString_clear(&eccCert);
+                    UA_ByteString_clear(&eccKey);
+                    continue;
+                }
+
+                /* Use server trust list from RSA args (server trusts all via AcceptAll) */
+                test_ecc_encrypted_anonymous(
+                    url, eccTests[i].policyUri, eccTests[i].label,
+                    &eccCert, &eccKey, trustList, trustListSize, eccRequired);
+
+                UA_ByteString_clear(&eccCert);
+                UA_ByteString_clear(&eccKey);
+            }
+        } else {
+            interop_skip("T-10 ECC_nistP256 (no ECC cert dir)");
+            interop_skip("T-11 ECC_nistP384 (no ECC cert dir)");
+            interop_skip("T-12 ECC_brainpoolP256r1 (no ECC cert dir)");
+            interop_skip("T-13 ECC_brainpoolP384r1 (no ECC cert dir)");
+            interop_skip("T-14 ECC_curve25519 (no ECC cert dir)");
+            interop_skip("T-15 ECC_curve448 (no ECC cert dir)");
+        }
+
+        /* Safety net: when INTEROP_REQUIRE_ECC is set, at least one ECC
+         * test must have passed.  Otherwise the CI is green while ECC
+         * was never actually exercised (e.g. missing endpoints). */
+        if(eccRequired && g_passed == eccPassesBefore) {
+            interop_fail("INTEROP_REQUIRE_ECC is set but no ECC test passed "
+                         "(all skipped or failed)");
+        }
+    }
 #else
     (void)haveEncryption;
+    (void)eccRequired;
     interop_skip("T-5 Basic256Sha256 (no encryption support)");
     interop_skip("T-6 Aes128_Sha256_RsaOaep (no encryption support)");
     interop_skip("T-7 Aes256_Sha256_RsaPss (no encryption support)");
     interop_skip("T-8 Username over encrypted (no encryption support)");
     interop_skip("T-9 X509 certificate auth (no encryption support)");
+    interop_skip("T-10 ECC_nistP256 (no encryption support)");
+    interop_skip("T-11 ECC_nistP384 (no encryption support)");
+    interop_skip("T-12 ECC_brainpoolP256r1 (no encryption support)");
+    interop_skip("T-13 ECC_brainpoolP384r1 (no encryption support)");
+    interop_skip("T-14 ECC_curve25519 (no encryption support)");
+    interop_skip("T-15 ECC_curve448 (no encryption support)");
 #endif
 
     /* Cleanup */

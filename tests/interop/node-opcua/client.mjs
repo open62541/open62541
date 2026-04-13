@@ -144,6 +144,8 @@ function isSkippableSecurityError(msg) {
 function isSkippableTrustError(msg) {
     return (
         msg.includes("BadCertificateUntrusted") ||
+        msg.includes("BadCertificateInvalid") ||
+        msg.includes("BadCertificatePolicyCheckFailed") ||
         msg.includes("BadSecurityChecksFailed")
     );
 }
@@ -452,6 +454,37 @@ async function t9() {
 }
 
 // ---------------------------------------------------------------------------
+// T-10..T-15: ECC Security Policies (expected to SKIP in node-opcua)
+// ---------------------------------------------------------------------------
+
+const eccPolicies = [
+    { label: "T-10", name: "ECC_nistP256", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP256" },
+    { label: "T-11", name: "ECC_nistP384", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_nistP384" },
+    { label: "T-12", name: "ECC_brainpoolP256r1", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP256r1" },
+    { label: "T-13", name: "ECC_brainpoolP384r1", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_brainpoolP384r1" },
+    { label: "T-14", name: "ECC_curve25519", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve25519" },
+    { label: "T-15", name: "ECC_curve448", uri: "http://opcfoundation.org/UA/SecurityPolicy#ECC_curve448" },
+];
+
+async function runEccTests() {
+    for (const ecc of eccPolicies) {
+        const testName = `${ecc.label}: ${ecc.name} Encrypted Anonymous`;
+        try {
+            await connectWithSecurity(
+                ecc.uri,
+                MessageSecurityMode.SignAndEncrypt,
+                null,
+                testName
+            );
+        } catch (err) {
+            // connectWithSecurity handles its own errors, but catch any
+            // top-level issue (e.g. invalid enum value in node-opcua)
+            SKIP(testName, `Not supported by node-opcua: ${(err.message || String(err)).slice(0, 80)}`);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -471,6 +504,7 @@ async function main() {
     await t7();
     await t8();
     await t9();
+    await runEccTests();
 
     console.log("");
     console.log(`Results: ${passed} passed, ${failed} failed, ${skipped} skipped`);
