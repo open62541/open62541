@@ -8,13 +8,22 @@
  *
  * Usage:
  *   interop_server <port> <server-cert.der> <private-key.der> [<trustlist.der> ...]
+ *
+ *   Set env INTEROP_ECC_CERT_DIR to a directory containing ECC certificates
+ *   named  server_c_<curve>.cert.der / server_c_<curve>.key.der  to expose
+ *   ECC security policies.
  */
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/accesscontrol_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/securitypolicy.h>
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+#include <mbedtls/version.h>
+#endif
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -239,7 +248,74 @@ int main(int argc, char *argv[]) {
         UA_ByteString_clear(&trustList[i]);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
+
+    /* --- ECC security policies (optional) ---
+     * ECC policy APIs are only available with OpenSSL, LibreSSL or
+     * mbedTLS >= 3.0.  Guard with the same condition as the
+     * implementation in ua_config_default.c. */
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) || \
+    (defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && defined(MBEDTLS_VERSION_NUMBER) && \
+     MBEDTLS_VERSION_NUMBER >= 0x03000000)
+    {
+        const char *eccDir = getenv("INTEROP_ECC_CERT_DIR");
+        if(eccDir) {
+            struct {
+                const char *curve;
+                UA_StatusCode (*addPolicy)(UA_ServerConfig *,
+                                          const UA_ByteString *,
+                                          const UA_ByteString *);
+            } eccPolicies[] = {
+                {"nistP256",        UA_ServerConfig_addSecurityPolicyEccNistP256},
+                {"nistP384",        UA_ServerConfig_addSecurityPolicyEccNistP384},
+                {"brainpoolP256r1", UA_ServerConfig_addSecurityPolicyEccBrainpoolP256r1},
+                {"brainpoolP384r1", UA_ServerConfig_addSecurityPolicyEccBrainpoolP384r1},
+                {"curve25519",      UA_ServerConfig_addSecurityPolicyEccCurve25519},
+                {"curve448",        UA_ServerConfig_addSecurityPolicyEccCurve448}
+            };
+            size_t numEcc = sizeof(eccPolicies) / sizeof(eccPolicies[0]);
+
+            for(size_t i = 0; i < numEcc; i++) {
+                char certPath[512], keyPath[512];
+                snprintf(certPath, sizeof(certPath),
+                         "%s/server_c_%s.cert.der", eccDir, eccPolicies[i].curve);
+                snprintf(keyPath, sizeof(keyPath),
+                         "%s/server_c_%s.key.der", eccDir, eccPolicies[i].curve);
+
+                UA_ByteString eccCert = loadFile(certPath);
+                UA_ByteString eccKey  = loadFile(keyPath);
+                if(eccCert.length == 0 || eccKey.length == 0) {
+                    UA_ByteString_clear(&eccCert);
+                    UA_ByteString_clear(&eccKey);
+                    continue;  /* cert not generated for this curve */
+                }
+
+                UA_StatusCode rv = eccPolicies[i].addPolicy(config, &eccCert, &eccKey);
+                if(rv == UA_STATUSCODE_GOOD) {
+                    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                                "Added ECC policy: ECC_%s", eccPolicies[i].curve);
+                } else {
+                    UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                                  "Could not add ECC_%s: 0x%08x",
+                                  eccPolicies[i].curve, (unsigned)rv);
+                }
+                UA_ByteString_clear(&eccCert);
+                UA_ByteString_clear(&eccKey);
+            }
+
+            /* addSecurityPolicyEcc* only adds the policy – endpoints must
+             * be created separately so that GetEndpoints returns them.
+             * addAllEndpoints has built-in duplicate detection and will
+             * skip the RSA endpoints that already exist. */
+            UA_ServerConfig_addAllEndpoints(config);
+        }
+    }
+#endif /* ECC available */
 #endif
+
+    /* Accept all client certificates – the interop tests validate ECC
+     * crypto correctness, not certificate trust management. */
+    UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config->sessionPKI);
 
     retval = UA_AccessControl_default(config, true,
              &config->securityPolicies[config->securityPoliciesSize-1].policyUri,

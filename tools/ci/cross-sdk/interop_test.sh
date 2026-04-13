@@ -144,6 +144,12 @@ for f in "${REQUIRED_CERTS[@]}"; do
     fi
 done
 
+# Export ECC certificate directory for C server & client (both read this env var)
+if [[ -d "$CERT_DIR/ecc" ]]; then
+    export INTEROP_ECC_CERT_DIR="$CERT_DIR/ecc"
+    echo "  ECC cert dir:   $INTEROP_ECC_CERT_DIR"
+fi
+
 # ============================================================
 # Scenario A: C server <--> C, .NET & node-opcua clients
 # ============================================================
@@ -155,13 +161,14 @@ echo "=========================================="
 echo ""
 
 C_PORT=4840
+C_LOG="$(mktemp)"
 echo "Starting C server on port $C_PORT..."
 "$CI_SERVER" "$C_PORT" \
     "$CERT_DIR/server_c.cert.der" \
     "$CERT_DIR/server_c.key.der" \
     "$CERT_DIR/client_c.cert.der" \
     "$CERT_DIR/client_dotnet.cert.der" \
-    "$CERT_DIR/client_nodeopcua.cert.der" &
+    "$CERT_DIR/client_nodeopcua.cert.der" > >(tee "$C_LOG") 2>&1 &
 C_SERVER_PID=$!
 
 if ! wait_for_server "localhost:$C_PORT"; then
@@ -169,6 +176,12 @@ if ! wait_for_server "localhost:$C_PORT"; then
     RESULT=1
 else
     echo "Running C interop client against C server (self-test)..."
+    # Only require ECC tests to pass when the server actually loaded
+    # ECC policies (e.g. not when built with mbedTLS < 3.0 which does
+    # not support ECC security policies).
+    if grep -q "Added ECC policy" "$C_LOG"; then
+        export INTEROP_REQUIRE_ECC=1
+    fi
     if "$INTEROP_CLIENT" \
         "opc.tcp://localhost:$C_PORT" \
         "$CERT_DIR/client_c.cert.der" \
@@ -179,6 +192,7 @@ else
         echo "FAIL: Scenario A - C client self-test failed"
         RESULT=1
     fi
+    unset INTEROP_REQUIRE_ECC 2>/dev/null || true
 
     echo ""
     echo "Running .NET interop tests against C server..."
@@ -240,6 +254,11 @@ if ! wait_for_log_marker "$DOTNET_LOG" "Server started" 60; then
     RESULT=1
 else
     echo "Running C interop client against .NET server..."
+    # The .NET Reference Server advertises ECC (nistP256, nistP384,
+    # brainpoolP256r1, brainpoolP384r1) but its P384 endpoints reject
+    # connections with BadSecurityChecksFailed.  Do NOT set
+    # INTEROP_REQUIRE_ECC here – P256 tests still pass and P384 will
+    # gracefully skip instead of failing the CI.
     # C client auto-tests all policies when certs are provided
     if "$INTEROP_CLIENT" \
         "opc.tcp://localhost:$DOTNET_PORT" \
