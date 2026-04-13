@@ -442,6 +442,8 @@ endif()
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
 option(UA_BUILD_TOOLS "Build OPC UA shell tools" OFF)
 option(UA_BUILD_UNIT_TESTS "Build the unit tests" OFF)
+option(UA_BUILD_INTEROP_TESTS "Build cross-SDK interoperability test client and server (CI only)" OFF)
+mark_as_advanced(UA_BUILD_INTEROP_TESTS)
 option(UA_BUILD_FUZZING "Build the fuzzing executables" OFF)
 mark_as_advanced(UA_BUILD_FUZZING)
 if(UA_BUILD_FUZZING)
@@ -1528,6 +1530,23 @@ endif()
 if(UA_BUILD_UNIT_TESTS)
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+# Build the interop targets standalone (no Check framework, no full examples)
+# when only interop tests are needed.  interop_server and check_interop_client
+# are the only two binaries required by tools/ci/cross-sdk/interop_test.sh.
+if(UA_BUILD_INTEROP_TESTS AND NOT UA_BUILD_UNIT_TESTS)
+    add_executable(interop_server tests/interop/interop_server.c)
+    target_link_libraries(interop_server open62541::open62541)
+    set_target_properties(interop_server PROPERTIES
+        FOLDER "tests"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
+
+    add_executable(check_interop_client tests/interop/check_interop_client.c)
+    target_link_libraries(check_interop_client open62541::open62541)
+    set_target_properties(check_interop_client PROPERTIES
+        FOLDER "tests"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/tests")
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)

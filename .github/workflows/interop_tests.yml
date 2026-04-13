@@ -1,0 +1,91 @@
+name: Cross-SDK Interop Tests
+
+on:
+  push:
+    branches:
+      - 'master'
+      - '[0-9]+.[0-9]+'
+  pull_request:
+    branches:
+      - 'master'
+      - '[0-9]+.[0-9]+'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  interop-test:
+    name: Cross-SDK Interop (${{ matrix.crypto }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - crypto: OpenSSL
+            cmake_crypto: OPENSSL
+            deps: ""
+          - crypto: mbedTLS
+            cmake_crypto: MBEDTLS
+            deps: "libmbedtls-dev"
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: true
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y -qq build-essential cmake libssl-dev pkg-config netcat-openbsd ${{ matrix.deps }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            9.0.x
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install node-opcua interop server
+        run: npm install --prefix tests/interop/node-opcua
+
+      - name: Clone .NET Reference Server
+        run: |
+          git clone https://github.com/OPCFoundation/UA-.NETStandard.git \
+            ${{ github.workspace }}/UA-.NETStandard
+
+      - name: Generate interop certificates
+        run: |
+          bash tools/ci/cross-sdk/generate_interop_certs.sh ${{ github.workspace }}/interop_certs
+
+      - name: Build open62541 C SDK
+        run: |
+          mkdir -p build && cd build
+          cmake -DCMAKE_BUILD_TYPE=Debug \
+                -DUA_BUILD_INTEROP_TESTS=ON \
+                -DUA_ENABLE_ENCRYPTION=${{ matrix.cmake_crypto }} \
+                -DUA_FORCE_WERROR=ON \
+                ..
+          make -j$(nproc) interop_server check_interop_client
+
+      - name: Build .NET interop tests
+        run: |
+          dotnet build tests/interop/dotnet/Opc.Ua.Interop.Tests.csproj --configuration Release
+
+      - name: Build .NET Reference Server
+        run: |
+          dotnet build ${{ github.workspace }}/UA-.NETStandard/Applications/ConsoleReferenceServer/ConsoleReferenceServer.csproj --configuration Release
+
+      - name: Run interop tests
+        env:
+          DOTNET_CONFIG: Release
+        run: |
+          bash tools/ci/cross-sdk/interop_test.sh \
+            ${{ github.workspace }}/build \
+            ${{ github.workspace }}/UA-.NETStandard \
+            ${{ github.workspace }}/interop_certs
