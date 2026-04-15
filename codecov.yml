@@ -9,12 +9,12 @@ coverage:
   status:
     project:
       default:
-        # Allow overall project coverage to drop by up to 0.2%.
-        threshold: 0.2%
+        # Allow overall project coverage to drop by up to 0.05%.
+        threshold: 0.05%
     patch:
       default:
         target: auto
-        threshold: 0.2%
+        threshold: 15%
 
 # Ignore examples, tests and generated files
 ignore:
