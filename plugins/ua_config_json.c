@@ -902,6 +902,12 @@ parseJSONConfig(UA_ServerConfig *config, UA_ByteString json_config) {
     cj5_token tokens[MAX_TOKENS];
     cj5_result r = cj5_parse(json, (unsigned int)json_config.length, tokens, MAX_TOKENS, NULL);
 
+    /* Validate the parse result: must succeed and produce a root object
+     * with at least one key-value pair (i.e. >= 2 tokens). */
+    if(r.error != CJ5_ERROR_NONE || r.num_tokens < 2 ||
+       r.tokens[0].type != CJ5_TOKEN_OBJECT)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
     ParsingCtx ctx;
     ctx.json = json;
     ctx.result = r;
@@ -1048,8 +1054,10 @@ UA_Server_newFromFile(const UA_ByteString json_config) {
     memset(&config, 0, sizeof(UA_ServerConfig));
     UA_StatusCode res = UA_ServerConfig_setDefault(&config);
     res |= parseJSONConfig(&config, json_config);
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_clear(&config);
         return NULL;
+    }
     return UA_Server_newWithConfig(&config);
 }
 
