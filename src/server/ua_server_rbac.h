@@ -23,6 +23,14 @@ UA_StatusCode
 UA_Session_setRoles(UA_Server *server, UA_Session *session,
                     const UA_NodeId *roleIds, size_t rolesSize);
 
+/* Evaluate identity mapping rules for all roles against the given user token.
+ * Returns the matching role IDs in a newly allocated array.
+ * Must be called with the server lock held. */
+UA_StatusCode
+UA_Server_evaluateSessionRoles(UA_Server *server,
+                               const UA_ExtensionObject *userIdentityToken,
+                               size_t *outRolesSize, UA_NodeId **outRoleIds);
+
 /* Decrement the refCount of a role permission entry at the given index.
  * Used during node deletion to keep refcounts consistent. */
 void
