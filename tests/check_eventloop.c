@@ -60,7 +60,7 @@ START_TEST(benchmarkTimer) {
     el = NULL;
 } END_TEST
 
-#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+#if (defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)) || defined(UA_ARCHITECTURE_WIN32)
 START_TEST(workPerformedFlag) {
     el = UA_EventLoop_new_POSIX(NULL);
     ck_assert_ptr_ne(el, NULL);
@@ -97,7 +97,7 @@ int main(void) {
     Suite *s  = suite_create("Test EventLoop");
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, benchmarkTimer);
-#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+#if (defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP)) || defined(UA_ARCHITECTURE_WIN32)
     tcase_add_test(tc, workPerformedFlag);
 #endif
     suite_add_tcase(s, tc);
