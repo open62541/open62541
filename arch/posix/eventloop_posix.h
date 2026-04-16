@@ -411,6 +411,12 @@ typedef struct {
      * "run" method */
     volatile UA_Boolean executing;
 
+    /* Set when an I/O callback fires during the current run() iteration.
+     * Mirrored out to el->eventLoop.params["work-performed"] after each
+     * run() so applications can make adaptive scheduling decisions
+     * without adding to the public EventLoop API. */
+    UA_Boolean ioDispatched;
+
     /* Indicates that the maximum number of sockets has been reached.
      * All listening sockets will be closed. */
     UA_Boolean maxSocketsLimitReached;

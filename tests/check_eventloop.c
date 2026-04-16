@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/plugin/eventloop.h>
+#include <open62541/util.h>
 #include "testing_clock.h"
 #include <time.h>
 #include <stdio.h>
@@ -59,10 +60,46 @@ START_TEST(benchmarkTimer) {
     el = NULL;
 } END_TEST
 
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+START_TEST(workPerformedFlag) {
+    el = UA_EventLoop_new_POSIX(NULL);
+    ck_assert_ptr_ne(el, NULL);
+    el->start(el);
+
+    UA_QualifiedName key = UA_QUALIFIEDNAME(0, "work-performed");
+
+    /* Key is not yet set before the first run() iteration */
+    ck_assert_ptr_eq(UA_KeyValueMap_get(&el->params, key), NULL);
+
+    /* Idle iteration: nothing should have been dispatched */
+    el->run(el, 0);
+    const UA_Boolean *flag = (const UA_Boolean *)
+        UA_KeyValueMap_getScalar(&el->params, key, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert_ptr_ne(flag, NULL);
+    ck_assert(*flag == false);
+
+    /* A second idle iteration: still false (the flag is reset each run) */
+    el->run(el, 0);
+    flag = (const UA_Boolean *)
+        UA_KeyValueMap_getScalar(&el->params, key, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    ck_assert_ptr_ne(flag, NULL);
+    ck_assert(*flag == false);
+
+    el->stop(el);
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED)
+        el->run(el, 0);
+    el->free(el);
+    el = NULL;
+} END_TEST
+#endif
+
 int main(void) {
     Suite *s  = suite_create("Test EventLoop");
     TCase *tc = tcase_create("test cases");
     tcase_add_test(tc, benchmarkTimer);
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+    tcase_add_test(tc, workPerformedFlag);
+#endif
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

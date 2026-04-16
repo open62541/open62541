@@ -334,6 +334,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     }
 
     el->executing = true;
+    el->ioDispatched = false;
 
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_FRESH ||
        el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPED) {
@@ -383,6 +384,15 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     /* Check if the last EventSource was successfully stopped */
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPING)
         checkClosed(el);
+
+    /* Expose whether any I/O callback fired this iteration via the
+     * EventLoop params map. Readers can pick this up with
+     * UA_KeyValueMap_getScalar(.., "work-performed", ..) to drive
+     * adaptive scheduling without a new public API. */
+    UA_QualifiedName workKey = UA_QUALIFIEDNAME(0, "work-performed");
+    UA_KeyValueMap_setScalar(&el->eventLoop.params, workKey,
+                             &el->ioDispatched,
+                             &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     el->executing = false;
     UA_UNLOCK(&el->elMutex);
@@ -907,6 +917,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
                      (unsigned)rfd->fd);
 
         /* Call the EventSource callback */
+        el->ioDispatched = true;
         rfd->eventSourceCB(rfd->es, rfd, event);
 
         /* The fd has removed itself */
@@ -1042,6 +1053,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
         }
 
         /* Call the EventSource callback */
+        el->ioDispatched = true;
         rfd->eventSourceCB(rfd->es, rfd, revent);
     }
     return UA_STATUSCODE_GOOD;
