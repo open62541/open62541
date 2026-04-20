@@ -125,6 +125,11 @@ START_TEST(unified_cpp_basic256sha256) {
         sp->generateNonce = reproducibleNonce;
     }
 
+    for(size_t i = 0; i < cc->authSecurityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &cc->authSecurityPolicies[i];
+        sp->generateNonce = reproducibleNonce;
+    }
+
     /* Reset the rng */
     UA_random_seed_deterministic(0);
 
@@ -175,6 +180,11 @@ START_TEST(prosys_basic256sha256) {
     /* Replace the nonce-generating function in the SecurityPolicies */
     for(size_t i = 0; i < cc->securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &cc->securityPolicies[i];
+        sp->generateNonce = reproducibleNonce;
+    }
+
+    for(size_t i = 0; i < cc->authSecurityPoliciesSize; i++) {
+        UA_SecurityPolicy *sp = &cc->authSecurityPolicies[i];
         sp->generateNonce = reproducibleNonce;
     }
 
