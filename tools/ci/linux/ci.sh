@@ -342,6 +342,25 @@ function unit_tests_alarms {
     make gcov
 }
 
+function unit_tests_alarms_memcheck {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_DA=ON \
+          -DUA_ENABLE_NODESETLOADER=ON \
+          -DUA_ENABLE_XML_ENCODING=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
+          -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+          -DUA_FORCE_WERROR=ON \
+          -DUA_NAMESPACE_ZERO=FULL \
+          ..
+
+    make ${MAKEOPTS}
+    # set_capabilities not possible with valgrind
+    sudo -E bash -c "make test ARGS=\"-V\""
+}
+
 function unit_tests_encryption {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
