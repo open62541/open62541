@@ -669,7 +669,8 @@ Service_Write(UA_Server *server, UA_Session *session,
      * added to the back. So they get cleaned up automatically if none of the
      * calls are async. */
     size_t opsLen = sizeof(UA_StatusCode) * request->nodesToWriteSize;
-    size_t len = opsLen + sizeof(UA_AsyncResponse) +
+    size_t align = sizeof(uintptr_t);
+    size_t len = opsLen + (align - 1) + sizeof(UA_AsyncResponse) +
         (sizeof(UA_AsyncOperation) * request->nodesToWriteSize);
     response->results = (UA_StatusCode*)UA_calloc(1, len);
     if(!response->results) {
@@ -679,7 +680,10 @@ Service_Write(UA_Server *server, UA_Session *session,
     response->resultsSize = request->nodesToWriteSize;
 
     /* Execute the operations */
-    UA_AsyncResponse *ar = (UA_AsyncResponse*)&response->results[response->resultsSize];
+    uintptr_t p = (uintptr_t)&response->results[response->resultsSize];
+    p = (p + (align - 1)) & ~(uintptr_t)(align - 1);
+
+    UA_AsyncResponse *ar = (UA_AsyncResponse*)p;
     UA_AsyncOperation *aopArray = (UA_AsyncOperation*)&ar[1];
     for(size_t i = 0; i < request->nodesToWriteSize; i++) {
         /* Ensure a stable pointer for the writevalue. Doesn't get written to,
