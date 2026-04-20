@@ -789,7 +789,7 @@ UA_Server_registerServer(UA_Server *server, const UA_RegisteredServer *regServer
     }
 
     UA_ExtensionObject_init(discConfig);
-    UA_ExtensionObject_setValueCopy(&discConfig, requestDiscoveryConfiguration,
+    UA_ExtensionObject_setValueCopy(discConfig, requestDiscoveryConfiguration,
                                  &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]);
 
     process_RegisterServer(
