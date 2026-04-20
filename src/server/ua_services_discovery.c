@@ -788,8 +788,8 @@ UA_Server_registerServer(UA_Server *server, const UA_RegisteredServer *regServer
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    UA_ExtensionObject_init(&discConfig[0]);
-    UA_ExtensionObject_setValueCopy(&discConfig[0], (void*)&requestDiscoveryConfiguration[0],
+    UA_ExtensionObject_init(discConfig);
+    UA_ExtensionObject_setValueCopy(&discConfig, requestDiscoveryConfiguration,
                                  &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]);
 
     process_RegisterServer(
