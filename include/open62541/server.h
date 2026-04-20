@@ -1678,19 +1678,11 @@ UA_Server_setRegisterServerCallback(UA_Server *server,
  * 
  * @param server the own server object
  * @param requestServer the server to register
- * @param requestDiscoveryConfigurationSize the size of the configuration
- * @param requestDiscoveryConfiguration the discovery configurations of the server record
- * @param responseHeader the response header to fill
- * @param responseConfigurationResultsSize the size of the configuration results
- * @param responseConfigurationResults the configuration results to fill
+ * @param requestDiscoveryConfiguration the discovery configurations of the requested server record
  */
-void UA_EXPORT UA_THREADSAFE
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_registerServer(UA_Server *server, const UA_RegisteredServer *requestServer,
-                         const size_t requestDiscoveryConfigurationSize,
-                         const UA_MdnsDiscoveryConfiguration *requestDiscoveryConfiguration,
-                         UA_ResponseHeader *responseHeader,
-                         size_t *responseConfigurationResultsSize,
-                         UA_StatusCode **responseConfigurationResults);
+                         const UA_MdnsDiscoveryConfiguration *requestDiscoveryConfiguration);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
