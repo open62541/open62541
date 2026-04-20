@@ -899,7 +899,7 @@ UA_SecureChannel_getCompleteMessage(UA_SecureChannel *channel,
 
     /* Validate the assembled message size */
     if(channel->config.localMaxMessageSize != 0 &&
-       channel->chunksLength > channel->config.localMaxMessageSize) {
+       messageSize > channel->config.localMaxMessageSize) {
         if(chunk.copied)
             UA_ByteString_clear(&chunk.bytes);
         return UA_STATUSCODE_BADTCPMESSAGETOOLARGE;
