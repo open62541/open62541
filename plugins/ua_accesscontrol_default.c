@@ -331,6 +331,16 @@ allowBrowseNode_default(UA_Server *server, UA_AccessControl *ac,
 #endif
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+static UA_Boolean
+allowReceiveEvents_default(UA_Server *server, UA_AccessControl *ac,
+                           const UA_NodeId *sessionId, void *sessionContext,
+                           const UA_NodeId *nodeId, void *nodeContext) {
+    return true;
+}
+
+#endif
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static UA_Boolean
 allowCreateSubscription_default(UA_Server *server, UA_AccessControl *ac,
@@ -478,6 +488,10 @@ UA_AccessControl_default(UA_ServerConfig *config,
     ac->allowAddNode = allowAddNode_default;
     ac->allowAddReference = allowAddReference_default;
     ac->allowBrowseNode = allowBrowseNode_default;
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+    ac->allowReceiveEvents = allowReceiveEvents_default;
+#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     ac->allowCreateSubscription = allowCreateSubscription_default;
