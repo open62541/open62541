@@ -3,7 +3,7 @@
  *
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
- *
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/client_highlevel.h>
@@ -13,15 +13,16 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/certificategroup_default.h>
+#include <open62541/plugin/accesscontrol_default.h>
 
 #include <signal.h>
 #include <stdlib.h>
 
 #include "common.h"
 
-UA_Boolean running = true;
+static UA_Boolean running = true;
 static void stopHandler(int sig) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "received ctrl-c");
     running = false;
 }
 
@@ -37,13 +38,13 @@ int main(int argc, char* argv[]) {
         certificate = loadFile(argv[1]);
         privateKey = loadFile(argv[2]);
     } else {
-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                      "Missing arguments. Arguments are "
                      "<server-certificate.der> <private-key.der> "
                      "[<trustlist1.crl>, ...] "
                      "[--onlySecure] "
                      "[--allowDiscovery]");
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                     "Trying to create a certificate.");
         UA_String subject[3] = {UA_STRING_STATIC("C=DE"),
                             UA_STRING_STATIC("O=SampleOrganization"),
@@ -64,7 +65,7 @@ int main(int argc, char* argv[]) {
         UA_KeyValueMap_delete(kvm);
 
         if(statusCertGen != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                 "Generating Certificate failed: %s",
                 UA_StatusCode_name(statusCertGen));
             return EXIT_SUCCESS;
@@ -130,6 +131,14 @@ int main(int argc, char* argv[]) {
 
     config->sessionPKI.clear(&config->sessionPKI);
     UA_CertificateGroup_AcceptAll(&config->sessionPKI);
+
+    /* Add username/password auth */
+    UA_UsernamePasswordLogin login;
+    login.password = UA_STRING("admin");
+    login.username = UA_STRING("admin");
+    config->accessControl.clear(&config->accessControl);
+    const UA_String userTokenPolicy = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    UA_AccessControl_default(config, true, &userTokenPolicy, 1, &login);
 
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);

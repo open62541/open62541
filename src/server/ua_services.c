@@ -200,9 +200,6 @@ allocProcessServiceOperations(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-static const UA_String securityPolicyNone =
-    UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
-
 static UA_Boolean
 processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                        UA_UInt32 requestId, UA_ServiceDescription *sd,
@@ -223,7 +220,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
 
     /* If it is an unencrypted (#None) channel, only allow the discovery services */
     if(server->config.securityPolicyNoneDiscoveryOnly &&
-       UA_String_equal(&channel->securityPolicy->policyUri, &securityPolicyNone ) &&
+       channel->securityPolicy->policyType == UA_SECURITYPOLICYTYPE_NONE &&
        sd->requestType != &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST] &&
        sd->requestType != &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST]
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
@@ -320,6 +317,7 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
 
     /* The session can be NULL if not required */
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
+    UA_NodeId sessionId = (session) ? session->sessionId : UA_NODEID_NULL;
 
     /* Notify with UA_APPLICATIONNOTIFICATIONTYPE_SERVICE_BEGIN */
     UA_ServerConfig *config = &server->config;
@@ -333,7 +331,7 @@ processRequest(UA_Server *server, UA_SecureChannel *channel,
     if(config->globalNotificationCallback || config->serviceNotificationCallback) {
         UA_Variant_setScalar(&notifyPayload[0].value, &channel->securityToken.channelId,
                              &UA_TYPES[UA_TYPES_UINT32]);
-        UA_Variant_setScalar(&notifyPayload[1].value, &session->sessionId,
+        UA_Variant_setScalar(&notifyPayload[1].value, &sessionId,
                              &UA_TYPES[UA_TYPES_NODEID]);
         UA_Variant_setScalar(&notifyPayload[2].value, &requestId,
                              &UA_TYPES[UA_TYPES_UINT32]);

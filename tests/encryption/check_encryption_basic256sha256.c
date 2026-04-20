@@ -276,6 +276,11 @@ START_TEST(encryption_connect_pem) {
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     ck_assert(client != NULL);
 
+    /* Set the ApplicationUri used in the certificate */
+    UA_String_clear(&cc->clientDescription.applicationUri);
+    cc->clientDescription.applicationUri =
+        UA_STRING_ALLOC("urn:unconfigured:application");
+
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++) {
         UA_ByteString_clear(&trustList[deleteCount]);
     }

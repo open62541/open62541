@@ -3,6 +3,13 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### PubSub DataSetOrdering Support (OPC UA Part 14)
+
+Support for DataSetOrdering mechanism as defined in OPC UA Part 14, section
+6.3.1.1.3 has been implemented for UADP encoding. The ordering of DataSetMessages
+within NetworkMessages can be controlled via the `dataSetOrdering` field in the
+`UA_UadpWriterGroupMessageDataType` configuration.
+
 ### Event API uses string-encoded of BrowsePaths
 
 The select-clause of EventFilters defines the fields to be returned in
@@ -126,9 +133,9 @@ It now further allows the following extensions:
   (https://json5.org/). This allows for more human-readable encoding and adds
   convenience features such as trailing commas in arrays and comments within
   JSON documents.
-- If `UA_ENABLE_PARSING` is set, NodeIds and ExpandedNodeIds can be given in the
-  string encoding (see `UA_NodeId_parse`). The standard encoding is to express
-  NodeIds as JSON objects.
+- NodeIds and ExpandedNodeIds can be given in the string encoding (see
+  `UA_NodeId_parse`). The standard encoding is to express NodeIds as JSON
+  objects.
 
 These extensions are not intended to be used for the OPC UA protocol on the
 network. They were rather added to allow more convenient configuration file

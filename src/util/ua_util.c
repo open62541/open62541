@@ -23,8 +23,16 @@
 #include "pcg_basic.h"
 #include "base64.h"
 #include "itoa.h"
+
+#if defined(UA_ARCHITECTURE_WIN32)
+#include <wtypes.h>
+#include <winbase.h>
+#endif
+
 #include "../../deps/parse_num.h"
 #include "../../deps/libc_time.h"
+
+char *securityModeNames[4] = {"Invalid", "None", "Sign", "SignAndEncrypt"};
 
 static const char * attributeIdNames[28] = {
     "Invalid", "NodeId", "NodeClass", "BrowseName", "DisplayName", "Description",
@@ -307,7 +315,7 @@ UA_StatusCode
 UA_ByteString_toBase64(const UA_ByteString *byteString,
                        UA_String *str) {
     UA_String_init(str);
-    if(!byteString || !byteString->data)
+    if(!byteString || !byteString->data || byteString->length == 0)
         return UA_STATUSCODE_GOOD;
 
     str->data = (UA_Byte*)
@@ -471,6 +479,7 @@ UA_KeyValueMap_setShallow(UA_KeyValueMap *map,
     }
 
     *target = *value;
+    target->storageType = UA_VARIANT_DATA_NODELETE;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -894,7 +903,7 @@ UA_String_escapedSize(const UA_String s, UA_Escaping esc) {
     size_t overhead = 0;
     for(size_t j = 0; j < s.length; j++) {
         if(esc == UA_ESCAPING_AND_EXTENDED)
-            overhead += isReservedExtended(s.data[j]);
+            overhead += isReservedAndExtended(s.data[j]);
         else if(esc == UA_ESCAPING_AND)
             overhead += isReservedAnd(s.data[j]);
         else if(esc == UA_ESCAPING_PERCENT)
@@ -928,7 +937,7 @@ UA_String_escapeInsert(u8 *pos, const UA_String s2, UA_Escaping esc) {
     } else {
         for(size_t j = 0; j < s2.length; j++) {
             UA_Boolean reserved = (esc == UA_ESCAPING_AND_EXTENDED) ?
-                isReservedExtended(s2.data[j]) : isReservedAnd(s2.data[j]);
+                isReservedAndExtended(s2.data[j]) : isReservedAnd(s2.data[j]);
             if(reserved)
                 *pos++ = '&';
             *pos++ = s2.data[j];
@@ -1191,6 +1200,17 @@ UA_ReadValueId_print(const UA_ReadValueId *rvi, UA_String *out) {
     }
 
     return moveTmpToOut(&tmp, out);
+}
+
+UA_StatusCode
+UA_replace(void *orig, const void *val, const UA_DataType *type) {
+    UA_STACKARRAY(char, tmp, type->memSize);
+    UA_StatusCode res = UA_copy(val, tmp, type);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    UA_clear(orig, type);
+    memcpy(orig, tmp, type->memSize);
+    return UA_STATUSCODE_GOOD;
 }
 
 /************************/

@@ -9,6 +9,7 @@
 
 #include "ua_discovery.h"
 #include "ua_server_internal.h"
+#include <stdlib.h>
 #include "mdnsd/libmdnsd/mdnsd.h"
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
 
@@ -523,7 +524,7 @@ mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain, const ch
     xht_free(h);
     mdnsd_set_raw(mdnsPrivateData.mdnsDaemon, r, (char *) packet,
                   (unsigned short) txtRecordLength);
-    UA_free(packet);
+    MDNSD_free(packet);
 }
 
 static mdns_record_t *
@@ -1197,8 +1198,7 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data) {
     lockServer(server);
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
-        getServerComponentByName(server, UA_STRING("discovery"));
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
     if(dm) {
         dm->serverOnNetworkCallback = cb;
         dm->serverOnNetworkCallbackData = data;
@@ -1263,8 +1263,7 @@ UA_Discovery_recordExists(UA_DiscoveryManager *dm, const char* fullServiceDomain
 static int
 discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg) {
     UA_Server *server = (UA_Server*) arg;
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
-        getServerComponentByName(server, UA_STRING("discovery"));
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
     if(!dm)
         return 0;
 

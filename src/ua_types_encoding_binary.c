@@ -1893,7 +1893,7 @@ const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS] = {
 status
 UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
                         void *dst, const UA_DataType *type,
-                        const UA_DecodeBinaryOptions *options) {
+                        UA_DecodeBinaryOptions *options) {
     /* Set up the context */
     Ctx ctx;
     ctx.pos = &src->data[*offset];
@@ -1911,17 +1911,20 @@ UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
     if(UA_LIKELY(ret == UA_STATUSCODE_GOOD)) {
         /* Set the new offset */
         *offset = (size_t)(ctx.pos - src->data) / sizeof(u8);
+        if(options)
+            options->decodedLength = *offset;
     } else {
         /* Clean up */
         ctxClear(&ctx, dst, type);
     }
+
     return ret;
 }
 
 UA_StatusCode
 UA_decodeBinary(const UA_ByteString *inBuf,
                 void *p, const UA_DataType *type,
-                const UA_DecodeBinaryOptions *options) {
+                UA_DecodeBinaryOptions *options) {
     size_t offset = 0;
     return UA_decodeBinaryInternal(inBuf, &offset, p, type, options);
 }

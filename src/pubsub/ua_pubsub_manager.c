@@ -29,7 +29,7 @@ static void
 UA_PubSubManager_stop(UA_ServerComponent *sc);
 
 static UA_StatusCode
-UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server);
+UA_PubSubManager_start(UA_ServerComponent *sc);
 
 const char *
 UA_PubSubState_name(UA_PubSubState state) {
@@ -353,7 +353,7 @@ UA_Server_enableAllPubSubComponents(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode res = UA_PubSubManager_start(&psm->sc, server);
+    UA_StatusCode res = UA_PubSubManager_start(&psm->sc);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -389,15 +389,6 @@ static void
 disableAllPubSubComponents(UA_PubSubManager *psm) {
     UA_PubSubConnection *c;
     TAILQ_FOREACH(c, &psm->connections, listEntry) {
-        UA_WriterGroup *wg;
-        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
-            UA_DataSetWriter *dsw;
-            LIST_FOREACH(dsw, &wg->writers, listEntry) {
-                UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
-            }
-            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
-        }
-
         UA_ReaderGroup *rg;
         LIST_FOREACH(rg, &c->readerGroups, listEntry) {
             UA_DataSetReader *dsr;
@@ -406,6 +397,15 @@ disableAllPubSubComponents(UA_PubSubManager *psm) {
                                                 UA_STATUSCODE_BADSHUTDOWN);
             }
             UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
+        }
+
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            UA_DataSetWriter *dsw;
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
+            }
+            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
         }
 
         UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
@@ -702,8 +702,6 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     if(state == psm->sc.state)
         return;
     psm->sc.state = state;
-    if(psm->sc.notifyState)
-        psm->sc.notifyState(&psm->sc, state);
 
     /* When we just started, trigger all connections to go from PAUSED to
      * OPERATIONAL */
@@ -720,16 +718,22 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
 }
 
 static UA_StatusCode
-UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server) {
+UA_PubSubManager_start(UA_ServerComponent *sc) {
+    /* Check that the server backpointer is set */
+    UA_Server *server = sc->server;
+    if(!server)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Re-cache logging for the case that the configuration has been updated */
     UA_PubSubManager *psm = (UA_PubSubManager*)sc;
+    psm->logging = server->config.logging;
+
+    /* Cannot start an already started PubSubManager */
     if(psm->sc.state == UA_LIFECYCLESTATE_STOPPING) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "The PubSubManager is still stopping");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-    /* Re-cache for the case that the configuration has been updated */
-    psm->logging = server->config.logging;
 
     UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
 
@@ -793,6 +797,14 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+UA_PubSubManager_free(UA_PubSubManager *psm) {
+    UA_StatusCode res = UA_PubSubManager_clear(psm);
+    if(res == UA_STATUSCODE_GOOD)
+        UA_free(psm);
+    return res;
+}
+
 UA_ServerComponent *
 UA_PubSubManager_new(UA_Server *server) {
     UA_PubSubManager *psm = (UA_PubSubManager*)UA_calloc(1, sizeof(UA_PubSubManager));
@@ -803,7 +815,7 @@ UA_PubSubManager_new(UA_Server *server) {
     psm->sc.name = UA_STRING("pubsub");
     psm->sc.start = UA_PubSubManager_start;
     psm->sc.stop = UA_PubSubManager_stop;
-    psm->sc.clear = (UA_StatusCode (*)(UA_ServerComponent *))UA_PubSubManager_clear;
+    psm->sc.free = (UA_StatusCode (*)(UA_ServerComponent *))UA_PubSubManager_free;
 
     /* Set the logging shortcut */
     psm->logging = server->config.logging;

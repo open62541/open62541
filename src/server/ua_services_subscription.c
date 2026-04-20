@@ -14,6 +14,7 @@
  *    Copyright 2017-2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
+  *   Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -101,6 +102,15 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                            const UA_CreateSubscriptionRequest *request,
                            UA_CreateSubscriptionResponse *response) {
     UA_LOCK_ASSERT(&server->serviceMutex);
+
+    /* Check with AccessControl if the creation is allowed */
+    if(server->config.accessControl.allowCreateSubscription &&
+       !server->config.accessControl.
+           allowCreateSubscription(server, &server->config.accessControl,
+                                   &session->sessionId, session->context)) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return true;
+    }
 
     /* Check limits for the number of subscriptions */
     if(((server->config.maxSubscriptions != 0) &&
@@ -608,6 +618,10 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     }
 
     /* <-- The point of no return --> */
+
+    /* Mark the old subscription as transferred to prevent incorrect
+     * diagnostic counter updates when it is deleted */
+    sub->wasTransferred = true;
 
     /* Move over the MonitoredItems and adjust the backpointers */
     LIST_INIT(&newSub->monitoredItems);

@@ -76,11 +76,6 @@ config OPEN62541_ENABLE_NODEMANAGEMENT
     default y
     help
         Enable dynamic addition and removal of nodes at runtime
-config OPEN62541_ENABLE_PARSING
-    bool "Enable parsing"
-    default y
-    help
-        Utility functions that require parsing (e.g. NodeId expressions)
 config OPEN62541_ENABLE_INLINABLE_EXPORT
     bool "Enable inlinable export"
     default n

@@ -296,6 +296,32 @@ UA_DataType selfContainingUnionType = {
 
 static UA_DataTypeArray customDataTypesSelfContainingUnion = {NULL, 1, &selfContainingUnionType, UA_FALSE};
 
+static void
+checkEqualTypes(const UA_DataType *t1, const UA_DataType *t2) {
+    ck_assert(t1->typeKind == t2->typeKind);
+    ck_assert_uint_eq(t1->memSize, t2->memSize);
+    for(size_t i = 0; i < t1->membersSize; i++) {
+        ck_assert_uint_eq(t1->members[i].padding, t2->members[i].padding);
+    }
+}
+
+static void
+typeRoundTripCheckEqual(const UA_DataType *t) {
+    UA_ExtensionObject descr;
+    UA_DataType typeCopy;
+    UA_StatusCode retval = UA_DataType_toDescription(t, &descr);
+    if(retval != UA_STATUSCODE_GOOD)
+        return;
+
+    retval = UA_DataType_fromDescription(&typeCopy, &descr,
+                                         &customDataTypesSelfContainingUnion);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    checkEqualTypes(t, &typeCopy);
+    UA_ExtensionObject_clear(&descr);
+    UA_DataType_clear(&typeCopy);
+}
+
 START_TEST(parseCustomScalar) {
     Point p;
     p.x = 1.0;
@@ -331,14 +357,15 @@ START_TEST(parseCustomScalar) {
 
 START_TEST(customScalarStructureDefinition) {
     /* Roundtrip from StructureDefinition back to UA_DataType */
-    UA_StructureDefinition pointDef;
+    UA_ExtensionObject descr;
     UA_DataType pointTypeCopy;
-    UA_StatusCode retval = UA_DataType_toStructureDefinition(&PointType, &pointDef);
+    UA_StatusCode retval = UA_DataType_toDescription(&PointType, &descr);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_DataType_fromStructureDefinition(&pointTypeCopy, &pointDef,
-                                                 UA_NODEID_NULL, UA_STRING_NULL, NULL);
+    retval = UA_DataType_fromDescription(&pointTypeCopy, &descr, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    checkEqualTypes(&PointType, &pointTypeCopy);
 
     Point p;
     p.x = 1.0;
@@ -372,7 +399,7 @@ START_TEST(customScalarStructureDefinition) {
     UA_ByteString_clear(&buf);
     UA_ByteString_clear(&buf2);
 
-    UA_StructureDefinition_clear(&pointDef);
+    UA_ExtensionObject_clear(&descr);
     UA_DataType_clear(&pointTypeCopy);
 } END_TEST
 
@@ -741,6 +768,20 @@ START_TEST(parseSelfContainingUnionSelfMember) {
         UA_ByteString_clear(&buf);
     } END_TEST
 
+START_TEST(customTypeStructureDefinitionPadding) {
+    typeRoundTripCheckEqual(&PointType);
+    typeRoundTripCheckEqual(&OptType);
+    typeRoundTripCheckEqual(&ArrayOptType);
+    typeRoundTripCheckEqual(&UniType);
+    typeRoundTripCheckEqual(&selfContainingUnionType);
+} END_TEST
+
+START_TEST(ns0TypeStructureDefinitionPadding) {
+    for(size_t i = 0; i < UA_TYPES_COUNT; i++) {
+        typeRoundTripCheckEqual(&UA_TYPES[i]);
+    }
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test Custom DataType Encoding");
     TCase *tc = tcase_create("test cases");
@@ -754,6 +795,8 @@ int main(void) {
     tcase_add_test(tc, parseSelfContainingUnionSelfMember);
     tcase_add_test(tc, parseCustomStructureWithOptionalFieldsWithArrayNotContained);
     tcase_add_test(tc, parseCustomStructureWithOptionalFieldsWithArrayContained);
+    tcase_add_test(tc, customTypeStructureDefinitionPadding);
+    tcase_add_test(tc, ns0TypeStructureDefinitionPadding);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

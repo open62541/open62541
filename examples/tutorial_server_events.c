@@ -56,14 +56,14 @@ createEventMethodCallback(UA_Server *server,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Creating event");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Creating event");
 
     UA_UInt16 severity = 100;
     UA_LocalizedText message = UA_LOCALIZEDTEXT("en-US", "An event has been generated.");
     UA_StatusCode res = UA_Server_createEvent(server, UA_NS0ID(SERVER), eventType,
                                               severity, message, NULL, NULL, NULL);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                        "Creating event failed. StatusCode %s",
                        UA_StatusCode_name(res));
     }

@@ -23,7 +23,8 @@ example_args = {
         "server_encryption_filestore":"server_cert.der server_key.der",
         "server_loglevel":"--loglevel=1",
         "ci_server":"4840 server_cert.der server_key.der client_cert.der",
-        "server_json_config":"server_json_config.json5"
+        "server_json_config":"server_json_config.json5",
+        "client_json_config":"client_json_config.json5",
         }
 
 server_needed_examples = {

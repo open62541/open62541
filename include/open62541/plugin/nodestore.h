@@ -262,6 +262,31 @@ UA_NodeReferenceKind_findTarget(const UA_NodeReferenceKind *rk,
 UA_EXPORT UA_StatusCode
 UA_NodeReferenceKind_switch(UA_NodeReferenceKind *rk);
 
+#ifdef UA_ENABLE_RBAC
+
+/* Compact index stored in each node to reference a position in the server's
+ * role-permissions array. Size configured via UA_ROLEPERMISSIONS_NODE_SIZE_BYTE. */
+#if UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 2
+typedef UA_UInt16 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFF
+#elif UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 4
+typedef UA_UInt32 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFF
+#elif UA_ROLEPERMISSIONS_NODE_SIZE_BYTE == 8
+typedef UA_UInt64 UA_PermissionIndex;
+#define UA_PERMISSION_INDEX_INVALID 0xFFFFFFFFFFFFFFFF
+#else
+#error "UA_ROLEPERMISSIONS_NODE_SIZE_BYTE must be 2, 4, or 8"
+#endif
+
+/* Sentinel value for the refCount of a role-permission entry:
+ * The entry originates from initial server configuration presets and
+ * must not be deleted during server runtime. A nodestore implementation
+ * may need this when managing role-permission storage. */
+#define UA_ROLEPERMISSIONS_REFCOUNT_PROTECTED SIZE_MAX
+
+#endif /* UA_ENABLE_RBAC */
+
 /* Singly-linked LocalizedText list */
 typedef struct UA_LocalizedTextListEntry {
     struct UA_LocalizedTextListEntry *next;
@@ -291,6 +316,11 @@ struct UA_NodeHead {
     /* Members specific to open62541 */
     void *context;
     UA_Boolean constructed; /* Constructors were called */
+#ifdef UA_ENABLE_RBAC
+    UA_PermissionIndex permissionIndex; /* Index into server's rolePermissions array.
+                                         * UA_PERMISSION_INDEX_INVALID means no specific
+                                         * permissions configured (use defaults). */
+#endif
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_MonitoredItem *monitoredItems; /* MonitoredItems for Events and immediate
                                        * DataChanges (no sampling interval). */
@@ -552,11 +582,21 @@ struct UA_Nodestore {
 /* Attributes must be of a matching type (VariableAttributes, ObjectAttributes,
  * and so on). The attributes are copied. Note that the attributes structs do
  * not contain NodeId, NodeClass and BrowseName. The NodeClass of the node needs
- * to be correctly set before calling this method. UA_Node_clear is called on
- * the node when an error occurs internally. */
+ * to be correctly set before calling this method. This method does not call
+ * UA_Node_clear internally when an error is encountered. */
 UA_StatusCode UA_EXPORT
 UA_Node_setAttributes(UA_Node *node, const void *attributes,
                       const UA_DataType *attributeType);
+
+/* Nodes can carry multiples locales for DisplayName and Description. The
+ * following inserts a new locales or updates an existing one with new text. */
+UA_EXPORT UA_StatusCode
+UA_Node_insertOrUpdateDisplayName(UA_Node *node,
+                                  const UA_LocalizedText *displayName);
+
+UA_EXPORT UA_StatusCode
+UA_Node_insertOrUpdateDescription(UA_Node *node,
+                                  const UA_LocalizedText *description);
 
 /* Reset the destination node and copy the content of the source */
 UA_StatusCode UA_EXPORT

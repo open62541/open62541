@@ -557,6 +557,123 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
+
+/* Test DataSetOrdering reconfiguration (OPC UA Part 14, section 6.3.1.1.3) 
+ * 
+ * NOTE: This test validates that the DataSetOrdering mechanism is invoked correctly
+ * with different configurations. It does not decode NetworkMessage buffers to verify
+ * actual WriterId order in the wire format.
+ */
+START_TEST(DataSetOrderingReconfiguration) {
+    UA_NodeId writerGroup, pds1, pds2, pds3;
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    
+    /* Create PublishedDataSets */
+    UA_PublishedDataSetConfig pdsConfig;
+    memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
+    pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+    pdsConfig.name = UA_STRING("OrderingDataSet1");
+    retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, &pds1).addResult;
+    pdsConfig.name = UA_STRING("OrderingDataSet2");
+    retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, &pds2).addResult;
+    pdsConfig.name = UA_STRING("OrderingDataSet3");
+    retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, &pds3).addResult;
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    
+    /* Create WriterGroup with UNDEFINED ordering initially */
+    UA_WriterGroupConfig writerGroupConfig;
+    memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+    writerGroupConfig.name = UA_STRING("OrderingWriterGroup");
+    writerGroupConfig.publishingInterval = 100;
+    writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+    
+    UA_UadpWriterGroupMessageDataType *writerGroupMessage = 
+        UA_UadpWriterGroupMessageDataType_new();
+    writerGroupMessage->networkMessageContentMask = 
+        (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
+                                           UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
+    writerGroupMessage->dataSetOrdering = UA_DATASETORDERINGTYPE_UNDEFINED;
+    writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
+    writerGroupConfig.messageSettings.content.decoded.type = 
+        &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
+    writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+
+    retVal = UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup);
+    UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Create DataSetWriters with mixed WriterIds: 300, 100, 200 */
+    UA_DataSetWriterConfig dataSetWriterConfig;
+    memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+    dataSetWriterConfig.name = UA_STRING("Writer300");
+    dataSetWriterConfig.dataSetWriterId = 300;
+    retVal = UA_Server_addDataSetWriter(server, writerGroup, pds1, &dataSetWriterConfig, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+    dataSetWriterConfig.name = UA_STRING("Writer100");
+    dataSetWriterConfig.dataSetWriterId = 100;
+    retVal = UA_Server_addDataSetWriter(server, writerGroup, pds2, &dataSetWriterConfig, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+    dataSetWriterConfig.name = UA_STRING("Writer200");
+    dataSetWriterConfig.dataSetWriterId = 200;
+    retVal = UA_Server_addDataSetWriter(server, writerGroup, pds3, &dataSetWriterConfig, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    retVal = UA_Server_enableWriterGroup(server, writerGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Test 1: Publish with UNDEFINED ordering */
+    retVal = UA_Server_triggerWriterGroupPublish(server, writerGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Disable before reconfiguration */
+    retVal = UA_Server_setWriterGroupDisabled(server, writerGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Reconfigure to ASCENDINGWRITERID */
+    UA_WriterGroupConfig configCopy;
+    retVal = UA_Server_getWriterGroupConfig(server, writerGroup, &configCopy);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    
+    UA_UadpWriterGroupMessageDataType *messageSettings = 
+        (UA_UadpWriterGroupMessageDataType*)configCopy.messageSettings.content.decoded.data;
+    messageSettings->dataSetOrdering = UA_DATASETORDERINGTYPE_ASCENDINGWRITERID;
+    
+    retVal = UA_Server_updateWriterGroupConfig(server, writerGroup, &configCopy);
+    UA_WriterGroupConfig_clear(&configCopy);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Re-enable and test 2: Publish with ASCENDINGWRITERID ordering */
+    retVal = UA_Server_enableWriterGroup(server, writerGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_triggerWriterGroupPublish(server, writerGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Disable before reconfiguration */
+    retVal = UA_Server_setWriterGroupDisabled(server, writerGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Reconfigure to ASCENDINGWRITERIDSINGLE */
+    retVal = UA_Server_getWriterGroupConfig(server, writerGroup, &configCopy);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    
+    messageSettings = (UA_UadpWriterGroupMessageDataType*)configCopy.messageSettings.content.decoded.data;
+    messageSettings->dataSetOrdering = UA_DATASETORDERINGTYPE_ASCENDINGWRITERIDSINGLE;
+    
+    retVal = UA_Server_updateWriterGroupConfig(server, writerGroup, &configCopy);
+    UA_WriterGroupConfig_clear(&configCopy);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    /* Re-enable and test 3: Publish with ASCENDINGWRITERIDSINGLE ordering */
+    retVal = UA_Server_enableWriterGroup(server, writerGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_triggerWriterGroupPublish(server, writerGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+} END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_writergroup = tcase_create("PubSub WriterGroup items handling");
     tcase_add_checked_fixture(tc_add_pubsub_writergroup, setup, teardown);
@@ -590,11 +707,16 @@ int main(void) {
     tcase_add_test(tc_pubsub_publish, SinglePublishDataSetFieldAndPublishTimestampTest);
     tcase_add_test(tc_pubsub_publish, PublishDataSetFieldAsDeltaFrame);
 
+    TCase *tc_pubsub_datasetordering = tcase_create("PubSub DataSetOrdering (OPC UA Part 14)");
+    tcase_add_checked_fixture(tc_pubsub_datasetordering, setup, teardown);
+    tcase_add_test(tc_pubsub_datasetordering, DataSetOrderingReconfiguration);
+
     Suite *s = suite_create("PubSub WriterGroups/Writer/Fields handling and publishing");
     suite_add_tcase(s, tc_add_pubsub_writergroup);
     suite_add_tcase(s, tc_add_pubsub_datasetwriter);
     suite_add_tcase(s, tc_add_pubsub_datasetfields);
     suite_add_tcase(s, tc_pubsub_publish);
+    suite_add_tcase(s, tc_pubsub_datasetordering);
     
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

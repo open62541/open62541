@@ -163,50 +163,55 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
     mbedtls_write_san_list *cur_tmp = NULL;
     mbedtls_write_san_list *head = NULL;
     for(size_t i = 0; i < subjectAltNameSize; i++) {
-        char *sanType;
-        char *sanValue;
-        size_t sanValueLength;
+        /* Copy and null-terminate */
         char *subAlt = (char *)UA_malloc(subjectAltName[i].length + 1);
         memcpy(subAlt, subjectAltName[i].data, subjectAltName[i].length);
-
-        /* null-terminate the copied string */
         subAlt[subjectAltName[i].length] = 0;
+
         /* split into SAN type and value */
-        sanType = strtok(subAlt, ":");
-        sanValue = (char *)subjectAltName[i].data + strlen(sanType) + 1;
-        sanValueLength = subjectAltName[i].length - strlen(sanType) - 1;
+        char *sanType = NULL;
+        for(char *pos = subAlt; *pos != 0; pos++) {
+            if(*pos == ':') {
+                *pos = '\0';
+                sanType = subAlt;
+                break;
+            }
+        }
 
-        if(sanType) {
-            cur_tmp = (mbedtls_write_san_list*)mbedtls_calloc(1, sizeof(mbedtls_write_san_list));
-            cur_tmp->next = NULL;
-            cur_tmp->node.host = sanValue;
-            cur_tmp->node.hostlen = sanValueLength;
+        if(!sanType) {
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "Invalid Input format");
+            UA_free(subAlt);
+            continue;
+        }
 
-            if(strcmp(sanType, "DNS") == 0) {
-                cur_tmp->node.type = MBEDTLS_X509_SAN_DNS_NAME;
-            } else if(strcmp(sanType, "URI") == 0) {
-                cur_tmp->node.type = MBEDTLS_X509_SAN_UNIFORM_RESOURCE_IDENTIFIER;
-            } else if(strcmp(sanType, "IP") == 0) {
-                uint8_t ip[4] = {0};
-                if(musl_inet_pton(AF_INET, sanValue, ip) <= 0) {
-                    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "IP SAN preparation failed");
-                    mbedtls_free(cur_tmp);
-                    UA_free(subAlt);
-                    continue;
-                }
-                cur_tmp->node.type = MBEDTLS_X509_SAN_IP_ADDRESS;
-                cur_tmp->node.host = (char *)ip;
-                cur_tmp->node.hostlen = sizeof(ip);
-            } else if(strcmp(sanType, "RFC822") == 0) {
-                cur_tmp->node.type = MBEDTLS_X509_SAN_RFC822_NAME;
-            } else {
-                UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "Given an unsupported SAN");
+        char *sanValue = (char *)subjectAltName[i].data + strlen(sanType) + 1;
+        size_t sanValueLength = subjectAltName[i].length - strlen(sanType) - 1;
+
+        cur_tmp = (mbedtls_write_san_list*)mbedtls_calloc(1, sizeof(mbedtls_write_san_list));
+        cur_tmp->next = NULL;
+        cur_tmp->node.host = sanValue;
+        cur_tmp->node.hostlen = sanValueLength;
+
+        if(strcmp(sanType, "DNS") == 0) {
+            cur_tmp->node.type = MBEDTLS_X509_SAN_DNS_NAME;
+        } else if(strcmp(sanType, "URI") == 0) {
+            cur_tmp->node.type = MBEDTLS_X509_SAN_UNIFORM_RESOURCE_IDENTIFIER;
+        } else if(strcmp(sanType, "IP") == 0) {
+            uint8_t ip[4] = {0};
+            if(musl_inet_pton(AF_INET, sanValue, ip) <= 0) {
+                UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "IP SAN preparation failed");
                 mbedtls_free(cur_tmp);
                 UA_free(subAlt);
                 continue;
             }
+            cur_tmp->node.type = MBEDTLS_X509_SAN_IP_ADDRESS;
+            cur_tmp->node.host = (char *)ip;
+            cur_tmp->node.hostlen = sizeof(ip);
+        } else if(strcmp(sanType, "RFC822") == 0) {
+            cur_tmp->node.type = MBEDTLS_X509_SAN_RFC822_NAME;
         } else {
-            UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "Invalid Input format");
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURECHANNEL, "Given an unsupported SAN");
+            mbedtls_free(cur_tmp);
             UA_free(subAlt);
             continue;
         }
@@ -360,7 +365,7 @@ static int write_private_key(mbedtls_pk_context *key, UA_CertificateFormat keyFo
             return ret;
         }
 
-        len = ret;
+        len = (size_t)ret;
         c = output_buf + sizeof(output_buf) - len;
         break;
     }
@@ -396,7 +401,7 @@ static int write_certificate(mbedtls_x509write_cert *crt, UA_CertificateFormat c
             return ret;
         }
 
-        len = ret;
+        len = (size_t)ret;
         c = output_buf + sizeof(output_buf) - len;
         break;
     }

@@ -44,12 +44,10 @@ UA_DiscoveryManager_setState(UA_DiscoveryManager *dm,
 
     /* Set the new state and notify */
     dm->sc.state = state;
-    if(dm->sc.notifyState)
-        dm->sc.notifyState(&dm->sc, state);
 }
 
 static UA_StatusCode
-UA_DiscoveryManager_clear(struct UA_ServerComponent *sc) {
+UA_DiscoveryManager_free(struct UA_ServerComponent *sc) {
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
 
     if(sc->state != UA_LIFECYCLESTATE_STOPPED) {
@@ -69,6 +67,8 @@ UA_DiscoveryManager_clear(struct UA_ServerComponent *sc) {
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_DiscoveryManager_clearMdns(dm);
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
+
+    UA_free(sc);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -141,12 +141,15 @@ UA_DiscoveryManager_cyclicTimer(UA_Server *server, void *data) {
 }
 
 static UA_StatusCode
-UA_DiscoveryManager_start(struct UA_ServerComponent *sc,
-                          UA_Server *server) {
-    if(sc->state != UA_LIFECYCLESTATE_STOPPED)
+UA_DiscoveryManager_start(struct UA_ServerComponent *sc) {
+    /* Check that the server backpointer is set */
+    UA_Server *server = sc->server;
+    if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    sc->server = server; /* Set the backpointer */
+    /* Cannot start an already started DiscoveryManager */
+    if(sc->state != UA_LIFECYCLESTATE_STOPPED)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
 
@@ -202,7 +205,7 @@ UA_DiscoveryManager_new(void) {
     dm->sc.name = UA_STRING("discovery");
     dm->sc.start = UA_DiscoveryManager_start;
     dm->sc.stop = UA_DiscoveryManager_stop;
-    dm->sc.clear = UA_DiscoveryManager_clear;
+    dm->sc.free = UA_DiscoveryManager_free;
     return &dm->sc;
 }
 
@@ -411,8 +414,7 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
                    const UA_String discoveryServerUrl,
                    const UA_String semaphoreFilePath) {
     /* Get the discovery manager */
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
-        getServerComponentByName(server, UA_STRING("discovery"));
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)server->discoverySC;
     if(!dm) {
         UA_ClientConfig_clear(cc);
         return UA_STATUSCODE_BADINTERNALERROR;

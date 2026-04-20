@@ -457,7 +457,7 @@ int main(int argc, char **argv) {
                 return -1;
             }
             if(interval <= 10) {
-                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
                                "Publication interval too small");
                 return -1;
             }

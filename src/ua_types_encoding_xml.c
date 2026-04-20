@@ -65,8 +65,8 @@ xml_tokenize(const char *xml, unsigned int len,
 #ifdef __clang_analyzer__
         UA_assert(stack[top] != NULL);
 #endif
-        yxml_ret_t status = yxml_parse(&ctx, xml[pos]);
-        switch(status) {
+        yxml_ret_t xml_status = yxml_parse(&ctx, xml[pos]);
+        switch(xml_status) {
         case YXML_EEOF:
         case YXML_EREF:
         case YXML_ECLOSE:
@@ -77,8 +77,8 @@ xml_tokenize(const char *xml, unsigned int len,
         case YXML_OK:
             continue;
         case YXML_ELEMSTART:
-        case YXML_ATTRSTART:
-            if(status == YXML_ELEMSTART) {
+        case YXML_ATTRSTART: {
+            if(xml_status == YXML_ELEMSTART) {
                 stack[top]->children++;
                 stack[top]->content = UA_STRING_NULL; /* Only the leaf elements have content */
             } else {
@@ -89,10 +89,10 @@ xml_tokenize(const char *xml, unsigned int len,
                 goto errout; /* nesting too deep */
             stack[top] = (tokenPos < max_tokens) ? &tokens[tokenPos] : &backup_tokens[top];
             memset(stack[top], 0, sizeof(xml_token));
-            stack[top]->type = (status == YXML_ELEMSTART) ? XML_TOKEN_ELEMENT : XML_TOKEN_ATTRIBUTE;
+            stack[top]->type = (xml_status == YXML_ELEMSTART) ? XML_TOKEN_ELEMENT : XML_TOKEN_ATTRIBUTE;
             stack[top]->name = backtrackName(xml, pos);
             const char *start = xml + pos;
-            if(status == YXML_ELEMSTART) {
+            if(xml_status == YXML_ELEMSTART) {
                 while(*start != '<')
                     start--;
             }
@@ -100,6 +100,7 @@ xml_tokenize(const char *xml, unsigned int len,
             tokenPos++;
             val_begin = 0; /* if the previous non-leaf element started to collect content */
             break;
+        }
         case YXML_CONTENT:
         case YXML_ATTRVAL:
             if(val_begin == 0)
@@ -113,7 +114,7 @@ xml_tokenize(const char *xml, unsigned int len,
                 stack[top]->content.length = stack[top]->end + 1 - val_begin;
             }
             stack[top]->end = pos;
-            if(status == YXML_ELEMEND) {
+            if(xml_status == YXML_ELEMEND) {
                 /* Saw "</", looking for the closing ">" */
                 while(stack[top]->end < len && xml[stack[top]->end] != '>')
                     stack[top]->end++;
@@ -188,7 +189,7 @@ static status UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT
 xmlEncodeWriteChars(CtxXml *ctx, const char *c, size_t len) {
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
-    if(!ctx->calcOnly)
+    if(!ctx->calcOnly && len)
         memcpy(ctx->pos, c, len);
     ctx->pos += len;
     return UA_STATUSCODE_GOOD;
@@ -358,6 +359,9 @@ ENCODE_XML(ByteString) {
     if(!src->data)
         return xmlEncodeWriteChars(ctx, "null", 4);
 
+    if(src->length == 0)
+        return UA_STATUSCODE_GOOD;
+
     size_t flen = 0;
     unsigned char *ba64 = UA_base64(src->data, src->length, &flen);
 
@@ -462,15 +466,15 @@ ENCODE_XML(ExtensionObject) {
         ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY);
     } else {
         /* Write the decoded value */
-        const UA_DataType *type = src->content.decoded.type;
+        const UA_DataType *decoded_type = src->content.decoded.type;
 
         /* Write the type NodeId */
         ret = writeXmlElement(ctx, UA_XML_EXTENSIONOBJECT_TYPEID,
-                              &type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
+                              &decoded_type->typeId, &UA_TYPES[UA_TYPES_NODEID]);
 
         /* Write the body */
         ret |= writeXmlElemNameBegin(ctx, UA_XML_EXTENSIONOBJECT_BODY);
-        ret |= writeXmlElement(ctx, type->typeName, src->content.decoded.data, type);
+        ret |= writeXmlElement(ctx, decoded_type->typeName, src->content.decoded.data, decoded_type);
         ret |= writeXmlElemNameEnd(ctx, UA_XML_EXTENSIONOBJECT_BODY);
     }
 
@@ -524,16 +528,16 @@ ENCODE_XML(Variant) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     ret |= writeXmlElemNameBegin(ctx, UA_XML_VARIANT_VALUE);
     if(!isArray) {
-        const UA_DataType *type = src->type;
+        const UA_DataType *srctype = src->type;
         void *ptr = src->data;
         UA_ExtensionObject eo;
-        if(type->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO) {
+        if(srctype->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO) {
             /* Wrap value in an ExtensionObject */
-            UA_ExtensionObject_setValue(&eo, (void*)(uintptr_t)ptr, type);
+            UA_ExtensionObject_setValue(&eo, (void*)(uintptr_t)ptr, srctype);
             ptr = &eo;
-            type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+            srctype = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
         }
-        ret |= writeXmlElement(ctx, type->typeName, ptr, type);
+        ret |= writeXmlElement(ctx, srctype->typeName, ptr, srctype);
     } else {
         ret |= Array_encodeXml(ctx, src->data, src->arrayLength, src->type);
     }
@@ -703,6 +707,8 @@ DECODE_XML(Boolean) {
 
 static UA_StatusCode
 decodeSigned(const UA_Byte *data, size_t dataSize, UA_Int64 *dst) {
+    if(!data || dataSize == 0)
+        return UA_STATUSCODE_BADDECODINGERROR;
     size_t len = parseInt64((const char*)data, dataSize, dst);
     if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -719,6 +725,8 @@ decodeSigned(const UA_Byte *data, size_t dataSize, UA_Int64 *dst) {
 
 static UA_StatusCode
 decodeUnsigned(const UA_Byte *data, size_t dataSize, UA_UInt64 *dst) {
+    if(!data || dataSize == 0)
+        return UA_STATUSCODE_BADDECODINGERROR;
     size_t len = parseUInt64((const char*)data, dataSize, dst);
     if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -849,6 +857,9 @@ DECODE_XML(Double) {
     CHECK_DATA_BOUNDS;
     GET_ELEM_CONTENT;
     skipXmlObject(ctx);
+
+    if(!data || length == 0)
+        return UA_STATUSCODE_BADDECODINGERROR;
 
     /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
      * Maximum digit counts for select IEEE floating-point formats: 1074
@@ -1571,6 +1582,7 @@ UA_decodeXml(const UA_ByteString *src, void *dst, const UA_DataType *type,
     }
 
     /* Decode */
+    memset(dst, 0, type->memSize); /* Initialize the value */
     UA_StatusCode ret = decodeXmlJumpTable[type->typeKind](&ctx, dst, type);
     if(ret != UA_STATUSCODE_GOOD)
         UA_clear(dst, type);

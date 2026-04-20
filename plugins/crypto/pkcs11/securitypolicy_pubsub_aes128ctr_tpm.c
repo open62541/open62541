@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2021 (c) Kalycito Infotech Private Limited
+ *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
  */
 
 #include <open62541/plugin/securitypolicy_default.h>
@@ -24,6 +25,8 @@ static pthread_mutex_t initLock128_g = PTHREAD_MUTEX_INITIALIZER;
 // counter block=keynonce(4Byte)+Messagenonce(8Byte)+counter(4Byte) see Part14 7.2.2.2.3.2
 // for details
 #define UA_AES128CTR_COUNTERBLOCK_SIZE 16
+#define UA_AES128CTR_SIGNING_KEY_LENGTH 32
+#define UA_AES128CTR_KEY_LENGTH 16
 
 char *encryptionKeyLabel128_g;
 char *signingKeyLabel128_g;
@@ -33,58 +36,57 @@ unsigned long slotId128_g;
 CK_MECHANISM smech_128 = {CKM_SHA256_HMAC, NULL_PTR, 0};
 
 typedef struct {
-    UA_PubSubSecurityPolicy *securityPolicy;
     unsigned long sessionHandle;
 } PUBSUB_AES128CTR_PolicyContext;
 
 typedef struct {
-    PUBSUB_AES128CTR_PolicyContext *policyContext;
     unsigned long signingKeyHandle;
     unsigned long encryptingKeyHandle;
     unsigned long keyNonceHandle;
     unsigned long messageNonceHandle;
-} PUBSUB_AES128CTR_ChannelContext;
+} PUBSUB_AES128CTR_GroupContext;
 
-static
-CK_BBOOL pkcs11_find_object_by_label(UA_PubSubSecurityPolicy *policy, CK_SESSION_HANDLE hSession, char *label,
-                                     CK_OBJECT_HANDLE *object_handle) {
-
+static CK_BBOOL
+pkcs11_find_object_by_label(UA_PubSubSecurityPolicy *policy,
+                            CK_SESSION_HANDLE hSession, char *label,
+                            CK_OBJECT_HANDLE *object_handle) {
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    UA_Boolean returnValue = UA_FALSE;
+    UA_Boolean returnValue = false;
     unsigned long int foundCount = 0;
     do {
         CK_OBJECT_HANDLE hObject = 0;
-        /* Continues a search for token and session objects that match a template, obtaining additional object handles */
+        /* Continues a search for token and session objects that match a
+         * template, obtaining additional object handles */
         rv = (UA_StatusCode)C_FindObjects(hSession, &hObject, 1, &foundCount);
-        if (rv == UA_STATUSCODE_GOOD) {
-            CK_ATTRIBUTE attrTemplate[] = {
-                {CKA_LABEL, NULL, 0}
-            };
+        if(rv == UA_STATUSCODE_GOOD) {
+            CK_ATTRIBUTE attrTemplate[] = {{CKA_LABEL, NULL, 0}};
+
             /* Obtains the value of one or more attributes of an object*/
             rv = (UA_StatusCode)C_GetAttributeValue(hSession, hObject, attrTemplate, 1);
-            if (attrTemplate[0].ulValueLen > 0)
+            if(attrTemplate[0].ulValueLen > 0)
                 attrTemplate[0].pValue = (char *)UA_malloc(attrTemplate[0].ulValueLen);
             /* Obtains the value of one or more attributes of an object*/
             rv = (UA_StatusCode)C_GetAttributeValue(hSession, hObject, attrTemplate, 1);
-            if (attrTemplate[0].ulValueLen > 0) {
+            if(attrTemplate[0].ulValueLen > 0) {
                 char * val = (char *)UA_malloc(attrTemplate[0].ulValueLen + 1);
-                strncpy(val, (const char*)attrTemplate[0].pValue, attrTemplate[0].ulValueLen);
+                strncpy(val, (const char *)attrTemplate[0].pValue,
+                        attrTemplate[0].ulValueLen);
                 val[attrTemplate[0].ulValueLen] = '\0';
-                if (strncmp(val, label, attrTemplate[0].ulValueLen) == 0) {
-                    returnValue = UA_TRUE;
-                }
+                if(strncmp(val, label, attrTemplate[0].ulValueLen) == 0)
+                    returnValue = true;
 
                 UA_free(val);
                 *object_handle = hObject;
             }
 
-            if (attrTemplate[0].pValue)
+            if(attrTemplate[0].pValue)
                 UA_free(attrTemplate[0].pValue);
 
         } else {
-            returnValue = UA_FALSE;
+            returnValue = false;
             UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "Find objects failed 0x%.8lX", (long unsigned int)returnValue);
+                         "Find objects failed 0x%.8lX",
+                         (long unsigned int)returnValue);
         }
 
     } while(rv == UA_STATUSCODE_GOOD && foundCount > 0);
@@ -92,8 +94,9 @@ CK_BBOOL pkcs11_find_object_by_label(UA_PubSubSecurityPolicy *policy, CK_SESSION
     return returnValue;
 }
 
-static UA_StatusCode getSessionHandle(unsigned long *session,
-                                      PUBSUB_AES128CTR_PolicyContext *policy) {
+static UA_StatusCode
+getSessionHandle(UA_PubSubSecurityPolicy *policy,
+                 unsigned long *session) {
     CK_FLAGS flags;
     CK_SESSION_INFO sessionInfo;
     CK_C_INITIALIZE_ARGS initArgs;
@@ -110,9 +113,10 @@ static UA_StatusCode getSessionHandle(unsigned long *session,
     if(!cryptokiInitialized) {
         /* Initializes the Cryptoki library */
         rv = (UA_StatusCode)C_Initialize(&initArgs);
-        if (rv != UA_STATUSCODE_GOOD) {
-             UA_LOG_ERROR(policy->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                          "Failed to initialize 0x%.8lX", (long unsigned int)rv);
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "Failed to initialize 0x%.8lX",
+                         (long unsigned int)rv);
             return EXIT_FAILURE;
         }
         cryptokiInitialized = true;
@@ -120,37 +124,39 @@ static UA_StatusCode getSessionHandle(unsigned long *session,
 
     /* To obtain the address of the list of slots in the system */
     rv = (UA_StatusCode)C_GetSlotList(CK_TRUE, NULL, &slotCount);
-    if ((rv == UA_STATUSCODE_GOOD) && (slotCount > 0)) {
+    if((rv == UA_STATUSCODE_GOOD) && (slotCount > 0)) {
         pSlotList = (unsigned long*)UA_malloc(slotCount * sizeof (unsigned long));
-        if (pSlotList == NULL) {
-             UA_LOG_ERROR(policy->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                          "Unable to allocate memory");
+        if(pSlotList == NULL) {
+            UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "Unable to allocate memory");
             return EXIT_FAILURE;
         }
 
         /* To obtain a list of slots in the system */
         rv = (UA_StatusCode)C_GetSlotList(CK_TRUE, pSlotList, &slotCount);
-        if (rv != UA_STATUSCODE_GOOD) {
-             UA_LOG_ERROR(policy->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                          "Unable to get slot count 0x%.8lX", (long unsigned int)rv);
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "Unable to get slot count 0x%.8lX",
+                         (long unsigned int)rv);
             return EXIT_FAILURE;
         }
 
     } else {
-         UA_LOG_ERROR(policy->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                       "Unable to get slot list");
         return EXIT_FAILURE;
     }
 
-    for (unsigned long int i = 0; i < slotCount; i++) {
+    for(unsigned long int i = 0; i < slotCount; i++) {
         availableSlotId = pSlotList[i];
-        if (availableSlotId == slotId128_g) {
+        if(availableSlotId == slotId128_g) {
             CK_TOKEN_INFO tokenInfo;
             /* Obtains information about a particular token in the system */
             rv = (UA_StatusCode)C_GetTokenInfo(availableSlotId, &tokenInfo);
-            if (rv != UA_STATUSCODE_GOOD) {
-                 UA_LOG_ERROR(policy->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                              "Failed to fetch token info 0x%.8lX", (long unsigned int)rv);
+            if(rv != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                             "Failed to fetch token info 0x%.8lX",
+                             (long unsigned int)rv);
             }
             UA_free(pSlotList);
             break;
@@ -160,26 +166,31 @@ static UA_StatusCode getSessionHandle(unsigned long *session,
 
     flags = CKF_SERIAL_SESSION | CKF_RW_SESSION;
     /* Opens a session between an application and a token in a particular slot */
-    rv = (UA_StatusCode)C_OpenSession(availableSlotId, flags, (CK_VOID_PTR) NULL, NULL, session);
-    if (rv != UA_STATUSCODE_GOOD) {
-         UA_LOG_ERROR(policy->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                      "Failed to open session 0x%.8lX", (long unsigned int)rv);
+    rv = (UA_StatusCode)C_OpenSession(availableSlotId, flags, (CK_VOID_PTR)NULL,
+                                      NULL, session);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Failed to open session 0x%.8lX",
+                     (long unsigned int)rv);
         return EXIT_FAILURE;
     }
 
     rv = (UA_StatusCode)C_GetSessionInfo(*session, &sessionInfo);
-    if (rv != UA_STATUSCODE_GOOD) {
-         UA_LOG_ERROR(policy->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                      "Failed to get session info 0x%.8lX", (long unsigned int)rv);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Failed to get session info 0x%.8lX",
+                     (long unsigned int)rv);
         return EXIT_FAILURE;
     }
 
     if(sessionInfo.state != CKS_RW_USER_FUNCTIONS) {
         /* Logs a user into a token */
-        rv = (UA_StatusCode)C_Login(*session, CKU_USER, (unsigned char *)userPin128_g, (unsigned long int) strlen(userPin128_g));
-        if (rv != UA_STATUSCODE_GOOD) {
-             UA_LOG_ERROR(policy->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                          "Failed to login session using userpin 0x%.8lX", (long unsigned int)rv);
+        rv = (UA_StatusCode)C_Login(*session, CKU_USER, (unsigned char *)userPin128_g,
+                                    (unsigned long int) strlen(userPin128_g));
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "Failed to login session using userpin 0x%.8lX",
+                         (long unsigned int)rv);
             return EXIT_FAILURE;
         }
     }
@@ -187,10 +198,15 @@ static UA_StatusCode getSessionHandle(unsigned long *session,
     return rv;
 }
 
-static UA_StatusCode getSecurityKeys(PUBSUB_AES128CTR_ChannelContext *cc) {
-    UA_Boolean keyObjectFound = UA_FALSE;
+static UA_StatusCode
+getSecurityKeys(UA_PubSubSecurityPolicy *sp,
+                PUBSUB_AES128CTR_GroupContext *gc) {
+    UA_Boolean keyObjectFound = false;
     CK_OBJECT_CLASS keyClass = CKO_SECRET_KEY;
     CK_KEY_TYPE keyType = CKK_AES;
+
+    PUBSUB_AES128CTR_PolicyContext *pc = (PUBSUB_AES128CTR_PolicyContext *)
+        sp->policyContext;
 
     CK_ATTRIBUTE attrTemplate[] = {
         {CKA_CLASS, &keyClass, sizeof(keyClass)},
@@ -199,26 +215,30 @@ static UA_StatusCode getSecurityKeys(PUBSUB_AES128CTR_ChannelContext *cc) {
     };
 
     /* Initializes a search for token and session objects that match a template */
-    UA_StatusCode rv = (UA_StatusCode)C_FindObjectsInit(cc->policyContext->sessionHandle, attrTemplate, sizeof(attrTemplate)/sizeof (CK_ATTRIBUTE));
-    if (rv == UA_STATUSCODE_GOOD) {
-        keyObjectFound = pkcs11_find_object_by_label(cc->policyContext->securityPolicy,
-                                                     cc->policyContext->sessionHandle, encryptionKeyLabel128_g,
-                                                     &cc->encryptingKeyHandle);
-        if (keyObjectFound == UA_FALSE)
-            UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+    UA_StatusCode rv = (UA_StatusCode)
+        C_FindObjectsInit(pc->sessionHandle, attrTemplate,
+                          sizeof(attrTemplate)/sizeof (CK_ATTRIBUTE));
+    if(rv == UA_STATUSCODE_GOOD) {
+        keyObjectFound = pkcs11_find_object_by_label(sp, pc->sessionHandle,
+                                                     encryptionKeyLabel128_g,
+                                                     &gc->encryptingKeyHandle);
+        if(keyObjectFound == false)
+            UA_LOG_ERROR(sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Finding object failed");
 
         /* Terminates a search for token and session objects */
-        rv = (UA_StatusCode)C_FindObjectsFinal(cc->policyContext->sessionHandle);
-        if (rv != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "Finding object failed 0x%.8lX", (long unsigned int)rv);
+        rv = (UA_StatusCode)C_FindObjectsFinal(pc->sessionHandle);
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "Finding object failed 0x%.8lX",
+                         (long unsigned int)rv);
             return rv;
         }
 
     } else {
-        UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Find object initialization failed 0x%.8lX", (long unsigned int)rv);
+        UA_LOG_ERROR(sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Find object initialization failed 0x%.8lX",
+                     (long unsigned int)rv);
         return rv;
     }
 
@@ -231,25 +251,29 @@ static UA_StatusCode getSecurityKeys(PUBSUB_AES128CTR_ChannelContext *cc) {
         {CKA_LABEL, (void *)signingKeyLabel128_g, strlen(signingKeyLabel128_g)}
     };
 
-    rv = (UA_StatusCode)C_FindObjectsInit(cc->policyContext->sessionHandle, attrTemplateSigningKey, sizeof(attrTemplateSigningKey)/sizeof (CK_ATTRIBUTE));
-    if (rv == UA_STATUSCODE_GOOD) {
-        signingKeyObjectFound = pkcs11_find_object_by_label(cc->policyContext->securityPolicy,
-                                                            cc->policyContext->sessionHandle, signingKeyLabel128_g,
-                                                            &cc->signingKeyHandle);
-        if (signingKeyObjectFound == false){
-            UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+    rv = (UA_StatusCode)
+        C_FindObjectsInit(pc->sessionHandle, attrTemplateSigningKey,
+                          sizeof(attrTemplateSigningKey)/sizeof (CK_ATTRIBUTE));
+    if(rv == UA_STATUSCODE_GOOD) {
+        signingKeyObjectFound =
+            pkcs11_find_object_by_label(sp, pc->sessionHandle,
+                                        signingKeyLabel128_g, &gc->signingKeyHandle);
+        if(signingKeyObjectFound == false){
+            UA_LOG_ERROR(sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Finding object signing key failed");
             return EXIT_FAILURE;
         }
 
-        rv = (UA_StatusCode)C_FindObjectsFinal(cc->policyContext->sessionHandle);
-        if (rv != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "FindObjectsFinal failed for signing key 0x%.8lX", (long unsigned int)rv);
+        rv = (UA_StatusCode)C_FindObjectsFinal(pc->sessionHandle);
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "FindObjectsFinal failed for signing key 0x%.8lX",
+                         (long unsigned int)rv);
         }
     } else {
-        UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Finding object signing key init failed 0x%.8lX", (long unsigned int)rv);
+        UA_LOG_ERROR(sp->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Finding object signing key init failed 0x%.8lX",
+                     (long unsigned int)rv);
         return rv;
     }
 
@@ -257,52 +281,54 @@ static UA_StatusCode getSecurityKeys(PUBSUB_AES128CTR_ChannelContext *cc) {
 }
 
 static UA_StatusCode
-channelContext_newContext_sp_pubsub_aes128ctr_tpm(void *policyContext,
-                                                  const UA_ByteString *signingKey,
-                                                  const UA_ByteString *encryptingKey,
-                                                  const UA_ByteString *keyNonce,
-                                                  void **wgContext) {
-
+newContext_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy,
+                                const UA_ByteString *signingKey,
+                                const UA_ByteString *encryptingKey,
+                                const UA_ByteString *keyNonce,
+                                void **gContext) {
     /* Allocate the channel context */
-    PUBSUB_AES128CTR_ChannelContext *cc = (PUBSUB_AES128CTR_ChannelContext *)
-        UA_calloc(1, sizeof(PUBSUB_AES128CTR_ChannelContext));
-    if(cc == NULL)
+    PUBSUB_AES128CTR_GroupContext *gc = (PUBSUB_AES128CTR_GroupContext *)
+        UA_calloc(1, sizeof(PUBSUB_AES128CTR_GroupContext));
+    if(gc == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    cc->policyContext = (PUBSUB_AES128CTR_PolicyContext *)policyContext;
 
 #if UA_MULTITHREADING >= 100
     pthread_mutex_lock(&initLock128_g);
 #endif
 
-    unsigned long session;
-    UA_StatusCode rv = getSessionHandle(&session, cc->policyContext);
-    if (rv != UA_STATUSCODE_GOOD)
-    {
-        UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Initialize session failed 0x%.8lX", (long unsigned int)rv);
+    unsigned long session = 0;
+    UA_StatusCode rv = getSessionHandle(policy, &session);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Initialize session failed 0x%.8lX",
+                     (long unsigned int)rv);
         return rv;
     }
 
-    /* Initialize the channel context */
-    if(session)
-        memcpy(&cc->policyContext->sessionHandle, &session, sizeof(session));
+    /* Initialize the channel context
+     * TODO: Allow more than one session per SecurityPolicy */
+    if(session) {
+        PUBSUB_AES128CTR_PolicyContext *pc = (PUBSUB_AES128CTR_PolicyContext *)
+            policy->policyContext;
+        pc->sessionHandle = session;
+    }
 
-    if (signingKey->length == 0 && encryptingKey->length == 0) {
-        rv = getSecurityKeys(cc);
-        if (rv != UA_STATUSCODE_GOOD){
-            UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "getSecurityKeys failed 0x%.8lX", (long unsigned int)rv);
+    if(signingKey->length == 0 && encryptingKey->length == 0) {
+        rv = getSecurityKeys(policy, gc);
+        if(rv != UA_STATUSCODE_GOOD){
+            UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "getSecurityKeys failed 0x%.8lX",
+                         (long unsigned int)rv);
             return rv;
         }
     } else {
-        memcpy(&cc->encryptingKeyHandle, encryptingKey->data, sizeof(encryptingKey));
-        memcpy(&cc->signingKeyHandle, signingKey->data, sizeof(signingKey));
+        memcpy(&gc->encryptingKeyHandle, encryptingKey->data, sizeof(encryptingKey));
+        memcpy(&gc->signingKeyHandle, signingKey->data, sizeof(signingKey));
     }
 
-    memcpy(&cc->keyNonceHandle, keyNonce->data, keyNonce->length);
+    memcpy(&gc->keyNonceHandle, keyNonce->data, keyNonce->length);
 
-    *wgContext = cc;
+    *gContext = gc;
 
 #if UA_MULTITHREADING >= 100
     pthread_mutex_unlock(&initLock128_g);
@@ -312,49 +338,52 @@ channelContext_newContext_sp_pubsub_aes128ctr_tpm(void *policyContext,
 }
 
 static void
-channelContext_deleteContext_sp_pubsub_aes128ctr_tpm(PUBSUB_AES128CTR_ChannelContext *cc) {
-    /* Logs a user out from a token */
-    C_Logout(cc->policyContext->sessionHandle);
-    /* Closes a session between an application and a token */
-    C_CloseSession(cc->policyContext->sessionHandle);
-    /* Clean up miscellaneous Cryptoki-associated resources */
-    C_Finalize(NULL);
-
-    UA_free(cc->policyContext);
-    UA_free(cc);
+deleteContext_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy,
+                                   void *gContext) {
+    PUBSUB_AES128CTR_PolicyContext *pc =
+        (PUBSUB_AES128CTR_PolicyContext *)policy->policyContext;
+    C_Logout(pc->sessionHandle); /* Logs a user out from a token */
+    C_CloseSession(pc->sessionHandle); /* Closes session between application and token */
+    C_Finalize(NULL); /* Clean up miscellaneous Cryptoki-associated resources */
+    UA_free(gContext);
 }
 
 /* This nonce does not need to be a cryptographically random number, it can be
  * pseudo-random */
 static UA_StatusCode
-generateNonce_sp_pubsub_aes128ctr_tpm(void *policyContext, UA_ByteString *out) {
-    if(policyContext == NULL || out == NULL)
+generateNonce_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy,
+                                   void *gContext, UA_ByteString *out) {
+    if(policy == NULL || out == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-
-    PUBSUB_AES128CTR_PolicyContext *pc = (PUBSUB_AES128CTR_PolicyContext *)policyContext;
-
+    PUBSUB_AES128CTR_PolicyContext *pc =
+        (PUBSUB_AES128CTR_PolicyContext *)policy->policyContext;
     CK_RV rv = C_GenerateRandom(pc->sessionHandle, out->data, out->length);
     return (UA_StatusCode)rv;
 }
 
 static UA_StatusCode
-sign_sp_pubsub_aes128ctr_tpm(PUBSUB_AES128CTR_ChannelContext *cc,
-                         const UA_ByteString *data, UA_ByteString *signature) {
-
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
+sign_pubsub_aes128ctr_tpm(const UA_PubSubSecurityPolicy *policy,
+                      void *gContext, const UA_ByteString *message,
+                      UA_ByteString *signature) {
+    PUBSUB_AES128CTR_PolicyContext *pc =
+        (PUBSUB_AES128CTR_PolicyContext *)policy->policyContext;
+    PUBSUB_AES128CTR_GroupContext *gc =
+        (PUBSUB_AES128CTR_GroupContext *)gContext;
 
     /* Initializes a signature operation */
-    rv = (UA_StatusCode)C_SignInit(cc->policyContext->sessionHandle, &smech_128, cc->signingKeyHandle);
-    if (rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Signing initialization failed 0x%.8lX", (long unsigned int)rv);
+    UA_StatusCode rv = (UA_StatusCode)
+        C_SignInit(pc->sessionHandle, &smech_128, gc->signingKeyHandle);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Signing initialization failed 0x%.8lX",
+                     (long unsigned int)rv);
     }
 
     /* Signs data in a single part, where the signature is an appendix to the data */
-    rv = (UA_StatusCode)C_Sign(cc->policyContext->sessionHandle, data->data, data->length,
+    rv = (UA_StatusCode)C_Sign(pc->sessionHandle, message->data, message->length,
                               (CK_BYTE_PTR)signature->data, &signature->length);
-    if (rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Signing failed 0x%.8lX", (long unsigned int)rv);
     }
 
@@ -362,32 +391,43 @@ sign_sp_pubsub_aes128ctr_tpm(PUBSUB_AES128CTR_ChannelContext *cc,
 }
 
 static UA_StatusCode
-verify_sp_pubsub_aes128ctr_tpm(PUBSUB_AES128CTR_ChannelContext *cc,
-                               const UA_ByteString *data, const UA_ByteString *signature) {
+verify_pubsub_aes128ctr_tpm(const UA_PubSubSecurityPolicy *policy,
+                            void *gContext, const UA_ByteString *message,
+                            const UA_ByteString *signature) {
+    PUBSUB_AES128CTR_GroupContext *gc =
+        (PUBSUB_AES128CTR_GroupContext *)gContext;
+    PUBSUB_AES128CTR_PolicyContext *pc = (PUBSUB_AES128CTR_PolicyContext *)
+        policy->policyContext;
 
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    rv = (UA_StatusCode)C_VerifyInit(cc->policyContext->sessionHandle, &smech_128, cc->signingKeyHandle);
-    if (rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Signing key verification initialization failed 0x%.8lX", (long unsigned int)rv);
+    UA_StatusCode rv = (UA_StatusCode)
+        C_VerifyInit(pc->sessionHandle, &smech_128, gc->signingKeyHandle);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Signing key verification initialization failed 0x%.8lX",
+                     (long unsigned int)rv);
     }
 
-    rv = (UA_StatusCode)C_Verify(cc->policyContext->sessionHandle, data->data, data->length,
-                                 (unsigned char*)signature->data, (unsigned long)signature->length);
-    if (rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "Signing key verification failed 0x%.8lX", (long unsigned int)rv);
-        return rv;
+    rv = (UA_StatusCode)C_Verify(pc->sessionHandle, message->data, message->length,
+                                 (unsigned char *)signature->data,
+                                 (unsigned long)signature->length);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Signing key verification failed 0x%.8lX",
+                     (long unsigned int)rv);
     }
-
-    return UA_STATUSCODE_GOOD;
+    return rv;
 }
 
 static UA_StatusCode
-encrypt_sp_pubsub_aes128ctr_tpm(const PUBSUB_AES128CTR_ChannelContext *cc, UA_ByteString *data) {
-
-    if(cc == NULL || data == NULL)
+encrypt_pubsub_aes128ctr_tpm(const UA_PubSubSecurityPolicy *policy, void *gContext,
+                             UA_ByteString *data) {
+    if(gContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
+
+    PUBSUB_AES128CTR_PolicyContext *pc =
+        (PUBSUB_AES128CTR_PolicyContext *)policy->policyContext;
+    PUBSUB_AES128CTR_GroupContext *gc =
+        (PUBSUB_AES128CTR_GroupContext *)gContext;
 
     CK_BYTE sizeToEncrypt;
     int partNumber     = 0;
@@ -399,9 +439,9 @@ encrypt_sp_pubsub_aes128ctr_tpm(const PUBSUB_AES128CTR_ChannelContext *cc, UA_By
 
     /* Prepare the counterBlock required for encryption */
     UA_Byte counterBlockEncrypt[UA_AES128CTR_COUNTERBLOCK_SIZE];
-    memcpy(counterBlockEncrypt, &cc->keyNonceHandle, UA_AES128CTR_KEYNONCE_LENGTH);
+    memcpy(counterBlockEncrypt, &gc->keyNonceHandle, UA_AES128CTR_KEYNONCE_LENGTH);
     memcpy(counterBlockEncrypt + UA_AES128CTR_KEYNONCE_LENGTH,
-           &cc->messageNonceHandle, UA_AES128CTR_MESSAGENONCE_LENGTH);
+           &gc->messageNonceHandle, UA_AES128CTR_MESSAGENONCE_LENGTH);
     memset(counterBlockEncrypt + UA_AES128CTR_KEYNONCE_LENGTH +
            UA_AES128CTR_MESSAGENONCE_LENGTH, 0, 4);
 
@@ -410,27 +450,32 @@ encrypt_sp_pubsub_aes128ctr_tpm(const PUBSUB_AES128CTR_ChannelContext *cc, UA_By
     CK_MECHANISM mech_128 = {CKM_AES_CTR, &params_encrupt_128, sizeof(params_encrupt_128)};
 
     /* Initializes an encryption operation */
-    rv = (UA_StatusCode)C_EncryptInit(cc->policyContext->sessionHandle, &mech_128, cc->encryptingKeyHandle);
-    if (rv != UA_STATUSCODE_GOOD) {
-         UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                      "Encrypt initialization failed 0x%.8lX", (long unsigned int)rv);
+    rv = (UA_StatusCode)C_EncryptInit(pc->sessionHandle, &mech_128,
+                                      gc->encryptingKeyHandle);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Encrypt initialization failed 0x%.8lX",
+                     (long unsigned int)rv);
         return rv;
     }
 
-    if ((data->length % MAX_ENCRYPTION_SIZE) != 0)
+    if((data->length % MAX_ENCRYPTION_SIZE) != 0)
         sizeToEncrypt = (CK_BYTE)(data->length + (MAX_ENCRYPTION_SIZE - (data->length % MAX_ENCRYPTION_SIZE)));
     else
         sizeToEncrypt = (CK_BYTE)data->length;
 
     CK_BYTE *cipherText = (CK_BYTE*)UA_malloc(sizeToEncrypt * sizeof(CK_BYTE));
-    while(rv == UA_STATUSCODE_GOOD && partNumber * MAX_ENCRYPTION_SIZE <= sizeToEncrypt - MAX_ENCRYPTION_SIZE) {
+    while(rv == UA_STATUSCODE_GOOD &&
+          partNumber * MAX_ENCRYPTION_SIZE <= sizeToEncrypt - MAX_ENCRYPTION_SIZE) {
         /* Continues a multiple-part encryption operation, processing another data part */
-        rv = (UA_StatusCode)C_EncryptUpdate(cc->policyContext->sessionHandle,
-                                            &data->data[partNumber*MAX_ENCRYPTION_SIZE], MAX_ENCRYPTION_SIZE,
-                                            &cipherText[partNumber*MAX_ENCRYPTION_SIZE], &decLen);
-        if (UA_STATUSCODE_GOOD != rv) {
-             UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                         "Encrypt update failed 0x%.8lX", (long unsigned int)rv);
+        rv = (UA_StatusCode)C_EncryptUpdate(
+            pc->sessionHandle, &data->data[partNumber * MAX_ENCRYPTION_SIZE],
+            MAX_ENCRYPTION_SIZE, &cipherText[partNumber * MAX_ENCRYPTION_SIZE],
+            &decLen);
+        if(UA_STATUSCODE_GOOD != rv) {
+            UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "Encrypt update failed 0x%.8lX",
+                         (long unsigned int)rv);
             goto cleanup;
         }
 
@@ -438,14 +483,15 @@ encrypt_sp_pubsub_aes128ctr_tpm(const PUBSUB_AES128CTR_ChannelContext *cc, UA_By
     }
 
     /* Finishes a multiple-part encryption operation */
-    rv = (UA_StatusCode)C_EncryptFinal(cc->policyContext->sessionHandle, &final, &finalLen);
-    if (UA_STATUSCODE_GOOD != rv) {
-         UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                      "Encrypt final failed 0x%.8lX", (long unsigned int)rv);
+    rv = (UA_StatusCode)C_EncryptFinal(pc->sessionHandle, &final, &finalLen);
+    if(UA_STATUSCODE_GOOD != rv) {
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                     "Encrypt final failed 0x%.8lX",
+                     (long unsigned int)rv);
         goto cleanup;
     }
 
-    for (int i=0; i< sizeToEncrypt; i++)
+    for(int i=0; i< sizeToEncrypt; i++)
         data->data[i] = cipherText[i];
 
 cleanup:
@@ -454,10 +500,15 @@ cleanup:
 }
 
 static UA_StatusCode
-decrypt_sp_pubsub_aes128ctr_tpm(const PUBSUB_AES128CTR_ChannelContext *cc, UA_ByteString *data) {
-
-    if(cc == NULL || data == NULL)
+decrypt_pubsub_aes128ctr_tpm(const UA_PubSubSecurityPolicy *policy,
+                             void *gContext, UA_ByteString *data) {
+    if(gContext == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
+
+    PUBSUB_AES128CTR_GroupContext *gc =
+        (PUBSUB_AES128CTR_GroupContext *)gContext;
+    PUBSUB_AES128CTR_PolicyContext *pc = (PUBSUB_AES128CTR_PolicyContext *)
+        policy->policyContext;
 
     UA_StatusCode rv          = UA_STATUSCODE_GOOD;
     int decodePartNumber      = 0;
@@ -469,9 +520,9 @@ decrypt_sp_pubsub_aes128ctr_tpm(const PUBSUB_AES128CTR_ChannelContext *cc, UA_By
 
     /* Prepare the counterBlock required for decryption */
     UA_Byte counterBlockDecrypt[UA_AES128CTR_COUNTERBLOCK_SIZE];
-    memcpy(counterBlockDecrypt, &cc->keyNonceHandle, UA_AES128CTR_KEYNONCE_LENGTH);
+    memcpy(counterBlockDecrypt, &gc->keyNonceHandle, UA_AES128CTR_KEYNONCE_LENGTH);
     memcpy(counterBlockDecrypt + UA_AES128CTR_KEYNONCE_LENGTH,
-           &cc->messageNonceHandle, UA_AES128CTR_MESSAGENONCE_LENGTH);
+           &gc->messageNonceHandle, UA_AES128CTR_MESSAGENONCE_LENGTH);
     memset(counterBlockDecrypt + UA_AES128CTR_KEYNONCE_LENGTH +
            UA_AES128CTR_MESSAGENONCE_LENGTH, 0, 4);
 
@@ -479,27 +530,29 @@ decrypt_sp_pubsub_aes128ctr_tpm(const PUBSUB_AES128CTR_ChannelContext *cc, UA_By
     memcpy(params_decrypt_128.cb, counterBlockDecrypt, sizeof(params_decrypt_128.cb));
     CK_MECHANISM mech_128 = {CKM_AES_CTR, &params_decrypt_128, sizeof(params_decrypt_128)};
 
-    rv = (UA_StatusCode)C_DecryptInit(cc->policyContext->sessionHandle, &mech_128, cc->encryptingKeyHandle);
-    if (rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+    rv = (UA_StatusCode)C_DecryptInit(pc->sessionHandle, &mech_128,
+                                      gc->encryptingKeyHandle);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Decrypt init failed 0x%.8lX", (long unsigned int)rv);
         return rv;
     }
 
-    if ((data->length % MAX_ENCRYPTION_SIZE) != 0)
+    if((data->length % MAX_ENCRYPTION_SIZE) != 0)
         sizeToDecrypt = (CK_BYTE)(data->length + (MAX_ENCRYPTION_SIZE - (data->length % MAX_ENCRYPTION_SIZE)));
     else
         sizeToDecrypt = (CK_BYTE)data->length;
 
     CK_BYTE *decodeCiphertext = (CK_BYTE*)UA_malloc(sizeToDecrypt * sizeof(CK_BYTE));
 
-    while(rv == UA_STATUSCODE_GOOD && decodePartNumber * MAX_ENCRYPTION_SIZE <= sizeToDecrypt - MAX_ENCRYPTION_SIZE) {
-        rv = (UA_StatusCode)C_DecryptUpdate(cc->policyContext->sessionHandle,
+    while(rv == UA_STATUSCODE_GOOD &&
+          decodePartNumber * MAX_ENCRYPTION_SIZE <= sizeToDecrypt - MAX_ENCRYPTION_SIZE) {
+        rv = (UA_StatusCode)C_DecryptUpdate(pc->sessionHandle,
                                             &data->data[decodePartNumber*MAX_ENCRYPTION_SIZE], MAX_ENCRYPTION_SIZE,
                                             &decodeCiphertext[decodePartNumber*MAX_ENCRYPTION_SIZE], &decodeDecLen);
 
-        if (rv != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "Decrypt update failed 0x%.8lX", (long unsigned int)rv);
             goto cleanup;
         }
@@ -507,14 +560,15 @@ decrypt_sp_pubsub_aes128ctr_tpm(const PUBSUB_AES128CTR_ChannelContext *cc, UA_By
         decodePartNumber++;
     }
 
-    rv = (UA_StatusCode)C_DecryptFinal(cc->policyContext->sessionHandle, &decodeFinal, &decodeFinalLen);
-    if (rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(cc->policyContext->securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+    rv = (UA_StatusCode)C_DecryptFinal(pc->sessionHandle, &decodeFinal,
+                                       &decodeFinalLen);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(policy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
                      "Decrypt final failed 0x%.8lX", (long unsigned int)rv);
         goto cleanup;
     }
 
-    for (int i=0; i< sizeToDecrypt; i++)
+    for(int i=0; i< sizeToDecrypt; i++)
         data->data[i] = decodeCiphertext[i];
 
 cleanup:
@@ -523,86 +577,93 @@ cleanup:
 }
 
 static UA_StatusCode
-channelContext_setMessageNonce_sp_pubsub_aes128ctr_tpm(PUBSUB_AES128CTR_ChannelContext *cc,
-                                                       const UA_ByteString *nonce) {
+setMessageNonce_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy,
+                                     void *gContext, const UA_ByteString *nonce) {
+    PUBSUB_AES128CTR_GroupContext *gc =
+        (PUBSUB_AES128CTR_GroupContext *)gContext;
     if(nonce->length != UA_AES128CTR_MESSAGENONCE_LENGTH)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    memcpy(&cc->messageNonceHandle, nonce->data, nonce->length);
+    memcpy(&gc->messageNonceHandle, nonce->data, nonce->length);
     return UA_STATUSCODE_GOOD;
 }
 
 static size_t
-getSignatureSize_sp_pubsub_aes128ctr_tpm(const void *channelContext) {
+getSignatureSize_pubsub_aes128ctr_tpm(const UA_PubSubSecurityPolicy *policy,
+                                      const void *gContext) {
     return SIGNATURE_LENGTH;
 }
 
+static size_t
+getSignatureKeyLength_pubsub_aes128ctr_tpm(const UA_PubSubSecurityPolicy *policy,
+                                           const void *gContext) {
+    return UA_AES128CTR_SIGNING_KEY_LENGTH;
+}
+
+static size_t
+getEncryptionKeyLength_pubsub_aes128ctr_tpm(const UA_PubSubSecurityPolicy *policy,
+                                            const void *gContext) {
+    return UA_AES128CTR_KEY_LENGTH;
+}
+
 static void
-deleteMembers_sp_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy) {
-    /* Can be used for future implementation */
+clear_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy) {
+    UA_free(policy->policyContext);
+    policy->policyContext = NULL;
 }
 
 static UA_StatusCode
-channelContext_setKeys_sp_pubsub_aes128ctr_tpm(PUBSUB_AES128CTR_ChannelContext *cc,
-                                               const UA_ByteString *signingKey,
-                                               const UA_ByteString *encryptingKey,
-                                               const UA_ByteString *keyNonce) {
-
-    memcpy(&cc->encryptingKeyHandle, encryptingKey->data, sizeof(encryptingKey));
-    memcpy(&cc->signingKeyHandle, signingKey->data, sizeof(signingKey));
-    memcpy(&cc->keyNonceHandle, keyNonce->data, sizeof(keyNonce));
+setKeys_pubsub_aes128ctr_tpm(UA_PubSubSecurityPolicy *policy, void *gContext,
+                             const UA_ByteString *signingKey,
+                             const UA_ByteString *encryptingKey,
+                             const UA_ByteString *keyNonce) {
+    PUBSUB_AES128CTR_GroupContext *gc =
+        (PUBSUB_AES128CTR_GroupContext *)gContext;
+    memcpy(&gc->encryptingKeyHandle, encryptingKey->data, sizeof(encryptingKey));
+    memcpy(&gc->signingKeyHandle, signingKey->data, sizeof(signingKey));
+    memcpy(&gc->keyNonceHandle, keyNonce->data, sizeof(keyNonce));
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_PubSubSecurityPolicy_Aes128CtrTPM (UA_PubSubSecurityPolicy *policy, char *userpin,
-                                      unsigned long slotId, char *encryptionKeyLabel,
-                                      char* signingKeyLabel, const UA_Logger *logger) {
+UA_PubSubSecurityPolicy_Aes128CtrTPM(UA_PubSubSecurityPolicy *sp, char *userpin,
+                                     unsigned long slotId, char *encryptionKeyLabel,
+                                     char* signingKeyLabel, const UA_Logger *logger) {
+    /* TODO: Move global variables into the policy context */
     encryptionKeyLabel128_g = encryptionKeyLabel;
     signingKeyLabel128_g = signingKeyLabel;
     slotId128_g = slotId;
     userPin128_g = userpin;
 
-    memset(policy, 0, sizeof(UA_PubSubSecurityPolicy));
-    policy->logger = logger;
-    policy->policyUri =
+    /* Initialize the SecurityPolicy */
+    memset(sp, 0, sizeof(UA_PubSubSecurityPolicy));
+    sp->logger = logger;
+    sp->policyUri =
         UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes128-CTR");
-    policy->newContext = channelContext_newContext_sp_pubsub_aes128ctr_tpm;
-    policy->deleteContext = (void (*)(void *))channelContext_deleteContext_sp_pubsub_aes128ctr_tpm;
-    policy->setSecurityKeys = (UA_StatusCode(*)(void *, const UA_ByteString *,
-                                                const UA_ByteString *,
-                                                const UA_ByteString *))
-                              channelContext_setKeys_sp_pubsub_aes128ctr_tpm;
-    policy->setMessageNonce = (UA_StatusCode(*)(void *, const UA_ByteString *))
-                              channelContext_setMessageNonce_sp_pubsub_aes128ctr_tpm;
-    policy->clear = deleteMembers_sp_pubsub_aes128ctr_tpm;
 
-    UA_SecurityPolicySymmetricModule *symmetricModule = &policy->symmetricModule;
-    symmetricModule->generateNonce = generateNonce_sp_pubsub_aes128ctr_tpm;
-    UA_SecurityPolicySignatureAlgorithm *signatureAlgorithm =
-        &symmetricModule->cryptoModule.signatureAlgorithm;
-    signatureAlgorithm->uri = UA_STRING("http://www.w3.org/2001/04/xmlenc#sha256");
-    signatureAlgorithm->verify =
-         (UA_StatusCode(*)(void *, const UA_ByteString *, const UA_ByteString *))verify_sp_pubsub_aes128ctr_tpm;
-    signatureAlgorithm->sign =
-        (UA_StatusCode(*)(void *, const UA_ByteString *, UA_ByteString *))sign_sp_pubsub_aes128ctr_tpm;
-    signatureAlgorithm->getLocalSignatureSize = getSignatureSize_sp_pubsub_aes128ctr_tpm;
+    /* Set the method pointers */
+    sp->newGroupContext = newContext_pubsub_aes128ctr_tpm;
+    sp->deleteGroupContext = deleteContext_pubsub_aes128ctr_tpm;
+    sp->verify = verify_pubsub_aes128ctr_tpm;
+    sp->sign = sign_pubsub_aes128ctr_tpm;
+    sp->getSignatureSize = getSignatureSize_pubsub_aes128ctr_tpm;
+    sp->getSignatureKeyLength = getSignatureKeyLength_pubsub_aes128ctr_tpm;
+    sp->getEncryptionKeyLength = getEncryptionKeyLength_pubsub_aes128ctr_tpm;
+    sp->encrypt = encrypt_pubsub_aes128ctr_tpm;
+    sp->decrypt = decrypt_pubsub_aes128ctr_tpm;
+    sp->setSecurityKeys = setKeys_pubsub_aes128ctr_tpm;
+    sp->generateKey = NULL;
+    sp->generateNonce = generateNonce_pubsub_aes128ctr_tpm;
+    sp->nonceLength = UA_AES128CTR_SIGNING_KEY_LENGTH +
+        UA_AES128CTR_KEY_LENGTH + UA_AES128CTR_KEYNONCE_LENGTH;
+    sp->setMessageNonce = setMessageNonce_pubsub_aes128ctr_tpm;
+    sp->clear = clear_pubsub_aes128ctr_tpm;
 
-    UA_SecurityPolicyEncryptionAlgorithm *encryptionAlgorithm =
-        &symmetricModule->cryptoModule.encryptionAlgorithm;
-    encryptionAlgorithm->uri =
-        UA_STRING("https://tools.ietf.org/html/rfc3686"); /* Temp solution */
-    encryptionAlgorithm->encrypt =
-        (UA_StatusCode(*)(void *, UA_ByteString *))encrypt_sp_pubsub_aes128ctr_tpm;
-    encryptionAlgorithm->decrypt =
-        (UA_StatusCode(*)(void *, UA_ByteString *))decrypt_sp_pubsub_aes128ctr_tpm;
-
+    /* Initialize the policyContext */
     PUBSUB_AES128CTR_PolicyContext *pc = (PUBSUB_AES128CTR_PolicyContext *)
         UA_calloc(1, sizeof(PUBSUB_AES128CTR_PolicyContext));
-    policy->policyContext = (void *)pc;
+    sp->policyContext = (void *)pc;
     if(!pc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    pc->securityPolicy = policy;
-
     return UA_STATUSCODE_GOOD;
 }
 #endif

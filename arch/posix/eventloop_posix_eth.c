@@ -6,6 +6,7 @@
  *   Copyright 2019-2020 (c) Kalycito Infotech Private Limited
  *   Copyright 2019-2020 (c) Wind River Systems, Inc.
  *   Copyright 2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *   Copyright 2025 (c) SICK AG (Author: Joerg Fischer)
  */
 
 #include "eventloop_posix.h"
@@ -159,10 +160,10 @@ parseETHHeader(const UA_ByteString *buf,
         if(buf->length < (2 * ETHER_ADDR_LEN)+2+4)
             return 0;
         pos += 2;
-        UA_UInt16 vlan = ntohs(*(UA_UInt16*)&buf->data[pos]);
-        *pcp = 0x07 & vlan;
-        *dei = 0x01 & (vlan >> 3);
-        *vid = vlan >> 4;
+        UA_UInt16 tci = ntohs(*(UA_UInt16*)&buf->data[pos]);
+        *pcp = (tci >> 13) & 0x07;
+        *dei = (tci >> 12) & 0x01;
+        *vid = tci & 0x0FFF;
         pos += 2;
         length = ntohs(*(UA_UInt16*)&buf->data[pos]);
     }
@@ -191,8 +192,8 @@ setETHHeader(unsigned char *buf,
     if(vid > 0 && vid != ETH_P_ALL) {
         *(UA_UInt16*)&buf[pos] = htons(0x8100);
         pos += 2;
-        UA_UInt16 vlan = (UA_UInt16)((UA_UInt16)pcp + (((UA_UInt16)dei) << 3) + (vid << 4));
-        *(UA_UInt16*)&buf[pos] = htons(vlan);
+        UA_UInt16 tci = (UA_UInt16)(((UA_UInt16)pcp  << 13) | ((UA_UInt16)dei  << 12) | ((UA_UInt16)vid));
+        *(UA_UInt16*)&buf[pos] = htons(tci);
         pos += 2;
     }
 
@@ -584,16 +585,17 @@ ETH_openSendConnection(UA_EventLoopPOSIX *el, ETH_FD *conn, const UA_KeyValueMap
         UA_KeyValueMap_getScalar(params,
                                  ethConnectionParams[ETH_PARAMINDEX_TXTIME_ENABLE].name,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
-    const UA_UInt32 *txtime_flags = (const UA_UInt32*)
-        UA_KeyValueMap_getScalar(params,
-                                 ethConnectionParams[ETH_PARAMINDEX_TXTIME_FLAGS].name,
-                                 &UA_TYPES[UA_TYPES_UINT32]);
+
     if(txtime_enable && *txtime_enable) {
 #ifndef SO_TXTIME
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "ETH %u\t| txtime feature not supported",
                        (unsigned)conn->rfd.fd);
 #else
+        const UA_UInt32 *txtime_flags = (const UA_UInt32*)
+        UA_KeyValueMap_getScalar(params,
+                                 ethConnectionParams[ETH_PARAMINDEX_TXTIME_FLAGS].name,
+                                 &UA_TYPES[UA_TYPES_UINT32]);
         UA_RESET_ERRNO;
         struct sock_txtime so_txtime_val;
         memset(&so_txtime_val, 0, sizeof(struct sock_txtime));
@@ -671,12 +673,17 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_KeyValueMap_getScalar(params,
                                  ethConnectionParams[ETH_PARAMINDEX_IFACE].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
+    if (interface == NULL) {
+        UA_UNLOCK(&el->elMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     if(interface->length >= 128) {
         UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     char ifname[128];
-    memcpy(ifname, interface->data, interface->length);
+    if(interface->length)
+        memcpy(ifname, interface->data, interface->length);
     ifname[interface->length] = 0;
     int ifindex = (int)if_nametoindex(ifname);
     if(ifindex == 0) {

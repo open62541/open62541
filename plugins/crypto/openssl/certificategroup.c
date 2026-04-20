@@ -151,7 +151,7 @@ openSSLFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
                 UA_ByteString **crls, size_t *crlsSize) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(!cert)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -261,9 +261,9 @@ MemoryCertStore_clear(UA_CertificateGroup *certGroup) {
         context->rejectedCertificates = NULL;
         context->rejectedCertificatesSize = 0;
 
-        sk_X509_pop_free (context->trustedCertificates, X509_free);
-        sk_X509_pop_free (context->issuerCertificates, X509_free);
-        sk_X509_CRL_pop_free (context->crls, X509_CRL_free);
+        sk_X509_pop_free(context->trustedCertificates, X509_free);
+        sk_X509_pop_free(context->issuerCertificates, X509_free);
+        sk_X509_CRL_pop_free(context->crls, X509_CRL_free);
 
         UA_free(context);
         certGroup->context = NULL;
@@ -285,7 +285,7 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     for(size_t i = 0; i < context->trustList.trustedCertificatesSize; i++) {
-        X509 *cert = UA_OpenSSL_LoadCertificate(&context->trustList.trustedCertificates[i]);
+        X509 *cert = UA_OpenSSL_LoadCertificate(&context->trustList.trustedCertificates[i], EVP_PKEY_NONE);
         if(cert == NULL)
             return UA_STATUSCODE_BADINTERNALERROR;
         sk_X509_push(context->trustedCertificates, cert);
@@ -297,7 +297,7 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     for(size_t i = 0; i < context->trustList.issuerCertificatesSize; i++) {
-        X509 *cert = UA_OpenSSL_LoadCertificate(&context->trustList.issuerCertificates[i]);
+        X509 *cert = UA_OpenSSL_LoadCertificate(&context->trustList.issuerCertificates[i], EVP_PKEY_NONE);
         if(cert == NULL)
             return UA_STATUSCODE_BADINTERNALERROR;
         sk_X509_push(context->issuerCertificates, cert);
@@ -316,16 +316,15 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
                               (int)context->trustList.trustedCrls[i].length);
         /* Try to load DER encoded CRL */
         crl = d2i_X509_CRL_bio(bio, NULL);
-        if (crl == NULL) {
+        if(crl == NULL) {
             /* Try to load PEM encoded CRL */
-            BIO_reset(bio);
+            (void)BIO_reset(bio);
             crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
         }
         BIO_free(bio);
 
-        if (crl == NULL) {
+        if(crl == NULL)
             return UA_STATUSCODE_BADINTERNALERROR;
-        }
         sk_X509_CRL_push(context->crls, crl);
     }
     for(size_t i = 0; i < context->trustList.issuerCrlsSize; i++) {
@@ -336,16 +335,15 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
                               (int)context->trustList.issuerCrls[i].length);
         /* Try to load DER encoded Issuer CRL */
         crl = d2i_X509_CRL_bio(bio, NULL);
-        if (crl == NULL) {
+        if(crl == NULL) {
             /* Try to load PEM encoded Issuer CRL */
-            BIO_reset(bio);
+            (void)BIO_reset(bio);
             crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
         }
         BIO_free(bio);
 
-        if (crl == NULL) {
+        if(crl == NULL)
             return UA_STATUSCODE_BADINTERNALERROR;
-        }
         sk_X509_CRL_push(context->crls, crl);
     }
 
@@ -372,22 +370,22 @@ UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l
     const unsigned char *ss2 = s2;
     /* handle special case */
     if(l1 == 0)
-        return (NULL);
+        return NULL;
     if(l2 == 0)
         return s1;
 
     /* match prefix */
-    for (; (s1 = bstrchr(s1, *s2, (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1)) != NULL &&
-           (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1 != 0; ++s1) {
+    for(; (s1 = bstrchr(s1, *s2, (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1)) != NULL &&
+            (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1 != 0; ++s1) {
 
         /* match rest of prefix */
         const unsigned char *sc1, *sc2;
-        for (sc1 = s1, sc2 = s2; ;)
-            if (++sc2 >= ss2+l2)
+        for(sc1 = s1, sc2 = s2; ;)
+            if(++sc2 >= ss2+l2)
                 return s1;
             else if (*++sc1 != *sc2)
                 break;
-           }
+    }
     return NULL;
 }
 
@@ -627,9 +625,8 @@ openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509
 static UA_StatusCode
 verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
     /* Check parameter */
-    if (certGroup == NULL || certGroup->context == NULL) {
+    if(certGroup == NULL || certGroup->context == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
@@ -758,78 +755,54 @@ cleanup:
 }
 
 UA_StatusCode
-UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
-                                         const UA_ByteString *certificate,
-                                         const UA_String *applicationURI,
-                                         UA_Logger *logger) {
-    const unsigned char * pData;
-    X509 *                certificateX509;
-    UA_String             subjectURI = UA_STRING_NULL;
-    GENERAL_NAMES *       pNames;
-    int                   i;
-    UA_StatusCode         ret;
+UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
+                                         const UA_String *applicationURI) {
+    const unsigned char *pData = certificate->data;
+    if(!pData)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
-    pData = certificate->data;
-    if (pData == NULL) {
+    X509 *certificateX509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
+    if(!certificateX509)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    GENERAL_NAMES *pNames = (GENERAL_NAMES *)
+        X509_get_ext_d2i(certificateX509, NID_subject_alt_name, NULL, NULL);
+    if(!pNames) {
+        X509_free(certificateX509);
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
-    certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
-    if (certificateX509 == NULL) {
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
-
-    pNames = (GENERAL_NAMES *) X509_get_ext_d2i(certificateX509, NID_subject_alt_name,
-                                                NULL, NULL);
-    if (pNames == NULL) {
-        X509_free (certificateX509);
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
-
-    UA_String_init(&subjectURI);
-
-    for (i = 0; i < sk_GENERAL_NAME_num (pNames); i++) {
-        GENERAL_NAME * value = sk_GENERAL_NAME_value (pNames, i);
-        if (value->type == GEN_URI) {
+    UA_String subjectURI = UA_STRING_NULL;
+    for(int i = 0; i < sk_GENERAL_NAME_num(pNames); i++) {
+        GENERAL_NAME *value = sk_GENERAL_NAME_value(pNames, i);
+        if(value->type == GEN_URI) {
             subjectURI.length = (size_t) (value->d.ia5->length);
-            subjectURI.data = (UA_Byte *) UA_malloc (subjectURI.length);
-            if (subjectURI.data == NULL) {
-                X509_free (certificateX509);
+            subjectURI.data = (UA_Byte*)UA_malloc(subjectURI.length);
+            if(!subjectURI.data) {
+                X509_free(certificateX509);
                 sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
                 return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
             }
-            (void) memcpy (subjectURI.data, value->d.ia5->data, subjectURI.length);
+            (void)memcpy(subjectURI.data, value->d.ia5->data, subjectURI.length);
             break;
         }
-
     }
 
-    ret = UA_STATUSCODE_GOOD;
-    if (UA_Bstrstr (subjectURI.data, subjectURI.length,
-                    applicationURI->data, applicationURI->length) == NULL) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(UA_Bstrstr(subjectURI.data, subjectURI.length,
+                  applicationURI->data, applicationURI->length) == NULL)
         ret = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
-    }
 
-    if(ret != UA_STATUSCODE_GOOD && ruleHandling != UA_RULEHANDLING_ACCEPT) {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "The certificate's Subject Alternative Name URI (%S) "
-                       "does not match the ApplicationURI (%S)",
-                       subjectURI, *applicationURI);
-    }
-
-    if(ruleHandling != UA_RULEHANDLING_ABORT)
-        ret = UA_STATUSCODE_GOOD;
-
-    X509_free (certificateX509);
+    X509_free(certificateX509);
     sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
-    UA_String_clear (&subjectURI);
+    UA_String_clear(&subjectURI);
     return ret;
 }
 
 UA_StatusCode
 UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
                                       UA_DateTime *expiryDateTime) {
-    X509 *x509 = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *x509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(!x509)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
@@ -859,7 +832,7 @@ UA_StatusCode
 UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName) {
     X509_NAME *sn = NULL;
-    X509 *x509 = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *x509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     X509_CRL *x509_crl = NULL;
 
     if(x509) {
@@ -874,8 +847,10 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
     char buf[1024];
     *subjectName = UA_STRING_ALLOC(X509_NAME_oneline(sn, buf, 1024));
 
-    if (x509) X509_free(x509);
-    if (x509_crl) X509_CRL_free(x509_crl);
+    if(x509)
+        X509_free(x509);
+    if(x509_crl)
+        X509_CRL_free(x509_crl);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -888,7 +863,7 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
     unsigned char digest[SHA1_DIGEST_LENGTH];
     unsigned int digestLen;
 
-    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(cert) {
         if(X509_digest(cert, EVP_sha1(), digest, &digestLen) != 1) {
             X509_free(cert);
@@ -928,7 +903,7 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
     if(certificate == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(!cert)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
@@ -986,15 +961,15 @@ UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
     cert1 = PEM_read_bio_X509(dataBio1, NULL, 0, NULL);
     if(!cert1) {
         /* If PEM read fails, reset BIO and try reading as DER */
-        BIO_reset(dataBio1);
+        (void)BIO_reset(dataBio1);
         cert1 = d2i_X509_bio(dataBio1, NULL);
     }
     /* Try to read as a csr */
     if(!cert1) {
-        BIO_reset(dataBio1);
+        (void)BIO_reset(dataBio1);
         csr1 = PEM_read_bio_X509_REQ(dataBio1, NULL, 0, NULL);
         if(!csr1) {
-            BIO_reset(dataBio1);
+            (void)BIO_reset(dataBio1);
             csr1 = d2i_X509_REQ_bio(dataBio1, NULL);
         }
     }
@@ -1007,15 +982,15 @@ UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
     cert2 = PEM_read_bio_X509(dataBio2, NULL, 0, NULL);
     if(!cert2) {
         /* If PEM read fails, reset BIO and try reading as DER */
-        BIO_reset(dataBio2);
+        (void)BIO_reset(dataBio2);
         cert2 = d2i_X509_bio(dataBio2, NULL);
     }
     /* Try to load as a csr */
     if(!cert2) {
-        BIO_reset(dataBio2);
+        (void)BIO_reset(dataBio2);
         csr2 = PEM_read_bio_X509_REQ(dataBio2, NULL, 0, NULL);
         if(!csr2) {
-            BIO_reset(dataBio2);
+            (void)BIO_reset(dataBio2);
             csr2 = d2i_X509_REQ_bio(dataBio2, NULL);
         }
     }
@@ -1071,7 +1046,7 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
     if(certificate == NULL || privateKey == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(!cert)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
@@ -1099,7 +1074,7 @@ UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     if(certificate == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    X509 *certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
+    X509 *certificateX509 = UA_OpenSSL_LoadCertificate(certificate, EVP_PKEY_NONE);
     if(!certificateX509)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
@@ -1125,7 +1100,7 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
     if(!outDerKey)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if (privateKey.length == 0) {
+    if(privateKey.length == 0) {
         *outDerKey = UA_BYTESTRING_NULL;
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -1135,7 +1110,7 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
 
     /* Check if input is already in DER format */
     pkey = d2i_AutoPrivateKey(NULL, &in, privateKey.length);
-    if (pkey != NULL) {
+    if(pkey != NULL) {
         EVP_PKEY_free(pkey);
         return UA_ByteString_copy(&privateKey, outDerKey);
     }

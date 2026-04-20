@@ -288,7 +288,8 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     }
 
     if(wg->config.securityPolicy && wg->securityPolicyContext) {
-        wg->config.securityPolicy->deleteContext(wg->securityPolicyContext);
+        UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
+        sp->deleteGroupContext(sp, wg->securityPolicyContext);
         wg->securityPolicyContext = NULL;
     }
 
@@ -377,18 +378,16 @@ UA_WriterGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_WriterGroup *wg,
         wg->nonceSequenceNumber = 1;
     }
 
+    UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
     UA_StatusCode res = UA_STATUSCODE_BAD;
     if(!wg->securityPolicyContext) {
         /* Create a new context */
-        res = wg->config.securityPolicy->
-            newContext(wg->config.securityPolicy->policyContext,
-                       &signingKey, &encryptingKey, &keyNonce,
-                       &wg->securityPolicyContext);
+        res = sp->newGroupContext(sp, &signingKey, &encryptingKey, &keyNonce,
+                                  &wg->securityPolicyContext);
     } else {
         /* Update the context */
-        res = wg->config.securityPolicy->
-            setSecurityKeys(wg->securityPolicyContext, &signingKey,
-                            &encryptingKey, &keyNonce);
+        res = sp->setSecurityKeys(sp, wg->securityPolicyContext, &signingKey,
+                                  &encryptingKey, &keyNonce);
     }
 
     return (res == UA_STATUSCODE_GOOD) ?
@@ -501,7 +500,7 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
 
     /* Failure */
     if(ret != UA_STATUSCODE_GOOD) {
-        wg->head.state = UA_PUBSUBSTATE_ERROR;;
+        wg->head.state = UA_PUBSUBSTATE_ERROR;
         UA_WriterGroup_disconnect(wg);
         UA_WriterGroup_removePublishCallback(psm, wg);
     }
@@ -552,33 +551,32 @@ encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
     UA_StatusCode rv;
     void *channelContext = wg->securityPolicyContext;
 
+    UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
+
     if(nm->securityHeader.networkMessageEncrypted) {
         /* Set the temporary MessageNonce in the SecurityPolicy */
         const UA_ByteString nonce = {
             (size_t)nm->securityHeader.messageNonceSize,
             (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
         };
-        rv = wg->config.securityPolicy->setMessageNonce(channelContext, &nonce);
+        rv = sp->setMessageNonce(sp, channelContext, &nonce);
         UA_CHECK_STATUS(rv, return rv);
 
         /* The encryption is done in-place, no need to encode again */
         UA_ByteString toBeEncrypted =
             {(uintptr_t)msgEnd - (uintptr_t)encryptStart, encryptStart};
-        rv = wg->config.securityPolicy->symmetricModule.cryptoModule.encryptionAlgorithm.
-            encrypt(channelContext, &toBeEncrypted);
+        rv = sp->encrypt(sp, channelContext, &toBeEncrypted);
         UA_CHECK_STATUS(rv, return rv);
     }
 
     if(nm->securityHeader.networkMessageSigned) {
-        UA_ByteString toBeSigned = {(uintptr_t)msgEnd - (uintptr_t)signStart,
-                                    signStart};
+        UA_ByteString toBeSigned =
+            {(uintptr_t)msgEnd - (uintptr_t)signStart, signStart};
 
-        size_t sigSize = wg->config.securityPolicy->symmetricModule.cryptoModule.
-                     signatureAlgorithm.getLocalSignatureSize(channelContext);
+        size_t sigSize = sp->getSignatureSize(sp, channelContext);
         UA_ByteString signature = {sigSize, msgEnd};
 
-        rv = wg->config.securityPolicy->symmetricModule.cryptoModule.
-            signatureAlgorithm.sign(channelContext, &toBeSigned, &signature);
+        rv = sp->sign(sp, channelContext, &toBeSigned, &signature);
         UA_CHECK_STATUS(rv, return rv);
     }
     return UA_STATUSCODE_GOOD;
@@ -760,9 +758,9 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 
         /* Generate the MessageNonce. Four random bytes followed by a four-byte
          * sequence number */
+        UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
         UA_ByteString nonce = {4, nm->securityHeader.messageNonce};
-        UA_StatusCode rv = wg->config.securityPolicy->symmetricModule.
-            generateNonce(wg->config.securityPolicy->policyContext, &nonce);
+        UA_StatusCode rv = sp->generateNonce(sp, wg->securityPolicyContext, &nonce);
         if(rv != UA_STATUSCODE_GOOD)
             return rv;
         UA_Byte *pos = &nm->securityHeader.messageNonce[4];
@@ -841,8 +839,7 @@ sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
      * There is no padding and the encryption incurs no size overhead. */
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
-        msgSize += sp->symmetricModule.cryptoModule.
-            signatureAlgorithm.getLocalSignatureSize(sp->policyContext);
+        msgSize += sp->getSignatureSize(sp, sp->policyContext);
     }
 
     UA_ConnectionManager *cm = connection->cm;
@@ -933,6 +930,18 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
         return;
     }
 
+    /* Extract DataSetOrdering from messageSettings */
+    UA_DataSetOrderingType dataSetOrdering = UA_DATASETORDERINGTYPE_UNDEFINED;
+    if(wg->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED ||
+       wg->config.messageSettings.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) {
+        if(wg->config.messageSettings.content.decoded.type ==
+           &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE]) {
+            UA_UadpWriterGroupMessageDataType *wgm =
+                (UA_UadpWriterGroupMessageDataType *)wg->config.messageSettings.content.decoded.data;
+            dataSetOrdering = wgm->dataSetOrdering;
+        }
+    }
+
     /* How many DSM can be sent in one NM? */
     UA_Byte maxDSM = (UA_Byte)wg->config.maxEncapsulatedDataSetMessageCount;
     if(wg->config.maxEncapsulatedDataSetMessageCount > UA_BYTE_MAX)
@@ -940,23 +949,55 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     if(maxDSM == 0)
         maxDSM = 1; /* Send at least one dsm */
 
+    /* For AscendingWriterIdSingle, only one DataSetMessage per NetworkMessage */
+    if(dataSetOrdering == UA_DATASETORDERINGTYPE_ASCENDINGWRITERIDSINGLE)
+        maxDSM = 1;
+
+    /* Build array of enabled writers for ordering (DataSetOrdering, OPC UA Part 14 6.3.1.1.3) */
+    UA_STACKARRAY(UA_DataSetWriter*, writers, wg->writersCount);
+    size_t enabledWriters = 0;
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        if(dsw->head.state != UA_PUBSUBSTATE_OPERATIONAL)
+            continue;
+        writers[enabledWriters++] = dsw;
+    }
+
+    /* No enabled Writers */
+    if(enabledWriters == 0) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, wg,
+                              "Cannot publish -- No Writers are enabled");
+        unlockServer(psm->sc.server);
+        return;
+    }
+
+    /* Sort (insertion sort) writers by WriterId if ordering is AscendingWriterId 
+     * or AscendingWriterIdSingle */
+    if(dataSetOrdering == UA_DATASETORDERINGTYPE_ASCENDINGWRITERID ||
+       dataSetOrdering == UA_DATASETORDERINGTYPE_ASCENDINGWRITERIDSINGLE) {
+        for(size_t i = 1; i < enabledWriters; i++) {
+            UA_DataSetWriter *key = writers[i];
+            UA_UInt16 keyWriterId = key->config.dataSetWriterId;
+            size_t j = i;
+            while(j > 0 && writers[j - 1]->config.dataSetWriterId > keyWriterId) {
+                writers[j] = writers[j - 1];
+                j--;
+            }
+            writers[j] = key;
+        }
+    }
+
     /* It is possible to put several DataSetMessages into one NetworkMessage.
      * But only if they do not contain promoted fields. NM with promoted fields
      * are sent out right away. The others are kept in a buffer for
      * "batching". */
     size_t dsmCount = 0;
-    UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
-    UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
+    UA_STACKARRAY(UA_UInt16, dsWriterIds, enabledWriters);
+    UA_STACKARRAY(UA_DataSetMessage, dsmStore, enabledWriters);
 
-    size_t enabledWriters = 0;
-
-    UA_DataSetWriter *dsw;
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
-    LIST_FOREACH(dsw, &wg->writers, listEntry) {
-        if(dsw->head.state != UA_PUBSUBSTATE_OPERATIONAL)
-            continue;
-
-        enabledWriters++;
+    for(size_t i = 0; i < enabledWriters; i++) {
+        dsw = writers[i];
 
         /* PDS can be NULL -> Heartbeat */
         UA_PublishedDataSet *pds = dsw->connectedDataSet;
@@ -983,14 +1024,6 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
         }
 
         dsmCount++;
-    }
-
-    /* No enabled Writers */
-    if(enabledWriters == 0) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, wg,
-                              "Cannot publish -- No Writers are enabled");
-        unlockServer(psm->sc.server);
-        return;
     }
 
     /* Send the NetworkMessages with batched DataSetMessages */
@@ -1265,7 +1298,7 @@ UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
     if(!el) {
         UA_LOG_ERROR_PUBSUB(psm->logging, wg, "No EventLoop configured");
         UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);
-        return UA_STATUSCODE_BADINTERNALERROR;;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_PubSubConnection *c = wg->linkedConnection;
@@ -1629,7 +1662,7 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
 
     /* Pick up the component NodeIds */
     dsw = NULL;
-    for(size_t i = 0; i < ot->offsetsSize; i++) {
+    for(i = 0; i < ot->offsetsSize; i++) {
         UA_PubSubOffset *o = &ot->offsets[i];
         switch(o->offsetType) {
         case UA_PUBSUBOFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER:
@@ -1677,7 +1710,7 @@ UA_Server_computeWriterGroupOffsetTable(UA_Server *server,
     if(res != UA_STATUSCODE_GOOD)
         UA_PubSubOffsetTable_clear(ot);
 
-    for(size_t i = 0; i < dsmCount; i++) {
+    for(i = 0; i < dsmCount; i++) {
         UA_DataSetMessage_clear(&dsmStore[i]);
     }
 

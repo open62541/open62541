@@ -107,4 +107,24 @@ UA_ServerConfig_clear(UA_ServerConfig *config) {
     /* Custom Data Types */
     UA_cleanupDataTypeWithCustom(config->customDataTypes);
     config->customDataTypes = NULL;
+
+#ifdef UA_ENABLE_RBAC
+    /* RBAC Presets */
+    if(config->rolePermissionPresets) {
+        for(size_t i = 0; i < config->rolePermissionPresetsSize; i++)
+            UA_RolePermissionSet_clear(&config->rolePermissionPresets[i]);
+        UA_free(config->rolePermissionPresets);
+        config->rolePermissionPresets = NULL;
+        config->rolePermissionPresetsSize = 0;
+    }
+
+    /* RBAC Roles */
+    if(config->roles) {
+        for(size_t i = 0; i < config->rolesSize; i++)
+            UA_Role_clear(&config->roles[i]);
+        UA_free(config->roles);
+        config->roles = NULL;
+        config->rolesSize = 0;
+    }
+#endif
 }

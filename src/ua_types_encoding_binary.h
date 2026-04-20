@@ -101,7 +101,7 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
 UA_StatusCode
 UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
                         void *dst, const UA_DataType *type,
-                        const UA_DecodeBinaryOptions *options)
+                        UA_DecodeBinaryOptions *options)
     UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 const UA_DataType *

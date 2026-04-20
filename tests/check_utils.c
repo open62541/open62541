@@ -780,6 +780,57 @@ START_TEST(format_string) {
     ck_assert_uint_ne(res, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(constantTimeEqual) {
+    /* Test with equal buffers */
+    UA_Byte buf1[] = {0x01, 0x02, 0x03, 0x04, 0x05};
+    UA_Byte buf2[] = {0x01, 0x02, 0x03, 0x04, 0x05};
+    ck_assert(UA_constantTimeEqual(buf1, buf2, 5) == true);
+
+    /* Test with unequal buffers - first byte differs */
+    UA_Byte buf3[] = {0xFF, 0x02, 0x03, 0x04, 0x05};
+    ck_assert(UA_constantTimeEqual(buf1, buf3, 5) == false);
+
+    /* Test with unequal buffers - last byte differs */
+    UA_Byte buf4[] = {0x01, 0x02, 0x03, 0x04, 0xFF};
+    ck_assert(UA_constantTimeEqual(buf1, buf4, 5) == false);
+
+    /* Test with unequal buffers - middle byte differs */
+    UA_Byte buf5[] = {0x01, 0x02, 0xFF, 0x04, 0x05};
+    ck_assert(UA_constantTimeEqual(buf1, buf5, 5) == false);
+
+    /* Test with zero length */
+    ck_assert(UA_constantTimeEqual(buf1, buf3, 0) == true);
+
+    /* Test with single byte equal */
+    ck_assert(UA_constantTimeEqual(buf1, buf2, 1) == true);
+
+    /* Test with single byte unequal */
+    ck_assert(UA_constantTimeEqual(buf1, buf3, 1) == false);
+} END_TEST
+
+START_TEST(byteStringMemZero) {
+    /* Create a ByteString with some data */
+    UA_Byte data[] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+    UA_ByteString bs = {8, data};
+
+    /* Verify it contains non-zero data */
+    ck_assert(data[0] == 0x01);
+    ck_assert(data[7] == 0x08);
+
+    /* Zero the memory */
+    UA_ByteString_memZero(&bs);
+
+    /* Verify all bytes are now zero */
+    for(size_t i = 0; i < 8; i++) {
+        ck_assert(data[i] == 0);
+    }
+
+    /* Test with empty ByteString */
+    UA_ByteString emptyBs = UA_BYTESTRING_NULL;
+    emptyBs.length = 0;
+    UA_ByteString_memZero(&emptyBs); /* Should not crash */
+} END_TEST
+
 static Suite* testSuite_Utils(void) {
     Suite *s = suite_create("Utils");
     TCase *tc_endpointUrl_split = tcase_create("EndpointUrl_split");
@@ -830,6 +881,11 @@ static Suite* testSuite_Utils(void) {
     TCase *tc6 = tcase_create("test string format");
     tcase_add_test(tc6, format_string);
     suite_add_tcase(s, tc6);
+
+    TCase *tc7 = tcase_create("test security utilities");
+    tcase_add_test(tc7, constantTimeEqual);
+    tcase_add_test(tc7, byteStringMemZero);
+    suite_add_tcase(s, tc7);
 
     return s;
 }

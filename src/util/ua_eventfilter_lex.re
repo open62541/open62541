@@ -64,7 +64,7 @@ UA_EventFilter_skip(const UA_ByteString content, size_t *offset,
            { if(pos[0] == '*' && pos[1] == '/') { pos += 2; goto begin; } }
            unsigned c = 0, l = 0;
            pos2lines(content, initial, &l, &c);
-           UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_USERLAND,
+           UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_APPLICATION,
                         "The comment starting at line %u, column %u "
                         "never terminates", l, c);
            return UA_STATUSCODE_BADINTERNALERROR;

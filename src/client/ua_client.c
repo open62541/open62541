@@ -232,6 +232,11 @@ UA_Client_clear(UA_Client *client) {
     client->sessionState = oldState;
 
     UA_Client_disconnect(client);
+
+    /* Prevent reconnection attempts during the EventLoop teardown
+     * in UA_ClientConfig_clear */
+    client->connectStatus = UA_STATUSCODE_BADSHUTDOWN;
+
     UA_String_clear(&client->discoveryUrl);
     UA_EndpointDescription_clear(&client->endpoint);
 
@@ -406,8 +411,7 @@ sendRequest(UA_Client *client, const void *request,
 
     /* Send the message */
     UA_StatusCode retval =
-        UA_SecureChannel_sendSymmetricMessage(&client->channel, rqId,
-                                              UA_MESSAGETYPE_MSG, rr, requestType);
+        UA_SecureChannel_sendMSG(&client->channel, rqId, rr, requestType);
 
     rr->authenticationToken = oldToken; /* Set back to the original token */
 
@@ -442,11 +446,17 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
      * shall verify the RequestId and the SequenceNumber. If these checks fail a
      * Bad_SecurityChecksFailed error is reported. The RequestId only needs to
      * be verified by the Client since only the Client knows if it is valid or
-     * not. */
+     * not.
+     *
+     * But! If an async request has timed out, the RequestId is no longer found.
+     * In theory the server should send an error back before the timeout. But
+     * not all do. In these cases we don't want to close the entire
+     * SecureChannel and just log a warning. The service callback has already
+     * been notified about the timeout before. */
     if(!ac) {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_CLIENT,
                        "Request with unknown RequestId %u", requestId);
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        return UA_STATUSCODE_GOOD;
     }
 
     UA_Response asyncResponse;
@@ -971,6 +981,9 @@ asyncServiceTimeoutCheck(UA_Client *client) {
     /* Cancel and remove the elements from the local list */
     LIST_FOREACH_SAFE(ac, &asyncServiceCalls, pointers, ac_tmp) {
         LIST_REMOVE(ac, pointers);
+        /* Reset the pointers to pacify clang-analyzer */
+        ac->pointers.le_next = NULL;
+        ac->pointers.le_prev = NULL;
         __Client_AsyncService_cancel(client, ac, UA_STATUSCODE_BADTIMEOUT);
     }
 }
@@ -1211,7 +1224,7 @@ UA_Client_getNamespaceUri(UA_Client *client, UA_UInt16 index,
                           UA_String *nsUri) {
     lockClient(client);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(index > client->namespacesSize)
+    if(index < client->namespacesSize)
         res = UA_String_copy(&client->namespaces[index], nsUri);
     else
         res = UA_STATUSCODE_BADNOTFOUND;
@@ -1347,6 +1360,8 @@ UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
     return response;
 }
 
+#ifdef UA_ENABLE_HISTORIZING
+
 UA_HistoryReadResponse
 UA_Client_Service_historyRead(UA_Client *client,
                               const UA_HistoryReadRequest request) {
@@ -1364,6 +1379,8 @@ UA_Client_Service_historyUpdate(UA_Client *client,
                         &response, &UA_TYPES[UA_TYPES_HISTORYUPDATERESPONSE]);
     return response;
 }
+
+#endif
 
 UA_CallResponse
 UA_Client_Service_call(UA_Client *client,

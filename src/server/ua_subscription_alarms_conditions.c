@@ -118,8 +118,6 @@ struct UA_ConditionSource {
 #define CONDITION_FIELD_ENGINEERINGUNITS                       "EngineeringUnits"
 #define CONDITION_FIELD_EXPIRATION_DATE                        "ExpirationDate"
 
-#define REFRESHEVENT_START_IDX                                 0
-#define REFRESHEVENT_END_IDX                                   1
 #define REFRESHEVENT_SEVERITY_DEFAULT                          100
 #define EXPIRATION_LIMIT_DEFAULT_VALUE                         15
 
@@ -171,7 +169,7 @@ static const UA_QualifiedName fieldExpirationLimitQN = STATIC_QN(CONDITION_FIELD
 #define CONDITION_ASSERT_RETURN_RETVAL(retval, logMessage, deleteFunction)                \
     {                                                                                     \
         if(retval != UA_STATUSCODE_GOOD) {                                                \
-            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,                  \
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,                  \
                          logMessage". StatusCode %s", UA_StatusCode_name(retval));        \
             deleteFunction                                                                \
             return retval;                                                                \
@@ -181,7 +179,7 @@ static const UA_QualifiedName fieldExpirationLimitQN = STATIC_QN(CONDITION_FIELD
 #define CONDITION_ASSERT_RETURN_VOID(retval, logMessage, deleteFunction)                  \
     {                                                                                     \
         if(retval != UA_STATUSCODE_GOOD) {                                                \
-            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,                  \
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,                  \
                          logMessage". StatusCode %s", UA_StatusCode_name(retval));        \
             deleteFunction                                                                \
             return;                                                                       \
@@ -538,7 +536,7 @@ UA_Server_getConditionLastSeverity(UA_Server *server, const UA_NodeId *condition
     lockServer(server);
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Entry not found in list!");
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -556,7 +554,7 @@ UA_Server_updateConditionLastSeverity(UA_Server *server, const UA_NodeId *condit
     lockServer(server);
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Entry not found in list!");
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -574,7 +572,7 @@ UA_Server_getConditionActiveState(UA_Server *server, const UA_NodeId *conditionS
     lockServer(server);
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Entry not found in list!");
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -593,7 +591,7 @@ UA_Server_updateConditionActiveState(UA_Server *server, const UA_NodeId *conditi
     lockServer(server);
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Entry not found in list!");
         unlockServer(server);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -613,7 +611,7 @@ updateConditionLastEventId(UA_Server *server, const UA_NodeId *triggeredEvent,
 
     UA_Condition *cond = getCondition(server, conditionSource, triggeredEvent);
     if(!cond) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Entry not found in list!");
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -626,7 +624,7 @@ updateConditionLastEventId(UA_Server *server, const UA_NodeId *triggeredEvent,
             return UA_ByteString_copy(lastEventId, &branch->lastEventId);
         }
     }
-    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                  "Condition Branch not implemented");
     return UA_STATUSCODE_BADNOTFOUND;
 }
@@ -638,7 +636,7 @@ setIsCallerAC(UA_Server *server, const UA_NodeId *condition,
 
     UA_Condition *cond = getCondition(server, conditionSource, condition);
     if(!cond) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Entry not found in list!");
         return;
     }
@@ -650,7 +648,7 @@ setIsCallerAC(UA_Server *server, const UA_NodeId *condition,
             return;
         }
     }
-    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                  "Condition Branch not implemented");
 }
 
@@ -661,7 +659,7 @@ isConditionOrBranch(UA_Server *server, const UA_NodeId *condition,
 
     UA_Condition *cond = getCondition(server, conditionSource, condition);
     if(!cond) {
-        UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Entry not found in list!");
         return false;
     }
@@ -673,7 +671,7 @@ isConditionOrBranch(UA_Server *server, const UA_NodeId *condition,
             return true;
         }
     }
-    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                  "Condition Branch not implemented");
     return false;
 }
@@ -686,7 +684,7 @@ isRetained(UA_Server *server, const UA_NodeId *condition) {
     UA_NodeId retainNodeId;
     UA_StatusCode retval = getConditionFieldNodeId(server, condition, &fieldRetainQN, &retainNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Retain not found. StatusCode %s", UA_StatusCode_name(retval));
         return false; //TODO maybe a better error handling?
     }
@@ -730,7 +728,7 @@ isTwoStateVariableInTrueState(UA_Server *server, const UA_NodeId *condition,
                                                            &twoStateVariableIdQN,
                                                            &twoStateVariableIdNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "TwoStateVariable/Id not found. StatusCode %s", UA_StatusCode_name(retval));
         return false; //TODO maybe a better error handling?
     }
@@ -771,7 +769,7 @@ enteringDisabledState(UA_Server *server, const UA_NodeId *conditionId,
 
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Entry not found in list!");
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -841,7 +839,7 @@ enteringEnabledState(UA_Server *server,
     /* Get Condition */
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Entry not found in list!");
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -917,9 +915,12 @@ afterWriteCallbackEnabledStateChange(UA_Server *server,
                                  UA_NodeId_clear(&conditionNode););
 
     /* Set disabling/enabling time */
+    UA_DateTime eventTime = data->sourceTimestamp;
+    /* If UA_Server_setConditionVariableFieldProperty() was used, sourceTimestamp is 0 */
+    if (eventTime == 0)
+        eventTime = UA_DateTime_now();
     retval = UA_Server_writeObjectProperty_scalar(server, conditionNode, fieldTimeQN,
-                                                  (const UA_DateTime*)&data->sourceTimestamp,
-                                                  &UA_TYPES[UA_TYPES_DATETIME]);
+                                                  &eventTime, &UA_TYPES[UA_TYPES_DATETIME]);
     CONDITION_ASSERT_RETURN_VOID(retval, "Set enabling/disabling Time failed",
                                  UA_NodeId_clear(&conditionNode);
                                  UA_NodeId_clear(&conditionSource););
@@ -1368,7 +1369,7 @@ disableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       const UA_Variant *input, size_t outputSize, UA_Variant *output) {
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Cannot call method of ConditionType Node. StatusCode %s",
                        UA_StatusCode_name(UA_STATUSCODE_BADNODEIDINVALID));
         return UA_STATUSCODE_BADNODEIDINVALID;
@@ -1399,7 +1400,7 @@ enableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                      UA_Variant *output) {
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Cannot call method of ConditionType Node. StatusCode %s",
                        UA_StatusCode_name(UA_STATUSCODE_BADNODEIDINVALID));
         return UA_STATUSCODE_BADNODEIDINVALID;
@@ -1440,7 +1441,7 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Cannot call method of ConditionType Node. StatusCode %s",
                        UA_StatusCode_name(UA_STATUSCODE_BADNODEIDINVALID));
         return UA_STATUSCODE_BADNODEIDINVALID;
@@ -1521,7 +1522,7 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Cannot call method of ConditionType Node. StatusCode %s",
                        UA_StatusCode_name(UA_STATUSCODE_BADNODEIDINVALID));
         return UA_STATUSCODE_BADNODEIDINVALID;
@@ -1558,7 +1559,7 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                                               UA_REFERENCETYPEINDEX_HASSUBTYPE);
     unlockServer(server);
     if(!found) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Condition Type must be a subtype of AcknowledgeableConditionType!");
         UA_NodeId_clear(&conditionNode);
         UA_NodeId_clear(&eventType);
@@ -1601,7 +1602,7 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Cannot call method of ConditionType Node. StatusCode %s",
                        UA_StatusCode_name(UA_STATUSCODE_BADNODEIDINVALID));
         return UA_STATUSCODE_BADNODEIDINVALID;
@@ -1638,7 +1639,7 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                                               UA_REFERENCETYPEINDEX_HASSUBTYPE);
     unlockServer(server);
     if(!found) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Condition Type must be a subtype of AcknowledgeableConditionType!");
         UA_NodeId_clear(&conditionNode);
         UA_NodeId_clear(&eventType);
@@ -1810,9 +1811,16 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
 
     /* Trigger RefreshStartEvent and RefreshEndEvent for the each monitoredItem
      * in the subscription */
-    UA_StatusCode retval = refreshLogic(server, session, subscription, NULL);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Could not refresh Condition",
-                                   unlockServer(server););
+
+    UA_MonitoredItem *item;
+    LIST_FOREACH(item, &subscription->monitoredItems, listEntry) {
+        if (item->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
+            continue;
+        UA_StatusCode retval = refreshLogic(server, session, subscription, item);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Could not refresh Condition",
+                                       unlockServer(server););
+    }
+
     unlockServer(server);
     return UA_STATUSCODE_GOOD;
 }
@@ -1913,9 +1921,6 @@ UA_ConditionList_delete(UA_Server *server) {
         LIST_REMOVE(source, listEntry);
         UA_free(source);
     }
-    /* Free memory allocated for RefreshEvents NodeIds */
-    UA_NodeId_clear(&server->refreshEvents[REFRESHEVENT_START_IDX]);
-    UA_NodeId_clear(&server->refreshEvents[REFRESHEVENT_END_IDX]);
 }
 
 /* Get the ConditionId based on the EventId (all branches of one condition
@@ -2016,7 +2021,7 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
     /* Get ConditionSourceNode*/
     const UA_Node *conditionSourceNode = UA_NODESTORE_GET(server, conditionSource);
     if(!conditionSourceNode) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Couldn't find ConditionSourceNode. StatusCode %s", UA_StatusCode_name(retval));
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -2027,7 +2032,7 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
     retval = setConditionField(server, *condition, &value,
                                UA_QUALIFIEDNAME(0,CONDITION_FIELD_SOURCENAME));
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Set SourceName Field failed. StatusCode %s",
                      UA_StatusCode_name(retval));
         UA_NODESTORE_RELEASE(server, conditionSourceNode);
@@ -2039,7 +2044,7 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
                          &UA_TYPES[UA_TYPES_NODEID]);
     retval = setConditionField(server, *condition, &value, fieldSourceQN);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Set SourceNode Field failed. StatusCode %s", UA_StatusCode_name(retval));
         UA_NODESTORE_RELEASE(server, conditionSourceNode);
         return retval;
@@ -2429,7 +2434,7 @@ UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId hierarchialReferenceType,
                           UA_NodeId *outNodeId) {
     if(!outNodeId) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "outNodeId cannot be NULL!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -2451,7 +2456,7 @@ UA_Server_addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
                              const UA_NodeId conditionType,
                              const UA_QualifiedName conditionName, UA_NodeId *outNodeId) {
     if(!outNodeId) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "outNodeId cannot be NULL!");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -2463,7 +2468,7 @@ UA_Server_addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
                                               UA_REFERENCETYPEINDEX_HASSUBTYPE);
     unlockServer(server);
     if(!found) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Condition Type must be a subtype of ConditionType!");
         return UA_STATUSCODE_BADNOMATCH;
     }
@@ -2494,7 +2499,9 @@ UA_Server_addCondition_finish(UA_Server *server, const UA_NodeId conditionId,
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     }
 
-    const UA_Node *type = getNodeType(server, &node->head);
+    const UA_Node *type =
+        getNodeType(server, &node->head, ~(UA_UInt32)0,
+                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     if(!type) {
         UA_NODESTORE_RELEASE(server, node);
         unlockServer(server);
@@ -2528,9 +2535,11 @@ addOptionalVariableField(UA_Server *server, const UA_NodeId *originCondition,
     vAttr.dataType = optionalVariableFieldNode->dataType;
 
     /* Get typedefintion */
-    const UA_Node *type = getNodeType(server, &optionalVariableFieldNode->head);
+    const UA_Node *type =
+        getNodeType(server, &optionalVariableFieldNode->head,
+                    ~(UA_UInt32)0, UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     if(!type) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Invalid VariableType. StatusCode %s",
                        UA_StatusCode_name(UA_STATUSCODE_BADTYPEDEFINITIONINVALID));
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
@@ -2567,9 +2576,11 @@ addOptionalObjectField(UA_Server *server, const UA_NodeId *originCondition,
                                                       &optionalObjectFieldNode->head);
 
     /* Get typedefintion */
-    const UA_Node *type = getNodeType(server, &optionalObjectFieldNode->head);
+    const UA_Node *type =
+        getNodeType(server, &optionalObjectFieldNode->head, ~(UA_UInt32)0,
+                    UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     if(!type) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Invalid ObjectType. StatusCode %s",
                        UA_StatusCode_name(UA_STATUSCODE_BADTYPEDEFINITIONINVALID));
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
@@ -2611,7 +2622,7 @@ addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
     UA_NodeId optionalFieldNodeId = bpr.targets[0].targetId.nodeId;
     const UA_Node *optionalFieldNode = UA_NODESTORE_GET(server, &optionalFieldNodeId);
     if(NULL == optionalFieldNode) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Couldn't find optional Field Node in ConditionType. StatusCode %s",
                        UA_StatusCode_name(UA_STATUSCODE_BADNOTFOUND));
         UA_BrowsePathResult_clear(&bpr);
@@ -2624,7 +2635,7 @@ addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
                 addOptionalVariableField(server, &condition, &fieldName,
                                          (const UA_VariableNode *)optionalFieldNode, outOptionalNode);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                              "Adding Condition Optional Variable Field failed. StatusCode %s",
                              UA_StatusCode_name(retval));
             }
@@ -2637,7 +2648,7 @@ addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
               addOptionalObjectField(server, &condition, &fieldName,
                                      (const UA_ObjectNode *)optionalFieldNode, outOptionalNode);
           if(retval != UA_STATUSCODE_GOOD) {
-              UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+              UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                            "Adding Condition Optional Object Field failed. StatusCode %s",
                            UA_StatusCode_name(retval));
           }
@@ -2659,7 +2670,7 @@ addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
     }
 
 #else
-    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                  "Adding Condition Optional Fields disabled. StatusCode %s",
                  UA_StatusCode_name(UA_STATUSCODE_BADNOTSUPPORTED));
     return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -2772,7 +2783,7 @@ triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
     UA_ByteString eventId = UA_BYTESTRING_NULL;
     UA_QualifiedName enabledStateField = UA_QUALIFIEDNAME(0, CONDITION_FIELD_ENABLEDSTATE);
     if(!isTwoStateVariableInTrueState(server, &condition, &enabledStateField)) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Cannot trigger condition event when "
                        CONDITION_FIELD_ENABLEDSTATE"."
                        CONDITION_FIELD_TWOSTATEVARIABLE_ID" is false.");

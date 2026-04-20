@@ -5,6 +5,7 @@
 
 _UA_BEGIN_DECLS
 
+/* ApplicationUri: urn:open62541.server.application */
 #define CLIENT_CERT_DER_LENGTH 1030
 UA_Byte CLIENT_CERT_DER_DATA[CLIENT_CERT_DER_LENGTH] = {
   0x30, 0x82, 0x04, 0x02, 0x30, 0x82, 0x02, 0xea, 0xa0, 0x03, 0x02, 0x01,
@@ -397,6 +398,7 @@ UA_Byte SERVER_KEY_DER_DATA[SERVER_KEY_DER_LENGTH] = {
   0xec, 0x5f, 0x7a, 0x5b, 0xfe, 0x10
 };
 
+/* ApplicationUri: urn:open62541.server.application */
 #define CLIENT_CERT_AUTH_DER_LENGTH 1030
 UA_Byte CLIENT_CERT_AUTH_DER_DATA[CLIENT_CERT_AUTH_DER_LENGTH] = {
   0x30, 0x82, 0x04, 0x02, 0x30, 0x82, 0x02, 0xea, 0xa0, 0x03, 0x02, 0x01,

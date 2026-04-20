@@ -74,10 +74,8 @@ struct UA_CertificateGroup {
 
 /* Verify that the certificate has the applicationURI in the subject name. */
 UA_EXPORT UA_StatusCode
-UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
-                                         const UA_ByteString *certificate,
-                                         const UA_String *applicationURI,
-                                         UA_Logger *logger);
+UA_CertificateUtils_verifyApplicationUri(const UA_ByteString *certificate,
+                                         const UA_String *applicationUri);
 
 /* Get the expire date from certificate */
 UA_EXPORT UA_StatusCode

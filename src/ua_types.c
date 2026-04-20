@@ -91,6 +91,23 @@ UA_findDataType(const UA_NodeId *typeId) {
     return UA_findDataTypeWithCustom(typeId, NULL);
 }
 
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+const UA_DataType *
+UA_findDataTypeByName(const UA_QualifiedName *qn) {
+    UA_Byte nameBuf[512];
+    UA_String name = {511, nameBuf};
+    UA_StatusCode res = UA_QualifiedName_print(qn, &name);
+    name.data[name.length] = 0;
+    if(res != UA_STATUSCODE_GOOD)
+        return NULL;
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        if(strcmp((char*)nameBuf, UA_TYPES[i].typeName) == 0)
+            return &UA_TYPES[i];
+    }
+    return NULL;
+}
+#endif
+
 void
 UA_DataType_clear(UA_DataType *type) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -105,6 +122,57 @@ UA_DataType_clear(UA_DataType *type) {
     UA_NodeId_clear(&type->xmlEncodingId);
     UA_free(type->members);
     memset(type, 0, sizeof(UA_DataType));
+}
+
+UA_StatusCode
+UA_DataType_copy(const UA_DataType *t1, UA_DataType *t2) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    memcpy(t2, t1, sizeof(UA_DataType));
+    t2->members = NULL;
+    t2->membersSize = 0;
+
+    /* Copy the typename */
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+    size_t nameLen = strlen(t1->typeName) + 1;
+    char *t2Name = (char*)UA_malloc(nameLen);
+    if(!t2Name) {
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto errout;
+    }
+    memcpy(t2Name, t1->typeName, nameLen);
+    *(void**)(uintptr_t)&t2->typeName = t2Name;
+#endif
+
+
+    /* Copy the members */
+    if(t1->membersSize > 0) {
+        t2->members = (UA_DataTypeMember*)
+            UA_calloc(t1->membersSize, sizeof(UA_DataTypeMember));
+        if(!t2->members) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto errout;
+        }
+        for(size_t i = 0; i < t1->membersSize; i++) {
+            const UA_DataTypeMember *m1 = &t1->members[i];
+            UA_DataTypeMember *m2 = &t2->members[i];
+            memcpy(m2, m1, sizeof(UA_DataTypeMember));
+#ifdef UA_ENABLE_TYPEDESCRIPTION
+            nameLen = strlen(m1->memberName) + 1;
+            char *mName = (char*)UA_malloc(nameLen);
+            if(!mName) {
+                res = UA_STATUSCODE_BADOUTOFMEMORY;
+                goto errout;
+            }
+            memcpy(mName, m1->memberName, nameLen);
+            *(void**)(uintptr_t)&m2->memberName = mName;
+#endif
+        }
+    }
+
+ errout:
+    if(res != UA_STATUSCODE_GOOD)
+        UA_DataType_clear(t2);
+    return res;
 }
 
 void
@@ -134,7 +202,7 @@ UA_StatusCode_isBad(UA_StatusCode code) {
 
 UA_Boolean
 UA_StatusCode_isUncertain(UA_StatusCode code) {
-    return (((code >> 30) == 0x01) && ((code >> 30) < 0x02));
+    return ((code >> 30) == 0x01);
 }
 
 UA_Boolean
@@ -459,7 +527,6 @@ UA_DateTime_fromStruct(UA_DateTimeStruct ts) {
     return t;
 }
 
-#ifdef UA_ENABLE_PARSING
 UA_StatusCode
 UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
     if(str.length == 0)
@@ -468,21 +535,20 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
     struct musl_tm dts;
     memset(&dts, 0, sizeof(dts));
 
-    size_t pos = 0;
-    size_t len;
-
     /* Parse the year. The ISO standard asks for four digits. But we accept up
      * to five with an optional plus or minus in front due to the range of the
      * DateTime 64bit integer. But in that case we require the year and the
      * month to be separated by a '-'. Otherwise we cannot know where the month
      * starts. */
+    size_t pos = 0;
     if(str.data[0] == '-' || str.data[0] == '+')
         pos++;
     UA_Int64 year = 0;
-    len = parseInt64((char*)&str.data[pos], 5, &year);
+    UA_CHECK(str.length - pos > 5, return UA_STATUSCODE_BADDECODINGERROR);
+    size_t len = parseInt64((char*)&str.data[pos], 5, &year);
     pos += len;
-    if(len != 4 && str.data[pos] != '-')
-        return UA_STATUSCODE_BADDECODINGERROR;
+    UA_CHECK(len > 0 && pos < str.length, return UA_STATUSCODE_BADDECODINGERROR);
+    UA_CHECK(len == 4 || str.data[pos] == '-', return UA_STATUSCODE_BADDECODINGERROR);
     if(str.data[0] == '-')
         year = -year;
     dts.tm_year = (UA_Int16)year - 1900;
@@ -491,6 +557,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
     /* Parse the month */
     UA_UInt64 month = 0;
+    UA_CHECK(str.length - pos > 2, return UA_STATUSCODE_BADDECODINGERROR);
     len = parseUInt64((char*)&str.data[pos], 2, &month);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
@@ -500,6 +567,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
     /* Parse the day and check the T between date and time */
     UA_UInt64 day = 0;
+    UA_CHECK(str.length - pos > 2, return UA_STATUSCODE_BADDECODINGERROR);
     len = parseUInt64((char*)&str.data[pos], 2, &day);
     pos += len;
     UA_CHECK(len == 2 || str.data[pos] != 'T',
@@ -509,6 +577,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
     /* Parse the hour */
     UA_UInt64 hour = 0;
+    UA_CHECK(str.length - pos > 2, return UA_STATUSCODE_BADDECODINGERROR);
     len = parseUInt64((char*)&str.data[pos], 2, &hour);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
@@ -518,6 +587,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
     /* Parse the minute */
     UA_UInt64 min = 0;
+    UA_CHECK(str.length - pos > 2, return UA_STATUSCODE_BADDECODINGERROR);
     len = parseUInt64((char*)&str.data[pos], 2, &min);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
@@ -527,6 +597,7 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
 
     /* Parse the second */
     UA_UInt64 sec = 0;
+    UA_CHECK(str.length - pos >= 2, return UA_STATUSCODE_BADDECODINGERROR);
     len = parseUInt64((char*)&str.data[pos], 2, &sec);
     pos += len;
     UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
@@ -553,12 +624,12 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
         (sinceunix + (UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC)) * UA_DATETIME_SEC;
 
     /* Parse the fraction of the second if defined */
+    UA_CHECK(pos < str.length, goto finish);
     if(str.data[pos] == ',' || str.data[pos] == '.') {
         pos++;
         double frac = 0.0;
         double denom = 0.1;
-        while(pos < str.length &&
-              str.data[pos] >= '0' && str.data[pos] <= '9') {
+        while(pos < str.length && str.data[pos] >= '0' && str.data[pos] <= '9') {
             frac += denom * (str.data[pos] - '0');
             denom *= 0.1;
             pos++;
@@ -568,25 +639,37 @@ UA_DateTime_parse(UA_DateTime *dst, const UA_String str) {
     }
 
     /* Time zone handling */
-    int tzSign = 0;
-    UA_UInt64 tzHour = 0, tzMin = 0;
+    UA_CHECK(pos < str.length, goto finish);
     if(str.data[pos] == 'Z') {
         pos++;
     } else if(str.data[pos] == '+' || str.data[pos] == '-') {
-        tzSign = (str.data[pos] == '-') ? -1 : 1;
-        pos++;
+        UA_UInt64 tzHour = 0, tzMin = 0;
+        UA_Int64 offsetSeconds = 0;
+        UA_Byte tzSign = str.data[pos++];
+
+        UA_CHECK(str.length - pos >= 2, return UA_STATUSCODE_BADDECODINGERROR);
         len = parseUInt64((char*)&str.data[pos], 2, &tzHour);
         pos += len;
+        UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
+
+        UA_CHECK(str.length > pos, goto finish); /* Allow missing tz minutes */
         if(str.data[pos] == ':')
             pos++;
+
+        UA_CHECK(str.length - pos >= 2, return UA_STATUSCODE_BADDECODINGERROR);
         len = parseUInt64((char*)&str.data[pos], 2, &tzMin);
         pos += len;
-        UA_Int64 offsetSeconds = (UA_Int64)(tzHour * 3600 + tzMin * 60) * tzSign;
+        UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
+
+        offsetSeconds = (tzHour * 3600) + (tzMin * 60);
+        if(tzSign == '-')
+            offsetSeconds = -offsetSeconds;
         dt -= (UA_DateTime)(offsetSeconds * UA_DATETIME_SEC);
     } else {
         return UA_STATUSCODE_BADDECODINGERROR;
     }
 
+ finish:
     /* Remove the underflow/overflow protection (see above) */
     if(sinceunix > 0) {
         if(dt > UA_INT64_MAX - UA_DATETIME_SEC)
@@ -615,7 +698,6 @@ UA_DATETIME(const char *chars) {
         UA_DateTime_init(&dst);
     return dst;
 }
-#endif
 
 /* Guid */
 static const u8 hexmapLower[16] =
@@ -663,14 +745,12 @@ UA_Guid_print(const UA_Guid *guid, UA_String *output) {
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef UA_ENABLE_PARSING
 UA_Guid
 UA_GUID(const char *chars) {
     UA_Guid guid;
     UA_Guid_parse(&guid, UA_STRING((char*)(uintptr_t)chars));
     return guid;
 }
-#endif
 
 /* ByteString */
 UA_StatusCode
@@ -680,7 +760,7 @@ UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
         bs->data = (u8*)UA_EMPTY_ARRAY_SENTINEL;
         return UA_STATUSCODE_GOOD;
     }
-    bs->data = (u8*)UA_malloc(length);
+    bs->data = (u8*)UA_calloc(1,length);
     if(UA_UNLIKELY(!bs->data))
         return UA_STATUSCODE_BADOUTOFMEMORY;
     bs->length = length;
@@ -840,7 +920,7 @@ nodeIdSize(const UA_NodeId *id, u8 *nsStr, u8 *numIdStr, UA_String nsUri,
            UA_Escaping idEsc) {
     /* Namespace length */
     size_t len = 0;
-    if(nsUri.length > 0) {
+    if(nsUri.data != NULL) {
         len += 5; /* nsu=; */
         len += UA_String_escapedSize(nsUri, UA_ESCAPING_PERCENT);
     } else if(id->namespaceIndex > 0) {
@@ -880,7 +960,7 @@ printNodeIdBody(const UA_NodeId *id, UA_String nsUri, u8* nsStr, u8* numIdStr, u
     size_t len;
 
     /* Encode the namespace */
-    if(nsUri.length > 0) {
+    if(nsUri.data != NULL) {
         memcpy(pos, "nsu=", 4);
         pos += 4;
         pos += UA_String_escapeInsert(pos, nsUri, UA_ESCAPING_PERCENT);
@@ -979,13 +1059,11 @@ UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
     return UA_NodeId_printEx(id, output, NULL);
 }
 
-#ifdef UA_ENABLE_PARSING
 UA_NodeId UA_NODEID(const char *chars) {
     UA_NodeId id;
     UA_NodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
     return id;
 }
-#endif
 
 /* ExpandedNodeId */
 static void
@@ -1059,14 +1137,12 @@ UA_EXPANDEDNODEID_NODEID(UA_NodeId nodeId) {
     return id;
 }
 
-#ifdef UA_ENABLE_PARSING
 UA_ExpandedNodeId
 UA_EXPANDEDNODEID(const char *chars) {
     UA_ExpandedNodeId id;
     UA_ExpandedNodeId_parse(&id, UA_STRING((char*)(uintptr_t)chars));
     return id;
 }
-#endif
 
 UA_Boolean
 UA_ExpandedNodeId_isLocal(const UA_ExpandedNodeId *n) {
@@ -1095,7 +1171,7 @@ UA_ExpandedNodeId_printEx(const UA_ExpandedNodeId *eid, UA_String *output,
                           size_t serverUrisSize, const UA_String *serverUris) {
     /* Try to map the NamespaceIndex to the Uri */
     UA_String nsUri = eid->namespaceUri;
-    if(nsUri.length == 0 && eid->nodeId.namespaceIndex > 0 && nsMapping)
+    if(nsUri.data == NULL && eid->nodeId.namespaceIndex > 0 && nsMapping)
         UA_NamespaceMapping_index2Uri(nsMapping, eid->nodeId.namespaceIndex, &nsUri);
 
     /* Try to map the ServerIndex to a Uri */

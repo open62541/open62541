@@ -1,0 +1,201 @@
+// JSON 5 server configuration
+{
+  // Server Description
+  buildInfo: {
+    productUri: "build.product.test.org",
+    manufacturerName: "Manufacture GmbH",
+    productName: "Product Name",
+    softwareVersion: "0.1.0",
+    buildNumber: "0.9.4",
+    buildDate: "2022-11-02T15:31:03Z",
+  },
+  // The applicationType is not just descriptive, it changes the actual functionality of the server.
+  // It just sets the value in the information model (https://reference.opcfoundation.org/Core/Part4/v104/docs/7.1).
+  applicationDescription: {
+    applicationUri: "urn:open62541.server.application",
+    productUri: "urn:product.test.org",
+    applicationName: {
+      locale: "en-EN",
+      text: "Test Application"
+    },
+    // Server = 0, Client = 1, Client&Server = 2, Discovery_Server = 3
+    applicationType: 0,
+    gatewayServerUri: "GATEWAY",
+    discoveryProfileUri: "DISC",
+    discoveryUrls: [
+      "opc.tcp://10.0.20.240:2017",
+      "opc.tcp://10.0.20.240:2018",
+      "opc.tcp://10.0.20.241:2020"
+    ],
+  },
+  // Value is in milliseconds.
+  shutdownDelay: 5000.00,
+
+  // Verify that the server sends a timestamp in the request header.
+  //    DEFAULT = 0
+  //    ABORT = 1  /* Abort the operation and return an error code */
+  //    WARN = 2   /* Print a message in the logs and continue */
+  //    ACCEPT = 3 /* Continue and disregard the broken rule */
+  verifyRequestTimestamp: 0,
+  // Variables (that don't have a DataType of BaseDataType) must not have an empty variant value.
+  // The default behaviour is to auto-create a matching zeroed-out value for empty VariableNodes when they are added.
+  //    DEFAULT = 0
+  //    ABORT = 1  /* Abort the operation and return an error code */
+  //    WARN = 2   /* Print a message in the logs and continue */
+  //    ACCEPT = 3 /* Continue and disregard the broken rule */
+  allowEmptyVariables: 0,
+
+  // Networking
+  // Set up the local ServerUrls. They are used during startup to initialize the server sockets.
+  serverUrls: [
+    "opc.tcp://localhost:4840",
+  ],
+  tcpEnabled: true,
+  tcp: {
+    tcpBufSize: 64000,
+    tcpMaxMsgSize: 0,
+    tcpMaxChunks: 0,
+  },
+
+  // Limits for SecureChannels
+  maxSecureChannels: 10,
+  maxSecurityTokenLifetime: 300000,
+
+  // Limits for Sessions
+  maxSessions: 50,
+  maxSessionTimeout: 3600000,
+
+  // Operation limits
+  maxNodesPerRead: 10000,
+  maxNodesPerWrite: 10000,
+  maxNodesPerMethodCall: 10000,
+  maxNodesPerBrowse: 10000,
+  maxNodesPerRegisterNodes: 10000,
+  maxNodesPerTranslateBrowsePathsToNodeIds: 10000,
+  maxNodesPerNodeManagement: 10000,
+  maxMonitoredItemsPerCall: 10000,
+
+  // Limits for Requests
+  maxReferencesPerNode: 0,
+
+  // Limits for Async Operations
+  asyncOperationTimeout: 120000,
+  maxAsyncOperationQueueSize: 1000000,
+
+  // Discovery Multicast
+  mdnsEnabled: false,
+  mdns: {
+    mdnsServerName: "mdnsServerName",
+    // See https://reference.opcfoundation.org/GDS/v105/docs/D
+    serverCapabilities: [
+      // "NA" should be first and only server capability:
+      //"NA"
+      "LDS",
+      "GDS"
+    ],
+    mdnsInterfaceIP: "127.0.0.1",
+    mdnsIpAddressList: [
+      1,
+      2,
+      3
+    ]
+  },
+
+  subscriptionsEnabled: true,
+  subscriptions: {
+    // Limits for Subscriptions
+    maxSubscriptions: 100,
+    maxSubscriptionsPerSession: 50,
+    publishingIntervalLimits: {
+      min: 100.0,
+      max: 3600000.0,
+    },
+    lifeTimeCountLimits: {
+      min: 3,
+      max: 15000
+    },
+    keepAliveCountLimits: {
+      min: 1,
+      max: 100
+    },
+    maxNotificationsPerPublish: 1000,
+    enableRetransmissionQueue: true,
+    maxRetransmissionQueueSize: 0,
+    maxEventsPerNode: 0,
+
+    // Limits for MonitoredItems
+    maxMonitoredItems: 0,
+    maxMonitoredItemsPerSubscription: 0,
+    samplingIntervalLimits: {
+      min: 50.0,
+      max: 86400000.0
+    },
+    queueSizeLimits: {
+      min: 1,
+      max: 100
+    },
+
+    // Limits for PublishRequests
+    maxPublishReqPerSession: 5
+  },
+
+  // PubSub Configuration
+  pubsubEnabled: true,
+  pubsub: {
+    enableDeltaFrames: true,
+    enableInformationModelMethods: true
+  },
+
+  // Limits for Historizing
+  historizingEnabled: true,
+  historizing: {
+    accessHistoryDataCapability: false,
+    maxReturnDataValues: 0,
+    accessHistoryEventsCapability: false,
+    maxReturnEventValues: 0,
+    insertDataCapability: false,
+    insertEventCapability: false,
+    insertAnnotationsCapability: false,
+    replaceDataCapability: false,
+    replaceEventCapability: false,
+    updateDataCapability: false,
+    updateEventCapability: false,
+    deleteRawCapability: false,
+    deleteEventCapability: false,
+    deleteAtTimeDataCapability: false,
+  },
+
+  // Reverse Connect
+  reverseReconnectInterval: 20000,
+
+  // Security Settings
+//  securityPolicies: [
+//    {
+//      policy: "http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15",
+//      certificate: "/path/to/certificate",
+//      privateKey: "/path/to/privateKey"
+//    },
+//    {
+//      policy: "http://opcfoundation.org/UA/SecurityPolicy#Basic256",
+//      certificate: "/path/to/certificate",
+//      privateKey: "/path/to/privateKey"
+//    },
+//    {
+//      policy: "http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256",
+//      certificate: "/path/to/certificate",
+//      privateKey: "/path/to/privateKey"
+//    },
+//    {
+//      policy: "http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep",
+//      certificate: "/path/to/certificate",
+//      privateKey: "/path/to/privateKey"
+//    },
+//    {
+//      policy: "http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss"",
+//      certificate: "/path/to/certificate",
+//      privateKey: "/path/to/privateKey"
+//    }
+//  ],
+
+//  pkiFolder: "/store",
+}

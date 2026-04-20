@@ -655,7 +655,7 @@ struct UA_PubSubManager {
 
 static UA_INLINE UA_PubSubManager *
 getPSM(UA_Server *server) {
-    return (UA_PubSubManager*)getServerComponentByName(server, UA_STRING("pubsub"));
+    return (UA_PubSubManager*)server->pubSubSC;
 }
 
 UA_StatusCode
@@ -733,6 +733,29 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
 #endif /* UA_ENABLE_PUBSUB_SKS */
 
 #endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL */
+
+/* Recursively check whether a data type contains String or ByteString
+ * members. Used to warn about RawData encoding where maxStringLength
+ * padding is not applied for strings inside structures. */
+static UA_INLINE UA_Boolean
+typeContainsString(const UA_DataType *type, size_t depth) {
+    if(!type || depth > 10)
+        return false;
+    if(type->typeKind == UA_DATATYPEKIND_STRING ||
+       type->typeKind == UA_DATATYPEKIND_BYTESTRING)
+        return true;
+    if(type->typeKind != UA_DATATYPEKIND_STRUCTURE &&
+       type->typeKind != UA_DATATYPEKIND_OPTSTRUCT &&
+       type->typeKind != UA_DATATYPEKIND_UNION)
+        return false;
+    if(type->pointerFree)
+        return false;
+    for(size_t i = 0; i < type->membersSize; i++) {
+        if(typeContainsString(type->members[i].memberType, depth + 1))
+            return true;
+    }
+    return false;
+}
 
 #endif /* UA_ENABLE_PUBSUB */
 
