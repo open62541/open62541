@@ -881,7 +881,7 @@ UA_ExtensionObject_setValueNoDelete(UA_ExtensionObject *eo, void *p,
  * the given value pointer. The value will be deleted when the ExtensionObject
  * is cleared. */
 UA_StatusCode UA_EXPORT
-UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo, void *p,
+UA_ExtensionObject_setValueCopy(UA_ExtensionObject *eo, const void *p,
                                 const UA_DataType *type);
 
 /* Returns true if the ExtensionObject contains a decoded value of the type */
