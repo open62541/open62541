@@ -307,14 +307,12 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
     if(mon->subscription && params->samplingInterval < 0.0)
         params->samplingInterval = mon->subscription->publishingInterval;
 
-    /* Adjust non-null sampling interval to lie within the configured limits */
-    if(params->samplingInterval != 0.0) {
-        UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
-                                   params->samplingInterval, params->samplingInterval);
-        /* Check for NaN */
-        if(mon->parameters.samplingInterval != mon->parameters.samplingInterval)
-            params->samplingInterval = server->config.samplingIntervalLimits.min;
-    }
+    /* Adjust sampling interval to lie within the configured limits */
+    UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
+                               params->samplingInterval, params->samplingInterval);
+    /* Check for NaN */
+    if(mon->parameters.samplingInterval != mon->parameters.samplingInterval)
+        params->samplingInterval = server->config.samplingIntervalLimits.min;
 
     /* Adjust the maximum queue size */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
