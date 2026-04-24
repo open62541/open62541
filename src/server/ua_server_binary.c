@@ -878,13 +878,17 @@ createServerConnection(UA_BinaryProtocolManager *bpm, const UA_String *serverUrl
         return res;
 
     UA_String tcpString = UA_STRING("tcp");
+    UA_String wsString  = UA_STRING("ws");
+    UA_String wssString = UA_STRING("wss");
     for(UA_EventSource *es = config->eventLoop->eventSources;
         es != NULL; es = es->next) {
         /* Is this a usable connection manager? */
         if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
             continue;
         UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
-        if(!UA_String_equal(&tcpString, &cm->protocol))
+        if(!UA_String_equal(&tcpString, &cm->protocol) &&
+           !UA_String_equal(&wsString, &cm->protocol) &&
+           !UA_String_equal(&wssString, &cm->protocol))
             continue;
 
         /* Set up the parameters */
