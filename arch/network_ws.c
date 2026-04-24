@@ -138,6 +138,12 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
         case LWS_CALLBACK_ESTABLISHED:
             if(!wsi)
                 break;
+            if(!vhd) {
+                vhd = (struct VHostData *)lws_protocol_vh_priv_zalloc(
+                    lws_get_vhost(wsi), lws_get_protocol(wsi),
+                    sizeof(struct VHostData));
+                vhd->context = lws_get_context(wsi);
+            }
             ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)lws_context_user(vhd->context);
             UA_Connection *c = (UA_Connection *)malloc(sizeof(UA_Connection));
             ConnectionUserData *buffer =
@@ -292,7 +298,6 @@ ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
     info.port = layer->port;
     info.protocols = protocols;
     info.vhost_name = (char *)nl->discoveryUrl.data;
-    info.ws_ping_pong_interval = 10;
     info.options = LWS_SERVER_OPTION_HTTP_HEADERS_SECURITY_BEST_PRACTICES_ENFORCE;
     info.pvo = &pvo;
     info.user = layer;
