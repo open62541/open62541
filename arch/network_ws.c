@@ -328,9 +328,12 @@ ServerNetworkLayerWS_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
                             UA_UInt16 timeout) {
     ServerNetworkLayerWS *layer = (ServerNetworkLayerWS *)nl->handle;
     layer->server = server;
-    /*  N.B.: lws_service documentation says:
-            "Since v3.2 internally the timeout wait is ignored, the lws scheduler
-             is smart enough to stay asleep until an event is queued." */
+    /* Limit lws_service timeout to 10ms so the server loop iterates
+     * frequently enough for timer callbacks (subscriptions, etc.).
+     * Without this, lws_service may block for seconds and timer
+     * callbacks (including data publishing) are delayed. */
+    if(timeout > 10)
+        timeout = 10;
     lws_service(layer->context, timeout);
     return UA_STATUSCODE_GOOD;
 }
