@@ -506,6 +506,27 @@ setCurrentEndPointsArray(UA_Server *server, UA_SecureChannel *channel,
              * AuthenticationToken. */
             retval |= updateEndpointUserIdentityToken(server, sp->policyType, ed);
 
+            /* OPC UA Part 4 §5.4.2:
+             *
+             * If the endpoint uses None security but a token policy requires
+             * encryption, the client needs a certificate to encrypt the token.
+             * Set serverCertificate from the first token policy's encryption
+             * SecurityPolicy so the client can encrypt the credential. */
+            if(ed->serverCertificate.length == 0) {
+                for(size_t ti = 0; ti < ed->userIdentityTokensSize; ti++) {
+                    UA_UserTokenPolicy *utp = &ed->userIdentityTokens[ti];
+                    if(utp->securityPolicyUri.length == 0)
+                        continue;
+                    UA_SecurityPolicy *encSP =
+                        getSecurityPolicyByUri(server, &utp->securityPolicyUri);
+                    if(!encSP || encSP->localCertificate.length == 0)
+                        continue;
+                    retval |= UA_ByteString_copy(&encSP->localCertificate,
+                                                 &ed->serverCertificate);
+                    break;
+                }
+            }
+
             /* Set the EndpointURL */
             UA_String_clear(&ed->endpointUrl);
             if(endpointUrl.length == 0) {

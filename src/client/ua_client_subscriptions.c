@@ -27,8 +27,8 @@ struct UA_Client_MonitoredItem_ForDelete {
 /* Subscriptions */
 /*****************/
 
-static enum ZIP_CMP
 /* For ZIP_TREE we use clientHandle comparison */
+static enum ZIP_CMP
 UA_ClientHandle_cmp(const void *a, const void *b) {
     const UA_Client_MonitoredItem *aa = (const UA_Client_MonitoredItem *)a;
     const UA_Client_MonitoredItem *bb = (const UA_Client_MonitoredItem *)b;
@@ -156,7 +156,7 @@ UA_Client_Subscriptions_create_async(UA_Client *client, const UA_CreateSubscript
                                  Subscriptions_create_handler,
                                  &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE],
                                  cc, requestId);
-    if (res != UA_STATUSCODE_GOOD) {
+    if(res != UA_STATUSCODE_GOOD) {
         UA_free(cc);
         UA_free(sub);
     }
@@ -425,7 +425,7 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
                                    Subscriptions_delete_handler,
                                    &UA_TYPES[UA_TYPES_DELETESUBSCRIPTIONSRESPONSE],
                                    dsc, requestId);
-    if (res != UA_STATUSCODE_GOOD) {
+    if(res != UA_STATUSCODE_GOOD) {
         UA_DeleteSubscriptionsRequest_clear(&dsc->request);
         UA_free(dsc);
     }
@@ -1081,7 +1081,7 @@ UA_Client_MonitoredItems_delete_async(UA_Client *client,
                                  MonitoredItems_delete_handler,
                                  &UA_TYPES[UA_TYPES_DELETEMONITOREDITEMSRESPONSE],
                                  cc, requestId);
-    if (res != UA_STATUSCODE_GOOD) {
+    if(res != UA_STATUSCODE_GOOD) {
         UA_DeleteMonitoredItemsRequest_delete(req_copy);
         UA_free(cc);
     }
@@ -1294,17 +1294,18 @@ __Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request) {
     size_t i = 0;
     UA_Client_NotificationsAckNumber *ack_tmp;
     LIST_FOREACH_SAFE(ack, &client->pendingNotificationsAcks, listEntry, ack_tmp) {
-        request->subscriptionAcknowledgements[i].sequenceNumber = ack->subAck.sequenceNumber;
-        request->subscriptionAcknowledgements[i].subscriptionId = ack->subAck.subscriptionId;
-        ++i;
         LIST_REMOVE(ack, listEntry);
+        UA_SubscriptionAcknowledgement *reqAck = &request->subscriptionAcknowledgements[i];
+        reqAck->sequenceNumber = ack->subAck.sequenceNumber;
+        reqAck->subscriptionId = ack->subAck.subscriptionId;
         UA_free(ack);
+        i++;
     }
     return UA_STATUSCODE_GOOD;
 }
 
-/* According to OPC Unified Architecture, Part 4 5.13.1.1 i) */
-/* The value 0 is never used for the sequence number         */
+/* According to specification, Part 4 5.13.1, the value 0 is never used for the
+ * sequence number */
 static UA_UInt32
 __nextSequenceNumber(UA_UInt32 sequenceNumber) {
     UA_UInt32 nextSequenceNumber = sequenceNumber + 1;
@@ -1444,104 +1445,116 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
                                               UA_PublishResponse *response) {
     UA_LOCK_ASSERT(&client->clientMutex);
 
-    UA_NotificationMessage *msg = &response->notificationMessage;
-
+    /* Reduce the number of "in-flight" PublishRequests */
     client->currentlyOutStandingPublishRequests--;
 
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS) {
+    /* Process ServiceResult for bad StatusCodes without referring to a
+     * SubscriptionId */
+    switch(response->responseHeader.serviceResult) {
+    case UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS:
+        /* Correct the assumed number of max outstanding requests */
         if(client->config.outStandingPublishRequests > 1) {
             client->config.outStandingPublishRequests--;
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "Too many publishrequest, reduce outStandingPublishRequests "
-                           "to %" PRId16, client->config.outStandingPublishRequests);
+                           "PublishResponse: Too many PublishRequest, reduce "
+                           "outStandingPublishRequests to %" PRId16,
+                           client->config.outStandingPublishRequests);
         } else {
-            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "Too many publishrequest when outStandingPublishRequests = 1");
+            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "PublishResponse: Too many PublishRequests when "
+                         "outStandingPublishRequests = 1");
             UA_Client_Subscriptions_deleteSingle(client, response->subscriptionId);
         }
         return;
-    }
 
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSHUTDOWN)
+    case UA_STATUSCODE_BADSHUTDOWN:
+        /* If the remote server shuts down, DEBUG-log to avoid a warning-storm
+         * for normal operations */
+        UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "PublishResponse: Received BadShutdown status");
         return;
 
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADNOSUBSCRIPTION) {
-        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "Received BadNoSubscription, delete internal information about subscription");
-        UA_Client_Subscription *sub = findSubscriptionById(client, response->subscriptionId);
-        if(sub != NULL)
-            __Client_Subscription_deleteInternal(client, sub);
+    case UA_STATUSCODE_BADNOSUBSCRIPTION:
+        /* There is no Subscription configured, the server expects no
+         * PublishRequests. We demote this to debug-logging, as it can occur
+         * during regular shutdown when the Subscriptions are removed. */
+        UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "PublishResponse: Received BadNoSubscription status");
         return;
+
+    default:
+        break;
     }
 
-    if(!LIST_FIRST(&client->subscriptions)) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
-        return;
-    }
-
+    /* Get the Subscription */
     UA_Client_Subscription *sub = findSubscriptionById(client, response->subscriptionId);
     if(!sub) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "Received Publish Response for a non-existant subscription");
+                       "PublishResponse: Received response for an unknown Subscription");
         return;
     }
 
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONCLOSED) {
-        if(client->sessionState != UA_SESSIONSTATE_ACTIVATED) {
-            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "Received Publish Response with code %s",
-                           UA_StatusCode_name(response->responseHeader.serviceResult));
-            __Client_Subscription_deleteInternal(client, sub);
-        }
+    /* Process ServiceResult */
+    switch(response->responseHeader.serviceResult) {
+    case UA_STATUSCODE_BADSESSIONCLOSED:
+        /* The Session no longer exists on the server - remove the Subscription */
+        __Client_Subscription_deleteInternal(client, sub);
         return;
-    }
 
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTIMEOUT) {
+    case UA_STATUSCODE_BADTIMEOUT:
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                       "PublishResponse: Aborted with BadTimeout status");
         if(client->config.subscriptionInactivityCallback) {
             void *subC = sub->context;
             UA_UInt32 subId = sub->subscriptionId;
             client->config.subscriptionInactivityCallback(client, subId, subC);
         }
-        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "Received Timeout for Publish Response");
         return;
-    }
 
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    case UA_STATUSCODE_GOOD:
+        break; /* Continue below */
+
+    default:
+        /* Catch-all for other bad StatusCodes */
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "Received Publish Response with code %s",
+                       "PublishResponse: Received %s status",
                        UA_StatusCode_name(response->responseHeader.serviceResult));
         return;
     }
 
+    /* Update the LastActivity for the Subscription */
     UA_EventLoop *el = client->config.eventLoop;
     sub->lastActivity = el->dateTime_nowMonotonic(el);
 
     /* Detect missing message - OPC Unified Architecture, Part 4 5.13.1.1 e) */
+    UA_NotificationMessage *msg = &response->notificationMessage;
     if(__nextSequenceNumber(sub->sequenceNumber) != msg->sequenceNumber) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "Invalid subscription sequence number: expected %" PRIu32
-                       " but got %" PRIu32, __nextSequenceNumber(sub->sequenceNumber),
-                       msg->sequenceNumber);
+                       "PublishResponse: Invalid subscription sequence number: "
+                       "Expected %" PRIu32 " but got %" PRIu32,
+                       __nextSequenceNumber(sub->sequenceNumber), msg->sequenceNumber);
         /* This is an error. But we do not abort the connection. Some server
          * SDKs misbehave from time to time and send out-of-order sequence
          * numbers. (Probably some multi-threading synchronization issue.) */
         /* UA_Client_disconnect(client);
            return; */
     }
+
     /* According to f), a keep-alive message contains no notifications and has
      * the sequence number of the next NotificationMessage that is to be sent =>
      * More than one consecutive keep-alive message or a NotificationMessage
      * following a keep-alive message will share the same sequence number. */
-    if (msg->notificationDataSize)
+    if(msg->notificationDataSize)
         sub->sequenceNumber = msg->sequenceNumber;
 
     /* Process the notification messages */
     for(size_t k = 0; k < msg->notificationDataSize; ++k)
         processNotificationMessage(client, sub, &msg->notificationData[k]);
 
-    /* Add to the list of pending acks */
+    /* Add the current NotificationMessage (SequenceNumber) to the list of
+     * pending acks to be acknowledged. But only if it is in the list of
+     * sequence numbers the server has available. */
     for(size_t i = 0; i < response->availableSequenceNumbersSize; i++) {
         if(response->availableSequenceNumbers[i] != msg->sequenceNumber)
             continue;
@@ -1549,8 +1562,8 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
             UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
         if(!tmpAck) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "Not enough memory to store the acknowledgement for a publish "
-                           "message on subscription %" PRIu32, sub->subscriptionId);
+                           "PublishResponse: Not enough memory to store the pending "
+                           "acknowledgement for Subscription %" PRIu32, sub->subscriptionId);
             break;
         }
         tmpAck->subAck.sequenceNumber = msg->sequenceNumber;
@@ -1619,7 +1632,8 @@ __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
                 client->config.subscriptionInactivityCallback(client, subId, subC);
             }
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "Inactivity for Subscription %" PRIu32 ".", sub->subscriptionId);
+                           "Inactivity for Subscription %" PRIu32 ".",
+                           sub->subscriptionId);
         }
     }
 }

@@ -14,6 +14,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
+#include <stdio.h>
 #include <check.h>
 #include "testing_clock.h"
 #include "thread_wrapper.h"
@@ -1057,6 +1058,42 @@ START_TEST(subscription_diagnostic_reads) {
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 } END_TEST
+
+START_TEST(subscription_diagnostic_entry_valueRank_scalar) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode res = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_CreateSubscriptionRequest subReq = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse subResp =
+        UA_Client_Subscriptions_create(client, subReq, NULL, NULL, NULL);
+    ck_assert_uint_eq(subResp.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = subResp.subscriptionId;
+
+    char subIdStr[32];
+    int written = snprintf(subIdStr, sizeof(subIdStr), "%u", (unsigned)subId);
+    ck_assert(written > 0);
+    ck_assert((size_t)written < sizeof(subIdStr));
+
+    UA_QualifiedName bp = UA_QUALIFIEDNAME(0, subIdStr);
+    UA_BrowsePathResult bpr = UA_Server_browseSimplifiedBrowsePath(
+        server,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY),
+        1, &bp);
+    ck_assert_uint_eq(bpr.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(bpr.targetsSize > 0);
+
+    UA_Int32 valueRank = UA_VALUERANK_ANY;
+    res = UA_Server_readValueRank(server, bpr.targets[0].targetId.nodeId, &valueRank);
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(valueRank, UA_VALUERANK_SCALAR);
+
+    UA_BrowsePathResult_clear(&bpr);
+
+    UA_Client_Subscriptions_deleteSingle(client, subId);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 /* === Max capabilities reads === */
@@ -1169,6 +1206,7 @@ static Suite *testSuite_ns0Ext(void) {
     TCase *tc_subdiag = tcase_create("SubDiag");
     tcase_add_checked_fixture(tc_subdiag, setup, teardown);
     tcase_add_test(tc_subdiag, subscription_diagnostic_reads);
+    tcase_add_test(tc_subdiag, subscription_diagnostic_entry_valueRank_scalar);
 #endif
 
     Suite *s = suite_create("NS0 Extended");

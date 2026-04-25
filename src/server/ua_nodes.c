@@ -1099,11 +1099,14 @@ void
 UA_Node_deleteReferencesSubset(UA_Node *node, const UA_ReferenceTypeSet *keepSet) {
     UA_NodeHead *head = &node->head;
     UA_assert(head->references != NULL || head->referencesSize == 0);
-    for(size_t i = 0; i < head->referencesSize; i++) {
+    size_t i = 0;
+    while(i < head->referencesSize) {
         /* Keep the references of this type? */
         UA_NodeReferenceKind *refs = &head->references[i];
-        if(UA_ReferenceTypeSet_contains(keepSet, refs->referenceTypeIndex))
+        if(UA_ReferenceTypeSet_contains(keepSet, refs->referenceTypeIndex)){
+            i++;
             continue;
+        }
 
         /* Remove all target entries. Don't remove entries from browseName tree.
          * The entire ReferenceKind will be removed anyway. */
@@ -1122,12 +1125,11 @@ UA_Node_deleteReferencesSubset(UA_Node *node, const UA_ReferenceTypeSet *keepSet
         }
 
         /* Move last references-kind entry to this position. Don't memcpy over
-         * the same position. Decrease i to repeat at this location. */
+         * the same position. Don't increment i: the swapped-in element must be
+         * checked on the next iteration. */
         head->referencesSize--;
-        if(i != head->referencesSize) {
+        if(i != head->referencesSize)
             head->references[i] = head->references[head->referencesSize];
-            i--;
-        }
     }
 
     if(head->referencesSize > 0) {

@@ -11,6 +11,7 @@ open62541 Documentation
    client
    pubsub
    tutorials
+   ecc_security
    common
    util
    nodeset_compiler

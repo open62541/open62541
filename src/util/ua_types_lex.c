@@ -1007,6 +1007,7 @@ UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
  * the browse path when the namespace of the elements is not given explicitly.
  * This is used for parsing an expression from a QualifiedName that then defines
  * the default namespace-index (cf. the Event-field key-value map). */
+#ifdef UA_TYPES_ATTRIBUTEOPERAND
 static UA_StatusCode
 parseAttributeOperand(UA_AttributeOperand *ao, const UA_String str,
                       UA_NodeId defaultId, UA_UInt16 defaultNamespaceIndex) {
@@ -1292,3 +1293,5 @@ UA_ReadValueId_parse(UA_ReadValueId *rvi, const UA_String str) {
     rvi->indexRange = ao.indexRange;
     return UA_STATUSCODE_GOOD;
 }
+
+#endif /* UA_TYPES_ATTRIBUTEOPERAND */

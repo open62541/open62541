@@ -332,6 +332,46 @@ START_TEST(get_rejectedlist) {
 }
 END_TEST
 
+START_TEST(verify_expired_certificate_status_depends_on_trust) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    /* CERT_DER_DATA is expired at the current test date. */
+    UA_ByteString expiredCertificate;
+    expiredCertificate.length = CERT_DER_LENGTH;
+    expiredCertificate.data = CERT_DER_DATA;
+
+    /* First, explicitly trust the certificate and verify that validity period
+     * checks are applied after trust has been established. */
+    UA_TrustListDataType trustListTmp;
+    memset(&trustListTmp, 0, sizeof(UA_TrustListDataType));
+    trustListTmp.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
+    trustListTmp.trustedCertificates = &expiredCertificate;
+    trustListTmp.trustedCertificatesSize = 1;
+
+    UA_StatusCode retval = config->secureChannelPKI.setTrustList(&config->secureChannelPKI, &trustListTmp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = config->sessionPKI.setTrustList(&config->sessionPKI, &trustListTmp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = config->secureChannelPKI.verifyCertificate(&config->secureChannelPKI, &expiredCertificate);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATETIMEINVALID);
+    retval = config->sessionPKI.verifyCertificate(&config->sessionPKI, &expiredCertificate);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATETIMEINVALID);
+
+    /* Then remove trust and verify that the status is no longer dominated by
+     * expiration, but by missing trust. */
+    retval = config->secureChannelPKI.removeFromTrustList(&config->secureChannelPKI, &trustListTmp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    retval = config->sessionPKI.removeFromTrustList(&config->sessionPKI, &trustListTmp);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = config->secureChannelPKI.verifyCertificate(&config->secureChannelPKI, &expiredCertificate);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEUNTRUSTED);
+    retval = config->sessionPKI.verifyCertificate(&config->sessionPKI, &expiredCertificate);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEUNTRUSTED);
+}
+END_TEST
+
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("CertificateGroup");
     TCase *tc_encryption_memorystore = tcase_create("CertificateGroup Memorystore");
@@ -342,6 +382,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_memorystore, add_to_trustlist);
     tcase_add_test(tc_encryption_memorystore, remove_from_trustlist);
     tcase_add_test(tc_encryption_memorystore, get_rejectedlist);
+    tcase_add_test(tc_encryption_memorystore, verify_expired_certificate_status_depends_on_trust);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_encryption_memorystore);
 
@@ -354,6 +395,7 @@ static Suite* testSuite_encryption(void) {
     tcase_add_test(tc_encryption_filestore, add_to_trustlist);
     tcase_add_test(tc_encryption_filestore, remove_from_trustlist);
     tcase_add_test(tc_encryption_filestore, get_rejectedlist);
+    tcase_add_test(tc_encryption_filestore, verify_expired_certificate_status_depends_on_trust);
     suite_add_tcase(s,tc_encryption_filestore);
 #endif /* UA_ENABLE_ENCRYPTION */
 #endif /* defined(__linux__) || defined(UA_ARCHITECTURE_WIN32) */

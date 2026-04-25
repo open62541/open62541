@@ -30,6 +30,39 @@ cmake -G "Ninja" -DBUILD_SHARED_LIBS:BOOL=OFF -DCMAKE_BUILD_TYPE=Debug -DUA_BUIL
 cmake --build .
 rm -r *
 
+echo "Build MinGW Amalgamation with UA_ARCHITECTURE=none"
+cmake -G "Ninja" \
+    -DBUILD_SHARED_LIBS:BOOL=OFF \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DUA_ENABLE_AMALGAMATION:BOOL=ON \
+    -DUA_ARCHITECTURE:STRING=none \
+    -DUA_FORCE_WERROR=ON ..
+cmake --build . --target open62541-amalgamation
+
+# Smoke test: compile and link a small program against the amalgamation
+# to catch any missing symbols that only show up at link time
+cat > amalgamation_none_smoke.c <<'EOF'
+#include "open62541.h"
+
+int main(void) {
+    UA_Server *server = UA_Server_new();
+    if(!server)
+        return 1;
+    UA_Server_delete(server);
+
+    UA_Client *client = UA_Client_new();
+    if(!client)
+        return 2;
+    UA_Client_delete(client);
+
+    return 0;
+}
+EOF
+
+${CC:-gcc} -I. amalgamation_none_smoke.c open62541.c -o amalgamation_none_smoke.exe -lws2_32 -liphlpapi
+
+rm -r *
+
 echo "Build MingW with NS0"
 cmake -G "Ninja" -DBUILD_SHARED_LIBS:BOOL=OFF -DCMAKE_BUILD_TYPE=Debug -DUA_ENABLE_DA:BOOL=ON -DUA_ENABLE_JSON_ENCODING:BOOL=ON -DUA_ENABLE_PUBSUB:BOOL=ON -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON -DUA_FORCE_WERROR=ON -DUA_NAMESPACE_ZERO:STRING=FULL ..
 cmake --build .
