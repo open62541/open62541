@@ -85,7 +85,7 @@ static UA_ByteString copyDataFormatAware(const UA_ByteString *data)
 }
 
 typedef struct {
-    UA_CertificateVerification *cv;
+    const UA_Logger *logging;
 
     /* If the folders are defined, we use them to reload the certificates during
      * runtime */
@@ -323,7 +323,7 @@ mbedtlsCheckRevoked(CertInfo *ci, mbedtls_x509_crt *cert) {
     UA_String issuerName = {(size_t)nameLen, (UA_Byte*)inbuf};
 
     if(ci->certificateRevocationList.raw.len == 0) {
-        UA_LOG_WARNING(ci->cv->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_LOG_WARNING(ci->logging, UA_LOGCATEGORY_SECURITYPOLICY,
                        "Zero revocation lists have been loaded. "
                        "This seems intentional - omitting the check.");
         return UA_STATUSCODE_GOOD;
@@ -650,7 +650,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     if(!ci)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memset(ci, 0, sizeof(CertInfo));
-    ci->cv = cv;
+    ci->logging = cv->logging;
     mbedtls_x509_crt_init(&ci->certificateTrustList);
     mbedtls_x509_crl_init(&ci->certificateRevocationList);
     mbedtls_x509_crt_init(&ci->certificateIssuerList);
@@ -732,7 +732,7 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
     if(!ci)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     memset(ci, 0, sizeof(CertInfo));
-    ci->cv = cv;
+    ci->logging = cv->logging;
     mbedtls_x509_crt_init(&ci->certificateTrustList);
     mbedtls_x509_crl_init(&ci->certificateRevocationList);
     mbedtls_x509_crt_init(&ci->certificateIssuerList);

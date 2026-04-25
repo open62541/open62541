@@ -77,7 +77,7 @@ typedef struct {
     STACK_OF(X509) *      skTrusted;
     STACK_OF(X509_CRL) *  skCrls; /* Revocation list*/
 
-    UA_CertificateVerification *cv;
+    const UA_Logger *logging;
 } CertContext;
 
 static UA_StatusCode
@@ -107,7 +107,7 @@ UA_CertContext_Init (CertContext * context, UA_CertificateVerification *cv) {
     UA_ByteString_init (&context->revocationListFolder);
     UA_ByteString_init (&context->rejectedListFolder);
 
-    context->cv = cv;
+    context->logging = cv->logging;
 
     return UA_CertContext_sk_Init (context);
 }
@@ -127,7 +127,7 @@ UA_CertificateVerification_clear (UA_CertificateVerification * cv) {
     UA_ByteString_clear (&context->rejectedListFolder);
 
     UA_CertContext_sk_free (context);
-    context->cv = NULL;
+    context->logging = NULL;
     UA_free (context);
 
     memset(cv, 0, sizeof(UA_CertificateVerification));
@@ -291,7 +291,7 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
     UA_ByteString_init (&strCert);
 
     if (ctx->trustListFolder.length > 0) {
-        UA_LOG_INFO(ctx->cv->logging, UA_LOGCATEGORY_SERVER, "Reloading the trust-list");
+        UA_LOG_INFO(ctx->logging, UA_LOGCATEGORY_SERVER, "Reloading the trust-list");
 
         sk_X509_pop_free (ctx->skTrusted, X509_free);
         ctx->skTrusted = sk_X509_new_null();
@@ -312,12 +312,12 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
             }
             ret = UA_loadCertFromFile (certFile, &strCert);
             if (ret != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO(ctx->cv->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO(ctx->logging, UA_LOGCATEGORY_SERVER,
                             "Failed to load the certificate file %s", certFile);
                 continue;  /* continue or return ? */
             }
             if (UA_skTrusted_Cert2X509 (&strCert, 1, ctx) != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->cv->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO (ctx->logging, UA_LOGCATEGORY_SERVER,
                             "Failed to decode the certificate file %s", certFile);
                 UA_ByteString_clear (&strCert);
                 continue;  /* continue or return ? */
@@ -331,7 +331,7 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
     }
 
     if (ctx->issuerListFolder.length > 0) {
-        UA_LOG_INFO(ctx->cv->logging, UA_LOGCATEGORY_SERVER, "Reloading the issuer-list");
+        UA_LOG_INFO(ctx->logging, UA_LOGCATEGORY_SERVER, "Reloading the issuer-list");
 
         sk_X509_pop_free (ctx->skIssue, X509_free);
         ctx->skIssue = sk_X509_new_null();
@@ -351,12 +351,12 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
             }
             ret = UA_loadCertFromFile (certFile, &strCert);
             if (ret != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->cv->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO (ctx->logging, UA_LOGCATEGORY_SERVER,
                             "Failed to load the certificate file %s", certFile);
                 continue;  /* continue or return ? */
             }
             if (UA_skIssuer_Cert2X509 (&strCert, 1, ctx) != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->cv->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO (ctx->logging, UA_LOGCATEGORY_SERVER,
                             "Failed to decode the certificate file %s", certFile);
                 UA_ByteString_clear (&strCert);
                 continue;  /* continue or return ? */
@@ -370,7 +370,7 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
     }
 
     if (ctx->revocationListFolder.length > 0) {
-        UA_LOG_INFO(ctx->cv->logging, UA_LOGCATEGORY_SERVER, "Reloading the revocation-list");
+        UA_LOG_INFO(ctx->logging, UA_LOGCATEGORY_SERVER, "Reloading the revocation-list");
 
         sk_X509_CRL_pop_free (ctx->skCrls, X509_CRL_free);
         ctx->skCrls = sk_X509_CRL_new_null();
@@ -390,12 +390,12 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
             }
             ret = UA_loadCertFromFile (certFile, &strCert);
             if (ret != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->cv->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO (ctx->logging, UA_LOGCATEGORY_SERVER,
                             "Failed to load the revocation file %s", certFile);
                 continue;  /* continue or return ? */
             }
             if (UA_skCrls_Cert2X509 (&strCert, 1, ctx) != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->cv->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO (ctx->logging, UA_LOGCATEGORY_SERVER,
                             "Failed to decode the revocation file %s", certFile);
                 UA_ByteString_clear (&strCert);
                 continue;  /* continue or return ? */
@@ -529,7 +529,7 @@ openSSLCheckRevoked(CertContext *ctx, X509 *cert) {
     int size = sk_X509_CRL_num(ctx->skCrls);
 
     if(size == 0) {
-        UA_LOG_WARNING(ctx->cv->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_LOG_WARNING(ctx->logging, UA_LOGCATEGORY_SECURITYPOLICY,
                        "Zero revocation lists have been loaded. "
                        "This seems intentional - omitting the check.");
         return UA_STATUSCODE_GOOD;
