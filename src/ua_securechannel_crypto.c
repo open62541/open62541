@@ -10,6 +10,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2025 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "open62541/transport_generated.h"
@@ -54,19 +55,21 @@ UA_SecureChannel_generateLocalKeys(const UA_SecureChannel *channel) {
     const UA_SecurityPolicyEncryptionAlgorithm *ea = &sp->symEncryptionAlgorithm;
 
     /* Generate symmetric key buffer of the required length. The block size is
-     * identical for local/remote. */
+     * identical for local/remote. For AEAD ciphers the IV length differs from
+     * the block size, so use getLocalIvLength when available. */
     UA_ByteString buf;
     size_t encrKL = ea->getLocalKeyLength(sp, cc);
     size_t encrBS = ea->getRemoteBlockSize(sp, cc);
+    size_t ivLen = ea->getLocalIvLength ? ea->getLocalIvLength(sp, cc) : encrBS;
     size_t signKL = sp->symSignatureAlgorithm.getLocalKeyLength(sp, cc);
-    if(encrBS + signKL + encrKL == 0)
+    if(ivLen + signKL + encrKL == 0)
         return UA_STATUSCODE_GOOD; /* No keys to generate */
 
-    UA_StatusCode res = UA_ByteString_allocBuffer(&buf, encrBS + signKL + encrKL);
+    UA_StatusCode res = UA_ByteString_allocBuffer(&buf, ivLen + signKL + encrKL);
     UA_CHECK_STATUS(res, return res);
     UA_ByteString localSigningKey = {signKL, buf.data};
     UA_ByteString localEncryptingKey = {encrKL, &buf.data[signKL]};
-    UA_ByteString localIv = {encrBS, &buf.data[signKL + encrKL]};
+    UA_ByteString localIv = {ivLen, &buf.data[signKL + encrKL]};
 
     /* TODO: Signal that no ECC salt is generated. Find a clean solution for this.  */
     buf.data[0] = 0x00;
@@ -99,19 +102,22 @@ generateRemoteKeys(const UA_SecureChannel *channel) {
     void *cc = channel->channelContext;
     const UA_SecurityPolicyEncryptionAlgorithm *ea = &sp->symEncryptionAlgorithm;
 
-    /* Generate symmetric key buffer of the required length */
+    /* Generate symmetric key buffer of the required length. For AEAD ciphers
+     * the IV length differs from the block size, so use getLocalIvLength when
+     * available. */
     UA_ByteString buf;
     size_t encrKL = ea->getRemoteKeyLength(sp, cc);
     size_t encrBS = ea->getRemoteBlockSize(sp, cc);
+    size_t ivLen = ea->getLocalIvLength ? ea->getLocalIvLength(sp, cc) : encrBS;
     size_t signKL = sp->symSignatureAlgorithm.getRemoteKeyLength(sp, cc);
-    if(encrBS + signKL + encrKL == 0)
+    if(ivLen + signKL + encrKL == 0)
         return UA_STATUSCODE_GOOD; /* No keys to generate */
 
-    UA_StatusCode res = UA_ByteString_allocBuffer(&buf, encrBS + signKL + encrKL);
+    UA_StatusCode res = UA_ByteString_allocBuffer(&buf, ivLen + signKL + encrKL);
     UA_CHECK_STATUS(res, return res);
     UA_ByteString remoteSigningKey = {signKL, buf.data};
     UA_ByteString remoteEncryptingKey = {encrKL, &buf.data[signKL]};
-    UA_ByteString remoteIv = {encrBS, &buf.data[signKL + encrKL]};
+    UA_ByteString remoteIv = {ivLen, &buf.data[signKL + encrKL]};
 
     /* TODO: Signal that no ECC salt is generated. Find a clean solution for this.  */
     buf.data[0] = 0x00;
@@ -343,6 +349,47 @@ signAndEncryptSym(UA_MessageContext *messageContext,
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     void *cc = channel->channelContext;
 
+    /* For AEAD policies (ChaCha20-Poly1305), set the message security
+     * parameters for nonce masking. Then let the encrypt callback handle
+     * both authentication and encryption. */
+    if(sp->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD) {
+        /* Set AEAD parameters: tokenId, previous seqNo, AAD */
+        if(sp->setMessageSecurityParameters) {
+            UA_ByteString aad;
+            aad.data = messageContext->messageBuffer.data;
+            aad.length = UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
+                         UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH;
+            UA_UInt32 prevSeqNo = channel->sendSequenceNumber > 0 ?
+                (UA_UInt32)(channel->sendSequenceNumber - 1) : 0;
+            UA_StatusCode res = sp->setMessageSecurityParameters(
+                sp, cc, channel->securityToken.tokenId, prevSeqNo, &aad);
+            UA_CHECK_STATUS(res, return res);
+        }
+
+        if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+            /* Full AEAD: encrypt + compute auth tag. Data includes
+             * the 16-byte tag space at the end. */
+            UA_ByteString dataToProcess;
+            dataToProcess.data = messageContext->messageBuffer.data +
+                UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
+                UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH;
+            dataToProcess.length = totalLength -
+                (UA_SECURECHANNEL_CHANNELHEADER_LENGTH +
+                 UA_SECURECHANNEL_SYMMETRIC_SECURITYHEADER_LENGTH);
+            return sp->symEncryptionAlgorithm.encrypt(sp, cc, &dataToProcess);
+        }
+
+        /* Sign-only: Compute Poly1305 auth tag */
+        UA_ByteString dataToSign = messageContext->messageBuffer;
+        dataToSign.length = preSigLength;
+        UA_ByteString signature;
+        signature.length =
+            sp->symSignatureAlgorithm.getLocalSignatureSize(sp, cc);
+        signature.data = messageContext->buf_pos;
+        return sp->symSignatureAlgorithm.
+            sign(sp, cc, &dataToSign, &signature);
+    }
+
     /* Sign */
     UA_ByteString dataToSign = messageContext->messageBuffer;
     dataToSign.length = preSigLength;
@@ -382,6 +429,21 @@ setBufPos(UA_MessageContext *mc) {
     const UA_SecureChannel *channel = mc->channel;
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     void *cc = channel->channelContext;
+
+    /* For AEAD (ChaCha20-Poly1305): no padding, no block alignment.
+     * Only reserve space for the authentication tag (signature size). */
+    if(sp->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD) {
+        size_t sigsize =
+            sp->symSignatureAlgorithm.getLocalSignatureSize(sp, cc);
+        mc->buf_end -= sigsize;
+        UA_LOG_TRACE_CHANNEL(sp->logger, channel,
+                             "Prepare an AEAD symmetric message buffer of length %lu "
+                             "with a usable maximum payload length of %lu",
+                             (long unsigned)mc->messageBuffer.length,
+                             (long unsigned)((uintptr_t)mc->buf_end -
+                                             (uintptr_t)mc->messageBuffer.data));
+        return;
+    }
 
     size_t sigsize =
         sp->symSignatureAlgorithm.getLocalSignatureSize(sp, cc);
@@ -445,9 +507,57 @@ decryptAndVerifyChunk(const UA_SecureChannel *channel,
                       size_t offset) {
     UA_SecurityPolicy *sp = channel->securityPolicy;
     void *cc = channel->channelContext;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    /* AEAD path (ChaCha20-Poly1305): the decrypt callback handles both
+     * decryption and authentication tag verification in one step. */
+    if(sp->policyType == UA_SECURITYPOLICYTYPE_ECC_AEAD &&
+       messageType != UA_MESSAGETYPE_OPN) {
+
+        /* Set AEAD parameters before decrypt/verify */
+        if(sp->setMessageSecurityParameters) {
+            UA_ByteString aad = {offset, chunk->data};
+            res = sp->setMessageSecurityParameters(
+                sp, cc, channel->securityToken.tokenId,
+                channel->receiveSequenceNumber, &aad);
+            UA_CHECK_STATUS(res, return res);
+        }
+
+        if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
+            /* Full AEAD decrypt + verify. The decrypt callback processes
+             * the data including the 16-byte auth tag at the end. On
+             * success, it reduces cipher.length by the tag size. */
+            UA_ByteString cipher = {chunk->length - offset, chunk->data + offset};
+            res = encryptionAlgorithm->decrypt(sp, cc, &cipher);
+            UA_CHECK_STATUS(res,
+                UA_LOG_WARNING_CHANNEL(sp->logger, channel,
+                                       "AEAD decryption/verification failed");
+                return res);
+            chunk->length = cipher.length + offset;
+        } else if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN) {
+            /* Sign-only: verify the auth tag without decryption */
+            size_t sigsize = signatureAlgorithm->getRemoteSignatureSize(sp, cc);
+            UA_CHECK(sigsize < chunk->length,
+                     return UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+            const UA_ByteString content = {chunk->length - sigsize, chunk->data};
+            const UA_ByteString sig = {sigsize, chunk->data + chunk->length - sigsize};
+            res = signatureAlgorithm->verify(sp, cc, &content, &sig);
+            UA_CHECK_STATUS(res,
+                UA_LOG_WARNING_CHANNEL(sp->logger, channel,
+                                       "AEAD signature verification failed");
+                return res);
+            chunk->length -= sigsize;
+        }
+
+        /* Verify the content length */
+        UA_CHECK(offset + 9 < chunk->length,
+                 UA_LOG_ERROR_CHANNEL(sp->logger, channel,
+                                      "AEAD message too short");
+                 return UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+        return UA_STATUSCODE_GOOD;
+    }
 
     /* Decrypt the chunk */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT ||
        messageType == UA_MESSAGETYPE_OPN) {
         UA_ByteString cipher = {chunk->length - offset, chunk->data + offset};

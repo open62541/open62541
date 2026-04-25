@@ -158,8 +158,11 @@ callWithResolvedMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* Verify access rights */
     UA_Boolean executable = resolvedMethod->executable;
+    if(!executable)
+        return UA_STATUSCODE_BADNOTEXECUTABLE;
+
     if(session != &server->adminSession) {
-        executable = executable && server->config.accessControl.
+        executable = server->config.accessControl.
             getUserExecutableOnObject(server, &server->config.accessControl,
                                       &session->sessionId, session->context,
                                       &resolvedMethod->head.nodeId,
@@ -168,7 +171,7 @@ callWithResolvedMethodAndObject(UA_Server *server, UA_Session *session,
                                       callContext->head.context);
     }
     if(!executable)
-        return UA_STATUSCODE_BADNOTEXECUTABLE;
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
 
     /* The input arguments are const and not changed. We move the input
      * arguments to a secondary array that is mutable. This is used for small

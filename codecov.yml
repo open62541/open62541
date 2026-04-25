@@ -1,6 +1,20 @@
+codecov:
+  notify:
+    # Wait for 20 coverage uploads before reporting status.
+    after_n_builds: 20
+
 coverage:
   round: down
   precision: 1
+  status:
+    project:
+      default:
+        # Allow overall project coverage to drop by up to 0.05%.
+        threshold: 0.05%
+    patch:
+      default:
+        target: auto
+        threshold: 15%
 
 # Ignore examples, tests and generated files
 ignore:

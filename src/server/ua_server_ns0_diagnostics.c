@@ -189,6 +189,7 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
     /* Create an object for the subscription. Instantiates all the mandatory
      * children. */
     UA_VariableAttributes var_attr = UA_VariableAttributes_default;
+    var_attr.valueRank = -1;
     var_attr.displayName.text = UA_STRING(subIdStr);
     var_attr.dataType = UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE].typeId;
     UA_NodeId refId = UA_NS0ID(HASCOMPONENT);

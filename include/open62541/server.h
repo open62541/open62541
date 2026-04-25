@@ -22,7 +22,9 @@
 #include <open62541/common.h>
 #include <open62541/util.h>
 #include <open62541/types.h>
+#ifdef UA_ENABLE_DISCOVERY
 #include <open62541/client.h>
+#endif
 
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/certificategroup.h>

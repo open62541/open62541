@@ -1818,11 +1818,15 @@ decodeJSONVariant(ParseCtx *ctx, UA_Variant *dst) {
     UA_Boolean isArray =
         (valueIndex > 0 && ctx->tokens[valueIndex].type == CJ5_TOKEN_ARRAY);
 
-    /* Decode the value */
-    status res = UA_STATUSCODE_GOOD;
+    /* Adjust the depth and set the value index as current */
+    if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
+        return UA_STATUSCODE_BADDECODINGERROR;
     size_t beginIndex = ctx->index;
     ctx->index = valueIndex;
     ctx->depth++;
+
+    /* Decode the value */
+    status res = UA_STATUSCODE_GOOD;
     if(!isArray) {
         /* Scalar with dimensions -> error */
         if(dimIndex > 0) {

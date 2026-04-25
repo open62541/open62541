@@ -99,6 +99,26 @@ UA_Client_delete(UA_Client *client);
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
 
+/* Runs the client until interrupted. On Unix/Windows this registers an
+ * interrupt for SIGINT (ctrl-c). The method only returns after having received
+ * the interrupt or upon an error condition. The logical sequence is as follows:
+ *
+ * - Register the interrupt
+ * - Loop until interrupt: UA_Client_run_iterate
+ * - Deregister the interrupt
+ *
+ * The inner loop is also aborted when the client is disconnected and fails the
+ * automatic reconnect.
+ *
+ * Attention! This method does not call UA_Client_connect() / _disconnect()
+ * internally. This needs to be handled before and after.
+ *
+ * Attention! This method is implemented individually for the different
+ * platforms (POSIX/Win32/etc.). The default implementation is in
+ * /plugins/ua_config_default.c under the CC0 license. Adjust as needed. */
+UA_EXPORT UA_StatusCode
+UA_Client_runUntilInterrupt(UA_Client *client);
+
 /**
  * Connect to a Server
  * -------------------

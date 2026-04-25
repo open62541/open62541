@@ -13,6 +13,7 @@
  *    Copyright 2018-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2025 (c) Siemens AG (Author: Tin Raic)
  *    Copyright 2026 (c) o6 Automation GmbH (Author: Julius Pfrommer)
+ *    Copyright 2026 (c) o6 Automation GmbH (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -80,11 +81,18 @@ UA_Session_remove(UA_Server *server, UA_Session *session,
                   UA_ShutdownReason shutdownReason) {
     UA_LOCK_ASSERT(&server->serviceMutex);
 
-    /* Remove the Subscriptions */
+    /* When the session times out, detach
+     * subscriptions so they can be recovered via TransferSubscriptions. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     UA_Subscription *sub, *tempsub;
     TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, tempsub) {
-        UA_Subscription_delete(server, sub);
+        if(shutdownReason == UA_SHUTDOWNREASON_TIMEOUT) {
+            UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
+                                     "Detaching the Subscription from the timed-out Session");
+            UA_Session_detachSubscription(server, session, sub, true);
+        } else {
+            UA_Subscription_delete(server, sub);
+        }
     }
 
     UA_PublishResponseEntry *entry;
@@ -625,7 +633,7 @@ Service_CreateSession_inner(UA_Server *server, UA_SecureChannel *channel,
     response->authenticationToken = newSession->authenticationToken;
     rh->serviceResult |= UA_ByteString_copy(&newSession->serverNonce,
                                             &response->serverNonce);
-    if(sessionSp)
+    if(sessionSp && channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
         rh->serviceResult |= UA_ByteString_copy(&sessionSp->localCertificate,
                                                 &response->serverCertificate);
 
@@ -871,6 +879,13 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
 }
 
 static UA_StatusCode
+hideX509IdentityTokenValidationStatus(UA_StatusCode status) {
+    if(status == UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_GOOD;
+    return UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
+}
+
+static UA_StatusCode
 checkActivateSessionX509(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
                          const UA_SecurityPolicy *tokenSp, UA_X509IdentityToken* token,
                          const UA_SignatureData *tokenSignature) {
@@ -905,6 +920,7 @@ checkActivateSessionX509(UA_Server *server, UA_SecureChannel *channel, UA_Sessio
     res = validateCertificate(server, &server->config.sessionPKI,
                               session->channel, session, "ActivateSession",
                               NULL, token->certificateData);
+    res = hideX509IdentityTokenValidationStatus(res);
 
  out:
     /* Delete the temporary channel context */
