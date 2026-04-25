@@ -48,7 +48,7 @@ static UA_Server *create_server(void) {
     /* config should no longer be used;
      * if it was a stack variable, it would be destroyed on return;
      * the following assignment should have no effect;
-     * however, it causes a crash in v1.4 */
+     * however, it causes a crash in v1.4.16 */
     config.secureChannelPKI.logging = (UA_Logger *)1;
 
     return server;
@@ -102,7 +102,7 @@ END_TEST
 
 static Suite* testSuite_encryption(void) {
     Suite *s = suite_create("Encryption");
-    TCase *tc_encryption = tcase_create("Encryption basic256sha256");
+    TCase *tc_encryption = tcase_create("Encryption basic256sha256 (copy config)");
     tcase_add_checked_fixture(tc_encryption, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_encryption, encryption_connect);
